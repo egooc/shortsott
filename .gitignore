@@ -1,0 +1,68 @@
+.env
+.env.*
+!.env.example
+node_modules
+client/node_modules
+server/node_modules
+
+# Build artifacts
+dist/
+client/dist/
+server/dist/
+build/
+__pycache__/
+*.pyc
+
+# Local generated media, drafts, queues, and runtime state
+input/
+output/
+logs/
+work/
+queue/
+analysis/
+script/
+server/output/*
+!server/output/.gitkeep
+server/data/
+server/uploads/
+config/*.backup.*.json
+
+# Local media/template assets. Keep folder skeletons with .gitkeep if needed.
+assets/**
+!assets/**/
+!assets/**/.gitkeep
+templates/capcut/**
+!templates/capcut/**/
+!templates/capcut/**/.gitkeep
+
+# Generated audit/test reports and debug dumps
+*_REPORT.md
+PHASE*_*.md
+PROCESS_*.md
+VIRLO_*.md
+OTTOGI_*.md
+CAPCUT_*.md
+CAPTION_*.md
+FULL_DRAFT_*.md
+REGIONAL_*.md
+YOUTUBE_UPLOAD_LIMIT_DIAGNOSIS.md
+CAPTION_DENSITY_EQUALIZER_TEST_RESULT.json
+PROJECT_CODEBASE_ANALYSIS.md
+PROJECT_REORIENTATION_AUDIT.md
+ULTRA_EFFICIENCY_PROCESS_DESIGN.md
+generated_*.json
+*_debug.json
+*_CHECK.json
+*_check.json
+template_style_debug.json
+subtitle_style_diff_report.md
+
+# Local app/runtime caches
+.omx/
+.tools/
+*.log
+
+# Local shortcuts and OS files
+*.lnk
+Thumbs.db
+Desktop.ini

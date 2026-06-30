@@ -1,0 +1,70 @@
+{
+  "name": "content-pipeline",
+  "private": true,
+  "version": "1.0.0",
+  "description": "3분 오뚝이영상 로컬 캡컷 드래프트 생성 앱",
+  "author": "local",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "clean:ports": "node scripts/clean-ports.js",
+    "dev": "npm run clean:ports && concurrently --kill-others-on-fail --names server,client --prefix-colors blue,magenta \"npm --prefix server run dev\" \"npm --prefix client run dev\"",
+    "build": "cd client && npm run build",
+    "start": "cd server && node index.js",
+    "electron": "npm run build && electron electron/main.cjs",
+    "dist:win": "npm run build && electron-builder --win portable",
+    "generate:claude": "node scripts/generate-claude-midform.js",
+    "check:encoding": "node scripts/check-encoding.js",
+    "verify": "npm run check:encoding && npm run build"
+  },
+  "build": {
+    "appId": "local.ottogi.process.studio",
+    "productName": "3분 오뚝이영상",
+    "asar": false,
+    "files": [
+      "electron/**/*",
+      "server/**/*",
+      "!server/output/**/*",
+      "!server/node_modules/**/*",
+      "!server/data/**/*",
+      "!server/uploads/**/*",
+      "client/dist/**/*",
+      "scripts/**/*",
+      "tools/**/*",
+      "assets/**/*",
+      "templates/**/*",
+      "config/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": ".env.example",
+        "to": ".env.example",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "win": {
+      "target": [
+        "portable"
+      ],
+      "signAndEditExecutable": false
+    }
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "ajv": "^8.20.0",
+    "archiver": "^7.0.1",
+    "better-sqlite3": "^12.11.1",
+    "cors": "^2.8.6",
+    "dotenv": "^16.6.1",
+    "express": "^4.22.2",
+    "google-auth-library": "^10.7.0",
+    "multer": "^1.4.5-lts.1"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "electron": "^31.7.7",
+    "electron-builder": "^24.13.3"
+  }
+}

@@ -1,0 +1,141 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-[#07090d] text-slate-100;
+}
+
+body,
+button,
+input,
+select,
+textarea {
+  font-family: Pretendard, "Noto Sans KR", "Apple SD Gothic Neo", "Segoe UI", sans-serif;
+}
+
+::selection {
+  background: rgba(200, 255, 0, 0.35);
+  color: white;
+}
+
+.ottogi-studio {
+  color: #e5edf5;
+}
+
+.ottogi-studio .bg-white,
+.ottogi-studio .bg-slate-50,
+.ottogi-studio .bg-slate-100 {
+  background-color: rgba(14, 18, 25, 0.84) !important;
+}
+
+.ottogi-studio .bg-emerald-50,
+.ottogi-studio .bg-green-50 {
+  background-color: rgba(200, 255, 0, 0.09) !important;
+}
+
+.ottogi-studio .bg-amber-50,
+.ottogi-studio .bg-yellow-50 {
+  background-color: rgba(255, 205, 71, 0.1) !important;
+}
+
+.ottogi-studio .bg-blue-50,
+.ottogi-studio .bg-sky-50 {
+  background-color: rgba(56, 189, 248, 0.1) !important;
+}
+
+.ottogi-studio .bg-red-50 {
+  background-color: rgba(248, 113, 113, 0.12) !important;
+}
+
+.ottogi-studio .border-slate-200,
+.ottogi-studio .border-slate-300,
+.ottogi-studio .border-emerald-200,
+.ottogi-studio .border-green-200,
+.ottogi-studio .border-blue-200,
+.ottogi-studio .border-amber-200,
+.ottogi-studio .border-red-200 {
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+.ottogi-studio .text-slate-950,
+.ottogi-studio .text-slate-900,
+.ottogi-studio .text-slate-800 {
+  color: #f8fafc !important;
+}
+
+.ottogi-studio .text-slate-700,
+.ottogi-studio .text-slate-600,
+.ottogi-studio .text-slate-500 {
+  color: #9aa8b8 !important;
+}
+
+.ottogi-studio .text-emerald-700,
+.ottogi-studio .text-emerald-800,
+.ottogi-studio .text-green-700,
+.ottogi-studio .text-green-800 {
+  color: #c8ff00 !important;
+}
+
+.ottogi-studio .text-amber-700,
+.ottogi-studio .text-amber-800 {
+  color: #ffd166 !important;
+}
+
+.ottogi-studio input,
+.ottogi-studio select,
+.ottogi-studio textarea {
+  border-color: rgba(255, 255, 255, 0.14) !important;
+  background: rgba(255, 255, 255, 0.055) !important;
+  color: #f8fafc !important;
+  outline: none;
+}
+
+.ottogi-studio input::placeholder,
+.ottogi-studio textarea::placeholder {
+  color: rgba(226, 232, 240, 0.42) !important;
+}
+
+.ottogi-studio input:focus,
+.ottogi-studio select:focus,
+.ottogi-studio textarea:focus {
+  border-color: rgba(200, 255, 0, 0.72) !important;
+  box-shadow: 0 0 0 3px rgba(200, 255, 0, 0.12);
+}
+
+.ottogi-studio table thead {
+  background: rgba(255, 255, 255, 0.045) !important;
+}
+
+.ottogi-studio tbody tr {
+  background: rgba(255, 255, 255, 0.02) !important;
+}
+
+.ottogi-studio tbody tr:hover {
+  background: rgba(200, 255, 0, 0.045) !important;
+}
+
+.ottogi-studio button {
+  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease, color 160ms ease;
+}
+
+.ottogi-studio button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.ottogi-studio button:disabled {
+  cursor: not-allowed;
+}
+
+.ottogi-primary {
+  background: #c8ff00 !important;
+  color: #05070a !important;
+  border-color: transparent !important;
+  box-shadow: 0 0 32px rgba(200, 255, 0, 0.22);
+}
+
+.ottogi-secondary {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #f8fafc !important;
+  border-color: rgba(255, 255, 255, 0.14) !important;
+}

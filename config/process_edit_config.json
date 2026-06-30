@@ -1,0 +1,30 @@
+{
+  "mode": "ultra_efficiency_process",
+  "source_video": "input/source_clean.mp4",
+  "target_duration_sec": 30,
+  "use_tts": false,
+  "use_bgm": true,
+  "bgm_preset": "process_satisfying",
+  "bgm_volume": 0.18,
+  "video_transform_preset": "chapter05_default",
+  "capcut_template_id": "process_default",
+  "upload_title": "공정의 핵심 순간",
+  "upload_description": "",
+  "upload_hashtags": [],
+  "explainer_blocks": [
+    {
+      "block_id": "exp_001",
+      "text": "이 공정에서 핵심 변화가 시작되는 구간입니다.",
+      "start_sec": 0,
+      "end_sec": 30,
+      "style_role": "main_explainer",
+      "anchor_zone": "lower_third",
+      "animation": "slide_up"
+    }
+  ],
+  "channel_tag": {
+    "text": "PROCESS LAB",
+    "start_sec": 0,
+    "end_sec": 30
+  }
+}
