@@ -40,6 +40,21 @@ function ensureDb() {
     db.exec('DROP TABLE IF EXISTS scores;');
   }
 
+  // Channel axis (PLAYBOOK.md section 3, pre-launch amendment): ab_assignments
+  // gains a NOT NULL target_channel_id FK. This is a schema-breaking change
+  // (SQLite can't ALTER a column to NOT NULL after the fact), so it's only
+  // safe to apply by dropping and recreating -- guarded by an explicit row
+  // count check so this can never silently destroy real experiment data if
+  // it ever runs after pairs actually exist.
+  const existingAbColumns = tableColumns(db, 'ab_assignments');
+  if (existingAbColumns.length && !existingAbColumns.includes('target_channel_id')) {
+    const { n } = db.prepare('SELECT COUNT(*) AS n FROM ab_assignments').get();
+    if (n > 0) {
+      throw new Error(`ab_assignments has ${n} existing row(s) but is missing target_channel_id -- refusing to auto-migrate real experiment data. Manual migration required.`);
+    }
+    db.exec('DROP TABLE IF EXISTS ab_assignments;');
+  }
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS channels (
       id TEXT PRIMARY KEY,
@@ -115,9 +130,28 @@ function ensureDb() {
       description TEXT
     );
 
+    -- Channel axis (PLAYBOOK.md section 3, pre-launch amendment): the 2
+    -- monetized channels the experiment publishes to. role is a hard 'A'/'B'
+    -- label (unique index below) so channelAssignmentForPair()'s hash output
+    -- resolves to a concrete channel_id, and so a 3rd channel can never be
+    -- registered by accident -- registration is intentionally insert-only
+    -- (no update function) so "no channel changes mid-experiment" is enforced
+    -- by the absence of a mutation path, not just a policy note.
+    CREATE TABLE IF NOT EXISTS experiment_channels (
+      channel_id TEXT PRIMARY KEY,
+      channel_name TEXT,
+      role TEXT NOT NULL CHECK(role IN ('A','B')),
+      baseline_median REAL,
+      registered_at TEXT NOT NULL
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_experiment_channels_role ON experiment_channels(role);
+
     -- Track B duration A/B (PLAYBOOK.md section 3): each row is one produced
     -- edit; two rows sharing a pair_id form a matched pair from the same
-    -- source_video_id (one SHORT/T = 3-5s window, one LONG/C = 6-10s window).
+    -- source_video_id (one SHORT/T = 3-5s window, one LONG/C = 6-10s window)
+    -- AND from two different target_channel_id (channel axis amendment --
+    -- decided by an independent hash from slot_order, see
+    -- channelAssignmentForPair() in abExperimentService.js).
     -- Pairing (not odd/even publish slots) is the randomization unit because
     -- this app has no publish-slot queue -- see PLAYBOOK.md section 3 note.
     CREATE TABLE IF NOT EXISTS ab_assignments (
@@ -126,6 +160,7 @@ function ensureDb() {
       group_label TEXT NOT NULL,
       target_duration_group TEXT NOT NULL,
       source_video_id TEXT NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
+      target_channel_id TEXT NOT NULL REFERENCES experiment_channels(channel_id),
       start_sec REAL,
       end_sec REAL,
       seam_similarity INTEGER,
@@ -157,8 +192,10 @@ function ensureDb() {
     -- createPair() already enforces this in JS, but this trigger catches any
     -- insert that bypasses the service layer entirely -- manual SQL, a future
     -- migration script, or another service inserting directly -- so the two
-    -- rows sharing a pair_id can never disagree on source_video_id or end up
-    -- with two SHORTs/two LONGs instead of one of each.
+    -- rows sharing a pair_id can never disagree on source_video_id, end up
+    -- with two SHORTs/two LONGs instead of one of each, or end up targeting
+    -- the same channel (which would regress to the exact confound the
+    -- channel axis exists to cancel).
     CREATE TRIGGER IF NOT EXISTS trg_ab_assignments_pair_integrity
     AFTER INSERT ON ab_assignments
     BEGIN
@@ -170,6 +207,11 @@ function ensureDb() {
       WHERE (
         SELECT COUNT(*) FROM ab_assignments
         WHERE pair_id = NEW.pair_id AND target_duration_group = NEW.target_duration_group
+      ) > 1;
+      SELECT RAISE(ABORT, 'AB_PAIR_DUPLICATE_CHANNEL')
+      WHERE (
+        SELECT COUNT(*) FROM ab_assignments
+        WHERE pair_id = NEW.pair_id AND target_channel_id = NEW.target_channel_id
       ) > 1;
     END;
   `);
@@ -685,21 +727,57 @@ function remove(id) {
   database.prepare(`DELETE FROM videos WHERE id = ?`).run(id);
 }
 
+// --- Channel axis registry (experiment_channels) ---
+// Insert-only by design (PLAYBOOK.md section 3 amendment): no update
+// function is exposed, so "no channel changes mid-experiment" holds without
+// relying on anyone remembering a policy. The role='A'/'B' unique index
+// backstops this at the DB level -- a 3rd distinct channel_id simply cannot
+// be registered once both roles are taken.
+
+function registerExperimentChannel({ channelId, channelName, role, baselineMedian, now }) {
+  if (role !== 'A' && role !== 'B') {
+    throw new Error(`role must be 'A' or 'B', got ${role}`);
+  }
+  const database = ensureDb();
+  database.prepare(`
+    INSERT INTO experiment_channels (channel_id, channel_name, role, baseline_median, registered_at)
+    VALUES (@channelId, @channelName, @role, @baselineMedian, @now)
+  `).run({
+    channelId,
+    channelName: channelName ?? null,
+    role,
+    baselineMedian: baselineMedian ?? null,
+    now
+  });
+  return database.prepare(`SELECT * FROM experiment_channels WHERE channel_id = ?`).get(channelId);
+}
+
+function getExperimentChannel(channelId) {
+  const database = ensureDb();
+  return database.prepare(`SELECT * FROM experiment_channels WHERE channel_id = ?`).get(channelId) || null;
+}
+
+function getExperimentChannels() {
+  const database = ensureDb();
+  return database.prepare(`SELECT * FROM experiment_channels ORDER BY role ASC`).all();
+}
+
 // --- Track B duration A/B ledger (ab_assignments) ---
 // One row per produced edit; pair_id groups the SHORT(T)/LONG(C) pair cut
-// from the same source_video_id. See PLAYBOOK.md section 3.
+// from the same source_video_id, targeting two different target_channel_id.
+// See PLAYBOOK.md section 3.
 
 function insertAbAssignment(row) {
   const database = ensureDb();
   database.prepare(`
     INSERT INTO ab_assignments (
       id, pair_id, group_label, target_duration_group, source_video_id,
-      start_sec, end_sec, seam_similarity, slot_order, scheduled_publish_at,
-      status, assigned_at, updated_at
+      target_channel_id, start_sec, end_sec, seam_similarity, slot_order,
+      scheduled_publish_at, status, assigned_at, updated_at
     ) VALUES (
       @id, @pairId, @groupLabel, @targetDurationGroup, @sourceVideoId,
-      @startSec, @endSec, @seamSimilarity, @slotOrder, @scheduledPublishAt,
-      'assigned', @now, @now
+      @targetChannelId, @startSec, @endSec, @seamSimilarity, @slotOrder,
+      @scheduledPublishAt, 'assigned', @now, @now
     )
   `).run({
     id: row.id,
@@ -707,6 +785,7 @@ function insertAbAssignment(row) {
     groupLabel: row.groupLabel,
     targetDurationGroup: row.targetDurationGroup,
     sourceVideoId: row.sourceVideoId,
+    targetChannelId: row.targetChannelId,
     startSec: row.startSec ?? null,
     endSec: row.endSec ?? null,
     seamSimilarity: row.seamSimilarity ?? null,
@@ -845,6 +924,19 @@ function getEligibleAbPairs() {
   return { eligible, dropoutByGroup, unpairedByGroup };
 }
 
+// Bias-audit breakdown (channel axis amendment, PLAYBOOK.md section 3): T/C
+// counts per channel across the whole ledger, not just eligible pairs -- if
+// channelAssignmentForPair()'s hash is biased, one channel will lean
+// disproportionately T or C and this is where it would show up.
+function getChannelGroupDistribution() {
+  const database = ensureDb();
+  return database.prepare(`
+    SELECT target_channel_id, group_label, COUNT(*) AS n
+    FROM ab_assignments
+    GROUP BY target_channel_id, group_label
+  `).all();
+}
+
 module.exports = {
   DB_PATH,
   getChannel,
@@ -875,6 +967,9 @@ module.exports = {
   listAllVideoIds,
   getById,
   remove,
+  registerExperimentChannel,
+  getExperimentChannel,
+  getExperimentChannels,
   insertAbAssignment,
   getLatestScheduledPublishAt,
   getAbAssignment,
@@ -882,5 +977,6 @@ module.exports = {
   listAbAssignments,
   updateAbAssignmentStatus,
   recordAbMetrics,
-  getEligibleAbPairs
+  getEligibleAbPairs,
+  getChannelGroupDistribution
 };

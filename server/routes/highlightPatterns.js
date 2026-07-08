@@ -85,6 +85,28 @@ router.delete('/:id', (req, res, next) => {
 
 // --- Track B duration A/B (PLAYBOOK.md section 3) ---
 
+router.post('/ab/channels', (req, res, next) => {
+  try {
+    const result = abExperimentService.registerChannel({
+      channelId: req.body?.channelId,
+      channelName: req.body?.channelName,
+      role: req.body?.role,
+      baselineMedian: Number(req.body?.baselineMedian)
+    });
+    res.json({ item: result });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/ab/channels', (_req, res, next) => {
+  try {
+    res.json({ items: abExperimentService.listChannels() });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.post('/ab/pairs', async (req, res, next) => {
   try {
     const sourceVideoId = req.body?.sourceVideoId;
@@ -146,9 +168,11 @@ router.post('/ab/assignments/:id/dropped', (req, res, next) => {
 
 router.post('/ab/assignments/:id/metrics', (req, res, next) => {
   try {
+    // channelMedianAt7d is intentionally not accepted here -- recordMetrics
+    // always uses the assignment's channel's frozen baseline_median
+    // (PLAYBOOK.md section 3 amendment), never a caller-supplied live value.
     const updated = abExperimentService.recordMetrics(req.params.id, {
       viewCountAt7d: Number(req.body?.viewCountAt7d),
-      channelMedianAt7d: Number(req.body?.channelMedianAt7d),
       avgViewDurationPct: req.body?.avgViewDurationPct !== undefined ? Number(req.body.avgViewDurationPct) : undefined
     });
     res.json({ item: updated });

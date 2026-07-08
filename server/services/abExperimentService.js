@@ -28,6 +28,32 @@ function slotOrderForPair(pairId) {
   return firstByte % 2 === 0 ? 'T_FIRST' : 'C_FIRST';
 }
 
+// Channel axis (PLAYBOOK.md section 3 amendment): independent deterministic
+// coinflip deciding which registered channel (role A or B) publishes the
+// T member of this pair. Uses a different hash input ("<pairId>channel")
+// than slotOrderForPair's plain pairId, so the two draws are independent --
+// if they shared a hash, publish-order and channel-assignment would be
+// perfectly correlated within every pair, which would silently reintroduce
+// a channel confound into whichever axis rides along with slot order.
+function channelAssignmentForPair(pairId) {
+  const hash = crypto.createHash('sha256').update(pairId + 'channel').digest('hex');
+  const firstByte = parseInt(hash.slice(0, 2), 16);
+  return firstByte % 2 === 0 ? 'CHANNEL_A_GETS_T' : 'CHANNEL_B_GETS_T';
+}
+
+// Both registered channels, keyed by role. Throws if registration is
+// incomplete -- createPair() must never fall back to publishing both members
+// of a pair to the same channel just because only one is registered yet.
+function getRegisteredChannelPair() {
+  const channels = db.getExperimentChannels();
+  const channelA = channels.find((c) => c.role === 'A');
+  const channelB = channels.find((c) => c.role === 'B');
+  if (!channelA || !channelB) {
+    throw createHttpError(400, 'EXPERIMENT_CHANNELS_NOT_REGISTERED', 'both role A and role B experiment channels must be registered before creating a pair');
+  }
+  return { channelA, channelB };
+}
+
 // Next two adjacent 2-hour slots for a new pair, continuing after the latest
 // slot planned so far (or from the next 2-hour boundary from now, if this is
 // the first pair) so slot plans never overlap across pairs.
@@ -62,6 +88,13 @@ function assertPairIntegrity(sourceVideoId, members) {
   if (groups.size !== 2 || !groups.has('SHORT') || !groups.has('LONG')) {
     throw createHttpError(500, 'AB_PAIR_INTEGRITY_VIOLATION', 'pair must have exactly one SHORT and one LONG member', { groups: [...groups] });
   }
+  // Channel axis amendment: the two members must target two different
+  // channels, or the whole point of the channel axis (canceling channel-size
+  // confounding within the pair) regresses to the original problem.
+  const channelIds = new Set(members.map((m) => m.target_channel_id));
+  if (channelIds.size !== 2) {
+    throw createHttpError(500, 'AB_PAIR_INTEGRITY_VIOLATION', 'pair must have two members targeting two different channels', { channelIds: [...channelIds] });
+  }
 }
 
 // Creates one matched pair (one SHORT/T + one LONG/C window) from the same
@@ -78,8 +111,11 @@ async function createPair(sourceVideoId) {
     throw createHttpError(500, 'AB_PAIR_INTEGRITY_VIOLATION', 'pair must include both a SHORT and a LONG window');
   }
 
+  const { channelA, channelB } = getRegisteredChannelPair();
+
   const pairId = crypto.randomUUID();
   const slotOrder = slotOrderForPair(pairId);
+  const channelAssignment = channelAssignmentForPair(pairId);
   const { slotA, slotB } = computeNextSlotPair();
   const now = nowIso();
 
@@ -93,12 +129,17 @@ async function createPair(sourceVideoId) {
     // never becomes a hidden second confound (see slotOrderForPair above).
     const getsFirstSlot = (slotOrder === 'T_FIRST' && m.groupLabel === 'T')
       || (slotOrder === 'C_FIRST' && m.groupLabel === 'C');
+    // channelAssignment decides who gets channel A -- drawn from an
+    // independent hash from slotOrder (see channelAssignmentForPair above).
+    const getsChannelA = (channelAssignment === 'CHANNEL_A_GETS_T' && m.groupLabel === 'T')
+      || (channelAssignment === 'CHANNEL_B_GETS_T' && m.groupLabel === 'C');
     db.insertAbAssignment({
       id,
       pairId,
       groupLabel: m.groupLabel,
       targetDurationGroup: m.targetDurationGroup,
       sourceVideoId,
+      targetChannelId: getsChannelA ? channelA.channel_id : channelB.channel_id,
       startSec: m.window.start_sec,
       endSec: m.window.end_sec,
       seamSimilarity: m.window.seam_similarity,
@@ -111,7 +152,7 @@ async function createPair(sourceVideoId) {
 
   assertPairIntegrity(sourceVideoId, members);
 
-  return { pairId, slotOrder, pattern: pair.pattern, members };
+  return { pairId, slotOrder, channelAssignment, pattern: pair.pattern, members };
 }
 
 function markProduced(id, { jobId } = {}) {
@@ -146,10 +187,26 @@ function markDropped(id, { reason } = {}) {
   return updated;
 }
 
-function recordMetrics(id, { viewCountAt7d, channelMedianAt7d, avgViewDurationPct } = {}) {
-  if (!Number.isFinite(viewCountAt7d) || !Number.isFinite(channelMedianAt7d) || channelMedianAt7d <= 0) {
-    throw createHttpError(400, 'INVALID_METRICS', 'viewCountAt7d and a positive channelMedianAt7d are required');
+// Channel baseline snapshot (PLAYBOOK.md section 3 amendment, "라벨링 시점 값
+// 고정" / P5 principle): the multiple is always computed against the
+// channel's baseline_median frozen at experiment-registration time, never a
+// live median. If mid-experiment view growth shifted the real median, using
+// a live value here would silently distort later pairs' multiples relative
+// to earlier ones -- the caller can no longer pass an arbitrary
+// channelMedianAt7d in.
+function recordMetrics(id, { viewCountAt7d, avgViewDurationPct } = {}) {
+  if (!Number.isFinite(viewCountAt7d)) {
+    throw createHttpError(400, 'INVALID_METRICS', 'viewCountAt7d is required');
   }
+  const assignment = db.getAbAssignment(id);
+  if (!assignment) {
+    throw createHttpError(404, 'AB_ASSIGNMENT_NOT_FOUND', 'assignment not found');
+  }
+  const channel = db.getExperimentChannel(assignment.target_channel_id);
+  if (!channel || !Number.isFinite(channel.baseline_median) || channel.baseline_median <= 0) {
+    throw createHttpError(400, 'CHANNEL_BASELINE_MISSING', 'this assignment\'s channel has no positive baseline_median registered');
+  }
+  const channelMedianAt7d = channel.baseline_median;
   const successMultipleAt7d = viewCountAt7d / channelMedianAt7d;
   db.recordAbMetrics(id, {
     viewCountAt7d,
@@ -159,6 +216,23 @@ function recordMetrics(id, { viewCountAt7d, channelMedianAt7d, avgViewDurationPc
     now: nowIso()
   });
   return db.getAbAssignment(id);
+}
+
+// Registers one experiment channel (role 'A' or 'B'). Insert-only -- see the
+// experiment_channels schema comment for why there's no corresponding
+// update function.
+function registerChannel({ channelId, channelName, role, baselineMedian } = {}) {
+  if (!channelId) {
+    throw createHttpError(400, 'CHANNEL_ID_REQUIRED', 'channelId is required');
+  }
+  if (!Number.isFinite(baselineMedian) || baselineMedian <= 0) {
+    throw createHttpError(400, 'BASELINE_MEDIAN_REQUIRED', 'a positive baselineMedian is required');
+  }
+  return db.registerExperimentChannel({ channelId, channelName, role, baselineMedian, now: nowIso() });
+}
+
+function listChannels() {
+  return db.getExperimentChannels();
 }
 
 function median(numbers) {
@@ -221,6 +295,42 @@ function computeDecisionReport() {
       };
     });
 
+  // Channel bias audit (PLAYBOOK.md section 3 amendment): T/C counts per
+  // channel across the whole ledger. Reference only -- if channelAssignment-
+  // ForPair()'s hash were biased, one channel would lean disproportionately
+  // T or C here, but the primary verdict never depends on this being balanced.
+  const channelRows = db.getChannelGroupDistribution();
+  const channels = db.getExperimentChannels();
+  const channelDistribution = channels.map((ch) => {
+    const tRow = channelRows.find((r) => r.target_channel_id === ch.channel_id && r.group_label === 'T');
+    const cRow = channelRows.find((r) => r.target_channel_id === ch.channel_id && r.group_label === 'C');
+    return {
+      channelId: ch.channel_id,
+      channelName: ch.channel_name,
+      role: ch.role,
+      T: tRow?.n || 0,
+      C: cRow?.n || 0
+    };
+  });
+
+  // Channel-stratified median diff (PLAYBOOK.md section 3 amendment): a
+  // fixed-effect-lite reference view, computed per channel among eligible
+  // pairs' T member's channel. Not a real regression and never a decision
+  // input -- the channel axis already balances channel exposure by design
+  // (independent hash), so the primary verdict stays Wilcoxon over the
+  // whole eligible sample, same as before the channel axis existed.
+  const channelStratified = channels.map((ch) => {
+    const pairsForChannel = eligible.filter((p) => p.t.target_channel_id === ch.channel_id || p.c.target_channel_id === ch.channel_id);
+    const chDiffs = pairsForChannel.map((p) => p.t.success_multiple_at_7d - p.c.success_multiple_at_7d);
+    return {
+      channelId: ch.channel_id,
+      channelName: ch.channel_name,
+      role: ch.role,
+      n: pairsForChannel.length,
+      medianDiffTMinusC: median(chDiffs)
+    };
+  });
+
   return {
     targetPairCount: TARGET_PAIR_COUNT,
     eligiblePairCount: eligible.length,
@@ -232,6 +342,11 @@ function computeDecisionReport() {
     wilcoxon,
     mannWhitneyBackup,
     scheduleDriftWarnings,
+    channelDistribution,
+    channelStratified: {
+      channels: channelStratified,
+      note: '참고용 채널 고정효과 스냅샷 -- 주 판정은 여전히 전체 표본 Wilcoxon (PLAYBOOK.md section 3)'
+    },
     avgViewDurationMedianT: avgViewDurationT,
     avgViewDurationMedianC: avgViewDurationC,
     decision,
@@ -244,7 +359,10 @@ function computeDecisionReport() {
 module.exports = {
   TARGET_PAIR_COUNT,
   slotOrderForPair,
+  channelAssignmentForPair,
   assertPairIntegrity,
+  registerChannel,
+  listChannels,
   createPair,
   markProduced,
   markPublished,
