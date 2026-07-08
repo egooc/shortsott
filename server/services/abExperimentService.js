@@ -208,7 +208,18 @@ function computeDecisionReport() {
   const scheduleDriftWarnings = eligible
     .flatMap((p) => [p.t, p.c])
     .filter((m) => Number.isFinite(m.publish_drift_sec) && Math.abs(m.publish_drift_sec) > DRIFT_WARNING_THRESHOLD_SEC)
-    .map((m) => ({ id: m.id, pairId: m.pair_id, groupLabel: m.group_label, publishDriftSec: m.publish_drift_sec }));
+    .map((m) => {
+      const minutes = Math.round(Math.abs(m.publish_drift_sec) / 60);
+      const direction = m.publish_drift_sec > 0 ? '늦게' : '일찍';
+      const thresholdMinutes = Math.round(DRIFT_WARNING_THRESHOLD_SEC / 60);
+      return {
+        id: m.id,
+        pairId: m.pair_id,
+        groupLabel: m.group_label,
+        publishDriftSec: m.publish_drift_sec,
+        reason: `계획된 발행 슬롯보다 ${minutes}분 ${direction} 발행됨 (허용 임계치 ${thresholdMinutes}분 초과 -- 쌍 내 시간대 상쇄가 무너졌을 수 있음)`
+      };
+    });
 
   return {
     targetPairCount: TARGET_PAIR_COUNT,
