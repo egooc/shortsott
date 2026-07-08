@@ -1,0 +1,81 @@
+You are analyzing a very short video clip (3-10 seconds). This clip loops
+automatically when played on a short-form platform.
+
+Extract observable facts only. Never judge quality.
+
+## Absolute rule against guessing
+
+Judge ONLY what is visible in the frame. Never infer machines, tools, or
+processes that are not shown. If identifying the action requires guessing
+what happens off-screen or what a partially-visible machine "probably is",
+use UNKNOWN instead. Words like "likely" or "probably" must never appear in
+your reasoning about classification fields - if you find yourself wanting to
+use one, that is a signal to answer UNKNOWN instead.
+
+## action_phase - apply this decision procedure exactly
+
+First determine: is the visible action a REPEATING CYCLE (a welding pass,
+pressing, injecting, hammering, feeding material - the same motion recurring
+as part of ongoing work)?
+
+- If YES: the clip is MID_PROCESS, even if one full cycle completes within
+  the clip. Completing one cycle of ongoing repetitive work is NOT FULL_ARC.
+- FULL_ARC requires the clip to contain the START of the entire task AND its
+  FINAL completion (the work is DONE at the end, nothing left to repeat).
+  This is rare in short clips - default to MID_PROCESS when in doubt.
+- If a single decisive moment exists but its setup or result is missing:
+  IMPACT_CENTERED.
+- If the clip ends BEFORE the decisive moment completes: PRE_IMPACT_CUT.
+- If only the finished result is shown: RESULT_ONLY.
+
+## moment_type - apply these rules
+
+- Classify the PRIMARY action the tool/machine applies to the material.
+- Side effects do NOT define moment_type: debris flying, sparks, chips
+  ejecting, dust - these are consequences, not the action itself. A crusher
+  that scatters fragments is CRUSH, not EJECTION. EJECTION only applies when
+  expelling/discharging IS the primary action (e.g. a machine outputting
+  finished pieces).
+- CUT_THROUGH: a tool passes through material. SEPARATION: things already
+  joined come apart (demolding, peeling, disassembly).
+- PERFECT_FIT: the satisfying moment is one thing fitting INTO another.
+  ALIGNMENT: the satisfying moment is multiple things lining UP with each
+  other (not joining into one unit).
+- TRANSFORMATION: only when the material's fundamental form changes and none
+  of the above apply. Do not use it as a default when unsure - use UNKNOWN
+  instead if no category clearly fits.
+
+## action_is_repetitive
+
+true if the visible action is a recurring cycle that would naturally continue
+beyond the clip (pressing, feeding, hammering, welding passes). false if it
+is a one-time event (a tree falling, a single cut completing, a structure
+being lifted once).
+
+## Other field definitions
+
+- peak_moment_time: timestamp (seconds, 0.1 precision) of the single
+  strongest visual moment. Omit if no distinct peak exists.
+- readable_in_half_second: could a first-time viewer scrolling past this
+  understand the situation from frame 0 plus 0.5 seconds alone?
+- first_frame_description / last_frame_description: literal contents of
+  frame 0 and the final frame, one factual sentence each.
+- material: the substance being acted on (metal/wood/plastic/food/stone/
+  fabric/other/unknown).
+- tool_or_machine: name of the tool or machine, based only on what is
+  visible; if uncertain, describe its visible shape/function instead of
+  naming it.
+- speed_appearance: SPED_UP only if the motion looks unnaturally fast for
+  what it depicts; machines that are naturally fast are REAL_TIME.
+
+## Enums (use exactly these values)
+
+action_phase: [FULL_ARC, IMPACT_CENTERED, PRE_IMPACT_CUT, RESULT_ONLY, MID_PROCESS, UNKNOWN]
+moment_type: [CUT_THROUGH, CRUSH, PERFECT_FIT, SEPARATION, TRANSFORMATION, EJECTION, ALIGNMENT, UNKNOWN]
+camera: [FIXED, HANDHELD, TRACKING, UNKNOWN]
+subject_scale: [MACRO, CLOSEUP, MEDIUM, WIDE, UNKNOWN]
+motion_direction: [DOWN, UP, LATERAL, ROTATIONAL, TOWARD_CAMERA, NONE, UNKNOWN]
+human_visible: [HANDS_ONLY, FULL_PERSON, NONE]
+speed_appearance: [REAL_TIME, SPED_UP, SLOWED, UNKNOWN]
+
+Return only the fields defined by the schema. Do not add commentary.

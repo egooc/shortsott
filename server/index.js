@@ -4,6 +4,7 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const { ensureProjectFolders } = require('./services/pipelinePaths');
 const { recoverProcessJobsOnStartup } = require('./services/processJobService');
+const { recoverOnStartup: recoverHighlightPatternsOnStartup } = require('./services/highlightPatternService');
 
 const settingsRoutes = require('./routes/settings');
 const virloRoutes = require('./routes/virlo');
@@ -15,6 +16,7 @@ const processEditRoutes = require('./routes/processEdit');
 const processQueueRoutes = require('./routes/processQueue');
 const youtubeRoutes = require('./routes/youtube');
 const youtubeUploadRoutes = require('./routes/youtubeUpload');
+const highlightPatternsRoutes = require('./routes/highlightPatterns');
 
 dotenv.config({ path: path.join(__dirname, '../.env') });
 ensureProjectFolders();
@@ -42,6 +44,7 @@ app.use('/api/process-edit', processEditRoutes);
 app.use('/api/process-queue', processQueueRoutes);
 app.use('/api/youtube', youtubeRoutes);
 app.use('/api/youtube-upload', youtubeUploadRoutes);
+app.use('/api/highlight-patterns', highlightPatternsRoutes);
 
 const clientDistPath = path.join(__dirname, '../client/dist');
 app.use(express.static(clientDistPath));
@@ -67,6 +70,7 @@ function runStartupRecoveryOnce() {
   if (recoveryHasRun) return recoveredProcessJobs;
   recoveryHasRun = true;
   recoveredProcessJobs = recoverProcessJobsOnStartup();
+  recoverHighlightPatternsOnStartup();
   return recoveredProcessJobs;
 }
 

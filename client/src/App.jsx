@@ -8,6 +8,7 @@ import Phase3Script from './pages/Phase3Script';
 import Phase4TTS from './pages/Phase4TTS';
 import Phase5Draft from './pages/Phase5Draft';
 import OttogiUpload from './pages/OttogiUpload';
+import HighlightPatternAnalysis from './pages/HighlightPatternAnalysis';
 
 export default function App() {
   return (
@@ -21,6 +22,7 @@ export default function App() {
           <Route path="/phase-3" element={<OttogiUpload />} />
           <Route path="/phase-4" element={<Phase4TTS />} />
           <Route path="/phase-5" element={<Phase5Draft />} />
+          <Route path="/highlight-patterns" element={<HighlightPatternAnalysis />} />
           <Route path="/virlo/source-discovery" element={<Phase1Search />} />
         </Routes>
       </Layout>

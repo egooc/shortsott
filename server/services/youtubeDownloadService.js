@@ -349,5 +349,6 @@ async function downloadYoutubeVideo({ url, targetPath, onProgress }) {
 module.exports = {
   downloadYoutubeVideo,
   parseYtDlpProgress,
-  classifyYoutubeDownloadError
+  classifyYoutubeDownloadError,
+  YOUTUBE_URL_RE
 };

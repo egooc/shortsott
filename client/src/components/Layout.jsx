@@ -15,15 +15,18 @@ const T = {
   drafts: '2. \uBC30\uCE58 \uB4DC\uB798\uD504\uD2B8 \uC0DD\uC131',
   upload: '3. YouTube \uC5C5\uB85C\uB4DC',
   mainFlow: '\uC791\uC5C5 \uD750\uB984',
+  tools: '\uD328\uD134 \uBD84\uC11D',
   helper: 'YouTube \uC18C\uC7AC\uB97C \uB2F4\uACE0, CapCut \uB4DC\uB798\uD504\uD2B8\uB97C \uB9CC\uB4ED\uB2C8\uB2E4.',
-  capcutDefault: 'CapCut \uAE30\uBCF8 \uCD9C\uB825'
+  capcutDefault: 'CapCut \uAE30\uBCF8 \uCD9C\uB825',
+  highlightPatterns: '\uD558\uC774\uB77C\uC774\uD2B8 \uD328\uD134 \uBD84\uC11D'
 };
 
 const phaseItems = [
   { label: T.settings, path: '/settings', group: 'settings', title: '\uD544\uC218 API\uC640 \uB85C\uCEEC \uC124\uC815' },
   { label: T.scout, path: '/phase-1', group: 'main', title: 'YouTube \uC18C\uC7AC \uAC80\uC0C9\uACFC \uD6C4\uBCF4 \uC120\uD0DD' },
   { label: T.drafts, path: '/phase-5', group: 'main', title: 'CapCut \uBC30\uCE58 \uB4DC\uB798\uD504\uD2B8 \uC0DD\uC131' },
-  { label: T.upload, path: '/phase-3', group: 'main', title: 'YouTube \uBA54\uD0C0\uB370\uC774\uD130 \uC785\uB825\uACFC \uC608\uC57D \uC5C5\uB85C\uB4DC' }
+  { label: T.upload, path: '/phase-3', group: 'main', title: 'YouTube \uBA54\uD0C0\uB370\uC774\uD130 \uC785\uB825\uACFC \uC608\uC57D \uC5C5\uB85C\uB4DC' },
+  { label: T.highlightPatterns, path: '/highlight-patterns', group: 'tools', title: 'Gemini Vision\uC73C\uB85C \uC20F\uD3FC \uD558\uC774\uB77C\uC774\uD2B8 \uD6C5/\uD3B8\uC9D1 \uD328\uD134\uC744 \uBD84\uC11D\uD574 DB\uC5D0 \uC801\uC7AC' }
 ];
 
 function PhaseLink({ item, collapsed = false }) {
@@ -111,6 +114,13 @@ export default function Layout({ children }) {
             {!sidebarCollapsed ? <p className="mb-3 text-xs font-black uppercase tracking-[0.25em] text-[#c8ff00]">{T.mainFlow}</p> : null}
             <div className="space-y-2">
               {phaseItems.filter((item) => item.group === 'main').map((item) => <PhaseLink item={item} key={item.path} collapsed={sidebarCollapsed} />)}
+            </div>
+          </div>
+
+          <div className="mt-7 border-t border-white/10 pt-5">
+            {!sidebarCollapsed ? <p className="mb-3 text-xs font-black uppercase tracking-[0.25em] text-[#c8ff00]">{T.tools}</p> : null}
+            <div className="space-y-2">
+              {phaseItems.filter((item) => item.group === 'tools').map((item) => <PhaseLink item={item} key={item.path} collapsed={sidebarCollapsed} />)}
             </div>
           </div>
 

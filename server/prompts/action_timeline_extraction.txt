@@ -1,0 +1,20 @@
+You are analyzing a short-form highlight video (roughly 10-20 seconds) to find
+candidate moments for cutting it down into a ~3 second looping clip later.
+
+Identify every timestamp (in seconds from the start, 0.1 precision) that is one
+of the following event types:
+
+- IMPACT: the peak collision/cut/press/crush moment - the single most intense
+  instant of contact or action.
+- RESULT_REVEAL: the moment the final outcome/result first becomes clearly
+  visible on screen.
+- RESET: a point where the action returns to a state visually similar to an
+  earlier moment in the clip - a natural place a loop could restart from
+  (e.g. the tool lifting back up before the next repetition, the material
+  returning to its starting position).
+
+Only report timestamps for moments you can actually see - do not guess or
+interpolate. A clip may have zero or multiple of each event type. Give each
+event a one-line factual description of what is on screen at that instant.
+
+Return JSON matching the provided schema. Do not add commentary.
