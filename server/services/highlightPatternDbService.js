@@ -507,6 +507,15 @@ function insertAnalysis(analysisRow) {
   });
 }
 
+// Single-video lookup (as opposed to patternStats()'s aggregation) -- used by
+// the cut-selection source-scoring path (highlightSlicerService.js), which
+// needs one video's own speed_appearance/subject_scale/human_visible/
+// moment_type, not a group-by across the whole labeled set.
+function getLatestAnalysis(videoId) {
+  const database = ensureDb();
+  return database.prepare(`SELECT * FROM analyses WHERE video_id = ? ORDER BY analyzed_at DESC LIMIT 1`).get(videoId) || null;
+}
+
 function replaceSegments(videoId, segments = []) {
   const database = ensureDb();
   const tx = database.transaction(() => {
@@ -952,6 +961,7 @@ module.exports = {
   updateVideoFailure,
   failStaleActiveRows,
   insertAnalysis,
+  getLatestAnalysis,
   replaceSegments,
   getSegments,
   patternStats,

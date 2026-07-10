@@ -4,10 +4,24 @@ const { extractActionTimeline } = require('./geminiService');
 const { isVertexAdcMode } = require('./processMetadataService');
 const { findBestSeamWindow } = require('../utils/loopSeam');
 const db = require('./highlightPatternDbService');
+const cutSelectionProfile = require('../config/cutSelectionProfile.json');
 
 const TARGET_DURATION_SEC = 3.0;
 const TOP_PATTERN_COUNT = 3;
 const SEAM_SEARCH_OPTIONS = { slideRange: 0.4, step: 0.1 };
+
+// Audit log (cut-selection profile amendment): why DESTRUCTION is a soft
+// bonus and not a hard condition should be visible at a glance without
+// having to go dig up the cross-section report that produced this profile.
+{
+  const bias = cutSelectionProfile.soft_bonus_observed;
+  console.log(
+    `[cutSelectionProfile] ${cutSelectionProfile.id} v${cutSelectionProfile.version} loaded. `
+    + `DESTRUCTION는 soft_bonus만 적용됨 (n=${bias.n} 채널 편중: ${bias.dominant_channel_name} `
+    + `${Math.round(bias.dominant_channel_share * 100)}%, rate=${Math.round(bias.dominant_channel_rate * 100)}%). `
+    + `재평가 조건: ${bias.reevaluate_condition}`
+  );
+}
 
 // Track B duration A/B (PLAYBOOK.md section 3): SHORT = treatment (3-5s),
 // LONG = control (6-10s). Target is the midpoint of each range; actual
@@ -250,4 +264,85 @@ async function generateDurationPairCandidates(videoId) {
   return { pair: null, message: '상위 패턴에 맞는 앵커를 찾지 못해 SHORT/LONG 두 윈도우를 모두 만들 수 없었습니다.' };
 }
 
-module.exports = { extractTimeline, generateSliceCandidates, generateDurationPairCandidates, DURATION_GROUPS };
+// --- Source-selection scoring (cut-selection profile v1) ---
+// Deliberately a separate stage from everything above: this decides WHICH
+// source video to slice next, never WHERE within a video to cut -- window/
+// anchor selection stays exactly buildCandidateWindow()'s action_phase
+// logic. Scores against cutSelectionProfile.json's hard_conditions (from
+// videos/analyses columns) and soft_bonus_conditions (currently just
+// DESTRUCTION, capped at soft-bonus per the channel-bias caveat baked into
+// the profile -- see the audit log at module load above).
+
+function evaluateHardConditions(video, analysis) {
+  return cutSelectionProfile.hard_conditions.map((c) => {
+    let matched = false;
+    let actualValue;
+    if (c.op === 'range') {
+      actualValue = video ? video[c.key] : undefined;
+      matched = Number.isFinite(actualValue) && actualValue >= c.min && actualValue <= c.max;
+    } else if (c.op === 'eq') {
+      actualValue = analysis ? analysis[c.key] : undefined;
+      matched = actualValue === c.value;
+    }
+    return { key: c.key, label: c.label, matched, actualValue: actualValue ?? null };
+  });
+}
+
+function evaluateSoftBonus(analysis) {
+  return cutSelectionProfile.soft_bonus_conditions.map((c) => {
+    let actualValue;
+    let matched = false;
+    if (c.key === 'moment_type_coarse') {
+      actualValue = analysis ? db.momentTypeCoarse(analysis.moment_type) : undefined;
+      matched = actualValue === c.value;
+    }
+    return { key: c.key, label: c.label, matched, actualValue: actualValue ?? null, bonus: c.bonus };
+  });
+}
+
+// One video's cut-selection score. Videos with no analyses row yet (true
+// today for most slice_source candidates -- moment-pattern analysis only
+// runs for analysis_mode='training', see highlightPatternService.processOne)
+// score 0/4 hard matches and sort to the bottom rather than throwing, so a
+// mixed queue of analyzed/unanalyzed videos can still be ranked.
+function scoreSourceForCutSelection(videoId) {
+  const video = db.getVideoRow(videoId);
+  if (!video) {
+    throw createHttpError(404, 'VIDEO_NOT_FOUND', 'video not found');
+  }
+  const analysis = db.getLatestAnalysis(videoId);
+  const hardResults = evaluateHardConditions(video, analysis);
+  const hardMatchCount = hardResults.filter((r) => r.matched).length;
+  const softResults = evaluateSoftBonus(analysis);
+  const softBonusTotal = softResults.filter((r) => r.matched).reduce((sum, r) => sum + (r.bonus || 0), 0);
+
+  const { hard_condition_weight, soft_bonus_weight, tiers } = cutSelectionProfile.scoring;
+  const score = hardMatchCount * hard_condition_weight + softBonusTotal * soft_bonus_weight;
+  const tier = [...tiers].sort((a, b) => b.min_hard_matches - a.min_hard_matches)
+    .find((t) => hardMatchCount >= t.min_hard_matches).label;
+
+  return {
+    videoId,
+    title: video.title,
+    hasAnalysisData: Boolean(analysis),
+    hardMatchCount,
+    hardResults,
+    softBonusTotal,
+    softResults,
+    score,
+    tier
+  };
+}
+
+function rankSourcesForCutSelection(videoIds) {
+  return videoIds.map(scoreSourceForCutSelection).sort((a, b) => b.score - a.score);
+}
+
+module.exports = {
+  extractTimeline,
+  generateSliceCandidates,
+  generateDurationPairCandidates,
+  DURATION_GROUPS,
+  scoreSourceForCutSelection,
+  rankSourcesForCutSelection
+};

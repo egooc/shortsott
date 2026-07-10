@@ -11,6 +11,7 @@ const { defaultConfig, normalizeConfig, createProcessDraft } = require('./proces
 const { assertOttogiGuideLanguage } = require('./processMetadataService');
 const { getVideoMetadata } = require('../utils/ffprobe');
 const { classifySourceVideo, normalizeSourceMode } = require('../utils/sourceClassifier');
+const { computeCutSelectionTier, cutSelectionTierRank } = require('../utils/cutSelectionTier');
 const { resolveTool, getToolEnv } = require('../utils/toolPaths');
 const { downloadYoutubeVideo } = require('./youtubeDownloadService');
 const {
@@ -31,10 +32,6 @@ const QUEUE_HIGHLIGHT_CHANNEL_ASSET_ROOT = path.join(QUEUE_ROOT, 'highlight_chan
 const QUEUE_MIDFORM_CHANNEL_ASSET_ROOT = path.join(QUEUE_ROOT, 'midform_channel_asset');
 const QUEUE_KOREAN_CHANNEL_ASSET_ROOT = path.join(QUEUE_ROOT, 'korean_channel_asset');
 const QUEUE_KOREAN_HIGHLIGHT_CHANNEL_ASSET_ROOT = path.join(QUEUE_ROOT, 'korean_highlight_channel_asset');
-const QUEUE_CHANNEL_FRAME_ASSET_ROOT = path.join(QUEUE_ROOT, 'channel_frame_asset');
-const QUEUE_HIGHLIGHT_CHANNEL_FRAME_ASSET_ROOT = path.join(QUEUE_ROOT, 'highlight_channel_frame_asset');
-const QUEUE_KOREAN_CHANNEL_FRAME_ASSET_ROOT = path.join(QUEUE_ROOT, 'korean_channel_frame_asset');
-const QUEUE_KOREAN_HIGHLIGHT_CHANNEL_FRAME_ASSET_ROOT = path.join(QUEUE_ROOT, 'korean_highlight_channel_frame_asset');
 const QUEUE_CONFIG_PATH = path.join(QUEUE_ROOT, 'queue_config.json');
 const BATCH_OUTPUT_ROOT = path.join(PROJECT_ROOT, 'server', 'output', 'process_batches');
 const QUEUE_RESERVED_DIRS = new Set([
@@ -48,6 +45,7 @@ const QUEUE_RESERVED_DIRS = new Set([
   'midform_channel_asset',
   'korean_channel_asset',
   'korean_highlight_channel_asset',
+  // Legacy frame asset folders are ignored so old uploads never appear as queue items.
   'channel_frame_asset',
   'highlight_channel_frame_asset',
   'korean_channel_frame_asset',
@@ -102,10 +100,6 @@ function ensureQueueFolders() {
   fs.mkdirSync(QUEUE_MIDFORM_CHANNEL_ASSET_ROOT, { recursive: true });
   fs.mkdirSync(QUEUE_KOREAN_CHANNEL_ASSET_ROOT, { recursive: true });
   fs.mkdirSync(QUEUE_KOREAN_HIGHLIGHT_CHANNEL_ASSET_ROOT, { recursive: true });
-  fs.mkdirSync(QUEUE_CHANNEL_FRAME_ASSET_ROOT, { recursive: true });
-  fs.mkdirSync(QUEUE_HIGHLIGHT_CHANNEL_FRAME_ASSET_ROOT, { recursive: true });
-  fs.mkdirSync(QUEUE_KOREAN_CHANNEL_FRAME_ASSET_ROOT, { recursive: true });
-  fs.mkdirSync(QUEUE_KOREAN_HIGHLIGHT_CHANNEL_FRAME_ASSET_ROOT, { recursive: true });
   fs.mkdirSync(BATCH_OUTPUT_ROOT, { recursive: true });
 }
 
@@ -157,6 +151,14 @@ function validateOutputRoot(outputRoot) {
 function normalizeDraftVariantMode(value = 'all') {
   const mode = String(value || 'all').trim();
   return ['all', 'full_highlight_only', 'full_only', 'highlight_only', 'midform_only'].includes(mode) ? mode : 'all';
+}
+
+function effectiveDraftVariantModeForItem(draftVariantMode = 'all', itemConfig = {}) {
+  const normalized = normalizeDraftVariantMode(draftVariantMode);
+  if (normalized === 'highlight_only' && isLongformHighlightSource(itemConfig)) {
+    return 'full_highlight_only';
+  }
+  return normalized;
 }
 
 function highlightMaxDurationForItem(itemConfig = {}, requestedDurationSec = 0) {
@@ -232,38 +234,6 @@ function defaultQueueConfig() {
       scale: 0.34,
       opacity: 1,
       replace_channel_tag_text: false
-    },
-    channel_frame_asset: {
-      enabled: false,
-      path: '',
-      original_name: '',
-      position: 'center',
-      scale: 1,
-      opacity: 1
-    },
-    highlight_channel_frame_asset: {
-      enabled: false,
-      path: '',
-      original_name: '',
-      position: 'center',
-      scale: 1,
-      opacity: 1
-    },
-    korean_channel_frame_asset: {
-      enabled: false,
-      path: '',
-      original_name: '',
-      position: 'center',
-      scale: 1,
-      opacity: 1
-    },
-    korean_highlight_channel_frame_asset: {
-      enabled: false,
-      path: '',
-      original_name: '',
-      position: 'center',
-      scale: 1,
-      opacity: 1
     },
     capcut_template_id: base.capcut_template_id,
     capcut_template_source: base.capcut_template_source,
@@ -524,30 +494,6 @@ function normalizeQueueConfig(config = {}) {
     QUEUE_KOREAN_HIGHLIGHT_CHANNEL_ASSET_ROOT,
     'korean_highlight_channel_asset'
   );
-  const normalizedChannelFrameAsset = normalizeQueueAssetConfig(
-    config.channel_frame_asset || {},
-    defaults.channel_frame_asset,
-    QUEUE_CHANNEL_FRAME_ASSET_ROOT,
-    'channel_frame_asset'
-  );
-  const normalizedHighlightChannelFrameAsset = normalizeQueueAssetConfig(
-    config.highlight_channel_frame_asset || {},
-    defaults.highlight_channel_frame_asset,
-    QUEUE_HIGHLIGHT_CHANNEL_FRAME_ASSET_ROOT,
-    'highlight_channel_frame_asset'
-  );
-  const normalizedKoreanChannelFrameAsset = normalizeQueueAssetConfig(
-    config.korean_channel_frame_asset || {},
-    defaults.korean_channel_frame_asset,
-    QUEUE_KOREAN_CHANNEL_FRAME_ASSET_ROOT,
-    'korean_channel_frame_asset'
-  );
-  const normalizedKoreanHighlightChannelFrameAsset = normalizeQueueAssetConfig(
-    config.korean_highlight_channel_frame_asset || {},
-    defaults.korean_highlight_channel_frame_asset,
-    QUEUE_KOREAN_HIGHLIGHT_CHANNEL_FRAME_ASSET_ROOT,
-    'korean_highlight_channel_frame_asset'
-  );
   return {
     ...defaults,
     ...config,
@@ -559,10 +505,10 @@ function normalizeQueueConfig(config = {}) {
     midform_channel_asset: forceQueueAssetTopRight(normalizedMidformChannelAsset),
     korean_channel_asset: forceQueueAssetTopRight(normalizedKoreanChannelAsset),
     korean_highlight_channel_asset: forceQueueAssetTopRight(normalizedKoreanHighlightChannelAsset),
-    channel_frame_asset: normalizedChannelFrameAsset,
-    highlight_channel_frame_asset: normalizedHighlightChannelFrameAsset,
-    korean_channel_frame_asset: normalizedKoreanChannelFrameAsset,
-    korean_highlight_channel_frame_asset: normalizedKoreanHighlightChannelFrameAsset,
+    channel_frame_asset: undefined,
+    highlight_channel_frame_asset: undefined,
+    korean_channel_frame_asset: undefined,
+    korean_highlight_channel_frame_asset: undefined,
     custom_bgm_path: String(config.custom_bgm_path || defaults.custom_bgm_path || ''),
     custom_bgm_original_name: normalizePossiblyMojibakeFilename(config.custom_bgm_original_name || defaults.custom_bgm_original_name || ''),
     capcut_template_source: String(config.capcut_template_source || defaults.capcut_template_source || 'capcut_draft_root'),
@@ -827,6 +773,32 @@ function expectedCaptionTemplateMarkersForVariant(variant) {
   return ['TEMPLATE_FULL_CAPTION'];
 }
 
+function findDraftContentPathInFolder(folderPath, maxDepth = 2) {
+  const root = String(folderPath || '').trim();
+  if (!root || !fs.existsSync(root)) return '';
+  const direct = path.join(root, 'draft_content.json');
+  if (fs.existsSync(direct)) return direct;
+  const queue = [{ dir: root, depth: 0 }];
+  while (queue.length) {
+    const { dir, depth } = queue.shift();
+    if (depth >= maxDepth) continue;
+    let entries = [];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const childDir = path.join(dir, entry.name);
+      const childDraft = path.join(childDir, 'draft_content.json');
+      if (fs.existsSync(childDraft)) return childDraft;
+      queue.push({ dir: childDir, depth: depth + 1 });
+    }
+  }
+  return '';
+}
+
 function summarizeTemplateAnimations(segment = {}, materialIndex = new Map()) {
   const refs = Array.isArray(segment.extra_material_refs) ? segment.extra_material_refs : [];
   const animations = [];
@@ -866,6 +838,9 @@ function summarizeTemplateTextStyle(material = {}, segment = {}, marker = '', ma
   const clip = segment.clip && typeof segment.clip === 'object' ? segment.clip : {};
   const transform = clip.transform && typeof clip.transform === 'object' ? clip.transform : {};
   const scale = clip.scale && typeof clip.scale === 'object' ? clip.scale : {};
+  const resolvedFontPath = contentFont.path || material.font_path || '';
+  const resolvedFontName = contentFont.name || contentFont.title || '';
+  const fontFileName = resolvedFontPath ? path.basename(resolvedFontPath) : '';
   return {
     marker,
     material_id: material.id || '',
@@ -873,18 +848,32 @@ function summarizeTemplateTextStyle(material = {}, segment = {}, marker = '', ma
     text_color: material.text_color || '',
     fill_rgb: Array.isArray(fillSolid.color) ? fillSolid.color : null,
     font_size: Number(firstStyle.size || material.font_size || 0) || 0,
-    font_name: material.font_name || material.font_title || contentFont.name || contentFont.title || '',
-    font_title: material.font_title || contentFont.title || contentFont.name || '',
-    font_id: material.font_id || contentFont.id || '',
-    font_path: material.font_path || contentFont.path || '',
+    font_name: resolvedFontName || material.font_name || material.font_title || '',
+    font_title: contentFont.title || contentFont.name || material.font_title || material.font_name || '',
+    font_display_name: resolvedFontName || fontFileName || material.font_name || material.font_title || '',
+    font_file_name: fontFileName,
+    font_id: contentFont.id || material.font_id || '',
+    font_path: resolvedFontPath,
     border_color: material.border_color || '',
     border_width: Number(firstStroke.width || material.border_width || 0) || 0,
     stroke_rgb: Array.isArray(strokeSolid.color) ? strokeSolid.color : null,
     background_color: material.background_color || '',
     background_alpha: Number(material.background_alpha || 0) || 0,
+    background_round_radius: Number(material.background_round_radius || 0) || 0,
+    border_alpha: Number(material.border_alpha || firstStroke.alpha || 0) || 0,
+    shadow_color: material.shadow_color || '',
+    shadow_alpha: Number(material.shadow_alpha || 0) || 0,
+    shadow_distance: Number(material.shadow_distance || 0) || 0,
+    shadow_smoothing: Number(material.shadow_smoothing || 0) || 0,
     fixed_width: Number(material.fixed_width || 0),
     fixed_height: Number(material.fixed_height || 0),
     line_max_width: Number(material.line_max_width || 0),
+    line_spacing: Number(material.line_spacing || 0),
+    line_feed: material.line_feed ?? null,
+    force_apply_line_max_width: material.force_apply_line_max_width ?? null,
+    oneline_cutoff: material.oneline_cutoff ?? null,
+    alignment: material.alignment ?? null,
+    typesetting: material.typesetting ?? null,
     position: {
       x: Number(transform.x || 0),
       y: Number(transform.y || 0)
@@ -900,7 +889,8 @@ function summarizeTemplateTextStyle(material = {}, segment = {}, marker = '', ma
 function scanCaptionTemplateDraft(draftRoot, draftName, options = {}) {
   const name = String(draftName || '').trim();
   const root = String(draftRoot || '').trim();
-  const draftPath = name && root ? path.join(root, name, 'draft_content.json') : '';
+  const draftFolderPath = name && root ? path.join(root, name) : '';
+  const draftPath = findDraftContentPathInFolder(draftFolderPath, 2);
   const expectedMarkers = Array.isArray(options.expectedMarkers) && options.expectedMarkers.length
     ? options.expectedMarkers
     : expectedCaptionTemplateMarkersForVariant(options.variant);
@@ -912,6 +902,7 @@ function scanCaptionTemplateDraft(draftRoot, draftName, options = {}) {
     found: false,
     expected_markers: expectedMarkers,
     missing_markers: expectedMarkers,
+    duplicate_markers: {},
     markers: {},
     message: ''
   };
@@ -939,9 +930,15 @@ function scanCaptionTemplateDraft(draftRoot, draftName, options = {}) {
       const material = materialIndex.get(segment.material_id);
       if (!material) continue;
       const marker = detectCapcutTemplateMarker(getCapcutMaterialText(material));
-      if (!marker || result.markers[marker]) continue;
+      if (!marker) continue;
+      if (expectedMarkers.length && !expectedMarkers.includes(marker)) continue;
+      result.duplicate_markers[marker] = Number(result.duplicate_markers[marker] || 0) + 1;
+      const currentStart = Number(segment?.target_timerange?.start || 0);
+      const previousStart = Number(result.markers[marker]?.target_start_us ?? -1);
+      if (result.markers[marker] && currentStart < previousStart) continue;
       result.markers[marker] = {
         ...summarizeTemplateTextStyle(material, segment, marker, materialIndex),
+        target_start_us: currentStart,
         track_name: track.name || '',
         track_id: track.id || ''
       };
@@ -949,9 +946,14 @@ function scanCaptionTemplateDraft(draftRoot, draftName, options = {}) {
   }
   result.found = true;
   result.missing_markers = expectedMarkers.filter((marker) => !result.markers[marker]);
+  const duplicateSummary = Object.entries(result.duplicate_markers)
+    .filter(([, count]) => Number(count) > 1)
+    .map(([marker, count]) => `${marker} x${count}`);
   result.message = result.missing_markers.length
     ? `missing marker(s): ${result.missing_markers.join(', ')}`
-    : 'caption template markers loaded';
+    : duplicateSummary.length
+      ? `caption template markers loaded; duplicate marker(s), using latest: ${duplicateSummary.join(', ')}`
+      : 'caption template markers loaded';
   return result;
 }
 
@@ -1205,7 +1207,15 @@ function normalizeSceneTransitions(transitions = [], durationSec = 0) {
         repetition_potential: Math.round(clampScore(item?.repetition_potential, 1, 10, 1)),
         mechanical_rhythm: String(item?.mechanical_rhythm || '').trim(),
         human_presence: item?.human_presence === true,
-        process_focus_priority: String(item?.process_focus_priority || '').trim()
+        process_focus_priority: String(item?.process_focus_priority || '').trim(),
+        // Cut-quality fields must survive this whitelist or the tier logic
+        // downstream (scoreSceneForHighlight, computeCutSelectionTier) sees
+        // nothing and silently degrades every scene to T3.
+        cycle_time_sec: Number.isFinite(Number(item?.cycle_time_sec)) ? Number(item.cycle_time_sec) : undefined,
+        appears_sped_up: typeof item?.appears_sped_up === 'boolean' ? item.appears_sped_up : undefined,
+        human_visibility: ['FULL_PERSON', 'HANDS_ONLY', 'NONE'].includes(String(item?.human_visibility || '').trim())
+          ? String(item.human_visibility).trim()
+          : undefined
       };
     })
     .filter(Boolean)
@@ -2425,6 +2435,16 @@ function truncateChars(value = '', maxLength = 120) {
   return chars.slice(0, Math.max(0, maxLength - 1)).join('').replace(/[、,。\s]+$/u, '') + '…';
 }
 
+function stripHighlightScreenInternalNotes(value = '') {
+  return stripEmoji(String(value || ''))
+    .replace(/\b(?:user_selected_highlight_window|gemini_recommended_highlight_window|scene_ranked_highlight_candidate)\b/gi, '')
+    .replace(/\s*(?:選定区間|H\d{2})は\d+(?:\.\d+)?〜\d+(?:\.\d+)?秒(?:の見どころ|区間の見どころ|の核心場面|区間の核心場面)?です。?/g, '')
+    .replace(/\s*(?:선정 구간|H\d{2})은\s*\d+(?:\.\d+)?[~〜]\d+(?:\.\d+)?초\s*구간(?:의 핵심 장면|의 하이라이트|의 볼거리)?입니다\.?/g, '')
+    .replace(/\s*(?:抽出区間|추출 구간)\s*[:：]\s*\d+(?:\.\d+)?[~〜]\d+(?:\.\d+)?(?:秒|초)\s*/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function formatHighlightWindowRange(window = {}) {
   const start = Number(window.start_sec ?? window.start ?? 0);
   const end = Number(window.end_sec ?? window.end ?? start);
@@ -2453,17 +2473,11 @@ function buildCandidateFocusText(window = {}, label = 'H01', korean = false) {
 }
 
 function buildCandidateHighlightBlock(baseText = '', focusText = '', minLength = 150, maxLength = 235) {
-  const cleanBase = stripEmoji(String(baseText || '').replace(/\s+/g, ' ').trim());
-  const cleanFocus = stripEmoji(String(focusText || '').replace(/\s+/g, ' ').trim());
-  if (!cleanBase) return truncateChars(cleanFocus, maxLength);
-  if (!cleanFocus) return truncateChars(cleanBase, maxLength);
-  const separator = cleanBase.endsWith('。') || cleanBase.endsWith('.') ? ' ' : '。 ';
-  if (charLength(`${cleanBase}${separator}${cleanFocus}`) <= maxLength) {
-    return `${cleanBase}${separator}${cleanFocus}`;
-  }
-  const focusRoom = charLength(cleanFocus) + charLength(separator);
-  const baseRoom = Math.max(minLength - focusRoom, maxLength - focusRoom);
-  return `${truncateChars(cleanBase, Math.max(60, baseRoom))}${separator}${cleanFocus}`.trim();
+  const cleanBase = stripHighlightScreenInternalNotes(baseText);
+  const cleanFocus = stripHighlightScreenInternalNotes(focusText);
+  if (cleanBase) return truncateChars(cleanBase, maxLength);
+  if (cleanFocus) return truncateChars(cleanFocus, maxLength);
+  return 'この工程で最も目を引く瞬間を切り出したハイライトです。素材の形が変わる動き、機械や手作業のリズム、完成へ近づく気持ちよさが短い時間に詰まっています。';
 }
 
 function withCandidateTitleSuffix(title = '', label = 'H01') {
@@ -4115,6 +4129,8 @@ function classifyFullDraftTransform(itemConfig = {}, sceneTransitions = [], lang
 function selectFullDraftVideoTransformPreset(basePresetId, itemConfig = {}, sceneTransitions = [], language = 'ja') {
   const baseId = String(basePresetId || 'steady_zoom_process').trim();
   const analysis = classifyFullDraftTransform(itemConfig, sceneTransitions, language);
+  const isLongformSource = itemConfig.source_workflow_mode === 'longform_to_shorts'
+    || itemConfig.source_type === 'longform';
   const requiresLongformCoreCrop = itemConfig.source_window_strategy === 'longform_full_from_highlight_candidates'
     || itemConfig.source_window_full?.mode === 'longform_full_from_highlight_candidates';
   if (requiresLongformCoreCrop) {
@@ -4132,6 +4148,22 @@ function selectFullDraftVideoTransformPreset(basePresetId, itemConfig = {}, scen
     };
   }
   const selectedPresetId = analysis.selected_preset_id || baseId;
+  if (!isLongformSource) {
+    const safePreset = buildShortformFullTemplateSafePreset(selectedPresetId);
+    return {
+      presetId: safePreset,
+      analysis: {
+        ...analysis,
+        base_preset_id: baseId,
+        selected_preset_id: safePreset.preset_id,
+        source_auto_selected_preset_id: selectedPresetId,
+        auto_selected: true,
+        forced_by_source_type: 'shortform_full_template_safe_zoom',
+        max_zoom_scale: safePreset.max_zoom_scale,
+        reason: 'shortform_full_uses_capcut_template_so_zoom_is_capped_under_50_percent'
+      }
+    };
+  }
   return {
     presetId: selectedPresetId,
     analysis: {
@@ -4223,10 +4255,7 @@ function mergeBatchConfig(queueConfig, itemConfig) {
     explainer_blocks: fullDraftWithHook.blocks,
     channel_tag: item.channel_tag || queueConfig.channel_tag,
     channel_asset: item.channel_asset || queueConfig.channel_asset,
-    channel_frame_asset: selectQueueAsset(
-      item.channel_frame_asset,
-      queueConfig.channel_frame_asset
-    ),
+    channel_frame_asset: disabledChannelFrameAsset(),
     capcut_template_id: item.capcut_template_id || queueConfig.capcut_template_id,
     capcut_template_source: item.capcut_template_source || queueConfig.capcut_template_source,
     capcut_template_draft_name: selectVariantCapcutTemplateDraftName(queueConfig, 'jp_full'),
@@ -4393,81 +4422,44 @@ function uploadQueueChannelAsset(file, options = {}) {
   };
 }
 
-function uploadQueueChannelFrameAsset(file, options = {}) {
-  ensureQueueFolders();
-  if (!file) {
-    const error = new Error('channel frame asset file is required');
-    error.status = 400;
-    throw error;
-  }
-  const rawTarget = String(options.target || options.mode || '').toLowerCase();
-  const target = ['highlight', 'korean', 'korean_highlight'].includes(rawTarget) ? rawTarget : 'default';
-  const targetMap = {
-    default: {
-      root: QUEUE_CHANNEL_FRAME_ASSET_ROOT,
-      prefix: 'channel_frame_asset',
-      key: 'channel_frame_asset',
-      extraPatch: {}
-    },
-    highlight: {
-      root: QUEUE_HIGHLIGHT_CHANNEL_FRAME_ASSET_ROOT,
-      prefix: 'highlight_channel_frame_asset',
-      key: 'highlight_channel_frame_asset',
-      extraPatch: { create_highlight_draft: true }
-    },
-    korean: {
-      root: QUEUE_KOREAN_CHANNEL_FRAME_ASSET_ROOT,
-      prefix: 'korean_channel_frame_asset',
-      key: 'korean_channel_frame_asset',
-      extraPatch: { create_korean_drafts: true }
-    },
-    korean_highlight: {
-      root: QUEUE_KOREAN_HIGHLIGHT_CHANNEL_FRAME_ASSET_ROOT,
-      prefix: 'korean_highlight_channel_frame_asset',
-      key: 'korean_highlight_channel_frame_asset',
-      extraPatch: { create_korean_drafts: true, create_highlight_draft: true }
-    }
-  };
-  const targetConfig = targetMap[target];
-  const assetRoot = targetConfig.root;
-  const prefix = targetConfig.prefix;
-  const originalName = getUploadOriginalName(file, file.originalname || '');
-  const ext = getUploadExt(file, '.mp4');
-  const filename = `${prefix}${ext}`;
-  const targetPath = path.join(assetRoot, filename);
-  for (const entry of fs.readdirSync(assetRoot, { withFileTypes: true })) {
-    if (entry.isFile() && entry.name.startsWith(prefix)) {
-      fs.rmSync(path.join(assetRoot, entry.name), { force: true });
-    }
-  }
-  fs.copyFileSync(file.path, targetPath);
-  if (file.path && fs.existsSync(file.path)) fs.unlinkSync(file.path);
-
-  const current = loadQueueConfig();
-  const key = targetConfig.key;
-  const existing = current[key] || {};
-  const saved = saveQueueConfig({
-    ...current,
-    ...targetConfig.extraPatch,
-    [key]: {
-      ...existing,
-      enabled: true,
-      path: targetPath,
-      original_name: originalName || filename,
-      position: existing.position || 'center',
-      scale: existing.scale || 1,
-      opacity: existing.opacity ?? 1
-    }
-  });
-
+function buildShortformFullTemplateSafePreset(basePresetId = 'steady_zoom_process') {
+  const baseId = String(basePresetId || 'steady_zoom_process').trim();
   return {
-    status: 'success',
-    target,
-    channel_frame_asset_path: targetPath,
-    channel_frame_asset_original_name: originalName || filename,
-    savedPath: saved.targetPath,
-    backupPath: saved.backupPath || null,
-    queue: listQueue()
+    preset_id: 'full_shortform_template_safe_zoom',
+    name: 'Full Shortform Template Safe Zoom',
+    display_name: 'Full Shortform Template Safe Zoom',
+    description: 'Shortform Full Draft preset: keep visual zoom at 1.50x or lower because the CapCut template supplies the stronger motion layer.',
+    source_base_preset_id: baseId,
+    segment_unit_sec: 2.4,
+    mirror_policy: 'global_once_only',
+    global_transform: { mirror: true, scale: 1.18 },
+    segment_transform_rules: { segment_mirror_allowed: false },
+    pan_limit_x: 0.12,
+    pan_limit_y: 0.10,
+    max_zoom_scale: 1.50,
+    crop_mode: 'vertical_fill',
+    crop_zoom: true,
+    crop_intent: 'shortform_full_template_safe_under_50_percent_zoom',
+    pattern: [
+      { scale: 1.18, pan_x: 0.00, pan_y: 0.00, rotation: -0.6, speed: 1.00, label: 'template_safe_entry' },
+      { scale: 1.32, pan_x: -0.06, pan_y: 0.02, rotation: 0.9, speed: 1.04, label: 'template_safe_detail' },
+      { scale: 1.48, pan_x: 0.06, pan_y: -0.02, rotation: -1.0, speed: 0.96, label: 'template_safe_push' },
+      { scale: 1.26, pan_x: 0.04, pan_y: 0.04, rotation: 0.7, speed: 1.08, label: 'template_safe_reset' },
+      { scale: 1.42, pan_x: -0.04, pan_y: -0.03, rotation: -0.8, speed: 1.00, label: 'template_safe_finish' }
+    ],
+    process_order: [
+      'Use shortform source as the main image and let the CapCut template add the stronger movement',
+      'Never exceed 1.50x zoom for shortform Full Drafts',
+      'Keep pan and rotation modest so captions and template effects stay readable'
+    ],
+    mirror: true,
+    speed_variation: true,
+    speed: { enabled: true, mode: 'sequence', value: 1.0 },
+    color_adjustment: { enabled: true, style: 'clean_hdr' },
+    distortion: { enabled: true, type: 'soft_rotation', max_degrees: 1.0 },
+    sharpen: true,
+    cut_trim: true,
+    reorder: false
   };
 }
 
@@ -4813,6 +4805,11 @@ function scoreSceneForHighlight(scene = {}) {
   if (includesAnyTerm(text, HIGHLIGHT_REPETITION_TERMS)) score += 5;
   if (includesAnyTerm(text, HIGHLIGHT_CLOSEUP_TERMS)) score += 2.5;
   if (includesAnyTerm(text, HIGHLIGHT_SUMMARY_TERMS)) score -= 3;
+  // Cut-quality signals (see computeCutSelectionTier above for the data basis).
+  const cycleTime = Number(scene.cycle_time_sec);
+  if (Number.isFinite(cycleTime) && cycleTime > 0 && cycleTime <= 5) score += 10;
+  if (scene.appears_sped_up === true) score -= 10;
+  if (scene.human_visibility === 'FULL_PERSON') score += 5;
   return score;
 }
 
@@ -4987,6 +4984,12 @@ function pickHighlightWindow(itemConfig = {}, maxDurationSec = 10) {
 
   candidates.sort((a, b) => b.score - a.score || a.start_sec - b.start_sec);
   const best = candidates[0];
+  // Best tier among the scenes inside the picked window -- recorded on the
+  // window (and thus in the batch report / job payload) so published results
+  // can later be checked against the tier the cut actually carried.
+  const bestSceneTierRank = best.selected.length
+    ? Math.min(...best.selected.map((scene) => cutSelectionTierRank(scene)))
+    : 2;
   return {
     start_sec: Number(best.start_sec.toFixed(3)),
     duration_sec: Number(best.duration_sec.toFixed(3)),
@@ -4994,7 +4997,8 @@ function pickHighlightWindow(itemConfig = {}, maxDurationSec = 10) {
     score: Number(best.score.toFixed(3)),
     reason: 'natural_repetitive_mechanical_hook_window',
     selection_strategy: 'natural_source_repetition_no_artificial_loop',
-    selected_scene_ids: best.selected.map((scene) => scene.scene_id).filter(Boolean)
+    selected_scene_ids: best.selected.map((scene) => scene.scene_id).filter(Boolean),
+    cut_selection_tier: ['T1', 'T2', 'T3'][bestSceneTierRank]
   };
 }
 
@@ -5006,8 +5010,17 @@ function windowsOverlapSeconds(a = {}, b = {}) {
   return Math.max(0, Math.min(aEnd, bEnd) - Math.max(aStart, bStart));
 }
 
-function normalizeHighlightCandidateWindow(raw = {}, itemConfig = {}, maxDurationSec = 10, reason = 'highlight_candidate_window') {
+function normalizeHighlightCandidateWindow(raw, itemConfig = {}, maxDurationSec = 10, reason = 'highlight_candidate_window') {
   if (!raw || typeof raw !== 'object') return null;
+  // A window with no positional data at all is not a window. Without this
+  // check, an absent selected_highlight_window (undefined, or {} persisted by
+  // the UI) silently normalized into a phantom 0-start window labeled
+  // 'user_selected_highlight_window', which then outranked pickHighlightWindow
+  // entirely -- every item without a real manual selection was cutting the
+  // first 10 seconds instead of the scene-scored strongest moment.
+  const hasWindowData = ['start_sec', 'start', 'end_sec', 'end', 'duration_sec', 'duration']
+    .some((key) => raw[key] !== undefined && raw[key] !== null && raw[key] !== '');
+  if (!hasWindowData) return null;
   const sourceDuration = Number(itemConfig.video_metadata?.duration_sec || itemConfig.target_duration_sec || 0);
   const longformSource = isLongformHighlightSource(itemConfig);
   const normalized = normalizeGuideWindow(raw, sourceDuration || itemConfig.target_duration_sec || 0);
@@ -5061,22 +5074,30 @@ function collectHighlightCandidateWindows(itemConfig = {}, maxDurationSec = 10) 
     ...(Array.isArray(guide.highlight_candidates) ? guide.highlight_candidates : [])
   ];
   candidates
-    .map((candidate, index) => ({ candidate, index }))
+    .map((candidate, index) => ({ candidate, index, tierRank: cutSelectionTierRank(candidate) }))
     .sort((a, b) => {
       const scoreA = Number(a.candidate.hook_score || a.candidate.visual_hook_score || a.candidate.score || 0);
       const scoreB = Number(b.candidate.hook_score || b.candidate.visual_hook_score || b.candidate.score || 0);
-      return scoreB - scoreA || a.index - b.index;
+      // Tier before score (see computeCutSelectionTier): a T1 window with a
+      // modest hook_score beats a flashy T3 one. Ordering only -- every
+      // hook-like candidate is still pushed, whatever its tier.
+      return a.tierRank - b.tierRank || scoreB - scoreA || a.index - b.index;
     })
     .forEach(({ candidate }, index) => {
       const purpose = String(candidate.purpose || candidate.process_coverage || candidate.visual_hook || '').toLowerCase();
       const isHookLike = !purpose || /hook|visual|repeat|rhythm|press|cut|pour|flow|transform|impact|핵심|반복|압착|절단|흐름|変化|反復|切断|押|注/.test(purpose);
-      if (isHookLike) pushWindow(candidate, `gemini_highlight_candidate_${index + 1}`);
+      if (isHookLike) {
+        pushWindow(
+          { ...candidate, cut_selection_tier: computeCutSelectionTier(candidate) },
+          `gemini_highlight_candidate_${index + 1}`
+        );
+      }
     });
 
   const transitions = normalizeSceneTransitions(getItemSceneTransitions(itemConfig), sourceDuration || itemConfig.target_duration_sec || 0);
   transitions
-    .map((scene, index) => ({ scene, index, score: scoreSceneForHighlight(scene) }))
-    .sort((a, b) => b.score - a.score || Number(a.scene.start_sec || 0) - Number(b.scene.start_sec || 0))
+    .map((scene, index) => ({ scene, index, score: scoreSceneForHighlight(scene), tierRank: cutSelectionTierRank(scene) }))
+    .sort((a, b) => a.tierRank - b.tierRank || b.score - a.score || Number(a.scene.start_sec || 0) - Number(b.scene.start_sec || 0))
     .forEach(({ scene, score }) => {
       const sceneStart = Number(scene.start_sec || 0);
       const sceneEnd = Number(scene.end_sec || scene.transition_at_sec || sceneStart + maxDurationSec);
@@ -5096,6 +5117,10 @@ function collectHighlightCandidateWindows(itemConfig = {}, maxDurationSec = 10) 
         selection_strategy: 'scene_ranked_highlight_candidate',
         selected_scene_ids: singleProcessSceneIds(scene),
         single_process_only: true,
+        cut_selection_tier: computeCutSelectionTier(scene),
+        cycle_time_sec: Number.isFinite(Number(scene.cycle_time_sec)) ? Number(scene.cycle_time_sec) : undefined,
+        appears_sped_up: typeof scene.appears_sped_up === 'boolean' ? scene.appears_sped_up : undefined,
+        human_visibility: scene.human_visibility || undefined,
         longform_highlight_rule: isLongformHighlightSource(itemConfig) ? 'one_continuous_core_process_natural_end' : undefined
       });
     });
@@ -5347,6 +5372,11 @@ function buildFullPrerollHookBlock(itemConfig = {}, queueConfig = {}, language =
 
   const sourceDuration = Number(itemConfig.video_metadata?.duration_sec || itemConfig.target_duration_sec || 0);
   if (!Number.isFinite(sourceDuration) || sourceDuration <= 1) return null;
+  const isLongformSource = itemConfig.source_workflow_mode === 'longform_to_shorts'
+    || itemConfig.source_type === 'longform';
+  const hookZoomScale = isLongformSource
+    ? Math.max(2.08, Number(hookConfig.zoom_scale || 0))
+    : Math.min(1.50, Number(hookConfig.zoom_scale || 1.50));
   const requestedDuration = Math.min(
     hookConfig.duration_sec,
     hookConfig.max_source_duration_sec,
@@ -5395,14 +5425,16 @@ function buildFullPrerollHookBlock(itemConfig = {}, queueConfig = {}, language =
       duration_sec: Number(Math.max(0.8, endSec - startSec).toFixed(3))
     },
     video_transform_override: {
-      scale: hookConfig.zoom_scale,
-      zoom_scale: hookConfig.zoom_scale,
+      scale: hookZoomScale,
+      zoom_scale: hookZoomScale,
       pan_x: hookConfig.pan_x,
       pan_y: hookConfig.pan_y,
       rotation: hookConfig.rotation,
       speed: hookConfig.speed,
       mirror: hookConfig.mirror,
-      label: 'full_preroll_hook_extreme_zoom'
+      label: isLongformSource
+        ? 'full_longform_preroll_core_crop_zoom'
+        : 'full_preroll_hook_template_safe_zoom'
     }
   };
 }
@@ -5413,6 +5445,17 @@ function comparableFullCaptionText(text = '') {
     .replace(/[\s"'“”‘’.,!?！？。、，・:：;；\-—–~〜…]+/gu, '')
     .trim()
     .toLowerCase();
+}
+
+function isFullDraftHookCaption(text = '', language = 'ja') {
+  const key = comparableFullCaptionText(text);
+  if (!key) return false;
+  if (language === 'ko') {
+    return key.includes('이게뭔지아세요') || key.includes('뭔지아세요') || key.includes('무슨공정인지아세요');
+  }
+  return (key.includes('これ') || key.includes('何'))
+    && (key.includes('何') || key.includes('なん'))
+    && (key.includes('だろう') || key.includes('思います') || key.includes('わかります') || key.includes('分かります'));
 }
 
 function applyFullPrerollHookToBlocks(blocks = [], itemConfig = {}, queueConfig = {}, language = 'ja') {
@@ -5427,9 +5470,20 @@ function applyFullPrerollHookToBlocks(blocks = [], itemConfig = {}, queueConfig 
   }
 
   const hookDurationSec = Number(hookBlock.end_sec || 0);
+  const firstText = String(normalizedBlocks[0]?.text || normalizedBlocks[0]?.full_scene_caption_text || '').trim();
   const hookTextKey = comparableFullCaptionText(hookBlock.text);
-  const contentBlocks = hookTextKey && normalizedBlocks.length > 0
-    && comparableFullCaptionText(normalizedBlocks[0]?.text) === hookTextKey
+  const firstTextKey = comparableFullCaptionText(firstText);
+  const firstBlockIsSameHook = hookTextKey && firstTextKey && firstTextKey === hookTextKey;
+  const firstBlockIsEquivalentHook = firstText
+    && isFullDraftHookCaption(firstText, language)
+    && isFullDraftHookCaption(hookBlock.text, language);
+  const shouldConsumeFirstHookBlock = normalizedBlocks.length > 0 && (firstBlockIsSameHook || firstBlockIsEquivalentHook);
+  if (shouldConsumeFirstHookBlock && firstText) {
+    hookBlock.text = firstText;
+    hookBlock.full_scene_caption_text = firstText;
+    hookBlock.consumed_existing_script_hook = true;
+  }
+  const contentBlocks = shouldConsumeFirstHookBlock
     ? normalizedBlocks.slice(1)
     : normalizedBlocks;
 
@@ -6314,6 +6368,7 @@ async function createHighlightDraftForItem({
       || firstBlock?.text
       || '\u3053\u306E\u5DE5\u7A0B\u3067\u6700\u3082\u8996\u899A\u7684\u306B\u5F15\u304D\u8FBC\u307E\u308C\u308B\u77AC\u9593\u3067\u3059\u3002'
   ).replace(/\s+/g, ' '));
+  const cleanHighlightGuideText = stripHighlightScreenInternalNotes(guideText);
   const highlightChannelAsset = queueConfig.highlight_channel_asset?.path
     ? queueConfig.highlight_channel_asset
     : baseConfig.channel_asset;
@@ -6333,12 +6388,7 @@ async function createHighlightDraftForItem({
     target_duration_sec: window.duration_sec,
     upload_title: highlightTitle,
     channel_asset: highlightChannelAsset,
-    channel_frame_asset: selectQueueAsset(
-      itemConfig.highlight_channel_frame_asset,
-      itemConfig.channel_frame_asset,
-      queueConfig.highlight_channel_frame_asset,
-      queueConfig.channel_frame_asset
-    ),
+    channel_frame_asset: disabledChannelFrameAsset(),
     use_bgm: queueConfig.highlight_custom_bgm_path ? true : baseConfig.use_bgm,
     bgm_preset: queueConfig.highlight_bgm_preset || baseConfig.bgm_preset,
     custom_bgm_path: queueConfig.highlight_custom_bgm_path || baseConfig.custom_bgm_path || '',
@@ -6351,9 +6401,8 @@ async function createHighlightDraftForItem({
     visual_template: 'jp_highlight',
     explainer_blocks: [
       {
-        ...firstBlock,
         block_id: 'highlight_exp_001',
-        text: guideText,
+        text: cleanHighlightGuideText || 'この工程で最も目を引く瞬間を切り出したハイライトです。素材の形が変わる動き、機械や手作業のリズム、完成へ近づく気持ちよさが短い時間に詰まっています。',
         start_sec: 0,
         end_sec: window.duration_sec,
         style_role: 'main_explainer',
@@ -6646,6 +6695,18 @@ function selectQueueAsset(...assets) {
   return assets.find((asset) => asset && asset.path) || assets.find(Boolean) || {};
 }
 
+function disabledChannelFrameAsset() {
+  return {
+    enabled: false,
+    path: '',
+    original_name: '',
+    position: 'manual_capcut_preset',
+    scale: 1,
+    opacity: 1,
+    removed: true
+  };
+}
+
 async function detectVariantOcrForMask(itemId, variant, sourcePath, warnings = []) {
   try {
     const ocr = await detectQueueItemTextRegions(itemId, {
@@ -6711,8 +6772,28 @@ function capcutDraftTemplateExists(searchRoot, draftName) {
   const root = String(searchRoot || '').trim();
   const name = String(draftName || '').trim();
   if (!root || !name) return false;
-  const draftContentPath = path.join(root, name, 'draft_content.json');
-  return fs.existsSync(draftContentPath);
+  return Boolean(findDraftContentPathInFolder(path.join(root, name), 2));
+}
+
+function capcutDraftTemplateHasExpectedMarkers(searchRoot, draftName, expectedMarkers = []) {
+  const root = String(searchRoot || '').trim();
+  const name = String(draftName || '').trim();
+  const markers = Array.isArray(expectedMarkers) ? expectedMarkers.filter(Boolean) : [];
+  if (!root || !name || !markers.length) return false;
+  const draftContentPath = findDraftContentPathInFolder(path.join(root, name), 2);
+  if (!draftContentPath) return false;
+  try {
+    const draft = JSON.parse(fs.readFileSync(draftContentPath, 'utf8'));
+    const materials = Array.isArray(draft.materials?.texts) ? draft.materials.texts : [];
+    const found = new Set();
+    for (const material of materials) {
+      const marker = detectCapcutTemplateMarker(getCapcutMaterialText(material));
+      if (marker) found.add(marker);
+    }
+    return markers.every((marker) => found.has(marker));
+  } catch {
+    return false;
+  }
 }
 
 function selectVariantCapcutTemplateDraftName(queueConfig = {}, variant = 'jp_full') {
@@ -6726,18 +6807,11 @@ function selectVariantCapcutTemplateDraftName(queueConfig = {}, variant = 'jp_fu
     ],
     jp_highlight: [
       queueConfig.jp_highlight_capcut_template_draft_name,
-      queueConfig.capcut_template_draft_name,
-      variantDefaults.jp_highlight,
-      variantDefaults.jp_full,
-      'sample draft'
+      variantDefaults.jp_highlight
     ],
     jp_midform: [
       queueConfig.jp_midform_capcut_template_draft_name,
-      queueConfig.jp_full_capcut_template_draft_name,
-      queueConfig.capcut_template_draft_name,
-      variantDefaults.jp_midform,
-      variantDefaults.jp_full,
-      'sample draft'
+      variantDefaults.jp_midform
     ],
     kr_full: [
       queueConfig.kr_full_capcut_template_draft_name,
@@ -6749,14 +6823,8 @@ function selectVariantCapcutTemplateDraftName(queueConfig = {}, variant = 'jp_fu
     ],
     kr_highlight: [
       queueConfig.kr_highlight_capcut_template_draft_name,
-      queueConfig.korean_capcut_template_draft_name,
-      queueConfig.kr_full_capcut_template_draft_name,
-      queueConfig.jp_highlight_capcut_template_draft_name,
-      queueConfig.capcut_template_draft_name,
       variantDefaults.kr_highlight,
-      variantDefaults.kr_full,
-      'sample draft korean',
-      'sample draft'
+      queueConfig.jp_highlight_capcut_template_draft_name
     ]
   };
   const candidates = (candidatesByVariant[variant] || candidatesByVariant.jp_full)
@@ -6767,12 +6835,18 @@ function selectVariantCapcutTemplateDraftName(queueConfig = {}, variant = 'jp_fu
     queueConfig.output?.capcut_draft_root,
     queueConfig.output?.output_root
   ].filter(Boolean);
+  const expectedMarkers = expectedCaptionTemplateMarkersForVariant(variant);
   for (const requested of candidates) {
     for (const root of roots) {
-      if (capcutDraftTemplateExists(root, requested)) return requested;
+      if (capcutDraftTemplateHasExpectedMarkers(root, requested, expectedMarkers)) return requested;
     }
   }
-  return candidates[0] || variantDefaults[variant] || variantDefaults.jp_full;
+  for (const requested of candidates) {
+    for (const root of roots) {
+      if (capcutDraftTemplateExists(root, requested) && requested === variantDefaults[variant]) return requested;
+    }
+  }
+  return variantDefaults[variant] || candidates[0] || variantDefaults.jp_full;
 }
 
 function selectKoreanCapcutTemplateDraftName(queueConfig = {}) {
@@ -6843,12 +6917,7 @@ function buildKoreanFullDraftConfig({ itemId, itemConfig, queueConfig, baseConfi
     upload_hashtags: titleInfo.hashtags.length ? titleInfo.hashtags : normalizeHashtags(itemConfig.upload_hashtags || []),
     output_language: 'ko',
     channel_asset: channelAsset,
-    channel_frame_asset: selectQueueAsset(
-      itemConfig.korean_channel_frame_asset,
-      itemConfig.channel_frame_asset,
-      queueConfig.korean_channel_frame_asset,
-      queueConfig.channel_frame_asset
-    ),
+    channel_frame_asset: disabledChannelFrameAsset(),
     video_transform_preset: fullTransform.presetId,
     use_bgm: queueConfig.korean_custom_bgm_path ? true : baseConfig.use_bgm,
     custom_bgm_path: queueConfig.korean_custom_bgm_path || baseConfig.custom_bgm_path || '',
@@ -7013,16 +7082,7 @@ async function createKoreanHighlightDraftForItem({
     upload_hashtags: titleInfo.hashtags.length ? titleInfo.hashtags : normalizeHashtags(itemConfig.upload_hashtags || []),
     output_language: 'ko',
     channel_asset: channelAsset,
-    channel_frame_asset: selectQueueAsset(
-      itemConfig.korean_highlight_channel_frame_asset,
-      itemConfig.korean_channel_frame_asset,
-      itemConfig.highlight_channel_frame_asset,
-      itemConfig.channel_frame_asset,
-      queueConfig.korean_highlight_channel_frame_asset,
-      queueConfig.korean_channel_frame_asset,
-      queueConfig.highlight_channel_frame_asset,
-      queueConfig.channel_frame_asset
-    ),
+    channel_frame_asset: disabledChannelFrameAsset(),
     use_bgm: queueConfig.korean_highlight_custom_bgm_path || queueConfig.korean_custom_bgm_path || queueConfig.highlight_custom_bgm_path ? true : baseConfig.use_bgm,
     custom_bgm_path: queueConfig.korean_highlight_custom_bgm_path || queueConfig.korean_custom_bgm_path || queueConfig.highlight_custom_bgm_path || baseConfig.custom_bgm_path || '',
     custom_bgm_original_name: queueConfig.korean_highlight_custom_bgm_original_name || queueConfig.korean_custom_bgm_original_name || queueConfig.highlight_custom_bgm_original_name || baseConfig.custom_bgm_original_name || '',
@@ -7290,11 +7350,12 @@ async function generateQueue({ batch_name, item_ids, stop_on_error = false, draf
         }
       }
 
-      const wantsFullDraft = ['all', 'full_highlight_only', 'full_only'].includes(normalizedDraftVariantMode);
-      const wantsHighlightDraft = ['all', 'full_highlight_only'].includes(normalizedDraftVariantMode)
+      const itemDraftVariantMode = effectiveDraftVariantModeForItem(normalizedDraftVariantMode, itemConfig);
+      const wantsFullDraft = ['all', 'full_highlight_only', 'full_only'].includes(itemDraftVariantMode);
+      const wantsHighlightDraft = ['all', 'full_highlight_only'].includes(itemDraftVariantMode)
         ? queueConfig.create_highlight_draft === true
-        : normalizedDraftVariantMode === 'highlight_only';
-      const wantsMidformDraft = ['all', 'midform_only'].includes(normalizedDraftVariantMode);
+        : itemDraftVariantMode === 'highlight_only';
+      const wantsMidformDraft = ['all', 'midform_only'].includes(itemDraftVariantMode);
       const guideOutput = itemConfig.ottogi_guide_output || {};
       const fullAnalysisReady = guideOutput.full_generation_status !== 'failed';
       const highlightAnalysisReady = guideOutput.highlight_generation_status !== 'failed';
@@ -7303,17 +7364,17 @@ async function generateQueue({ batch_name, item_ids, stop_on_error = false, draf
       let outputDecision = decideOutputModeForItem(itemConfig, {
         createHighlightDraft: wantsHighlightDraft
       });
-      if (normalizedDraftVariantMode === 'highlight_only' || normalizedDraftVariantMode === 'midform_only') {
+      if (itemDraftVariantMode === 'highlight_only' || itemDraftVariantMode === 'midform_only') {
         outputDecision = {
           ...outputDecision,
-          output_mode: normalizedDraftVariantMode,
+          output_mode: itemDraftVariantMode,
           skip_full_draft: true,
-          skip_reason: normalizedDraftVariantMode === 'highlight_only'
+          skip_reason: itemDraftVariantMode === 'highlight_only'
             ? '\uD558\uC774\uB77C\uC774\uD2B8\uB9CC \uC0DD\uC131\uD558\uB3C4\uB85D \uC120\uD0DD\uD588\uC2B5\uB2C8\uB2E4.'
             : '\u004d\u0069\u0064\u0066\u006f\u0072\u006d\uB9CC \uC0DD\uC131\uD558\uB3C4\uB85D \uC120\uD0DD\uD588\uC2B5\uB2C8\uB2E4.',
           reasons: [
             ...(Array.isArray(outputDecision.reasons) ? outputDecision.reasons : []),
-            `${normalizedDraftVariantMode} generation requested`
+            `${itemDraftVariantMode} generation requested`
           ]
         };
       }
@@ -7323,7 +7384,7 @@ async function generateQueue({ batch_name, item_ids, stop_on_error = false, draf
           includeHighlight: wantsHighlightDraft && highlightAnalysisReady,
           includeMidform: wantsMidformDraft && midformAnalysisReady,
           includeScenes: wantsFullDraft && outputDecision.skip_full_draft !== true && fullAnalysisReady,
-          strictHighlightMetadata: wantsHighlightDraft,
+          strictHighlightMetadata: wantsHighlightDraft && highlightAnalysisReady,
           includeJapanese: true,
           includeKorean: queueConfig.create_korean_drafts === true
         });
@@ -7567,7 +7628,7 @@ async function generateQueue({ batch_name, item_ids, stop_on_error = false, draf
       if (!shouldGenerateMidformDraft && queueConfig.create_midform_draft !== false) {
         row.midform_status = wantsMidformDraft ? 'skipped' : 'disabled';
         row.midform_skip_reason = !wantsMidformDraft
-          ? `midform not requested: ${normalizedDraftVariantMode}`
+          ? `midform not requested: ${itemDraftVariantMode}`
           : itemConfig.ottogi_guide_output?.midform_generation_status === 'failed'
             ? `midform skipped: ${itemConfig.ottogi_guide_output?.midform_generation_error || 'Midform Gemini generation failed'}`
           : (outputDecision.skip_midform_reason || 'midform skipped by output decision');
@@ -7786,7 +7847,6 @@ module.exports = {
   uploadQueueItems,
   uploadQueueBgm,
   uploadQueueChannelAsset,
-  uploadQueueChannelFrameAsset,
   importYoutubeSourceQueueItems,
   importYoutubeQueueItems,
   replaceQueueItemSource,

@@ -1,0 +1,47 @@
+{
+  "id": "profile_v1_short_realtime_medium_fullperson",
+  "version": 1,
+  "measured_at": "2026-07-08",
+  "measured_against": {
+    "dataset": "Highlight Pattern Lab stable EXPLODED/BURIED batch",
+    "n": 509,
+    "baseline_exploded_rate": 0.467
+  },
+  "hard_conditions": [
+    { "key": "duration_seconds", "op": "range", "min": 3, "max": 5, "label": "3-5초 소재 길이" },
+    { "key": "speed_appearance", "op": "eq", "value": "REAL_TIME", "label": "원속(REAL_TIME)" },
+    { "key": "subject_scale", "op": "eq", "value": "MEDIUM", "label": "미디엄 샷" },
+    { "key": "human_visible", "op": "eq", "value": "FULL_PERSON", "label": "전신 보임" }
+  ],
+  "hard_conditions_observed": {
+    "n": 65,
+    "exploded_rate": 0.815,
+    "channel_count": 4,
+    "verdict": "RELIABLE"
+  },
+  "soft_bonus_conditions": [
+    { "key": "moment_type_coarse", "op": "eq", "value": "DESTRUCTION", "label": "파괴 계열 모먼트", "bonus": 1 }
+  ],
+  "soft_bonus_observed": {
+    "n": 26,
+    "exploded_rate": 0.846,
+    "dominant_channel_id": "UCwQvzl_Hdee-uvyjbPsUZ0Q",
+    "dominant_channel_name": "Craftsman Bull",
+    "dominant_channel_share": 0.46,
+    "dominant_channel_rate": 1.0,
+    "ex_dominant_channel_n": 14,
+    "ex_dominant_channel_exploded_rate": 0.714,
+    "verdict": "CHANNEL_CONFOUNDED",
+    "reevaluate_condition": "Craftsman Bull 외 채널에서 DESTRUCTION 조합 표본을 추가로 확보한 뒤 재평가 -- 그 전까지는 soft_bonus 이상으로 승격 금지"
+  },
+  "scoring": {
+    "hard_condition_weight": 10,
+    "soft_bonus_weight": 1,
+    "tiers": [
+      { "min_hard_matches": 4, "label": "TOP" },
+      { "min_hard_matches": 3, "label": "PRIORITY" },
+      { "min_hard_matches": 0, "label": "LOW" }
+    ]
+  },
+  "usage_note": "소스 선택 단계(어떤 소스 영상을 우선 슬라이스할지) 스코어링 전용. 컷 타이밍(윈도우) 결정은 기존 buildCandidateWindow()의 action_phase 앵커 로직을 그대로 사용하며 이 프로파일로 대체하지 않는다."
+}
