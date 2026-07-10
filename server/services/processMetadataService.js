@@ -733,6 +733,7 @@ function buildScenePrompt({ sourceUrl, filename, durationSec, sourceType = 'unkn
     '- Return only the scene/cut information needed for editing, highlight selection, focus crop, and later Full Draft script writing.',
     '- Detect scene transitions and meaningful process/action changes.',
     '- If no clear scene transition exists, create scene timestamps using a forced 3-second rule.',
+    '- Every scene\'s start_sec/end_sec/transition_at_sec must be REAL absolute source seconds spanning the whole video. Collapsed or placeholder values (e.g. every scene reporting start 1 / end 1.2) are forbidden -- if the video is 58 seconds long, the scene list must cover roughly 0 to 58 seconds.',
     '- Every scene must include start_sec, end_sec, transition_at_sec, visual_summary, caption_text, caption_text_ko, screen_captions_ja, screen_captions_ko, focus_target, focus_zone, recommended_camera_move, motion_intensity, visual_hook_score, visual_hook_type, curiosity_reason, repetition_potential, mechanical_rhythm, human_presence, process_focus_priority.',
     '- Also include A-grade scoring fields: tempo_score, tension_score, transformation_score, framing_score, flow_score, a_grade_score, and scene_role.',
     '- Score scenes using manufacturing-process criteria: tempo, machine/hand tension, instant transformation, close-up/POV framing, and repeated flow.',

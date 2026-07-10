@@ -1162,9 +1162,29 @@ function normalizeSceneTransitions(transitions = [], durationSec = 0) {
   const validIntensities = new Set(['low', 'medium', 'high']);
   return transitions
     .map((item, index) => {
-      const start = Number(item?.start_sec);
-      const end = Number(item?.end_sec);
-      const transition = Number(item?.transition_at_sec ?? item?.end_sec);
+      let start = Number(item?.start_sec);
+      let end = Number(item?.end_sec);
+      let transition = Number(item?.transition_at_sec ?? item?.end_sec);
+      // Timestamp recovery: Gemini sometimes returns degenerate start/end
+      // values (observed live: nearly every scene of a 58s source came back
+      // start=1/end=1.2) while still encoding the true range in a
+      // "NNNN_NNNN" scene_id (e.g. 0010_0013 = 10s-13s). When the numeric
+      // fields are collapsed but the id carries a sane range, trust the id --
+      // otherwise every scene "overlaps" every window and highlight
+      // selection/caption timing silently degrade.
+      const idRange = String(item?.scene_id || '').match(/^(\d{2,4})_(\d{2,4})$/);
+      if (idRange) {
+        const idStart = Number(idRange[1]);
+        const idEnd = Number(idRange[2]);
+        const idSane = idEnd > idStart && (maxDuration <= 0 || idStart <= maxDuration + 1);
+        const numbersDegenerate = !Number.isFinite(start) || !Number.isFinite(end)
+          || end <= start || (end - start) < 0.35;
+        if (idSane && numbersDegenerate) {
+          start = idStart;
+          end = idEnd;
+          transition = idEnd;
+        }
+      }
       if (!Number.isFinite(transition) || transition <= 0) return null;
       const clampedTransition = maxDuration > 0 ? Math.min(transition, maxDuration) : transition;
       const clampedStart = Number.isFinite(start) ? Math.max(0, maxDuration > 0 ? Math.min(start, maxDuration) : start) : 0;
