@@ -3,6 +3,7 @@ const path = require('path');
 
 const DATA_DIR = path.join(__dirname, '../data');
 const LIBRARY_PATH = path.join(DATA_DIR, 'source_discovery_library.json');
+const BASKET_PATH = path.join(DATA_DIR, 'source_discovery_basket.json');
 const PROJECT_ROOT = path.join(__dirname, '../..');
 const QUEUE_ROOT = path.join(PROJECT_ROOT, 'queue', 'process');
 const BATCH_OUTPUT_ROOT = path.join(PROJECT_ROOT, 'server', 'output', 'process_batches');
@@ -105,6 +106,106 @@ function summarizeVideo(video = {}) {
     creator: String(video.creator || video.channelTitle || '').trim(),
     views: Number(video.views || 0),
     publishedAt: String(video.publishedAt || '').trim()
+  };
+}
+
+function emptyBasket() {
+  return {
+    version: 1,
+    videos: []
+  };
+}
+
+function normalizeBasketVideo(video = {}) {
+  const url = getVideoUrl(video);
+  const key = canonicalSourceKey(url || video.id || video.videoId || video.video_id);
+  const id = String(video.id || video.videoId || video.video_id || extractYouTubeId(url) || '').trim();
+  return {
+    id,
+    key,
+    url: url || (id ? `https://www.youtube.com/watch?v=${id}` : ''),
+    title: String(video.title || video.description || 'YouTube source').trim(),
+    description: String(video.description || '').trim(),
+    thumbnail: String(video.thumbnail || '').trim(),
+    creator: String(video.creator || video.channelTitle || '').trim(),
+    handle: String(video.handle || '').trim(),
+    platform: 'youtube',
+    views: Number(video.views || video.viewCount || 0),
+    publishedAt: String(video.publishedAt || video.published_at || '').trim(),
+    hashtags: Array.isArray(video.hashtags) ? video.hashtags : [],
+    durationSec: Number(video.durationSec || video.duration_sec || 0),
+    sourceMode: String(video.sourceMode || video.source_mode || 'auto').trim(),
+    sourceTypeGuess: String(video.sourceTypeGuess || video.source_type || 'unknown').trim(),
+    sourceWorkflowMode: String(video.sourceWorkflowMode || video.source_workflow_mode || 'unknown').trim(),
+    sourceClassification: video.sourceClassification || video.source_classification || null,
+    addedAt: String(video.addedAt || video.added_at || nowIso()).trim()
+  };
+}
+
+function readSourceBasket() {
+  const data = readJson(BASKET_PATH, emptyBasket());
+  const videos = Array.isArray(data?.videos) ? data.videos : [];
+  return {
+    ...emptyBasket(),
+    ...(data && typeof data === 'object' ? data : {}),
+    videos: videos.map(normalizeBasketVideo).filter((video) => video.key || video.url)
+  };
+}
+
+function saveSourceBasket(basket) {
+  const videos = Array.isArray(basket?.videos) ? basket.videos : [];
+  writeJson(BASKET_PATH, {
+    version: 1,
+    videos: videos.map(normalizeBasketVideo).filter((video) => video.key || video.url).slice(0, 300)
+  });
+  return readSourceBasket();
+}
+
+function upsertSourceBasketVideo(video = {}) {
+  const normalized = normalizeBasketVideo(video);
+  if (!normalized.key && !normalized.url) {
+    const error = new Error('Source URL or YouTube video id is required');
+    error.status = 400;
+    error.code = 'SOURCE_BASKET_URL_REQUIRED';
+    throw error;
+  }
+  const basket = readSourceBasket();
+  const nextVideos = [
+    {
+      ...normalized,
+      addedAt: nowIso()
+    },
+    ...basket.videos.filter((item) => item.key !== normalized.key && item.url !== normalized.url)
+  ].slice(0, 300);
+  return {
+    status: 'success',
+    basket: saveSourceBasket({ videos: nextVideos }),
+    item: nextVideos[0],
+    duplicate: basket.videos.some((item) => item.key === normalized.key || item.url === normalized.url)
+  };
+}
+
+function removeSourceBasketVideo(idOrKeyOrUrl = '') {
+  const target = String(idOrKeyOrUrl || '').trim();
+  const targetKey = canonicalSourceKey(target);
+  const basket = readSourceBasket();
+  const nextVideos = basket.videos.filter((item) => (
+    item.id !== target
+    && item.key !== target
+    && item.url !== target
+    && (!targetKey || item.key !== targetKey)
+  ));
+  return {
+    status: 'success',
+    removedCount: basket.videos.length - nextVideos.length,
+    basket: saveSourceBasket({ videos: nextVideos })
+  };
+}
+
+function clearSourceBasket() {
+  return {
+    status: 'success',
+    basket: saveSourceBasket({ videos: [] })
   };
 }
 
@@ -261,13 +362,19 @@ function syncProducedFromProcessReports() {
 
 module.exports = {
   LIBRARY_PATH,
+  BASKET_PATH,
   annotateVideos,
   canonicalSourceKey,
+  clearSourceBasket,
   excludeSource,
+  extractYouTubeId,
   getSourceState,
   markSourceProduced,
   readLibrary,
+  readSourceBasket,
+  removeSourceBasketVideo,
   restoreSource,
   summarizeLibrary,
-  syncProducedFromProcessReports
+  syncProducedFromProcessReports,
+  upsertSourceBasketVideo
 };

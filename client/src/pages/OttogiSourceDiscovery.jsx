@@ -246,6 +246,59 @@ export default function OttogiSourceDiscovery() {
     return Boolean(url && pendingSourceVideos.some((item) => safeText(item.url) === url));
   }
 
+  function buildPendingSourceVideo(video) {
+    const url = getVideoUrl(video);
+    return {
+      id: safeText(video.id || video.videoId || video.video_id || url),
+      url,
+      title: safeText(video.title || video.description || 'YouTube source'),
+      description: safeText(video.description || ''),
+      thumbnail: safeText(video.thumbnail || ''),
+      creator: safeText(video.creator || video.channelTitle || ''),
+      handle: safeText(video.handle || ''),
+      platform: 'youtube',
+      views: safeNum(video.views || video.viewCount),
+      publishedAt: safeText(video.publishedAt || video.published_at || ''),
+      hashtags: Array.isArray(video.hashtags) ? video.hashtags : [],
+      durationSec: safeNum(video.durationSec || video.duration_sec),
+      sourceMode: video.sourceMode || video.source_mode || sourceMode,
+      sourceTypeGuess: video.sourceTypeGuess || video.source_type || 'unknown',
+      sourceWorkflowMode: video.sourceWorkflowMode || video.source_workflow_mode || 'unknown',
+      sourceClassification: video.sourceClassification || video.source_classification || null,
+      addedAt: video.addedAt || video.added_at || new Date().toISOString()
+    };
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadSourceBasket() {
+      try {
+        const res = await api.get('/youtube/source-basket');
+        if (cancelled) return;
+        const basketVideos = Array.isArray(res.data?.videos) ? res.data.videos : [];
+        if (!basketVideos.length) return;
+        const merged = [
+          ...basketVideos.map(buildPendingSourceVideo),
+          ...pendingSourceVideos
+        ].filter((item) => item.url);
+        const unique = [];
+        const seen = new Set();
+        merged.forEach((item) => {
+          if (seen.has(item.url)) return;
+          seen.add(item.url);
+          unique.push(item);
+        });
+        setPhase5({ pendingSourceVideos: unique.slice(0, 100) });
+      } catch {
+        // The Phase1 page still works without the local extension basket API.
+      }
+    }
+    loadSourceBasket();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   async function excludeVideo(video) {
     const url = getVideoUrl(video);
     if (!url) {
@@ -279,34 +332,21 @@ export default function OttogiSourceDiscovery() {
     }
   }
 
-  function addUrlToBatch(video) {
+  async function addUrlToBatch(video) {
     const url = getVideoUrl(video);
     if (!url) {
       setError('담을 수 있는 URL이 없습니다.');
       return;
     }
 
-    const pendingVideo = {
-      id: safeText(video.id || url),
-      url,
-      title: safeText(video.title || video.description || 'YouTube source'),
-      description: safeText(video.description || ''),
-      thumbnail: safeText(video.thumbnail || ''),
-      creator: safeText(video.creator || ''),
-      handle: safeText(video.handle || ''),
-      platform: 'youtube',
-      views: safeNum(video.views),
-      publishedAt: safeText(video.publishedAt || ''),
-      hashtags: Array.isArray(video.hashtags) ? video.hashtags : [],
-      durationSec: safeNum(video.durationSec),
-      sourceMode: video.sourceMode || sourceMode,
-      sourceTypeGuess: video.sourceTypeGuess || 'unknown',
-      sourceWorkflowMode: video.sourceWorkflowMode || 'unknown',
-      sourceClassification: video.sourceClassification || null,
-      addedAt: new Date().toISOString()
-    };
+    const pendingVideo = buildPendingSourceVideo(video);
 
     const alreadyQueued = pendingSourceVideos.some((item) => safeText(item.url) === url);
+    try {
+      await api.post('/youtube/source-basket', { video: pendingVideo });
+    } catch {
+      // Keep the browser basket usable even if the extension/server basket write fails.
+    }
     setPhase1({ selectedVideo: video });
     setPhase5({
       pendingSourceVideos: [
@@ -318,12 +358,22 @@ export default function OttogiSourceDiscovery() {
     setError('');
   }
 
-  function removeQueuedUrl(url) {
+  async function removeQueuedUrl(url) {
     setPhase5({ pendingSourceVideos: pendingSourceVideos.filter((item) => safeText(item.url) !== safeText(url)) });
+    try {
+      await api.post('/youtube/source-basket/remove', { url });
+    } catch {
+      // Local UI removal already succeeded.
+    }
   }
 
-  function clearQueuedUrls() {
+  async function clearQueuedUrls() {
     setPhase5({ pendingSourceVideos: [] });
+    try {
+      await api.post('/youtube/source-basket/clear');
+    } catch {
+      // Local UI clearing already succeeded.
+    }
     setNotice('URL 바구니를 비웠습니다.');
   }
 
@@ -351,6 +401,11 @@ export default function OttogiSourceDiscovery() {
       }
 
       setPhase5({ pendingSourceVideos: [] });
+      try {
+        await api.post('/youtube/source-basket/clear');
+      } catch {
+        // Phase2 import already succeeded, so do not block navigation.
+      }
       setNotice(`Phase2 배치 큐에 ${importedCount}개를 추가했습니다.${skippedCount ? ` 이미 있던 ${skippedCount}개는 건너뛰었습니다.` : ''}`);
       setCurrentPhase(2);
       navigate('/phase-5');

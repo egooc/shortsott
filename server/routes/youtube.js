@@ -3,13 +3,18 @@ const { requireApiKey } = require('../middleware/auth');
 const { scoutYoutubeShorts } = require('../services/youtubeScoutService');
 const {
   annotateVideos,
+  clearSourceBasket,
   excludeSource,
   getSourceState,
   readLibrary,
+  readSourceBasket,
+  removeSourceBasketVideo,
   restoreSource,
   summarizeLibrary,
-  syncProducedFromProcessReports
+  syncProducedFromProcessReports,
+  upsertSourceBasketVideo
 } = require('../services/sourceDiscoveryLibrary');
+const { getYoutubeVideoDetails } = require('../services/youtubeScoutService');
 
 const router = express.Router();
 
@@ -49,6 +54,70 @@ router.get('/source-library', (_req, res, next) => {
       status: 'success',
       summary: summarizeLibrary(library),
       library
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/source-basket', (_req, res, next) => {
+  try {
+    const basket = readSourceBasket();
+    res.json({
+      status: 'success',
+      basket,
+      videos: basket.videos,
+      count: basket.videos.length
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/source-basket', (req, res, next) => {
+  try {
+    const result = upsertSourceBasketVideo(req.body?.video || req.body || {});
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete('/source-basket/:id', (req, res, next) => {
+  try {
+    res.json(removeSourceBasketVideo(req.params.id));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/source-basket/remove', (req, res, next) => {
+  try {
+    res.json(removeSourceBasketVideo(req.body?.id || req.body?.key || req.body?.url));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/source-basket/clear', (_req, res, next) => {
+  try {
+    res.json(clearSourceBasket());
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/video-details', async (req, res, next) => {
+  try {
+    const apiKey = requireApiKey('YOUTUBE_API_KEY');
+    const videos = await getYoutubeVideoDetails({
+      apiKey,
+      ids: req.body?.ids || req.body?.videoIds || [],
+      sourceMode: req.body?.sourceMode || req.body?.source_mode || 'auto'
+    });
+    res.json({
+      status: 'success',
+      videos
     });
   } catch (error) {
     next(error);
