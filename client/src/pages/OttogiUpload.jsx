@@ -9,7 +9,8 @@ const CHANNEL_PURPOSES = [
   { value: 'jp_full', label: 'JP Full' },
   { value: 'jp_highlight', label: 'JP Highlight' },
   { value: 'jp_midform', label: 'JP Midform' },
-  { value: 'archive', label: 'Archive' }
+  { value: 'ko_full', label: 'KR Full' },
+  { value: 'ko_highlight', label: 'KR Highlight' }
 ];
 
 function formatBytes(bytes) {
@@ -90,6 +91,29 @@ function groupByUploadDate(items = []) {
     .map(([dateKey, rows]) => ({ dateKey, label: formatDateGroupLabel(dateKey), items: rows }));
 }
 
+const VARIANT_ORDER = ['full', 'highlight', 'ko_full', 'ko_highlight', 'midform', 'unknown'];
+
+function variantCountsForItems(items = []) {
+  return (items || []).reduce((acc, item) => {
+    const variant = candidateVariant(item);
+    acc[variant] = (acc[variant] || 0) + 1;
+    return acc;
+  }, {});
+}
+
+function VariantCountChips({ items }) {
+  const counts = variantCountsForItems(items || []);
+  return (
+    <div className="flex flex-wrap gap-1">
+      {VARIANT_ORDER.filter((variant) => counts[variant]).map((variant) => (
+        <span key={variant} className={`rounded-full border px-2 py-1 text-[10px] font-black ${variantBadgeClass(variant)}`}>
+          {variantLabel(variant)} {counts[variant]}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function pendingFileDateKey(file) {
   return dateKeyFromFilename(file?.name || '')
     || dateKeyFromValue(file?.lastModified)
@@ -140,6 +164,23 @@ function stripLeadingUploadTitleMarker(value) {
     .trim();
 }
 
+function stripReviewOnlySections(value) {
+  const text = String(value || '');
+  const patterns = [
+    /^\s*<!--\s*REVIEW_VARIANT:/im,
+    /^\s*#{1,6}\s*Korean\s*review.*$/im,
+    /^\s*#{1,6}\s*한국어\s*(?:검수|검토|리뷰|번역|보기|확인|참고).*$/im
+  ];
+  const indexes = patterns
+    .map((pattern) => {
+      const match = text.match(pattern);
+      return typeof match?.index === 'number' ? match.index : -1;
+    })
+    .filter((index) => index >= 0);
+  const cutAt = indexes.length ? Math.min(...indexes) : -1;
+  return (cutAt >= 0 ? text.slice(0, cutAt) : text).trim();
+}
+
 function fromTagText(value) {
   return String(value || '')
     .split(/[\s,]+/)
@@ -170,11 +211,14 @@ function detectUploadVariantFromName(name = '') {
   const raw = String(name || '');
   const value = raw.toLowerCase();
   const koreanSuffix = /_ko(?:\.[^.]+)?$/i.test(raw);
+  const koreanText = /[\p{Script=Hangul}]/u.test(raw);
   if (/-m-/i.test(raw) || /(^|[_\s-])m($|[_\s-])/i.test(raw) || /midform|middle|2min|120/.test(value)) return 'midform';
   if (/-kh-/i.test(raw) || /(^|[_\s-])kh($|[_\s-])/i.test(raw) || /ko[_\s-]*highlight|kr[_\s-]*highlight|korean[_\s-]*highlight/.test(value)) return 'ko_highlight';
   if (/-kf-/i.test(raw) || /(^|[_\s-])kf($|[_\s-])/i.test(raw) || /ko[_\s-]*full|kr[_\s-]*full|korean[_\s-]*full/.test(value)) return 'ko_full';
   if (koreanSuffix && (/-h-/i.test(raw) || /(^|[_\s-])h($|[_\s-])/i.test(raw) || /highlight|hi-lite|hook|hl/.test(value))) return 'ko_highlight';
   if (koreanSuffix && (/-f-/i.test(raw) || /(^|[_\s-])f($|[_\s-])/i.test(raw) || /full|process|draft/.test(value))) return 'ko_full';
+  if (koreanText && (/-h-/i.test(raw) || /(^|[_\s-])h($|[_\s-])/i.test(raw) || /highlight|hi-lite|hook|hl/.test(value))) return 'ko_highlight';
+  if (koreanText && (/-f-/i.test(raw) || /(^|[_\s-])f($|[_\s-])/i.test(raw) || /full|process|draft/.test(value))) return 'ko_full';
   if (/-h-/i.test(raw) || /(^|[_\s-])h($|[_\s-])/i.test(raw) || /highlight|hi-lite|hook|hl/.test(value)) return 'highlight';
   if (/-f-/i.test(raw) || /(^|[_\s-])f($|[_\s-])/i.test(raw) || /full|process|draft/.test(value)) return 'full';
   return 'unknown';
@@ -329,8 +373,9 @@ function normalizePurpose(value) {
   if (raw === 'highlight') return 'jp_highlight';
   if (raw === 'midform') return 'jp_midform';
   if (raw === 'full_draft' || raw === 'full') return 'jp_full';
-  if (raw === 'ko_full_draft' || raw === 'ko_highlight_draft') return 'archive';
-  if (raw === 'legacy_env') return 'archive';
+  if (raw === 'ko_full_draft' || raw === 'kr_full' || raw === 'korean_full') return 'ko_full';
+  if (raw === 'ko_highlight_draft' || raw === 'kr_highlight' || raw === 'korean_highlight') return 'ko_highlight';
+  if (raw === 'legacy_env' || raw === 'archive') return '';
   return raw;
 }
 
@@ -339,6 +384,8 @@ function variantForPurpose(value) {
   if (purpose === 'jp_full') return 'full';
   if (purpose === 'jp_highlight') return 'highlight';
   if (purpose === 'jp_midform') return 'midform';
+  if (purpose === 'ko_full') return 'ko_full';
+  if (purpose === 'ko_highlight') return 'ko_highlight';
   return '';
 }
 
@@ -490,7 +537,10 @@ function SmallCardList({ title, subtitle, count, items, emptyText, accent = 'lim
         {dateGroups.length ? dateGroups.map((group) => (
           <section key={group.dateKey} className="rounded-2xl border border-white/10 bg-black/20 p-2">
             <div className="mb-2 flex items-center justify-between gap-2">
-              <div className="text-xs font-black text-white">{group.label} <span className="text-[#c8ff00]">{group.items.length}</span></div>
+              <div>
+                <div className="text-xs font-black text-white">{group.label} <span className="text-[#c8ff00]">{group.items.length}</span></div>
+                <div className="mt-1"><VariantCountChips items={group.items} /></div>
+              </div>
               <div className="flex flex-wrap gap-1">
                 {onRestore ? (
                   <button type="button" className="rounded-lg border border-[#c8ff00]/30 px-2 py-1 text-[11px] font-black text-[#c8ff00] hover:bg-[#c8ff00]/10" onClick={() => onRestore(group.items.map((item) => item.cardId || item.id))}>
@@ -581,7 +631,7 @@ export default function OttogiUpload() {
     const variant = detectUploadVariantFromName(file.name);
     acc[variant] = (acc[variant] || 0) + 1;
     return acc;
-  }, { full: 0, highlight: 0, midform: 0, unknown: 0 }), [files]);
+  }, { full: 0, highlight: 0, midform: 0, ko_full: 0, ko_highlight: 0, unknown: 0 }), [files]);
 
   const pendingDateGroups = useMemo(() => groupPendingFilesByDate(files), [files]);
 
@@ -589,7 +639,7 @@ export default function OttogiUpload() {
     const variant = candidate.variant || detectUploadVariantFromName(candidate.originalName);
     acc[variant] = (acc[variant] || 0) + 1;
     return acc;
-  }, { full: 0, highlight: 0, midform: 0, unknown: 0 }), [candidates]);
+  }, { full: 0, highlight: 0, midform: 0, ko_full: 0, ko_highlight: 0, unknown: 0 }), [candidates]);
 
   const candidateDateGroups = useMemo(() => groupByUploadDate(candidates), [candidates]);
 
@@ -611,7 +661,7 @@ export default function OttogiUpload() {
   const uploadBlockedReason = useMemo(() => {
     if (!selectedCandidates.length) return '업로드할 영상을 선택해주세요.';
     if (!selectedProfileId) return '업로드할 YouTube 채널 프로필을 먼저 선택해주세요.';
-    if (!selectedProfileVariant) return '선택한 채널 프로필의 용도를 JP Full / JP Highlight / JP Midform 중 하나로 지정해주세요.';
+    if (!selectedProfileVariant) return '선택한 채널 프로필의 용도를 JP Full / JP Highlight / JP Midform / KR Full / KR Highlight 중 하나로 지정해주세요.';
     if (selectedVariantMismatches.length) {
       return `선택 채널은 ${variantLabel(selectedProfileVariant)} 전용입니다. 맞지 않는 카드 ${selectedVariantMismatches.length}개를 해제해주세요.`;
     }
@@ -670,7 +720,7 @@ export default function OttogiUpload() {
       const publishAt = candidate.publishAt || autoPublishAt;
       nextForms[candidate.id] = {
         title: stripLeadingUploadTitleMarker(candidate.title || ''),
-        description: candidate.description || '',
+        description: stripReviewOnlySections(candidate.description || ''),
         tagsText: toTagText(candidate.tags),
         privacyStatus: publishAt ? 'private' : (candidate.privacyStatus || 'private'),
         publishAt,
@@ -1008,7 +1058,7 @@ export default function OttogiUpload() {
         finalMp4Path: candidate.finalMp4Path || candidate.filePath,
         originalName: candidate.originalName,
         title: stripLeadingUploadTitleMarker(form.title || candidate.title),
-        description: form.description || candidate.description,
+        description: stripReviewOnlySections(form.description || candidate.description),
         tags: fromTagText(form.tagsText || toTagText(candidate.tags)),
         privacyStatus: form.publishAt ? 'private' : (form.privacyStatus || candidate.privacyStatus || 'private'),
         publishAt: form.publishAt || '',
@@ -1463,7 +1513,7 @@ export default function OttogiUpload() {
       return;
     }
     if (!selectedProfileVariant) {
-      setMessage('선택한 채널 프로필의 용도를 JP Full / JP Highlight / JP Midform 중 하나로 지정해주세요.');
+      setMessage('선택한 채널 프로필의 용도를 JP Full / JP Highlight / JP Midform / KR Full / KR Highlight 중 하나로 지정해주세요.');
       return;
     }
     if (selectedVariantMismatches.length) {
@@ -1503,9 +1553,18 @@ export default function OttogiUpload() {
       const saved = loadUploadWorkspace();
       if (saved) {
         const restoredCandidates = Array.isArray(saved.candidates) ? saved.candidates : [];
+        const restoredFormMap = saved.formMap && typeof saved.formMap === 'object'
+          ? Object.fromEntries(Object.entries(saved.formMap).map(([key, form]) => [
+            key,
+            {
+              ...form,
+              description: stripReviewOnlySections(form?.description || '')
+            }
+          ]))
+          : {};
         setCandidates(restoredCandidates);
         setSelected(new Set(Array.isArray(saved.selectedIds) ? saved.selectedIds : []));
-        setFormMap(saved.formMap && typeof saved.formMap === 'object' ? saved.formMap : {});
+        setFormMap(restoredFormMap);
         setWarnings(Array.isArray(saved.warnings) ? saved.warnings : []);
         setScheduleBase(saved.scheduleBase || '');
         setScheduleInterval(saved.scheduleInterval || 120);
@@ -1825,6 +1884,8 @@ export default function OttogiUpload() {
                     ['all', `전체 ${candidates.length}`],
                     ['full', `Full ${candidateVariantCounts.full || 0}`],
                     ['highlight', `Highlight ${candidateVariantCounts.highlight || 0}`],
+                    ['ko_full', `한국어 Full ${candidateVariantCounts.ko_full || 0}`],
+                    ['ko_highlight', `한국어 Highlight ${candidateVariantCounts.ko_highlight || 0}`],
                     ['midform', `Midform ${candidateVariantCounts.midform || 0}`],
                     ['unknown', `Unknown ${candidateVariantCounts.unknown || 0}`]
                   ].map(([value, label]) => (
@@ -1888,6 +1949,7 @@ export default function OttogiUpload() {
                     <div>
                       <h3 className="text-base font-black text-white">{group.label}</h3>
                       <p className="mt-1 text-xs text-lime-100/75">이 날짜 후보 {group.items.length}개</p>
+                      <div className="mt-2"><VariantCountChips items={group.items} /></div>
                     </div>
                     <div className="flex flex-wrap gap-2 text-xs font-black">
                       <button type="button" className="rounded-xl border border-[#c8ff00]/35 px-3 py-2 text-[#c8ff00] hover:bg-[#c8ff00]/10" onClick={() => selectDateCategory(group.dateKey)}>

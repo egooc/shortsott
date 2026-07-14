@@ -34,7 +34,9 @@ const DEFAULTS = {
 const CHANNEL_PURPOSES = [
   { value: 'jp_full', label: 'JP Full' },
   { value: 'jp_highlight', label: 'JP Highlight' },
-  { value: 'jp_midform', label: 'JP Midform' }
+  { value: 'jp_midform', label: 'JP Midform' },
+  { value: 'ko_full', label: 'KR Full' },
+  { value: 'ko_highlight', label: 'KR Highlight' }
 ];
 
 function purposeLabel(value) {
