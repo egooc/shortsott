@@ -240,10 +240,11 @@ def find_capcut_template_files(template_id="channel_default", process_config=Non
     if output_config.get("output_root"):
         draft_roots.append(str(output_config.get("output_root")))
 
-    for draft_root in draft_roots:
-        found = find_capcut_draft_template_by_name(draft_root, draft_template_name)
-        if found:
-            return found
+    if draft_template_name:
+        for draft_root in draft_roots:
+            found = find_capcut_draft_template_by_name(draft_root, draft_template_name)
+            if found:
+                return found
 
     repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     safe_template_id = os.path.basename(str(template_id or "channel_default"))
@@ -283,6 +284,13 @@ def safe_float(value, default_value=0.0):
         if default_value is None:
             return None
         return float(default_value)
+
+
+def first_non_empty_string(*values):
+    for value in values:
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return ""
 
 
 def coerce_bool(value, default_value=False):
@@ -491,6 +499,57 @@ def apply_process_caption_style_profile(material, segment, style_profile):
             scale = clip.setdefault("scale", {})
             scale["x"] = 1.0
             scale["y"] = 1.0
+        return {
+            "profile": profile,
+            "applied": True,
+            "font_size": material["font_size"],
+            "text_color": material["text_color"],
+            "border_width": material["border_width"],
+            "shadow_alpha": material["shadow_alpha"],
+            "background_alpha": material["background_alpha"],
+            "oneline_cutoff": material["oneline_cutoff"],
+            "fixed_width": material["fixed_width"],
+            "fixed_height": material["fixed_height"],
+        }
+
+    if profile == "highlight_explainer":
+        original_font_size = safe_float(material.get("font_size"), HIGHLIGHT_EXPLAINER_FONT_SIZE)
+        material["font_size"] = original_font_size if original_font_size > 0 else HIGHLIGHT_EXPLAINER_FONT_SIZE
+        material["text_color"] = material.get("text_color") or "#FFF2A6"
+        material["text_alpha"] = 1.0
+        material["global_alpha"] = 1.0
+        material["use_effect_default_color"] = True
+        material["has_border"] = True
+        material["border_width"] = max(safe_float(material.get("border_width"), 0.0), 0.095)
+        material["border_alpha"] = max(safe_float(material.get("border_alpha"), 0.0), 0.82)
+        material["border_color"] = material.get("border_color") or "#000000"
+        material["border_mode"] = 0
+        material["has_shadow"] = True
+        material["shadow_color"] = "#000000"
+        material["shadow_alpha"] = max(safe_float(material.get("shadow_alpha"), 0.0), 0.82)
+        material["shadow_distance"] = max(safe_float(material.get("shadow_distance"), 0.0), 7.0)
+        material["shadow_angle"] = safe_float(material.get("shadow_angle"), -45.0)
+        material["shadow_smoothing"] = max(safe_float(material.get("shadow_smoothing"), 0.0), 0.28)
+        material["bold_width"] = max(safe_float(material.get("bold_width"), 0.0), 0.04)
+        material["bold_width_rate"] = max(safe_float(material.get("bold_width_rate"), 0.0), 0.1)
+        material["oneline_cutoff"] = False
+        material["line_feed"] = 1
+        material["fixed_width"] = HIGHLIGHT_EXPLAINER_FIXED_WIDTH
+        material["fixed_height"] = -1.0
+        material["force_apply_line_max_width"] = True
+        material["line_max_width"] = max(safe_float(material.get("line_max_width"), 0.0), 0.82)
+        material["background_color"] = material.get("background_color") or "#000000"
+        material["background_alpha"] = max(safe_float(material.get("background_alpha"), 0.0), 0.34)
+        material["background_round_radius"] = max(safe_float(material.get("background_round_radius"), 0.0), 0.14)
+        material["single_char_bg_enable"] = False
+        if isinstance(segment, dict):
+            clip = segment.setdefault("clip", {})
+            scale = clip.setdefault("scale", {})
+            scale["x"] = 1.0
+            scale["y"] = 1.0
+            transform = clip.setdefault("transform", {})
+            transform["x"] = HIGHLIGHT_EXPLAINER_X
+            transform["y"] = HIGHLIGHT_EXPLAINER_Y
         return {
             "profile": profile,
             "applied": True,
@@ -859,7 +918,8 @@ def ensure_material_category(draft_doc, category):
     return materials[category]
 
 
-def find_template_text_marker_assets(template_doc):
+def find_template_text_marker_assets(template_doc, allowed_markers=None):
+    allowed = set(allowed_markers or [])
     material_index = build_material_index_by_id(template_doc)
     found = {}
     tracks = template_doc.get("tracks") or []
@@ -878,7 +938,14 @@ def find_template_text_marker_assets(template_doc):
             marker = detect_marker_from_text(text_value)
             if not marker:
                 continue
-            if marker not in found:
+            if allowed and marker not in allowed:
+                continue
+            existing = found.get(marker)
+            current_start = int((segment.get("target_timerange") or {}).get("start") or 0)
+            existing_start = int(((existing or {}).get("segment") or {}).get("target_timerange", {}).get("start") or -1)
+            # Sample drafts sometimes contain old marker copies. Use the last
+            # marker on the timeline as the intentional editable marker.
+            if existing is None or current_start >= existing_start:
                 found[marker] = {
                     "track_index": track_index,
                     "track": track,
@@ -887,6 +954,26 @@ def find_template_text_marker_assets(template_doc):
                     "text_value": text_value,
                 }
     return found
+
+
+def expected_process_caption_template_markers(process_config, explainer_blocks):
+    markers = set()
+    if isinstance(process_config, dict):
+        variant_policy_id = str(process_config.get("variant_policy_id") or "").strip().lower()
+        caption_mode = str(process_config.get("caption_mode") or "").strip().lower()
+        if "highlight" in variant_policy_id or caption_mode == "long_bottom_explainer":
+            markers.add("TEMPLATE_HIGHLIGHT_EXPLAINER")
+        if "full" in variant_policy_id or "midform" in variant_policy_id or caption_mode == "scene_based_short_subtitles":
+            markers.add("TEMPLATE_FULL_CAPTION")
+    for block in explainer_blocks or []:
+        if not isinstance(block, dict):
+            continue
+        profile = str(block.get("style_profile") or block.get("styleProfile") or "").strip()
+        if profile == "highlight_explainer":
+            markers.add("TEMPLATE_HIGHLIGHT_EXPLAINER")
+        elif profile == "full_cut_caption":
+            markers.add("TEMPLATE_FULL_CAPTION")
+    return sorted(markers)
 
 
 def clone_material_dependencies(template_doc, generated_doc, ref_ids, source_to_target_id_map):
@@ -1046,6 +1133,254 @@ def apply_template_background_layer(generated, template_doc, template_root, draf
             "applied": True,
             "draft_path": copied_path,
             "reason": "template background image cloned",
+        }
+    )
+    return summary
+
+
+def is_template_frame_track_name(track_name):
+    normalized = str(track_name or "").strip().lower()
+    if not normalized:
+        return False
+    if "background" in normalized or "template_bg" in normalized:
+        return False
+    aliases = {
+        "template_frame_overlay",
+        "template_frame",
+        "channel_frame_overlay",
+        "frame_overlay",
+        "overlay_frame",
+        "full_frame",
+        "highlight_frame",
+    }
+    return any(alias in normalized for alias in aliases)
+
+
+def is_template_frame_material(material):
+    if not isinstance(material, dict):
+        return False
+    haystack = " ".join(
+        str(material.get(key) or "")
+        for key in ["name", "material_name", "path", "file_name", "resource_name"]
+    ).strip().lower()
+    if not haystack:
+        return False
+    aliases = {
+        "template_frame_overlay",
+        "template_frame",
+        "channel_frame_overlay",
+        "frame_overlay",
+        "overlay_frame",
+        "full_frame",
+        "highlight_frame",
+    }
+    return any(alias in haystack for alias in aliases)
+
+
+def find_template_frame_overlay_entries(template_doc):
+    material_index = build_material_index_by_id(template_doc)
+    entries = []
+    for track_index, track in enumerate(template_doc.get("tracks") or []):
+        if not isinstance(track, dict) or track.get("type") != "video":
+            continue
+        track_name = str(track.get("name") or "")
+        track_is_frame = is_template_frame_track_name(track_name)
+        for segment_index, segment in enumerate(track.get("segments") or []):
+            if not isinstance(segment, dict):
+                continue
+            material_id = segment.get("material_id")
+            material_entry = material_index.get(material_id)
+            if material_entry is None:
+                continue
+            category, material = material_entry
+            if category != "videos":
+                continue
+            if not track_is_frame and not is_template_frame_material(material):
+                continue
+            entries.append(
+                {
+                    "track_index": track_index,
+                    "segment_index": segment_index,
+                    "track": track,
+                    "segment": segment,
+                    "material": material,
+                    "material_path": str(material.get("path") or "").strip(),
+                }
+            )
+    entries.sort(key=lambda item: (item["track_index"], item["segment_index"]))
+    return entries
+
+
+def segment_has_mask_reference(draft_doc, segment):
+    if not isinstance(draft_doc, dict) or not isinstance(segment, dict):
+        return False
+    material_index = build_material_index_by_id(draft_doc)
+    for ref_id in segment.get("extra_material_refs") or []:
+        entry = material_index.get(ref_id)
+        if not entry:
+            continue
+        category, material = entry
+        if category == "common_mask":
+            return True
+        if isinstance(material, dict) and str(material.get("type") or "").lower() == "mask":
+            return True
+    return False
+
+
+def apply_template_frame_overlay_layer(generated, template_doc, template_root, draft_path, total_duration_sec, source_to_target_id_map):
+    summary = {
+        "enabled": True,
+        "applied": False,
+        "track_name": "channel_frame_overlay",
+        "template_track_name": "",
+        "segments_count": 0,
+        "template_material_ids": [],
+        "source_paths": [],
+        "draft_paths": [],
+        "mask_preserved": False,
+        "clip_settings_preserved": False,
+        "source_timerange_preserved": False,
+        "render_timerange_preserved": False,
+        "mask_refs_count": 0,
+        "reason": "template frame overlay track not found",
+    }
+    entries = find_template_frame_overlay_entries(template_doc)
+    if not entries:
+        return summary
+
+    total_us = max(1, microseconds(total_duration_sec))
+    overlay_dir = os.path.join(draft_path, "overlay")
+    os.makedirs(overlay_dir, exist_ok=True)
+    cloned_segments = []
+    source_paths = []
+    copied_paths = []
+    template_material_ids = []
+    mask_preserved = False
+    clip_settings_preserved = False
+    source_timerange_preserved = False
+    render_timerange_preserved = False
+    mask_refs_count = 0
+
+    for index, entry in enumerate(entries):
+        source_path = resolve_template_media_path(template_root, entry.get("material_path"))
+        if not source_path:
+            continue
+        source_paths.append(source_path)
+
+        basename = os.path.basename(source_path)
+        copied_name = f"template_frame_{index + 1:02d}_{basename}"
+        copied_path = os.path.abspath(os.path.join(overlay_dir, copied_name))
+        try:
+            shutil.copy2(source_path, copied_path)
+        except Exception:
+            continue
+
+        material = json.loads(json.dumps(entry["material"]))
+        old_material_id = material.get("id")
+        new_material_id = new_capcut_id()
+        material["id"] = new_material_id
+        material["path"] = copied_path
+        material["name"] = os.path.basename(copied_path)
+        if isinstance(old_material_id, str) and old_material_id:
+            source_to_target_id_map[old_material_id] = new_material_id
+            template_material_ids.append(old_material_id)
+        ensure_material_category(generated, "videos").append(material)
+
+        segment = json.loads(json.dumps(entry["segment"]))
+        original_source_timerange = json.loads(json.dumps(segment.get("source_timerange"))) if isinstance(segment.get("source_timerange"), dict) else None
+        original_render_timerange = json.loads(json.dumps(segment.get("render_timerange"))) if isinstance(segment.get("render_timerange"), dict) else None
+        original_render_index = segment.get("render_index")
+        original_track_render_index = segment.get("track_render_index")
+        segment["id"] = new_capcut_id()
+        segment["material_id"] = new_material_id
+        segment["visible"] = True
+        if original_render_index is None:
+            segment["render_index"] = 11200 + index
+        if original_track_render_index is None:
+            segment["track_render_index"] = 0
+        segment["target_timerange"] = {"start": 0, "duration": total_us}
+        if original_source_timerange is not None:
+            source_duration_us = int(original_source_timerange.get("duration") or 0)
+            if source_duration_us > 0:
+                original_source_timerange["duration"] = min(source_duration_us, total_us)
+            segment["source_timerange"] = original_source_timerange
+            source_timerange_preserved = True
+        if original_render_timerange is not None:
+            # CapCut template overlay videos often use render duration 0 while
+            # the visible range is controlled by target_timerange. Preserve that
+            # instead of stretching the template segment like source footage.
+            segment["render_timerange"] = original_render_timerange
+            render_timerange_preserved = True
+        segment["extra_material_refs"] = clone_material_dependencies(
+            template_doc,
+            generated,
+            segment.get("extra_material_refs") or [],
+            source_to_target_id_map,
+        )
+        if isinstance(segment.get("clip"), dict):
+            clip_settings_preserved = True
+        generated_material_index = build_material_index_by_id(generated)
+        mask_refs_count += sum(
+            1
+            for ref_id in (segment.get("extra_material_refs") or [])
+            if isinstance(ref_id, str)
+            and (
+                (generated_material_index.get(ref_id) or ("", {}))[0] == "common_mask"
+                or (generated_material_index.get(ref_id) or ("", {}))[1].get("type") == "mask"
+            )
+        )
+        if (
+            segment.get("enable_video_mask")
+            or segment.get("enable_adjust_mask")
+            or isinstance(segment.get("mask"), dict)
+            or isinstance(segment.get("video_mask"), dict)
+            or segment_has_mask_reference(template_doc, entry["segment"])
+            or segment_has_mask_reference(generated, segment)
+        ):
+            mask_preserved = True
+        cloned_segments.append(segment)
+        copied_paths.append(copied_path)
+
+    if not cloned_segments:
+        summary["reason"] = "template frame overlay media path not found or copy failed"
+        return summary
+
+    tracks = generated.setdefault("tracks", [])
+    tracks[:] = [
+        track for track in tracks
+        if not (isinstance(track, dict) and track.get("type") == "video" and track.get("name") == "channel_frame_overlay")
+    ]
+    frame_track = {
+        "id": new_capcut_id(),
+        "type": "video",
+        "segments": cloned_segments,
+        "flag": 1,
+        "attribute": 0,
+        "name": "channel_frame_overlay",
+        "is_default_name": False,
+        "visible": True,
+    }
+    insert_index = 0
+    for track_index, track in enumerate(tracks):
+        if isinstance(track, dict) and track.get("type") == "video" and track.get("name") == "source_video":
+            insert_index = track_index + 1
+            break
+    tracks.insert(insert_index, frame_track)
+
+    summary.update(
+        {
+            "applied": True,
+            "template_track_name": str((entries[0].get("track") or {}).get("name") or ""),
+            "segments_count": len(cloned_segments),
+            "template_material_ids": template_material_ids,
+            "source_paths": source_paths,
+            "draft_paths": copied_paths,
+            "mask_preserved": mask_preserved,
+            "clip_settings_preserved": clip_settings_preserved,
+            "source_timerange_preserved": source_timerange_preserved,
+            "render_timerange_preserved": render_timerange_preserved,
+            "mask_refs_count": mask_refs_count,
+            "reason": "template frame overlay cloned with segment settings",
         }
     )
     return summary
@@ -1362,7 +1697,7 @@ def get_source_preprocess_config(process_config=None):
         "hdr_look": coerce_bool(raw.get("hdr_look"), True),
         "crf": crf,
         "ocr_blur": {
-            "enabled": coerce_bool((raw.get("ocr_blur") or {}).get("enabled") if isinstance(raw.get("ocr_blur"), dict) else raw.get("ocr_blur"), True),
+            "enabled": coerce_bool((raw.get("ocr_blur") or {}).get("enabled") if isinstance(raw.get("ocr_blur"), dict) else raw.get("ocr_blur"), False),
             "mode": str((raw.get("ocr_blur") or {}).get("mode") if isinstance(raw.get("ocr_blur"), dict) else "watermark_safe").strip() or "watermark_safe",
             "padding_px": int(safe_float((raw.get("ocr_blur") or {}).get("padding_px") if isinstance(raw.get("ocr_blur"), dict) else 16, 16)),
             "detect_every_sec": max(0.2, safe_float((raw.get("ocr_blur") or {}).get("detect_every_sec") if isinstance(raw.get("ocr_blur"), dict) else 0.5, 0.5)),
@@ -1819,8 +2154,8 @@ def prepare_process_source_video(source_path, output_path, preprocess_config, wa
         "method": "copy",
         "reason": "",
         "ocr_blur": {
-            "enabled": bool(ocr_config.get("enabled", True)),
-            "requested": bool(ocr_config.get("enabled", True)),
+            "enabled": bool(ocr_config.get("enabled", False)),
+            "requested": bool(ocr_config.get("enabled", False)),
             "applied": False,
             "mode": str(ocr_config.get("mode") or "aggressive"),
             "padding_px": int(ocr_config.get("padding_px") or 38),
@@ -1850,7 +2185,7 @@ def prepare_process_source_video(source_path, output_path, preprocess_config, wa
             "unsharp=5:5:0.45:3:3:0.25",
         ])
 
-    ocr_enabled = coerce_bool(ocr_config.get("enabled"), True)
+    ocr_enabled = coerce_bool(ocr_config.get("enabled"), False)
     ffmpeg_output_path = output_path
     intermediate_path = ""
     if ocr_enabled:
@@ -3904,7 +4239,7 @@ def sync_full_caption_segments_to_video_timeline(draft_content_path, explainer_b
     summary["reason"] = "synced to source_video target timeline" if sync_count else "nothing synced"
     return summary
 
-def force_process_caption_visibility(draft_content_path):
+def force_process_caption_visibility(draft_content_path, template_doc=None, process_config=None):
     """Normalize cloned caption text so CapCut cannot keep it invisible."""
     summary = {
         "applied": False,
@@ -3962,6 +4297,19 @@ def force_process_caption_visibility(draft_content_path):
 
     text_track["visible"] = True
     material_index = build_material_index_by_id(draft_content)
+    process_config = process_config if isinstance(process_config, dict) else {}
+    draft_caption_mode = str(process_config.get("caption_mode") or "").strip().lower()
+    draft_variant_policy = str(process_config.get("variant_policy_id") or process_config.get("visual_template") or "").strip().lower()
+    has_highlight_explainer_block = any(
+        isinstance(block, dict)
+        and str(block.get("style_profile") or block.get("styleProfile") or "").strip() == "highlight_explainer"
+        for block in process_config.get("explainer_blocks") or []
+    )
+    default_is_highlight_draft = (
+        draft_caption_mode == "long_bottom_explainer"
+        or "highlight" in draft_variant_policy
+        or has_highlight_explainer_block
+    )
 
     def first_existing_font_path(candidates):
         for candidate in candidates:
@@ -4064,6 +4412,130 @@ def force_process_caption_visibility(draft_content_path):
                             result["outline_alpha"] = solid.get("alpha")
             break
         return result
+
+    def template_content_font_fields(material):
+        result = {}
+        content_json = parse_json_text_content(material.get("content") if isinstance(material, dict) else None)
+        if not isinstance(content_json, dict):
+            return result
+        styles = content_json.get("styles")
+        if not isinstance(styles, list):
+            return result
+        for style_item in styles:
+            if not isinstance(style_item, dict):
+                continue
+            font = style_item.get("font")
+            if not isinstance(font, dict):
+                continue
+            for source_key, target_key in [
+                ("path", "font_path"),
+                ("name", "font_name"),
+                ("title", "font_title"),
+                ("id", "font_id"),
+                ("resource_id", "font_resource_id"),
+                ("source_platform", "font_source_platform"),
+                ("category_name", "font_category_name"),
+                ("category_id", "font_category_id"),
+                ("third_resource_id", "font_third_resource_id"),
+            ]:
+                value = font.get(source_key)
+                if value not in (None, ""):
+                    result[target_key] = value
+            break
+        return result
+
+    def template_content_font_size(material):
+        content_json = parse_json_text_content(material.get("content") if isinstance(material, dict) else None)
+        if not isinstance(content_json, dict):
+            return None
+        styles = content_json.get("styles")
+        if not isinstance(styles, list):
+            return None
+        for style_item in styles:
+            if isinstance(style_item, dict) and style_item.get("size") is not None:
+                return safe_float(style_item.get("size"), 0.0)
+        return None
+
+    def template_style_overrides_from_marker(marker_name, style_profile):
+        if not isinstance(template_doc, dict):
+            return {}
+        entries = find_template_text_marker_assets(template_doc, [marker_name])
+        entry = entries.get(marker_name) if isinstance(entries, dict) else None
+        if not isinstance(entry, dict):
+            return {}
+        material = entry.get("material")
+        segment = entry.get("segment")
+        if not isinstance(material, dict) or not isinstance(segment, dict):
+            return {}
+        clip = segment.get("clip") if isinstance(segment.get("clip"), dict) else {}
+        transform = clip.get("transform") if isinstance(clip.get("transform"), dict) else {}
+        scale = clip.get("scale") if isinstance(clip.get("scale"), dict) else {}
+        overrides = {
+            "marker": marker_name,
+            "style_profile": style_profile,
+            "font_size": template_content_font_size(material) or safe_float(material.get("font_size"), HIGHLIGHT_EXPLAINER_FONT_SIZE if style_profile == "highlight_explainer" else FULL_CUT_CAPTION_FONT_SIZE),
+            "x": safe_float(transform.get("x"), HIGHLIGHT_EXPLAINER_X if style_profile == "highlight_explainer" else FULL_CUT_CAPTION_X),
+            "y": safe_float(transform.get("y"), HIGHLIGHT_EXPLAINER_Y if style_profile == "highlight_explainer" else FULL_CUT_CAPTION_Y),
+            "scale_x": safe_float(scale.get("x"), 1.0),
+            "scale_y": safe_float(scale.get("y"), 1.0),
+        }
+        overrides.update(material_content_style_colors(material))
+        for field in [
+            "fixed_width",
+            "fixed_height",
+            "line_max_width",
+            "line_spacing",
+            "line_feed",
+            "typesetting",
+            "alignment",
+            "oneline_cutoff",
+            "force_apply_line_max_width",
+            "text_color",
+            "text_alpha",
+            "global_alpha",
+            "border_color",
+            "border_alpha",
+            "border_width",
+            "border_mode",
+            "shadow_color",
+            "shadow_alpha",
+            "shadow_distance",
+            "shadow_angle",
+            "shadow_smoothing",
+            "bold_width",
+            "bold_width_rate",
+            "background_color",
+            "background_alpha",
+            "background_round_radius",
+            "font_path",
+            "font_name",
+            "font_title",
+            "font_id",
+            "font_resource_id",
+            "font_source_platform",
+            "font_category_name",
+            "font_category_id",
+            "font_third_resource_id",
+            "fonts",
+        ]:
+            if field in material:
+                overrides[field] = material.get(field)
+        content_font_fields = template_content_font_fields(material)
+        for field, value in content_font_fields.items():
+            if value not in (None, ""):
+                overrides[field] = value
+        content_font_path = first_non_empty_string(content_font_fields.get("font_path"), overrides.get("font_path"))
+        if content_font_path:
+            font_file_name = os.path.splitext(os.path.basename(content_font_path))[0]
+            if font_file_name and not first_non_empty_string(content_font_fields.get("font_name"), content_font_fields.get("font_title")):
+                overrides["font_name"] = font_file_name
+                overrides["font_title"] = font_file_name
+        return overrides
+
+    def fallback_style_overrides_for_segment(is_highlight):
+        if is_highlight:
+            return template_style_overrides_from_marker("TEMPLATE_HIGHLIGHT_EXPLAINER", "highlight_explainer")
+        return template_style_overrides_from_marker("TEMPLATE_FULL_CAPTION", "full_cut_caption")
 
     def first_non_empty_string(*values):
         for value in values:
@@ -4322,10 +4794,15 @@ def force_process_caption_visibility(draft_content_path):
             material["fixed_width"] = override_float(overrides, "fixed_width", HIGHLIGHT_EXPLAINER_FIXED_WIDTH)
             material["fixed_height"] = override_float(overrides, "fixed_height", -1.0)
             material["force_apply_line_max_width"] = override_bool(overrides, "force_apply_line_max_width", True)
-            material["line_spacing"] = min(max(safe_float(material.get("line_spacing"), 0.0), -0.5), 0.05)
-            material["line_max_width"] = max(
-                safe_float(material.get("line_max_width"), 0.0),
-                override_float(overrides, "line_max_width", 0.82),
+            material["line_spacing"] = override_float(
+                overrides,
+                "line_spacing",
+                min(max(safe_float(material.get("line_spacing"), 0.0), -0.5), 0.05),
+            )
+            material["line_max_width"] = override_float(
+                overrides,
+                "line_max_width",
+                safe_float(material.get("line_max_width"), 0.82),
             )
         else:
             material["line_spacing"] = min(max(safe_float(material.get("line_spacing"), 0.0), -0.2), 0.05)
@@ -4470,6 +4947,18 @@ def force_process_caption_visibility(draft_content_path):
             style_profile == "highlight_explainer"
             or ("HIGHLIGHT" in marker_upper and "FOR_FULL_CAPTION" not in marker_upper)
         )
+        if not style_overrides:
+            style_overrides = fallback_style_overrides_for_segment(default_is_highlight_draft or is_highlight)
+            if style_overrides:
+                segment["caption_style_overrides"] = style_overrides
+                segment["caption_template_marker"] = style_overrides.get("marker", marker_name)
+                style_profile = str(style_overrides.get("style_profile") or "").strip()
+                marker_name = str(segment.get("caption_template_marker") or "")
+                marker_upper = marker_name.upper()
+                is_highlight = (
+                    style_profile == "highlight_explainer"
+                    or ("HIGHLIGHT" in marker_upper and "FOR_FULL_CAPTION" not in marker_upper)
+                )
         if is_highlight:
             summary["highlight_segments_checked"] += 1
             highlight_animation_us = highlight_animation_duration_us(duration_us)
@@ -5905,23 +6394,17 @@ def apply_process_template_clone_mode(generated_draft_content_path, template_doc
     with open(generated_draft_content_path, "r", encoding="utf-8-sig") as file:
         generated = json.load(file)
 
-    template_markers = find_template_text_marker_assets(template_doc)
-    legacy_explainer_entry = template_markers.get("TEMPLATE_EXPLAINER") or template_markers.get("TEMPLATE_SUBTITLE")
+    expected_markers = expected_process_caption_template_markers(process_config, explainer_blocks)
+    template_markers = find_template_text_marker_assets(template_doc, expected_markers)
+    strict_variant_markers = bool(expected_markers)
+    legacy_explainer_entry = None if strict_variant_markers else (
+        template_markers.get("TEMPLATE_EXPLAINER") or template_markers.get("TEMPLATE_SUBTITLE")
+    )
     full_caption_entry = template_markers.get("TEMPLATE_FULL_CAPTION") or legacy_explainer_entry
     highlight_explainer_entry = template_markers.get("TEMPLATE_HIGHLIGHT_EXPLAINER") or legacy_explainer_entry
-    expected_marker_set = set()
-    for block in explainer_blocks:
-        if not isinstance(block, dict):
-            continue
-        profile = str(block.get("style_profile") or block.get("styleProfile") or "").strip()
-        if profile == "highlight_explainer":
-            expected_marker_set.add("TEMPLATE_HIGHLIGHT_EXPLAINER")
-        elif profile == "full_cut_caption":
-            expected_marker_set.add("TEMPLATE_FULL_CAPTION")
-    expected_markers = sorted(expected_marker_set)
     if not expected_markers and not (full_caption_entry or highlight_explainer_entry):
         expected_markers.append("TEMPLATE_EXPLAINER")
-    optional_markers = [
+    optional_markers = expected_markers if strict_variant_markers else [
         "TEMPLATE_FULL_CAPTION",
         "TEMPLATE_HIGHLIGHT_EXPLAINER",
         "TEMPLATE_EXPLAINER",
@@ -5969,6 +6452,11 @@ def apply_process_template_clone_mode(generated_draft_content_path, template_doc
         total_duration_sec,
         source_to_target_id_map,
     )
+    template_frame_overlay_summary = {
+        "applied": False,
+        "reason": "disabled: frame presets are applied manually in CapCut",
+        "segments_count": 0,
+    }
 
     def clone_segment_from_entry(
         marker_entry,
@@ -6056,7 +6544,7 @@ def apply_process_template_clone_mode(generated_draft_content_path, template_doc
     explainer_segments = []
     explainer_template_usage = []
     use_simple_process_caption_track = any(
-        str(block.get("style_profile") or block.get("styleProfile") or "").strip() in ("full_cut_caption", "highlight_explainer")
+        str(block.get("style_profile") or block.get("styleProfile") or "").strip() == "full_cut_caption"
         for block in explainer_blocks
         if isinstance(block, dict)
     )
@@ -6066,11 +6554,15 @@ def apply_process_template_clone_mode(generated_draft_content_path, template_doc
         if profile == "highlight_explainer":
             if template_markers.get("TEMPLATE_HIGHLIGHT_EXPLAINER"):
                 return template_markers["TEMPLATE_HIGHLIGHT_EXPLAINER"], "TEMPLATE_HIGHLIGHT_EXPLAINER", False
-            return highlight_explainer_entry, "TEMPLATE_EXPLAINER_FALLBACK_FOR_HIGHLIGHT", True
+            if legacy_explainer_entry and not strict_variant_markers and not full_caption_entry:
+                return legacy_explainer_entry, "TEMPLATE_EXPLAINER_FALLBACK_FOR_HIGHLIGHT", True
+            return None, "TEMPLATE_HIGHLIGHT_EXPLAINER_MISSING", False
         if profile == "full_cut_caption":
             if template_markers.get("TEMPLATE_FULL_CAPTION"):
                 return template_markers["TEMPLATE_FULL_CAPTION"], "TEMPLATE_FULL_CAPTION", False
-            return full_caption_entry, "TEMPLATE_EXPLAINER_FALLBACK_FOR_FULL", True
+            if legacy_explainer_entry and not strict_variant_markers:
+                return legacy_explainer_entry, "TEMPLATE_EXPLAINER_FALLBACK_FOR_FULL", True
+            return None, "TEMPLATE_FULL_CAPTION_MISSING", False
         if legacy_explainer_entry:
             return legacy_explainer_entry, "TEMPLATE_EXPLAINER", True
         return full_caption_entry or highlight_explainer_entry, "TEMPLATE_CAPTION_FALLBACK", False
@@ -6122,6 +6614,130 @@ def apply_process_template_clone_mode(generated_draft_content_path, template_doc
                             result["outline_alpha"] = solid.get("alpha")
             break
         return result
+
+    def template_content_font_fields(material):
+        result = {}
+        content_json = parse_json_text_content(material.get("content") if isinstance(material, dict) else None)
+        if not isinstance(content_json, dict):
+            return result
+        styles = content_json.get("styles")
+        if not isinstance(styles, list):
+            return result
+        for style_item in styles:
+            if not isinstance(style_item, dict):
+                continue
+            font = style_item.get("font")
+            if not isinstance(font, dict):
+                continue
+            for source_key, target_key in [
+                ("path", "font_path"),
+                ("name", "font_name"),
+                ("title", "font_title"),
+                ("id", "font_id"),
+                ("resource_id", "font_resource_id"),
+                ("source_platform", "font_source_platform"),
+                ("category_name", "font_category_name"),
+                ("category_id", "font_category_id"),
+                ("third_resource_id", "font_third_resource_id"),
+            ]:
+                value = font.get(source_key)
+                if value not in (None, ""):
+                    result[target_key] = value
+            break
+        return result
+
+    def template_content_font_size(material):
+        content_json = parse_json_text_content(material.get("content") if isinstance(material, dict) else None)
+        if not isinstance(content_json, dict):
+            return None
+        styles = content_json.get("styles")
+        if not isinstance(styles, list):
+            return None
+        for style_item in styles:
+            if isinstance(style_item, dict) and style_item.get("size") is not None:
+                return safe_float(style_item.get("size"), 0.0)
+        return None
+
+    def template_style_overrides_from_marker(marker_name, style_profile):
+        if not isinstance(template_doc, dict):
+            return {}
+        entries = find_template_text_marker_assets(template_doc, [marker_name])
+        entry = entries.get(marker_name) if isinstance(entries, dict) else None
+        if not isinstance(entry, dict):
+            return {}
+        material = entry.get("material")
+        segment = entry.get("segment")
+        if not isinstance(material, dict) or not isinstance(segment, dict):
+            return {}
+        clip = segment.get("clip") if isinstance(segment.get("clip"), dict) else {}
+        transform = clip.get("transform") if isinstance(clip.get("transform"), dict) else {}
+        scale = clip.get("scale") if isinstance(clip.get("scale"), dict) else {}
+        overrides = {
+            "marker": marker_name,
+            "style_profile": style_profile,
+            "font_size": template_content_font_size(material) or safe_float(material.get("font_size"), HIGHLIGHT_EXPLAINER_FONT_SIZE if style_profile == "highlight_explainer" else FULL_CUT_CAPTION_FONT_SIZE),
+            "x": safe_float(transform.get("x"), HIGHLIGHT_EXPLAINER_X if style_profile == "highlight_explainer" else FULL_CUT_CAPTION_X),
+            "y": safe_float(transform.get("y"), HIGHLIGHT_EXPLAINER_Y if style_profile == "highlight_explainer" else FULL_CUT_CAPTION_Y),
+            "scale_x": safe_float(scale.get("x"), 1.0),
+            "scale_y": safe_float(scale.get("y"), 1.0),
+        }
+        overrides.update(material_content_style_colors(material))
+        for field in [
+            "fixed_width",
+            "fixed_height",
+            "line_max_width",
+            "line_spacing",
+            "line_feed",
+            "typesetting",
+            "alignment",
+            "oneline_cutoff",
+            "force_apply_line_max_width",
+            "text_color",
+            "text_alpha",
+            "global_alpha",
+            "border_color",
+            "border_alpha",
+            "border_width",
+            "border_mode",
+            "shadow_color",
+            "shadow_alpha",
+            "shadow_distance",
+            "shadow_angle",
+            "shadow_smoothing",
+            "bold_width",
+            "bold_width_rate",
+            "background_color",
+            "background_alpha",
+            "background_round_radius",
+            "font_path",
+            "font_name",
+            "font_title",
+            "font_id",
+            "font_resource_id",
+            "font_source_platform",
+            "font_category_name",
+            "font_category_id",
+            "font_third_resource_id",
+            "fonts",
+        ]:
+            if field in material:
+                overrides[field] = material.get(field)
+        content_font_fields = template_content_font_fields(material)
+        for field, value in content_font_fields.items():
+            if value not in (None, ""):
+                overrides[field] = value
+        content_font_path = first_non_empty_string(content_font_fields.get("font_path"), overrides.get("font_path"))
+        if content_font_path:
+            font_file_name = os.path.splitext(os.path.basename(content_font_path))[0]
+            if font_file_name and not first_non_empty_string(content_font_fields.get("font_name"), content_font_fields.get("font_title")):
+                overrides["font_name"] = font_file_name
+                overrides["font_title"] = font_file_name
+        return overrides
+
+    def fallback_style_overrides_for_segment(is_highlight):
+        if is_highlight:
+            return template_style_overrides_from_marker("TEMPLATE_HIGHLIGHT_EXPLAINER", "highlight_explainer")
+        return template_style_overrides_from_marker("TEMPLATE_FULL_CAPTION", "full_cut_caption")
 
     def template_content_font_fields(material):
         result = {}
@@ -6190,6 +6806,7 @@ def apply_process_template_clone_mode(generated_draft_content_path, template_doc
             "fixed_width",
             "fixed_height",
             "line_max_width",
+            "line_spacing",
             "line_feed",
             "typesetting",
             "alignment",
@@ -6226,9 +6843,16 @@ def apply_process_template_clone_mode(generated_draft_content_path, template_doc
         for field in optional_fields:
             if field in material:
                 overrides[field] = material.get(field)
-        for field, value in template_content_font_fields(material).items():
-            if value not in (None, "") and not first_non_empty_string(overrides.get(field)):
+        content_font_fields = template_content_font_fields(material)
+        for field, value in content_font_fields.items():
+            if value not in (None, ""):
                 overrides[field] = value
+        content_font_path = first_non_empty_string(content_font_fields.get("font_path"))
+        if content_font_path and not first_non_empty_string(content_font_fields.get("font_name"), content_font_fields.get("font_title")):
+            font_file_name = os.path.splitext(os.path.basename(content_font_path))[0]
+            if font_file_name:
+                overrides["font_name"] = font_file_name
+                overrides["font_title"] = font_file_name
         return overrides
 
     def caption_style_overrides_for_block(marker_entry, marker_name, block):
@@ -6247,7 +6871,8 @@ def apply_process_template_clone_mode(generated_draft_content_path, template_doc
         return overrides
 
     for block_index, block in enumerate(explainer_blocks):
-        if use_simple_process_caption_track:
+        block_profile = str(block.get("style_profile") or block.get("styleProfile") or "").strip() if isinstance(block, dict) else ""
+        if use_simple_process_caption_track and block_profile == "full_cut_caption":
             entry, marker_name, is_legacy_fallback = select_explainer_marker_for_block(block)
             existing_segments = explainer_track.get("segments") if isinstance(explainer_track.get("segments"), list) else []
             if block_index < len(existing_segments) and isinstance(existing_segments[block_index], dict):
@@ -6267,7 +6892,11 @@ def apply_process_template_clone_mode(generated_draft_content_path, template_doc
                     "segment": (entry.get("segment") or {}).get("id", "") if isinstance(entry, dict) else "",
                     "template_driven": bool(entry) and not is_legacy_fallback,
                     "simple_text_track": True,
-                    "reason": "template-cloned process captions can produce selectable boxes without visible glyphs in CapCut",
+                    "reason": (
+                        "highlight template marker missing; refused to reuse Full caption marker"
+                        if marker_name == "TEMPLATE_HIGHLIGHT_EXPLAINER_MISSING"
+                        else "template-cloned process captions can produce selectable boxes without visible glyphs in CapCut"
+                    ),
                 }
             )
             continue
@@ -6333,6 +6962,7 @@ def apply_process_template_clone_mode(generated_draft_content_path, template_doc
         "caption_template_usage": explainer_template_usage,
         "caption_template_mode": "simple_text_for_process_caption" if use_simple_process_caption_track else "template_marker_clone",
         "template_background": template_background_summary,
+        "template_frame_overlay": template_frame_overlay_summary,
     }
 
 
@@ -6408,10 +7038,9 @@ def create_process_draft(data):
     script = draft_folder.create_draft(draft_name, width, height, fps=fps, allow_replace=True)
     script.add_track(cc.TrackType.video, "source_video", relative_index=0)
     script.add_track(cc.TrackType.audio, "bgm", relative_index=1)
-    script.add_track(cc.TrackType.video, "channel_frame_overlay", relative_index=2)
-    script.add_track(cc.TrackType.video, "channel_asset_overlay", relative_index=3)
-    script.add_track(cc.TrackType.video, "ocr_mask_overlay", relative_index=4)
-    script.add_track(cc.TrackType.text, "process_explainer", relative_index=5)
+    script.add_track(cc.TrackType.video, "channel_asset_overlay", relative_index=2)
+    script.add_track(cc.TrackType.video, "ocr_mask_overlay", relative_index=3)
+    script.add_track(cc.TrackType.text, "process_explainer", relative_index=4)
     os.makedirs(audio_dir, exist_ok=True)
     os.makedirs(video_dir, exist_ok=True)
     os.makedirs(subtitle_dir, exist_ok=True)
@@ -6686,61 +7315,19 @@ def create_process_draft(data):
         else:
             warnings.append("bgm file not found under assets/bgm/process; continuing without BGM")
 
-    channel_frame_asset = process_config.get("channel_frame_asset") if isinstance(process_config.get("channel_frame_asset"), dict) else {}
+    channel_frame_asset = {}
     channel_frame_summary = {
-        "enabled": bool(channel_frame_asset.get("enabled") or channel_frame_asset.get("path")),
-        "source_path": str(channel_frame_asset.get("path") or ""),
+        "enabled": False,
+        "source_path": "",
         "draft_path": "",
-        "original_name": str(channel_frame_asset.get("original_name") or ""),
-        "position": str(channel_frame_asset.get("position") or "center"),
-        "scale": safe_float(channel_frame_asset.get("scale"), 1.0),
-        "opacity": safe_float(channel_frame_asset.get("opacity"), 1.0),
+        "original_name": "",
+        "position": "manual_capcut_preset",
+        "scale": 1.0,
+        "opacity": 1.0,
         "track_count": 0,
         "applied": False,
-        "reason": "disabled",
+        "reason": "removed: frame presets are applied manually in CapCut",
     }
-    if channel_frame_summary["enabled"]:
-        try:
-            frame_asset_for_draft = {
-                **channel_frame_asset,
-                "position": channel_frame_asset.get("position") or "center",
-                "scale": channel_frame_asset.get("scale") or 1.0,
-            }
-            draft_channel_frame_path = prepare_channel_asset_for_draft(
-                frame_asset_for_draft,
-                overlay_dir,
-                target_duration_sec,
-                warnings,
-                "channel_frame_asset",
-            )
-            channel_frame_summary["draft_path"] = draft_channel_frame_path
-            if draft_channel_frame_path and os.path.exists(draft_channel_frame_path):
-                channel_frame_material = cc.VideoMaterial(draft_channel_frame_path)
-                material_duration_us = int(channel_frame_material.duration or 0)
-                if material_duration_us > 0:
-                    script.add_material(channel_frame_material)
-                    cursor_us = 0
-                    while cursor_us < total_duration_us:
-                        duration_us = min(material_duration_us, total_duration_us - cursor_us)
-                        script.add_segment(
-                            cc.VideoSegment(
-                                material=channel_frame_material,
-                                source_timerange=cc.Timerange(start=0, duration=duration_us),
-                                target_timerange=cc.Timerange(start=cursor_us, duration=duration_us),
-                            ),
-                            track_name="channel_frame_overlay",
-                        )
-                        channel_frame_summary["track_count"] += 1
-                        cursor_us += duration_us
-                    channel_frame_summary["reason"] = "frame overlay track created"
-                else:
-                    channel_frame_summary["reason"] = "channel frame material duration invalid"
-                    warnings.append(channel_frame_summary["reason"])
-            else:
-                channel_frame_summary["reason"] = "channel frame draft path missing"
-        except Exception as frame_error:
-            channel_frame_summary["reason"] = f"channel frame overlay failed: {frame_error}"
-            warnings.append(channel_frame_summary["reason"])
 
     channel_asset = process_config.get("channel_asset") if isinstance(process_config.get("channel_asset"), dict) else {}
     channel_asset_summary = {
@@ -6814,17 +7401,6 @@ def create_process_draft(data):
     script.save()
 
     generated_draft_content_path = os.path.join(draft_path, "draft_content.json")
-    channel_frame_transform_summary = apply_video_overlay_transform(
-        generated_draft_content_path,
-        {
-            **channel_frame_asset,
-            "position": channel_frame_asset.get("position") or "center",
-            "scale": channel_frame_asset.get("scale") or 1.0,
-        },
-        warnings,
-        "channel_frame_overlay",
-    )
-    channel_frame_summary.update(channel_frame_transform_summary)
     channel_asset_transform_summary = apply_channel_asset_overlay_transform(
         generated_draft_content_path,
         channel_asset,
@@ -6863,6 +7439,12 @@ def create_process_draft(data):
         except Exception as error:
             warnings.append(f"process template clone mode failed: {error}")
 
+    template_frame_overlay_summary = {
+        "applied": False,
+        "reason": "disabled: frame presets are applied manually in CapCut",
+        "segments_count": 0,
+    }
+
     applied_video_transforms = apply_process_video_transforms_to_draft(
         generated_draft_content_path,
         video_transform_preset,
@@ -6890,7 +7472,11 @@ def create_process_draft(data):
     )
     if caption_timeline_sync.get("synced_explainer_blocks"):
         explainer_blocks = caption_timeline_sync["synced_explainer_blocks"]
-    caption_visibility_summary = force_process_caption_visibility(generated_draft_content_path)
+    caption_visibility_summary = force_process_caption_visibility(
+        generated_draft_content_path,
+        template_doc=template_draft_content,
+        process_config=process_config,
+    )
     caption_blur_background_summary = {
         "applied": False,
         "reason": "temporarily disabled because CapCut effect tracks can render above text and hide glyphs",
@@ -7062,6 +7648,7 @@ def create_process_draft(data):
         "caption_template_mode": template_clone_summary.get("caption_template_mode", ""),
         "caption_template_usage": template_clone_summary.get("caption_template_usage", []),
         "template_background": template_clone_summary.get("template_background", {}),
+        "template_frame_overlay": template_frame_overlay_summary,
         "caption_timeline_sync": {
             key: value
             for key, value in caption_timeline_sync.items()
@@ -7100,6 +7687,7 @@ def create_process_draft(data):
         f"- BGM Enabled: {str(bool(process_config.get('use_bgm', True))).lower()}",
         f"- BGM Source: {bgm_source_path if bgm_source_path else 'none'}",
         f"- Channel Frame Overlay: {json.dumps(channel_frame_summary, ensure_ascii=False)}",
+        f"- Template Frame Overlay: {json.dumps(template_frame_overlay_summary, ensure_ascii=False)}",
         f"- Channel Asset Overlay: {json.dumps(channel_asset_summary, ensure_ascii=False)}",
         f"- TTS Enabled: {str(bool(process_config.get('use_tts'))).lower()}",
         f"- CapCut Template ID: {template_id}",

@@ -10,7 +10,6 @@ const {
   uploadQueueItems,
   uploadQueueBgm,
   uploadQueueChannelAsset,
-  uploadQueueChannelFrameAsset,
   importYoutubeSourceQueueItems,
   importYoutubeQueueItems,
   replaceQueueItemSource,
@@ -251,19 +250,6 @@ router.post('/upload-bgm', audioUpload.single('file'), (req, res, next) => {
 router.post('/upload-channel-asset', channelAssetUpload.single('file'), (req, res, next) => {
   try {
     res.json(uploadQueueChannelAsset(req.file, {
-      target: req.query?.target || req.body?.target || ''
-    }));
-  } catch (error) {
-    if (req.file?.path && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
-    }
-    next(error);
-  }
-});
-
-router.post('/upload-channel-frame-asset', channelAssetUpload.single('file'), (req, res, next) => {
-  try {
-    res.json(uploadQueueChannelFrameAsset(req.file, {
       target: req.query?.target || req.body?.target || ''
     }));
   } catch (error) {

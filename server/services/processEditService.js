@@ -14,7 +14,6 @@ const { resolveTool, getToolEnv } = require('../utils/toolPaths');
 
 const CONFIG_PATH = path.join(PROJECT_ROOT, 'config', 'process_edit_config.json');
 const PROCESS_TEMPLATE_DIR = path.join(PROJECT_ROOT, 'templates', 'capcut', 'process_default');
-const TEXT_DETECT_SCRIPT = path.join(PROJECT_ROOT, 'scripts', 'detect_text_regions.py');
 
 const DEFAULT_VIDEO_TRANSFORM_PRESET_ID = 'steady_zoom_process';
 
@@ -529,14 +528,6 @@ function defaultConfig() {
       scale: 0.34,
       opacity: 1,
       replace_channel_tag_text: false
-    },
-    channel_frame_asset: {
-      enabled: false,
-      path: '',
-      original_name: '',
-      position: 'center',
-      scale: 1,
-      opacity: 1
     }
   };
 }
@@ -720,14 +711,6 @@ function normalizeConfig(input = {}) {
       scale: Number(base.channel_asset?.scale) > 0 ? Number(base.channel_asset.scale) : 0.34,
       opacity: Number(base.channel_asset?.opacity) >= 0 ? Number(base.channel_asset.opacity) : 1,
       replace_channel_tag_text: base.channel_asset?.replace_channel_tag_text === true
-    },
-    channel_frame_asset: {
-      enabled: base.channel_frame_asset?.enabled === true,
-      path: String(base.channel_frame_asset?.path || ''),
-      original_name: String(base.channel_frame_asset?.original_name || ''),
-      position: String(base.channel_frame_asset?.position || 'center'),
-      scale: Number(base.channel_frame_asset?.scale) > 0 ? Number(base.channel_frame_asset.scale) : 1,
-      opacity: Number(base.channel_frame_asset?.opacity) >= 0 ? Number(base.channel_frame_asset.opacity) : 1
     }
   };
 }
@@ -784,65 +767,18 @@ function patchJsonFile(filePath, patch) {
   return true;
 }
 
-async function detectDraftSourceTextRegions({ sourceVideoPath, draftPath }) {
-  if (!sourceVideoPath || !fs.existsSync(sourceVideoPath) || !draftPath) {
-    return {
-      status: 'skipped',
-      reason: 'source_video_not_found'
-    };
-  }
-
-  const analysisDir = path.join(draftPath, 'analysis');
-  fs.mkdirSync(analysisDir, { recursive: true });
-  const reportPath = path.join(analysisDir, 'ocr_text_regions.json');
-  const previewPath = path.join(analysisDir, 'ocr_preview.jpg');
-
-  try {
-    const { stdout } = await runExecFile(resolveTool('python', { envKey: 'PYTHON_PATH' }), [
-      TEXT_DETECT_SCRIPT,
-      '--video',
-      sourceVideoPath,
-      '--output-json',
-      reportPath,
-      '--preview',
-      previewPath,
-      '--interval-sec',
-      '2',
-      '--max-frames',
-      '12'
-    ], {
-      cwd: PROJECT_ROOT,
-      env: getToolEnv(),
-      maxBuffer: 20 * 1024 * 1024,
-      timeout: 5 * 60 * 1000
-    });
-
-    const parsed = readJsonIfExists(reportPath) || JSON.parse(String(stdout || '{}'));
-    return {
-      status: parsed.status || 'success',
-      regions_count: parsed.regions_count || 0,
-      zone_counts: parsed.zone_counts || {},
-      report_path: reportPath,
-      preview_path: fs.existsSync(previewPath) ? previewPath : '',
-      source_stage: 'before_capcut_draft_generation',
-      source_video_modified: false
-    };
-  } catch (error) {
-    const failure = {
-      status: 'failed',
-      reason: error.code || 'detect_text_regions_failed',
-      message: error.message,
-      stdout: String(error.stdout || '').slice(0, 4000),
-      stderr: String(error.stderr || '').slice(0, 4000),
-      source_video: sourceVideoPath
-    };
-    fs.writeFileSync(reportPath, `${JSON.stringify(failure, null, 2)}\n`, 'utf8');
-    return {
-      ...failure,
-      report_path: reportPath,
-      preview_path: ''
-    };
-  }
+function fixedMaskTextDetectionSummary({ sourceVideoPath } = {}) {
+  return {
+    status: 'disabled_fixed_mask',
+    regions_count: 0,
+    zone_counts: {},
+    report_path: '',
+    preview_path: '',
+    source_stage: 'fixed_mask_without_ocr_detection',
+    source_video_modified: false,
+    source_video: sourceVideoPath || '',
+    reason: 'OCR text detection is disabled; drafts always use the fixed blur mask overlay.'
+  };
 }
 
 function findProcessTemplateFiles() {
@@ -969,9 +905,8 @@ async function createProcessDraft({ config, useExistingConfig = true, createZip 
     createZip
   });
 
-  result.ocrTextDetection = await detectDraftSourceTextRegions({
-    sourceVideoPath: result.sourceVideoPath,
-    draftPath: result.draftPath
+  result.ocrTextDetection = fixedMaskTextDetectionSummary({
+    sourceVideoPath: result.sourceVideoPath
   });
   if (result.ocrTextDetection?.status) {
     patchJsonFile(path.join(result.draftPath, 'edit_manifest.json'), {
@@ -983,9 +918,11 @@ async function createProcessDraft({ config, useExistingConfig = true, createZip 
         '',
         '## OCR Text Detection',
         `- Status: ${result.ocrTextDetection.status}`,
-        `- Candidate Regions: ${result.ocrTextDetection.regions_count || 0}`,
-        `- Report: ${result.ocrTextDetection.report_path || 'none'}`,
-        `- Preview: ${result.ocrTextDetection.preview_path || 'none'}`,
+        '- Mode: fixed blur mask overlay',
+        '- Candidate Regions: 0',
+        '- Report: none',
+        '- Preview: none',
+        `- Reason: ${result.ocrTextDetection.reason}`,
         '- Source video modified: false',
         ''
       ].join('\n'),

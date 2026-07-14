@@ -396,12 +396,8 @@ export default function Phase5Draft() {
   const fileInputRef = useRef(null);
   const bgmInputRef = useRef(null);
   const highlightBgmInputRef = useRef(null);
-  const midformBgmInputRef = useRef(null);
   const channelAssetInputRef = useRef(null);
   const highlightChannelAssetInputRef = useRef(null);
-  const midformChannelAssetInputRef = useRef(null);
-  const channelFrameAssetInputRef = useRef(null);
-  const highlightChannelFrameAssetInputRef = useRef(null);
   const itemSourceInputRefs = useRef({});
   const pendingSourceImportRef = useRef(false);
 
@@ -1799,31 +1795,6 @@ export default function Phase5Draft() {
     return Boolean(item.source_exists || String(itemConfig.source_url || '').trim());
   };
 
-  const uploadQueueChannelFrameAsset = async (files, target = 'default') => {
-    const selectedFile = Array.from(files || [])[0];
-    if (!selectedFile) return;
-    updateQueueStatusState('uploading');
-    updateQueueErrorState('');
-    try {
-      await persistQueueSnapshot();
-      const formData = new FormData();
-      formData.append('file', selectedFile);
-      formData.append('target', target);
-      const res = await api.post(`/process-queue/upload-channel-frame-asset?target=${encodeURIComponent(target)}`, formData);
-      updateProcessQueueState(res.data.queue);
-      updateQueueStatusState('uploaded');
-    } catch (err) {
-      updateQueueErrorState(err.response?.data?.message || err.message);
-      updateQueueStatusState('failed');
-    } finally {
-      if (target === 'highlight') {
-        if (highlightChannelFrameAssetInputRef.current) highlightChannelFrameAssetInputRef.current.value = '';
-      } else if (channelFrameAssetInputRef.current) {
-        channelFrameAssetInputRef.current.value = '';
-      }
-    }
-  };
-
   const getServerVariantAction = (action = '') => {
     const match = String(action || '').match(/^server:(highlight|full|midform)(?::(pipeline|draft))?$/);
     if (!match) return null;
@@ -2327,13 +2298,6 @@ export default function Phase5Draft() {
       onClick: () => highlightBgmInputRef.current?.click()
     },
     {
-      label: '미드폼 BGM',
-      name: displayAssetName(queueConfig.midform_custom_bgm_original_name, queueConfig.midform_custom_bgm_path),
-      path: queueConfig.midform_custom_bgm_path,
-      active: !!queueConfig.midform_custom_bgm_path,
-      onClick: () => midformBgmInputRef.current?.click()
-    },
-    {
       label: '기본 풀 로고',
       name: displayAssetName(queueConfig.channel_asset?.original_name, queueConfig.channel_asset?.path),
       path: queueConfig.channel_asset?.path,
@@ -2346,27 +2310,6 @@ export default function Phase5Draft() {
       path: queueConfig.highlight_channel_asset?.path,
       active: !!queueConfig.highlight_channel_asset?.path,
       onClick: () => highlightChannelAssetInputRef.current?.click()
-    },
-    {
-      label: '기본 풀 프레임',
-      name: displayAssetName(queueConfig.channel_frame_asset?.original_name, queueConfig.channel_frame_asset?.path),
-      path: queueConfig.channel_frame_asset?.path,
-      active: !!queueConfig.channel_frame_asset?.path,
-      onClick: () => channelFrameAssetInputRef.current?.click()
-    },
-    {
-      label: '하이라이트 프레임',
-      name: displayAssetName(queueConfig.highlight_channel_frame_asset?.original_name, queueConfig.highlight_channel_frame_asset?.path),
-      path: queueConfig.highlight_channel_frame_asset?.path,
-      active: !!queueConfig.highlight_channel_frame_asset?.path,
-      onClick: () => highlightChannelFrameAssetInputRef.current?.click()
-    },
-    {
-      label: '미드폼 로고',
-      name: displayAssetName(queueConfig.midform_channel_asset?.original_name, queueConfig.midform_channel_asset?.path),
-      path: queueConfig.midform_channel_asset?.path,
-      active: !!queueConfig.midform_channel_asset?.path,
-      onClick: () => midformChannelAssetInputRef.current?.click()
     }
   ];
   const activeCaptionTemplateSync = captionTemplateSync || (queueConfig.caption_template_sync ? {
@@ -2633,22 +2576,18 @@ const renderWorkflowGuide = () => (
       <input ref={fileInputRef} type="file" accept="video/mp4,video/quicktime,.mp4,.mov,.m4v" multiple className="hidden" onChange={(event) => uploadQueueFiles(event.target.files)} />
       <input ref={bgmInputRef} type="file" accept="audio/*,.mp3,.wav,.m4a" className="hidden" onChange={(event) => uploadQueueBgm(event.target.files, 'default')} />
       <input ref={highlightBgmInputRef} type="file" accept="audio/*,.mp3,.wav,.m4a" className="hidden" onChange={(event) => uploadQueueBgm(event.target.files, 'highlight')} />
-      <input ref={midformBgmInputRef} type="file" accept="audio/*,.mp3,.wav,.m4a" className="hidden" onChange={(event) => uploadQueueBgm(event.target.files, 'midform')} />
       <input ref={channelAssetInputRef} type="file" accept="image/*,video/*,.gif,.png,.jpg,.jpeg,.mp4,.mov" className="hidden" onChange={(event) => uploadQueueChannelAsset(event.target.files, 'default')} />
       <input ref={highlightChannelAssetInputRef} type="file" accept="image/*,video/*,.gif,.png,.jpg,.jpeg,.mp4,.mov" className="hidden" onChange={(event) => uploadQueueChannelAsset(event.target.files, 'highlight')} />
-      <input ref={midformChannelAssetInputRef} type="file" accept="image/*,video/*,.gif,.png,.jpg,.jpeg,.mp4,.mov" className="hidden" onChange={(event) => uploadQueueChannelAsset(event.target.files, 'midform')} />
-      <input ref={channelFrameAssetInputRef} type="file" accept="image/*,video/*,.gif,.png,.jpg,.jpeg,.mp4,.mov" className="hidden" onChange={(event) => uploadQueueChannelFrameAsset(event.target.files, 'default')} />
-      <input ref={highlightChannelFrameAssetInputRef} type="file" accept="image/*,video/*,.gif,.png,.jpg,.jpeg,.mp4,.mov" className="hidden" onChange={(event) => uploadQueueChannelFrameAsset(event.target.files, 'highlight')} />
 
       <div className="rounded-[28px] border border-[#c8ff00]/20 bg-[#10140f] p-5 shadow-xl shadow-black/20">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h2 className="text-2xl font-black text-white">배치 큐</h2>
-            <p className="mt-1 text-sm text-slate-400" title="소스 추가, BGM/로고/프레임 업로드, Gemini 분석, 드래프트 생성을 한 곳에서 관리합니다.">필요한 작업만 빠르게 실행하세요.</p>
+            <p className="mt-1 text-sm text-slate-400" title="소스 추가, BGM/로고 업로드, Gemini 분석, 드래프트 생성을 한 곳에서 관리합니다.">필요한 작업만 빠르게 실행하세요.</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <button
-              title="Phase1을 거치지 않고 로컬 영상, YouTube URL, BGM, 로고, 프레임 파일을 직접 추가할 때만 엽니다."
+              title="Phase1을 거치지 않고 로컬 영상, YouTube URL, BGM, 로고 파일을 직접 추가할 때만 엽니다."
               className="rounded-full border border-white/15 bg-white/[0.06] px-3 py-1.5 text-xs font-black text-slate-200"
               onClick={() => setShowManualAssetActions((value) => !value)}
             >
@@ -2676,12 +2615,8 @@ const renderWorkflowGuide = () => (
               <button title="YouTube URL을 여러 개 붙여넣어 배치 항목으로 추가합니다." className="rounded-2xl border border-white/15 bg-white/8 px-4 py-3 text-sm font-bold text-white" onClick={() => setShowYoutubeImport((value) => !value)}>YouTube URL</button>
               <button title="Full 드래프트 기본 BGM을 교체합니다." className="rounded-2xl border border-white/15 bg-white/8 px-4 py-3 text-sm font-bold text-white" onClick={() => bgmInputRef.current?.click()}>Full BGM</button>
               <button title="Highlight 드래프트 BGM을 교체합니다." className="rounded-2xl border border-white/15 bg-white/8 px-4 py-3 text-sm font-bold text-white" onClick={() => highlightBgmInputRef.current?.click()}>HL BGM</button>
-              <button title="Midform 드래프트 BGM을 교체합니다." className="rounded-2xl border border-white/15 bg-white/8 px-4 py-3 text-sm font-bold text-white" onClick={() => midformBgmInputRef.current?.click()}>MF BGM</button>
               <button title="Full 드래프트 로고/GIF/MP4를 교체합니다." className="rounded-2xl border border-white/15 bg-white/8 px-4 py-3 text-sm font-bold text-white" onClick={() => channelAssetInputRef.current?.click()}>Full Logo</button>
               <button title="Highlight 드래프트 로고/GIF/MP4를 교체합니다." className="rounded-2xl border border-white/15 bg-white/8 px-4 py-3 text-sm font-bold text-white" onClick={() => highlightChannelAssetInputRef.current?.click()}>HL Logo</button>
-              <button title="Full 드래프트에서 로고 아래, 소스 영상 위에 올라가는 프레임 영상을 교체합니다." className="rounded-2xl border border-white/15 bg-white/8 px-4 py-3 text-sm font-bold text-white" onClick={() => channelFrameAssetInputRef.current?.click()}>Full Frame</button>
-              <button title="Highlight 드래프트에서 로고 아래, 소스 영상 위에 올라가는 프레임 영상을 교체합니다." className="rounded-2xl border border-white/15 bg-white/8 px-4 py-3 text-sm font-bold text-white" onClick={() => highlightChannelFrameAssetInputRef.current?.click()}>HL Frame</button>
-              <button title="Midform 드래프트 로고/GIF/MP4를 교체합니다." className="rounded-2xl border border-white/15 bg-white/8 px-4 py-3 text-sm font-bold text-white" onClick={() => midformChannelAssetInputRef.current?.click()}>MF Logo</button>
             </div>
             {showYoutubeImport ? (
               <div className="mt-4 space-y-2">
