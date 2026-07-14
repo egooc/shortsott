@@ -72,6 +72,19 @@ function normalizeDraftVariantMode(value = 'all') {
   return ['all', 'full_highlight_only', 'full_only', 'highlight_only', 'midform_only'].includes(mode) ? mode : 'all';
 }
 
+function isLongformQueueItemConfig(itemConfig = {}) {
+  return itemConfig.source_workflow_mode === 'longform_to_shorts'
+    || itemConfig.source_type === 'longform';
+}
+
+function effectiveVariantModeForItem(mode = 'all', itemConfig = {}) {
+  const normalized = normalizeDraftVariantMode(mode);
+  if (normalized === 'highlight_only' && isLongformQueueItemConfig(itemConfig)) {
+    return 'full_highlight_only';
+  }
+  return normalized;
+}
+
 function variantsForMode(mode = 'all') {
   const normalized = normalizeDraftVariantMode(mode);
   if (normalized === 'full_highlight_only') return ['full', 'highlight'];
@@ -95,6 +108,64 @@ function chunkArray(items = [], size = DEFAULT_PROCESS_JOB_CHUNK_SIZE) {
     chunks.push(items.slice(index, index + chunkSize));
   }
   return chunks.length ? chunks : [[]];
+}
+
+function stageSetForJob(stages = []) {
+  return new Set(Array.isArray(stages) ? stages : []);
+}
+
+function getJobLaneFromStages(stages = []) {
+  const stageNames = stageSetForJob(stages);
+  if (stageNames.size === 1 && stageNames.has('draft')) return 'draft';
+  return 'metadata';
+}
+
+function queueItemsById(queue = {}) {
+  return new Map((queue.queueItems || []).map((item) => [item.item_id, item]));
+}
+
+function splitRequestedIdsByLongform(requestedIds = [], queue = {}) {
+  const itemMap = queueItemsById(queue);
+  const shortformIds = [];
+  const longformIds = [];
+  for (const itemId of requestedIds) {
+    const item = itemMap.get(itemId);
+    if (isLongformQueueItemConfig(item?.item_config || {})) {
+      longformIds.push(itemId);
+    } else {
+      shortformIds.push(itemId);
+    }
+  }
+  return {
+    shortformIds,
+    longformIds,
+    hasMixedTypes: shortformIds.length > 0 && longformIds.length > 0,
+    hasLongform: longformIds.length > 0
+  };
+}
+
+function buildSafeJobChunks({ requestedIds = [], queue = {}, stages = [], enqueueBatches = false, chunkSize = DEFAULT_PROCESS_JOB_CHUNK_SIZE }) {
+  const stageNames = stageSetForJob(stages);
+  const includesMetadata = stageNames.has('metadata');
+  const split = splitRequestedIdsByLongform(requestedIds, queue);
+  const shouldSeparateLongform = includesMetadata && split.hasMixedTypes;
+  if (!shouldSeparateLongform && enqueueBatches !== true) {
+    return {
+      chunks: [requestedIds],
+      split
+    };
+  }
+
+  const effectiveChunkSize = enqueueBatches === true
+    ? Math.max(1, Number(chunkSize) || DEFAULT_PROCESS_JOB_CHUNK_SIZE)
+    : Number.MAX_SAFE_INTEGER;
+  const groups = [];
+  if (split.shortformIds.length) groups.push(...chunkArray(split.shortformIds, effectiveChunkSize));
+  if (split.longformIds.length) groups.push(...chunkArray(split.longformIds, effectiveChunkSize));
+  return {
+    chunks: groups.length ? groups : [requestedIds],
+    split
+  };
 }
 
 function getJobDir(jobId) {
@@ -160,20 +231,22 @@ function isDeferredQueuedJob(job = {}) {
   return job?.status === 'queued' && job.deferred === true;
 }
 
-function isRunnableActiveJob(job = {}) {
+function isRunnableActiveJob(job = {}, lane = '') {
   if (!job || job.cancel_requested) return false;
+  if (lane && String(job.lane || getJobLaneFromStages(job.stages || [])) !== lane) return false;
   if (job.status === 'running') return true;
   if (job.status === 'queued' && !isDeferredQueuedJob(job)) return true;
   return false;
 }
 
-function findRunnableActiveJob() {
-  return listJobs().jobs.find(isRunnableActiveJob) || null;
+function findRunnableActiveJob(lane = '') {
+  return listJobs().jobs.find((job) => isRunnableActiveJob(job, lane)) || null;
 }
 
-function findNextDeferredJob(excludeJobId = '') {
+function findNextDeferredJob(excludeJobId = '', lane = '') {
   return listJobs().jobs
     .filter((job) => isDeferredQueuedJob(job) && !job.cancel_requested && job.job_id !== excludeJobId)
+    .filter((job) => !lane || String(job.lane || getJobLaneFromStages(job.stages || [])) === lane)
     .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')))[0] || null;
 }
 
@@ -663,7 +736,8 @@ function getMetadataReadyItemIds(metadataResult = {}, draftVariantMode = 'all') 
 }
 
 function shouldFallbackToAvailableVariantDraftMode(mode = 'all') {
-  return false;
+  const normalized = normalizeDraftVariantMode(mode);
+  return normalized === 'all';
 }
 
 function selectDraftItemsAfterMetadata(jobId, items = [], metadataResult = {}, options = {}) {
@@ -890,6 +964,7 @@ async function runMetadataStage(jobId, items, options = {}) {
       const durationSec = resolveAnalysisDurationSec(itemConfig, refreshed);
       const sourceType = itemConfig.source_type || 'unknown';
       const sourceWorkflowMode = itemConfig.source_workflow_mode || 'unknown';
+      const itemMetadataVariantMode = effectiveVariantModeForItem(metadataVariantMode, itemConfig);
       const sourceReason = itemConfig.source_classification?.reason || '';
       appendJobLog(
         jobId,
@@ -911,8 +986,8 @@ async function runMetadataStage(jobId, items, options = {}) {
         originalFilename: sourceInfo.filename,
         sourceType,
         sourceWorkflowMode,
-        metadataVariantMode,
-        existingGuide: itemConfig.ottogi_guide_output || null,
+        metadataVariantMode: itemMetadataVariantMode,
+        existingGuide: force ? null : (itemConfig.ottogi_guide_output || null),
         throwIfCancelled: () => assertNotCancelled(jobId),
         onProgress: (message, data = {}) => {
           appendJobLog(jobId, label + ' ' + message, 'info', refreshed.item_id, data);
@@ -938,7 +1013,7 @@ async function runMetadataStage(jobId, items, options = {}) {
           details: guideOutput.midform_generation_details || null
         }
       };
-      const scopedVariantStates = filterVariantStateMapByMode(variantStates, metadataVariantMode);
+      const scopedVariantStates = filterVariantStateMapByMode(variantStates, itemMetadataVariantMode);
       const failedVariants = Object.entries(scopedVariantStates)
         .filter(([, state]) => state.status === 'failed')
         .map(([variant]) => variant);
@@ -1354,8 +1429,10 @@ async function runJob(jobId) {
     });
     appendJobLog(jobId, status === 'cancelled' ? '\uC11C\uBC84 \uC791\uC5C5\uC774 \uCDE8\uC18C\uB418\uC5C8\uC2B5\uB2C8\uB2E4.' : '\uC11C\uBC84 \uC791\uC5C5 \uC2E4\uD328: ' + error.message, status === 'cancelled' ? 'warning' : 'error');
   } finally {
+    const latest = readJob(jobId);
+    const lane = String(latest.lane || getJobLaneFromStages(latest.stages || []));
     activeJobs.delete(jobId);
-    startNextDeferredProcessJob(jobId);
+    startNextDeferredProcessJob(jobId, lane);
   }
 }
 
@@ -1367,9 +1444,11 @@ function createProcessJobRecord({
   normalizedDraftVariantMode,
   normalizedMetadataVariantMode,
   continueToDraftAfterMetadata,
+  lane,
   deferred = false,
   queuedPosition = 0,
-  batchGroup = null
+  batchGroup = null,
+  queueReason = ''
 }) {
   const queue = listQueue();
   const jobId = createJobId();
@@ -1388,9 +1467,11 @@ function createProcessJobRecord({
     draft_variant_mode: normalizedDraftVariantMode,
     metadata_variant_mode: normalizedMetadataVariantMode,
     continue_to_draft_after_metadata: continueToDraftAfterMetadata === true,
+    lane: lane || getJobLaneFromStages(selectedStages),
     deferred: deferred === true,
     queued_position: Number(queuedPosition || 0),
     batch_group: batchGroup && typeof batchGroup === 'object' ? batchGroup : null,
+    queue_reason: queueReason || '',
     cancel_requested: false,
     logs: [],
     item_statuses: {},
@@ -1402,23 +1483,23 @@ function createProcessJobRecord({
   if (deferred) {
     appendJobLog(
       jobId,
-      `대기 작업으로 등록됨: ${requestedIds.length}개 항목 / 순번 ${queuedPosition}`,
+      `대기 작업으로 등록됨: ${requestedIds.length}개 항목 / 순번 ${queuedPosition}${queueReason ? ` / ${queueReason}` : ''}`,
       'info'
     );
   }
   return readJob(jobId);
 }
 
-function startNextDeferredProcessJob(previousJobId = '') {
-  const active = findRunnableActiveJob();
+function startNextDeferredProcessJob(previousJobId = '', lane = '') {
+  const active = findRunnableActiveJob(lane);
   if (active) return null;
-  const next = findNextDeferredJob(previousJobId);
+  const next = findNextDeferredJob(previousJobId, lane);
   if (!next) return null;
   patchJob(next.job_id, {
     deferred: false,
     queued_position: 0
   });
-  appendJobLog(next.job_id, '이전 작업이 끝나 자동으로 대기 작업을 시작합니다.', 'info');
+  appendJobLog(next.job_id, `이전 ${lane === 'draft' ? '드래프트 생성' : 'Gemini 분석'} 작업이 끝나 자동으로 대기 작업을 시작합니다.`, 'info');
   return spawnJobWorker(next.job_id, 'deferred_queue_auto_start');
 }
 
@@ -1435,21 +1516,30 @@ function startProcessJob({
   chunk_size = DEFAULT_PROCESS_JOB_CHUNK_SIZE
 } = {}) {
   ensureJobsRoot();
-  const active = findRunnableActiveJob();
   const validStages = ['download', 'metadata', 'draft'];
   const selectedStages = Array.isArray(stages) && stages.length
     ? stages.filter((stage) => validStages.includes(stage))
     : validStages;
+  const lane = getJobLaneFromStages(selectedStages);
+  const active = findRunnableActiveJob(lane);
   const normalizedDraftVariantMode = normalizeDraftVariantMode(draft_variant_mode);
   const normalizedMetadataVariantMode = normalizeDraftVariantMode(metadata_variant_mode || draft_variant_mode || 'all');
   const queue = listQueue();
   const requestedIds = Array.isArray(item_ids) && item_ids.length
     ? item_ids.map((id) => safeId(id)).filter(Boolean)
     : queue.queueItems.map((item) => item.item_id);
-  const shouldChunk = enqueue_batches === true && requestedIds.length > Math.max(1, Number(chunk_size) || DEFAULT_PROCESS_JOB_CHUNK_SIZE);
-  const chunks = shouldChunk
-    ? chunkArray(requestedIds, chunk_size)
-    : [requestedIds];
+  const stageNames = stageSetForJob(selectedStages);
+  const safeChunkPlan = buildSafeJobChunks({
+    requestedIds,
+    queue,
+    stages: selectedStages,
+    enqueueBatches: enqueue_batches === true,
+    chunkSize: chunk_size
+  });
+  const chunks = safeChunkPlan.chunks;
+  const containsLongformMetadata = stageNames.has('metadata') && safeChunkPlan.split.hasLongform;
+  const shouldForceQueueBehindActive = active && containsLongformMetadata;
+  const shouldQueueIfActive = enqueue_if_active === true || shouldForceQueueBehindActive;
   const batchGroupId = chunks.length > 1 ? createJobId().replace(/^job_/, 'group_') : '';
   const makeBatchGroup = (ids, index) => {
     if (chunks.length <= 1) return null;
@@ -1469,7 +1559,7 @@ function startProcessJob({
   };
 
   if (active) {
-    if (enqueue_if_active === true) {
+    if (shouldQueueIfActive) {
       const queuedJobs = chunks.map((ids, index) => createProcessJobRecord({
         requestedIds: ids,
         selectedStages,
@@ -1478,9 +1568,15 @@ function startProcessJob({
         normalizedDraftVariantMode,
         normalizedMetadataVariantMode,
         continueToDraftAfterMetadata: continue_to_draft_after_metadata,
+        lane,
         deferred: true,
         queuedPosition: index + 1,
-        batchGroup: makeBatchGroup(ids, index)
+        batchGroup: makeBatchGroup(ids, index),
+        queueReason: shouldForceQueueBehindActive
+          ? '활성 Gemini 분석 작업 뒤에 안전하게 대기합니다.'
+          : lane === 'draft'
+            ? '드래프트 생성 라인 대기열에 등록되었습니다.'
+            : 'Gemini 분석 라인 대기열에 등록되었습니다.'
       }));
       return {
         reused: false,
@@ -1505,9 +1601,15 @@ function startProcessJob({
     normalizedDraftVariantMode,
     normalizedMetadataVariantMode,
     continueToDraftAfterMetadata: continue_to_draft_after_metadata,
+    lane,
     deferred: index > 0,
     queuedPosition: index,
-    batchGroup: makeBatchGroup(ids, index)
+    batchGroup: makeBatchGroup(ids, index),
+    queueReason: index > 0
+      ? lane === 'draft'
+        ? '앞선 드래프트 생성 묶음이 끝나면 자동 시작됩니다.'
+        : '앞선 Gemini 분석 묶음이 끝나면 자동 시작됩니다.'
+      : ''
   }));
   const spawned = spawnJobWorker(queuedJobs[0].job_id, 'start');
   return {
@@ -1542,23 +1644,24 @@ function recoverProcessJobsOnStartup() {
   const jobs = listJobs().jobs
     .filter((job) => job && ['queued', 'running'].includes(job.status))
     .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')));
-  let recoveredActiveJob = false;
+  const recoveredActiveLanes = new Set();
   for (const job of jobs) {
     if (!job || !['queued', 'running'].includes(job.status)) continue;
+    const lane = String(job.lane || getJobLaneFromStages(job.stages || []));
     if (job.cancel_requested) {
       skipped.push({ job_id: job.job_id, reason: 'cancel_requested' });
       continue;
     }
     if (isProcessAlive(job.worker_pid)) {
       skipped.push({ job_id: job.job_id, reason: `worker_alive_${job.worker_pid}` });
-      recoveredActiveJob = true;
+      recoveredActiveLanes.add(lane);
       continue;
     }
-    if (recoveredActiveJob) {
+    if (recoveredActiveLanes.has(lane)) {
       patchJob(job.job_id, {
         deferred: true
       });
-      skipped.push({ job_id: job.job_id, reason: 'deferred_waiting_for_active_job' });
+      skipped.push({ job_id: job.job_id, reason: `deferred_waiting_for_active_${lane}_job` });
       continue;
     }
     patchJob(job.job_id, {
@@ -1567,7 +1670,7 @@ function recoverProcessJobsOnStartup() {
     });
     const next = spawnJobWorker(job.job_id, 'server_start_recovery');
     recovered.push({ job_id: job.job_id, worker_pid: next.worker_pid });
-    recoveredActiveJob = true;
+    recoveredActiveLanes.add(lane);
   }
   return {
     recovered,
@@ -1580,6 +1683,7 @@ function cancelJob(jobId) {
   const runtime = getJobRuntimeInfo(current);
   const workerPid = Number(current.worker_pid || 0);
   const shouldForceStop = runtime.stalled === true && workerPid > 0;
+  const lane = String(current.lane || getJobLaneFromStages(current.stages || []));
 
   if (shouldForceStop) {
     let killMessage = '';
@@ -1599,7 +1703,7 @@ function cancelJob(jobId) {
       worker_pid: null
     });
     appendJobLog(jobId, `${killMessage} 다음 대기 작업을 시작합니다.`, 'warning');
-    startNextDeferredProcessJob(jobId);
+    startNextDeferredProcessJob(jobId, lane);
     return cancelled;
   }
 

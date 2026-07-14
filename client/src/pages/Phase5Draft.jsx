@@ -277,6 +277,14 @@ function formatStatus(status) {
   return STATUS_LABELS[status] || repairDisplayText(status || '-', '\uC0C1\uD0DC \uD655\uC778 \uD544\uC694');
 }
 
+function getJobLaneLabel(job = {}) {
+  return job?.lane === 'draft' ? '드래프트 생성 라인' : 'Gemini 분석 라인';
+}
+
+function getJobQueueReason(job = {}) {
+  return repairDisplayText(job?.queue_reason || '', '');
+}
+
 function getPendingSourceUrl(video) {
   const raw = video?.raw && typeof video.raw === 'object' ? video.raw : {};
   const values = [
@@ -568,7 +576,8 @@ export default function Phase5Draft() {
         if (cancelled) return;
         syncServerQueueJob(res.data.job, res.data.queue);
         if (TERMINAL_SERVER_JOB_STATUSES.has(res.data.job?.status)) {
-          await fetchServerQueueJob(jobId);
+          const latestJob = await fetchServerQueueJob(jobId);
+          await followNextBatchGroupJob(latestJob);
         }
       } catch (err) {
         if (!cancelled) updateQueueErrorState(err.response?.data?.message || err.message);
@@ -581,6 +590,22 @@ export default function Phase5Draft() {
       window.clearInterval(timer);
     };
   }, [serverQueueJob?.job_id, serverQueueJob?.status]);
+
+  useEffect(() => {
+    if (!serverQueueJob?.job_id || !TERMINAL_SERVER_JOB_STATUSES.has(serverQueueJob?.status)) return undefined;
+    let cancelled = false;
+    const follow = async () => {
+      try {
+        if (!cancelled) await followNextBatchGroupJob(serverQueueJob);
+      } catch {
+        // Staying on the completed chunk is still safe; the next regular refresh can recover.
+      }
+    };
+    follow();
+    return () => {
+      cancelled = true;
+    };
+  }, [serverQueueJob?.job_id, serverQueueJob?.status, serverQueueJob?.batch_group?.group_id, serverQueueJob?.batch_group?.chunk_index]);
 
   useEffect(() => {
     const ids = new Set((processQueue?.queueItems || []).map((item) => item.item_id));
@@ -882,6 +907,30 @@ export default function Phase5Draft() {
     return res.data.job;
   };
 
+  const followNextBatchGroupJob = async (currentJob = serverQueueJob) => {
+    const groupId = currentJob?.batch_group?.group_id || '';
+    const currentChunkIndex = Number(currentJob?.batch_group?.chunk_index || 0);
+    if (!groupId || !TERMINAL_SERVER_JOB_STATUSES.has(currentJob?.status)) return null;
+    const res = await api.get('/process-queue/jobs');
+    const jobs = Array.isArray(res.data?.jobs) ? res.data.jobs : [];
+    const nextJob = jobs
+      .filter((job) => (
+        job?.batch_group?.group_id === groupId
+        && Number(job?.batch_group?.chunk_index || 0) > currentChunkIndex
+        && ['queued', 'running'].includes(job.status)
+      ))
+      .sort((a, b) => {
+        const aActive = a.status === 'running' ? 0 : 1;
+        const bActive = b.status === 'running' ? 0 : 1;
+        if (aActive !== bActive) return aActive - bActive;
+        return Number(a?.batch_group?.chunk_index || 0) - Number(b?.batch_group?.chunk_index || 0);
+      })[0];
+    if (!nextJob) return null;
+    syncServerQueueJob(nextJob);
+    addQueueProgress(`다음 5개 묶음으로 이동: ${nextJob.batch_group?.chunk_index || '?'} / ${nextJob.batch_group?.chunk_total || '?'}`, 'info');
+    return nextJob;
+  };
+
   const startServerQueueJob = async (itemIds = null, stages = ['download', 'metadata', 'draft'], options = {}) => {
     const normalizedStages = Array.isArray(stages) ? stages : [];
     const continueToDraftAfterMetadata = options.continueToDraftAfterMetadata === true;
@@ -917,8 +966,17 @@ export default function Phase5Draft() {
       const res = await api.post('/process-queue/jobs/start', payload);
       const visibleJob = res.data.activeJob || res.data.job;
       syncServerQueueJob(visibleJob);
+      if (visibleJob?.lane) {
+        addQueueProgress(`${getJobLaneLabel(visibleJob)} 시작/등록: ${visibleJob.stages?.join(' -> ') || '작업 대기'}`, 'info');
+      }
+      if (visibleJob?.queue_reason) {
+        addQueueProgress(visibleJob.queue_reason, 'warning');
+      }
       if (res.data.queuedJobs?.length) {
         addQueueProgress(`5개 세트 대기큐 등록: ${res.data.queuedJobs.length}개 작업`, 'info');
+        res.data.queuedJobs.forEach((queuedJob) => {
+          if (queuedJob?.queue_reason) addQueueProgress(`${getJobLaneLabel(queuedJob)}: ${queuedJob.queue_reason}`, 'warning');
+        });
       }
       await fetchServerQueueJob(visibleJob.job_id);
     } catch (err) {
@@ -998,6 +1056,84 @@ export default function Phase5Draft() {
     });
   };
 
+  const runSmartSelectedWorkflow = async () => {
+    const targetItemIds = selectedOrAllItemIds;
+    const targetItems = getTargetItemsForAction(targetItemIds);
+    if (!validateRequiredSettings('server:all', targetItemIds, '자동 분류 실행')) return;
+
+    const pipelineItems = [];
+    const draftReadyItems = [];
+    targetItems.forEach((item) => {
+      const itemConfig = item.item_config || {};
+      if (item.source_exists && hasMetadataReady(itemConfig)) {
+        draftReadyItems.push(item.item_id);
+      } else {
+        pipelineItems.push(item.item_id);
+      }
+    });
+
+    setQueueProgress([]);
+    updateQueueStatusState('server_job_running');
+    updateQueueErrorState('');
+    updateQueueResultState(null);
+
+    const mixedLongform = targetItems.some(isLongformQueueItem) && targetItems.some((item) => !isLongformQueueItem(item));
+    const longformCount = targetItems.filter(isLongformQueueItem).length;
+    const shortformCount = targetItems.length - longformCount;
+
+    try {
+      let visibleJob = null;
+      addQueueProgress(
+        `자동 분류 실행: 선택 ${targetItems.length}개 중 숏폼 ${shortformCount}개, 롱폼 ${longformCount}개를 확인했습니다.${mixedLongform ? ' 숏폼 Gemini 분석을 먼저 처리하고 롱폼은 뒤로 대기시킵니다.' : ''}`,
+        'info'
+      );
+
+      if (pipelineItems.length) {
+        const res = await api.post('/process-queue/jobs/start', {
+          queue: getQueueSavePayload(processQueue),
+          item_ids: pipelineItems,
+          stages: ['download', 'metadata'],
+          batch_name: processQueue?.queueConfig?.batch_name || 'process_batch_001',
+          draft_variant_mode: STANDARD_BATCH_VARIANT_MODE,
+          metadata_variant_mode: STANDARD_BATCH_VARIANT_MODE,
+          continue_to_draft_after_metadata: true,
+          enqueue_if_active: true,
+          enqueue_batches: true,
+          chunk_size: 5
+        });
+        visibleJob = visibleJob || res.data.activeJob || res.data.job;
+        const queuedCount = res.data.queuedJobs?.length || 0;
+        addQueueProgress(`분석이 필요한 ${pipelineItems.length}개 항목을 자동 실행에 등록했습니다.${queuedCount ? ` / 대기 ${queuedCount}개` : ''}`, 'info');
+      }
+
+      if (draftReadyItems.length) {
+        const res = await api.post('/process-queue/jobs/start', {
+          queue: getQueueSavePayload(processQueue),
+          item_ids: draftReadyItems,
+          stages: ['draft'],
+          batch_name: processQueue?.queueConfig?.batch_name || 'process_batch_001',
+          draft_variant_mode: STANDARD_BATCH_VARIANT_MODE,
+          enqueue_if_active: true,
+          enqueue_batches: true,
+          chunk_size: 5
+        });
+        visibleJob = visibleJob || res.data.activeJob || res.data.job;
+        const queuedCount = res.data.queuedJobs?.length || 0;
+        addQueueProgress(`기존 Gemini 결과를 재사용하는 ${draftReadyItems.length}개 항목은 드래프트 생성 라인에 등록했습니다.${queuedCount ? ` / 대기 ${queuedCount}개` : ''}`, 'info');
+      }
+
+      if (visibleJob) {
+        syncServerQueueJob(visibleJob);
+        await fetchServerQueueJob(visibleJob.job_id);
+      }
+    } catch (err) {
+      const message = err.response?.data?.message || err.message;
+      updateQueueErrorState(message);
+      updateQueueStatusState('failed');
+      addQueueProgress(`자동 분류 실행 시작 실패: ${message}`, 'error');
+    }
+  };
+
   const runFailedVariantMetadataAndDraftForVariant = async (variant) => {
     const failures = getFailedVariantItemIdsByVariant();
     const itemIds = failures[variant] || [];
@@ -1052,6 +1188,26 @@ export default function Phase5Draft() {
     );
   };
 
+  const getDraftOnlyFailedItemIds = (variantFailures = null) => {
+    const targetIds = selectedQueueItemIds.length ? new Set(selectedQueueItemIds) : null;
+    const failures = variantFailures || getFailedVariantItemIdsByVariant();
+    const metadataFailedItemIds = new Set([
+      ...(failures.full || []),
+      ...(failures.highlight || []),
+      ...(failures.midform || [])
+    ]);
+    return Object.values(serverQueueJob?.item_statuses || {})
+      .filter((item) => {
+        const itemId = item.item_id;
+        if (!itemId) return false;
+        if (targetIds && !targetIds.has(itemId)) return false;
+        if (metadataFailedItemIds.has(itemId)) return false;
+        return item.draft_status === 'failed';
+      })
+      .map((item) => item.item_id)
+      .filter(Boolean);
+  };
+
   const runFailedVariantMetadataAndDraft = async () => {
     const failures = getFailedVariantItemIdsByVariant();
     const variantRuns = ['full', 'highlight']
@@ -1061,9 +1217,10 @@ export default function Phase5Draft() {
         itemIds: failures[variant] || []
       }))
       .filter((run) => run.itemIds.length);
+    const draftOnlyFailedItemIds = getDraftOnlyFailedItemIds(failures);
 
-    if (!variantRuns.length) {
-      addQueueProgress('재시도할 실패 포맷이 없습니다.', 'info');
+    if (!variantRuns.length && !draftOnlyFailedItemIds.length) {
+      addQueueProgress('재시도할 실패 포맷이나 드래프트 실패 항목이 없습니다.', 'info');
       return;
     }
     if (!validateRequiredSettings('server:all', selectedOrAllItemIds, '실패 포맷 재분석 후 드래프트')) return;
@@ -1092,6 +1249,21 @@ export default function Phase5Draft() {
         visibleJob = visibleJob || res.data.activeJob || res.data.job;
         const queuedCount = res.data.queuedJobs?.length || 0;
         addQueueProgress(`${run.variant} 실패 포맷 재분석+생성 등록: ${run.itemIds.length}개${queuedCount ? ` / 대기 ${queuedCount}개` : ''}`, 'info');
+      }
+      if (draftOnlyFailedItemIds.length) {
+        const res = await api.post('/process-queue/jobs/start', {
+          queue: getQueueSavePayload(processQueue),
+          item_ids: draftOnlyFailedItemIds,
+          stages: ['draft'],
+          batch_name: processQueue?.queueConfig?.batch_name || 'process_batch_001',
+          draft_variant_mode: STANDARD_BATCH_VARIANT_MODE,
+          enqueue_if_active: true,
+          enqueue_batches: true,
+          chunk_size: 5
+        });
+        visibleJob = visibleJob || res.data.activeJob || res.data.job;
+        const queuedCount = res.data.queuedJobs?.length || 0;
+        addQueueProgress(`드래프트만 실패 항목 재생성 등록: ${draftOnlyFailedItemIds.length}개${queuedCount ? ` / 대기 ${queuedCount}개` : ''}`, 'info');
       }
       if (visibleJob) {
         syncServerQueueJob(visibleJob);
@@ -2345,6 +2517,10 @@ export default function Phase5Draft() {
   const warningServerJobItems = serverJobItems.filter((item) => isWarningServerItem(item) && !failedServerJobItems.includes(item));
   const metadataFailedServerJobItems = serverJobItems.filter((item) => isMetadataFailureItem(item));
   const failedVariantItemIds = getFailedVariantItemIdsByVariant();
+  const draftOnlyFailedItemIds = getDraftOnlyFailedItemIds(failedVariantItemIds);
+  const retryableFailedCount = (failedVariantItemIds.full?.length || 0)
+    + (failedVariantItemIds.highlight?.length || 0)
+    + draftOnlyFailedItemIds.length;
   const terminalServerJob = TERMINAL_SERVER_JOB_STATUSES.has(serverQueueJob?.status);
   const serverJobFinishedAt = serverQueueJob?.finished_at
     ? new Date(serverQueueJob.finished_at).toLocaleString('ko-KR')
@@ -2520,10 +2696,20 @@ const renderWorkflowGuide = () => (
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
                 <div className="text-xs font-black uppercase tracking-[0.2em] text-[#c8ff00]">2. 포맷별 제작</div>
+                <div className="mt-1 text-xs text-slate-300">선택 목록을 보고 자동으로 분류해 숏폼 Gemini 분석 → 롱폼 대기 → 드래프트 생성 순으로 등록합니다.</div>
               </div>
               <button title="전체 실행, 전체 재분석, 실패 포맷 재시도 같은 고급 일괄 작업을 엽니다." className="rounded-full border border-white/15 bg-black/20 px-3 py-1 text-xs font-black text-slate-200" onClick={() => setShowBatchAdvancedActions((value) => !value)}>
                 {showBatchAdvancedActions ? '일괄 작업 숨김' : '일괄 작업'}
               </button>
+            </div>
+            <div className="mb-3 rounded-2xl border border-[#c8ff00]/25 bg-[#c8ff00]/10 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-black text-[#f2ffd2]">자동 분류 실행</div>
+                  <div className="mt-1 text-xs text-[#eaff9a]">선택 항목에서 이미 Gemini가 끝난 건 드래프트 라인으로, 아직 분석이 필요한 건 Gemini 분석 라인으로 자동 분류합니다.</div>
+                </div>
+                <button title="선택 목록을 검사해 이미 분석된 항목은 드래프트만, 미분석 항목은 다운로드+Gemini 분석 후 드래프트 생성으로 자동 분류합니다. 숏폼이 섞여 있으면 숏폼 Gemini 분석이 먼저 처리됩니다." className="rounded-2xl bg-[#c8ff00] px-4 py-3 text-sm font-black text-black disabled:opacity-50" disabled={serverQueueBusy || requiredSettingIssues.serverAll.length > 0} onClick={runSmartSelectedWorkflow}>선택 목록 자동 실행</button>
+              </div>
             </div>
             <div className="grid gap-3 md:grid-cols-3">
               <div className="rounded-3xl border border-amber-300/30 bg-amber-300/10 p-3" title="10초 전후 시각적 후킹 중심 드래프트를 생성합니다. 긴 하단 설명형 자막을 사용합니다.">
@@ -2564,9 +2750,9 @@ const renderWorkflowGuide = () => (
             {showBatchAdvancedActions ? (
               <div className="mt-3 rounded-2xl border border-white/10 bg-black/25 p-3">
                 <div className="flex flex-wrap gap-2">
-                  <button title="선택 항목 또는 전체 항목을 다운로드, Gemini 분석, Full/Highlight 드래프트 생성까지 실행합니다. Midform은 제외됩니다." className="rounded-2xl border border-white/15 bg-white/8 px-4 py-3 text-sm font-bold text-white disabled:opacity-50" disabled={serverQueueBusy || requiredSettingIssues.serverAll.length > 0} onClick={() => startServerQueueJob(selectedOrAllItemIds, ['download', 'metadata', 'draft'])}>전체 실행</button>
+                  <button title="선택 항목 또는 전체 항목을 하나의 일반 배치로 다운로드, Gemini 분석, Full/Highlight 드래프트 생성까지 실행합니다. 자동 분류 실행보다 덜 똑똑한 수동 일괄 옵션입니다." className="rounded-2xl border border-white/15 bg-white/8 px-4 py-3 text-sm font-bold text-white disabled:opacity-50" disabled={serverQueueBusy || requiredSettingIssues.serverAll.length > 0} onClick={() => startServerQueueJob(selectedOrAllItemIds, ['download', 'metadata', 'draft'])}>일반 전체 실행</button>
                   <button title="기존 Gemini 결과를 무시하고 Full/Highlight만 다시 분석한 뒤 드래프트를 생성합니다. Midform은 제외됩니다." className="rounded-2xl border border-[#c8ff00]/40 bg-black/20 px-4 py-3 text-sm font-bold text-[#c8ff00] disabled:opacity-50" disabled={serverQueueBusy || requiredSettingIssues.serverMetadata.length > 0} onClick={() => startServerQueueJob(selectedOrAllItemIds, ['download', 'metadata'], { forceMetadata: true, continueToDraftAfterMetadata: true })}>재분석+생성</button>
-                  <button title="실패한 Full/Highlight 포맷만 다시 분석하고 드래프트를 생성합니다. Midform은 제외됩니다." className="rounded-2xl border border-rose-300/50 bg-rose-400/10 px-4 py-3 text-sm font-black text-rose-100 disabled:opacity-50" disabled={serverQueueBusy || requiredSettingIssues.serverMetadata.length > 0 || requiredSettingIssues.serverDraft.length > 0} onClick={runFailedVariantMetadataAndDraft}>실패 재시도</button>
+                  <button title="실패한 Full/Highlight 분석은 포맷별로 재분석+생성하고, 드래프트만 실패한 항목은 드래프트만 다시 생성합니다. Midform은 제외됩니다." className="rounded-2xl border border-rose-300/50 bg-rose-400/10 px-4 py-3 text-sm font-black text-rose-100 disabled:opacity-50" disabled={serverQueueBusy || requiredSettingIssues.serverMetadata.length > 0 || requiredSettingIssues.serverDraft.length > 0 || retryableFailedCount === 0} onClick={runFailedVariantMetadataAndDraft}>실패 자동 분류 재시도 {retryableFailedCount}</button>
                   <button title="기존 Gemini 분석 결과를 사용해 Full/Highlight 드래프트만 다시 생성합니다. Midform은 제외됩니다." className="rounded-2xl border border-white/15 bg-white/8 px-4 py-3 text-sm font-bold text-white disabled:opacity-50" disabled={serverQueueBusy || requiredSettingIssues.serverDraft.length > 0} onClick={() => startServerQueueJob(selectedOrAllItemIds, ['draft'])}>드래프트만</button>
                 </div>
               </div>
@@ -2793,7 +2979,7 @@ const renderWorkflowGuide = () => (
           <div>
             <div className="text-xs font-black uppercase tracking-[0.22em] text-[#c8ff00]">PROGRESS DETAILS</div>
             <h3 className="mt-1 text-xl font-black text-white">작업 진행 로그</h3>
-            <p className="mt-1 text-sm text-slate-400">서버 작업자 상태와 최신 로그를 기준으로 현재 진행을 확인합니다.</p>
+            <p className="mt-1 text-sm text-slate-400">Gemini 분석 라인과 드래프트 생성 라인을 분리해, 롱폼 분석이 길어져도 드래프트만 재생성하는 작업은 별도 라인에서 진행할 수 있습니다.</p>
           </div>
           <div className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs font-black text-slate-200">
             {queueProgress.length ? queueProgress.length + '개 로그' : '대기 중'}
@@ -2805,7 +2991,7 @@ const renderWorkflowGuide = () => (
               <div>
                 <div className="text-sm font-black text-white">{formatStatus(queueStatus)}</div>
                 <div className="mt-1 text-xs text-slate-400">
-                  단계: {serverQueueJob?.stage || activeWorkflowStep} / 현재 묶음 {targetCount || 0}개{hasBatchGroup ? ` / 전체 요청 ${batchTotalItemCount}개` : ''}{serverQueueJob?.draft_variant_mode === 'highlight_only' ? ' / 하이라이트만' : serverQueueJob?.draft_variant_mode === 'full_only' ? ' / 풀만' : serverQueueJob?.draft_variant_mode === 'midform_only' ? ' / 미드폼만' : serverQueueJob?.draft_variant_mode === STANDARD_BATCH_VARIANT_MODE ? ' / 풀+하이라이트' : ''}
+                  {getJobLaneLabel(serverQueueJob)} / 단계: {serverQueueJob?.stage || activeWorkflowStep} / 현재 묶음 {targetCount || 0}개{hasBatchGroup ? ` / 전체 요청 ${batchTotalItemCount}개` : ''}{serverQueueJob?.draft_variant_mode === 'highlight_only' ? ' / 하이라이트만' : serverQueueJob?.draft_variant_mode === 'full_only' ? ' / 풀만' : serverQueueJob?.draft_variant_mode === 'midform_only' ? ' / 미드폼만' : serverQueueJob?.draft_variant_mode === STANDARD_BATCH_VARIANT_MODE ? ' / 풀+하이라이트' : ''}
                 </div>
               </div>
               <div className="text-2xl font-black text-[#c8ff00]">{progressPercent}%</div>
@@ -2838,6 +3024,7 @@ const renderWorkflowGuide = () => (
               </div>
             ) : null}
             {serverQueueJob?.last_log_message ? <div className="mt-3 rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-xs text-slate-300">최신 로그: {serverQueueJob.last_log_message}</div> : null}
+            {getJobQueueReason(serverQueueJob) ? <div className="mt-3 rounded-xl border border-amber-300/20 bg-amber-300/10 px-3 py-2 text-xs text-amber-100">대기 이유: {getJobQueueReason(serverQueueJob)}</div> : null}
             {jobStalled ? <div className="mt-3 rounded-2xl border border-red-400/30 bg-red-500/10 p-3 text-sm text-red-100">{stallThresholdLabel} 이상 새 로그가 없거나 작업자 프로세스가 보이지 않습니다. 작업 중지 후 실패 항목만 다시 실행할 수 있습니다.</div> : null}
             {terminalServerJob ? (
               <div className={failedServerJobItems.length || warningServerJobItems.length ? 'mt-3 rounded-2xl border border-amber-300/30 bg-amber-300/10 p-3 text-sm text-amber-50' : 'mt-3 rounded-2xl border border-emerald-300/25 bg-emerald-300/10 p-3 text-sm text-emerald-50'}>
@@ -2865,6 +3052,7 @@ const renderWorkflowGuide = () => (
             {serverQueueBusy ? <div className="mt-2 text-xs text-amber-100">현재 처리 중인 항목이 끝난 뒤 안전하게 중단됩니다.</div> : null}
             {!serverQueueBusy && (failedServerJobItems.length || warningServerJobItems.length) ? (
               <div className="mt-3 grid gap-2 md:grid-cols-3">
+                {retryableFailedCount ? <button className="rounded-xl border border-rose-300/50 bg-rose-300/15 px-4 py-2 text-sm font-black text-rose-50 hover:brightness-110" onClick={runFailedVariantMetadataAndDraft}>실패 자동 분류 재시도 {retryableFailedCount}</button> : null}
                 {failedVariantItemIds.highlight?.length ? <button className="rounded-xl border border-amber-300/40 bg-amber-300/15 px-4 py-2 text-sm font-black text-amber-50 hover:brightness-110" onClick={() => runFailedVariantMetadataAndDraftForVariant('highlight')}>Highlight 실패 재시도 {failedVariantItemIds.highlight.length}</button> : null}
                 {failedVariantItemIds.full?.length ? <button className="rounded-xl border border-lime-300/40 bg-lime-300/15 px-4 py-2 text-sm font-black text-lime-50 hover:brightness-110" onClick={() => runFailedVariantMetadataAndDraftForVariant('full')}>Full 실패 재시도 {failedVariantItemIds.full.length}</button> : null}
                 {failedVariantItemIds.midform?.length ? <button className="rounded-xl border border-cyan-300/40 bg-cyan-300/15 px-4 py-2 text-sm font-black text-cyan-50 hover:brightness-110" onClick={() => runFailedVariantMetadataAndDraftForVariant('midform')}>Midform 실패 재시도 {failedVariantItemIds.midform.length}</button> : null}

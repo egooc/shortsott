@@ -98,11 +98,13 @@ function compactJob(job = {}) {
     item_ids: job.item_ids || [],
     stages: job.stages || [],
     batch_name: job.batch_name || '',
+    lane: job.lane || 'metadata',
     draft_variant_mode: job.draft_variant_mode || 'all',
     metadata_variant_mode: job.metadata_variant_mode || 'all',
     continue_to_draft_after_metadata: job.continue_to_draft_after_metadata === true,
     deferred: job.deferred === true,
     queued_position: Number(job.queued_position || 0),
+    queue_reason: job.queue_reason || '',
     batch_group: job.batch_group || null,
     cancel_requested: !!job.cancel_requested,
     worker_pid: job.worker_pid || null,
@@ -151,6 +153,7 @@ function getAnalysisSourceInfo(itemId, itemConfig = {}) {
 
 async function analyzeMissingMetadataForItems(items = [], apiKey, options = {}) {
   const force = options.force === true;
+  const metadataVariantMode = options.metadata_variant_mode || options.draft_variant_mode || 'all';
   const results = [];
   for (const item of items) {
     const itemConfig = item.item_config || {};
@@ -181,7 +184,8 @@ async function analyzeMissingMetadataForItems(items = [], apiKey, options = {}) 
         durationSec,
         originalFilename: sourceInfo.filename,
         sourceType: itemConfig.source_type || 'unknown',
-        sourceWorkflowMode: itemConfig.source_workflow_mode || 'unknown'
+        sourceWorkflowMode: itemConfig.source_workflow_mode || 'unknown',
+        metadataVariantMode
       });
       const applied = applyOttogiGuideToItem(item.item_id, guide, sourceUrl);
       results.push({
@@ -523,7 +527,8 @@ router.post('/analyze-metadata', async (req, res, next) => {
   try {
     const apiKey = getGeminiApiKeyForCurrentMode();
     const metadataAnalysis = await analyzeMissingMetadataForItems(getItemsForRequest(req.body?.item_ids), apiKey, {
-      force: req.body?.force === true
+      force: req.body?.force === true,
+      metadata_variant_mode: req.body?.metadata_variant_mode || req.body?.draft_variant_mode
     });
     const failedCount = metadataAnalysis.filter((item) => item.status === 'failed').length;
     res.json({
@@ -545,7 +550,8 @@ router.post('/generate', async (req, res, next) => {
     if (body.auto_gemini_metadata !== false) {
       const apiKey = getGeminiApiKeyForCurrentMode();
       metadataAnalysis = await analyzeMissingMetadataForItems(getItemsForRequest(body.item_ids), apiKey, {
-        force: body.force_metadata === true
+        force: body.force_metadata === true,
+        metadata_variant_mode: body.metadata_variant_mode || body.draft_variant_mode
       });
     }
     const result = await generateQueue(body);
@@ -630,11 +636,13 @@ router.get('/jobs/:jobId/progress', (req, res, next) => {
         item_ids: job.item_ids || [],
         stages: job.stages || [],
         batch_name: job.batch_name || '',
+        lane: job.lane || 'metadata',
         draft_variant_mode: job.draft_variant_mode || 'all',
         metadata_variant_mode: job.metadata_variant_mode || 'all',
         continue_to_draft_after_metadata: job.continue_to_draft_after_metadata === true,
         deferred: job.deferred === true,
         queued_position: Number(job.queued_position || 0),
+        queue_reason: job.queue_reason || '',
         cancel_requested: !!job.cancel_requested,
         worker_pid: job.worker_pid || null,
         worker_log_path: job.worker_log_path || '',
