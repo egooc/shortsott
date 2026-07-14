@@ -58,9 +58,13 @@ template_style_debug.json
 subtitle_style_diff_report.md
 
 # Local app/runtime caches
+.scratch/
 .omx/
 .tools/
 *.log
+*.bak.*
+calibration_*.json
+pilot50_selection.json
 
 # Local shortcuts and OS files
 *.lnk
