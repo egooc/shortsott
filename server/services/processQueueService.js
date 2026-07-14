@@ -8,7 +8,7 @@ const {
   writeJsonWithBackup
 } = require('./pipelinePaths');
 const { defaultConfig, normalizeConfig, createProcessDraft } = require('./processEditService');
-const { assertOttogiGuideLanguage } = require('./processMetadataService');
+const { assertOttogiGuideLanguage, OUTPUT_CONFIG, outputLanguageForVariant } = require('./processMetadataService');
 const { getVideoMetadata } = require('../utils/ffprobe');
 const { classifySourceVideo, normalizeSourceMode } = require('../utils/sourceClassifier');
 const { computeCutSelectionTier, cutSelectionTierRank } = require('../utils/cutSelectionTier');
@@ -2041,6 +2041,21 @@ function splitKoreanSentences(value = '') {
     .filter((item) => item.length >= 6);
 }
 
+function sanitizeKoreanProductionText(value = '') {
+  return String(value || '')
+    .split(/\r?\n/)
+    .map((line) => line
+      .replace(/Food Processing:\s*Precision Cutting/giu, '정밀 코일 권선')
+      .replace(/Food Production/giu, '식품 생산')
+      .replace(/Motor Coil Manufacturing/giu, '모터 코일 제조')
+      .replace(/precision coil winding/giu, '정밀 코일 권선')
+      .replace(/material transformation/giu, '소재 변화')
+      .replace(/\s+/g, ' ')
+      .trim())
+    .join('\n')
+    .trim();
+}
+
 function buildNarrativeFullDraftBlocks({
   text = '',
   language = 'ja',
@@ -2050,13 +2065,43 @@ function buildNarrativeFullDraftBlocks({
   blockPrefix = 'full_narrative'
 } = {}) {
   const safeDuration = Number(durationSec) > 0 ? Number(durationSec) : 30;
-  const maxUnits = Math.max(4, Math.min(36, Math.ceil(safeDuration / 1.75)));
+  const maxUnits = language === 'ko'
+    ? Math.max(4, Math.min(8, Math.ceil(safeDuration / 8)))
+    : Math.max(4, Math.min(36, Math.ceil(safeDuration / 1.75)));
   const units = language === 'ko'
-    ? splitKoreanCaptionUnits(text, {
-        maxChars: FULL_CAPTION_SAFE_MAX_CHARS.ko,
-        minChars: 8,
-        maxUnits
-      })
+    ? (() => {
+        const cleaned = sanitizeKoreanProductionText(text);
+        const sentences = splitKoreanSentences(cleaned);
+        const sourceUnits = sentences.length ? sentences : [cleaned];
+        const chunks = sourceUnits.flatMap((sentence) => {
+          if (sentence.length <= 42) return [sentence];
+          return splitKoreanCaptionUnits(sentence, {
+            maxChars: 38,
+            minChars: 12,
+            maxUnits: 2
+          });
+        });
+        const deduped = [];
+        for (const chunk of chunks) {
+          const normalized = String(chunk || '').trim();
+          if (!normalized) continue;
+          if (deduped[deduped.length - 1] === normalized) continue;
+          deduped.push(normalized);
+        }
+        while (deduped.length > maxUnits) {
+          let bestIndex = 0;
+          let bestLength = Infinity;
+          for (let index = 0; index < deduped.length - 1; index += 1) {
+            const length = deduped[index].length + deduped[index + 1].length;
+            if (length < bestLength) {
+              bestLength = length;
+              bestIndex = index;
+            }
+          }
+          deduped.splice(bestIndex, 2, `${deduped[bestIndex]} ${deduped[bestIndex + 1]}`.trim());
+        }
+        return deduped;
+      })()
     : splitJapaneseCaptionUnits(text, {
         maxChars: FULL_CAPTION_SAFE_MAX_CHARS.ja,
         minChars: 7,
@@ -2262,9 +2307,13 @@ function buildFullCaptionScriptBlocks(fullCaptionScript = [], sceneTransitions =
     const itemObject = item && typeof item === 'object' ? item : { text: item };
     const sceneId = String(itemObject.scene_id || `script_${String(index + 1).padStart(3, '0')}`).trim();
     const rawText = stripEmoji(String(itemObject.text || itemObject.caption || itemObject.subtitle || '').replace(/\s+/g, language === 'ko' ? ' ' : '').trim());
+    const normalizedKoreanText = language === 'ko'
+      ? sanitizeKoreanProductionText(rawText)
+      : rawText;
     const text = language === 'ko'
-      ? softenKoreanFullCaptionForScreen(rawText)
+      ? softenKoreanFullCaptionForScreen(normalizedKoreanText)
       : softenJapaneseFullCaptionForScreen(rawText);
+    if (language === 'ko' && !isUsableKoreanCaption(text)) return;
     if (!sceneId || !text) return;
     orderedItems.push({
       ...itemObject,
@@ -2276,9 +2325,13 @@ function buildFullCaptionScriptBlocks(fullCaptionScript = [], sceneTransitions =
 
   const scriptUnits = orderedItems.flatMap((scriptItem, itemIndex) => {
     const rawText = stripEmoji(String(scriptItem?.text || '').replace(/\s+/g, language === 'ko' ? ' ' : '').trim());
+    const normalizedKoreanText = language === 'ko'
+      ? sanitizeKoreanProductionText(rawText)
+      : rawText;
     const text = language === 'ko'
-      ? softenKoreanFullCaptionForScreen(rawText)
+      ? softenKoreanFullCaptionForScreen(normalizedKoreanText)
       : softenJapaneseFullCaptionForScreen(rawText);
+    if (language === 'ko' && !isUsableKoreanCaption(text)) return [];
     const units = splitFullScriptUnits(text);
     return (units.length ? units : [text]).map((unit, unitIndex) => ({
       ...scriptItem,
@@ -2291,6 +2344,7 @@ function buildFullCaptionScriptBlocks(fullCaptionScript = [], sceneTransitions =
   }).filter((item) => {
     const text = String(item.text || '').trim();
     if (!text) return false;
+    if (language === 'ko') return isUsableKoreanCaption(text);
     return language !== 'ja' || !isWeakJapaneseCaptionFragment(text);
   });
 
@@ -2339,6 +2393,23 @@ function buildFullCaptionScriptBlocks(fullCaptionScript = [], sceneTransitions =
   }).filter(Boolean);
 }
 
+function shouldUseNarrativeKoreanFullFallback(blocks = []) {
+  const items = Array.isArray(blocks) ? blocks.filter(Boolean) : [];
+  if (!items.length) return true;
+  const weakCount = items.filter((block) => {
+    const text = String(block?.text || '').trim();
+    const mode = String(block?.caption_unit_mode || '').trim();
+    if (!text) return true;
+    if (mode === 'gemini_screen_caption_ko') return true;
+    if (text.length <= 4) return true;
+    if (/[이가은는을를에로와과도]$/u.test(text)) return true;
+    if (/^(부품|장면|과정|기술|정밀한|중요|주목|확인|관찰|흐름|진행|단계|세부|재료 이동|형태 변화)$/u.test(text)) return true;
+    if (/[()]/.test(text)) return true;
+    return false;
+  }).length;
+  return weakCount / Math.max(1, items.length) >= 0.18;
+}
+
 function getVariantMetadata(guide = {}, variant = 'full') {
   if (variant === 'highlight' && guide.highlight_metadata) return guide.highlight_metadata;
   if (variant === 'midform' && guide.midform_metadata) return guide.midform_metadata;
@@ -2385,6 +2456,15 @@ function getVariantMetadata(guide = {}, variant = 'full') {
     upload_title: guide.upload_title || '',
     hashtags: guide.upload_hashtags || []
   };
+}
+
+function getProductionVariantMetadata(guide = {}, variant = 'full') {
+  if (variant === 'full' && guide.full_metadata_ko) return guide.full_metadata_ko;
+  return getVariantMetadata(guide, variant);
+}
+
+function getProductionVariantLanguage(variant = 'full') {
+  return outputLanguageForVariant(variant);
 }
 
 function getVariantReviewMetadata(guide = {}, variant = 'full') {
@@ -2714,13 +2794,18 @@ function formatMetadataReportDescription(value = '', korean = false) {
 
 function formatMetadataVariantSection(guide = {}, variant = 'full') {
   const isHighlight = variant === 'highlight';
-  const metadata = getVariantMetadata(guide, variant);
+  const metadata = getProductionVariantMetadata(guide, variant);
   const koreanMetadata = getVariantReviewMetadata(guide, variant);
+  const productionLanguage = getProductionVariantLanguage(variant);
   const titles = Array.isArray(metadata.recommended_titles) ? metadata.recommended_titles : [];
   const titlesKo = Array.isArray(koreanMetadata.recommended_titles) ? koreanMetadata.recommended_titles : [];
-  const shortDescription = String(metadata.short_description || '').trim();
+  const shortDescription = productionLanguage === 'ko'
+    ? sanitizeKoreanProductionText(metadata.short_description || '')
+    : String(metadata.short_description || '').trim();
   const shortDescriptionKo = String(koreanMetadata.short_description || '').trim();
-  const summaryCaption = String(metadata.summary_caption || shortDescription).trim();
+  const summaryCaption = productionLanguage === 'ko'
+    ? sanitizeKoreanProductionText(metadata.summary_caption || shortDescription)
+    : String(metadata.summary_caption || shortDescription).trim();
   const summaryCaptionKo = String(koreanMetadata.summary_caption || shortDescriptionKo).trim();
   const onscreenSubtitleText = isHighlight
     ? String(metadata.onscreen_caption_block || shortDescription || summaryCaption).trim()
@@ -2738,7 +2823,12 @@ function formatMetadataVariantSection(guide = {}, variant = 'full') {
           : collectGuideOnscreenSubtitles(guide, variant, true),
         shortDescriptionKo
       );
-  const reportDescription = formatMetadataReportDescription(metadata.report_description || '', false);
+  const reportDescription = formatMetadataReportDescription(
+    productionLanguage === 'ko'
+      ? sanitizeKoreanProductionText(metadata.report_description || '')
+      : (metadata.report_description || ''),
+    productionLanguage === 'ko'
+  );
   const reportDescriptionKo = formatMetadataReportDescription(koreanMetadata.report_description || '', true);
   const titleLines = titles.map(formatTitleLine);
   const titleLinesKo = titlesKo.map(formatTitleLine);
@@ -2791,7 +2881,7 @@ function formatMetadataVariantSection(guide = {}, variant = 'full') {
       ];
   const japaneseSectionText = [
     '<!-- METADATA_VARIANT: ' + variant + ' -->',
-    '<!-- METADATA_LANGUAGE: ja -->',
+    '<!-- METADATA_LANGUAGE: ' + productionLanguage + ' -->',
     '## ' + heading,
     '',
     ...japaneseCaptionSection,
@@ -2924,6 +3014,22 @@ function extractMetadataVariantText(text = '', variant = 'full', language = 'ja'
     ].join('\n');
   }
 
+  if (normalizedLanguage === 'ko') {
+    const reviewMarker = new RegExp(
+      '<!--\\s*REVIEW_VARIANT:\\s*' + normalizedVariant + '\\s*-->([\\s\\S]*?)(?=<!--\\s*(?:METADATA_VARIANT|REVIEW_VARIANT):|$)',
+      'i'
+    );
+    const reviewMatch = String(text || '').match(reviewMarker);
+    if (reviewMatch) {
+      return [
+        '# OTTOGI_METADATA_PACKAGE',
+        '',
+        '<!-- METADATA_VARIANT: ' + normalizedVariant + ' -->',
+        String(reviewMatch[1] || '').trim()
+      ].join('\n');
+    }
+  }
+
   const fallbackMarker = new RegExp(
     '<!--\\s*METADATA_VARIANT:\\s*' + normalizedVariant + '\\s*-->([\\s\\S]*?)(?=<!--\\s*(?:METADATA_VARIANT|REVIEW_VARIANT):|$)',
     'i'
@@ -2944,8 +3050,8 @@ function writeOttogiMetadataFiles(itemId, guide = {}) {
   const dir = getItemDir(itemId);
   fs.mkdirSync(dir, { recursive: true });
   const texts = formatOttogiMetadataTexts(guide);
-  const fullMetadata = getVariantMetadata(guide, 'full');
-  const selectedTitle = selectGuideTitle(guide, 'full');
+  const fullMetadata = getProductionVariantMetadata(guide, 'full');
+  const selectedTitle = Array.isArray(fullMetadata.recommended_titles) ? fullMetadata.recommended_titles[0] || null : null;
   const uploadTitle = String(selectedTitle?.title || fullMetadata.recommended_titles?.[0]?.title || fullMetadata.upload_title || itemId || '').trim();
   const packageFileName = metadataPackageFileNameFromTitle(uploadTitle, itemId);
   const packagePath = path.join(dir, packageFileName);
@@ -2981,7 +3087,9 @@ function copyOttogiMetadataFiles(itemId, targetDir, targetBaseName = '', variant
     ja: generatedTexts?.sectionText
       ? ['# OTTOGI_METADATA_PACKAGE', '', generatedTexts.sectionText].join('\n')
       : extractMetadataVariantText(sourceText, normalizedVariant, 'ja'),
-    ko: ''
+    ko: generatedTexts?.sectionText
+      ? ['# OTTOGI_METADATA_PACKAGE', '', generatedTexts.sectionText].join('\n')
+      : extractMetadataVariantText(sourceText, normalizedVariant, 'ko')
   };
   const preferredName = targetBaseName
     ? metadataPackageFileNameFromTitle(targetBaseName, itemId)
@@ -3024,38 +3132,58 @@ function applyOttogiGuideToItem(itemId, guide = {}, sourceUrl = '') {
   }
 
   const item = normalizeItemConfig(existing, id);
-  const fullMetadata = getVariantMetadata(guide, 'full');
+  const fullMetadata = getProductionVariantMetadata(guide, 'full');
   const highlightMetadata = getVariantMetadata(guide, 'highlight');
   const fullReviewMetadata = getVariantReviewMetadata(guide, 'full');
-  const selectedTitle = selectGuideTitle(guide, 'full');
+  const fullDraftDurationSec = Number(
+    guide.story_clip_40s?.duration_sec
+      || guide.recommended_full_window?.duration_sec
+      || item.target_duration_sec
+      || 60
+  ) || 60;
+  const selectedTitle = Array.isArray(fullMetadata.recommended_titles) ? fullMetadata.recommended_titles[0] || null : null;
   const highlightTitle = selectGuideTitle(guide, 'highlight');
-  const uploadTitle = String(selectedTitle?.title || fullMetadata.recommended_titles?.[0]?.title || fullMetadata.upload_title || item.upload_title || '').trim();
+  const uploadTitle = sanitizeKoreanProductionText(selectedTitle?.title || fullMetadata.recommended_titles?.[0]?.title || fullMetadata.upload_title || item.upload_title || '');
   const hashtags = normalizeHashtags(selectedTitle?.hashtags || fullMetadata.hashtags || guide.upload_hashtags || item.upload_hashtags || []);
-  const shortDescription = String(fullMetadata.short_description || guide.short_description_200 || '').trim();
+  const shortDescription = sanitizeKoreanProductionText(fullMetadata.short_description || guide.short_description_200 || '');
   const shortDescriptionKo = String(fullReviewMetadata.short_description || guide.short_description_ko || guide.explainer_text_ko || '').trim();
-  const reportDescription = String(fullMetadata.report_description || guide.report_description || '').trim();
+  const reportDescription = sanitizeKoreanProductionText(fullMetadata.report_description || guide.report_description || '');
   const reportDescriptionKo = String(fullReviewMetadata.report_description || guide.report_description_ko || '').trim();
-  const explainerText = String(shortDescription || guide.explainer_text || item.explainer_blocks?.[0]?.text || '').trim();
+  const explainerText = sanitizeKoreanProductionText(shortDescription || guide.explainer_text_ko || guide.explainer_text || item.explainer_blocks?.[0]?.text || '');
   const explainerTextKo = String(guide.explainer_text_ko || shortDescriptionKo || '').trim();
   const firstBlock = item.explainer_blocks?.[0] || defaultItemConfig(id).explainer_blocks[0];
   const metadataFiles = writeOttogiMetadataFiles(id, guide);
   const sceneTransitions = normalizeSceneTransitions(
     guide.scene_transitions,
-    item.video_metadata?.duration_sec || item.target_duration_sec || 0
+    fullDraftDurationSec
   );
-  const sceneCaptionBlocksFromScript = buildFullCaptionScriptBlocks(guide.full_caption_script_ja, sceneTransitions, {
-    fallbackDurationSec: item.video_metadata?.duration_sec || item.target_duration_sec || 30,
+  const sceneCaptionBlocksFromScript = buildFullCaptionScriptBlocks(guide.full_caption_script_ko, sceneTransitions, {
+    fallbackDurationSec: fullDraftDurationSec,
     animation: 'pop_in',
     styleProfile: 'full_cut_caption',
-    blockPrefix: 'full_script_ja',
-    language: 'ja'
+    blockPrefix: 'full_script_ko',
+    language: 'ko'
   });
-  const sceneCaptionBlocks = sceneCaptionBlocksFromScript.length ? sceneCaptionBlocksFromScript : buildSceneExplainerBlocks(sceneTransitions, {
-    fallbackText: explainerText,
-    fallbackDurationSec: item.video_metadata?.duration_sec || item.target_duration_sec || 30,
+  const koreanNarrativeFallbackBlocks = buildNarrativeFullDraftBlocks({
+    text: explainerTextKo || explainerText || reportDescriptionKo || reportDescription,
+    language: 'ko',
+    durationSec: item.video_metadata?.duration_sec || item.target_duration_sec || 30,
+    sceneCount: sceneTransitions.length || 1,
     animation: 'pop_in',
-    blockPrefix: 'scene_cap'
+    blockPrefix: 'full_narrative_ko'
   });
+  const sceneCaptionBlocks = sceneCaptionBlocksFromScript.length && !shouldUseNarrativeKoreanFullFallback(sceneCaptionBlocksFromScript)
+    ? sceneCaptionBlocksFromScript
+    : buildKoreanSceneExplainerBlocks(sceneTransitions, {
+    fallbackText: explainerText,
+    fallbackDurationSec: fullDraftDurationSec,
+    animation: 'pop_in',
+    blockPrefix: 'ko_scene_cap',
+    fallbackSceneTexts: splitKoreanSentences(guide.explainer_text_ko || guide.short_description_ko || '')
+  });
+  const finalSceneCaptionBlocks = shouldUseNarrativeKoreanFullFallback(sceneCaptionBlocks)
+    ? koreanNarrativeFallbackBlocks
+    : sceneCaptionBlocks;
   const existingSourcePreprocess = item.source_preprocess && typeof item.source_preprocess === 'object'
     ? item.source_preprocess
     : {};
@@ -3075,7 +3203,7 @@ function applyOttogiGuideToItem(itemId, guide = {}, sourceUrl = '') {
     highlight_upload_title: String(highlightTitle?.title || highlightMetadata.upload_title || uploadTitle || '').trim(),
     highlight_upload_description: String(highlightMetadata.report_description || highlightMetadata.short_description || '').trim(),
     highlight_upload_hashtags: normalizeHashtags(highlightTitle?.hashtags || highlightMetadata.hashtags || hashtags),
-    output_language: 'ja',
+    output_language: 'ko',
     review_language: 'ko',
     korean_review: {
       short_description: shortDescriptionKo,
@@ -3083,8 +3211,8 @@ function applyOttogiGuideToItem(itemId, guide = {}, sourceUrl = '') {
       recommended_titles: Array.isArray(guide.recommended_titles_ko) ? guide.recommended_titles_ko : [],
       report_description: reportDescriptionKo
     },
-    explainer_blocks: sceneCaptionBlocks,
-    explainer_mode: sceneCaptionBlocks.length > 1 ? 'scene_caption_units' : 'single_explainer_fallback',
+    explainer_blocks: finalSceneCaptionBlocks,
+    explainer_mode: finalSceneCaptionBlocks.length > 1 ? 'scene_caption_units' : 'single_explainer_fallback',
     source_preprocess: {
       ...existingSourcePreprocess,
       scene_tail_trim_sec: 1,
@@ -6894,23 +7022,26 @@ function buildKoreanFullDraftConfig({ itemId, itemConfig, queueConfig, baseConfi
     blockPrefix: 'ko_full_script',
     language: 'ko'
   });
-  const sceneCaptionBlocks = sceneCaptionBlocksFromScript.length ? sceneCaptionBlocksFromScript : buildKoreanSceneExplainerBlocks(sceneTransitions, {
+  const sceneCaptionBlocks = sceneCaptionBlocksFromScript.length && !shouldUseNarrativeKoreanFullFallback(sceneCaptionBlocksFromScript)
+    ? sceneCaptionBlocksFromScript
+    : buildKoreanSceneExplainerBlocks(sceneTransitions, {
     fallbackText: narrativeText,
     fallbackDurationSec: sourceDuration,
     animation: 'pop_in',
     styleProfile: 'full_cut_caption',
     blockPrefix: 'ko_scene_cap'
   });
-  const sceneBlocks = sceneCaptionBlocks.length
+  const narrativeBlocks = buildNarrativeFullDraftBlocks({
+    text: narrativeText,
+    language: 'ko',
+    durationSec: sourceDuration,
+    sceneCount: sceneCount || 1,
+    animation: 'pop_in',
+    blockPrefix: 'full_narrative_ko'
+  });
+  const sceneBlocks = sceneCaptionBlocks.length && !shouldUseNarrativeKoreanFullFallback(sceneCaptionBlocks)
     ? sceneCaptionBlocks
-    : buildNarrativeFullDraftBlocks({
-      text: narrativeText,
-      language: 'ko',
-      durationSec: sourceDuration,
-      sceneCount: sceneCount || 1,
-      animation: 'pop_in',
-      blockPrefix: 'full_narrative_ko'
-    });
+    : narrativeBlocks;
   const sceneBlocksWithHook = applyFullPrerollHookToBlocks(sceneBlocks, itemConfig, queueConfig, 'ko');
   const koreanTargetDuration = Number((sourceDuration + sceneBlocksWithHook.hookDurationSec).toFixed(3));
   const channelAsset = selectQueueAsset(
@@ -7474,8 +7605,16 @@ async function generateQueue({ batch_name, item_ids, stop_on_error = false, draf
             opacity: 0.72,
             color: '#151515'
           };
+          const koreanFullConfig = buildKoreanFullDraftConfig({
+            itemId,
+            itemConfig: fullDraftItemConfig,
+            queueConfig,
+            baseConfig: mergedConfig
+          });
+          koreanFullConfig.source_preprocess = mergedConfig.source_preprocess;
+          koreanFullConfig.ocr_mask_overlay = mergedConfig.ocr_mask_overlay;
           result = await createProcessDraft({
-            config: mergedConfig,
+            config: koreanFullConfig,
             useExistingConfig: false,
             createZip
           });
@@ -7505,8 +7644,16 @@ async function generateQueue({ batch_name, item_ids, stop_on_error = false, draf
             source_type: itemConfig.source_type || 'unknown',
             source_workflow_mode: itemConfig.source_workflow_mode || 'unknown',
             full_source_window: fullDraftPreparation.sourceWindow || null,
-            full_draft_video_transform_analysis: mergedConfig.full_draft_video_transform_analysis || null,
-            ...buildVariantStrategyManifestPatch(itemConfig, 'jp_full')
+            full_draft_video_transform_analysis: koreanFullConfig.full_draft_video_transform_analysis || null,
+            korean_draft: {
+              enabled: true,
+              variant: 'full',
+              language: OUTPUT_CONFIG.full_draft.lang,
+              source_item_id: itemId,
+              caption_mode: 'korean_scene_caption_units',
+              product_rule: `${OUTPUT_CONFIG.full_draft.label}_and_${OUTPUT_CONFIG.highlight.label}`
+            },
+            ...buildVariantStrategyManifestPatch(itemConfig, 'kr_full')
           });
           fs.appendFileSync(
             path.join(itemWorkingDir, 'capcut_notes.md'),
@@ -7529,16 +7676,17 @@ async function generateQueue({ batch_name, item_ids, stop_on_error = false, draf
         [
           '',
           '## Full Draft Video Transform',
-          `- Auto Preset: ${mergedConfig.full_draft_video_transform_analysis?.selected_preset_id || mergedConfig.video_transform_preset || 'unknown'}`,
-          `- Reason: ${mergedConfig.full_draft_video_transform_analysis?.reason || 'unknown'}`,
-          `- Scores: ${JSON.stringify(mergedConfig.full_draft_video_transform_analysis?.scores || {})}`,
-          ...buildVariantStrategyNoteLines(itemConfig, 'jp_full'),
+          `- Auto Preset: ${koreanFullConfig.full_draft_video_transform_analysis?.selected_preset_id || koreanFullConfig.video_transform_preset || 'unknown'}`,
+          `- Reason: ${koreanFullConfig.full_draft_video_transform_analysis?.reason || 'unknown'}`,
+          `- Scores: ${JSON.stringify(koreanFullConfig.full_draft_video_transform_analysis?.scores || {})}`,
+          `- Product Rule: ${OUTPUT_CONFIG.full_draft.label} and ${OUTPUT_CONFIG.highlight.label}`,
+          ...buildVariantStrategyNoteLines(itemConfig, 'kr_full'),
           ''
         ].join('\n'),
         'utf8'
       );
       const finalizeResult = finalizeGeneratingDraftFolder(itemWorkingDir, itemOutDir);
-      row.metadata_files = copyOttogiMetadataFiles(itemId, itemOutDir, titleProjectName, 'full', 'ja', itemConfig.ottogi_guide_output || {});
+      row.metadata_files = copyOttogiMetadataFiles(itemId, itemOutDir, titleProjectName, 'full', OUTPUT_CONFIG.full_draft.lang, itemConfig.ottogi_guide_output || {});
       row.metadata_export_files = exportOttogiMetadataFiles(row.metadata_files, metadataExportDir, titleProjectName);
       attachJsonFilePatch(path.join(itemOutDir, 'edit_manifest.json'), {
         draft_folder_finalization: {
@@ -7686,79 +7834,11 @@ async function generateQueue({ batch_name, item_ids, stop_on_error = false, draf
           row.warnings.push(`midform draft failed: ${midformError.message}`);
         }
       }
-      const shouldGenerateKoreanDrafts = queueConfig.create_korean_drafts === true;
-      if (shouldGenerateKoreanDrafts && shouldGenerateFullDraft) {
-        try {
-          const koreanFull = await createKoreanFullDraftForItem({
-            itemId,
-            itemNumber,
-            draftStartedAtStamp,
-            itemConfig,
-            queueConfig,
-            baseConfig: mergedConfig,
-            outputRoot: capcutDraftRoot,
-            createZip
-          });
-          row.korean_full_status = 'success';
-          row.korean_full_output_folder = koreanFull.output_folder;
-          row.korean_full_final_mp4_path = koreanFull.final_mp4_path;
-          row.korean_full_metadata_export_files = exportOttogiMetadataFiles(
-            koreanFull.metadata_files || [],
-            metadataExportDir,
-            path.basename(koreanFull.output_folder || '')
-          );
-          row.korean_full_direct_render_status = koreanFull.direct_render_status;
-          row.korean_full_preroll_hook = koreanFull.full_preroll_hook || null;
-          row.warnings = [
-            ...row.warnings,
-            ...(koreanFull.warnings || [])
-          ];
-        } catch (koreanFullError) {
-          row.korean_full_status = 'failed';
-          row.korean_full_error = koreanFullError.message;
-          row.warnings.push(`Korean full draft failed: ${koreanFullError.message}`);
-        }
-      } else if (shouldGenerateKoreanDrafts) {
-        row.korean_full_status = 'skipped';
-      }
-      if (shouldGenerateKoreanDrafts && shouldGenerateHighlightDraft) {
-        try {
-          const koreanHighlight = await createKoreanHighlightDraftForItem({
-            itemId,
-            itemNumber,
-            draftStartedAtStamp,
-            itemConfig,
-            queueConfig,
-            baseConfig: mergedConfig,
-            sourceVideoPath: row.source_video,
-            outputRoot: capcutDraftRoot,
-            createZip
-          });
-          row.korean_highlight_status = 'success';
-          row.korean_highlight_output_folder = koreanHighlight.output_folder;
-          row.korean_highlight_final_mp4_path = koreanHighlight.final_mp4_path;
-          row.korean_highlight_metadata_export_files = exportOttogiMetadataFiles(
-            koreanHighlight.metadata_files || [],
-            metadataExportDir,
-            path.basename(koreanHighlight.output_folder || '')
-          );
-          row.korean_highlight_source_window = koreanHighlight.source_window;
-          row.korean_highlight_selected_scene_ids = koreanHighlight.selected_scene_ids;
-          row.korean_highlight_direct_render_status = koreanHighlight.direct_render_status;
-          row.korean_highlight_bgm_path = koreanHighlight.highlight_bgm_path || '';
-          row.korean_highlight_bgm_original_name = koreanHighlight.highlight_bgm_original_name || '';
-          row.warnings = [
-            ...row.warnings,
-            ...(koreanHighlight.warnings || [])
-          ];
-        } catch (koreanHighlightError) {
-          row.korean_highlight_status = 'failed';
-          row.korean_highlight_error = koreanHighlightError.message;
-          row.warnings.push(`Korean highlight draft failed: ${koreanHighlightError.message}`);
-        }
-      } else if (shouldGenerateKoreanDrafts) {
-        row.korean_highlight_status = 'disabled';
-      }
+      row.korean_full_status = shouldGenerateFullDraft ? 'success' : 'skipped';
+      row.korean_full_output_folder = shouldGenerateFullDraft ? row.output_folder : '';
+      row.korean_full_final_mp4_path = shouldGenerateFullDraft ? row.final_mp4_path : '';
+      row.korean_full_direct_render_status = shouldGenerateFullDraft ? row.direct_render_status : 'skipped';
+      row.korean_highlight_status = 'disabled';
       if (!shouldGenerateFullDraft) {
         if (row.highlight_status === 'success' || row.midform_status === 'success' || row.korean_highlight_status === 'success') {
           row.status = 'success';

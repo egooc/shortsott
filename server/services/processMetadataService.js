@@ -8,7 +8,7 @@ const { loadPrompt } = require('./promptService');
 const { computeCutSelectionTier } = require('../utils/cutSelectionTier');
 
 const GEMINI_MODEL = 'gemini-2.5-flash';
-const DEFAULT_VERTEX_LOCATION = 'us-central1';
+const DEFAULT_VERTEX_LOCATION = 'global';
 const FILE_POLL_INTERVAL_MS = 5000;
 const FILE_POLL_MAX_RETRIES = 180;
 const GEMINI_GENERATE_MAX_ATTEMPTS = 3;
@@ -18,11 +18,53 @@ const GEMINI_LONGFORM_FINAL_RETRY_BASE_MS = 60000;
 const GEMINI_REQUEST_HEARTBEAT_MS = 25000;
 const GEMINI_REQUEST_TIMEOUT_MS = 6 * 60 * 1000;
 const SHORTFORM_HIGHLIGHT_GEMINI_TIMEOUT_MS = 3 * 60 * 1000;
+const LOCAL_LONGFORM_CANDIDATE_MIN_DURATION_SEC = 180;
+const LOCAL_LONGFORM_SEGMENT_SEC = 120;
+const LOCAL_LONGFORM_SEGMENT_OVERLAP_SEC = 15;
+const LOCAL_LONGFORM_HOOK_DURATION_SEC = 16;
+const LOCAL_LONGFORM_STORY_DURATION_SEC = 60;
+const LOCAL_LONGFORM_MIDFORM_DURATION_SEC = 120;
+const ULTRA_LONGFORM_ANALYSIS_HORIZON_SEC = 1800;
 const SHORT_DESCRIPTION_SOFT_MAX = 260;
 const MIDFORM_CAPTION_MIN_ITEMS_120S = 30;
 const MIDFORM_CAPTION_MAX_ITEMS_120S = 45;
 const MIDFORM_CAPTION_SPLIT_COUNT = 2;
 const YOUTUBE_URL_RE = /^https?:\/\/(?:www\.)?(?:youtube\.com|youtu\.be)\//i;
+
+const OUTPUT_CONFIG = Object.freeze({
+  highlight: Object.freeze({
+    lang: 'ja',
+    metadataKey: 'highlight_metadata',
+    reviewMetadataKey: 'highlight_metadata_ko',
+    captionMode: 'long_bottom_explainer',
+    label: 'JP Highlight'
+  }),
+  full_draft: Object.freeze({
+    lang: 'ko',
+    metadataKey: 'full_metadata_ko',
+    scriptKey: 'full_caption_script_ko',
+    captionMode: 'scene_based_short_subtitles',
+    label: 'KR Full',
+    caption: Object.freeze({
+      safeMaxChars: 16,
+      promptTargetMinChars: 5,
+      promptTargetMaxChars: 14
+    })
+  })
+});
+
+const LANGUAGE_CAPTION_CONFIG = Object.freeze({
+  ja: Object.freeze({ safeMaxChars: 14 }),
+  ko: Object.freeze({ safeMaxChars: OUTPUT_CONFIG.full_draft.caption.safeMaxChars })
+});
+
+function outputLanguageForVariant(variant = 'full') {
+  return variant === 'full' ? OUTPUT_CONFIG.full_draft.lang : OUTPUT_CONFIG.highlight.lang;
+}
+
+function captionSafeMaxChars(language = 'ja') {
+  return LANGUAGE_CAPTION_CONFIG[language]?.safeMaxChars || LANGUAGE_CAPTION_CONFIG.ja.safeMaxChars;
+}
 
 const OTTOGI_VARIANT_METADATA_SCHEMA = {
   type: 'object',
@@ -446,13 +488,14 @@ const OTTOGI_METADATA_ONLY_SCHEMA = {
     full_metadata_ko: OTTOGI_VARIANT_METADATA_SCHEMA,
     highlight_metadata: OTTOGI_VARIANT_METADATA_SCHEMA,
     highlight_metadata_ko: OTTOGI_VARIANT_METADATA_SCHEMA,
+    full_caption_script_ko: OTTOGI_METADATA_SCHEMA.properties.full_caption_script_ko,
     regional_editing_strategy: { type: 'object' },
     variant_strategy: { type: 'object' },
     detected_subject: { type: 'string' },
     safety_note: { type: 'string' },
     source_url: { type: 'string' }
   },
-  required: ['short_description_200', 'recommended_titles', 'report_description', 'explainer_text']
+  required: ['short_description_ko', 'recommended_titles_ko', 'report_description_ko', 'explainer_text_ko', 'full_metadata_ko', 'full_caption_script_ko']
 };
 
 const OTTOGI_REVIEW_SCHEMA = OTTOGI_METADATA_SCHEMA;
@@ -478,39 +521,50 @@ const OTTOGI_CAPTION_REPAIR_SCHEMA = {
   required: ['scene_repairs']
 };
 
+// Metadata repair must stay intentionally thin for Vertex responseSchema.
+// Do not reuse OTTOGI_METADATA_SCHEMA or OTTOGI_VARIANT_METADATA_SCHEMA here:
+// large nested schemas can trigger Vertex INVALID_ARGUMENT "too many states".
 const OTTOGI_METADATA_FIELD_REPAIR_SCHEMA = {
   type: 'object',
   properties: {
-    short_description_200: { type: 'string' },
-    short_description_ko: { type: 'string' },
-    explainer_text: { type: 'string' },
-    explainer_text_ko: { type: 'string' },
-    highlight_explainer_text: { type: 'string' },
-    highlight_explainer_text_ko: { type: 'string' },
-    full_metadata: OTTOGI_VARIANT_METADATA_SCHEMA,
-    full_metadata_ko: OTTOGI_VARIANT_METADATA_SCHEMA,
-    highlight_metadata: OTTOGI_VARIANT_METADATA_SCHEMA,
-    highlight_metadata_ko: OTTOGI_VARIANT_METADATA_SCHEMA,
-    midform_metadata: OTTOGI_VARIANT_METADATA_SCHEMA,
-    midform_metadata_ko: OTTOGI_VARIANT_METADATA_SCHEMA,
-    full_caption_script_ja: OTTOGI_METADATA_SCHEMA.properties.full_caption_script_ja,
-    full_caption_script_ko: OTTOGI_METADATA_SCHEMA.properties.full_caption_script_ko,
-    midform_caption_script_ja: OTTOGI_METADATA_SCHEMA.properties.midform_caption_script_ja,
-    midform_caption_script_ko: OTTOGI_METADATA_SCHEMA.properties.midform_caption_script_ko,
-    midform_clip_120s: { type: 'object' },
-    recommended_midform_window: { type: 'object' },
-    regional_editing_strategy: { type: 'object' },
-    variant_strategy: { type: 'object' }
-  }
+    repaired_fields: {
+      type: 'array',
+      maxItems: 10,
+      items: {
+        type: 'object',
+        properties: {
+          field: { type: 'string' },
+          value: { type: 'string' }
+        },
+        required: ['field', 'value']
+      }
+    }
+  },
+  required: ['repaired_fields']
+};
+
+const FULL_CAPTION_SCRIPT_REPAIR_ITEM_SCHEMA = {
+  type: 'object',
+  properties: {
+    scene_id: { type: 'string' },
+    role: { type: 'string' },
+    text: { type: 'string' },
+    source_basis: { type: 'string' }
+  },
+  required: ['scene_id', 'role', 'text', 'source_basis']
 };
 
 const OTTOGI_FULL_CAPTION_SCRIPT_REPAIR_SCHEMA = {
   type: 'object',
   properties: {
-    full_caption_script_ja: OTTOGI_METADATA_SCHEMA.properties.full_caption_script_ja,
-    full_caption_script_ko: OTTOGI_METADATA_SCHEMA.properties.full_caption_script_ko
+    full_caption_script_ko: {
+      type: 'array',
+      minItems: 20,
+      maxItems: 24,
+      items: FULL_CAPTION_SCRIPT_REPAIR_ITEM_SCHEMA
+    }
   },
-  required: ['full_caption_script_ja', 'full_caption_script_ko']
+  required: ['full_caption_script_ko']
 };
 
 const CAPTION_REPAIR_BATCH_SIZE = 12;
@@ -622,6 +676,26 @@ async function cancellableSleep(ms, throwIfCancelled) {
 
 function normalizeFileState(file) {
   return String(file?.state || '').toUpperCase();
+}
+
+function resolveVertexLocation(config = {}) {
+  return String(
+    process.env.PROCESS_METADATA_VERTEX_LOCATION
+    || process.env.GEMINI_VERTEX_LOCATION
+    || DEFAULT_VERTEX_LOCATION
+    || config.location
+    || ''
+  ).trim() || 'global';
+}
+
+function buildVertexEndpoint(config = {}) {
+  const override = String(process.env.GEMINI_VERTEX_ENDPOINT_OVERRIDE || '').trim();
+  if (override) return override;
+  const location = resolveVertexLocation(config);
+  const host = location === 'global'
+    ? 'https://aiplatform.googleapis.com'
+    : `https://${location}-aiplatform.googleapis.com`;
+  return `${host}/v1/projects/${config.project}/locations/${location}/publishers/google/models/${config.model}:generateContent`;
 }
 
 function safeDebugName(value = '') {
@@ -899,6 +973,119 @@ function buildLongformCandidatePrompt({ sourceUrl, filename, durationSec, source
   ].join('\n');
 }
 
+function clampWindowStart(startSec = 0, durationSec = 0, sourceDurationSec = 0) {
+  const duration = Math.max(1, Number(durationSec || 0));
+  const sourceDuration = Number(sourceDurationSec || 0);
+  const requestedStart = Math.max(0, Number(startSec || 0));
+  if (!Number.isFinite(sourceDuration) || sourceDuration <= duration) return Math.max(0, requestedStart);
+  return Math.min(requestedStart, Math.max(0, sourceDuration - duration));
+}
+
+function buildLocalLongformWindow({ startSec = 0, durationSec = 10, sourceDurationSec = 0, reason = '', extra = {} } = {}) {
+  const sourceDuration = Number(sourceDurationSec || 0);
+  const requestedDuration = Math.max(1, Number(durationSec || 0));
+  const duration = Number.isFinite(sourceDuration) && sourceDuration > 0
+    ? Math.min(requestedDuration, sourceDuration)
+    : requestedDuration;
+  const start = clampWindowStart(startSec, duration, sourceDuration);
+  return {
+    start_sec: Number(start.toFixed(3)),
+    end_sec: Number((start + duration).toFixed(3)),
+    duration_sec: Number(duration.toFixed(3)),
+    reason,
+    ...extra
+  };
+}
+
+function buildLocalLongformCandidateGuide({ durationSec = 0, sourceType = 'longform', sourceWorkflowMode = 'longform_to_shorts' } = {}) {
+  const sourceDuration = Number(durationSec || 0);
+  const analysisDuration = sourceDuration > ULTRA_LONGFORM_ANALYSIS_HORIZON_SEC
+    ? ULTRA_LONGFORM_ANALYSIS_HORIZON_SEC
+    : sourceDuration;
+  const segmentStep = Math.max(30, LOCAL_LONGFORM_SEGMENT_SEC - LOCAL_LONGFORM_SEGMENT_OVERLAP_SEC);
+  const segmentStarts = [];
+  for (let start = 0; start < Math.max(analysisDuration, 1); start += segmentStep) {
+    segmentStarts.push(start);
+    if (analysisDuration > 0 && start + LOCAL_LONGFORM_SEGMENT_SEC >= analysisDuration) break;
+  }
+  if (!segmentStarts.length) segmentStarts.push(0);
+
+  const hookCandidates = segmentStarts.slice(0, 6).map((segmentStart, index) => {
+    const hookStart = segmentStart + Math.max(6, Math.min(36, index * 4 + 8));
+    return buildLocalLongformWindow({
+      startSec: hookStart,
+      durationSec: LOCAL_LONGFORM_HOOK_DURATION_SEC,
+      sourceDurationSec: analysisDuration,
+      reason: `local segment ${index + 1}: visually active window inside ${Math.round(segmentStart)}-${Math.round(Math.min(analysisDuration, segmentStart + LOCAL_LONGFORM_SEGMENT_SEC))}s`,
+      extra: {
+        visual_hook: `local candidate ${index + 1}`,
+        opening_type: 'local_segment_probe',
+        hook_score: Math.max(5, 9 - index),
+        tempo_score: Math.max(3, 5 - Math.floor(index / 2)),
+        tension_score: Math.max(3, 5 - Math.floor(index / 2)),
+        transformation_score: Math.max(3, 5 - Math.floor(index / 3)),
+        framing_score: 3,
+        flow_score: 3,
+        cycle_time_sec: 4,
+        appears_sped_up: false,
+        human_visibility: 'UNKNOWN'
+      }
+    });
+  });
+
+  const storyStarts = [0, Math.max(0, analysisDuration * 0.25), Math.max(0, analysisDuration * 0.5), Math.max(0, analysisDuration * 0.7)]
+    .map((value) => Number(value || 0));
+  const storyCandidates = Array.from(new Set(storyStarts.map((value) => clampWindowStart(value, LOCAL_LONGFORM_STORY_DURATION_SEC, analysisDuration)))).slice(0, 4)
+    .map((startSec, index) => buildLocalLongformWindow({
+      startSec,
+      durationSec: LOCAL_LONGFORM_STORY_DURATION_SEC,
+      sourceDurationSec: analysisDuration,
+      reason: `local story window ${index + 1}: broad process coverage around ${Math.round(startSec)}s`,
+      extra: {
+        story_flow: `local story candidate ${index + 1}`,
+        opening_type: index === 0 ? 'result_or_raw_material' : 'local_segment_probe',
+        hook_score: Math.max(5, 8 - index),
+        process_coverage_score: Math.max(3, 5 - Math.floor(index / 2))
+      }
+    }));
+
+  const midformCandidates = analysisDuration >= 125
+    ? [buildLocalLongformWindow({
+        startSec: clampWindowStart(analysisDuration * 0.2, LOCAL_LONGFORM_MIDFORM_DURATION_SEC, analysisDuration),
+        durationSec: LOCAL_LONGFORM_MIDFORM_DURATION_SEC,
+        sourceDurationSec: analysisDuration,
+        reason: 'local midform candidate from longform duration segmentation',
+        extra: {
+          process_flow: 'local midform candidate 1',
+          opening_type: 'ambient_context',
+          atmosphere_score: 4,
+          process_coverage_score: 4
+        }
+      })]
+    : [];
+
+  return {
+    source_time_basis: 'absolute_original_seconds',
+    source_type: sourceType,
+    source_workflow_mode: sourceWorkflowMode,
+    hook_candidates: hookCandidates,
+    story_candidates: storyCandidates,
+    midform_candidates: midformCandidates,
+    local_preprocessed: true,
+    local_candidate_strategy: {
+      type: 'duration_segmented_prepass',
+      source_duration_sec: Number(sourceDuration.toFixed(3)),
+      analysis_duration_sec: Number(analysisDuration.toFixed(3)),
+      capped_to_analysis_horizon: sourceDuration > analysisDuration,
+      segment_sec: LOCAL_LONGFORM_SEGMENT_SEC,
+      overlap_sec: LOCAL_LONGFORM_SEGMENT_OVERLAP_SEC,
+      generated_hook_candidates: hookCandidates.length,
+      generated_story_candidates: storyCandidates.length,
+      generated_midform_candidates: midformCandidates.length
+    }
+  };
+}
+
 function buildLongformHookPrompt({ candidateGuide }) {
   // Deterministic tier annotation so the "prefer T1 over T2 over T3" prompt
   // instruction below refers to a label we computed, not one Gemini invents.
@@ -1108,7 +1295,7 @@ function buildLongformFinalPrompt({ sourceUrl, filename, durationSec, candidateG
     '- Full metadata is process-story oriented.',
     '- Highlight metadata is visual-hook oriented.',
     '- Midform metadata is fuller process-flow oriented and suitable for an about 2-minute Japanese upload.',
-    '- Each recommended title has exactly five hashtags: #worker, #process, plus three language-specific hashtags. Japanese metadata uses Japanese hashtags. Korean metadata uses Korean hashtags.',
+    '- Each recommended title has exactly five English hashtags: #worker, #process, plus three relevant English hashtags. Do not use Japanese or Korean hashtags.',
     '- No emoji or decorative symbols.',
     '',
     'Return the existing Ottogi metadata schema shape with these required fields:',
@@ -1146,23 +1333,22 @@ function buildMetadataPrompt({ sourceUrl, filename, durationSec, sceneGuide, sou
     'You are the metadata writer for the 3-minute Ottogi process video workflow.',
     'Return JSON only. Do not include Markdown.',
     '',
-    'Main Japanese deliverable language: Japanese.',
-    'Review-only language: Korean. Korean text is for local review only and must not be treated as upload metadata.',
+    `Full draft production language: ${OUTPUT_CONFIG.full_draft.lang.toUpperCase()} (${OUTPUT_CONFIG.full_draft.label}).`,
+    `Highlight draft production language: ${OUTPUT_CONFIG.highlight.lang.toUpperCase()} (${OUTPUT_CONFIG.highlight.label}).`,
     '',
     'Use the scene analysis below to write:',
-    '- full_metadata for the full process draft: Japanese upload metadata for a shortened technical/process explanation video.',
-    '- highlight_metadata for the natural-action highlight draft: Japanese upload metadata focused on visual hook, rhythm, repetition, curiosity, and satisfying mechanical motion.',
-    '- full_metadata_ko as Korean review text for the Japanese full process draft. This is not upload metadata.',
+    `- ${OUTPUT_CONFIG.full_draft.metadataKey} for the full process draft: Korean upload metadata for a shortened technical/process explanation video.`,
+    `- ${OUTPUT_CONFIG.highlight.metadataKey} for the natural-action highlight draft: Japanese upload metadata focused on visual hook, rhythm, repetition, curiosity, and satisfying mechanical motion.`,
     '- highlight_metadata_ko as Korean review text for the Japanese natural-action highlight draft. This is not upload metadata.',
     '- midform_metadata for the Japanese 120-second midform draft when the source is long enough.',
     '- midform_metadata_ko as Korean review text for the Japanese midform draft. This is not upload metadata.',
     '- Each metadata object must include short_description, summary_caption, variant_type, caption_mode, exactly five recommended_titles, report_description, upload_title, and hashtags.',
-    '- Full metadata objects must use variant_type="full", caption_mode="scene_based_short_subtitles", and onscreen_subtitles as an array copied from the manuscript-based full_caption_script_ja, not from raw scene labels.',
-    '- Highlight metadata objects must use variant_type="highlight", caption_mode="long_bottom_explainer", and onscreen_caption_block as one long lower-third explainer paragraph.',
+    `- Full metadata objects must use variant_type="full", caption_mode="${OUTPUT_CONFIG.full_draft.captionMode}", and onscreen_subtitles as an array copied from the manuscript-based ${OUTPUT_CONFIG.full_draft.scriptKey}, not from raw scene labels.`,
+    `- Highlight metadata objects must use variant_type="highlight", caption_mode="${OUTPUT_CONFIG.highlight.captionMode}", and onscreen_caption_block as one long lower-third explainer paragraph.`,
     '- Highlight versions must never use an onscreen_subtitles array. Full versions must never use onscreen_caption_block.',
     '- Highlight caption blocks are part of the visual format, not just text. They should feel like a dense lower-bottom explainer block that makes Highlight visually different from Full.',
     '- Highlight onscreen_caption_block should target about 200 Japanese/Korean characters. Ideal range is 195 to 215 characters; acceptable range is 180 to 240 characters. Keep it natural for Shorts viewers and focused on the strongest visual hook.',
-    '- Full onscreen_subtitles may mirror full_caption_script_* text for upload metadata, but the draft generation will prefer full_caption_script_ja and full_caption_script_ko.',
+    `- Full onscreen_subtitles must mirror ${OUTPUT_CONFIG.full_draft.scriptKey} text for upload metadata. Do not create Japanese Full subtitles.`,
     '- Full caption scripts are NOT one sentence per scene. Do not fill the array directly from scene labels.',
     '- Full caption script writing order is mandatory: first create one hidden continuous spoken manuscript, then split that manuscript into short caption items.',
     '- The hidden manuscript must answer these in order: what is this process, what product/material is handled, why this step matters, what visible actions support that explanation, and what emotional/quality meaning remains at the end.',
@@ -1174,19 +1360,18 @@ function buildMetadataPrompt({ sourceUrl, filename, durationSec, sceneGuide, sou
     '- Full caption script quota for about 20 to 24 items: scene_observation items may appear only 4 to 6 times. All other items must explain what is being made, why the step matters, how the process works, or why precision/quality matters.',
     '- Full script is not an action checklist. Do not write the process as "wide place -> material -> machine picks -> trailer loads -> factory". That is still label sequencing.',
     '- At least 15 of 20 to 24 items must be narrator/explanation phrases that would still make sense without looking at the exact current frame.',
-    '- The first full_caption_script_ko item text must be exactly "이게 뭔지 아세요?". The first full_caption_script_ja item should be "これ何だろう" or a very close natural Japanese equivalent.',
+    `- The first ${OUTPUT_CONFIG.full_draft.scriptKey} item text must be exactly "이게 뭔지 아세요?". Do not create full_caption_script_ja.`,
     '- The next 2 to 4 captions must answer what is being made and why this process exists. Split long thoughts into short connected phrases, not isolated labels.',
     '- At least 5 items must be manuscript connector/explanation lines, using natural ideas like 実は, ここで大事なのは, だから, この精度が, 人の手で, 機械の力で, 少しずつ, 最後に.',
     '- Scene labels are only raw material. Use scene_observation only near the 25%, 50%, and 75% positions of the script, not for every scene.',
-    '- Write full_caption_script_ja and full_caption_script_ko as 20 to 24 short connected screen-phrase items. Use scene_id values like script_001, script_002, script_003. Do not force one item per scene_transitions item.',
+    `- Write ${OUTPUT_CONFIG.full_draft.scriptKey} as 20 to 24 short connected Korean screen-phrase items. Use scene_id values like script_001, script_002, script_003. Do not force one item per scene_transitions item.`,
     '- Each full_caption_script item must have role: hook, process_purpose, technical_context, emotional_expression, scene_observation, method, quality_reason, progress, or closing.',
     '- Use scene_observation for only 4 to 6 items. Put those scene mentions around 25 percent, 50 percent, 75 percent, and completion beats of the script. Do not describe every visible cut.',
     '- Most Full script items must explain the whole process purpose, method, material change, quality reason, and emotional meaning. Scene labels are supporting material only.',
     '- Each Full caption item must be short enough to fit in the 9:16 caption box. Hard limit: Korean 12 visible characters, Japanese 14 visible characters. Split longer ideas into multiple connected items.',
     '- The final 1 to 2 Full captions must be a natural emotional closing about precision, craftsmanship, repetition, transformation, quality, or completion.',
     '- The emotional closing must stay honest to the footage. Good if water is not visible: "水を探すため", "見えない努力が", "深さを重ねる". Bad if water is not visible: "水脈へ届く", "水が湧き出る", "大地を潤す", "恵みへ繋がる".',
-    '- Japanese Full script: observation tone. It should feel like the viewer is watching the process unfold while learning enough technical context.',
-    '- Korean Full script: explanation tone. It should help the viewer understand the purpose and technical meaning of the visible process.',
+    `- ${OUTPUT_CONFIG.full_draft.label} script: explanation tone. It should help the viewer understand the purpose and technical meaning of the visible process.`,
     '- Korean metadata and caption fields must not contain Japanese Hiragana or Katakana. Translate words like チューブ into natural Korean such as 튜브.',
     '- Do not make Full captions all scene labels. Scene labels should be about 30 percent of the script at most.',
     '- Forbidden pattern: do not write three or more consecutive independent captions shaped like "[noun]が[verb]ます" or "[명사]을 [동사]합니다". Use connected wording so the next caption continues the narration.',
@@ -1205,28 +1390,26 @@ function buildMetadataPrompt({ sourceUrl, filename, durationSec, sceneGuide, sou
     '- Full onscreen_subtitles items must be short spoken captions readable in 1 to 2 seconds, but they should follow the same technical/educational process arc as full_caption_script_*.',
     '- Japanese Full onscreen_subtitles must stay within 14 visible characters per item when used.',
     '- Korean Full onscreen_subtitles must stay within 12 visible characters per item when used.',
-    '- Full onscreen_subtitles should usually contain 20 to 24 items and mirror the full_caption_script_ja rhythm.',
+    '- Full onscreen_subtitles should usually contain 20 to 24 items and mirror the full_caption_script_ko rhythm.',
     '- Do not put one report-like paragraph in Full onscreen_subtitles.',
     '- Bad Japanese Full onscreen_subtitles: ["職人技が光る無塗装の鉄鍋製造工程。真っ赤に溶けた鉄が型に注がれ、見事な中華鍋が形作られる様子をご覧ください。"].',
-    '- Good Japanese Full onscreen_subtitles: copy the same manuscript rhythm as full_caption_script_ja, for example ["これ何だろう", "モーター内部で", "コイルを作ります", "細い銅線を重ね", "電気の道を作り", "少しずつ整えます", "ここで大事なのは", "ズレを残さないこと"].',
+    '- Good Korean Full onscreen_subtitles: copy the same manuscript rhythm as full_caption_script_ko, for example ["이게 뭔지 아세요?", "건물을 받치는", "철근을 만듭니다", "먼저 철근을", "길이에 맞추고", "각도까지 맞춰"].',
     '- Good Japanese Highlight onscreen_caption_block: "真っ赤に溶けた鉄が型へ一気に流れ込み、数秒で中華鍋の形へ変わっていく瞬間です。高温の鉄が広がる迫力と、形が一気に決まる気持ちよさが見どころです。".',
     '- Bad Korean review subtitles: ["숙련된 작업자들이 무쇠 웍을 만드는 과정입니다. 붉게 달궈진 쇳물을 틀에 부어 굳히고 섬세한 가공을 거칩니다."].',
     '- Good Korean review subtitles: ["뜨거운 쇳물을 붓고", "틀 안으로 빠르게 퍼져요", "웍의 형태가 잡히고", "단단하게 굳어요"].',
     '- Good Korean highlight review block: "붉게 달궈진 쇳물이 웍 모양의 틀 안으로 한 번에 쏟아지는 순간입니다. 뜨거운 금속이 틀 전체로 빠르게 퍼지면서, 순식간에 무쇠 웍의 형태가 잡히는 장면이 핵심입니다.".',
-    '- Every recommended title must include exactly five hashtags. Include #worker and #process plus three relevant language-specific hashtags.',
-    '- Japanese recommended titles must use Japanese hashtags for the three extra tags, for example #製造工程 #職人技 #工場.',
-    '- Korean recommended titles must use Korean hashtags for the three extra tags, for example #제조공정 #장인기술 #공장.',
+    '- Every recommended title must include exactly five English hashtags. Include #worker and #process plus three relevant English hashtags such as #manufacturing, #craftsmanship, #factory, #metalwork, #tools, #machinework, #satisfying, or #processvideo.',
+    '- Do not use Japanese or Korean hashtags anywhere. Japanese/Korean prose is allowed in titles/descriptions, but hashtags must be ASCII English only.',
     '- Do not use emoji, emoticons, decorative symbols, or reaction icons in any upload metadata or explainer text.',
-    '- Japanese full draft titles and Japanese highlight titles must be meaningfully different. Do not reuse the same title list.',
-    '- Korean titles are review-only and should help the operator verify meaning.',
+    `- ${OUTPUT_CONFIG.full_draft.label} titles and ${OUTPUT_CONFIG.highlight.label} titles must be meaningfully different. Do not reuse the same title list.`,
     '- Every report_description is the actual YouTube upload description metadata. Do not shorten it into one paragraph.',
-    '- Japanese report_description must be a detailed report with these exact numbered sections in Japanese: 1. 作業概要, 2. 使用材料と設備, 3. 工程手順, 4. 作業の重要性, 5. ガイドライン遵守と教育目的.',
-    '- Korean review report_description must be a detailed review text with these exact numbered sections in Korean: 1. 작업 개요, 2. 사용 재료 및 장비, 3. 시공 절차, 4. 작업의 중요성, 5. 가이드라인 준수 및 교육적 목적.',
+    '- Korean full report_description must be a detailed report with these exact numbered sections in Korean: 1. 작업 개요, 2. 사용 재료 및 장비, 3. 시공 절차, 4. 작업의 중요성, 5. 가이드라인 준수 및 교육적 목적.',
+    '- Japanese highlight report_description must be a detailed report with these exact numbered sections in Japanese: 1. 作業概要, 2. 使用材料と設備, 3. 工程手順, 4. 作業の重要性, 5. ガイドライン遵守と教育目的.',
     '- Section 5 is mandatory. If the video includes dangerous-looking, industrial, hot, sharp, heavy, or professional work, clearly state that the video is for educational process understanding and not an instruction to imitate.',
     '- Full draft report_description should explain the complete process flow using all five required sections.',
     '- Highlight report_description should explain why the short hook moment is visually compelling using all five required sections.',
-    '- Top-level short_description_200, recommended_titles, and report_description should mirror full_metadata for backwards compatibility.',
-    '- Full draft explainer text in Japanese plus Korean review text.',
+    '- Top-level short_description_ko, recommended_titles_ko, and report_description_ko should mirror full_metadata_ko for Korean Full.',
+    '- Full draft explainer text in Korean only.',
     '- Highlight explainer text in Japanese plus Korean review text focused on visual hook, repetition, rhythm, and curiosity.',
     '- Safety note if needed.',
     '- If source_type is longform, base full metadata on story_clip_40s/recommended_full_window and highlight metadata on hook_clip_10s/recommended_highlight_window.',
@@ -1258,23 +1441,20 @@ function buildReviewPrompt({ sourceUrl, filename, durationSec, draftGuide, sourc
     '',
     'Required validation and repair tasks:',
     '- Ensure every required top-level field exists.',
-    '- Ensure recommended_titles contains exactly 5 usable Japanese upload titles.',
-    '- Ensure recommended_titles_ko contains exactly 5 Korean review titles only.',
-    '- Ensure full_metadata uses caption_mode="scene_based_short_subtitles" and contains Japanese onscreen_subtitles arrays.',
-    '- Ensure full_metadata_ko is review-only Korean text matching the Japanese full draft intent.',
+    '- Ensure recommended_titles_ko contains exactly 5 usable Korean Full upload titles.',
+    '- Ensure full_metadata_ko uses caption_mode="scene_based_short_subtitles" and contains Korean onscreen_subtitles arrays copied from full_caption_script_ko.',
     '- Ensure midform_metadata uses caption_mode="scene_based_short_subtitles" for the Japanese midform draft when present.',
     '- Ensure midform_metadata_ko is review-only Korean text matching the Japanese midform intent when present.',
-    '- Ensure full_caption_script_ja and full_caption_script_ko exist as ordered screen-phrase scripts, not one item per scene.',
-    '- Full caption scripts must be global process narration split into short readable phrases across the whole timeline.',
+    '- Ensure full_caption_script_ko exists as an ordered Korean screen-phrase script, not one item per scene.',
+    '- Full caption script must be global Korean process narration split into short readable phrases across the whole timeline.',
     '- Core test: when the Full caption items are read in order, they must sound like one connected spoken script. If each item feels like an independent scene label, rewrite it.',
-    '- Full caption scripts must not be fragmented by raw character count. Never split lines like "まず木材から珠を作り" + "ます" or "専用の機械で正確に穴" + "を開け".',
+    '- Full caption script must not be fragmented by raw character count. Rewrite into natural Korean screen phrases first.',
     '- Full caption script structure must be: curiosity hook -> whole-process purpose/explanation -> technical process explanation -> scene mention around 25 percent -> process/emotional explanation -> scene mention around 50 percent -> process/emotional explanation -> scene mention around 75 percent -> emotional closing.',
     '- Full caption script quota: use scene_observation only 4 to 6 times in a 20 to 24 item script. All other items must explain what is being made, why the step matters, how it works, or why precision/quality matters.',
     '- The first Korean full_caption_script_ko item must be exactly "이게 뭔지 아세요?". The next 2 to 4 Korean captions must answer the process using connected short phrases, not noun labels. Avoid repeated 입니다/습니다/됩니다/집니다 endings.',
-    '- The first Japanese full_caption_script_ja item should be "これ何だろう" or a close natural equivalent, then answer what is being made in connected short observation phrases. Avoid repeated です/ます/されます/なります/します endings.',
     '- Use scene_id values such as script_001, script_002, script_003. Scene labels are source material only and should appear mainly near 25, 50, and 75 percent of the script.',
     '- Use scene_observation for only 4 to 6 items. If more than about 30 percent of Full script items are scene_observation, rewrite them into technical_context, method, quality_reason, or emotional_expression.',
-    '- Japanese full_caption_script_ja uses observation tone. Korean full_caption_script_ko is review-only explanation text. They are not literal translations.',
+    '- full_caption_script_ko is the production Full subtitle script. Do not create or require full_caption_script_ja.',
     '- Korean fields must be written in natural Korean only. Do not mix Japanese kana such as Hiragana or Katakana into Korean captions.',
     '- The first 1 to 3 Full script captions must answer what the process is making. A hook question without an early answer is invalid.',
     '- The final 1 to 2 Full script captions must close with precision, craftsmanship, repetition, transformation, quality, or completion.',
@@ -1283,19 +1463,18 @@ function buildReviewPrompt({ sourceUrl, filename, durationSec, draftGuide, sourc
     '- Highlight metadata must not contain short onscreen_subtitles arrays. Full metadata must not contain long onscreen_caption_block text.',
     '- Reject or rewrite Full onscreen_subtitles if any item reads like a summary paragraph, has multiple sentences, says ご覧ください, or starts like a long process description.',
     '- Reject or rewrite Highlight onscreen_caption_block if it is missing, too short, too long, keyword-like, or not a natural lower-bottom explainer paragraph.',
-    '- Ensure full_metadata and full_metadata_ko are process-summary oriented.',
+    '- Ensure full_metadata_ko is process-summary oriented.',
     '- Ensure highlight_metadata and highlight_metadata_ko are visual-hook oriented.',
-    '- Ensure Japanese upload outputs follow observation-rhythm/midokoro. Korean fields are review-only and should be easy for the operator to inspect.',
-    '- Ensure Korean review text is useful for checking meaning, but do not present it as a separate channel variant.',
-    '- Ensure variant_strategy is present and states that JP Highlight, JP Full, and JP Midform are the active output variants.',
-    '- Ensure every title in every language has exactly five hashtags: #worker, #process, plus three relevant language-specific hashtags.',
-    '- Japanese extra hashtags must be Japanese. Korean extra hashtags must be Korean.',
+    '- Ensure Japanese Highlight upload outputs follow observation-rhythm/midokoro. Korean Full fields are production upload fields.',
+    '- Ensure variant_strategy is present and states that Korean Full and Japanese Highlight are the active output variants.',
+    '- Ensure every title in every language has exactly five English hashtags: #worker, #process, plus three relevant English hashtags.',
+    '- Do not use Japanese or Korean hashtags anywhere. Hashtags must be ASCII English only.',
     '- Ensure every report_description has the five required numbered sections. Japanese: 作業概要, 使用材料と設備, 工程手順, 作業の重要性, ガイドライン遵守と教育目的. Korean: 작업 개요, 사용 재료 및 장비, 시공 절차, 작업의 중요성, 가이드라인 준수 및 교육적 목적.',
     '- Ensure scene_transitions is not empty.',
     '- Ensure every scene has safe start_sec/end_sec values within source duration.',
     '- Ensure caption_text is short enough for one-line full draft captions. Prefer concise Japanese phrases.',
     '- Ensure screen_captions_ja and screen_captions_ko are not direct sentence translations. They may stay short scene captions, but full_caption_script_* is the authoritative Full Draft screen script.',
-    '- Ensure full_metadata.onscreen_subtitles has the same manuscript quality as full_caption_script_ja. Do not allow weaker keyword labels or grammatical fragments.',
+    '- Ensure full_metadata_ko.onscreen_subtitles has the same manuscript quality as full_caption_script_ko. Do not allow weaker keyword labels or grammatical fragments.',
     '- Do not approve noun-only keyword captions or scene-label-only Full scripts. Rewrite labels into a flowing process explanation script.',
     '- Japanese screen_captions_ja should be natural Japanese and can support observation rhythm.',
     '- Korean screen_captions_ko should be natural Korean and can support process explanation.',
@@ -1436,6 +1615,9 @@ function buildCaptionRepairBatchPrompt({ sourceUrl, filename, durationSec, scene
 }
 
 function buildMetadataFieldRepairPrompt({ sourceUrl, filename, durationSec, guide, issues }) {
+  const repairFields = (Array.isArray(issues) ? issues : [])
+    .map((issue) => normalizeText(issue?.field || ''))
+    .filter(Boolean);
   return [
     'You are a Japanese/Korean metadata repair pass for the 3-minute Ottogi process video workflow.',
     'Return JSON only. Do not include Markdown.',
@@ -1446,6 +1628,9 @@ function buildMetadataFieldRepairPrompt({ sourceUrl, filename, durationSec, guid
     '- Korean fields must be natural Korean.',
     '- Do not re-analyze the whole video.',
     '- Use the provided scene summaries and existing metadata as factual grounding.',
+    '- Return a flat repaired_fields array only. Do not return nested metadata objects.',
+    '- Each repaired_fields item must have the exact field path and the replacement string value.',
+    '- For recommended_titles[*].title issues, return one item per title field path.',
     '',
     'Style:',
     '- Natural Japanese or natural Korean for YouTube Shorts according to each field name.',
@@ -1453,18 +1638,15 @@ function buildMetadataFieldRepairPrompt({ sourceUrl, filename, durationSec, guid
     '- No emoji or decorative symbols.',
     '- No English fallback in Japanese/Korean fields.',
     '',
-    'Fields to repair when needed:',
-    '- short_description_200: about 180-260 Japanese characters.',
-    '- short_description_ko: natural Korean short description.',
-    '- explainer_text: Japanese screen explainer for highlight/full metadata context.',
-    '- explainer_text_ko: Korean screen explainer for Korean drafts.',
-    '- highlight_explainer_text: Japanese long highlight caption block.',
-    '- highlight_explainer_text_ko: Korean long highlight caption block.',
-    '- full_metadata/full_metadata_ko.summary_caption: one metadata summary line, not screen subtitle timing text.',
-    '- full_metadata/full_metadata_ko.onscreen_subtitles: array of short technical/educational Full Draft screen captions. Never return one long paragraph here.',
-    '- full_caption_script_ja/full_caption_script_ko: ordered screen-phrase objects with scene_id, role, text, and source_basis. Use script_001 style IDs, not one object per scene. Follow the global process arc and place scene_observation mainly near 25/50/75 percent.',
-    '- highlight_metadata/highlight_metadata_ko.summary_caption: one metadata summary line, not the lower-third caption block.',
-    '- highlight_metadata/highlight_metadata_ko.onscreen_caption_block: one long lower-bottom explainer block, target about 200 characters, ideal 195 to 215, acceptable 180 to 240, and no onscreen_subtitles array.',
+    'Fields requested for this call:',
+    JSON.stringify(repairFields, null, 2),
+    '',
+    'Return shape example:',
+    JSON.stringify({
+      repaired_fields: [
+        { field: 'full_metadata_ko.recommended_titles[0].title', value: '주먹 망치를 만드는 과정 #worker #process #metalwork #tools #craftsmanship' }
+      ]
+    }, null, 2),
     '',
     'Invalid issues:',
     JSON.stringify(issues || [], null, 2),
@@ -1499,7 +1681,7 @@ function buildMetadataFieldRepairPrompt({ sourceUrl, filename, durationSec, guid
       }))
     }, null, 2),
     '',
-    'Return only the repaired fields as JSON.'
+    'Return only repaired_fields as JSON.'
   ].join('\n');
 }
 
@@ -1522,43 +1704,17 @@ function buildFullCaptionScriptRepairPrompt({ sourceUrl, filename, durationSec, 
     'You must create ordered screen-caption scripts for Full Draft video subtitles.',
     '',
     'Required output fields:',
-    '- full_caption_script_ja: 20 to 24 objects.',
-    '- full_caption_script_ko: 20 to 24 objects for Korean review only.',
+    `- ${OUTPUT_CONFIG.full_draft.scriptKey}: 20 to 24 objects. Full Draft production language is ${OUTPUT_CONFIG.full_draft.lang.toUpperCase()} only.`,
     '- Each object must contain scene_id, role, text, source_basis.',
     '',
-    'Japanese Full Draft style:',
-    '- Observation tone, not report tone.',
-    '- First item should be close to "これ何だろう".',
-    '- Next 2 to 4 items must clearly answer what process/product is being made.',
-    '- The whole script must read as one connected spoken manuscript when joined in order.',
-    '- Do not claim a final result that is not visible in the selected clip. If the clip only shows preparation, digging, cutting, shaping, or assembly, phrase the final idea as purpose or effort, not as completed proof.',
-    '- Repair order is mandatory: imagine one continuous spoken manuscript first, then split it into the output array.',
-    '- Do not repair by replacing invalid lines one-by-one with new labels. Rebuild the flow as a manuscript.',
-    '- Do not write one independent scene label per line.',
-    '- Do not write noun-label captions such as "材料の山", "作業現場", "完成品", or "機械の出番". Turn them into spoken narration.',
-    '- Do not write action-checklist captions such as "ドリルを使う", "土を削る", "材料を運ぶ", "機械が動く", "部品を入れる". They follow the picture but are not a manuscript.',
-    '- The script must explain purpose and meaning between visible actions: why the material is collected, why timing/precision matters, how human judgment and machines work together, and what the result supports.',
-    '- At least 5 items must explain or connect the process, not merely name what appears on screen.',
-    '- Use scene_observation only 4 to 6 times, around 25%, 50%, 75%, and completion beats of the script.',
-    '- Most lines should explain purpose, method, material change, precision, quality, or emotional meaning.',
-    '- Keep the emotional ending honest to the selected footage. If water is not actually visible, do not write "水が出る", "水脈へ届く", "大地を潤す", or "恵みへ繋がる". Write goal/effort wording instead.',
-    '- Avoid repeated endings such as です, ます, されます, なります, します.',
-    '- It is okay to split a sentence across 2 to 3 captions when the next caption naturally completes it. Do not leave meaningless fragments, but connected particles such as を, で, に are allowed when the next item completes the thought.',
-    '- Each text should fit the caption box: target 4 to 12 Japanese characters, hard max 14 visible characters.',
-    '',
-    'Korean review style:',
+    'Korean Full Draft style:',
     '- Explanation tone, natural Korean, not translationese.',
     '- First item text must be exactly "이게 뭔지 아세요?".',
     '- Avoid repeated 입니다/습니다/됩니다/집니다 endings.',
-    '- Each text should fit the caption box: target 5 to 11 Korean characters, hard max 12 visible characters.',
+    `- Each text should fit the caption box: target ${OUTPUT_CONFIG.full_draft.caption.promptTargetMinChars} to ${OUTPUT_CONFIG.full_draft.caption.promptTargetMaxChars} Korean characters, hard max ${OUTPUT_CONFIG.full_draft.caption.safeMaxChars} visible characters.`,
+    '- Do not return full_caption_script_ja or any Japanese Full fields.',
     '',
-    'Bad Japanese output:',
-    JSON.stringify(['これ何だろう', '作業現場', 'ドリルを使う', '土を削る', '材料を運ぶ', '完成へ進む'], null, 2),
-    '',
-    'Good Japanese output rhythm:',
-    JSON.stringify(['これ何だろう', '実はこれ', '暮らしを支える', '下準備です', 'まず形を見ながら', '少しずつ進めます', 'ここで大事なのは', '速さだけじゃなく', 'ズレを残さないこと', '人が流れを見て', '機械の力も借りて', '同じ精度を保ちます', '目立たない作業でも', '次の工程を支えて', '最後の仕上がりに', '静かにつながります'], null, 2),
-    '',
-    'Good Korean review rhythm:',
+    'Good Korean output rhythm:',
     JSON.stringify(['이게 뭔지 아세요?', '사실 이건', '생활을 받치는', '기초 작업이에요', '먼저 형태를 보며', '조금씩 맞춰가고', '여기서 중요한 건', '빠르게 하는 것보다', '흐름이 틀어지지', '않게 만드는 거예요', '사람이 상태를 보고', '기계의 힘을 빌려', '같은 정밀함을', '계속 이어갑니다', '작아 보이는 반복이', '마지막 완성도를', '조용히 만들어냅니다'], null, 2),
     '',
     'Invalid issues:',
@@ -1708,11 +1864,11 @@ function ensureHighlightCaptionBlock(value = '', korean = false) {
 function defaultJapaneseTitle(index, subject) {
   const safeSubject = normalizeText(subject) || '工場の工程';
   const defaults = [
-    `${safeSubject}の流れを短く見る #worker #process #製造工程 #職人技 #工場`,
-    `${safeSubject}が形になる瞬間 #worker #process #ものづくり #作業工程 #加工`,
-    `${safeSubject}の製造工程を観察 #worker #process #工場見学 #工程動画 #機械作業`,
-    `職人と機械で進む${safeSubject} #worker #process #手仕事 #生産現場 #職人`,
-    `素材が変わる${safeSubject}の現場 #worker #process #素材加工 #変化 #見どころ`
+    `${safeSubject}の流れを短く見る #worker #process #manufacturing #craftsmanship #factory`,
+    `${safeSubject}が形になる瞬間 #worker #process #metalwork #tools #processvideo`,
+    `${safeSubject}の製造工程を観察 #worker #process #factorywork #machinework #satisfying`,
+    `職人と機械で進む${safeSubject} #worker #process #handmade #production #workshop`,
+    `素材が変わる${safeSubject}の現場 #worker #process #material #transformation #industrial`
   ];
   return defaults[index % defaults.length];
 }
@@ -1720,11 +1876,11 @@ function defaultJapaneseTitle(index, subject) {
 function defaultKoreanTitle(index, subject) {
   const safeSubject = normalizeText(subject) || '공정';
   const defaults = [
-    `${safeSubject}이 만들어지는 흐름 #worker #process #제조공정 #장인기술 #공장`,
-    `${safeSubject}이 형태를 갖추는 순간 #worker #process #생산과정 #가공 #기계작업`,
-    `${safeSubject} 제조 공정 관찰 #worker #process #공장영상 #공정영상 #작업현장`,
-    `장인과 기계가 함께 만드는 ${safeSubject} #worker #process #수작업 #생산현장 #기술`,
-    `소재가 바뀌는 ${safeSubject} 현장 #worker #process #소재가공 #변화과정 #만족영상`
+    `${safeSubject}이 만들어지는 흐름 #worker #process #manufacturing #craftsmanship #factory`,
+    `${safeSubject}이 형태를 갖추는 순간 #worker #process #metalwork #tools #processvideo`,
+    `${safeSubject} 제조 공정 관찰 #worker #process #factorywork #machinework #satisfying`,
+    `장인과 기계가 함께 만드는 ${safeSubject} #worker #process #handmade #production #workshop`,
+    `소재가 바뀌는 ${safeSubject} 현장 #worker #process #material #transformation #industrial`
   ];
   return defaults[index % defaults.length];
 }
@@ -1740,19 +1896,20 @@ function extractHashtagsFromText(value = '') {
 }
 
 function defaultLocalizedHashtags(korean = false) {
-  return korean
-    ? ['#worker', '#process', '#제조공정', '#장인기술', '#공장']
-    : ['#worker', '#process', '#製造工程', '#職人技', '#工場'];
+  void korean;
+  return ['#worker', '#process', '#manufacturing', '#craftsmanship', '#factory'];
 }
 
 function normalizeLocalizedHashtags(value = [], korean = false) {
+  void korean;
   const raw = Array.isArray(value) ? value : String(value || '').split(/[\s,]+/);
   const seen = new Set();
   const tags = [];
   const push = (tag) => {
-    const cleaned = normalizeText(tag).replace(/^#/, '');
+    const cleaned = normalizeText(tag).replace(/^#/, '').replace(/[^A-Za-z0-9_-]+/g, '');
     if (!cleaned) return;
     const valueWithHash = `#${cleaned}`;
+    if (!/^#[A-Za-z0-9_-]+$/u.test(valueWithHash)) return;
     const key = valueWithHash.toLowerCase();
     if (seen.has(key)) return;
     seen.add(key);
@@ -1763,14 +1920,18 @@ function normalizeLocalizedHashtags(value = [], korean = false) {
   push('#process');
   raw.forEach(push);
 
-  const hasLocalizedExtra = tags
-    .filter((tag) => !/^#(?:worker|process)$/i.test(tag))
-    .some((tag) => (korean ? hasKoreanText(tag) : hasJapaneseText(tag)));
-  if (!hasLocalizedExtra) {
-    defaultLocalizedHashtags(korean).forEach(push);
-  }
+  defaultLocalizedHashtags().forEach(push);
 
   return tags.slice(0, 5);
+}
+
+function titleWithEnglishHashtags(title = '', hashtags = []) {
+  const cleanTitle = normalizeText(title)
+    .replace(/[#＃][\p{L}\p{N}_-]+/gu, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+  const normalizedHashtags = normalizeLocalizedHashtags(hashtags);
+  return normalizeText(`${cleanTitle} ${normalizedHashtags.join(' ')}`).trim();
 }
 
 function normalizeTitleList(value, subject, korean = false) {
@@ -1782,10 +1943,11 @@ function normalizeTitleList(value, subject, korean = false) {
     .map((item, index) => {
       if (typeof item === 'string') {
         const tagsFromTitle = extractHashtagsFromText(item);
+        const hashtags = normalizeLocalizedHashtags(tagsFromTitle, korean);
         return {
           category: categories[index] || categories[0],
-          title: normalizeText(item),
-          hashtags: normalizeLocalizedHashtags(tagsFromTitle, korean)
+          title: titleWithEnglishHashtags(item, hashtags),
+          hashtags
         };
       }
       if (!item || typeof item !== 'object') return null;
@@ -1795,7 +1957,7 @@ function normalizeTitleList(value, subject, korean = false) {
       ], korean);
       return {
         category: normalizeText(item.category || categories[index] || categories[0]),
-        title: normalizeText(item.title || item.text || item.name || ''),
+        title: titleWithEnglishHashtags(item.title || item.text || item.name || '', hashtags),
         hashtags
       };
     })
@@ -1806,7 +1968,7 @@ function normalizeTitleList(value, subject, korean = false) {
     const title = korean ? defaultKoreanTitle(index, subject) : defaultJapaneseTitle(index, subject);
     normalized.push({
       category: categories[index] || categories[0],
-      title,
+      title: titleWithEnglishHashtags(title, extractHashtagsFromText(title)),
       hashtags: normalizeLocalizedHashtags(extractHashtagsFromText(title), korean)
     });
   }
@@ -2115,8 +2277,8 @@ const FULL_CAPTION_SCRIPT_ROLES = new Set([
 ]);
 
 const FULL_CAPTION_SAFE_MAX_CHARS = {
-  ja: 14,
-  ko: 12
+  ja: captionSafeMaxChars('ja'),
+  ko: captionSafeMaxChars('ko')
 };
 
 const LONGFORM_MIDFORM_SCHEMA = {
@@ -2281,6 +2443,39 @@ function limitFullScriptSceneRoles(items = []) {
   return output;
 }
 
+function expandRepairedKoreanFullScriptItems(items = [], minimum = 20) {
+  const output = (Array.isArray(items) ? items : [])
+    .map((item) => ({ ...item, text: normalizeText(item?.text || '') }))
+    .filter((item) => item.text);
+  if (output.length >= minimum || output.length < 12) return output;
+
+  const inserts = buildFullScriptItemsFromLines([
+    '여기서 중요한 건',
+    '흐름이 흔들리지',
+    '않게 맞추는 것',
+    '손으로 상태를 보고',
+    '기계로 힘을 더해',
+    '작은 틈도 확인해요',
+    '표면을 다시 보고',
+    '완성도를 높여요'
+  ], true, 'server_full_script_repair_expansion');
+  const sceneObservationTargets = new Set([2, 5, 6]);
+  inserts.forEach((item, index) => {
+    item.role = sceneObservationTargets.has(index) ? 'scene_observation' : item.role;
+  });
+
+  let insertIndex = Math.max(1, output.length - 1);
+  for (const insert of inserts) {
+    if (output.length >= minimum) break;
+    output.splice(insertIndex, 0, {
+      ...insert,
+      scene_id: `script_repair_expand_${String(output.length + 1).padStart(3, '0')}`
+    });
+    insertIndex = Math.min(output.length - 1, insertIndex + 2);
+  }
+  return limitFullScriptSceneRoles(output);
+}
+
 function repairKoreanBrokenFullScriptItems(items = []) {
   const output = items.map((item) => ({ ...item, text: normalizeText(item.text || '') }));
   const consumeNextPrefix = (index, pattern, replacement = '') => {
@@ -2308,6 +2503,19 @@ function repairKoreanBrokenFullScriptItems(items = []) {
     }
     if (/중요$/u.test(item.text) && consumeNextPrefix(index, /^한\b\s*/u, '한 ')) {
       item.text = item.text.replace(/중요$/u, '중요한').trim();
+    }
+    const next = output[index + 1];
+    if (!next?.text) continue;
+    if (
+      /[이가은는을를에로와과도]$/u.test(item.text)
+      || visibleTextLength(item.text) <= 5
+      || visibleTextLength(next.text) <= 4
+      || /\($/.test(item.text)
+      || /^[)\]}]/.test(next.text)
+      || /^장면\)?$/u.test(next.text)
+    ) {
+      item.text = normalizeText(`${item.text} ${next.text}`.replace(/\s+/g, ' ').replace(/\(\s+/g, '(').replace(/\s+\)/g, ')')).trim();
+      next.text = '';
     }
   }
 
@@ -2471,13 +2679,37 @@ function rewriteBareFullDraftScriptText(text = '', korean = false, index = 0) {
   if (!value) return '';
   if (korean) {
     if (index === 0 && /뭔지|무엇|이게/u.test(value)) return '이게 뭔지 아세요?';
-    return value
+    const rewritten = value
+      .replace(/material transformation/giu, '소재 변화')
+      .replace(/[()]/g, '')
       .replace(/세척$/u, '을 씻고')
       .replace(/만드는$/u, '만드는 과정')
       .replace(/압착$/u, '으로 짜내고')
       .replace(/분리$/u, '을 걸러내고')
       .replace(/붓고$/u, '부어 넣고')
-      .replace(/완성$/u, '완성됩니다');
+      .replace(/완성$/u, '완성돼요')
+      .replace(/^모터의 심장부$/u, '모터의 심장부예요')
+      .replace(/^가는 구리선이$/u, '가는 구리선이 감겨 올라가고')
+      .replace(/^빠르게 감겨간다$/u, '빠르게 감겨 올라가요')
+      .replace(/^정밀 기계가$/u, '정밀 기계가 움직이고')
+      .replace(/^지정된 위치로$/u, '지정된 위치로 들어가고')
+      .replace(/^정확히 유도한다$/u, '정확한 자리로 유도해요')
+      .replace(/^숙련된 작업자가$/u, '숙련된 작업자가 곁에서')
+      .replace(/^작업을 지켜본다$/u, '작업 흐름을 끝까지 지켜봐요')
+      .replace(/^작은 오차도$/u, '작은 오차도 그냥 넘기지 않고')
+      .replace(/^용납되지 않는다$/u, '바로 다시 맞춰요')
+      .replace(/^이 코일이$/u, '이 코일이 결국')
+      .replace(/^전기를 만들어내는$/u, '전기를 만들어내는 핵심이 되고')
+      .replace(/^중요한 부품이다$/u, '중요한 부품이 돼요')
+      .replace(/^여러 번 겹쳐$/u, '여러 번 겹쳐 감기면서')
+      .replace(/^이상적인 형태로$/u, '이상적인 형태에 가까워지고')
+      .replace(/^고도의 기술이$/u, '고도의 기술이 끝까지')
+      .replace(/^고품질을 지탱한다$/u, '고품질을 지탱해요')
+      .trim();
+    if (/^[가-힣0-9\s]{2,}$/u.test(rewritten) && isFullScriptNominalLabel(rewritten, true)) {
+      return `${rewritten.replace(/[.,!?！？。]+$/u, '').trim()}예요`;
+    }
+    return rewritten;
   }
   if (index === 0 && /(何|なん|これ)/u.test(value)) return 'これ何だろう';
   if (/^(じゃ|でもそれだけ)$/u.test(value)) return '';
@@ -2594,6 +2826,7 @@ function normalizeFullCaptionScript(value = [], scenes = [], language = 'ja', fa
   const source = Array.isArray(value) ? value : [];
   const fallback = Array.isArray(fallbackLines) ? fallbackLines : [];
   const allowSceneFallback = options.allowSceneFallback !== false;
+  const sourceHasRepairResult = source.some((item) => normalizeText((item && typeof item === 'object' ? item.source_basis : '') || '') === 'full_caption_script_repair');
   const normalizedScenes = Array.isArray(scenes) ? scenes : [];
   const sceneIds = normalizedScenes.map((scene, index) => normalizeText(scene?.scene_id || `scene_${String(index + 1).padStart(3, '0')}`));
   const textForScene = (scene, index) => {
@@ -2609,7 +2842,7 @@ function normalizeFullCaptionScript(value = [], scenes = [], language = 'ja', fa
     const validLanguage = korean ? isValidKoreanCaption(cleaned) : isValidJapaneseCaption(cleaned);
     if (!validLanguage) return '';
     if (looksLikeParagraphCaption(cleaned, korean)) return '';
-    if (isBareFullDraftLabel(cleaned, korean)) return '';
+    if (!sourceHasRepairResult && isBareFullDraftLabel(cleaned, korean)) return '';
     const maxLength = korean ? 80 : 80;
     if (visibleTextLength(cleaned) > maxLength) return '';
     return cleaned;
@@ -2649,13 +2882,18 @@ function normalizeFullCaptionScript(value = [], scenes = [], language = 'ja', fa
         source_basis: 'required Japanese full draft opening hook'
       });
     }
-    const repaired = korean ? repairKoreanBrokenFullScriptItems(sourceResult) : repairJapaneseBrokenFullScriptItems(sourceResult);
+    const repaired = sourceHasRepairResult && korean
+      ? sourceResult
+      : (korean ? repairKoreanBrokenFullScriptItems(sourceResult) : repairJapaneseBrokenFullScriptItems(sourceResult));
     const deduped = dedupeAdjacentFullCaptionScriptItems(repaired);
     const limited = limitFullScriptSceneRoles(enforceFullCaptionSafeLengths(deduped, korean));
     const limitedTexts = limited.map((item) => item.text);
     const weakCount = incompleteCaptionFragmentCount(limitedTexts, korean)
       + limitedTexts.filter((text) => isBareFullDraftLabel(text, korean)).length;
     const weakRatio = weakCount / Math.max(1, limited.length);
+    if (sourceHasRepairResult && korean && limited.length >= 12) {
+      return expandRepairedKoreanFullScriptItems(limited);
+    }
     if (limited.length >= 20 && weakRatio < 0.35) {
       return limited;
     }
@@ -2824,44 +3062,183 @@ function buildFallbackReport(subject, shortDescription, korean = false) {
   ].join('\n');
 }
 
+function metadataTextHasLatin(value = '') {
+  return hasLongLatinWord(value);
+}
+
+function stripMetadataHashtags(value = '') {
+  return normalizeText(value || '')
+    .replace(/[#＃][\p{L}\p{N}_-]+/gu, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+function safeMetadataSeed(candidates = [], korean = false) {
+  for (const candidate of candidates) {
+    const text = stripMetadataHashtags(candidate);
+    if (!text || metadataTextHasLatin(text)) continue;
+    if (korean ? isValidKoreanCaption(text) : isValidJapaneseCaption(text)) return text;
+  }
+  return korean ? '제조 공정' : '製造工程';
+}
+
+function metadataSectionTextCandidates(metadata = {}) {
+  return [
+    metadata.upload_title,
+    metadata.short_description,
+    metadata.summary_caption,
+    metadata.onscreen_caption_block,
+    metadata.report_description,
+    ...(Array.isArray(metadata.recommended_titles) ? metadata.recommended_titles.map((item) => item?.title) : [])
+  ];
+}
+
+function deterministicDescription(seed = '', korean = false) {
+  const safeSeed = safeMetadataSeed([seed], korean);
+  return korean
+    ? `${safeSeed}의 핵심 장면을 자연스럽게 보여주는 공정 영상입니다.`
+    : `${safeSeed}の見どころを自然に伝える工程映像です。`;
+}
+
+function deterministicCaptionBlock(seed = '', korean = false) {
+  const safeSeed = safeMetadataSeed([seed], korean);
+  return korean
+    ? `${safeSeed}이 어떤 순서로 움직이고 완성되는지 한눈에 볼 수 있는 장면입니다. 짧은 순간 안에 재료의 변화와 작업 흐름이 선명하게 드러납니다.`
+    : `${safeSeed}がどのような流れで形を変えていくのかを一目で見せる場面です。短い時間の中に、素材の変化と作業のリズムが分かりやすく詰まっています。`;
+}
+
+function deterministicTitlePatterns(seed = '', korean = false) {
+  const safeSeed = safeMetadataSeed([seed], korean);
+  return korean
+    ? [
+        `${safeSeed}이 만들어지는 과정`,
+        `${safeSeed}이 완성되는 순간`,
+        `${safeSeed} 공정의 핵심 장면`,
+        `작업 흐름으로 보는 ${safeSeed}`,
+        `${safeSeed} 제작 과정 관찰`
+      ]
+    : [
+        `${safeSeed}ができるまで`,
+        `${safeSeed}が形になる瞬間`,
+        `${safeSeed}工程の見どころ`,
+        `作業の流れで見る${safeSeed}`,
+        `${safeSeed}づくりを観察`
+      ];
+}
+
+function rebuildMetadataTitles(metadata = {}, seed = '', korean = false) {
+  const categories = korean
+    ? ['간결형', '간결형', '정보형', '후킹형', '후킹형']
+    : ['concise', 'concise', 'informational', 'hook', 'hook'];
+  const hashtags = normalizeLocalizedHashtags([
+    ...(Array.isArray(metadata.hashtags) ? metadata.hashtags : []),
+    ...(Array.isArray(metadata.recommended_titles)
+      ? metadata.recommended_titles.flatMap((item) => Array.isArray(item?.hashtags) ? item.hashtags : [])
+      : [])
+  ], korean);
+  return deterministicTitlePatterns(seed, korean).map((title, index) => ({
+    category: categories[index] || categories[0],
+    title: titleWithEnglishHashtags(title, hashtags),
+    hashtags
+  }));
+}
+
+function publicTitleNeedsRebuild(metadata = {}) {
+  const titles = Array.isArray(metadata.recommended_titles) ? metadata.recommended_titles : [];
+  return titles.length < 5 || titles.some((item) => metadataTextHasLatin(stripMetadataHashtags(item?.title || '')));
+}
+
+function enforceMetadataSectionLanguage(metadata = {}, seedCandidates = [], korean = false) {
+  const source = metadata && typeof metadata === 'object' ? metadata : {};
+  const seed = safeMetadataSeed([...seedCandidates, ...metadataSectionTextCandidates(source)], korean);
+  const next = { ...source };
+  ['upload_title', 'short_description', 'summary_caption'].forEach((field) => {
+    const value = normalizeText(next[field] || '');
+    if (!value || metadataTextHasLatin(stripMetadataHashtags(value)) || !(korean ? isValidKoreanCaption(stripMetadataHashtags(value)) : isValidJapaneseCaption(stripMetadataHashtags(value)))) {
+      next[field] = field === 'upload_title'
+        ? titleWithEnglishHashtags(deterministicTitlePatterns(seed, korean)[0], next.hashtags || [])
+        : deterministicDescription(seed, korean);
+    }
+  });
+  if (Object.prototype.hasOwnProperty.call(next, 'onscreen_caption_block')) {
+    const value = normalizeText(next.onscreen_caption_block || '');
+    if (!value || metadataTextHasLatin(value) || !(korean ? isValidKoreanCaption(value) : isValidJapaneseCaption(value))) {
+      next.onscreen_caption_block = deterministicCaptionBlock(seed, korean);
+    }
+  }
+  const reportValue = normalizeText(next.report_description || '');
+  if (!reportValue || metadataTextHasLatin(reportValue) || !(korean ? isValidKoreanCaption(reportValue) : isValidJapaneseCaption(reportValue))) {
+    next.report_description = formatStructuredReportDescription(buildFallbackReport(
+      seed,
+      deterministicDescription(seed, korean),
+      korean
+    ), korean);
+  }
+  if (publicTitleNeedsRebuild(next)) {
+    next.recommended_titles = rebuildMetadataTitles(next, seed, korean);
+  }
+  return next;
+}
+
+function enforcePublicMetadataLanguage(guide = {}) {
+  const next = { ...guide };
+  const koSeedCandidates = [
+    next.detected_subject_ko,
+    next.short_description_ko,
+    next.explainer_text_ko,
+    next.report_description_ko,
+    ...(Array.isArray(next.full_caption_script_ko) ? next.full_caption_script_ko.map((item) => item?.text) : [])
+  ];
+  const jaSeedCandidates = [
+    next.highlight_explainer_text,
+    ...(Array.isArray(next.highlight_hook_captions_ja) ? next.highlight_hook_captions_ja : []),
+    next.detected_subject_ja
+  ];
+  next.full_metadata_ko = enforceMetadataSectionLanguage(next.full_metadata_ko, koSeedCandidates, true);
+  next.highlight_metadata = enforceMetadataSectionLanguage(next.highlight_metadata, jaSeedCandidates, false);
+  next.highlight_metadata_ko = enforceMetadataSectionLanguage(next.highlight_metadata_ko, koSeedCandidates, true);
+  next.short_description_ko = metadataTextHasLatin(next.short_description_ko) || !isValidKoreanCaption(next.short_description_ko)
+    ? deterministicDescription(safeMetadataSeed(koSeedCandidates, true), true)
+    : next.short_description_ko;
+  next.explainer_text_ko = metadataTextHasLatin(next.explainer_text_ko) || !isValidKoreanCaption(next.explainer_text_ko)
+    ? deterministicDescription(safeMetadataSeed(koSeedCandidates, true), true)
+    : next.explainer_text_ko;
+  next.report_description_ko = metadataTextHasLatin(next.report_description_ko) || !isValidKoreanCaption(next.report_description_ko)
+    ? next.full_metadata_ko.report_description
+    : next.report_description_ko;
+  next.recommended_titles_ko = rebuildMetadataTitles(next.full_metadata_ko, safeMetadataSeed(koSeedCandidates, true), true);
+  return next;
+}
+
 function buildLongformVariantFinalPrompt({ variant, sourceUrl, filename, durationSec, candidateGuide, hookGuide, storyGuide, midformGuide }) {
   const variantConfig = {
     full: {
-      phaseName: 'JP Full',
+      phaseName: 'KR Full',
       windowName: 'story_clip_40s',
       requiredFields: [
-        'full_metadata',
         'full_metadata_ko',
-        'full_caption_script_ja',
         'full_caption_script_ko',
-        'short_description_200',
         'short_description_ko',
-        'recommended_titles',
         'recommended_titles_ko',
-        'report_description',
         'report_description_ko',
-        'explainer_text',
         'explainer_text_ko'
       ],
       rules: [
-        '- Create only the JP Full process-summary draft metadata and scripts.',
+        '- Create only the KR Full process-summary draft metadata and scripts.',
         '- Full uses story_clip_40s only. The field name is legacy; treat it as one about-60-second core-process source window.',
         '- Full must explain one important process in depth, not summarize unrelated moments from the whole long-form video.',
         '- Full must not claim an unseen result. If the selected source window does not visibly show water, final products, packaging, or completion, describe those as purpose/goal only.',
         '- Full caption mode is scene_based_short_subtitles for compatibility, but the content must be manuscript-based caption chunks, not scene labels.',
-        '- full_caption_script_ja must be 20 to 24 short Japanese connected narration phrases for the selected core-process window.',
-        '- Avoid repeated polite/report endings in full_caption_script_ja. Do not build the script around です, ます, されます, なります, or します.',
-        '- Never end a Japanese Full caption with an unfinished particle such as を, が, の, に, へ, と, や, な.',
-        '- Broken fragments are forbidden: "ワイヤーを部品が", "手作業で隙間に", "コイルを形を", "しっかり中央を完璧な", "たくさんの".',
-        '- Do not teach the model to write labels. Bad JP Full rhythm: "巨大な機械が動きます", "鉄筋を加工します", "材料が供給されます", "特殊なドリルを使う", "固い土を削る".',
-        '- Preferred JP Full rhythm is connected narration split into short items: "これ何だろう", "モーターの中の", "コイルを作ります", "細い銅線を", "何度も重ねて", "電気を生む形に", "整えていきます", "最後の精度が", "力を支えます".',
-        '- Each JP Full caption must be short enough for the CapCut text box. Avoid long sentences and avoid forced line breaks.',
-        '- JP Full script flow: hook -> process identity -> technical/educational context -> scene mentions only around 25/50/75 percent -> emotional closing.',
-        '- Scene observation captions are allowed only 4 to 6 times. Most captions must explain purpose, method, precision, quality, or emotional meaning.',
-        '- The first JP Full caption should be close to "これ何だろう".',
-        '- full_caption_script_ko is Korean review-only and must be natural Korean.',
-        '- full_metadata.onscreen_subtitles must copy the same manuscript chunks from full_caption_script_ja. Do not fill it from scene captions.',
-        '- full_metadata.summary_caption is a short public summary, not the screen caption block.',
+        '- Full production language is Korean. full_caption_script_ko and full_metadata_ko are the real production output for this variant.',
+        '- Korean Full must sound like natural spoken Korean for curious viewers, not like translated Japanese or noun-only labels.',
+        '- Avoid bare label chunks such as "모터의 심장부", "정밀 기계가", "작은 오차도" unless they continue naturally into the next phrase.',
+        '- Prefer connected Korean phrasing such as "모터의 심장부예요", "정밀 기계가 움직이고", "작은 오차도 그냥 넘기지 않고".',
+        '- Do not leave English fallback phrases like "material transformation" inside Korean Full fields. Rewrite them into natural Korean.',
+        '- full_caption_script_ko should be 20 to 24 short Korean connected narration phrases for the selected core-process window.',
+        '- full_metadata_ko.onscreen_subtitles must copy the same manuscript chunks from full_caption_script_ko. Do not fill it from raw scene captions.',
+        '- full_metadata_ko.summary_caption is a short public Korean summary, not the screen caption block.',
+        '- The first KR Full caption should be close to "이게 뭔지 아세요?".',
+        '- Do not create Japanese Full metadata, Japanese Full subtitles, or full_caption_script_ja. Full drafts are Korean only.',
         '- Do not create Highlight or Midform metadata in this response.'
       ]
     },
@@ -2929,8 +3306,8 @@ function buildLongformVariantFinalPrompt({ variant, sourceUrl, filename, duratio
     '- Korean is review-only. Korean must never be upload metadata.',
     '- English fallback is forbidden.',
     '- No emoji or decorative symbols.',
-    '- Titles must include exactly five hashtags: #worker, #process, plus three relevant Japanese hashtags for upload metadata.',
-    '- Korean review titles may use Korean hashtags for review only.',
+    '- Titles must include exactly five English hashtags: #worker, #process, plus three relevant English hashtags.',
+    '- Korean review titles must also use English hashtags only.',
     '',
     ...variantConfig.rules,
     '',
@@ -2959,33 +3336,21 @@ function buildLongformVariantFinalSchema(variant) {
       type: 'object',
       properties: {
         detected_subject: { type: 'string' },
-        short_description_200: shared.short_description_200,
         short_description_ko: shared.short_description_ko,
-        recommended_titles: shared.recommended_titles,
         recommended_titles_ko: shared.recommended_titles_ko,
-        report_description: shared.report_description,
         report_description_ko: shared.report_description_ko,
-        explainer_text: shared.explainer_text,
         explainer_text_ko: shared.explainer_text_ko,
-        full_metadata: OTTOGI_VARIANT_METADATA_SCHEMA,
         full_metadata_ko: OTTOGI_VARIANT_METADATA_SCHEMA,
-        full_caption_script_ja: shared.full_caption_script_ja,
         full_caption_script_ko: shared.full_caption_script_ko,
         regional_editing_strategy: shared.regional_editing_strategy,
         variant_strategy: shared.variant_strategy
       },
       required: [
-        'full_metadata',
         'full_metadata_ko',
-        'full_caption_script_ja',
         'full_caption_script_ko',
-        'short_description_200',
         'short_description_ko',
-        'recommended_titles',
         'recommended_titles_ko',
-        'report_description',
         'report_description_ko',
-        'explainer_text',
         'explainer_text_ko'
       ]
     },
@@ -3046,7 +3411,7 @@ function buildLongformMidformMetadataPrompt({ sourceUrl, filename, durationSec, 
     '- English fallback is forbidden.',
     '- No emoji or decorative symbols.',
     '- Do not write Midform captions in this response. Captions are requested in separate smaller calls.',
-    '- Titles must include exactly five hashtags: #worker, #process, plus three relevant Japanese hashtags.',
+    '- Titles must include exactly five English hashtags: #worker, #process, plus three relevant English hashtags.',
     '- midform_metadata.caption_mode must be scene_based_short_subtitles.',
     '- midform_metadata.onscreen_subtitles may be empty here because captions are generated separately.',
     '- midform_metadata_ko is Korean review-only metadata for checking.',
@@ -3578,10 +3943,23 @@ function normalizeScene(scene, index, durationSec = 0) {
   const duration = clampNumber(durationSec, 1, 600, Math.max(3, Number(scene?.end_sec || 3)));
   const start = clampNumber(scene?.start_sec, 0, duration, Math.min(index * 3, duration));
   const end = clampNumber(scene?.end_sec, start + 0.2, duration, Math.min(start + 3, duration));
-  const captionText = normalizeText(scene?.caption_text || '');
-  const captionKo = normalizeText(scene?.caption_text_ko || '공정의 움직임에 주목');
+  const rawCaptionText = normalizeText(scene?.caption_text || '');
+  const captionText = isValidJapaneseCaption(rawCaptionText) && !hasLongLatinWord(rawCaptionText)
+    ? rawCaptionText
+    : '工程の動き';
+  const rawCaptionKo = normalizeText(scene?.caption_text_ko || '');
+  const captionKo = isValidKoreanCaption(rawCaptionKo) && !hasLongLatinWord(rawCaptionKo)
+    ? rawCaptionKo
+    : '공정의 움직임에 주목';
   const screenCaptionsJa = Array.isArray(scene?.screen_captions_ja)
-    ? scene.screen_captions_ja.map(normalizeText).filter(Boolean)
+    ? scene.screen_captions_ja
+      .map(normalizeText)
+      .filter((caption) => caption && isValidJapaneseCaption(caption) && !hasLongLatinWord(caption))
+    : [];
+  const screenCaptionsKo = Array.isArray(scene?.screen_captions_ko)
+    ? scene.screen_captions_ko
+      .map(normalizeText)
+      .filter((caption) => caption && isValidKoreanCaption(caption) && !hasLongLatinWord(caption))
     : [];
   return {
     ...scene,
@@ -3617,9 +3995,7 @@ function normalizeScene(scene, index, durationSec = 0) {
     human_presence: scene?.human_presence === true,
     process_focus_priority: normalizeText(scene?.process_focus_priority || 'process'),
     screen_captions_ja: screenCaptionsJa.length ? screenCaptionsJa : [captionText].filter(Boolean),
-    screen_captions_ko: Array.isArray(scene?.screen_captions_ko)
-      ? scene.screen_captions_ko.map(normalizeText).filter(Boolean)
-      : [captionKo].filter(Boolean)
+    screen_captions_ko: screenCaptionsKo.length ? screenCaptionsKo : [captionKo].filter(Boolean)
   };
 }
 
@@ -4070,15 +4446,25 @@ function hasEnglishFallback(guide = {}, options = {}) {
 }
 
 
-function classifyLongformValidationIssues(error = {}) {
+function classifyLongformValidationIssues(guide = {}, error = {}) {
   const missing = Array.isArray(error.details?.missing) ? error.details.missing : [];
   const invalidCaptions = Array.isArray(error.details?.invalid_japanese_captions) ? error.details.invalid_japanese_captions : [];
+  const fullProductionIsKorean = OUTPUT_CONFIG.full_draft.lang === 'ko';
   const allIssues = [
     ...missing.map((issue) => String(issue || '')),
     ...invalidCaptions.map((issue) => String(issue?.field || issue?.reason || ''))
   ].filter(Boolean);
   const variantIssue = {
-    full: allIssues.filter((issue) => /(^|_|\.)full|story|scene_transitions|japanese_subtitles|short_description|recommended_titles|explainer_text/i.test(issue)),
+    full: allIssues.filter((issue) => {
+      const text = String(issue || '');
+      if (!/(^|_|\.)full|story|scene_transitions|japanese_subtitles|short_description|recommended_titles|explainer_text/i.test(text)) {
+        return false;
+      }
+      if (!fullProductionIsKorean) return true;
+      if (/full_caption_script_ja|full_metadata(?:_ja)?\.onscreen_subtitles/i.test(text)) return false;
+      if (/screen_captions_ja|caption_text(?:[^_]|$)/i.test(text) && !/caption_text_ko|screen_captions_ko/i.test(text)) return false;
+      return true;
+    }),
     highlight: allIssues.filter((issue) => /highlight|hook/i.test(issue)),
     midform: allIssues.filter((issue) => /midform/i.test(issue))
   };
@@ -4089,7 +4475,7 @@ function classifyLongformValidationIssues(error = {}) {
 }
 
 function markValidationFailedVariants(guide = {}, error = {}, allowedVariants = []) {
-  const info = classifyLongformValidationIssues(error);
+  const info = classifyLongformValidationIssues(guide, error);
   const allowed = new Set(allowedVariants.length ? allowedVariants : ['full', 'highlight', 'midform']);
   const failedVariants = info.failedVariants.filter((variant) => allowed.has(variant));
   if (!failedVariants.length) return { guide, failedVariants, handled: false, info };
@@ -4362,7 +4748,13 @@ function validateLongformShortsResult(guide = {}, options = {}) {
     }
   }
 
-  if (!hasNonEmptySubtitles(guide, 'ja')) missing.push('missing_japanese_subtitles');
+  const fullProductionIsKorean = OUTPUT_CONFIG.full_draft.lang === 'ko';
+  if (!skipFullValidation && fullProductionIsKorean && !hasNonEmptySubtitles(guide, 'ko')) {
+    missing.push('missing_korean_subtitles');
+  }
+  if ((!fullProductionIsKorean || !skipHighlightValidation || !skipMidformValidation) && !hasNonEmptySubtitles(guide, 'ja')) {
+    missing.push('missing_japanese_subtitles');
+  }
   if (!options.skipEnglishFallback && hasEnglishFallback(guide, {
     includeFull: !skipFullValidation,
     includeHighlight: !skipHighlightValidation,
@@ -4907,7 +5299,8 @@ function retryDelayMs(attempt, phase = '', status = 0, options = {}) {
 
 function assertLongformBasis(value = {}, label = 'longform') {
   const basis = normalizeText(value.source_time_basis || '');
-  if (basis && basis !== 'absolute_original_seconds') {
+  if (!basis) return;
+  if (basis !== 'absolute_original_seconds') {
     throw createHttpError(500, 'OTTOGI_LONGFORM_TIME_BASIS_INVALID', `${label} must use absolute original seconds`, {
       source_time_basis: basis
     });
@@ -5325,7 +5718,7 @@ function isFullScriptNarrationConnector(value = '', korean = false) {
   const text = normalizeText(value || '').replace(/[、。！？!?.,\s]/g, '');
   if (!text) return false;
   if (korean) {
-    return /(이건|사실|먼저|여기서|중요한|왜|때문|그래서|흐름|정밀|품질|사람|기계|힘을|돕고|맞물|연결|결국|이렇게|이과정|소중한|지탱|만듭니다|만들어요|수확해요|작업입니다)/u.test(text);
+    return /(이건|사실|먼저|여기서|중요한|왜|때문|그래서|흐름|정밀|정확|품질|흔들림|섬세|꼼꼼|정교|사람|기계|힘을|돕고|맞물|연결|결국|이렇게|이과정|소중한|지탱|만듭니다|만들어요|수확해요|작업입니다)/u.test(text);
   }
   return /(実は|これは|ここで|大事|なぜ|だから|ため|ことで|流れ|精度|品質|原料|時期|見極め|傷めず|傷つけ|人が|人の|機械が|機械の|力を|補い|合わさ|連携|支え|残し|作ります|作る作業|集める作業|収穫します|工程です|最後|この)/u.test(text);
 }
@@ -5366,8 +5759,17 @@ function isStiffKoreanScreenCaption(value = '') {
 }
 
 function hasLongLatinWord(value = '') {
-  const textWithoutHashtags = normalizeText(value || '').replace(/#[A-Za-z0-9_]+/gu, '');
-  return /[A-Za-z]{3,}/u.test(textWithoutHashtags);
+  const textWithoutHashtags = normalizeText(value || '')
+    .replace(/#[A-Za-z0-9_]+/gu, '')
+    .replace(/\b(?:4K|3D)\b/giu, '');
+  return /[A-Za-z]{2,}/u.test(textWithoutHashtags);
+}
+
+function stripHashtagsForLanguageValidation(value = '') {
+  return normalizeText(value || '')
+    .replace(/[#＃][\p{L}\p{N}_-]+/gu, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
 }
 
 function collectJapaneseCaptionIssues(guide = {}, options = {}) {
@@ -5377,10 +5779,14 @@ function collectJapaneseCaptionIssues(guide = {}, options = {}) {
   const includeMidform = options.includeMidform !== false;
   const includeScenes = options.includeScenes !== false;
   const includeJapanese = options.includeJapanese !== false;
+  const includeJapaneseFull = includeJapanese && options.includeJapaneseFull === true;
   const includeKorean = options.includeKorean === true;
   const strictHighlightMetadata = options.strictHighlightMetadata !== false;
   const requireJapaneseField = (field, value) => {
-    if (!isValidJapaneseCaption(value) || hasLongLatinWord(value)) {
+    const validationValue = /(?:recommended_titles\[\d+\]\.title|upload_title)$/u.test(field)
+      ? stripHashtagsForLanguageValidation(value)
+      : normalizeText(value || '');
+    if (!isValidJapaneseCaption(validationValue) || hasLongLatinWord(validationValue)) {
       issues.push({
         scene_id: 'metadata',
         field,
@@ -5390,7 +5796,10 @@ function collectJapaneseCaptionIssues(guide = {}, options = {}) {
     }
   };
   const requireKoreanField = (field, value) => {
-    if (!isValidKoreanCaption(value) || hasLongLatinWord(value)) {
+    const validationValue = /(?:recommended_titles\[\d+\]\.title|upload_title)$/u.test(field)
+      ? stripHashtagsForLanguageValidation(value)
+      : normalizeText(value || '');
+    if (!isValidKoreanCaption(validationValue) || hasLongLatinWord(validationValue)) {
       issues.push({
         scene_id: 'metadata',
         field,
@@ -5400,7 +5809,7 @@ function collectJapaneseCaptionIssues(guide = {}, options = {}) {
     }
   };
 
-  if (includeJapanese && includeFull) {
+  if (includeJapaneseFull && includeFull) {
     [
       'short_description_200',
       'explainer_text'
@@ -5627,7 +6036,7 @@ function collectJapaneseCaptionIssues(guide = {}, options = {}) {
     });
   };
 
-  if (includeJapanese && includeFull) {
+  if (includeJapaneseFull && includeFull) {
     validateFullCaptionScript('full_caption_script_ja', guide.full_caption_script_ja, false);
   }
   if (includeJapanese && includeMidform) {
@@ -5652,7 +6061,7 @@ function collectJapaneseCaptionIssues(guide = {}, options = {}) {
     }
   }
 
-  if (includeJapanese && includeFull) ['full_metadata'].forEach((section) => {
+  if (includeJapaneseFull && includeFull) ['full_metadata'].forEach((section) => {
     const metadata = guide?.[section] || {};
     requireJapaneseField(`${section}.short_description`, metadata.short_description);
     requireJapaneseField(`${section}.summary_caption`, metadata.summary_caption);
@@ -5875,6 +6284,60 @@ function applyCaptionRepairBatch(guide = {}, repairResult = {}) {
 
 function applyMetadataFieldRepair(guide = {}, repairResult = {}) {
   const next = { ...guide };
+  const repairedFields = Array.isArray(repairResult?.repaired_fields) ? repairResult.repaired_fields : [];
+  if (repairedFields.length) {
+    repairedFields.forEach((entry) => {
+      const field = normalizeText(entry?.field || '');
+      const value = normalizeText(entry?.value || '');
+      if (!field || !value) return;
+      const topLevelTextFields = new Set([
+        'short_description_200',
+        'short_description_ko',
+        'explainer_text',
+        'explainer_text_ko',
+        'highlight_explainer_text',
+        'highlight_explainer_text_ko'
+      ]);
+      if (topLevelTextFields.has(field)) {
+        next[field] = value;
+        return;
+      }
+      const metadataTextMatch = field.match(/^(full_metadata_ko|highlight_metadata|highlight_metadata_ko|midform_metadata|midform_metadata_ko)\.(short_description|summary_caption|report_description|upload_title|onscreen_caption_block)$/u);
+      if (metadataTextMatch) {
+        const [, section, key] = metadataTextMatch;
+        next[section] = {
+          ...(next[section] || {}),
+          [key]: key === 'upload_title' ? cleanUploadTitle(value) : value
+        };
+        if (section === 'highlight_metadata' && key === 'onscreen_caption_block') next.highlight_explainer_text = value;
+        if (section === 'highlight_metadata_ko' && key === 'onscreen_caption_block') next.highlight_explainer_text_ko = value;
+        return;
+      }
+      const titleMatch = field.match(/^(full_metadata_ko|highlight_metadata|highlight_metadata_ko|midform_metadata|midform_metadata_ko)\.recommended_titles\[(\d+)\]\.title$/u);
+      if (titleMatch) {
+        const [, section, indexText] = titleMatch;
+        const titleIndex = Number(indexText);
+        const metadata = next[section] && typeof next[section] === 'object' ? next[section] : {};
+        const titles = Array.isArray(metadata.recommended_titles) ? [...metadata.recommended_titles] : [];
+        while (titles.length <= titleIndex) {
+          titles.push({ category: '', title: '', hashtags: metadata.hashtags || ['#worker', '#process'] });
+        }
+        const previous = titles[titleIndex] && typeof titles[titleIndex] === 'object' ? titles[titleIndex] : {};
+        titles[titleIndex] = {
+          ...previous,
+          title: cleanUploadTitle(value),
+          hashtags: Array.isArray(previous.hashtags) && previous.hashtags.length
+            ? previous.hashtags
+            : (metadata.hashtags || ['#worker', '#process'])
+        };
+        next[section] = {
+          ...metadata,
+          recommended_titles: titles
+        };
+      }
+    });
+    return next;
+  }
   [
     'short_description_200',
     'short_description_ko',
@@ -5886,7 +6349,7 @@ function applyMetadataFieldRepair(guide = {}, repairResult = {}) {
     const value = normalizeText(repairResult?.[field] || '');
     if (value) next[field] = value;
   });
-  ['full_metadata', 'full_metadata_ko', 'highlight_metadata', 'highlight_metadata_ko', 'midform_metadata', 'midform_metadata_ko'].forEach((field) => {
+  ['full_metadata_ko', 'highlight_metadata', 'highlight_metadata_ko', 'midform_metadata', 'midform_metadata_ko'].forEach((field) => {
     if (repairResult?.[field] && typeof repairResult[field] === 'object') {
       next[field] = {
         ...(next[field] || {}),
@@ -5894,9 +6357,10 @@ function applyMetadataFieldRepair(guide = {}, repairResult = {}) {
       };
     }
   });
-  ['full_caption_script_ja', 'full_caption_script_ko', 'midform_caption_script_ja', 'midform_caption_script_ko'].forEach((field) => {
+  ['full_caption_script_ko', 'midform_caption_script_ja', 'midform_caption_script_ko'].forEach((field) => {
     const scriptItems = extractRepairScriptArray(repairResult, field);
     if (!Array.isArray(scriptItems)) return;
+    const isFullKoreanRepair = field === 'full_caption_script_ko';
     const mappedItems = scriptItems
       .map((item, index) => {
         if (typeof item === 'string') {
@@ -5904,7 +6368,7 @@ function applyMetadataFieldRepair(guide = {}, repairResult = {}) {
             scene_id: `script_${String(index + 1).padStart(3, '0')}`,
             role: index === 0 ? 'hook' : 'technical_context',
             text: normalizeText(item),
-            source_basis: 'full_caption_script_repair'
+            source_basis: isFullKoreanRepair ? 'full_caption_script_repair' : 'metadata_caption_repair'
           };
         }
         if (!item || typeof item !== 'object') return null;
@@ -5912,16 +6376,23 @@ function applyMetadataFieldRepair(guide = {}, repairResult = {}) {
           scene_id: normalizeText(item.scene_id || `script_${String(index + 1).padStart(3, '0')}`),
           role: normalizeText(item.role || 'scene_observation'),
           text: normalizeText(item.text || ''),
-          source_basis: normalizeText(item.source_basis || '')
+          source_basis: isFullKoreanRepair
+            ? 'full_caption_script_repair'
+            : normalizeText(item.source_basis || 'metadata_caption_repair')
         };
       })
       .filter((item) => item?.scene_id && item?.text);
-    if (field === 'full_caption_script_ja') {
-      next[field] = limitFullScriptSceneRoles(enforceFullCaptionSafeLengths(dedupeAdjacentFullCaptionScriptItems(mappedItems), false));
-      return;
-    }
     if (field === 'full_caption_script_ko') {
       next[field] = limitFullScriptSceneRoles(enforceFullCaptionSafeLengths(dedupeAdjacentFullCaptionScriptItems(mappedItems), true));
+      const repairedSubtitles = fullCaptionScriptTexts(next[field]);
+      if (repairedSubtitles.length) {
+        next.full_metadata_ko = {
+          ...(next.full_metadata_ko || {}),
+          variant_type: 'full',
+          caption_mode: 'scene_based_short_subtitles',
+          onscreen_subtitles: repairedSubtitles
+        };
+      }
       return;
     }
     next[field] = mappedItems;
@@ -5956,7 +6427,9 @@ function applyLocalMetadataFallbacks(guide = {}, issues = []) {
   const next = {
     ...guide,
     full_metadata: { ...(guide.full_metadata || {}) },
-    highlight_metadata: { ...(guide.highlight_metadata || {}) }
+    full_metadata_ko: { ...(guide.full_metadata_ko || {}) },
+    highlight_metadata: { ...(guide.highlight_metadata || {}) },
+    highlight_metadata_ko: { ...(guide.highlight_metadata_ko || {}) }
   };
   const safeJapaneseTitleFor = (metadata = {}, fallbackTitle = '') => {
     const candidates = [
@@ -5972,7 +6445,13 @@ function applyLocalMetadataFallbacks(guide = {}, issues = []) {
   const repairRecommendedTitle = (section, titleIndex) => {
     const metadata = next[section] && typeof next[section] === 'object' ? next[section] : {};
     const titles = Array.isArray(metadata.recommended_titles) ? [...metadata.recommended_titles] : [];
-    const fallbackTitle = safeJapaneseTitleFor(metadata, guide.detected_subject || '');
+    const korean = /_ko$/u.test(section);
+    const fallbackTitle = korean
+      ? titleWithEnglishHashtags(
+          normalizeText(guide.detected_subject || '제조 공정') || '제조 공정',
+          metadata.hashtags || ['#worker', '#process', '#metalwork', '#tools', '#craftsmanship']
+        )
+      : safeJapaneseTitleFor(metadata, guide.detected_subject || '');
     while (titles.length <= titleIndex) {
       titles.push({ title: fallbackTitle, hashtags: metadata.hashtags || ['#worker', '#process'] });
     }
@@ -5992,10 +6471,23 @@ function applyLocalMetadataFallbacks(guide = {}, issues = []) {
   const sanitizeMetadataLanguageText = (section, field, korean = false) => {
     const metadata = next[section] && typeof next[section] === 'object' ? next[section] : {};
     const currentValue = normalizeText(metadata[field] || '');
-    if (!currentValue || !hasLongLatinWord(currentValue)) return;
+    const validLanguage = korean ? isValidKoreanCaption(currentValue) : isValidJapaneseCaption(currentValue);
+    if (!currentValue || (validLanguage && !hasLongLatinWord(currentValue))) return;
+    const subject = normalizeText(guide.detected_subject || metadata.upload_title || guide.short_description_ko || guide.short_description_200 || '제조 공정');
+    if (field === 'report_description') {
+      next[section] = {
+        ...metadata,
+        [field]: formatStructuredReportDescription(buildFallbackReport(
+          subject,
+          metadata.short_description || metadata.summary_caption || subject,
+          korean
+        ), korean)
+      };
+      return;
+    }
     const replacement = korean
-      ? '수작업 우물 굴착'
-      : safeJapaneseTitleFor(metadata, '手掘り井戸の工程');
+      ? '제조 공정'
+      : safeJapaneseTitleFor(metadata, '製造工程');
     next[section] = {
       ...metadata,
       [field]: currentValue
@@ -6118,7 +6610,7 @@ function applyLocalMetadataFallbacks(guide = {}, issues = []) {
     } else if (field === 'highlight_metadata_ko.summary_caption') {
       sanitizeMetadataLanguageText('highlight_metadata_ko', 'summary_caption', true);
     } else {
-      const titleMatch = field.match(/^(full_metadata|highlight_metadata|midform_metadata)\.recommended_titles\[(\d+)\]\.title$/u);
+      const titleMatch = field.match(/^(full_metadata|full_metadata_ko|highlight_metadata|highlight_metadata_ko|midform_metadata|midform_metadata_ko)\.recommended_titles\[(\d+)\]\.title$/u);
       if (titleMatch) {
         repairRecommendedTitle(titleMatch[1], Number(titleMatch[2]));
       }
@@ -6189,13 +6681,9 @@ function validateGuide(guide, options = {}) {
     missing.push('all_variant_generation_failed');
   }
   const baseRequiredKeys = skipFullValidation ? [] : [
-    'short_description_200',
     'short_description_ko',
-    'recommended_titles',
     'recommended_titles_ko',
-    'report_description',
     'report_description_ko',
-    'explainer_text',
     'explainer_text_ko'
   ];
   for (const key of baseRequiredKeys) {
@@ -6203,9 +6691,6 @@ function validateGuide(guide, options = {}) {
   }
   if (!Array.isArray(guide?.scene_transitions)) {
     missing.push('scene_transitions_array');
-  }
-  if (!skipFullValidation && (!Array.isArray(guide?.recommended_titles) || guide.recommended_titles.length < 5)) {
-    missing.push('recommended_titles_min_5');
   }
   if (!skipFullValidation && (!Array.isArray(guide?.recommended_titles_ko) || guide.recommended_titles_ko.length < 5)) {
     missing.push('recommended_titles_ko_min_5');
@@ -6225,7 +6710,9 @@ function validateGuide(guide, options = {}) {
   const invalidJapaneseCaptions = collectJapaneseCaptionIssues(guide, {
     includeFull: !skipFullValidation,
     includeHighlight: !skipHighlightValidation,
-    includeMidform: !skipMidformValidation
+    includeMidform: !skipMidformValidation,
+    includeKorean: true,
+    includeJapaneseFull: false
   });
   if (invalidJapaneseCaptions.length) {
     missing.push('invalid_japanese_scene_captions');
@@ -6293,6 +6780,31 @@ function summarizeFullScriptForLog(guide = {}, field, limit = 22) {
     .join(' / ');
 }
 
+function assertRepairNormalizationDidNotCollapse({ field, beforeCount, afterCount }) {
+  const before = Number(beforeCount || 0);
+  const after = Number(afterCount || 0);
+  if (before <= 0) return;
+  if (after >= Math.ceil(before * 0.5)) return;
+  throw createHttpError(
+    500,
+    'REPAIR_NORMALIZE_LOSS',
+    `REPAIR_NORMALIZE_LOSS: repair ${before}개 중 ${after}개만 생존 — 형식 불일치 의심, 적용 취소`,
+    {
+      field,
+      repair_count: before,
+      normalized_count: after,
+      loss_ratio: Number(((before - after) / before).toFixed(3))
+    }
+  );
+}
+
+function repairNormalizationPreview(script = [], limit = 8) {
+  return (Array.isArray(script) ? script : [])
+    .slice(0, limit)
+    .map((item) => normalizeText(item?.text || item || ''))
+    .filter(Boolean);
+}
+
 function summarizeRepairScriptShapeForLog(repairResult = {}) {
   const rootKeys = Object.keys(repairResult || {}).slice(0, 12).join(', ') || '-';
   const countFor = (field) => {
@@ -6344,12 +6856,8 @@ async function validateOrRepairJapaneseCaptions({ guide, generateRepairJson, sou
       if (metadataIssues.length) {
         const fullScriptRepairIssues = metadataIssues.filter((issue) => {
           const field = normalizeText(issue?.field || '');
-          return field === 'full_caption_script_ja'
-            || field.startsWith('full_caption_script_ja[')
-            || field === 'full_caption_script_ko'
+          return field === 'full_caption_script_ko'
             || field.startsWith('full_caption_script_ko[')
-            || field === 'full_metadata.onscreen_subtitles'
-            || field.startsWith('full_metadata.onscreen_subtitles[')
             || field === 'full_metadata_ko.onscreen_subtitles'
             || field.startsWith('full_metadata_ko.onscreen_subtitles[');
         });
@@ -6371,17 +6879,11 @@ async function validateOrRepairJapaneseCaptions({ guide, generateRepairJson, sou
             'full_caption_script_repair'
           );
           const repairShape = summarizeRepairScriptShapeForLog(fullScriptRepair);
-          emitProgress(onProgress, `Gemini Full 원고 repair 응답: keys=${repairShape.rootKeys} / JP ${repairShape.jaCount}개 / KO ${repairShape.koCount}개`, {
+          emitProgress(onProgress, `Gemini Full 원고 repair 응답: keys=${repairShape.rootKeys} / KO ${repairShape.koCount}개`, {
             phase: 'full_caption_script_repair',
             attempt,
             repair_shape: repairShape
           });
-          if (repairShape.jaPreview) {
-            emitProgress(onProgress, `Gemini Full 원고 repair JP 미리보기: ${repairShape.jaPreview}`, {
-              phase: 'full_caption_script_repair',
-              attempt
-            });
-          }
           if (repairShape.koPreview) {
             emitProgress(onProgress, `Gemini Full 원고 repair KO 미리보기: ${repairShape.koPreview}`, {
               phase: 'full_caption_script_repair',
@@ -6389,16 +6891,31 @@ async function validateOrRepairJapaneseCaptions({ guide, generateRepairJson, sou
             });
           }
           const appliedGuide = applyMetadataFieldRepair(current, fullScriptRepair);
-          const appliedJaCount = Array.isArray(appliedGuide.full_caption_script_ja) ? appliedGuide.full_caption_script_ja.length : 0;
           const appliedKoCount = Array.isArray(appliedGuide.full_caption_script_ko) ? appliedGuide.full_caption_script_ko.length : 0;
-          current = normalizeGuide(appliedGuide, sourceUrl, durationSec);
-          const normalizedJaCount = Array.isArray(current.full_caption_script_ja) ? current.full_caption_script_ja.length : 0;
-          const normalizedKoCount = Array.isArray(current.full_caption_script_ko) ? current.full_caption_script_ko.length : 0;
-          emitProgress(onProgress, `Gemini Full 원고 repair 적용: raw JP ${appliedJaCount}→${normalizedJaCount}개 / KO ${appliedKoCount}→${normalizedKoCount}개`, {
+          const normalizedGuide = normalizeGuide(appliedGuide, sourceUrl, durationSec);
+          const normalizedKoCount = Array.isArray(normalizedGuide.full_caption_script_ko) ? normalizedGuide.full_caption_script_ko.length : 0;
+          try {
+            assertRepairNormalizationDidNotCollapse({
+              field: 'full_caption_script_ko',
+              beforeCount: appliedKoCount,
+              afterCount: normalizedKoCount
+            });
+          } catch (error) {
+            error.details = {
+              ...(error.details || {}),
+              applied_preview: repairNormalizationPreview(appliedGuide.full_caption_script_ko),
+              normalized_preview: repairNormalizationPreview(normalizedGuide.full_caption_script_ko),
+              applied_source_basis: (Array.isArray(appliedGuide.full_caption_script_ko) ? appliedGuide.full_caption_script_ko : [])
+                .slice(0, 8)
+                .map((item) => normalizeText(item?.source_basis || ''))
+                .filter(Boolean)
+            };
+            throw error;
+          }
+          current = normalizedGuide;
+          emitProgress(onProgress, `Gemini Full 원고 repair 적용: KO ${appliedKoCount}→${normalizedKoCount}개`, {
             phase: 'full_caption_script_repair',
             attempt,
-            applied_ja_count: appliedJaCount,
-            normalized_ja_count: normalizedJaCount,
             applied_ko_count: appliedKoCount,
             normalized_ko_count: normalizedKoCount
           });
@@ -6406,14 +6923,7 @@ async function validateOrRepairJapaneseCaptions({ guide, generateRepairJson, sou
           if (!remainingMetadataIssues.length) continue;
           metadataIssues.splice(0, metadataIssues.length, ...remainingMetadataIssues);
         }
-        const fullScriptJa = summarizeFullScriptForLog(current, 'full_caption_script_ja');
         const fullScriptKo = summarizeFullScriptForLog(current, 'full_caption_script_ko');
-        if (fullScriptJa) {
-          emitProgress(onProgress, `Gemini Full 원고 JP: ${fullScriptJa}`, {
-            phase: 'metadata_validation',
-            attempt
-          });
-        }
         if (fullScriptKo) {
           emitProgress(onProgress, `Gemini Full 원고 KO: ${fullScriptKo}`, {
             phase: 'metadata_validation',
@@ -6427,11 +6937,15 @@ async function validateOrRepairJapaneseCaptions({ guide, generateRepairJson, sou
             attempt
           });
         });
-        const locallyRepairedGuide = normalizeGuide(applyLocalMetadataFallbacks(current, metadataIssues), sourceUrl, durationSec);
+        const locallyRepairedGuide = normalizeGuide(enforcePublicMetadataLanguage(
+          applyLocalMetadataFallbacks(current, metadataIssues)
+        ), sourceUrl, durationSec);
         const issueOptions = {
           includeFull: validationOptions.skipFullValidation !== true,
           includeHighlight: validationOptions.skipHighlightValidation !== true,
-          includeMidform: validationOptions.skipMidformValidation !== true
+          includeMidform: validationOptions.skipMidformValidation !== true,
+          includeKorean: true,
+          includeJapaneseFull: false
         };
         const remainingAfterLocalRepair = collectJapaneseCaptionIssues(locallyRepairedGuide, issueOptions)
           .filter((issue) => normalizeText(issue?.scene_id || '') === 'metadata');
@@ -6462,7 +6976,10 @@ async function validateOrRepairJapaneseCaptions({ guide, generateRepairJson, sou
           OTTOGI_METADATA_FIELD_REPAIR_SCHEMA,
           'metadata_repair'
         );
-        current = normalizeGuide(applyMetadataFieldRepair(current, metadataRepair), sourceUrl, durationSec);
+        current = normalizeGuide(enforcePublicMetadataLanguage(applyLocalMetadataFallbacks(
+          applyMetadataFieldRepair(current, metadataRepair),
+          metadataIssues
+        )), sourceUrl, durationSec);
       }
 
       const sceneIds = uniqueIssueSceneIds(captionIssues);
@@ -6500,12 +7017,24 @@ async function validateOrRepairJapaneseCaptions({ guide, generateRepairJson, sou
           OTTOGI_CAPTION_REPAIR_SCHEMA,
           'caption_repair'
         );
-        current = normalizeGuide(applyCaptionRepairBatch(current, repairResult), sourceUrl, durationSec);
+        current = normalizeGuide(applyLocalCaptionFallbacks(
+          applyCaptionRepairBatch(current, repairResult),
+          batchIssues
+        ), sourceUrl, durationSec);
       }
     }
   }
-  const normalizedCurrent = normalizeGuide(current, sourceUrl, durationSec);
-  validateGuide(normalizedCurrent, validationOptions);
+  const normalizedCurrent = enforcePublicMetadataLanguage(normalizeGuide(
+    enforcePublicMetadataLanguage(current),
+    sourceUrl,
+    durationSec
+  ));
+  try {
+    validateGuide(normalizedCurrent, validationOptions);
+  } catch (error) {
+    error.guide = normalizedCurrent;
+    throw error;
+  }
   return normalizedCurrent;
 }
 
@@ -6551,6 +7080,11 @@ function getMimeType(filePath) {
   return 'video/mp4';
 }
 
+function hasLocalSourceFile(filePath = '') {
+  const resolved = String(filePath || '').trim();
+  return Boolean(resolved) && fs.existsSync(resolved);
+}
+
 function buildYoutubeFilePart(sourceUrl) {
   return {
     fileData: {
@@ -6558,6 +7092,62 @@ function buildYoutubeFilePart(sourceUrl) {
       fileUri: String(sourceUrl || '').trim()
     }
   };
+}
+
+async function buildApiKeyVideoPart({ filePath, sourceUrl, apiKey, throwIfCancelled = null }) {
+  if (hasLocalSourceFile(filePath)) {
+    const fileManager = new GoogleAIFileManager(apiKey);
+    const uploadResult = await fileManager.uploadFile(filePath, {
+      mimeType: getMimeType(filePath),
+      displayName: `ottogi_metadata_${Date.now()}_${path.basename(filePath)}`
+    });
+
+    let uploadedFile = uploadResult.file;
+    let tries = 0;
+    while (normalizeFileState(uploadedFile) === 'PROCESSING') {
+      checkCancellation(throwIfCancelled);
+      if (tries >= FILE_POLL_MAX_RETRIES) {
+        throw createHttpError(504, 'GEMINI_FILE_PROCESSING_TIMEOUT', 'Gemini file processing timed out');
+      }
+      await cancellableSleep(FILE_POLL_INTERVAL_MS, throwIfCancelled);
+      uploadedFile = await fileManager.getFile(uploadedFile.name);
+      tries += 1;
+    }
+
+    if (normalizeFileState(uploadedFile) === 'FAILED') {
+      throw createHttpError(500, 'GEMINI_FILE_PROCESSING_FAILED', 'Gemini file processing failed', { file: uploadedFile });
+    }
+
+    return {
+      fileData: {
+        mimeType: uploadedFile.mimeType,
+        fileUri: uploadedFile.uri
+      }
+    };
+  }
+
+  if (isYouTubeUrl(sourceUrl)) {
+    return buildYoutubeFilePart(sourceUrl);
+  }
+
+  throw createHttpError(400, 'SOURCE_VIDEO_REQUIRED', 'source video file is required');
+}
+
+function buildVertexVideoPart({ filePath, sourceUrl }) {
+  if (hasLocalSourceFile(filePath)) {
+    return {
+      inlineData: {
+        mimeType: getMimeType(filePath),
+        data: fs.readFileSync(filePath).toString('base64')
+      }
+    };
+  }
+
+  if (isYouTubeUrl(sourceUrl)) {
+    return buildYoutubeFilePart(sourceUrl);
+  }
+
+  throw createHttpError(400, 'SOURCE_VIDEO_REQUIRED', 'source video file is required');
 }
 
 async function getVertexAccessToken() {
@@ -6739,6 +7329,28 @@ function requestedLongformVariants({ wantsFullFinal, wantsHighlightFinal, wantsM
   ].filter(Boolean);
 }
 
+function normalizeMetadataVariantMode(value = 'all') {
+  const mode = String(value || 'all').trim();
+  return ['all', 'full_highlight_only', 'full_only', 'highlight_only', 'midform_only'].includes(mode) ? mode : 'all';
+}
+
+function validationOptionsForMetadataVariantMode(value = 'all') {
+  const mode = normalizeMetadataVariantMode(value);
+  return {
+    skipFullValidation: !['all', 'full_highlight_only', 'full_only'].includes(mode),
+    skipHighlightValidation: !['all', 'full_highlight_only', 'highlight_only'].includes(mode),
+    skipMidformValidation: !['midform_only'].includes(mode)
+  };
+}
+
+function requestedStandardVariants(value = 'all') {
+  const mode = normalizeMetadataVariantMode(value);
+  if (mode === 'full_only') return ['full'];
+  if (mode === 'highlight_only') return ['highlight'];
+  if (mode === 'midform_only') return ['midform'];
+  return ['full', 'highlight'];
+}
+
 function allRequestedLongformVariantsFailed(guide = {}, variants = []) {
   return variants.length > 0
     && variants.every((variant) => guide?.[`${variant}_generation_status`] === 'failed');
@@ -6750,6 +7362,9 @@ async function runLongformGeminiPipeline({ generateJson, sourceUrl, filename, du
   const wantsHighlightFinal = ['all', 'full_highlight_only', 'highlight_only'].includes(normalizedMetadataVariantMode);
   const wantsMidformFinal = ['all', 'midform_only'].includes(normalizedMetadataVariantMode);
   const sourceDuration = Number(durationSec || 0);
+  const analysisDurationSec = sourceDuration > ULTRA_LONGFORM_ANALYSIS_HORIZON_SEC
+    ? ULTRA_LONGFORM_ANALYSIS_HORIZON_SEC
+    : sourceDuration;
 
   let hookGuide = existingGuide?.hook_clip_10s ? { hook_clip_10s: existingGuide.hook_clip_10s } : {};
   let storyGuide = existingGuide?.story_clip_40s ? { story_clip_40s: existingGuide.story_clip_40s } : {};
@@ -6760,6 +7375,18 @@ async function runLongformGeminiPipeline({ generateJson, sourceUrl, filename, du
   let midformGuideRaw = {};
   let candidateGuideRaw = buildLongformCandidateGuideFromExisting(existingGuide, durationSec);
   let candidateGuideWasScanned = false;
+
+  if (!candidateGuideRaw && sourceDuration >= LOCAL_LONGFORM_CANDIDATE_MIN_DURATION_SEC && (wantsFullFinal || wantsHighlightFinal || wantsMidformFinal)) {
+    candidateGuideRaw = validateLongformCandidateGuide(
+      buildLocalLongformCandidateGuide({ durationSec: analysisDurationSec, sourceType, sourceWorkflowMode }),
+      analysisDurationSec
+    );
+    emitProgress(onProgress, `Gemini Longform 1/5 대체: 로컬 후보 전처리 ${candidateGuideRaw.hook_candidates?.length || 0}개 / story ${candidateGuideRaw.story_candidates?.length || 0}개${candidateGuideRaw.midform_candidates?.length ? ` / midform ${candidateGuideRaw.midform_candidates.length}개` : ''}${sourceDuration > analysisDurationSec ? ` / 분석 범위 ${analysisDurationSec}s로 제한` : ''}`, {
+      phase: 'longform_candidates',
+      local_preprocessed: true,
+      local_candidate_strategy: candidateGuideRaw.local_candidate_strategy || null
+    });
+  }
 
   if (!candidateGuideRaw && (wantsFullFinal || wantsHighlightFinal || wantsMidformFinal)) {
     try {
@@ -7319,20 +7946,47 @@ async function runStandardGeminiPipeline({ generateJson, sourceUrl, filename, du
       error_status: error.status || error.statusCode || null
     });
   }
-  const guide = await validateOrRepairJapaneseCaptions({
-    guide: reviewGuide ? mergeReviewedGuide(draftGuide, reviewGuide, sourceUrl, durationSec) : draftGuide,
-    generateRepairJson: (prompt, schema = OTTOGI_REVIEW_SCHEMA, phase = 'caption_repair') => generateJson(
-      prompt,
-      schema,
-      phase,
-      { includeVideo: false }
-    ),
-    sourceUrl,
-    filename,
-    durationSec,
-    validationOptions: validationOptionsForMetadataVariantMode(metadataVariantMode),
-    onProgress
-  });
+  const guideBeforeFinalValidation = reviewGuide ? mergeReviewedGuide(draftGuide, reviewGuide, sourceUrl, durationSec) : draftGuide;
+  const validationOptions = validationOptionsForMetadataVariantMode(metadataVariantMode);
+  const requestedVariants = requestedStandardVariants(metadataVariantMode);
+  let guide;
+  try {
+    guide = await validateOrRepairJapaneseCaptions({
+      guide: guideBeforeFinalValidation,
+      generateRepairJson: (prompt, schema = OTTOGI_REVIEW_SCHEMA, phase = 'caption_repair') => generateJson(
+        prompt,
+        schema,
+        phase,
+        { includeVideo: false }
+      ),
+      sourceUrl,
+      filename,
+      durationSec,
+      validationOptions,
+      onProgress
+    });
+  } catch (error) {
+    const repairedGuideForPartial = error.guide && typeof error.guide === 'object'
+      ? error.guide
+      : guideBeforeFinalValidation;
+    const marked = markValidationFailedVariants(repairedGuideForPartial, error, requestedVariants);
+    if (!marked.handled) throw error;
+    guide = enforcePublicMetadataLanguage(normalizeGuide(marked.guide, sourceUrl, durationSec));
+    emitProgress(onProgress, `Gemini 최종 검증 실패: ${marked.failedVariants.join(', ')} 포맷만 실패 처리하고 성공 포맷은 보존합니다.`, {
+      phase: 'metadata_partial_validation',
+      failed_variants: marked.failedVariants,
+      missing: marked.info.missing,
+      invalid_japanese_captions: marked.info.invalidCaptions
+    });
+    if (allRequestedLongformVariantsFailed(guide, requestedVariants)) {
+      throw error;
+    }
+    validateGuide(guide, {
+      skipFullValidation: validationOptions.skipFullValidation || guide.full_generation_status === 'failed',
+      skipHighlightValidation: validationOptions.skipHighlightValidation || guide.highlight_generation_status === 'failed',
+      skipMidformValidation: validationOptions.skipMidformValidation || guide.midform_generation_status === 'failed'
+    });
+  }
   emitProgress(onProgress, 'Gemini 3/3 완료: 최종 JSON 검증 완료', { phase: 'review' });
   return guide;
 }
@@ -7344,21 +7998,20 @@ async function analyzeWithVertexAdc({ filePath, sourceUrl, durationSec, original
   }
 
   const token = await getVertexAccessToken();
-  const endpoint = `https://${config.location}-aiplatform.googleapis.com/v1/projects/${config.project}/locations/${config.location}/publishers/google/models/${config.model}:generateContent`;
-  const videoPart = isYouTubeUrl(sourceUrl)
-    ? buildYoutubeFilePart(sourceUrl)
-    : {
-        inlineData: {
-          mimeType: getMimeType(filePath),
-          data: fs.readFileSync(filePath).toString('base64')
-        }
-      };
+  const endpoint = buildVertexEndpoint(config);
+  let videoPartPromise = null;
+  const ensureVideoPart = async () => {
+    if (!videoPartPromise) {
+      videoPartPromise = Promise.resolve(buildVertexVideoPart({ filePath, sourceUrl }));
+    }
+    return videoPartPromise;
+  };
 
   async function generateJson(prompt, responseSchema, phase, options = {}) {
     const includeVideo = options.includeVideo !== false;
     const parts = includeVideo
       ? [
-          videoPart,
+          await ensureVideoPart(),
           {
             text: prompt
           }
@@ -7484,44 +8137,19 @@ async function analyzeWithApiKey({ filePath, sourceUrl, apiKey, durationSec, ori
   }
 
   const genAI = new GoogleGenerativeAI(apiKey);
-
-  let videoPart = buildYoutubeFilePart(sourceUrl);
-  if (!isYouTubeUrl(sourceUrl)) {
-    const fileManager = new GoogleAIFileManager(apiKey);
-    const uploadResult = await fileManager.uploadFile(filePath, {
-      mimeType: getMimeType(filePath),
-      displayName: `ottogi_metadata_${Date.now()}_${path.basename(filePath)}`
-    });
-
-    let uploadedFile = uploadResult.file;
-    let tries = 0;
-    while (normalizeFileState(uploadedFile) === 'PROCESSING') {
-      checkCancellation(throwIfCancelled);
-      if (tries >= FILE_POLL_MAX_RETRIES) {
-        throw createHttpError(504, 'GEMINI_FILE_PROCESSING_TIMEOUT', 'Gemini file processing timed out');
-      }
-      await cancellableSleep(FILE_POLL_INTERVAL_MS, throwIfCancelled);
-      uploadedFile = await fileManager.getFile(uploadedFile.name);
-      tries += 1;
+  let videoPartPromise = null;
+  const ensureVideoPart = async () => {
+    if (!videoPartPromise) {
+      videoPartPromise = buildApiKeyVideoPart({ filePath, sourceUrl, apiKey, throwIfCancelled });
     }
-
-    if (normalizeFileState(uploadedFile) === 'FAILED') {
-      throw createHttpError(500, 'GEMINI_FILE_PROCESSING_FAILED', 'Gemini file processing failed', { file: uploadedFile });
-    }
-
-    videoPart = {
-      fileData: {
-        mimeType: uploadedFile.mimeType,
-        fileUri: uploadedFile.uri
-      }
-    };
-  }
+    return videoPartPromise;
+  };
 
   async function generateJson(prompt, responseSchema, phase = 'json', options = {}) {
     const includeVideo = options.includeVideo !== false;
     const parts = includeVideo
       ? [
-          videoPart,
+          await ensureVideoPart(),
           {
             text: prompt
           }
@@ -7612,5 +8240,16 @@ module.exports = {
   getVertexConfig,
   getVertexAccessToken,
   extractVertexResponseText,
-  buildYoutubeFilePart
+  buildYoutubeFilePart,
+  OUTPUT_CONFIG,
+  outputLanguageForVariant,
+  __test: {
+    applyMetadataFieldRepair,
+    applyLocalMetadataFallbacks,
+    enforcePublicMetadataLanguage,
+    normalizeGuide,
+    assertRepairNormalizationDidNotCollapse,
+    OTTOGI_METADATA_FIELD_REPAIR_SCHEMA,
+    OTTOGI_FULL_CAPTION_SCRIPT_REPAIR_SCHEMA
+  }
 };
