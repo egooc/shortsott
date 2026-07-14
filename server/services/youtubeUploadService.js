@@ -2,7 +2,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { OAuth2Client } = require('google-auth-library');
-const { readEnvMap, writeEnvMap, maskSecret } = require('./envService');
+const { maskSecret } = require('./envService');
 const { PROJECT_ROOT, readJsonIfExists } = require('./pipelinePaths');
 
 const QUEUE_CONFIG_PATH = path.join(PROJECT_ROOT, 'queue', 'process', 'queue_config.json');
@@ -279,10 +279,6 @@ function deleteUploadCard(cardId) {
   };
 }
 
-function getEnvValue(envMap, key) {
-  return envMap[key] || process.env[key] || '';
-}
-
 function readStoredProfilesFile() {
   ensureDataDir();
   if (!fs.existsSync(PROFILES_PATH)) return { profiles: [], activeProfileId: '' };
@@ -351,10 +347,13 @@ function publicProfile(profile) {
     channelId: profile.channelId || '',
     email: profile.email || '',
     purpose: profile.purpose || '',
-    isLegacyEnv: Boolean(profile.isLegacyEnv),
-    hasOAuthClientSnapshot: Boolean(profile.oauthClientId && profile.oauthClientSecret),
+    hasOAuthClient: Boolean(profile.oauthClientId && profile.oauthClientSecret && profile.oauthRedirectUri),
+    hasRefreshToken: Boolean(profile.refreshToken),
+    oauthClientId: profile.oauthClientId || '',
     oauthClientIdHint: profile.oauthClientId ? `${String(profile.oauthClientId).slice(0, 12)}...` : '',
+    oauthRedirectUri: profile.oauthRedirectUri || DEFAULT_REDIRECT_URI,
     maskedRefreshToken: maskSecret(profile.refreshToken || ''),
+    maskedOAuthClientSecret: maskSecret(profile.oauthClientSecret || ''),
     createdAt: profile.createdAt || '',
     updatedAt: profile.updatedAt || ''
   };
@@ -398,7 +397,7 @@ function deleteUploadCardsByDate(dateKey) {
 
 function listYouTubeUploadProfiles() {
   const stored = readStoredProfilesFile();
-  const profiles = stored.profiles.filter((profile) => profile?.id && profile?.refreshToken);
+  const profiles = stored.profiles.filter((profile) => profile?.id);
   const activeProfileId = profiles.some((profile) => profile.id === stored.activeProfileId)
     ? stored.activeProfileId
     : (profiles[0]?.id || '');
@@ -411,22 +410,18 @@ function listYouTubeUploadProfiles() {
 
 function getStoredProfile(profileId) {
   const stored = readStoredProfilesFile();
-  return stored.profiles.find((profile) => profile.id === profileId && profile.refreshToken) || null;
+  return stored.profiles.find((profile) => profile.id === profileId) || null;
 }
 
 function getDefaultStoredProfile(stored = readStoredProfilesFile()) {
-  const profiles = stored.profiles.filter((profile) => profile?.id && profile?.refreshToken);
+  const profiles = stored.profiles.filter((profile) => profile?.id);
   if (!profiles.length) return null;
   return profiles.find((profile) => profile.id === stored.activeProfileId) || profiles[0] || null;
 }
 
 function getDefaultUploadProfileId() {
   const profile = getDefaultStoredProfile();
-  if (profile?.id) return profile.id;
-
-  const envMap = readEnvMap();
-  const legacyRefreshToken = getEnvValue(envMap, 'YOUTUBE_OAUTH_REFRESH_TOKEN');
-  return legacyRefreshToken ? 'legacy_default' : '';
+  return profile?.id || '';
 }
 
 function resolveUploadProfileId(profileId = '') {
@@ -434,33 +429,110 @@ function resolveUploadProfileId(profileId = '') {
   return requested || getDefaultUploadProfileId();
 }
 
-function resolveProfileRefreshToken(profileId) {
+function resolveStoredProfile(profileId = '') {
   const stored = readStoredProfilesFile();
-  if (profileId && profileId !== 'legacy_default') {
-    const profile = stored.profiles.find((item) => item.id === profileId && item.refreshToken) || null;
-    if (profile?.refreshToken) return { profile, refreshToken: profile.refreshToken };
+  const requested = String(profileId || '').trim();
+  if (requested) {
+    return stored.profiles.find((item) => item.id === requested) || null;
+  }
+  return getDefaultStoredProfile(stored);
+}
+
+function createProfileOAuthClientMissingError(profile = {}, missingFields = []) {
+  const label = cleanProfileName(profile) || profile.id || '이 채널';
+  const error = new Error(`채널 ${label}의 OAuth 클라이언트가 설정되지 않았습니다. 설정에서 새 OAuth 클라이언트를 등록하세요.`);
+  error.code = 'YOUTUBE_PROFILE_OAUTH_CLIENT_MISSING';
+  error.status = 400;
+  error.details = {
+    profileId: profile.id || '',
+    profileName: cleanProfileName(profile),
+    channelTitle: profile.channelTitle || '',
+    channelId: profile.channelId || '',
+    missingFields
+  };
+  return error;
+}
+
+function createProfileRefreshTokenMissingError(profile = {}) {
+  const label = cleanProfileName(profile) || profile.id || '이 채널';
+  const error = new Error(`채널 ${label}이 아직 연결되지 않았습니다. 이 채널 카드에서 재연결을 완료하세요.`);
+  error.code = 'YOUTUBE_PROFILE_REFRESH_TOKEN_MISSING';
+  error.status = 400;
+  error.details = {
+    profileId: profile.id || '',
+    profileName: cleanProfileName(profile),
+    channelTitle: profile.channelTitle || '',
+    channelId: profile.channelId || ''
+  };
+  return error;
+}
+
+function assertProfileOAuthClientConfigured(profile = {}) {
+  const missingFields = [];
+  if (!String(profile.oauthClientId || '').trim()) missingFields.push('oauthClientId');
+  if (!String(profile.oauthClientSecret || '').trim()) missingFields.push('oauthClientSecret');
+  if (!String(profile.oauthRedirectUri || '').trim()) missingFields.push('oauthRedirectUri');
+  if (missingFields.length) throw createProfileOAuthClientMissingError(profile, missingFields);
+}
+
+function normalizeProfileOauthInput(patch = {}, previousProfile = {}) {
+  const next = {};
+
+  if (Object.prototype.hasOwnProperty.call(patch, 'name')) {
+    next.name = String(patch.name || '').trim() || previousProfile.name || '';
+  }
+  if (Object.prototype.hasOwnProperty.call(patch, 'purpose')) {
+    next.purpose = typeof patch.purpose === 'string' ? patch.purpose : (previousProfile.purpose || '');
+  }
+  if (Object.prototype.hasOwnProperty.call(patch, 'channelTitle')) {
+    next.channelTitle = String(patch.channelTitle || '').trim();
+  }
+  if (Object.prototype.hasOwnProperty.call(patch, 'channelId')) {
+    next.channelId = String(patch.channelId || '').trim();
+  }
+  if (Object.prototype.hasOwnProperty.call(patch, 'oauthClientId')) {
+    next.oauthClientId = String(patch.oauthClientId || '').trim();
+  }
+  if (Object.prototype.hasOwnProperty.call(patch, 'oauthClientSecret')) {
+    const secret = String(patch.oauthClientSecret || '').trim();
+    if (secret) next.oauthClientSecret = secret;
+  }
+  if (Object.prototype.hasOwnProperty.call(patch, 'oauthRedirectUri')) {
+    next.oauthRedirectUri = String(patch.oauthRedirectUri || '').trim() || DEFAULT_REDIRECT_URI;
   }
 
-  if (!profileId) {
-    const profile = getDefaultStoredProfile(stored);
-    if (profile?.refreshToken) return { profile, refreshToken: profile.refreshToken };
-  }
+  return next;
+}
 
-  const envMap = readEnvMap();
-  const legacyRefreshToken = getEnvValue(envMap, 'YOUTUBE_OAUTH_REFRESH_TOKEN');
-  if (legacyRefreshToken && !stored.profiles.some((profile) => profile?.refreshToken)) {
-    return {
-      profile: {
-        id: 'legacy_default',
-        name: '기존 연결 채널',
-        refreshToken: legacyRefreshToken,
-        isLegacyEnv: true
-      },
-      refreshToken: legacyRefreshToken
-    };
-  }
+function validateProfileOAuthClientForCreate(profile = {}) {
+  const missingFields = [];
+  if (!String(profile.name || profile.channelTitle || '').trim()) missingFields.push('name');
+  if (!String(profile.oauthClientId || '').trim()) missingFields.push('oauthClientId');
+  if (!String(profile.oauthClientSecret || '').trim()) missingFields.push('oauthClientSecret');
+  if (!String(profile.oauthRedirectUri || '').trim()) missingFields.push('oauthRedirectUri');
+  if (!missingFields.length) return;
+  const error = new Error('새 업로드 채널을 추가하려면 관리 이름, OAuth Client ID, Client Secret, Redirect URI를 모두 입력하세요.');
+  error.code = 'YOUTUBE_UPLOAD_PROFILE_CREATE_FIELDS_MISSING';
+  error.status = 400;
+  error.details = { missingFields };
+  throw error;
+}
 
-  return { profile: null, refreshToken: '' };
+function createYouTubeUploadProfile(profile = {}) {
+  const payload = normalizeProfileOauthInput({
+    ...profile,
+    oauthRedirectUri: profile.oauthRedirectUri || DEFAULT_REDIRECT_URI
+  });
+  validateProfileOAuthClientForCreate(payload);
+  return saveYouTubeUploadProfile({
+    name: payload.name,
+    purpose: payload.purpose || '',
+    channelTitle: payload.channelTitle || '',
+    channelId: payload.channelId || '',
+    oauthClientId: payload.oauthClientId,
+    oauthClientSecret: payload.oauthClientSecret,
+    oauthRedirectUri: payload.oauthRedirectUri
+  });
 }
 
 function saveYouTubeUploadProfile(profile) {
@@ -503,10 +575,12 @@ function updateYouTubeUploadProfile(profileId, patch = {}) {
   const profiles = stored.profiles.map((profile) => {
     if (profile.id !== profileId) return profile;
     found = true;
+    const normalized = normalizeProfileOauthInput(patch, profile);
     return {
       ...profile,
-      name: String(patch.name || profile.name || '').trim() || profile.name,
-      purpose: typeof patch.purpose === 'string' ? patch.purpose : (profile.purpose || ''),
+      ...normalized,
+      name: String(normalized.name || profile.name || '').trim() || profile.name,
+      purpose: typeof normalized.purpose === 'string' ? normalized.purpose : (profile.purpose || ''),
       updatedAt: now
     };
   });
@@ -542,62 +616,30 @@ function setActiveYouTubeUploadProfile(profileId) {
 }
 
 function getOAuthSettings(profileId) {
-  const envMap = readEnvMap();
-  const resolved = resolveProfileRefreshToken(profileId);
-  const envClientId = getEnvValue(envMap, 'YOUTUBE_OAUTH_CLIENT_ID');
-  const envClientSecret = getEnvValue(envMap, 'YOUTUBE_OAUTH_CLIENT_SECRET');
-  const envRedirectUri = getEnvValue(envMap, 'YOUTUBE_OAUTH_REDIRECT_URI') || DEFAULT_REDIRECT_URI;
-  const profile = resolved.profile || {};
+  const profile = resolveStoredProfile(profileId);
+  if (!profile) {
+    const error = new Error('YouTube upload profile not found');
+    error.code = 'YOUTUBE_UPLOAD_PROFILE_NOT_FOUND';
+    error.status = 404;
+    error.details = { profileId: String(profileId || '').trim() };
+    throw error;
+  }
+
+  assertProfileOAuthClientConfigured(profile);
   return {
-    clientId: profile.oauthClientId || envClientId,
-    clientSecret: profile.oauthClientSecret || envClientSecret,
-    redirectUri: profile.oauthRedirectUri || envRedirectUri,
-    refreshToken: resolved.refreshToken,
-    profile: resolved.profile,
-    envClientId,
-    envClientSecret,
-    envRedirectUri
+    clientId: String(profile.oauthClientId || '').trim(),
+    clientSecret: String(profile.oauthClientSecret || '').trim(),
+    redirectUri: String(profile.oauthRedirectUri || '').trim() || DEFAULT_REDIRECT_URI,
+    refreshToken: String(profile.refreshToken || '').trim(),
+    profile
   };
-}
-
-function persistProfileOAuthSnapshot(profileId, settings = {}) {
-  if (!profileId || profileId === 'legacy_default') return;
-  if (!settings.clientId || !settings.clientSecret) return;
-
-  const stored = readStoredProfilesFile();
-  let changed = false;
-  const profiles = stored.profiles.map((profile) => {
-    if (profile.id !== profileId) return profile;
-    if (profile.oauthClientId && profile.oauthClientSecret) return profile;
-    changed = true;
-    return {
-      ...profile,
-      oauthClientId: settings.clientId,
-      oauthClientSecret: settings.clientSecret,
-      oauthRedirectUri: settings.redirectUri || DEFAULT_REDIRECT_URI,
-      updatedAt: new Date().toISOString()
-    };
-  });
-
-  if (changed) writeStoredProfilesFile({ ...stored, profiles });
 }
 
 function getOAuthClient({ requireRefreshToken = false, profileId = '' } = {}) {
   const settings = getOAuthSettings(profileId);
-  if (!settings.clientId || !settings.clientSecret) {
-    const error = new Error('YouTube OAuth client ID/secret is missing');
-    error.code = 'YOUTUBE_OAUTH_CLIENT_MISSING';
-    error.status = 400;
-    error.details = { required: ['YOUTUBE_OAUTH_CLIENT_ID', 'YOUTUBE_OAUTH_CLIENT_SECRET'] };
-    throw error;
-  }
 
   if (requireRefreshToken && !settings.refreshToken) {
-    const error = new Error('YouTube OAuth refresh token is missing');
-    error.code = 'YOUTUBE_OAUTH_REFRESH_TOKEN_MISSING';
-    error.status = 400;
-    error.details = { required: ['YOUTUBE_OAUTH_REFRESH_TOKEN'] };
-    throw error;
+    throw createProfileRefreshTokenMissingError(settings.profile);
   }
 
   const client = new OAuth2Client(settings.clientId, settings.clientSecret, settings.redirectUri);
@@ -621,16 +663,21 @@ function decodeOAuthState(value) {
 }
 
 function getAuthorizationUrl({ profileId = '', profileName = '' } = {}) {
-  const { client, settings } = getOAuthClient();
-  const isNewProfile = !profileId;
+  const resolvedProfileId = resolveUploadProfileId(profileId || '');
+  if (!resolvedProfileId) {
+    const error = new Error('OAuth를 연결할 채널 프로필을 먼저 선택하거나 생성하세요.');
+    error.code = 'YOUTUBE_UPLOAD_PROFILE_REQUIRED';
+    error.status = 400;
+    throw error;
+  }
+  const { client, settings } = getOAuthClient({ profileId: resolvedProfileId });
   const authUrl = client.generateAuthUrl({
     access_type: 'offline',
     prompt: 'consent select_account',
     scope: [YOUTUBE_UPLOAD_SCOPE, YOUTUBE_READONLY_SCOPE],
     state: encodeOAuthState({
-      profileId: profileId || `new_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`,
-      profileName: profileName || '새 업로드 채널',
-      isNewProfile
+      profileId: resolvedProfileId,
+      profileName: profileName || settings.profile?.name || settings.profile?.channelTitle || 'YouTube 채널'
     })
   });
 
@@ -656,7 +703,25 @@ async function getChannelInfoWithClient(client) {
 }
 
 async function exchangeOAuthCode(code, state = '') {
-  const { client, settings } = getOAuthClient();
+  const stateData = decodeOAuthState(state);
+  const profileId = String(stateData.profileId || '').trim();
+  if (!profileId) {
+    const error = new Error('OAuth callback state is missing profile information');
+    error.code = 'YOUTUBE_OAUTH_STATE_PROFILE_MISSING';
+    error.status = 400;
+    throw error;
+  }
+
+  const existingProfile = getStoredProfile(profileId);
+  if (!existingProfile) {
+    const error = new Error('YouTube upload profile not found');
+    error.code = 'YOUTUBE_UPLOAD_PROFILE_NOT_FOUND';
+    error.status = 404;
+    error.details = { profileId };
+    throw error;
+  }
+
+  const { client, settings } = getOAuthClient({ profileId });
   const { tokens } = await client.getToken(code);
   if (!tokens.refresh_token) {
     const error = new Error('Google did not return a refresh token. Reconnect with prompt=consent or remove the app access from Google Account first.');
@@ -665,14 +730,12 @@ async function exchangeOAuthCode(code, state = '') {
   }
 
   client.setCredentials(tokens);
-  const stateData = decodeOAuthState(state);
   const channel = await getChannelInfoWithClient(client).catch(() => ({ channelTitle: '', channelId: '' }));
   const savedProfile = saveYouTubeUploadProfile({
-    id: stateData.isNewProfile
-      ? ''
-      : (stateData.profileId || makeProfileId(stateData.profileName || channel.channelTitle || 'youtube_channel')),
-    name: stateData.profileName || channel.channelTitle || 'YouTube 채널',
-    purpose: '',
+    ...existingProfile,
+    id: profileId,
+    name: existingProfile.name || stateData.profileName || channel.channelTitle || 'YouTube 채널',
+    purpose: existingProfile.purpose || '',
     refreshToken: tokens.refresh_token,
     oauthClientId: settings.clientId,
     oauthClientSecret: settings.clientSecret,
@@ -699,7 +762,6 @@ async function getAccessToken(profileId = '') {
       error.code = 'YOUTUBE_ACCESS_TOKEN_FAILED';
       throw error;
     }
-    persistProfileOAuthSnapshot(settings.profile?.id || profileId || '', settings);
     return token;
   } catch (error) {
     const oauthCode = error?.response?.data?.error || error?.error || error?.message || '';
@@ -2202,6 +2264,7 @@ module.exports = {
   getAuthorizationUrl,
   exchangeOAuthCode,
   testYouTubeUploadAuth,
+  createYouTubeUploadProfile,
   listYouTubeUploadProfiles,
   setActiveYouTubeUploadProfile,
   updateYouTubeUploadProfile,

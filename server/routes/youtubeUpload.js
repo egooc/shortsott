@@ -6,6 +6,7 @@ const {
   getAuthorizationUrl,
   exchangeOAuthCode,
   testYouTubeUploadAuth,
+  createYouTubeUploadProfile,
   listYouTubeUploadProfiles,
   setActiveYouTubeUploadProfile,
   updateYouTubeUploadProfile,
@@ -109,6 +110,14 @@ router.get('/oauth-url', (req, res, next) => {
 router.get('/profiles', (_req, res, next) => {
   try {
     res.json(listYouTubeUploadProfiles());
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/profiles', (req, res, next) => {
+  try {
+    res.status(201).json(createYouTubeUploadProfile(req.body || {}));
   } catch (error) {
     next(error);
   }

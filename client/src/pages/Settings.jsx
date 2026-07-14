@@ -31,6 +31,16 @@ const DEFAULTS = {
   VERTEX_GEMINI_MODEL: 'gemini-2.5-flash'
 };
 
+const CHANNEL_PURPOSES = [
+  { value: 'jp_full', label: 'JP Full' },
+  { value: 'jp_highlight', label: 'JP Highlight' },
+  { value: 'jp_midform', label: 'JP Midform' }
+];
+
+function purposeLabel(value) {
+  return CHANNEL_PURPOSES.find((item) => item.value === String(value || ''))?.label || '미지정';
+}
+
 function Field({ label, description, children }) {
   return (
     <label className="block text-xs font-bold text-slate-200">
@@ -81,11 +91,80 @@ function StatusBox({ children, tone = 'default' }) {
   return <div className={`mt-3 rounded-2xl border px-4 py-3 text-sm leading-6 ${toneClass}`}>{children}</div>;
 }
 
+function ProfileEditorCard({
+  profile,
+  draft,
+  active,
+  onChange,
+  onSave,
+  onReconnect,
+  onTest,
+  onDelete
+}) {
+  const clientConfigured = Boolean((draft.oauthClientId || profile.oauthClientId) && (draft.oauthClientSecret || profile.maskedOAuthClientSecret) && (draft.oauthRedirectUri || profile.oauthRedirectUri));
+  return (
+    <article className={`rounded-2xl border p-4 ${active ? 'border-[#c8ff00]/50 bg-[#c8ff00]/10' : 'border-white/10 bg-black/20'}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-base font-black text-white">{profile.channelTitle || profile.name || profile.id}</div>
+          <div className="mt-1 break-all text-xs text-slate-400">{profile.channelId || profile.id}</div>
+        </div>
+        <div className="rounded-full border border-white/10 px-2 py-1 text-[10px] font-black text-slate-200">{purposeLabel(draft.purpose || profile.purpose)}</div>
+      </div>
+
+      <div className="mt-4 grid gap-3">
+        <Field label="관리 이름">
+          <TextInput value={draft.name} onChange={(next) => onChange(profile.id, 'name', next)} placeholder="예: 일본어 하이라이트 채널" />
+        </Field>
+        <Field label="채널 용도">
+          <select className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white outline-none focus:border-[#c8ff00]/60" value={draft.purpose} onChange={(event) => onChange(profile.id, 'purpose', event.target.value)}>
+            <option value="">미지정</option>
+            {CHANNEL_PURPOSES.map((purpose) => <option key={purpose.value} value={purpose.value}>{purpose.label}</option>)}
+          </select>
+        </Field>
+        <Field label="OAuth Client ID">
+          <TextInput value={draft.oauthClientId} onChange={(next) => onChange(profile.id, 'oauthClientId', next)} placeholder="1234567890-xxxx.apps.googleusercontent.com" />
+        </Field>
+        <Field label="OAuth Client Secret">
+          <TextInput value={draft.oauthClientSecret} onChange={(next) => onChange(profile.id, 'oauthClientSecret', next)} placeholder={profile.maskedOAuthClientSecret ? `${profile.maskedOAuthClientSecret} (변경 없으면 비워둠)` : 'GOCSPX-...'} />
+        </Field>
+        <Field label="Redirect URI">
+          <TextInput value={draft.oauthRedirectUri} onChange={(next) => onChange(profile.id, 'oauthRedirectUri', next)} placeholder={DEFAULTS.YOUTUBE_OAUTH_REDIRECT_URI} />
+        </Field>
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button type="button" className="rounded-2xl bg-[#c8ff00] px-4 py-3 text-sm font-black text-black hover:brightness-110" onClick={() => onSave(profile.id)}>저장</button>
+        <button type="button" className="rounded-2xl border border-[#c8ff00]/30 px-4 py-3 text-sm font-bold text-[#c8ff00] hover:bg-[#c8ff00]/10" onClick={() => onReconnect(profile.id)}>재연결</button>
+        <button type="button" className="rounded-2xl border border-white/15 px-4 py-3 text-sm font-bold text-white hover:bg-white/10" onClick={() => onTest(profile.id)}>권한 테스트</button>
+        <button type="button" className="rounded-2xl border border-red-400/35 px-4 py-3 text-sm font-bold text-red-200 hover:bg-red-500/10" onClick={() => onDelete(profile.id)}>삭제</button>
+      </div>
+
+      <div className="mt-3 space-y-1 text-xs text-slate-400">
+        <div>클라이언트: {profile.oauthClientIdHint || (draft.oauthClientId ? `${draft.oauthClientId.slice(0, 12)}...` : '-')}</div>
+        <div>토큰: {profile.maskedRefreshToken || '미연결'}</div>
+        <div className={clientConfigured ? 'text-slate-400' : 'text-amber-200'}>{clientConfigured ? 'OAuth 클라이언트 설정됨' : 'OAuth 클라이언트 설정 필요'}</div>
+      </div>
+    </article>
+  );
+}
+
 export default function Settings() {
   const [values, setValues] = useState({});
   const [statuses, setStatuses] = useState({});
   const [oauthMessage, setOauthMessage] = useState('');
   const [oauthUrl, setOauthUrl] = useState('');
+  const [profiles, setProfiles] = useState([]);
+  const [activeProfileId, setActiveProfileId] = useState('');
+  const [profileDrafts, setProfileDrafts] = useState({});
+  const [profileStatus, setProfileStatus] = useState('');
+  const [newProfile, setNewProfile] = useState({
+    name: '새 업로드 채널',
+    purpose: '',
+    oauthClientId: '',
+    oauthClientSecret: '',
+    oauthRedirectUri: DEFAULTS.YOUTUBE_OAUTH_REDIRECT_URI
+  });
 
   useEffect(() => {
     api.get('/settings').then((res) => {
@@ -105,6 +184,8 @@ export default function Settings() {
       setValues(seeded);
       setStatuses(seededStatuses);
     });
+
+    loadProfiles();
   }, []);
 
   const oauthReady = useMemo(() => {
@@ -113,6 +194,111 @@ export default function Settings() {
 
   function setValue(key, value) {
     setValues((prev) => ({ ...prev, [key]: value }));
+  }
+
+  async function loadProfiles() {
+    try {
+      const res = await api.get('/youtube-upload/profiles');
+      const nextProfiles = res.data?.profiles || [];
+      setProfiles(nextProfiles);
+      setActiveProfileId(res.data?.activeProfileId || nextProfiles[0]?.id || '');
+      setProfileDrafts((prev) => {
+        const next = { ...prev };
+        nextProfiles.forEach((profile) => {
+          next[profile.id] = {
+            name: next[profile.id]?.name ?? profile.name ?? '',
+            purpose: next[profile.id]?.purpose ?? profile.purpose ?? '',
+            oauthClientId: next[profile.id]?.oauthClientId ?? profile.oauthClientId ?? '',
+            oauthClientSecret: next[profile.id]?.oauthClientSecret ?? '',
+            oauthRedirectUri: next[profile.id]?.oauthRedirectUri ?? profile.oauthRedirectUri ?? DEFAULTS.YOUTUBE_OAUTH_REDIRECT_URI
+          };
+        });
+        return next;
+      });
+    } catch (error) {
+      setProfileStatus(`프로필 불러오기 실패: ${error.response?.data?.message || error.message}`);
+    }
+  }
+
+  function updateProfileDraft(profileId, key, value) {
+    setProfileDrafts((prev) => ({
+      ...prev,
+      [profileId]: {
+        ...(prev[profileId] || {}),
+        [key]: value
+      }
+    }));
+  }
+
+  async function saveProfile(profileId) {
+    try {
+      const draft = profileDrafts[profileId] || {};
+      const payload = {
+        name: draft.name || '',
+        purpose: draft.purpose || '',
+        oauthClientId: draft.oauthClientId || '',
+        oauthRedirectUri: draft.oauthRedirectUri || DEFAULTS.YOUTUBE_OAUTH_REDIRECT_URI
+      };
+      if (draft.oauthClientSecret?.trim()) payload.oauthClientSecret = draft.oauthClientSecret.trim();
+      await api.patch(`/youtube-upload/profiles/${encodeURIComponent(profileId)}`, payload);
+      setProfileDrafts((prev) => ({
+        ...prev,
+        [profileId]: {
+          ...(prev[profileId] || {}),
+          oauthClientSecret: ''
+        }
+      }));
+      setProfileStatus('채널 프로필을 저장했습니다.');
+      await loadProfiles();
+      return true;
+    } catch (error) {
+      setProfileStatus(`프로필 저장 실패: ${error.response?.data?.message || error.message}`);
+      return false;
+    }
+  }
+
+  async function reconnectProfile(profileId) {
+    const saved = await saveProfile(profileId);
+    if (!saved) return;
+    try {
+      const res = await api.get('/youtube-upload/oauth-url', { params: { profileId } });
+      setOauthUrl(res.data.authUrl);
+      const popup = window.open(res.data.authUrl, '_blank', 'noopener,noreferrer');
+      setOauthMessage(popup ? '선택한 채널의 OAuth 재연결 창을 열었습니다.' : '브라우저가 새 창을 차단했습니다. 아래 링크를 직접 여세요.');
+    } catch (error) {
+      setProfileStatus(`OAuth URL 생성 실패: ${error.response?.data?.message || error.message}`);
+    }
+  }
+
+  async function testProfile(profileId) {
+    try {
+      const res = await api.post('/youtube-upload/test-auth', { profileId });
+      setProfileStatus(res.data.channelTitle ? `권한 테스트 성공: ${res.data.channelTitle}` : (res.data.info || '권한 테스트 성공'));
+    } catch (error) {
+      setProfileStatus(`권한 테스트 실패: ${error.response?.data?.message || error.message}`);
+    }
+  }
+
+  async function deleteProfile(profileId) {
+    try {
+      await api.delete(`/youtube-upload/profiles/${encodeURIComponent(profileId)}`);
+      setProfileStatus('채널 프로필을 삭제했습니다.');
+      await loadProfiles();
+    } catch (error) {
+      setProfileStatus(`프로필 삭제 실패: ${error.response?.data?.message || error.message}`);
+    }
+  }
+
+  async function createProfile() {
+    try {
+      const res = await api.post('/youtube-upload/profiles', newProfile);
+      setProfileStatus('새 채널 프로필을 만들었습니다. 이어서 OAuth 재연결을 진행합니다.');
+      setNewProfile((prev) => ({ ...prev, oauthClientSecret: '' }));
+      await loadProfiles();
+      if (res.data?.id) await reconnectProfile(res.data.id);
+    } catch (error) {
+      setProfileStatus(`프로필 생성 실패: ${error.response?.data?.message || error.message}`);
+    }
   }
 
   async function onSave(key) {
@@ -306,6 +492,69 @@ export default function Settings() {
               OAuth Client ID와 Client Secret이 아직 없습니다. Google Cloud에서 OAuth Client를 만든 뒤 두 값을 먼저 입력하세요.
             </StatusBox>
           ) : null}
+          <div className="mt-4 rounded-2xl border border-amber-400/20 bg-amber-400/10 p-4 text-xs leading-5 text-amber-100">
+            이 위의 전역 YOUTUBE_OAUTH_* 값은 롤백 대비로만 남겨두며, 실제 업로드 인증은 아래 채널별 OAuth 클라이언트 프로필을 사용합니다.
+          </div>
+
+          <div className="mt-5 rounded-2xl border border-white/10 bg-black/25 p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-black text-white">채널별 OAuth 클라이언트</h3>
+                <p className="mt-1 text-xs leading-5 text-slate-400">각 채널이 자체 Client ID/Secret/Redirect URI를 가져야 refresh token이 서로 죽지 않습니다.</p>
+              </div>
+              <span className="rounded-full border border-[#c8ff00]/20 bg-[#c8ff00]/10 px-3 py-1 text-[11px] font-black text-[#c8ff00]">프로필이 진실원</span>
+            </div>
+
+            <div className="mt-4 grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+              <div className="space-y-3">
+                {profiles.length ? profiles.map((profile) => (
+                  <ProfileEditorCard
+                    key={profile.id}
+                    profile={profile}
+                    draft={profileDrafts[profile.id] || { name: profile.name || '', purpose: profile.purpose || '', oauthClientId: profile.oauthClientId || '', oauthClientSecret: '', oauthRedirectUri: profile.oauthRedirectUri || DEFAULTS.YOUTUBE_OAUTH_REDIRECT_URI }}
+                    active={profile.id === activeProfileId}
+                    onChange={updateProfileDraft}
+                    onSave={saveProfile}
+                    onReconnect={reconnectProfile}
+                    onTest={testProfile}
+                    onDelete={deleteProfile}
+                  />
+                )) : (
+                  <div className="rounded-2xl border border-dashed border-white/15 p-4 text-sm text-slate-400">아직 채널 프로필이 없습니다. 오른쪽에서 새 프로필을 추가하세요.</div>
+                )}
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                <h4 className="text-sm font-black text-white">새 채널 프로필 추가</h4>
+                <div className="mt-3 grid gap-3">
+                  <Field label="관리 이름">
+                    <TextInput value={newProfile.name} onChange={(next) => setNewProfile((prev) => ({ ...prev, name: next }))} placeholder="예: 일본어 하이라이트 채널" />
+                  </Field>
+                  <Field label="채널 용도">
+                    <select className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white outline-none focus:border-[#c8ff00]/60" value={newProfile.purpose} onChange={(event) => setNewProfile((prev) => ({ ...prev, purpose: event.target.value }))}>
+                      <option value="">미지정</option>
+                      {CHANNEL_PURPOSES.map((purpose) => <option key={purpose.value} value={purpose.value}>{purpose.label}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="OAuth Client ID">
+                    <TextInput value={newProfile.oauthClientId} onChange={(next) => setNewProfile((prev) => ({ ...prev, oauthClientId: next }))} placeholder="1234567890-xxxx.apps.googleusercontent.com" />
+                  </Field>
+                  <Field label="OAuth Client Secret">
+                    <TextInput value={newProfile.oauthClientSecret} onChange={(next) => setNewProfile((prev) => ({ ...prev, oauthClientSecret: next }))} placeholder="GOCSPX-..." />
+                  </Field>
+                  <Field label="Redirect URI">
+                    <TextInput value={newProfile.oauthRedirectUri} onChange={(next) => setNewProfile((prev) => ({ ...prev, oauthRedirectUri: next }))} placeholder={DEFAULTS.YOUTUBE_OAUTH_REDIRECT_URI} />
+                  </Field>
+                </div>
+                <button type="button" className="mt-4 w-full rounded-2xl bg-[#c8ff00] px-5 py-3 text-sm font-black text-black hover:brightness-110" onClick={createProfile}>
+                  새 프로필 생성 + OAuth 연결
+                </button>
+              </div>
+            </div>
+
+            <StatusBox tone={profileStatus.includes('실패') ? 'error' : 'success'}>{profileStatus}</StatusBox>
+          </div>
+
           <div className="mt-4 rounded-2xl border border-amber-400/20 bg-amber-400/10 p-4 text-xs leading-5 text-amber-100">
             예약 발행은 YouTube 규칙에 따라 비공개로 업로드한 뒤 지정 시각에 공개됩니다.
           </div>
