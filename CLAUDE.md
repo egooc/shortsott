@@ -55,6 +55,57 @@ This repo currently contains **two overlapping pipeline generations**. Know whic
 
 When adding UI, confirm which phase owns a feature and don't duplicate another phase's responsibility (e.g., no CapCut generation from Phase 1, no YouTube upload from Phase 2).
 
+## Production highlight path — do not modify without explicit approval
+
+`server/services/processQueueService.js`'s highlight window selection
+(`pickHighlightWindow`, `collectHighlightCandidateWindows`,
+`selectBestHighlightWindow`, `getDefaultLongformHighlightWindows`, and the
+`SHORTFORM_HIGHLIGHT_MAX_DURATION_SEC` / `LONGFORM_HIGHLIGHT_MAX_DURATION_SEC`
+constants) plus `scripts/capcut_draft.py`'s draft assembly are a verified,
+revenue-producing system. **Do not add new selection strategies, "improve"
+the scoring, or change these duration constants without the user's explicit
+sign-off in the conversation.** A prior session built new selectors
+(`pickProductionHighlightWindow`, loop-complete/result-reveal completion
+windows) directly on top of this path in an uncommitted working tree; it
+silently changed output behavior for weeks before anyone noticed, and had
+to be reverted line-by-line back to a known-good commit (see
+`docs/highlight-window-selector-revert-2026-07-21.md`). If a change to this
+path seems warranted, propose it and wait for confirmation before editing.
+
+## Isolate experimental code from production paths
+
+New research/experimental logic (e.g. the Highlight Pattern study in
+`highlightSlicerService.js`, `highlightPatternDbService.js`,
+`abExperimentService.js`, the `/api/highlight-patterns` route, and the
+`trackb-*` scripts — see `docs/trackb_preregistration_restored_control_2026-07-20.md`
+and the pre-registered H1/H2/H3 hypotheses) must live in its own
+service/route/script files and must not be wired into the production
+highlight or full-draft paths (`processQueueService.js`,
+`processMetadataService.js`, `capcutService.js`). It's fine for
+experimental code to reuse a production helper (e.g. `extractActionTimeline`)
+read-only; it must never become a dependency the production path calls.
+
+## Completion reports must quote source, not summarize
+
+When reporting a batch/draft generation task as complete, quote the actual
+values read back from the generated `edit_manifest.json` / `draft_content.json`
+— segment counts per track, the selected window's `start_sec`/`end_sec`,
+`selection_strategy`/`reason`, `selected_scene_ids`. A summary without a
+quoted value from the real output file is not a valid completion report;
+re-open the file and quote it before reporting done.
+
+## Commit each unit of work — don't let it pile up uncommitted
+
+Land each logical change as its own commit as soon as it's verified working,
+instead of leaving it in an uncommitted working tree while more work stacks
+on top. The 2026-07-21 highlight regression above happened specifically
+because a known-good state only existed as an uncommitted working tree,
+so later changes silently piled on top of it with no point to diff against
+or revert to. Group commits by logical unit (e.g. "highlight selection
+restore" separate from "full-draft repair pipeline" separate from
+"auth/infra" separate from "isolated experimental code") rather than one
+mixed commit — this keeps future `git diff <good-commit>` audits meaningful.
+
 ## Architecture
 
 **Server** (`server/index.js`): Express app mounting one router per domain under `/api/*` — `settings`, `virlo`, `gemini`, `claude`, `elevenlabs`, `capcut`, `process-edit`, `process-queue`, `youtube`, `youtube-upload`. Serves `client/dist` as static and falls through to `index.html` for non-`/api` routes (SPA). A single global error-handling middleware formats `{ error, message, code, details }`.
