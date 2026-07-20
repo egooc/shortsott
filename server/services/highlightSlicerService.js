@@ -1,8 +1,7 @@
 const { createHttpError } = require('./errorService');
-const { requireApiKey } = require('../middleware/auth');
 const { extractActionTimeline } = require('./geminiService');
-const { isVertexAdcMode } = require('./processMetadataService');
 const { findBestSeamWindow } = require('../utils/loopSeam');
+const { getVideoMetadata } = require('../utils/ffprobe');
 const db = require('./highlightPatternDbService');
 const cutSelectionProfile = require('../config/cutSelectionProfile.json');
 
@@ -48,11 +47,9 @@ async function extractTimeline(videoId) {
     throw createHttpError(400, 'VIDEO_NOT_DOWNLOADED', 'This video has not finished downloading yet');
   }
 
-  const apiKey = isVertexAdcMode() ? '' : requireApiKey('GEMINI_API_KEY');
   const { events } = await extractActionTimeline({
     filePath: video.video_path,
-    sourceUrl: video.youtube_url,
-    apiKey
+    sourceUrl: video.youtube_url
   });
 
   db.replaceSegments(videoId, events.map((event) => ({
@@ -67,6 +64,13 @@ async function extractTimeline(videoId) {
 
 function clampWindow(start, end, durationSec) {
   return { start: Math.max(0, start), end: Math.min(durationSec, end) };
+}
+
+function effectiveVideoDurationSec(video = {}) {
+  const localDuration = video?.video_path ? Number(getVideoMetadata(video.video_path)?.duration_sec || 0) : 0;
+  const declaredDuration = Number(video?.duration_seconds || 0);
+  if (Number.isFinite(localDuration) && localDuration > 0) return localDuration;
+  return Number.isFinite(declaredDuration) && declaredDuration > 0 ? declaredDuration : 0;
 }
 
 // Looks for two RESET timestamps spaced close to targetDurationSec apart that
@@ -96,21 +100,44 @@ function findCycleAlignedWindow(resetTimes, anchorTime, targetDurationSec, toler
   return best;
 }
 
+function eventTimes(events, eventType) {
+  return events.filter((event) => event.event_type === eventType).map((event) => event.start_time).filter(Number.isFinite);
+}
+
+function buildResetCompleteWindow(events, durationSec, anchorTime, targetDurationSec) {
+  const resetTimes = eventTimes(events, 'RESET');
+  const cycleWindow = findCycleAlignedWindow(resetTimes, anchorTime, targetDurationSec);
+  if (!cycleWindow) return null;
+  const clamped = clampWindow(cycleWindow.start, cycleWindow.end, durationSec);
+  return {
+    start: clamped.start,
+    end: clamped.end,
+    proof: {
+      anchor_time_sec: Number(anchorTime.toFixed(2)),
+      reset_start_sec: Number(cycleWindow.start.toFixed(2)),
+      reset_end_sec: Number(cycleWindow.end.toFixed(2)),
+      cycle_gap_sec: Number((cycleWindow.end - cycleWindow.start).toFixed(2)),
+      gap_diff_sec: Number(Math.abs((cycleWindow.end - cycleWindow.start) - targetDurationSec).toFixed(2))
+    }
+  };
+}
+
 // Heuristic defaults, not derived from data -- tune once real slicer usage shows
 // whether these anchors actually land on good cut points. targetDurationSec
 // defaults to the legacy 3.0s single-target behavior (generateSliceCandidates);
 // generateDurationPairCandidates passes DURATION_GROUPS.SHORT/LONG.target.
-function buildCandidateWindow(pattern, events, durationSec, targetDurationSec = TARGET_DURATION_SEC) {
+function buildCandidateWindow(pattern, events, durationSec, targetDurationSec = TARGET_DURATION_SEC, options = {}) {
   const impactTimes = events.filter((e) => e.event_type === 'IMPACT').map((e) => e.start_time).filter(Number.isFinite);
   const resetTimes = events.filter((e) => e.event_type === 'RESET').map((e) => e.start_time).filter(Number.isFinite);
   const resultTimes = events.filter((e) => e.event_type === 'RESULT_REVEAL').map((e) => e.start_time).filter(Number.isFinite);
+  const chosenImpact = Number.isFinite(options.anchorTime) ? options.anchorTime : impactTimes[0];
 
   if (pattern.action_phase === 'PRE_IMPACT_CUT' && impactTimes.length) {
-    const impact = impactTimes[0];
+    const impact = chosenImpact;
     return clampWindow(impact - targetDurationSec + 0.1, impact - 0.1, durationSec);
   }
   if (pattern.action_phase === 'IMPACT_CENTERED' && impactTimes.length) {
-    const impact = impactTimes[0];
+    const impact = chosenImpact;
     return clampWindow(impact - targetDurationSec / 2, impact + targetDurationSec / 2, durationSec);
   }
   // patternStats() reports 'PROCESS' (not 'FULL_ARC'/'MID_PROCESS' individually)
@@ -119,7 +146,7 @@ function buildCandidateWindow(pattern, events, durationSec, targetDurationSec = 
   // (previously FULL_ARC-only) to the whole merged category rather than
   // silently losing candidate generation for what's now the most common bucket.
   if (pattern.action_phase === 'PROCESS' && impactTimes.length) {
-    const impact = impactTimes[0];
+    const impact = chosenImpact;
     // Prefer a window that completes a whole visible cycle (starts and ends
     // on a RESET boundary, contains the impact) over the plain impact-anchored
     // heuristic -- this is specifically what the SHORT (3-5s) treatment arm
@@ -202,24 +229,53 @@ async function generateSliceCandidates(videoId) {
 // ONE LONG (6-10s) candidate window from the same source video and the same
 // top pattern, so the pair differs only in duration -- everything else
 // (source material, channel, anchor logic) is held constant within the pair.
-async function buildDurationWindow(video, events, pattern, durationGroupKey) {
+async function buildDurationWindow(video, events, pattern, durationGroupKey, options = {}) {
   const group = DURATION_GROUPS[durationGroupKey];
-  const durationSec = Number(video.duration_seconds) || 0;
-  const initialWindow = buildCandidateWindow(pattern, events, durationSec, group.target);
+  const durationSec = effectiveVideoDurationSec(video);
+  const initialWindow = options.requireResetComplete
+    ? buildResetCompleteWindow(events, durationSec, options.anchorTime, group.target)
+    : buildCandidateWindow(pattern, events, durationSec, group.target, options);
   if (!initialWindow) return null;
   const windowDuration = initialWindow.end - initialWindow.start;
   if (windowDuration <= 0.5) return null;
+  if (windowDuration < group.min || windowDuration > group.max) return null;
 
-  const result = { target_duration_group: durationGroupKey };
+  const result = {
+    target_duration_group: durationGroupKey,
+    ...(Number.isFinite(options.anchorTime) ? {
+      anchor_time_sec: Number(options.anchorTime.toFixed(2))
+    } : {}),
+    ...(!initialWindow.proof && Number.isFinite(options.anchorTime) ? {
+      selection_mode: 'impact_anchor_search'
+    } : {}),
+    ...(initialWindow.proof ? {
+      selection_mode: 'reset_complete_anchor_search',
+      anchor_time_sec: initialWindow.proof.anchor_time_sec,
+      reset_start_sec: initialWindow.proof.reset_start_sec,
+      reset_end_sec: initialWindow.proof.reset_end_sec,
+      cycle_gap_sec: initialWindow.proof.cycle_gap_sec,
+      gap_diff_sec: initialWindow.proof.gap_diff_sec
+    } : {})
+  };
   try {
     const { bestStart, bestScore } = await findBestSeamWindow(video.video_path, initialWindow.start, windowDuration, SEAM_SEARCH_OPTIONS);
+    const candidateDuration = Number((windowDuration).toFixed(2));
+    if (candidateDuration < group.min || candidateDuration > group.max) return null;
     result.start_sec = Number(bestStart.toFixed(2));
     result.end_sec = Number((bestStart + windowDuration).toFixed(2));
     result.seam_similarity = Math.round(bestScore * 100);
+    if (initialWindow.proof) {
+      result.seam_start_drift_sec = Number((result.start_sec - initialWindow.proof.reset_start_sec).toFixed(2));
+      result.seam_end_drift_sec = Number((result.end_sec - initialWindow.proof.reset_end_sec).toFixed(2));
+    }
   } catch {
     result.start_sec = Number(initialWindow.start.toFixed(2));
     result.end_sec = Number(initialWindow.end.toFixed(2));
     result.seam_similarity = null;
+    if (initialWindow.proof) {
+      result.seam_start_drift_sec = 0;
+      result.seam_end_drift_sec = 0;
+    }
   }
   return result;
 }
@@ -242,23 +298,31 @@ async function generateDurationPairCandidates(videoId) {
     return { pair: null, message: '학습 데이터가 아직 부족해 패턴 통계를 계산할 수 없습니다 (조합당 최소 3건의 EXPLODED/BURIED 학습 클립이 필요합니다).' };
   }
 
-  for (const pattern of topPatterns) {
-    const [short, long] = await Promise.all([
-      buildDurationWindow(video, events, pattern, 'SHORT'),
-      buildDurationWindow(video, events, pattern, 'LONG')
-    ]);
-    if (!short || !long) continue;
+  const impactTimes = eventTimes(events, 'IMPACT');
+  if (!impactTimes.length) {
+    return { pair: null, message: '타임라인에 IMPACT 이벤트가 없어 SHORT/LONG pair 앵커를 만들 수 없었습니다.' };
+  }
 
-    return {
-      pair: {
-        source_video_id: videoId,
-        pattern: { action_phase: pattern.action_phase, seam_bucket: pattern.seam_bucket, moment_type: pattern.moment_type },
-        predicted_exploded_rate: pattern.exploded_rate,
-        sample_size: pattern.n,
-        short,
-        long
-      }
-    };
+  for (const pattern of topPatterns) {
+    for (const anchorTime of impactTimes) {
+      const [short, long] = await Promise.all([
+        buildDurationWindow(video, events, pattern, 'SHORT', { requireResetComplete: true, anchorTime }),
+        buildDurationWindow(video, events, pattern, 'LONG', { requireResetComplete: false, anchorTime })
+      ]);
+      if (!short || !long) continue;
+
+      return {
+        pair: {
+          source_video_id: videoId,
+          pattern: { action_phase: pattern.action_phase, seam_bucket: pattern.seam_bucket, moment_type: pattern.moment_type },
+          predicted_exploded_rate: pattern.exploded_rate,
+          sample_size: pattern.n,
+          selected_anchor_time_sec: Number(anchorTime.toFixed(2)),
+          short,
+          long
+        }
+      };
+    }
   }
 
   return { pair: null, message: '상위 패턴에 맞는 앵커를 찾지 못해 SHORT/LONG 두 윈도우를 모두 만들 수 없었습니다.' };
@@ -342,6 +406,7 @@ module.exports = {
   extractTimeline,
   generateSliceCandidates,
   generateDurationPairCandidates,
+  findCycleAlignedWindow,
   DURATION_GROUPS,
   scoreSourceForCutSelection,
   rankSourcesForCutSelection

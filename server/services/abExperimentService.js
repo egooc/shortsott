@@ -41,17 +41,27 @@ function channelAssignmentForPair(pairId) {
   return firstByte % 2 === 0 ? 'CHANNEL_A_GETS_T' : 'CHANNEL_B_GETS_T';
 }
 
-// Both registered channels, keyed by role. Throws if registration is
-// incomplete -- createPair() must never fall back to publishing both members
-// of a pair to the same channel just because only one is registered yet.
-function getRegisteredChannelPair() {
+// Runtime channel model: either the original two-channel setup (roles A/B) or
+// the current single-channel AIR POINT setup. In single-channel mode, both T/C
+// members target the same channel and only slot order randomization remains.
+function getRegisteredChannelSetup() {
   const channels = db.getExperimentChannels();
+  if (channels.length === 1) {
+    return {
+      mode: 'single',
+      primaryChannel: channels[0]
+    };
+  }
   const channelA = channels.find((c) => c.role === 'A');
   const channelB = channels.find((c) => c.role === 'B');
   if (!channelA || !channelB) {
-    throw createHttpError(400, 'EXPERIMENT_CHANNELS_NOT_REGISTERED', 'both role A and role B experiment channels must be registered before creating a pair');
+    throw createHttpError(400, 'EXPERIMENT_CHANNELS_NOT_REGISTERED', 'register one primary experiment channel or both role A and role B channels before creating a pair');
   }
-  return { channelA, channelB };
+  return {
+    mode: 'dual',
+    channelA,
+    channelB
+  };
 }
 
 // Next two adjacent 2-hour slots for a new pair, continuing after the latest
@@ -76,7 +86,7 @@ function computeNextSlotPair() {
 // future refactor (e.g. generateDurationPairCandidates sourcing SHORT/LONG
 // from different videos) fails loudly instead of silently corrupting the
 // ledger. Exported so it can be unit-tested directly with crafted bad input.
-function assertPairIntegrity(sourceVideoId, members) {
+function assertPairIntegrity(sourceVideoId, members, { singleChannelMode = false } = {}) {
   if (members.length !== 2) {
     throw createHttpError(500, 'AB_PAIR_INTEGRITY_VIOLATION', `pair must have exactly 2 members, got ${members.length}`);
   }
@@ -92,7 +102,11 @@ function assertPairIntegrity(sourceVideoId, members) {
   // channels, or the whole point of the channel axis (canceling channel-size
   // confounding within the pair) regresses to the original problem.
   const channelIds = new Set(members.map((m) => m.target_channel_id));
-  if (channelIds.size !== 2) {
+  if (singleChannelMode) {
+    if (channelIds.size !== 1) {
+      throw createHttpError(500, 'AB_PAIR_INTEGRITY_VIOLATION', 'single-channel pair must target exactly one experiment channel', { channelIds: [...channelIds] });
+    }
+  } else if (channelIds.size !== 2) {
     throw createHttpError(500, 'AB_PAIR_INTEGRITY_VIOLATION', 'pair must have two members targeting two different channels', { channelIds: [...channelIds] });
   }
 }
@@ -111,7 +125,7 @@ async function createPair(sourceVideoId) {
     throw createHttpError(500, 'AB_PAIR_INTEGRITY_VIOLATION', 'pair must include both a SHORT and a LONG window');
   }
 
-  const { channelA, channelB } = getRegisteredChannelPair();
+  const channelSetup = getRegisteredChannelSetup();
 
   const pairId = crypto.randomUUID();
   const slotOrder = slotOrderForPair(pairId);
@@ -129,17 +143,19 @@ async function createPair(sourceVideoId) {
     // never becomes a hidden second confound (see slotOrderForPair above).
     const getsFirstSlot = (slotOrder === 'T_FIRST' && m.groupLabel === 'T')
       || (slotOrder === 'C_FIRST' && m.groupLabel === 'C');
-    // channelAssignment decides who gets channel A -- drawn from an
-    // independent hash from slotOrder (see channelAssignmentForPair above).
-    const getsChannelA = (channelAssignment === 'CHANNEL_A_GETS_T' && m.groupLabel === 'T')
-      || (channelAssignment === 'CHANNEL_B_GETS_T' && m.groupLabel === 'C');
+    const targetChannelId = channelSetup.mode === 'single'
+      ? channelSetup.primaryChannel.channel_id
+      : (((channelAssignment === 'CHANNEL_A_GETS_T' && m.groupLabel === 'T')
+        || (channelAssignment === 'CHANNEL_B_GETS_T' && m.groupLabel === 'C'))
+        ? channelSetup.channelA.channel_id
+        : channelSetup.channelB.channel_id);
     db.insertAbAssignment({
       id,
       pairId,
       groupLabel: m.groupLabel,
       targetDurationGroup: m.targetDurationGroup,
       sourceVideoId,
-      targetChannelId: getsChannelA ? channelA.channel_id : channelB.channel_id,
+      targetChannelId,
       startSec: m.window.start_sec,
       endSec: m.window.end_sec,
       seamSimilarity: m.window.seam_similarity,
@@ -150,9 +166,9 @@ async function createPair(sourceVideoId) {
     return db.getAbAssignment(id);
   });
 
-  assertPairIntegrity(sourceVideoId, members);
+  assertPairIntegrity(sourceVideoId, members, { singleChannelMode: channelSetup.mode === 'single' });
 
-  return { pairId, slotOrder, channelAssignment, pattern: pair.pattern, members };
+  return { pairId, slotOrder, channelAssignment, channelMode: channelSetup.mode, pattern: pair.pattern, members };
 }
 
 function markProduced(id, { jobId } = {}) {

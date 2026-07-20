@@ -5,6 +5,7 @@ const abExperimentService = require('../services/abExperimentService');
 const highlightPatternDb = require('../services/highlightPatternDbService');
 
 const router = express.Router();
+const TRACK_B_PRODUCTION_ENABLED = false;
 
 router.post('/', async (req, res, next) => {
   try {
@@ -84,6 +85,15 @@ router.delete('/:id', (req, res, next) => {
 });
 
 // --- Track B duration A/B (PLAYBOOK.md section 3) ---
+
+router.use('/ab', (req, res, next) => {
+  if (TRACK_B_PRODUCTION_ENABLED) return next();
+  return res.status(410).json({
+    error: true,
+    code: 'TRACK_B_DISABLED_IN_PRODUCTION',
+    message: 'Track B duration/pair experiment routes are disabled in production; live highlights use the production completion slicer.'
+  });
+});
 
 router.post('/ab/channels', (req, res, next) => {
   try {

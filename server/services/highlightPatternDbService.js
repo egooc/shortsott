@@ -142,9 +142,9 @@ function ensureDb() {
       channel_name TEXT,
       role TEXT NOT NULL CHECK(role IN ('A','B')),
       baseline_median REAL,
+      active INTEGER NOT NULL DEFAULT 1,
       registered_at TEXT NOT NULL
     );
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_experiment_channels_role ON experiment_channels(role);
 
     -- Track B duration A/B (PLAYBOOK.md section 3): each row is one produced
     -- edit; two rows sharing a pair_id form a matched pair from the same
@@ -196,7 +196,8 @@ function ensureDb() {
     -- with two SHORTs/two LONGs instead of one of each, or end up targeting
     -- the same channel (which would regress to the exact confound the
     -- channel axis exists to cancel).
-    CREATE TRIGGER IF NOT EXISTS trg_ab_assignments_pair_integrity
+    DROP TRIGGER IF EXISTS trg_ab_assignments_pair_integrity;
+    CREATE TRIGGER trg_ab_assignments_pair_integrity
     AFTER INSERT ON ab_assignments
     BEGIN
       SELECT RAISE(ABORT, 'AB_PAIR_SOURCE_VIDEO_MISMATCH')
@@ -209,12 +210,17 @@ function ensureDb() {
         WHERE pair_id = NEW.pair_id AND target_duration_group = NEW.target_duration_group
       ) > 1;
       SELECT RAISE(ABORT, 'AB_PAIR_DUPLICATE_CHANNEL')
-      WHERE (
-        SELECT COUNT(*) FROM ab_assignments
-        WHERE pair_id = NEW.pair_id AND target_channel_id = NEW.target_channel_id
-      ) > 1;
+      WHERE (SELECT COUNT(*) FROM experiment_channels WHERE active = 1) > 1
+        AND (SELECT COUNT(*) FROM ab_assignments
+             WHERE pair_id = NEW.pair_id AND target_channel_id = NEW.target_channel_id) > 1;
     END;
   `);
+
+  const experimentChannelColumns = tableColumns(db, 'experiment_channels');
+  if (experimentChannelColumns.length && !experimentChannelColumns.includes('active')) {
+    db.exec(`ALTER TABLE experiment_channels ADD COLUMN active INTEGER NOT NULL DEFAULT 1`);
+  }
+  db.exec(`DROP INDEX IF EXISTS idx_experiment_channels_role`);
 
   const videoColumns = tableColumns(db, 'videos');
   if (!videoColumns.includes('analysis_mode')) {
@@ -768,7 +774,57 @@ function getExperimentChannel(channelId) {
 
 function getExperimentChannels() {
   const database = ensureDb();
-  return database.prepare(`SELECT * FROM experiment_channels ORDER BY role ASC`).all();
+  return database.prepare(`SELECT * FROM experiment_channels WHERE active = 1 ORDER BY role ASC, registered_at ASC`).all();
+}
+
+function upsertExperimentChannel({ channelId, channelName, role, baselineMedian, now, active = 1 }) {
+  if (role !== 'A' && role !== 'B') {
+    throw new Error(`role must be 'A' or 'B', got ${role}`);
+  }
+  const database = ensureDb();
+  database.prepare(`
+    INSERT INTO experiment_channels (channel_id, channel_name, role, baseline_median, active, registered_at)
+    VALUES (@channelId, @channelName, @role, @baselineMedian, @active, @now)
+    ON CONFLICT(channel_id) DO UPDATE SET
+      channel_name = excluded.channel_name,
+      role = excluded.role,
+      baseline_median = excluded.baseline_median,
+      active = excluded.active,
+      registered_at = excluded.registered_at
+  `).run({
+    channelId,
+    channelName: channelName ?? null,
+    role,
+    baselineMedian: baselineMedian ?? null,
+    active: active ? 1 : 0,
+    now
+  });
+  return database.prepare(`SELECT * FROM experiment_channels WHERE channel_id = ?`).get(channelId);
+}
+
+function setActiveExperimentChannelIds(channelIds = []) {
+  const database = ensureDb();
+  const wanted = new Set((Array.isArray(channelIds) ? channelIds : []).map((id) => String(id || '').trim()).filter(Boolean));
+  const rows = database.prepare(`SELECT channel_id FROM experiment_channels`).all();
+  const tx = database.transaction(() => {
+    rows.forEach((row) => {
+      database.prepare(`UPDATE experiment_channels SET active = @active WHERE channel_id = @channelId`).run({
+        channelId: row.channel_id,
+        active: wanted.has(row.channel_id) ? 1 : 0
+      });
+    });
+  });
+  tx();
+}
+
+function deleteExperimentChannel(channelId) {
+  const database = ensureDb();
+  database.prepare(`DELETE FROM experiment_channels WHERE channel_id = ?`).run(channelId);
+}
+
+function clearExperimentChannels() {
+  const database = ensureDb();
+  database.prepare(`DELETE FROM experiment_channels`).run();
 }
 
 // --- Track B duration A/B ledger (ab_assignments) ---
@@ -980,6 +1036,10 @@ module.exports = {
   registerExperimentChannel,
   getExperimentChannel,
   getExperimentChannels,
+  upsertExperimentChannel,
+  setActiveExperimentChannelIds,
+  deleteExperimentChannel,
+  clearExperimentChannels,
   insertAbAssignment,
   getLatestScheduledPublishAt,
   getAbAssignment,
