@@ -1,0 +1,1 @@
+﻿A teammate was just swapped in mid-task. FIRST read the project wiki (docs/wiki, especially decisions/) and the recent git log/diff to understand the in-progress work, then CONTINUE it — do NOT restart from scratch.
