@@ -61,6 +61,52 @@ subtitle_style_diff_report.md
 .omx/
 .tools/
 *.log
+.octo-tmp/
+.playwright-mcp/
+.scratch/
+
+# Local migration scratch and backups
+calibration_*.json
+server/*.bak.*
+server/routes/*.bak.*
+server/services/*.bak.*
+midform/**/*.bak.*
+
+# Midform runtime/generated state kept out of source control
+midform/analysis/**
+!midform/analysis/
+!midform/analysis/.gitkeep
+midform/diagnosis/**
+!midform/diagnosis/
+!midform/diagnosis/.gitkeep
+midform/logs/**
+!midform/logs/
+!midform/logs/.gitkeep
+midform/work/**
+!midform/work/
+!midform/work/.gitkeep
+midform/test_runs/**
+!midform/test_runs/
+!midform/test_runs/run_010_H9GPm8uG8Es_bucky_wakanda_raw/
+!midform/test_runs/run_010_H9GPm8uG8Es_bucky_wakanda_raw/**
+!midform/test_runs/run_013_tVxYCeRXzGo_e2e/
+!midform/test_runs/run_013_tVxYCeRXzGo_e2e/**
+
+# Archived Ottugi runtime outputs - keep source archive, skip bulky/generated data
+removed_ottugi_20260715/analysis/**
+removed_ottugi_20260715/assets/**
+removed_ottugi_20260715/dist/**
+removed_ottugi_20260715/queue/**
+removed_ottugi_20260715/work/**
+removed_ottugi_20260715/templates/**/audio/**
+removed_ottugi_20260715/templates/**/video/**
+removed_ottugi_20260715/templates/**/*.zip
+removed_ottugi_20260715/templates/**/*.mp3
+removed_ottugi_20260715/templates/**/*.mp4
+removed_ottugi_20260715/midform/test_runs_archive/**/audio/**
+removed_ottugi_20260715/midform/test_runs_archive/**/video/**
+removed_ottugi_20260715/midform/test_runs_archive/**/source*.mp4
+pilot50_selection.json
 
 # Local shortcuts and OS files
 *.lnk
