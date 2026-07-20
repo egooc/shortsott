@@ -1,8 +1,0 @@
-﻿{
-  "template_id": "movie_recap",
-  "template_name": "Movie Recap Narrative",
-  "category": "movie_recap",
-  "enabled": true,
-  "default_target_duration_sec": 90,
-  "description": "Generates a perspective-driven Korean movie recap script from Gemini clips and evidence."
-}
