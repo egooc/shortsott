@@ -1,9 +1,10 @@
 {
-  "name": "content-pipeline-server",
+  "name": "movie-recap-midform-server",
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
     "dev": "node --watch index.js",
+    "dev:midform": "node --watch index.js",
     "start": "node index.js"
   },
   "dependencies": {

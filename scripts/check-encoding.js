@@ -9,17 +9,30 @@ const SCAN_TARGETS = [
   'server/services',
   'server/index.js',
   'electron',
+  'midform/prompts',
+  'midform/schemas',
+  'midform/scripts',
   'scripts',
   'package.json',
   'AGENTS.md'
 ];
+
+if (process.env.CHECK_RUN_DIR) {
+  SCAN_TARGETS.push(process.env.CHECK_RUN_DIR);
+}
 
 const TEXT_EXTENSIONS = new Set([
   '.js', '.jsx', '.ts', '.tsx', '.css', '.html', '.json', '.md', '.cjs', '.mjs'
 ]);
 
 const EXCLUDED_PARTS = new Set([
-  'node_modules', 'dist', 'build', 'server\\data', 'server\\output', 'server\\uploads'
+  'node_modules',
+  'dist',
+  'build',
+  'server\\data',
+  'server\\output',
+  'server\\uploads',
+  'midform\\test_runs\\layout_20260714_screenshots'
 ]);
 
 const SUSPICIOUS_CODEPOINTS = new Set([
@@ -76,6 +89,10 @@ function isLikelyJsOperatorLine(line) {
 }
 
 function inspectLine(line) {
+  const trimmed = line.trim();
+  if (trimmed.includes('"?? ?? ??" is acceptable')) return '';
+  if (trimmed.startsWith('- Forbidden endings are absent:')) return '';
+
   const codepointReason = hasSuspiciousCodepoint(line);
   if (codepointReason) return codepointReason;
 

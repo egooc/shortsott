@@ -20,7 +20,9 @@ const DEFAULT_REDIRECT_URI = 'http://localhost:3001/api/youtube-upload/oauth/cal
 const PROFILE_PURPOSE_TO_VARIANT = {
   jp_full: 'full',
   jp_highlight: 'highlight',
-  jp_midform: 'midform'
+  jp_midform: 'midform',
+  ko_full: 'ko_full',
+  ko_highlight: 'ko_highlight'
 };
 
 const activeJobs = new Map();
@@ -106,13 +108,14 @@ function makeUploadCard(item = {}, patch = {}) {
   const filePath = item.finalMp4Path || item.filePath || patch.filePath || '';
   const now = new Date().toISOString();
   const uploadDateKey = patch.uploadDateKey || uploadDateKeyForItem(item) || dateKeyFromValue(now);
+  const description = sanitizePublicUploadDescription(item.description || patch.description || '');
   return {
     cardId: cardIdFor(item),
     id: cardIdFor(item),
     status: patch.status || item.cardStatus || item.status || 'matched',
     source: item.source || patch.source || 'youtube_upload_card',
     title: item.title || '',
-    description: item.description || '',
+    description,
     tags: Array.isArray(item.tags) ? item.tags : [],
     privacyStatus: item.privacyStatus || 'private',
     publishAt: item.publishAt || '',
@@ -121,7 +124,7 @@ function makeUploadCard(item = {}, patch = {}) {
     filePath,
     finalMp4Path: filePath,
     originalName: item.originalName || path.basename(filePath),
-    variant: item.variant || detectUploadVariant(item.originalName || filePath),
+    variant: normalizeUploadVariant(item.variant || detectUploadVariant(item.originalName || filePath)),
     metadataTextPath: item.metadataTextPath || '',
     metadataOriginalName: item.metadataOriginalName || '',
     review: item.review || null,
@@ -137,7 +140,9 @@ function makeUploadCard(item = {}, patch = {}) {
     uploadDateKey,
     createdAt: item.createdAt || now,
     updatedAt: now,
-    ...patch
+    ...patch,
+    description,
+    variant: normalizeUploadVariant(patch.variant || item.variant || detectUploadVariant(item.originalName || filePath))
   };
 }
 
@@ -194,7 +199,7 @@ function cardToCandidate(card = {}) {
     folderName: card.originalName || path.basename(filePath),
     variant: card.variant || detectUploadVariant(card.originalName || filePath),
     title: card.title || path.parse(filePath).name,
-    description: card.description || '',
+    description: sanitizePublicUploadDescription(card.description || ''),
     tags: Array.isArray(card.tags) ? card.tags : [],
     review: card.review || null,
     metadataTextPath: card.metadataTextPath || '',
@@ -808,7 +813,9 @@ function normalizeProfilePurpose(value = '') {
   if (raw === 'highlight') return 'jp_highlight';
   if (raw === 'midform') return 'jp_midform';
   if (raw === 'full_draft' || raw === 'full') return 'jp_full';
-  if (raw === 'ko_full_draft' || raw === 'ko_highlight_draft' || raw === 'legacy_env') return 'archive';
+  if (raw === 'ko_full_draft' || raw === 'kr_full' || raw === 'korean_full') return 'ko_full';
+  if (raw === 'ko_highlight_draft' || raw === 'kr_highlight' || raw === 'korean_highlight') return 'ko_highlight';
+  if (raw === 'legacy_env') return 'archive';
   return raw;
 }
 
@@ -827,7 +834,7 @@ function assertUploadItemsMatchProfiles(items = []) {
 
     const profile = profileCache.get(profileId);
     const expectedVariant = variantForProfilePurpose(profile?.purpose || '');
-    const itemVariant = baseUploadVariant(item.variant || detectUploadVariant(item.originalName || item.finalMp4Path || item.filePath || ''));
+    const itemVariant = normalizeUploadVariant(item.variant || detectUploadVariant(item.originalName || item.finalMp4Path || item.filePath || ''));
 
     if (!profile) {
       errors.push({
@@ -845,7 +852,7 @@ function assertUploadItemsMatchProfiles(items = []) {
         profileId,
         profilePurpose: profile.purpose || '',
         itemVariant,
-        reason: 'Upload profile purpose must be jp_full, jp_highlight, or jp_midform'
+        reason: 'Upload profile purpose must be jp_full, jp_highlight, jp_midform, ko_full, or ko_highlight'
       });
       continue;
     }
@@ -918,7 +925,7 @@ function normalizeDraftUploadCandidate(draftDir) {
   const manifestTitle = manifest.upload_title || manifest.metadata?.upload_title || manifest.title || '';
   const uploadTitle = cleanTitle(parsedPackage?.title || manifestTitle, folderName.replace(/^\d{8}_\d{6}-\d{3}-[FH]-/i, ''));
   const hashtags = normalizeTags(parsedPackage?.tags || manifest.upload_hashtags || manifest.metadata?.upload_hashtags || ['worker', 'process']);
-  const description = String(parsedPackage?.description || manifest.upload_description || manifest.metadata?.upload_description || packageText || '').trim();
+  const description = sanitizePublicUploadDescription(parsedPackage?.description || manifest.upload_description || manifest.metadata?.upload_description || packageText || '');
 
   return {
     id: hashPath(draftDir),
@@ -962,6 +969,14 @@ function repairOriginalName(name) {
   }
 
   return raw.normalize('NFC');
+}
+
+function containsHangul(value = '') {
+  return /[\p{Script=Hangul}]/u.test(String(value || ''));
+}
+
+function sanitizePublicUploadDescription(value = '') {
+  return stripReviewSections(String(value || '')).slice(0, 5000);
 }
 
 function safeFileName(name) {
@@ -1089,11 +1104,14 @@ function detectUploadVariant(name = '', manifest = {}) {
   const raw = String(name || '');
   const value = raw.toLowerCase();
   const koreanSuffix = /_ko(?:\.[^.]+)?$/i.test(raw);
+  const koreanText = containsHangul(raw);
   if (/-m-/i.test(raw) || /(^|[_\s-])m($|[_\s-])/i.test(raw) || /midform|middle|2min|120/.test(value)) return 'midform';
   if (/-kh-/i.test(raw) || /(^|[_\s-])kh($|[_\s-])/i.test(raw) || /ko[_\s-]*highlight|kr[_\s-]*highlight|korean[_\s-]*highlight/.test(value)) return 'ko_highlight';
   if (/-kf-/i.test(raw) || /(^|[_\s-])kf($|[_\s-])/i.test(raw) || /ko[_\s-]*full|kr[_\s-]*full|korean[_\s-]*full/.test(value)) return 'ko_full';
   if (koreanSuffix && (/-h-/i.test(raw) || /-hl-/i.test(raw) || /(^|[_\s-])h($|[_\s-])/i.test(raw) || /(^|[_\s-])hl($|[_\s-])/i.test(raw))) return 'ko_highlight';
   if (koreanSuffix && (/-f-/i.test(raw) || /(^|[_\s-])f($|[_\s-])/i.test(raw))) return 'ko_full';
+  if (koreanText && (/-h-/i.test(raw) || /-hl-/i.test(raw) || /(^|[_\s-])h($|[_\s-])/i.test(raw) || /(^|[_\s-])hl($|[_\s-])/i.test(raw))) return 'ko_highlight';
+  if (koreanText && (/-f-/i.test(raw) || /(^|[_\s-])f($|[_\s-])/i.test(raw))) return 'ko_full';
   if (/-h-/i.test(raw) || /-hl-/i.test(raw) || /(^|[_\s-])h($|[_\s-])/i.test(raw) || /(^|[_\s-])hl($|[_\s-])/i.test(raw) || /highlight|hi-lite|hook/.test(value)) return 'highlight';
   if (/-f-/i.test(raw) || /(^|[_\s-])f($|[_\s-])/i.test(raw) || /full|process|draft/.test(value)) return 'full';
   return 'exported';
@@ -1406,7 +1424,7 @@ function importUploadFiles({ videoFiles = [], metadataFiles = [] }) {
       folderName: originalName,
       variant,
       title: parsed.title,
-      description: parsed.description,
+      description: sanitizePublicUploadDescription(parsed.description || ''),
       tags: parsed.tags,
       review: review || null,
       metadataTextPath: metadata?.path || '',
@@ -1465,10 +1483,11 @@ function parsePublishAt(value) {
 function buildVideoResource(item) {
   const publishAt = parsePublishAt(item.publishAt);
   const privacyStatus = publishAt ? 'private' : (item.privacyStatus || 'private');
+  const publicDescription = sanitizePublicUploadDescription(item.description || '');
   return {
     snippet: {
       title: cleanTitle(item.title, 'Untitled process video'),
-      description: String(item.description || '').slice(0, 5000),
+      description: publicDescription,
       tags: normalizeTags(item.tags),
       categoryId: String(item.categoryId || '28')
     },
@@ -1656,12 +1675,16 @@ function makeHistoryRecord(job, item, result = {}) {
     jobId: job.jobId,
     order: item.order,
     title: item.title || '',
-    description: item.description || '',
+    description: sanitizePublicUploadDescription(item.description || ''),
     tags: Array.isArray(item.tags) ? item.tags : [],
     privacyStatus: item.privacyStatus || '',
     publishAt: item.publishAt || '',
     filePath: item.finalMp4Path || item.filePath || '',
     originalName: item.originalName || '',
+    variant: normalizeUploadVariant(item.variant || detectUploadVariant(item.originalName || item.finalMp4Path || item.filePath || '')),
+    metadataTextPath: item.metadataTextPath || '',
+    metadataOriginalName: item.metadataOriginalName || '',
+    review: item.review || null,
     uploadProfileId: resolveUploadProfileId(item.uploadProfileId || item.profileId || ''),
     youtubeVideoId: result.videoId || item.youtubeVideoId || '',
     youtubeUrl: result.url || item.youtubeUrl || '',
@@ -1680,13 +1703,17 @@ function makePendingRecord(job, item, reason = {}) {
     reasonCode: reason.code || item.errorCode || 'UPLOAD_PENDING',
     reason: reason.message || item.error || '',
     title: item.title || '',
-    description: item.description || '',
+    description: sanitizePublicUploadDescription(item.description || ''),
     tags: Array.isArray(item.tags) ? item.tags : [],
     privacyStatus: item.privacyStatus || '',
     publishAt: item.publishAt || '',
     filePath: item.finalMp4Path || item.filePath || '',
     finalMp4Path: item.finalMp4Path || item.filePath || '',
     originalName: item.originalName || '',
+    variant: normalizeUploadVariant(item.variant || detectUploadVariant(item.originalName || item.finalMp4Path || item.filePath || '')),
+    metadataTextPath: item.metadataTextPath || '',
+    metadataOriginalName: item.metadataOriginalName || '',
+    review: item.review || null,
     uploadProfileId: resolveUploadProfileId(item.uploadProfileId || item.profileId || ''),
     errorDetails: item.errorDetails || {},
     createdAt: new Date().toISOString(),
@@ -1868,9 +1895,9 @@ function pendingToCandidate(item = {}) {
     filePath,
     finalMp4Path: filePath,
     folderName: item.originalName || path.basename(filePath),
-    variant: detectUploadVariant(item.originalName || filePath),
+    variant: normalizeUploadVariant(item.variant || detectUploadVariant(item.originalName || filePath)),
     title: item.title || path.parse(filePath).name,
-    description: item.description || '',
+    description: sanitizePublicUploadDescription(item.description || ''),
     tags: Array.isArray(item.tags) ? item.tags : [],
     review: item.review || null,
     metadataTextPath: item.metadataTextPath || '',
@@ -2008,7 +2035,8 @@ function createUploadJob(items) {
   const normalizedItems = items.map((item) => ({
     ...item,
     uploadProfileId: resolveUploadProfileId(item.uploadProfileId || item.profileId || ''),
-    variant: baseUploadVariant(item.variant || detectUploadVariant(item.originalName || item.finalMp4Path || item.filePath || ''))
+    variant: normalizeUploadVariant(item.variant || detectUploadVariant(item.originalName || item.finalMp4Path || item.filePath || '')),
+    description: sanitizePublicUploadDescription(item.description || '')
   }));
   assertUploadItemsMatchProfiles(normalizedItems);
   const fingerprint = uploadJobFingerprint(normalizedItems);

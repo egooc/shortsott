@@ -4,9 +4,55 @@ const { execFile } = require('child_process');
 const { createHttpError } = require('./errorService');
 const { resolveTool, getToolEnv } = require('../utils/toolPaths');
 
-const OUTPUT_DIR = path.join(__dirname, '../output');
+function resolveCanonicalProjectRoot(projectRoot) {
+  const marker = `${path.sep}.octo-tmp${path.sep}`;
+  const normalized = path.resolve(projectRoot);
+  const markerIndex = normalized.indexOf(marker);
+  if (markerIndex < 0) return normalized;
+  return normalized.slice(0, markerIndex);
+}
+
+const PROJECT_ROOT = resolveCanonicalProjectRoot(path.join(__dirname, '../..'));
+const OUTPUT_DIR = path.join(PROJECT_ROOT, 'server', 'output');
+const DRAFTS_OUTPUT_DIR = path.join(OUTPUT_DIR, 'drafts');
 const TEMPLATE_BASE_DIR = path.resolve(__dirname, '../../templates/capcut/channel_default');
 const CAPCUT_DRAFT_TIMEOUT_MS = Number(process.env.CAPCUT_DRAFT_TIMEOUT_MS || 20 * 60 * 1000);
+
+function buildDraftPayloadOverrides(extraPayload = {}) {
+  const payload = extraPayload && typeof extraPayload === 'object' ? { ...extraPayload } : {};
+  const explicitSourceVideoPath = String(
+    payload.source_video_path
+    || payload.sourceVideoPath
+    || payload.processConfig?.source_video_path
+    || payload.processConfig?.sourceVideoPath
+    || ''
+  ).trim();
+  const explicitOutputBasePath = String(
+    payload.output_base_path
+    || payload.outputBasePath
+    || payload.processConfig?.output_base_path
+    || payload.processConfig?.outputBasePath
+    || DRAFTS_OUTPUT_DIR
+  ).trim() || DRAFTS_OUTPUT_DIR;
+  const processConfig = payload.processConfig && typeof payload.processConfig === 'object'
+    ? { ...payload.processConfig }
+    : {};
+
+  if (explicitSourceVideoPath) {
+    payload.source_video_path = explicitSourceVideoPath;
+    payload.sourceVideoPath = explicitSourceVideoPath;
+    processConfig.source_video_path = explicitSourceVideoPath;
+    processConfig.sourceVideoPath = explicitSourceVideoPath;
+  }
+
+  payload.output_base_path = explicitOutputBasePath;
+  payload.outputBasePath = explicitOutputBasePath;
+  processConfig.output_base_path = explicitOutputBasePath;
+  processConfig.outputBasePath = explicitOutputBasePath;
+  payload.processConfig = processConfig;
+
+  return payload;
+}
 
 function walkDirs(baseDir, maxDepth = 2) {
   const results = [];
@@ -123,9 +169,12 @@ function generateDraft(
   audioPathMode = 'absolute',
   videoPlacementMode = 'source_clips',
   useCapcutTemplate = true,
-  claudeScript = {}
+  claudeScript = {},
+  extraPayload = {}
 ) {
+  fs.mkdirSync(OUTPUT_DIR, { recursive: true });
   const inputPath = path.join(OUTPUT_DIR, 'draft_input.json');
+  const payloadOverrides = buildDraftPayloadOverrides(extraPayload);
   const payload = {
     segments,
     ttsFiles,
@@ -137,7 +186,8 @@ function generateDraft(
     audioPathMode,
     videoPlacementMode,
     useCapcutTemplate,
-    claudeScript
+    claudeScript,
+    ...payloadOverrides
   };
 
   fs.writeFileSync(inputPath, JSON.stringify(payload, null, 2), 'utf8');
@@ -174,8 +224,9 @@ function generateDraft(
 }
 
 function runCapcutScript(payload, inputFilename = 'draft_input.json') {
+  fs.mkdirSync(OUTPUT_DIR, { recursive: true });
   const inputPath = path.join(OUTPUT_DIR, inputFilename);
-  fs.writeFileSync(inputPath, JSON.stringify(payload, null, 2), 'utf8');
+  fs.writeFileSync(inputPath, JSON.stringify(buildDraftPayloadOverrides(payload), null, 2), 'utf8');
 
   const scriptPath = path.join(__dirname, '../../scripts/capcut_draft.py');
   const pythonCommand = resolveTool('python', { envKey: 'PYTHON_PATH' });
@@ -229,4 +280,4 @@ function generateProcessDraft({ config, videoTransformPreset, bgmPreset, createZ
   return runCapcutScript(payload, 'process_draft_input.json');
 }
 
-module.exports = { generateDraft, generateProcessDraft, getCapcutTemplateStatus };
+module.exports = { generateDraft, generateProcessDraft, getCapcutTemplateStatus, DRAFTS_OUTPUT_DIR };

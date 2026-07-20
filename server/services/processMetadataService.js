@@ -8,7 +8,7 @@ const { loadPrompt } = require('./promptService');
 const { computeCutSelectionTier } = require('../utils/cutSelectionTier');
 
 const GEMINI_MODEL = 'gemini-2.5-flash';
-const DEFAULT_VERTEX_LOCATION = 'us-central1';
+const DEFAULT_VERTEX_LOCATION = 'global';
 const FILE_POLL_INTERVAL_MS = 5000;
 const FILE_POLL_MAX_RETRIES = 180;
 const GEMINI_GENERATE_MAX_ATTEMPTS = 3;
@@ -18,6 +18,13 @@ const GEMINI_LONGFORM_FINAL_RETRY_BASE_MS = 60000;
 const GEMINI_REQUEST_HEARTBEAT_MS = 25000;
 const GEMINI_REQUEST_TIMEOUT_MS = 6 * 60 * 1000;
 const SHORTFORM_HIGHLIGHT_GEMINI_TIMEOUT_MS = 3 * 60 * 1000;
+const LOCAL_LONGFORM_CANDIDATE_MIN_DURATION_SEC = 180;
+const LOCAL_LONGFORM_SEGMENT_SEC = 120;
+const LOCAL_LONGFORM_SEGMENT_OVERLAP_SEC = 15;
+const LOCAL_LONGFORM_HOOK_DURATION_SEC = 16;
+const LOCAL_LONGFORM_STORY_DURATION_SEC = 60;
+const LOCAL_LONGFORM_MIDFORM_DURATION_SEC = 120;
+const ULTRA_LONGFORM_ANALYSIS_HORIZON_SEC = 1800;
 const SHORT_DESCRIPTION_SOFT_MAX = 260;
 const MIDFORM_CAPTION_MIN_ITEMS_120S = 30;
 const MIDFORM_CAPTION_MAX_ITEMS_120S = 45;
@@ -624,6 +631,26 @@ function normalizeFileState(file) {
   return String(file?.state || '').toUpperCase();
 }
 
+function resolveVertexLocation(config = {}) {
+  return String(
+    process.env.PROCESS_METADATA_VERTEX_LOCATION
+    || process.env.GEMINI_VERTEX_LOCATION
+    || DEFAULT_VERTEX_LOCATION
+    || config.location
+    || ''
+  ).trim() || 'global';
+}
+
+function buildVertexEndpoint(config = {}) {
+  const override = String(process.env.GEMINI_VERTEX_ENDPOINT_OVERRIDE || '').trim();
+  if (override) return override;
+  const location = resolveVertexLocation(config);
+  const host = location === 'global'
+    ? 'https://aiplatform.googleapis.com'
+    : `https://${location}-aiplatform.googleapis.com`;
+  return `${host}/v1/projects/${config.project}/locations/${location}/publishers/google/models/${config.model}:generateContent`;
+}
+
 function safeDebugName(value = '') {
   return String(value || 'unknown')
     .replace(/[^\w.-]+/g, '_')
@@ -897,6 +924,119 @@ function buildLongformCandidatePrompt({ sourceUrl, filename, durationSec, source
     `- Source Type: ${sourceType || 'unknown'}`,
     `- Source Workflow Mode: ${sourceWorkflowMode || 'unknown'}`
   ].join('\n');
+}
+
+function clampWindowStart(startSec = 0, durationSec = 0, sourceDurationSec = 0) {
+  const duration = Math.max(1, Number(durationSec || 0));
+  const sourceDuration = Number(sourceDurationSec || 0);
+  const requestedStart = Math.max(0, Number(startSec || 0));
+  if (!Number.isFinite(sourceDuration) || sourceDuration <= duration) return Math.max(0, requestedStart);
+  return Math.min(requestedStart, Math.max(0, sourceDuration - duration));
+}
+
+function buildLocalLongformWindow({ startSec = 0, durationSec = 10, sourceDurationSec = 0, reason = '', extra = {} } = {}) {
+  const sourceDuration = Number(sourceDurationSec || 0);
+  const requestedDuration = Math.max(1, Number(durationSec || 0));
+  const duration = Number.isFinite(sourceDuration) && sourceDuration > 0
+    ? Math.min(requestedDuration, sourceDuration)
+    : requestedDuration;
+  const start = clampWindowStart(startSec, duration, sourceDuration);
+  return {
+    start_sec: Number(start.toFixed(3)),
+    end_sec: Number((start + duration).toFixed(3)),
+    duration_sec: Number(duration.toFixed(3)),
+    reason,
+    ...extra
+  };
+}
+
+function buildLocalLongformCandidateGuide({ durationSec = 0, sourceType = 'longform', sourceWorkflowMode = 'longform_to_shorts' } = {}) {
+  const sourceDuration = Number(durationSec || 0);
+  const analysisDuration = sourceDuration > ULTRA_LONGFORM_ANALYSIS_HORIZON_SEC
+    ? ULTRA_LONGFORM_ANALYSIS_HORIZON_SEC
+    : sourceDuration;
+  const segmentStep = Math.max(30, LOCAL_LONGFORM_SEGMENT_SEC - LOCAL_LONGFORM_SEGMENT_OVERLAP_SEC);
+  const segmentStarts = [];
+  for (let start = 0; start < Math.max(analysisDuration, 1); start += segmentStep) {
+    segmentStarts.push(start);
+    if (analysisDuration > 0 && start + LOCAL_LONGFORM_SEGMENT_SEC >= analysisDuration) break;
+  }
+  if (!segmentStarts.length) segmentStarts.push(0);
+
+  const hookCandidates = segmentStarts.slice(0, 6).map((segmentStart, index) => {
+    const hookStart = segmentStart + Math.max(6, Math.min(36, index * 4 + 8));
+    return buildLocalLongformWindow({
+      startSec: hookStart,
+      durationSec: LOCAL_LONGFORM_HOOK_DURATION_SEC,
+      sourceDurationSec: analysisDuration,
+      reason: `local segment ${index + 1}: visually active window inside ${Math.round(segmentStart)}-${Math.round(Math.min(analysisDuration, segmentStart + LOCAL_LONGFORM_SEGMENT_SEC))}s`,
+      extra: {
+        visual_hook: `local candidate ${index + 1}`,
+        opening_type: 'local_segment_probe',
+        hook_score: Math.max(5, 9 - index),
+        tempo_score: Math.max(3, 5 - Math.floor(index / 2)),
+        tension_score: Math.max(3, 5 - Math.floor(index / 2)),
+        transformation_score: Math.max(3, 5 - Math.floor(index / 3)),
+        framing_score: 3,
+        flow_score: 3,
+        cycle_time_sec: 4,
+        appears_sped_up: false,
+        human_visibility: 'UNKNOWN'
+      }
+    });
+  });
+
+  const storyStarts = [0, Math.max(0, analysisDuration * 0.25), Math.max(0, analysisDuration * 0.5), Math.max(0, analysisDuration * 0.7)]
+    .map((value) => Number(value || 0));
+  const storyCandidates = Array.from(new Set(storyStarts.map((value) => clampWindowStart(value, LOCAL_LONGFORM_STORY_DURATION_SEC, analysisDuration)))).slice(0, 4)
+    .map((startSec, index) => buildLocalLongformWindow({
+      startSec,
+      durationSec: LOCAL_LONGFORM_STORY_DURATION_SEC,
+      sourceDurationSec: analysisDuration,
+      reason: `local story window ${index + 1}: broad process coverage around ${Math.round(startSec)}s`,
+      extra: {
+        story_flow: `local story candidate ${index + 1}`,
+        opening_type: index === 0 ? 'result_or_raw_material' : 'local_segment_probe',
+        hook_score: Math.max(5, 8 - index),
+        process_coverage_score: Math.max(3, 5 - Math.floor(index / 2))
+      }
+    }));
+
+  const midformCandidates = analysisDuration >= 125
+    ? [buildLocalLongformWindow({
+        startSec: clampWindowStart(analysisDuration * 0.2, LOCAL_LONGFORM_MIDFORM_DURATION_SEC, analysisDuration),
+        durationSec: LOCAL_LONGFORM_MIDFORM_DURATION_SEC,
+        sourceDurationSec: analysisDuration,
+        reason: 'local midform candidate from longform duration segmentation',
+        extra: {
+          process_flow: 'local midform candidate 1',
+          opening_type: 'ambient_context',
+          atmosphere_score: 4,
+          process_coverage_score: 4
+        }
+      })]
+    : [];
+
+  return {
+    source_time_basis: 'absolute_original_seconds',
+    source_type: sourceType,
+    source_workflow_mode: sourceWorkflowMode,
+    hook_candidates: hookCandidates,
+    story_candidates: storyCandidates,
+    midform_candidates: midformCandidates,
+    local_preprocessed: true,
+    local_candidate_strategy: {
+      type: 'duration_segmented_prepass',
+      source_duration_sec: Number(sourceDuration.toFixed(3)),
+      analysis_duration_sec: Number(analysisDuration.toFixed(3)),
+      capped_to_analysis_horizon: sourceDuration > analysisDuration,
+      segment_sec: LOCAL_LONGFORM_SEGMENT_SEC,
+      overlap_sec: LOCAL_LONGFORM_SEGMENT_OVERLAP_SEC,
+      generated_hook_candidates: hookCandidates.length,
+      generated_story_candidates: storyCandidates.length,
+      generated_midform_candidates: midformCandidates.length
+    }
+  };
 }
 
 function buildLongformHookPrompt({ candidateGuide }) {
@@ -2309,6 +2449,19 @@ function repairKoreanBrokenFullScriptItems(items = []) {
     if (/중요$/u.test(item.text) && consumeNextPrefix(index, /^한\b\s*/u, '한 ')) {
       item.text = item.text.replace(/중요$/u, '중요한').trim();
     }
+    const next = output[index + 1];
+    if (!next?.text) continue;
+    if (
+      /[이가은는을를에로와과도]$/u.test(item.text)
+      || visibleTextLength(item.text) <= 5
+      || visibleTextLength(next.text) <= 4
+      || /\($/.test(item.text)
+      || /^[)\]}]/.test(next.text)
+      || /^장면\)?$/u.test(next.text)
+    ) {
+      item.text = normalizeText(`${item.text} ${next.text}`.replace(/\s+/g, ' ').replace(/\(\s+/g, '(').replace(/\s+\)/g, ')')).trim();
+      next.text = '';
+    }
   }
 
   return output
@@ -2471,13 +2624,37 @@ function rewriteBareFullDraftScriptText(text = '', korean = false, index = 0) {
   if (!value) return '';
   if (korean) {
     if (index === 0 && /뭔지|무엇|이게/u.test(value)) return '이게 뭔지 아세요?';
-    return value
+    const rewritten = value
+      .replace(/material transformation/giu, '소재 변화')
+      .replace(/[()]/g, '')
       .replace(/세척$/u, '을 씻고')
       .replace(/만드는$/u, '만드는 과정')
       .replace(/압착$/u, '으로 짜내고')
       .replace(/분리$/u, '을 걸러내고')
       .replace(/붓고$/u, '부어 넣고')
-      .replace(/완성$/u, '완성됩니다');
+      .replace(/완성$/u, '완성돼요')
+      .replace(/^모터의 심장부$/u, '모터의 심장부예요')
+      .replace(/^가는 구리선이$/u, '가는 구리선이 감겨 올라가고')
+      .replace(/^빠르게 감겨간다$/u, '빠르게 감겨 올라가요')
+      .replace(/^정밀 기계가$/u, '정밀 기계가 움직이고')
+      .replace(/^지정된 위치로$/u, '지정된 위치로 들어가고')
+      .replace(/^정확히 유도한다$/u, '정확한 자리로 유도해요')
+      .replace(/^숙련된 작업자가$/u, '숙련된 작업자가 곁에서')
+      .replace(/^작업을 지켜본다$/u, '작업 흐름을 끝까지 지켜봐요')
+      .replace(/^작은 오차도$/u, '작은 오차도 그냥 넘기지 않고')
+      .replace(/^용납되지 않는다$/u, '바로 다시 맞춰요')
+      .replace(/^이 코일이$/u, '이 코일이 결국')
+      .replace(/^전기를 만들어내는$/u, '전기를 만들어내는 핵심이 되고')
+      .replace(/^중요한 부품이다$/u, '중요한 부품이 돼요')
+      .replace(/^여러 번 겹쳐$/u, '여러 번 겹쳐 감기면서')
+      .replace(/^이상적인 형태로$/u, '이상적인 형태에 가까워지고')
+      .replace(/^고도의 기술이$/u, '고도의 기술이 끝까지')
+      .replace(/^고품질을 지탱한다$/u, '고품질을 지탱해요')
+      .trim();
+    if (/^[가-힣0-9\s]{2,}$/u.test(rewritten) && isFullScriptNominalLabel(rewritten, true)) {
+      return `${rewritten.replace(/[.,!?！？。]+$/u, '').trim()}예요`;
+    }
+    return rewritten;
   }
   if (index === 0 && /(何|なん|これ)/u.test(value)) return 'これ何だろう';
   if (/^(じゃ|でもそれだけ)$/u.test(value)) return '';
@@ -2827,7 +3004,7 @@ function buildFallbackReport(subject, shortDescription, korean = false) {
 function buildLongformVariantFinalPrompt({ variant, sourceUrl, filename, durationSec, candidateGuide, hookGuide, storyGuide, midformGuide }) {
   const variantConfig = {
     full: {
-      phaseName: 'JP Full',
+      phaseName: 'KR Full',
       windowName: 'story_clip_40s',
       requiredFields: [
         'full_metadata',
@@ -2844,11 +3021,20 @@ function buildLongformVariantFinalPrompt({ variant, sourceUrl, filename, duratio
         'explainer_text_ko'
       ],
       rules: [
-        '- Create only the JP Full process-summary draft metadata and scripts.',
+        '- Create only the KR Full process-summary draft metadata and scripts.',
         '- Full uses story_clip_40s only. The field name is legacy; treat it as one about-60-second core-process source window.',
         '- Full must explain one important process in depth, not summarize unrelated moments from the whole long-form video.',
         '- Full must not claim an unseen result. If the selected source window does not visibly show water, final products, packaging, or completion, describe those as purpose/goal only.',
         '- Full caption mode is scene_based_short_subtitles for compatibility, but the content must be manuscript-based caption chunks, not scene labels.',
+        '- Full production language is Korean. full_caption_script_ko and full_metadata_ko are the real production output for this variant.',
+        '- Korean Full must sound like natural spoken Korean for curious viewers, not like translated Japanese or noun-only labels.',
+        '- Avoid bare label chunks such as "모터의 심장부", "정밀 기계가", "작은 오차도" unless they continue naturally into the next phrase.',
+        '- Prefer connected Korean phrasing such as "모터의 심장부예요", "정밀 기계가 움직이고", "작은 오차도 그냥 넘기지 않고".',
+        '- Do not leave English fallback phrases like "material transformation" inside Korean Full fields. Rewrite them into natural Korean.',
+        '- full_caption_script_ko should be 20 to 24 short Korean connected narration phrases for the selected core-process window.',
+        '- full_metadata_ko.onscreen_subtitles must copy the same manuscript chunks from full_caption_script_ko. Do not fill it from raw scene captions.',
+        '- full_metadata_ko.summary_caption is a short public Korean summary, not the screen caption block.',
+        '- The first KR Full caption should be close to "이게 뭔지 아세요?".',
         '- full_caption_script_ja must be 20 to 24 short Japanese connected narration phrases for the selected core-process window.',
         '- Avoid repeated polite/report endings in full_caption_script_ja. Do not build the script around です, ます, されます, なります, or します.',
         '- Never end a Japanese Full caption with an unfinished particle such as を, が, の, に, へ, と, や, な.',
@@ -2859,7 +3045,6 @@ function buildLongformVariantFinalPrompt({ variant, sourceUrl, filename, duratio
         '- JP Full script flow: hook -> process identity -> technical/educational context -> scene mentions only around 25/50/75 percent -> emotional closing.',
         '- Scene observation captions are allowed only 4 to 6 times. Most captions must explain purpose, method, precision, quality, or emotional meaning.',
         '- The first JP Full caption should be close to "これ何だろう".',
-        '- full_caption_script_ko is Korean review-only and must be natural Korean.',
         '- full_metadata.onscreen_subtitles must copy the same manuscript chunks from full_caption_script_ja. Do not fill it from scene captions.',
         '- full_metadata.summary_caption is a short public summary, not the screen caption block.',
         '- Do not create Highlight or Midform metadata in this response.'
@@ -4070,15 +4255,25 @@ function hasEnglishFallback(guide = {}, options = {}) {
 }
 
 
-function classifyLongformValidationIssues(error = {}) {
+function classifyLongformValidationIssues(guide = {}, error = {}) {
   const missing = Array.isArray(error.details?.missing) ? error.details.missing : [];
   const invalidCaptions = Array.isArray(error.details?.invalid_japanese_captions) ? error.details.invalid_japanese_captions : [];
+  const fullProductionIsKorean = String(guide.output_language || '').trim().toLowerCase() === 'ko';
   const allIssues = [
     ...missing.map((issue) => String(issue || '')),
     ...invalidCaptions.map((issue) => String(issue?.field || issue?.reason || ''))
   ].filter(Boolean);
   const variantIssue = {
-    full: allIssues.filter((issue) => /(^|_|\.)full|story|scene_transitions|japanese_subtitles|short_description|recommended_titles|explainer_text/i.test(issue)),
+    full: allIssues.filter((issue) => {
+      const text = String(issue || '');
+      if (!/(^|_|\.)full|story|scene_transitions|japanese_subtitles|short_description|recommended_titles|explainer_text/i.test(text)) {
+        return false;
+      }
+      if (!fullProductionIsKorean) return true;
+      if (/full_caption_script_ja|full_metadata(?:_ja)?\.onscreen_subtitles/i.test(text)) return false;
+      if (/screen_captions_ja|caption_text(?:[^_]|$)/i.test(text) && !/caption_text_ko|screen_captions_ko/i.test(text)) return false;
+      return true;
+    }),
     highlight: allIssues.filter((issue) => /highlight|hook/i.test(issue)),
     midform: allIssues.filter((issue) => /midform/i.test(issue))
   };
@@ -4089,7 +4284,7 @@ function classifyLongformValidationIssues(error = {}) {
 }
 
 function markValidationFailedVariants(guide = {}, error = {}, allowedVariants = []) {
-  const info = classifyLongformValidationIssues(error);
+  const info = classifyLongformValidationIssues(guide, error);
   const allowed = new Set(allowedVariants.length ? allowedVariants : ['full', 'highlight', 'midform']);
   const failedVariants = info.failedVariants.filter((variant) => allowed.has(variant));
   if (!failedVariants.length) return { guide, failedVariants, handled: false, info };
@@ -4362,7 +4557,13 @@ function validateLongformShortsResult(guide = {}, options = {}) {
     }
   }
 
-  if (!hasNonEmptySubtitles(guide, 'ja')) missing.push('missing_japanese_subtitles');
+  const fullProductionIsKorean = String(guide.output_language || '').trim().toLowerCase() === 'ko';
+  if (!skipFullValidation && fullProductionIsKorean && !hasNonEmptySubtitles(guide, 'ko')) {
+    missing.push('missing_korean_subtitles');
+  }
+  if ((!fullProductionIsKorean || !skipHighlightValidation || !skipMidformValidation) && !hasNonEmptySubtitles(guide, 'ja')) {
+    missing.push('missing_japanese_subtitles');
+  }
   if (!options.skipEnglishFallback && hasEnglishFallback(guide, {
     includeFull: !skipFullValidation,
     includeHighlight: !skipHighlightValidation,
@@ -4907,7 +5108,8 @@ function retryDelayMs(attempt, phase = '', status = 0, options = {}) {
 
 function assertLongformBasis(value = {}, label = 'longform') {
   const basis = normalizeText(value.source_time_basis || '');
-  if (basis && basis !== 'absolute_original_seconds') {
+  if (!basis) return;
+  if (basis !== 'absolute_original_seconds') {
     throw createHttpError(500, 'OTTOGI_LONGFORM_TIME_BASIS_INVALID', `${label} must use absolute original seconds`, {
       source_time_basis: basis
     });
@@ -6551,6 +6753,11 @@ function getMimeType(filePath) {
   return 'video/mp4';
 }
 
+function hasLocalSourceFile(filePath = '') {
+  const resolved = String(filePath || '').trim();
+  return Boolean(resolved) && fs.existsSync(resolved);
+}
+
 function buildYoutubeFilePart(sourceUrl) {
   return {
     fileData: {
@@ -6558,6 +6765,62 @@ function buildYoutubeFilePart(sourceUrl) {
       fileUri: String(sourceUrl || '').trim()
     }
   };
+}
+
+async function buildApiKeyVideoPart({ filePath, sourceUrl, apiKey, throwIfCancelled = null }) {
+  if (hasLocalSourceFile(filePath)) {
+    const fileManager = new GoogleAIFileManager(apiKey);
+    const uploadResult = await fileManager.uploadFile(filePath, {
+      mimeType: getMimeType(filePath),
+      displayName: `ottogi_metadata_${Date.now()}_${path.basename(filePath)}`
+    });
+
+    let uploadedFile = uploadResult.file;
+    let tries = 0;
+    while (normalizeFileState(uploadedFile) === 'PROCESSING') {
+      checkCancellation(throwIfCancelled);
+      if (tries >= FILE_POLL_MAX_RETRIES) {
+        throw createHttpError(504, 'GEMINI_FILE_PROCESSING_TIMEOUT', 'Gemini file processing timed out');
+      }
+      await cancellableSleep(FILE_POLL_INTERVAL_MS, throwIfCancelled);
+      uploadedFile = await fileManager.getFile(uploadedFile.name);
+      tries += 1;
+    }
+
+    if (normalizeFileState(uploadedFile) === 'FAILED') {
+      throw createHttpError(500, 'GEMINI_FILE_PROCESSING_FAILED', 'Gemini file processing failed', { file: uploadedFile });
+    }
+
+    return {
+      fileData: {
+        mimeType: uploadedFile.mimeType,
+        fileUri: uploadedFile.uri
+      }
+    };
+  }
+
+  if (isYouTubeUrl(sourceUrl)) {
+    return buildYoutubeFilePart(sourceUrl);
+  }
+
+  throw createHttpError(400, 'SOURCE_VIDEO_REQUIRED', 'source video file is required');
+}
+
+function buildVertexVideoPart({ filePath, sourceUrl }) {
+  if (hasLocalSourceFile(filePath)) {
+    return {
+      inlineData: {
+        mimeType: getMimeType(filePath),
+        data: fs.readFileSync(filePath).toString('base64')
+      }
+    };
+  }
+
+  if (isYouTubeUrl(sourceUrl)) {
+    return buildYoutubeFilePart(sourceUrl);
+  }
+
+  throw createHttpError(400, 'SOURCE_VIDEO_REQUIRED', 'source video file is required');
 }
 
 async function getVertexAccessToken() {
@@ -6750,6 +7013,9 @@ async function runLongformGeminiPipeline({ generateJson, sourceUrl, filename, du
   const wantsHighlightFinal = ['all', 'full_highlight_only', 'highlight_only'].includes(normalizedMetadataVariantMode);
   const wantsMidformFinal = ['all', 'midform_only'].includes(normalizedMetadataVariantMode);
   const sourceDuration = Number(durationSec || 0);
+  const analysisDurationSec = sourceDuration > ULTRA_LONGFORM_ANALYSIS_HORIZON_SEC
+    ? ULTRA_LONGFORM_ANALYSIS_HORIZON_SEC
+    : sourceDuration;
 
   let hookGuide = existingGuide?.hook_clip_10s ? { hook_clip_10s: existingGuide.hook_clip_10s } : {};
   let storyGuide = existingGuide?.story_clip_40s ? { story_clip_40s: existingGuide.story_clip_40s } : {};
@@ -6760,6 +7026,18 @@ async function runLongformGeminiPipeline({ generateJson, sourceUrl, filename, du
   let midformGuideRaw = {};
   let candidateGuideRaw = buildLongformCandidateGuideFromExisting(existingGuide, durationSec);
   let candidateGuideWasScanned = false;
+
+  if (!candidateGuideRaw && sourceDuration >= LOCAL_LONGFORM_CANDIDATE_MIN_DURATION_SEC && (wantsFullFinal || wantsHighlightFinal || wantsMidformFinal)) {
+    candidateGuideRaw = validateLongformCandidateGuide(
+      buildLocalLongformCandidateGuide({ durationSec: analysisDurationSec, sourceType, sourceWorkflowMode }),
+      analysisDurationSec
+    );
+    emitProgress(onProgress, `Gemini Longform 1/5 대체: 로컬 후보 전처리 ${candidateGuideRaw.hook_candidates?.length || 0}개 / story ${candidateGuideRaw.story_candidates?.length || 0}개${candidateGuideRaw.midform_candidates?.length ? ` / midform ${candidateGuideRaw.midform_candidates.length}개` : ''}${sourceDuration > analysisDurationSec ? ` / 분석 범위 ${analysisDurationSec}s로 제한` : ''}`, {
+      phase: 'longform_candidates',
+      local_preprocessed: true,
+      local_candidate_strategy: candidateGuideRaw.local_candidate_strategy || null
+    });
+  }
 
   if (!candidateGuideRaw && (wantsFullFinal || wantsHighlightFinal || wantsMidformFinal)) {
     try {
@@ -7344,21 +7622,20 @@ async function analyzeWithVertexAdc({ filePath, sourceUrl, durationSec, original
   }
 
   const token = await getVertexAccessToken();
-  const endpoint = `https://${config.location}-aiplatform.googleapis.com/v1/projects/${config.project}/locations/${config.location}/publishers/google/models/${config.model}:generateContent`;
-  const videoPart = isYouTubeUrl(sourceUrl)
-    ? buildYoutubeFilePart(sourceUrl)
-    : {
-        inlineData: {
-          mimeType: getMimeType(filePath),
-          data: fs.readFileSync(filePath).toString('base64')
-        }
-      };
+  const endpoint = buildVertexEndpoint(config);
+  let videoPartPromise = null;
+  const ensureVideoPart = async () => {
+    if (!videoPartPromise) {
+      videoPartPromise = Promise.resolve(buildVertexVideoPart({ filePath, sourceUrl }));
+    }
+    return videoPartPromise;
+  };
 
   async function generateJson(prompt, responseSchema, phase, options = {}) {
     const includeVideo = options.includeVideo !== false;
     const parts = includeVideo
       ? [
-          videoPart,
+          await ensureVideoPart(),
           {
             text: prompt
           }
@@ -7484,44 +7761,19 @@ async function analyzeWithApiKey({ filePath, sourceUrl, apiKey, durationSec, ori
   }
 
   const genAI = new GoogleGenerativeAI(apiKey);
-
-  let videoPart = buildYoutubeFilePart(sourceUrl);
-  if (!isYouTubeUrl(sourceUrl)) {
-    const fileManager = new GoogleAIFileManager(apiKey);
-    const uploadResult = await fileManager.uploadFile(filePath, {
-      mimeType: getMimeType(filePath),
-      displayName: `ottogi_metadata_${Date.now()}_${path.basename(filePath)}`
-    });
-
-    let uploadedFile = uploadResult.file;
-    let tries = 0;
-    while (normalizeFileState(uploadedFile) === 'PROCESSING') {
-      checkCancellation(throwIfCancelled);
-      if (tries >= FILE_POLL_MAX_RETRIES) {
-        throw createHttpError(504, 'GEMINI_FILE_PROCESSING_TIMEOUT', 'Gemini file processing timed out');
-      }
-      await cancellableSleep(FILE_POLL_INTERVAL_MS, throwIfCancelled);
-      uploadedFile = await fileManager.getFile(uploadedFile.name);
-      tries += 1;
+  let videoPartPromise = null;
+  const ensureVideoPart = async () => {
+    if (!videoPartPromise) {
+      videoPartPromise = buildApiKeyVideoPart({ filePath, sourceUrl, apiKey, throwIfCancelled });
     }
-
-    if (normalizeFileState(uploadedFile) === 'FAILED') {
-      throw createHttpError(500, 'GEMINI_FILE_PROCESSING_FAILED', 'Gemini file processing failed', { file: uploadedFile });
-    }
-
-    videoPart = {
-      fileData: {
-        mimeType: uploadedFile.mimeType,
-        fileUri: uploadedFile.uri
-      }
-    };
-  }
+    return videoPartPromise;
+  };
 
   async function generateJson(prompt, responseSchema, phase = 'json', options = {}) {
     const includeVideo = options.includeVideo !== false;
     const parts = includeVideo
       ? [
-          videoPart,
+          await ensureVideoPart(),
           {
             text: prompt
           }
