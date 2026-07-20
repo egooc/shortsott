@@ -2,7 +2,10 @@ const {
   __test: {
     applyMetadataFieldRepair,
     applyLocalMetadataFallbacks,
+    collectJapaneseCaptionIssues,
     enforcePublicMetadataLanguage,
+    isKoreanFullScriptStyleRegenerationIssue,
+    selectKoreanFullHookType,
     normalizeGuide,
     assertRepairNormalizationDidNotCollapse,
     OTTOGI_METADATA_FIELD_REPAIR_SCHEMA,
@@ -42,6 +45,39 @@ function makeRepairScript() {
     role: index === 0 ? 'hook' : index >= 19 ? 'closing' : 'technical_context',
     text,
     source_basis: index % 2 === 0 ? 'visual evidence from video' : 'scene timing basis'
+  }));
+}
+
+function makeRegenerationScript() {
+  return [
+    '처음엔 그냥',
+    '금속 막대지만',
+    '어떻게 변할까요',
+    '곧 답을 알게 돼요',
+    '먼저 공구 안에',
+    '정확히 자리를',
+    '잡아줘야 해요',
+    '0.1mm만 틀어져도',
+    '원형이 흔들려요',
+    '천천히 힘을 주고',
+    '막대가 휘어지며',
+    '링 형태가 보여요',
+    '여기서 중요한 건',
+    '한 번에 꺾지 않고',
+    '압력을 나누는 것',
+    '잘못 구부리면',
+    '전체가 틀어져요',
+    '한 바퀴를 지나',
+    '금속 링이 됩니다',
+    '분리할 때도',
+    '모양을 확인하고',
+    '작은 부품 하나가',
+    '정확히 완성돼요'
+  ].map((text, index) => ({
+    scene_id: `regen_${String(index + 1).padStart(3, '0')}`,
+    role: index === 0 ? 'hook' : index >= 21 ? 'closing' : (index % 5 === 0 ? 'scene_observation' : 'technical_context'),
+    text,
+    source_basis: 'full_caption_script_regeneration'
   }));
 }
 
@@ -96,6 +132,184 @@ function testMetadataRepairSchemaIsThin() {
   assert(!schemaText.includes('full_metadata_ko'), 'metadata repair schema must not embed full metadata objects');
   assert(!schemaText.includes('full_caption_script_ko'), 'metadata repair schema must not embed caption script arrays');
   assert(OTTOGI_FULL_CAPTION_SCRIPT_REPAIR_SCHEMA.properties.full_caption_script_ko.maxItems === 24, 'full script repair schema should cap maxItems at 24');
+}
+
+function testKoreanFullStyleIssuesRequireRegeneration() {
+  const script = [
+    ['hook', '이게 뭔지 아세요?'],
+    ['process_purpose', '작은 볼트를'],
+    ['process_purpose', '맞추는 공정이에요'],
+    ['technical_context', '먼저 위치를 확인함'],
+    ['scene_observation', '작업자가 잡아줘요'],
+    ['method', '기계가 압착합니다'],
+    ['quality_reason', '흔들림을 확인합니다'],
+    ['technical_context', '방향을 확인합니다'],
+    ['scene_observation', '플라이어로 잡고'],
+    ['quality_reason', '여기서 중요한 건'],
+    ['method', '힘보다 방향이에요'],
+    ['progress', '조금씩 맞춰가요'],
+    ['scene_observation', '표면을 다시 보고'],
+    ['technical_context', '정밀하게 맞춰요'],
+    ['quality_reason', '품질이 달라져요'],
+    ['progress', '같은 움직임이'],
+    ['scene_observation', '반복해서 이어지고'],
+    ['emotional_expression', '정밀함이 쌓여요'],
+    ['closing', '마지막 형태가'],
+    ['closing', '완성도를 높여요']
+  ].map(([role, text], index) => ({
+    scene_id: `script_${String(index + 1).padStart(3, '0')}`,
+    role,
+    text,
+    source_basis: 'test_style_guard'
+  }));
+
+  const issues = collectJapaneseCaptionIssues({
+    short_description_ko: '작은 볼트를 맞추는 공정입니다.',
+    explainer_text_ko: '작은 부품을 정밀하게 맞추는 과정을 설명합니다.',
+    full_caption_script_ko: script,
+    full_metadata_ko: {
+      caption_mode: 'scene_based_short_subtitles',
+      onscreen_subtitles: script.map((item) => item.text),
+      short_description: '작은 볼트를 맞추는 공정입니다.',
+      summary_caption: '정밀하게 부품을 맞추는 과정입니다.',
+      report_description: '## 1. 작업 개요\n작은 볼트를 맞추는 공정입니다.',
+      upload_title: '작은 볼트 정밀 조립 #worker #process #tools #machinework #craftsmanship',
+      recommended_titles: [
+        { title: '작은 볼트 정밀 조립 #worker #process #tools #machinework #craftsmanship', hashtags: ['#worker', '#process', '#tools', '#machinework', '#craftsmanship'] }
+      ]
+    }
+  }, {
+    includeFull: true,
+    includeHighlight: false,
+    includeMidform: false,
+    includeScenes: false,
+    includeKorean: true,
+    includeJapanese: false
+  });
+
+  const styleIssues = issues.filter(isKoreanFullScriptStyleRegenerationIssue);
+  assert(styleIssues.some((issue) => issue.issue_type === 'ko_full_banned_exact_opening'), 'expected exact 이게 뭔지 아세요 opening to require KO full regeneration');
+  assert(styleIssues.some((issue) => issue.issue_type === 'ko_full_report_style_ending'), 'expected ~함/~됨 ending to require KO full regeneration');
+  assert(styleIssues.some((issue) => issue.issue_type === 'ko_full_consecutive_hamnida'), 'expected three consecutive 합니다 endings to require KO full regeneration');
+}
+
+function testKoreanFullHookSelectionAndPayoffGuards() {
+  const moneyHook = selectKoreanFullHookType({
+    seed: 'job_a:item_1',
+    sourceText: '버려진 고철을 재활용해서 새 도구로 만드는 과정'
+  });
+  const dangerHook = selectKoreanFullHookType({
+    seed: 'job_a:item_2',
+    sourceText: '뜨거운 용접 불꽃과 절단 작업이 보이는 위험 공정'
+  });
+  assert(moneyHook.type === 'money', `expected money hook for reusable/value source, got ${moneyHook.type}`);
+  assert(dangerHook.type === 'danger', `expected danger hook for risky source, got ${dangerHook.type}`);
+
+  const noPayoffScript = [
+    ['hook', '처음엔 낯설어 보여도'],
+    ['process_purpose', '순서가 중요해요'],
+    ['technical_context', '기준을 맞추고'],
+    ['scene_observation', '손으로 잡아줘요'],
+    ['method', '힘을 나눠줘요'],
+    ['quality_reason', '흔들리면 안 돼요'],
+    ['technical_context', '정확하게 눌러요'],
+    ['scene_observation', '기계가 움직여요'],
+    ['quality_reason', '오차가 줄어요'],
+    ['method', '방향을 맞춰요'],
+    ['progress', '조금씩 이어져요'],
+    ['scene_observation', '표면을 확인해요'],
+    ['technical_context', '기준을 다시 봐요'],
+    ['quality_reason', '품질이 달라져요'],
+    ['progress', '같은 흐름으로'],
+    ['scene_observation', '반복해서 맞춰요'],
+    ['emotional_expression', '정밀함이 쌓여요'],
+    ['quality_reason', '실수하면 틀어져요'],
+    ['closing', '마지막 기준이'],
+    ['closing', '완성도를 만들어요']
+  ].map(([role, text], index) => ({ scene_id: `script_${index + 1}`, role, text }));
+  const noPayoffIssues = collectJapaneseCaptionIssues({
+    detected_subject: '볼트 조립',
+    short_description_ko: '볼트 조립 공정입니다.',
+    explainer_text_ko: '볼트 조립 과정을 설명합니다.',
+    full_caption_script_ko: noPayoffScript,
+    full_metadata_ko: {
+      caption_mode: 'scene_based_short_subtitles',
+      onscreen_subtitles: noPayoffScript.map((item) => item.text),
+      short_description: '볼트 조립 공정입니다.',
+      summary_caption: '볼트 조립 과정을 설명합니다.',
+      report_description: '## 1. 작업 개요\n볼트 조립 공정입니다.',
+      upload_title: '볼트 조립 공정 #worker #process #tools #machinework #craftsmanship',
+      recommended_titles: [{ title: '볼트 조립 공정 #worker #process #tools #machinework #craftsmanship', hashtags: ['#worker', '#process', '#tools', '#machinework', '#craftsmanship'] }]
+    }
+  }, { includeFull: true, includeHighlight: false, includeMidform: false, includeScenes: false, includeKorean: true, includeJapanese: false });
+  assert(noPayoffIssues.some((issue) => issue.issue_type === 'ko_full_hook_without_payoff'), 'expected hidden-identity hook without subject payoff to require regeneration');
+
+  const decorativeScript = noPayoffScript.map((item) => ({ ...item }));
+  decorativeScript[1].text = '정성껏 다듬고';
+  decorativeScript[2].text = '섬세하게 맞춰요';
+  decorativeScript[3].text = '볼트를 잡아줘요';
+  const decorativeIssues = collectJapaneseCaptionIssues({
+    detected_subject: '볼트 조립',
+    short_description_ko: '볼트 조립 공정입니다.',
+    explainer_text_ko: '볼트 조립 과정을 설명합니다.',
+    full_caption_script_ko: decorativeScript,
+    full_metadata_ko: {
+      caption_mode: 'scene_based_short_subtitles',
+      onscreen_subtitles: decorativeScript.map((item) => item.text),
+      short_description: '볼트 조립 공정입니다.',
+      summary_caption: '볼트 조립 과정을 설명합니다.',
+      report_description: '## 1. 작업 개요\n볼트 조립 공정입니다.',
+      upload_title: '볼트 조립 공정 #worker #process #tools #machinework #craftsmanship',
+      recommended_titles: [{ title: '볼트 조립 공정 #worker #process #tools #machinework #craftsmanship', hashtags: ['#worker', '#process', '#tools', '#machinework', '#craftsmanship'] }]
+    }
+  }, { includeFull: true, includeHighlight: false, includeMidform: false, includeScenes: false, includeKorean: true, includeJapanese: false });
+  assert(decorativeIssues.some((issue) => issue.issue_type === 'ko_full_consecutive_decorative_lines'), 'expected consecutive decorative-only lines to require regeneration');
+}
+
+function testKoreanFullRegenerationSourceBasisIsDistinct() {
+  const guide = { detected_subject: '볼트 조립' };
+  const applied = applyMetadataFieldRepair(guide, { full_caption_script_ko: makeRepairScript() }, {
+    fullKoreanScriptSourceBasis: 'full_caption_script_regeneration'
+  });
+  const sources = (applied.full_caption_script_ko || []).map((item) => item.source_basis);
+  assert(sources.length >= 20, 'expected regenerated script to apply');
+  assert(sources.every((source) => source === 'full_caption_script_regeneration'), 'expected regeneration source marker, not repair marker');
+}
+
+function testFullKoRegenerationSurvivesNormalize() {
+  const guide = {
+    detected_subject: '금속 링',
+    scene_transitions: [
+      {
+        scene_id: 'scene_001',
+        start_sec: 0,
+        end_sec: 3,
+        transition_at_sec: 3,
+        visual_summary: '금속 막대를 수동 벤딩 공구에 넣는 장면',
+        caption_text: '工程の動き',
+        caption_text_ko: '금속 막대를 넣어요',
+        screen_captions_ja: ['工程の動き'],
+        screen_captions_ko: ['금속 막대를 넣어요']
+      }
+    ]
+  };
+  const applied = applyMetadataFieldRepair(guide, { full_caption_script_ko: makeRegenerationScript() }, {
+    fullKoreanScriptSourceBasis: 'full_caption_script_regeneration'
+  });
+  const appliedCount = Array.isArray(applied.full_caption_script_ko) ? applied.full_caption_script_ko.length : 0;
+  const regenerationSourcedCount = (applied.full_caption_script_ko || [])
+    .filter((item) => item.source_basis === 'full_caption_script_regeneration')
+    .length;
+  const normalized = normalizeGuide(applied, 'https://www.youtube.com/shorts/metal-ring', 14);
+  const normalizedCount = Array.isArray(normalized.full_caption_script_ko) ? normalized.full_caption_script_ko.length : 0;
+  const normalizedRegenerationSourcedCount = (normalized.full_caption_script_ko || [])
+    .filter((item) => item.source_basis === 'full_caption_script_regeneration')
+    .length;
+
+  assert(appliedCount >= 20, `expected regeneration to apply at least 20 items, got ${appliedCount}`);
+  assert(regenerationSourcedCount === appliedCount, `expected regeneration source marker on all applied items, got ${regenerationSourcedCount}/${appliedCount}`);
+  assert(normalizedCount >= 20, `expected regeneration script to survive normalize, got ${appliedCount}→${normalizedCount}`);
+  assert(normalizedRegenerationSourcedCount === normalizedCount, `expected regeneration source marker after normalize, got ${normalizedRegenerationSourcedCount}/${normalizedCount}`);
 }
 
 function testLocalMetadataReportFallbacksRemoveLanguageContamination() {
@@ -190,6 +404,10 @@ function main() {
   testFullKoRepairSurvivesNormalize();
   testRepairLossGuard();
   testMetadataRepairSchemaIsThin();
+  testKoreanFullStyleIssuesRequireRegeneration();
+  testKoreanFullHookSelectionAndPayoffGuards();
+  testKoreanFullRegenerationSourceBasisIsDistinct();
+  testFullKoRegenerationSurvivesNormalize();
   testLocalMetadataReportFallbacksRemoveLanguageContamination();
   testPublicMetadataLanguageEnforcementRebuildsContaminatedFields();
   console.log('metadata repair guards ok');

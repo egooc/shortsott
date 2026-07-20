@@ -14,7 +14,8 @@ const {
   analyzeOttogiProcessMetadata,
   assertOttogiGuideLanguage,
   isVertexAdcMode,
-  isYouTubeUrl
+  isYouTubeUrl,
+  selectKoreanFullHookType
 } = require('./processMetadataService');
 const { requireApiKey } = require('../middleware/auth');
 const {
@@ -966,6 +967,22 @@ async function runMetadataStage(jobId, items, options = {}) {
       const sourceWorkflowMode = itemConfig.source_workflow_mode || 'unknown';
       const itemMetadataVariantMode = effectiveVariantModeForItem(metadataVariantMode, itemConfig);
       const sourceReason = itemConfig.source_classification?.reason || '';
+      const assignedHookType = selectKoreanFullHookType({
+        seed: `${jobId}:${refreshed.item_id}`,
+        jobId,
+        itemId: refreshed.item_id,
+        sourceUrl,
+        filename: sourceInfo.filename,
+        sourceType,
+        sourceWorkflowMode,
+        detectedSubject: itemConfig.ottogi_guide_output?.detected_subject || itemConfig.upload_title || '',
+        sourceText: JSON.stringify({
+          title: itemConfig.upload_title || '',
+          description: itemConfig.upload_description || '',
+          classification: itemConfig.source_classification || null,
+          previous_subject: itemConfig.ottogi_guide_output?.detected_subject || ''
+        })
+      });
       appendJobLog(
         jobId,
         `${label} \uC18C\uC2A4 \uBD84\uB958: ${sourceType} / ${sourceWorkflowMode}${sourceReason ? ` (${sourceReason})` : ''}`,
@@ -988,6 +1005,8 @@ async function runMetadataStage(jobId, items, options = {}) {
         sourceWorkflowMode,
         metadataVariantMode: itemMetadataVariantMode,
         existingGuide: force ? null : (itemConfig.ottogi_guide_output || null),
+        assignedHookType,
+        fullDraftStagesDir: path.join(QUEUE_ROOT, refreshed.item_id, 'full_draft_stages'),
         throwIfCancelled: () => assertNotCancelled(jobId),
         onProgress: (message, data = {}) => {
           appendJobLog(jobId, label + ' ' + message, 'info', refreshed.item_id, data);

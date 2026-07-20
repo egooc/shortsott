@@ -25,11 +25,12 @@ const {
   duplicateQueueItem,
   saveQueue,
   syncCaptionTemplateSettings,
+  previewKoreanFullDraftTts,
   generateQueue,
   getReport
 } = require('../services/processQueueService');
 const { createCapcutExportRequest } = require('../services/capcutExportService');
-const { analyzeOttogiProcessMetadata, isVertexAdcMode, isYouTubeUrl } = require('../services/processMetadataService');
+const { analyzeOttogiProcessMetadata, isVertexAdcMode, isYouTubeUrl, selectKoreanFullHookType } = require('../services/processMetadataService');
 const { getUploadExt } = require('../utils/uploadFilename');
 const {
   startProcessJob,
@@ -184,7 +185,22 @@ async function analyzeMissingMetadataForItems(items = [], apiKey, options = {}) 
         originalFilename: sourceInfo.filename,
         sourceType: itemConfig.source_type || 'unknown',
         sourceWorkflowMode: itemConfig.source_workflow_mode || 'unknown',
-        metadataVariantMode
+        assignedHookType: selectKoreanFullHookType({
+          seed: `route:${item.item_id}:${sourceUrl || sourceInfo.filename || ''}`,
+          itemId: item.item_id,
+          sourceUrl,
+          filename: sourceInfo.filename,
+          sourceType: itemConfig.source_type || 'unknown',
+          sourceWorkflowMode: itemConfig.source_workflow_mode || 'unknown',
+          detectedSubject: itemConfig.ottogi_guide_output?.detected_subject || itemConfig.upload_title || '',
+          sourceText: JSON.stringify({
+            title: itemConfig.upload_title || '',
+            description: itemConfig.upload_description || '',
+            classification: itemConfig.source_classification || null
+          })
+        }),
+        metadataVariantMode,
+        fullDraftStagesDir: path.join(QUEUE_ROOT, item.item_id, 'full_draft_stages')
       });
       const applied = applyOttogiGuideToItem(item.item_id, guide, sourceUrl);
       results.push({
@@ -381,7 +397,8 @@ router.post('/item/:itemId/gemini-metadata', async (req, res, next) => {
       durationSec,
       originalFilename: sourceInfo.filename,
       sourceType: itemConfig.source_type || 'unknown',
-      sourceWorkflowMode: itemConfig.source_workflow_mode || 'unknown'
+      sourceWorkflowMode: itemConfig.source_workflow_mode || 'unknown',
+      fullDraftStagesDir: path.join(QUEUE_ROOT, req.params.itemId, 'full_draft_stages')
     });
     const applied = applyOttogiGuideToItem(req.params.itemId, guide, sourceUrl);
     res.json({
@@ -524,6 +541,14 @@ router.post('/analyze-metadata', async (req, res, next) => {
       metadataAnalysis,
       queue: listQueue()
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/tts-dry-run', async (req, res, next) => {
+  try {
+    res.json(await previewKoreanFullDraftTts(req.body?.item_ids || req.body?.itemIds || []));
   } catch (error) {
     next(error);
   }

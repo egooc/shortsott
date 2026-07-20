@@ -66,6 +66,22 @@ function main() {
       item: 'Metadata repair schema is thin field map',
       ok: metadata.includes('repaired_fields')
         && metadata.includes('Do not reuse OTTOGI_METADATA_SCHEMA')
+    },
+    {
+      item: 'KO full narration style regeneration is guarded',
+      ok: metadata.includes('buildKoreanFullCaptionScriptRegenerationPrompt')
+        && metadata.includes('style_regeneration_required')
+        && metadata.includes('full_caption_script_regeneration')
+        && prompt.includes('Korean Full narration rewrite rules')
+        && prompt.includes('Forbidden Korean Full endings')
+    },
+    {
+      item: 'KO full hook is code-assigned and old exact opener is banned',
+      ok: metadata.includes('selectKoreanFullHookType')
+        && metadata.includes('Assigned Korean Full hook')
+        && metadata.includes('ko_full_banned_exact_opening')
+        && prompt.includes('assigned hook type is chosen by code')
+        && prompt.includes('Do not write the literal sentence "이게 뭔지 아세요?"')
     }
   ];
 

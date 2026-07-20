@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { execFile } = require('child_process');
 const {
   PROJECT_ROOT,
@@ -8,18 +9,31 @@ const {
   writeJsonWithBackup
 } = require('./pipelinePaths');
 const { defaultConfig, normalizeConfig, createProcessDraft } = require('./processEditService');
-const { assertOttogiGuideLanguage, OUTPUT_CONFIG, outputLanguageForVariant } = require('./processMetadataService');
+const {
+  assertOttogiGuideLanguage,
+  OUTPUT_CONFIG,
+  calculateKoreanFullSpeechBudget,
+  countKoreanFullScriptVisibleChars,
+  countKoreanVisibleCharsNoSpaces,
+  outputLanguageForVariant
+} = require('./processMetadataService');
 const { getVideoMetadata } = require('../utils/ffprobe');
 const { classifySourceVideo, normalizeSourceMode } = require('../utils/sourceClassifier');
 const { computeCutSelectionTier, cutSelectionTierRank } = require('../utils/cutSelectionTier');
 const { resolveTool, getToolEnv } = require('../utils/toolPaths');
 const { downloadYoutubeVideo } = require('./youtubeDownloadService');
+const { generateAllTTS, createBatchDir } = require('./elevenlabsService');
+const { generateSRT, generateSRTFromTimedEntries } = require('./srtGenerator');
+const { requireApiKey } = require('../middleware/auth');
 const {
   getUploadExt,
   getUploadOriginalName,
   normalizePossiblyMojibakeFilename
 } = require('../utils/uploadFilename');
 const { markSourceProduced } = require('./sourceDiscoveryLibrary');
+const {
+  SHORTFORM_FULL_DRAFT_SKIP_MAX_DURATION_SEC
+} = require('../utils/fullDraftRules');
 
 const QUEUE_ROOT = path.join(PROJECT_ROOT, 'queue', 'process');
 const QUEUE_BGM_ROOT = path.join(QUEUE_ROOT, 'bgm');
@@ -176,6 +190,1596 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+const FULL_DRAFT_TTS_SENTENCE_LIMIT = 40;
+const FULL_DRAFT_TTS_SENTENCE_MAX_CHARS = 40;
+const FULL_DRAFT_TTS_SENTENCE_MAX_PIECES = 5;
+const FULL_DRAFT_TTS_BOUNDARYLESS_REJECT_CHARS = 80;
+const FULL_DRAFT_TTS_TIMELINE_TOLERANCE_SEC = 1.5;
+const FULL_DRAFT_ANCHOR_MAX_DELAY_SEC = 1.5;
+const FULL_DRAFT_ANCHOR_CUMULATIVE_DELAY_SEC = 3.0;
+const KOREAN_FULL_SRT_DELIVERY_MODE = 'srt_only_external';
+
+function normalizeTtsText(value = '') {
+  return String(value || '').replace(/\s+/g, ' ').trim();
+}
+
+function fullScriptPieceText(piece) {
+  if (piece && typeof piece === 'object') {
+    return normalizeTtsText(piece.text || piece.caption || piece.subtitle || '');
+  }
+  return normalizeTtsText(piece);
+}
+
+function hasKoreanSentenceEnding(text = '') {
+  const value = normalizeTtsText(text);
+  if (!value) return false;
+  if (/[.!?。！？]$/.test(value)) return true;
+  return /(요|죠|다|니다|까|네)$/.test(value);
+}
+
+function startsLikelyNewKoreanSentence(text = '') {
+  const value = normalizeTtsText(text).replace(/^[,，、.!?。！？\s]+/, '');
+  if (!value) return false;
+  if (/^(그리고|또|또는|하지만|그런데|그래서|이후|다음|마지막|먼저|이제)\b/.test(value)) return true;
+  return /^[가-힣A-Za-z0-9]/.test(value);
+}
+
+function splitLongSentencePieces(group, maxChars = FULL_DRAFT_TTS_SENTENCE_MAX_CHARS) {
+  const out = [];
+  let current = [];
+  let currentText = '';
+  const flush = () => {
+    if (!current.length) return;
+    out.push(current);
+    current = [];
+    currentText = '';
+  };
+
+  group.forEach((piece) => {
+    const nextText = currentText ? `${currentText} ${piece.text}` : piece.text;
+    if (current.length && nextText.length > maxChars) {
+      flush();
+    }
+    if (piece.text.length > maxChars) {
+      const words = piece.text.split(/\s+/).filter(Boolean);
+      let chunk = '';
+      words.forEach((word) => {
+        const candidate = chunk ? `${chunk} ${word}` : word;
+        if (chunk && candidate.length > maxChars) {
+          out.push([{ ...piece, text: chunk, split_from_piece_index: piece.piece_index }]);
+          chunk = word;
+        } else {
+          chunk = candidate;
+        }
+      });
+      if (chunk) out.push([{ ...piece, text: chunk, split_from_piece_index: piece.piece_index }]);
+      current = [];
+      currentText = '';
+      return;
+    }
+    current.push(piece);
+    currentText = currentText ? `${currentText} ${piece.text}` : piece.text;
+  });
+  flush();
+  return out.length ? out : [group];
+}
+
+function splitOversizedSentenceGroup(group, maxChars = FULL_DRAFT_TTS_SENTENCE_MAX_CHARS, maxPieces = FULL_DRAFT_TTS_SENTENCE_MAX_PIECES) {
+  if (!Array.isArray(group) || group.length <= 1) return [group];
+  const text = group.map((piece) => piece.text).join(' ');
+  if (group.length <= maxPieces && text.length <= maxChars) return [group];
+
+  const midpoint = (group.length - 1) / 2;
+  let bestBoundary = -1;
+  let bestScore = Number.POSITIVE_INFINITY;
+  for (let index = 0; index < group.length - 1; index += 1) {
+    const leftText = group[index].text;
+    const prefersBoundary = /(고|며|서)$/.test(leftText) ? 0 : 2;
+    const score = Math.abs(index - midpoint) + prefersBoundary;
+    if (score < bestScore) {
+      bestScore = score;
+      bestBoundary = index + 1;
+    }
+  }
+
+  const boundary = bestBoundary > 0 ? bestBoundary : Math.ceil(group.length / 2);
+  const left = group.slice(0, boundary);
+  const right = group.slice(boundary);
+  return [left, right].flatMap((part) => splitOversizedSentenceGroup(part, maxChars, maxPieces));
+}
+
+function sourcePieceIndexes(piece = {}) {
+  if (Array.isArray(piece.piece_indexes) && piece.piece_indexes.length) return piece.piece_indexes;
+  return [piece.piece_index].filter((index) => Number.isFinite(Number(index))).map((index) => Number(index));
+}
+
+function repairSplitKoreanSyllablePieces(pieces = [], warnings = []) {
+  const repaired = [];
+  const normalizedPieces = pieces.map((piece) => ({ ...piece }));
+  for (let index = 0; index < normalizedPieces.length - 1; index += 1) {
+    const current = normalizedPieces[index];
+    const next = normalizedPieces[index + 1];
+    const match = current.text.match(/^(.*\S)\s+([가-힣])$/);
+    if (match && match[2] === '다' && next && /^른/.test(next.text)) {
+      current.text = normalizeTtsText(match[1]);
+      next.text = normalizeTtsText(`${match[2]}${next.text}`);
+      warnings.push({
+        reason: 'trailing_korean_syllable_moved',
+        piece_indexes: [current.piece_index, next.piece_index],
+        moved_text: match[2],
+        text: next.text,
+        message: `moved trailing Korean syllable from piece ${current.piece_index} to piece ${next.piece_index}`
+      });
+    }
+  }
+  for (let index = 0; index < normalizedPieces.length; index += 1) {
+    const current = normalizedPieces[index];
+    const next = normalizedPieces[index + 1];
+    if (/^[가-힣]$/.test(current.text) && next && /^[가-힣]/.test(next.text)) {
+      const merged = {
+        ...next,
+        piece_index: current.piece_index,
+        piece_indexes: [...sourcePieceIndexes(current), ...sourcePieceIndexes(next)],
+        source_scene_id: current.source_scene_id || next.source_scene_id,
+        text: normalizeTtsText(`${current.text}${next.text}`)
+      };
+      warnings.push({
+        reason: 'split_korean_syllable_merged',
+        piece_indexes: merged.piece_indexes,
+        text: merged.text,
+        message: `merged standalone Korean syllable at piece ${current.piece_index}`
+      });
+      repaired.push(merged);
+      index += 1;
+    } else {
+      repaired.push(current);
+    }
+  }
+  return repaired;
+}
+
+function regroupKoreanFullCaptionScript(fullCaptionScript = [], options = {}) {
+  const warnings = [];
+  const pieces = repairSplitKoreanSyllablePieces((Array.isArray(fullCaptionScript) ? fullCaptionScript : [])
+    .map((piece, index) => ({
+      piece_index: index,
+      source_scene_id: piece && typeof piece === 'object' ? String(piece.scene_id || '') : '',
+      text: fullScriptPieceText(piece)
+    }))
+    .filter((piece) => piece.text), warnings);
+
+  const rawGroups = [];
+  let current = [];
+  pieces.forEach((piece, index) => {
+    current.push(piece);
+    const next = pieces[index + 1];
+    if (!next) {
+      rawGroups.push(current);
+      current = [];
+      return;
+    }
+    if (hasKoreanSentenceEnding(piece.text) && startsLikelyNewKoreanSentence(next.text)) {
+      rawGroups.push(current);
+      current = [];
+    }
+  });
+  if (current.length) rawGroups.push(current);
+
+  const splitGroups = [];
+  rawGroups.forEach((group, groupIndex) => {
+    const text = group.map((piece) => piece.text).join(' ');
+    const maxChars = options.maxChars || FULL_DRAFT_TTS_SENTENCE_MAX_CHARS;
+    const maxPieces = options.maxPieces || FULL_DRAFT_TTS_SENTENCE_MAX_PIECES;
+    if (text.length > FULL_DRAFT_TTS_BOUNDARYLESS_REJECT_CHARS) {
+      warnings.push({
+        reason: 'sentence_group_boundary_missing_rejected',
+        group_index: groupIndex,
+        chars: text.length,
+        piece_count: group.length,
+        text,
+        piece_indexes: group.flatMap(sourcePieceIndexes),
+        block_real_tts: true,
+        message: `sentence group ${groupIndex + 1} has ${text.length} chars without usable sentence boundaries; regenerate manuscript instead of force-splitting`
+      });
+      splitGroups.push(group);
+    } else if (text.length > maxChars || group.length > maxPieces) {
+      warnings.push({
+        reason: group.length > maxPieces ? 'sentence_group_too_many_pieces_split' : 'sentence_group_too_long_split',
+        group_index: groupIndex,
+        chars: text.length,
+        piece_count: group.length,
+        message: group.length > maxPieces
+          ? `sentence group ${groupIndex + 1} had ${group.length} pieces and was force-split`
+          : `sentence group ${groupIndex + 1} exceeded ${maxChars} chars and was split`
+      });
+      splitGroups.push(...splitOversizedSentenceGroup(group, maxChars, maxPieces));
+    } else {
+      splitGroups.push(group);
+    }
+  });
+
+  const pieceToSentenceId = new Map();
+  const sentences = splitGroups.map((group, index) => {
+    const id = `tts_sent_${String(index + 1).padStart(3, '0')}`;
+    const pieceIndexes = group.flatMap(sourcePieceIndexes);
+    pieceIndexes.forEach((pieceIndex) => pieceToSentenceId.set(pieceIndex, id));
+    if (group.length < 1 || group.length > FULL_DRAFT_TTS_SENTENCE_MAX_PIECES) {
+      warnings.push({
+        reason: 'sentence_group_piece_count_out_of_range',
+        sentence_id: id,
+        piece_count: group.length,
+        message: `${id} has ${group.length} pieces; expected 1-${FULL_DRAFT_TTS_SENTENCE_MAX_PIECES}`
+      });
+    }
+    return {
+      id,
+      sentence_id: id,
+      text: normalizeTtsText(group.map((piece) => piece.text).join(' ')),
+      piece_indexes: pieceIndexes,
+      caption_parts: group.map((piece, partIndex) => ({
+        text: normalizeTtsText(piece.text),
+        piece_indexes: sourcePieceIndexes(piece),
+        source_scene_id: piece.source_scene_id || '',
+        part_index: partIndex,
+        parts_count: group.length
+      })).filter((part) => part.text),
+      source_scene_ids: [...new Set(group.map((piece) => piece.source_scene_id).filter(Boolean))],
+      piece_count: group.length
+    };
+  });
+
+  return { pieces, sentences, warnings, pieceToSentenceId };
+}
+
+function assertCaptionUnitsMatchTtsSentences(plan = {}) {
+  const sentenceTextById = new Map((plan.sentences || []).map((sentence) => [sentence.id || sentence.sentence_id, normalizeTtsText(sentence.text || '')]));
+  const unitsBySentence = new Map();
+  for (const unit of plan.captionUnits || []) {
+    const sentenceId = String(unit.tts_caption_id || unit.segment_id || '');
+    const sentenceText = sentenceTextById.get(sentenceId) || '';
+    const unitText = normalizeTtsText(unit.text || '');
+    if (!sentenceText || !unitText || !sentenceText.includes(unitText)) {
+      const error = new Error(`caption unit text does not match TTS sentence: ${unit.caption_id || sentenceId}`);
+      error.code = 'CAPTION_TTS_TEXT_MISMATCH';
+      error.details = { sentence_id: sentenceId, caption_id: unit.caption_id || '', unit_text: unitText, sentence_text: sentenceText };
+      throw error;
+    }
+    if (!unitsBySentence.has(sentenceId)) unitsBySentence.set(sentenceId, []);
+    unitsBySentence.get(sentenceId).push(unitText);
+  }
+  for (const [sentenceId, unitTexts] of unitsBySentence.entries()) {
+    const sentenceText = sentenceTextById.get(sentenceId) || '';
+    const joinedText = normalizeTtsText(unitTexts.join(' '));
+    if (joinedText !== sentenceText) {
+      const error = new Error(`caption units do not reconstruct TTS sentence: ${sentenceId}`);
+      error.code = 'CAPTION_TTS_TEXT_MISMATCH';
+      error.details = { sentence_id: sentenceId, unit_text: joinedText, sentence_text: sentenceText };
+      throw error;
+    }
+  }
+  return true;
+}
+
+const KOREAN_CAPTION_SLICE_TARGET_CHARS = 11;
+const KOREAN_CAPTION_SLICE_TOLERANCE = 4;
+const KOREAN_CAPTION_SLICE_MIN_CHARS = 3;
+const KOREAN_CAPTION_SLICE_MAX_CHARS = 15;
+const KOREAN_CAPTION_PREFERRED_BOUNDARY_RE = /(은|는|이|가|을|를|고|서|며)$/u;
+
+function isPreferredKoreanCaptionBoundary(word = '') {
+  const value = normalizeTtsText(word);
+  return value === '게' || KOREAN_CAPTION_PREFERRED_BOUNDARY_RE.test(value);
+}
+
+function splitLongKoreanWordForCaption(word = '') {
+  const text = normalizeTtsText(word);
+  if (text.length <= KOREAN_CAPTION_SLICE_MAX_CHARS) return [text].filter(Boolean);
+  const out = [];
+  for (let index = 0; index < text.length; index += KOREAN_CAPTION_SLICE_MAX_CHARS) {
+    out.push(text.slice(index, index + KOREAN_CAPTION_SLICE_MAX_CHARS));
+  }
+  return out.filter(Boolean);
+}
+
+function splitKoreanTtsSentenceIntoCaptionSlices(text = '') {
+  const words = normalizeTtsText(text).split(/\s+/).filter(Boolean).flatMap(splitLongKoreanWordForCaption);
+  if (!words.length) return [];
+  const slices = [];
+  let cursor = 0;
+  const scoreBoundary = (candidateWords, isWholeRemainder = false) => {
+    const candidate = candidateWords.join(' ');
+    const lastWord = candidateWords[candidateWords.length - 1] || '';
+    const inTargetRange = candidate.length >= KOREAN_CAPTION_SLICE_TARGET_CHARS - KOREAN_CAPTION_SLICE_TOLERANCE
+      && candidate.length <= KOREAN_CAPTION_SLICE_TARGET_CHARS + KOREAN_CAPTION_SLICE_TOLERANCE;
+    const shortPenalty = candidate.length < KOREAN_CAPTION_SLICE_MIN_CHARS ? 1_000 : 0;
+    const wholeRemainderBonus = isWholeRemainder ? -25 : 0;
+    const preferredPenalty = isPreferredKoreanCaptionBoundary(lastWord) ? 0 : 100;
+    const rangePenalty = inTargetRange ? 0 : 200;
+    return shortPenalty + preferredPenalty + rangePenalty + Math.abs(candidate.length - KOREAN_CAPTION_SLICE_TARGET_CHARS) + wholeRemainderBonus;
+  };
+
+  while (cursor < words.length) {
+    let bestEnd = cursor + 1;
+    let bestScore = Number.POSITIVE_INFINITY;
+    for (let end = cursor + 1; end <= words.length; end += 1) {
+      const candidateWords = words.slice(cursor, end);
+      const candidate = candidateWords.join(' ');
+      if (candidate.length > KOREAN_CAPTION_SLICE_MAX_CHARS) break;
+      const score = scoreBoundary(candidateWords, end === words.length);
+      if (score < bestScore) {
+        bestScore = score;
+        bestEnd = end;
+      }
+    }
+    slices.push(words.slice(cursor, bestEnd).join(' '));
+    cursor = bestEnd;
+  }
+
+  const merged = [];
+  for (const slice of slices) {
+    if (slice.length < KOREAN_CAPTION_SLICE_MIN_CHARS && merged.length) {
+      const candidate = `${merged[merged.length - 1]} ${slice}`;
+      if (candidate.length <= KOREAN_CAPTION_SLICE_MAX_CHARS) {
+        merged[merged.length - 1] = candidate;
+      } else {
+        merged.push(slice);
+      }
+    } else {
+      merged.push(slice);
+    }
+  }
+  for (let index = merged.length - 1; index > 0; index -= 1) {
+    if (merged[index].length >= KOREAN_CAPTION_SLICE_MIN_CHARS) continue;
+    const candidate = `${merged[index - 1]} ${merged[index]}`;
+    if (candidate.length <= KOREAN_CAPTION_SLICE_MAX_CHARS) {
+      merged[index - 1] = candidate;
+      merged.splice(index, 1);
+    }
+  }
+  return merged.filter(Boolean);
+}
+
+function buildKoreanFullDraftTtsPlan({ itemId, itemConfig = {}, draftConfig = {} }) {
+  const regrouped = regroupKoreanFullCaptionScript(itemConfig.ottogi_guide_output?.full_caption_script_ko || []);
+  const warnings = [...regrouped.warnings];
+  const anchorScenes = normalizeAnchorSceneTransitions(itemConfig);
+  const sceneById = new Map(anchorScenes.map((scene) => [scene.scene_id, scene]));
+  const sentencesWithAnchors = assignDistributedAnchorTargets(regrouped.sentences.map((sentence) => ({
+    ...sentence,
+    ...sceneAnchorFieldsForSentence(sentence, sceneById)
+  })));
+  const captionUnits = [];
+  sentencesWithAnchors.forEach((sentence) => {
+    const slices = splitKoreanTtsSentenceIntoCaptionSlices(sentence.text);
+    slices.forEach((text, sliceIndex) => {
+      if (!text) return;
+      const sourcePieceIndex = Array.isArray(sentence.piece_indexes) && sentence.piece_indexes.length ? sentence.piece_indexes[0] : null;
+      captionUnits.push({
+        caption_id: `${sentence.id}_unit_${String(sliceIndex + 1).padStart(2, '0')}`,
+        block_id: `${sentence.id}_unit_${String(sliceIndex + 1).padStart(2, '0')}`,
+        segment_id: sentence.id,
+        tts_caption_id: sentence.id,
+        source_script_index: sourcePieceIndex,
+        source_piece_indexes: sentence.piece_indexes || [],
+        anchor_scene_id: sentence.anchor_scene_id,
+        anchor_scene_ids: sentence.anchor_scene_ids || [],
+        anchor_scene_index: sentence.anchor_scene_index,
+        anchor_start_sec: sentence.anchor_start_sec,
+        anchor_end_sec: sentence.anchor_end_sec,
+        anchor_target_start_sec: sentence.anchor_target_start_sec,
+        anchor_target_source: sentence.anchor_target_source,
+        anchor_source: sentence.anchor_source,
+        text,
+        start_sec: 0,
+        end_sec: 0,
+        order: captionUnits.length + 1
+      });
+    });
+  });
+
+  const sentenceUnits = sentencesWithAnchors.map((sentence) => ({
+    caption_id: sentence.id,
+    segment_id: sentence.id,
+    text: sentence.text,
+    source_piece_indexes: sentence.piece_indexes,
+    piece_count: sentence.piece_count,
+    anchor_scene_id: sentence.anchor_scene_id,
+    anchor_scene_ids: sentence.anchor_scene_ids || [],
+    anchor_scene_index: sentence.anchor_scene_index,
+    anchor_start_sec: sentence.anchor_start_sec,
+    anchor_end_sec: sentence.anchor_end_sec,
+    anchor_target_start_sec: sentence.anchor_target_start_sec,
+    anchor_target_source: sentence.anchor_target_source,
+    anchor_source: sentence.anchor_source
+  }));
+  const anchorSimulation = simulateAnchoredSentencePlacement(sentencesWithAnchors);
+  if (anchorSimulation.block_real_tts) {
+    warnings.push({
+      reason: 'anchor_simulation_drift_exceeded',
+      max_delay_sec: anchorSimulation.max_delay_sec,
+      max_allowed_delay_sec: anchorSimulation.max_allowed_delay_sec,
+      cumulative_positive_delay_sec: anchorSimulation.cumulative_positive_delay_sec,
+      max_allowed_cumulative_delay_sec: anchorSimulation.max_allowed_cumulative_delay_sec,
+      message: `Anchor dry-run drift exceeded: max=${anchorSimulation.max_delay_sec}s cumulative=${anchorSimulation.cumulative_positive_delay_sec}s`
+    });
+  }
+  if (sentenceUnits.length > FULL_DRAFT_TTS_SENTENCE_LIMIT) {
+    warnings.push({
+      reason: 'tts_sentence_limit_exceeded',
+      sentence_count: sentenceUnits.length,
+      limit: FULL_DRAFT_TTS_SENTENCE_LIMIT,
+      message: `TTS sentence count ${sentenceUnits.length} exceeds limit ${FULL_DRAFT_TTS_SENTENCE_LIMIT}`
+    });
+  }
+
+  const plan = {
+    item_id: itemId,
+    status: sentenceUnits.length ? 'ready' : 'empty',
+    sentence_limit: FULL_DRAFT_TTS_SENTENCE_LIMIT,
+    sentence_count: sentenceUnits.length,
+    caption_units_count: captionUnits.length,
+    tts_call_count: sentenceUnits.length,
+    anchor_scenes: anchorScenes,
+    anchor_simulation: anchorSimulation,
+    sentences: sentencesWithAnchors,
+    captionUnits,
+    sentenceUnits,
+    warnings
+  };
+  assertCaptionUnitsMatchTtsSentences(plan);
+  return plan;
+}
+
+function sceneBudgetsFromGuide(guide = {}) {
+  return (Array.isArray(guide.scene_transitions) ? guide.scene_transitions : [])
+    .map((scene) => {
+      const start = Number(scene.start_sec || 0);
+      const end = Number(scene.end_sec || 0);
+      const duration = end > start ? end - start : Number(scene.duration_sec || 0);
+      if (!scene.scene_id || !duration) return null;
+      return {
+        scene_id: String(scene.scene_id || '').trim(),
+        start_sec: Number(start.toFixed(3)),
+        end_sec: Number(end.toFixed(3)),
+        duration_sec: Number(duration.toFixed(3)),
+        guide_chars: Math.max(1, Math.floor(duration * 5.0 * 0.90))
+      };
+    })
+    .filter(Boolean);
+}
+
+function buildPieceSceneTotals(fullCaptionScript = []) {
+  const totals = new Map();
+  const pieces = (Array.isArray(fullCaptionScript) ? fullCaptionScript : [])
+    .map((piece, index) => {
+      const sceneId = String(piece?.scene_id || '').trim();
+      const text = String(piece?.text || '').trim();
+      const chars = countKoreanVisibleCharsNoSpaces(text);
+      if (sceneId) totals.set(sceneId, (totals.get(sceneId) || 0) + chars);
+      return {
+        piece_index: index,
+        scene_id: sceneId,
+        role: String(piece?.role || '').trim(),
+        chars,
+        text
+      };
+    })
+    .filter((piece) => piece.text);
+  return { totals, pieces };
+}
+
+function buildSceneAssignmentReport(previewItem = {}, budgets = [], fullCaptionScript = []) {
+  const budgetByScene = new Map(budgets.map((budget) => [budget.scene_id, budget]));
+  const { totals: sceneTotals, pieces } = buildPieceSceneTotals(fullCaptionScript);
+  const sentences = (previewItem.sentences || []).map((sentence) => ({
+    sentence_id: sentence.sentence_id || sentence.id || '',
+    anchor_scene_id: sentence.anchor_scene_id || '',
+    anchor_scene_ids: sentence.anchor_scene_ids || [],
+    anchor_scene_index: sentence.anchor_scene_index,
+    anchor_start_sec: sentence.anchor_start_sec,
+    anchor_end_sec: sentence.anchor_end_sec,
+    anchor_source: sentence.anchor_source,
+    chars: countKoreanVisibleCharsNoSpaces(sentence.text || ''),
+    text: sentence.text || ''
+  }));
+  const scenes = budgets.map((budget) => {
+    const chars = sceneTotals.get(budget.scene_id) || 0;
+    return {
+      ...budget,
+      assigned_chars: chars,
+      remaining_chars: budget.guide_chars - chars,
+      over_guide: chars > budget.guide_chars
+    };
+  });
+  const unknownSceneChars = [...sceneTotals.entries()]
+    .filter(([sceneId]) => !budgetByScene.has(sceneId))
+    .map(([scene_id, assigned_chars]) => ({ scene_id, assigned_chars }));
+  return { sentences, scenes, pieces, unknown_scene_chars: unknownSceneChars };
+}
+
+function scriptReviewAnchorLabel(sentence = {}) {
+  return String(sentence.anchor_scene_id || sentence.source_scene_ids?.[0] || sentence.sentence_id || 'no_anchor').trim() || 'no_anchor';
+}
+
+function scriptReviewTextLine(sentence = {}) {
+  return `[${scriptReviewAnchorLabel(sentence)}] ${String(sentence.text || '').trim()}`;
+}
+
+function buildScriptReviewApprovalBasisSnapshot(itemConfig = {}) {
+  const guide = itemConfig.ottogi_guide_output && typeof itemConfig.ottogi_guide_output === 'object'
+    ? itemConfig.ottogi_guide_output
+    : {};
+  return {
+    target_duration_sec: Number(itemConfig.target_duration_sec || itemConfig.video_metadata?.duration_sec || 0),
+    full_caption_script_ko: Array.isArray(guide.full_caption_script_ko)
+      ? guide.full_caption_script_ko.map((piece) => ({
+          scene_id: String(piece?.scene_id || '').trim(),
+          source_scene_ids: Array.isArray(piece?.source_scene_ids) ? piece.source_scene_ids.map((id) => String(id || '').trim()).filter(Boolean) : [],
+          role: String(piece?.role || '').trim(),
+          text: normalizeTtsText(piece?.text || '')
+        }))
+      : [],
+    scene_transitions: Array.isArray(guide.scene_transitions)
+      ? guide.scene_transitions.map((scene) => ({
+          scene_id: String(scene?.scene_id || '').trim(),
+          start_sec: Number(scene?.start_sec || 0),
+          end_sec: Number(scene?.end_sec || 0),
+          transition_at_sec: Number(scene?.transition_at_sec || scene?.end_sec || 0),
+          caption_text_ko: String(scene?.caption_text_ko || '').trim(),
+          screen_captions_ko: Array.isArray(scene?.screen_captions_ko) ? scene.screen_captions_ko.map((text) => String(text || '').trim()) : []
+        }))
+      : []
+  };
+}
+
+function scriptReviewApprovalBasisHash(itemConfig = {}) {
+  const snapshot = buildScriptReviewApprovalBasisSnapshot(itemConfig);
+  const hash = crypto.createHash('sha256').update(JSON.stringify(snapshot)).digest('hex');
+  return { hash, snapshot };
+}
+
+function parseScriptReviewText(text = '') {
+  return String(text || '')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith('#'))
+    .map((line, index) => {
+      const match = line.match(/^\[(.+?)\]\s*(.+)$/);
+      if (!match) {
+        const error = new Error(`script_review.txt line ${index + 1} must use "[anchor] sentence" format`);
+        error.code = 'SCRIPT_REVIEW_FORMAT_INVALID';
+        throw error;
+      }
+      return {
+        line_number: index + 1,
+        anchor_label: String(match[1] || '').trim(),
+        text: normalizeTtsText(match[2] || '')
+      };
+    });
+}
+
+function buildScriptTouchDiff(beforeSentences = [], afterSentences = []) {
+  const maxLength = Math.max(beforeSentences.length, afterSentences.length);
+  const changes = [];
+  for (let index = 0; index < maxLength; index += 1) {
+    const before = beforeSentences[index] || null;
+    const after = afterSentences[index] || null;
+    const beforeText = normalizeTtsText(before?.text || '');
+    const afterText = normalizeTtsText(after?.text || '');
+    if (beforeText === afterText) continue;
+    changes.push({
+      sentence_id: before?.sentence_id || after?.sentence_id || `line_${index + 1}`,
+      anchor_scene_id: after?.anchor_scene_id || before?.anchor_scene_id || '',
+      before: beforeText,
+      after: afterText,
+      before_line: before ? scriptReviewTextLine(before) : '',
+      after_line: after ? scriptReviewTextLine(after) : ''
+    });
+  }
+  return changes;
+}
+
+function validateApprovedScriptReviewSentences(sentences = []) {
+  const issues = [];
+  sentences.forEach((sentence, index) => {
+    const text = normalizeTtsText(sentence.text || '');
+    if (!text) {
+      issues.push({ sentence_id: sentence.sentence_id || `line_${index + 1}`, reason: 'empty_sentence', message: `Line ${index + 1} is empty.` });
+      return;
+    }
+    if (!hasKoreanSentenceEnding(text)) {
+      issues.push({
+        sentence_id: sentence.sentence_id || `line_${index + 1}`,
+        reason: 'sentence_ending_missing',
+        message: `Line ${index + 1} does not look like a complete Korean sentence: ${text}`
+      });
+    }
+  });
+  return issues;
+}
+
+function splitSentenceTextByPieceWeights(text = '', targetCounts = []) {
+  const normalizedText = normalizeTtsText(text);
+  const pieceCount = Array.isArray(targetCounts) ? targetCounts.length : 0;
+  if (!normalizedText || pieceCount <= 1) return [normalizedText];
+
+  const words = normalizedText.split(/\s+/).filter(Boolean);
+  if (words.length >= pieceCount) {
+    const assignments = [];
+    let cursor = 0;
+    for (let index = 0; index < pieceCount; index += 1) {
+      const remainingPieces = pieceCount - index;
+      const remainingWords = words.length - cursor;
+      if (index === pieceCount - 1) {
+        assignments.push(words.slice(cursor).join(' '));
+        break;
+      }
+      let bestEnd = cursor + 1;
+      let bestScore = Number.POSITIVE_INFINITY;
+      const maxEnd = words.length - (remainingPieces - 1);
+      for (let end = cursor + 1; end <= maxEnd; end += 1) {
+        const candidate = words.slice(cursor, end).join(' ');
+        const score = Math.abs(countKoreanVisibleCharsNoSpaces(candidate) - Number(targetCounts[index] || 1));
+        if (score < bestScore) {
+          bestScore = score;
+          bestEnd = end;
+        }
+      }
+      assignments.push(words.slice(cursor, bestEnd).join(' '));
+      cursor = bestEnd;
+    }
+    return assignments;
+  }
+
+  const chars = [...normalizedText];
+  const totalVisibleChars = Math.max(1, countKoreanVisibleCharsNoSpaces(normalizedText));
+  const normalizedTargets = targetCounts.map((count) => Math.max(1, Number(count || 0)));
+  let consumedVisible = 0;
+  let cursor = 0;
+  return normalizedTargets.map((target, index) => {
+    if (index === normalizedTargets.length - 1) return chars.slice(cursor).join('').trim();
+    const remainingVisible = Math.max(1, totalVisibleChars - consumedVisible);
+    const remainingTarget = normalizedTargets.slice(index).reduce((sum, value) => sum + value, 0);
+    const desiredVisible = Math.max(1, Math.round((remainingVisible * target) / Math.max(1, remainingTarget)));
+    let visibleCount = 0;
+    let end = cursor;
+    while (end < chars.length) {
+      const char = chars[end];
+      end += 1;
+      if (!/\s/.test(char)) visibleCount += 1;
+      const charsLeft = chars.length - end;
+      const piecesLeft = normalizedTargets.length - index - 1;
+      if (visibleCount >= desiredVisible && charsLeft >= piecesLeft) break;
+    }
+    consumedVisible += visibleCount;
+    const chunk = chars.slice(cursor, end).join('').trim();
+    cursor = end;
+    return chunk;
+  });
+}
+
+function rebuildGuidePiecesForApprovedSentences(guide = {}, approvedSentences = []) {
+  const originalPieces = Array.isArray(guide.full_caption_script_ko)
+    ? guide.full_caption_script_ko.map((piece) => ({ ...piece }))
+    : [];
+  if (!originalPieces.length) return [];
+
+  const nextPieces = originalPieces.map((piece) => ({ ...piece }));
+  for (const sentence of Array.isArray(approvedSentences) ? approvedSentences : []) {
+    const pieceIndexes = Array.isArray(sentence.piece_indexes)
+      ? sentence.piece_indexes.map((index) => Number(index)).filter((index) => Number.isInteger(index) && index >= 0 && index < originalPieces.length)
+      : [];
+    if (!pieceIndexes.length) continue;
+
+    const originalSentencePieces = pieceIndexes.map((index) => originalPieces[index]).filter(Boolean);
+    const originalSentenceText = normalizeTtsText(originalSentencePieces.map((piece) => fullScriptPieceText(piece)).join(' '));
+    const approvedText = normalizeTtsText(sentence.text || '');
+    if (approvedText === originalSentenceText) {
+      pieceIndexes.forEach((pieceIndex) => {
+        nextPieces[pieceIndex] = { ...originalPieces[pieceIndex] };
+      });
+      continue;
+    }
+
+    const targetCounts = originalSentencePieces.map((piece) => Math.max(1, countKoreanVisibleCharsNoSpaces(fullScriptPieceText(piece))));
+    const distributedTexts = splitSentenceTextByPieceWeights(approvedText, targetCounts);
+    pieceIndexes.forEach((pieceIndex, localIndex) => {
+      nextPieces[pieceIndex] = {
+        ...originalPieces[pieceIndex],
+        text: normalizeTtsText(distributedTexts[localIndex] || '')
+      };
+    });
+  }
+
+  return nextPieces.filter((piece) => String(piece?.text || '').trim());
+}
+
+function updateGuideForApprovedScript(guide = {}, approvedSentences = []) {
+  const fullCaptionScriptKo = rebuildGuidePiecesForApprovedSentences(guide, approvedSentences);
+  const regrouped = regroupKoreanFullCaptionScript(fullCaptionScriptKo);
+  const onscreenSubtitles = regrouped.sentences.map((sentence) => normalizeTtsText(sentence.text || '')).filter(Boolean);
+  return {
+    ...guide,
+    full_caption_script_ko: fullCaptionScriptKo,
+    full_metadata_ko: guide.full_metadata_ko && typeof guide.full_metadata_ko === 'object'
+      ? {
+          ...guide.full_metadata_ko,
+          onscreen_subtitles: onscreenSubtitles,
+          summary_caption: guide.full_metadata_ko.summary_caption || onscreenSubtitles[0] || ''
+        }
+      : guide.full_metadata_ko
+  };
+}
+
+function roundScriptReviewNumber(value = 0, decimals = 1) {
+  const number = Number(value || 0);
+  return Number.isFinite(number) ? Number(number.toFixed(decimals)) : 0;
+}
+
+function buildScriptReviewBlockedHeaders(itemConfig = {}, plan = {}) {
+  const headers = [];
+  const guide = itemConfig.ottogi_guide_output || {};
+  const scriptChars = countKoreanFullScriptVisibleChars(guide.full_caption_script_ko || []);
+  const budget = guide.korean_full_speech_budget && Number(guide.korean_full_speech_budget.target_chars || 0) > 0
+    ? guide.korean_full_speech_budget
+    : calculateKoreanFullSpeechBudget({
+        targetDurationSec: itemConfig.target_duration_sec || itemConfig.video_metadata?.duration_sec || 0
+      });
+  const targetChars = Number(budget.target_chars || 0);
+  if (targetChars > 0 && scriptChars > targetChars) {
+    headers.push(`# BLOCKED: 총량 ${targetChars}자 초과 (현재 ${scriptChars}자) — 전체 문장 축약 필요`);
+  }
+
+  const sceneAssignment = buildSceneAssignmentReport({ sentences: plan.sentences || [] }, sceneBudgetsFromGuide(guide), guide.full_caption_script_ko || []);
+  sceneAssignment.scenes
+    .filter((scene) => scene.over_guide)
+    .forEach((scene) => {
+      headers.push(`# BLOCKED: ${scene.scene_id} 분량 ${scene.guide_chars}자 초과 (현재 ${scene.assigned_chars}자) — 해당 문장 축약 필요`);
+    });
+
+  if (plan.anchor_simulation?.block_real_tts) {
+    const worstInvasion = (plan.anchor_simulation.sentence_timeline || [])
+      .filter((sentence) => Number(sentence.scene_invasion_sec || 0) > 0)
+      .sort((a, b) => Number(b.scene_invasion_sec || 0) - Number(a.scene_invasion_sec || 0))[0];
+    if (worstInvasion) {
+      headers.push(
+        `# BLOCKED: ${worstInvasion.anchor_scene_id || 'anchor_scene'} 침범 예상 ${roundScriptReviewNumber(worstInvasion.scene_invasion_sec)}s `
+        + `(한도 ${roundScriptReviewNumber(plan.anchor_simulation.max_allowed_delay_sec)}s) — 해당 문장 축약 필요`
+      );
+    }
+  }
+
+  (plan.warnings || []).forEach((warning) => {
+    const reason = String(warning?.reason || 'warning').trim();
+    if (reason === 'anchor_simulation_drift_exceeded') return;
+    if (reason === 'tts_sentence_limit_exceeded') {
+      headers.push(`# BLOCKED: 문장 수 ${warning.limit}개 한도 초과 (현재 ${warning.sentence_count}개) — 문장을 합치거나 축약 필요`);
+      return;
+    }
+    if (reason === 'sentence_group_boundary_missing_rejected') {
+      headers.push(`# BLOCKED: 문장 경계가 모호한 원고가 있습니다 — 해당 줄을 자연스러운 한국어 문장으로 다시 써주세요`);
+      return;
+    }
+    if (warning?.message) {
+      headers.push(`# BLOCKED: ${String(warning.message).trim()}`);
+    }
+  });
+
+  return [...new Set(headers.filter(Boolean))];
+}
+
+function writeScriptReviewArtifacts(itemId, itemConfig = {}, plan = {}) {
+  const itemDir = getItemDir(itemId);
+  fs.mkdirSync(itemDir, { recursive: true });
+  const textPath = getItemScriptReviewTextPath(itemId);
+  const dataPath = getItemScriptReviewDataPath(itemId);
+  const validationPath = getItemScriptReviewValidationPath(itemId);
+  const blockedHeaders = buildScriptReviewBlockedHeaders(itemConfig, plan);
+  const dryRunPassed = blockedHeaders.length === 0 && plan.sentence_count > 0;
+  const reviewSentences = (plan.sentences || []).map((sentence) => ({
+    sentence_id: sentence.sentence_id || sentence.id || '',
+    anchor_scene_id: sentence.anchor_scene_id || '',
+    anchor_scene_ids: sentence.anchor_scene_ids || [],
+    source_scene_ids: sentence.source_scene_ids || [],
+    piece_indexes: sentence.piece_indexes || [],
+    piece_count: sentence.piece_count || 0,
+    text: normalizeTtsText(sentence.text || ''),
+    anchor_label: scriptReviewAnchorLabel(sentence)
+  }));
+  const reviewTextLines = [
+    ...blockedHeaders,
+    ...(blockedHeaders.length ? [''] : []),
+    ...reviewSentences.map(scriptReviewTextLine)
+  ];
+  fs.writeFileSync(textPath, `${reviewTextLines.join('\n')}\n`, 'utf8');
+  fs.writeFileSync(dataPath, `${JSON.stringify({
+    item_id: itemId,
+    generated_at: nowIso(),
+    sentence_count: reviewSentences.length,
+    dry_run_passed: dryRunPassed,
+    blocked_reasons: blockedHeaders,
+    sentences: reviewSentences
+  }, null, 2)}\n`, 'utf8');
+  fs.writeFileSync(validationPath, `${JSON.stringify({
+    item_id: itemId,
+    status: 'awaiting_script_review',
+    generated_at: nowIso(),
+    dry_run_passed: dryRunPassed,
+    blocked_reasons: blockedHeaders,
+    sentence_count: reviewSentences.length,
+    warnings: plan.warnings || [],
+    anchor_simulation: plan.anchor_simulation || null,
+    scene_assignment: buildSceneAssignmentReport({ sentences: reviewSentences }, sceneBudgetsFromGuide(itemConfig.ottogi_guide_output || {}), itemConfig.ottogi_guide_output?.full_caption_script_ko || [])
+  }, null, 2)}\n`, 'utf8');
+  return { textPath, dataPath, validationPath, reviewSentences, blockedHeaders, dryRunPassed };
+}
+
+async function createKoreanFullDraftScriptReview(itemIds = []) {
+  const queue = listQueue();
+  const requested = Array.isArray(itemIds) ? itemIds.map((id) => String(id)).filter(Boolean) : [];
+  const candidates = queue.queueItems
+    .filter((item) => !requested.length || requested.includes(item.item_id))
+    .filter((item) => {
+      const config = item.item_config || {};
+      const duration = Number(config.video_metadata?.duration_sec || config.target_duration_sec || 0);
+      const decision = decideOutputModeForItem(config, { createHighlightDraft: queue.queueConfig.create_highlight_draft === true });
+      return duration >= SHORTFORM_FULL_DRAFT_SKIP_MAX_DURATION_SEC && decision.skip_full_draft !== true;
+    });
+  const selectedCandidates = candidates.slice(0, requested.length ? candidates.length : 2);
+  const items = [];
+  for (const item of selectedCandidates) {
+    const itemConfigPath = getItemConfigPath(item.item_id);
+    const itemConfig = normalizeItemConfig(readJsonIfExists(itemConfigPath) || item.item_config || {}, item.item_id);
+    const baseConfig = mergeBatchConfig(queue.queueConfig, itemConfig);
+    const draftConfig = buildKoreanFullDraftConfig({
+      itemId: item.item_id,
+      itemConfig,
+      queueConfig: queue.queueConfig,
+      baseConfig
+    });
+    draftConfig.korean_full_actual_video_timeline_sec = await computeDraftActualVideoTimelineSecForPreflight(draftConfig);
+    const plan = buildKoreanFullDraftTtsPlan({ itemId: item.item_id, itemConfig, draftConfig });
+    const timelinePreflightIssue = buildKoreanFullTimelinePreflightIssue({
+      itemId: item.item_id,
+      itemConfig,
+      draftConfig,
+      plan
+    });
+    if (timelinePreflightIssue) {
+      plan.warnings = [...(plan.warnings || []), timelinePreflightIssue];
+    }
+    const sentences = plan.sentences.map((sentence) => ({
+      sentence_id: sentence.id,
+      piece_count: sentence.piece_count,
+      piece_indexes: sentence.piece_indexes,
+      anchor_scene_id: sentence.anchor_scene_id,
+      anchor_scene_ids: sentence.anchor_scene_ids || [],
+      anchor_scene_index: sentence.anchor_scene_index,
+      anchor_start_sec: sentence.anchor_start_sec,
+      anchor_end_sec: sentence.anchor_end_sec,
+      anchor_target_start_sec: sentence.anchor_target_start_sec,
+      anchor_target_source: sentence.anchor_target_source,
+      anchor_source: sentence.anchor_source,
+      text: sentence.text
+    }));
+    const artifacts = writeScriptReviewArtifacts(item.item_id, itemConfig, plan);
+    const approvalBasis = scriptReviewApprovalBasisHash(itemConfig);
+    const existingReview = itemConfig.script_review && typeof itemConfig.script_review === 'object'
+      ? itemConfig.script_review
+      : {};
+    const approvalUnchanged = existingReview.status === 'approved_for_tts'
+      && String(existingReview.approval_basis_hash || '')
+      && existingReview.approval_basis_hash === approvalBasis.hash;
+    const nextStatus = approvalUnchanged ? 'approved_for_tts' : 'awaiting_script_review';
+    const nextItemConfig = normalizeItemConfig({
+      ...itemConfig,
+      script_review: {
+        ...existingReview,
+        status: nextStatus,
+        generated_at: nowIso(),
+        txt_path: artifacts.textPath,
+        data_path: artifacts.dataPath,
+        validation_path: artifacts.validationPath,
+        sentence_count: plan.sentence_count,
+        warning_count: plan.warnings.length,
+        dry_run_passed: artifacts.dryRunPassed,
+        blocked_reasons: artifacts.blockedHeaders,
+        actual_video_timeline_sec: draftConfig.korean_full_actual_video_timeline_sec,
+        approval_basis_hash: approvalBasis.hash,
+        approval_basis_snapshot: approvalBasis.snapshot,
+        approval_invalidated_at: approvalUnchanged ? (existingReview.approval_invalidated_at || '') : (existingReview.status === 'approved_for_tts' ? nowIso() : ''),
+        approval_invalidated_reason: approvalUnchanged ? '' : (existingReview.status === 'approved_for_tts' ? 'approval_basis_changed_after_dry_run' : ''),
+        anchor_simulation: plan.anchor_simulation || null,
+        touch_log: Array.isArray(itemConfig.script_review?.touch_log) ? itemConfig.script_review.touch_log : []
+      }
+    }, item.item_id);
+    writeJsonWithBackup(itemConfigPath, nextItemConfig);
+    items.push({
+      item_id: item.item_id,
+      title: itemConfig.upload_title || item.filename || '',
+      duration_sec: Number(itemConfig.video_metadata?.duration_sec || itemConfig.target_duration_sec || 0),
+      sentence_count: plan.sentence_count,
+      tts_call_count: plan.tts_call_count,
+      caption_units_count: plan.caption_units_count,
+      anchor_simulation: plan.anchor_simulation,
+      warning_count: plan.warnings.length,
+      warnings: plan.warnings,
+      script_review_status: nextStatus,
+      dry_run_passed: artifacts.dryRunPassed,
+      blocked_reasons: artifacts.blockedHeaders,
+      actual_video_timeline_sec: draftConfig.korean_full_actual_video_timeline_sec,
+      approval_basis_hash: approvalBasis.hash,
+      approval_retained: approvalUnchanged,
+      script_review_path: artifacts.textPath,
+      script_review_validation_path: artifacts.validationPath,
+      sentences
+    });
+  }
+  return {
+    status: items.length ? 'awaiting_script_review' : 'no_eligible_items',
+    requested_item_ids: requested,
+    selected_count: items.length,
+    eligibility_rule: `duration >= ${SHORTFORM_FULL_DRAFT_SKIP_MAX_DURATION_SEC}s and skip_full_draft is not true`,
+    sentence_limit: FULL_DRAFT_TTS_SENTENCE_LIMIT,
+    items,
+    queue: listQueue()
+  };
+}
+
+async function approveKoreanFullDraftScriptReview(itemId) {
+  ensureQueueFolders();
+  const id = safeId(itemId);
+  const itemConfigPath = getItemConfigPath(id);
+  const existing = readJsonIfExists(itemConfigPath);
+  if (!existing) {
+    const error = new Error('queue item not found');
+    error.status = 404;
+    throw error;
+  }
+  const itemConfig = normalizeItemConfig(existing, id);
+  const reviewTextPath = getItemScriptReviewTextPath(id);
+  const reviewDataPath = getItemScriptReviewDataPath(id);
+  if (!fs.existsSync(reviewTextPath) || !fs.existsSync(reviewDataPath)) {
+    const error = new Error('script review artifacts not found; run dry-run first');
+    error.code = 'SCRIPT_REVIEW_NOT_FOUND';
+    error.status = 400;
+    throw error;
+  }
+  const reviewData = readJsonIfExists(reviewDataPath) || {};
+  const originalSentences = Array.isArray(reviewData.sentences) ? reviewData.sentences : [];
+  const editedLines = parseScriptReviewText(fs.readFileSync(reviewTextPath, 'utf8'));
+  if (editedLines.length !== originalSentences.length) {
+    const error = new Error(`script review line count changed: expected ${originalSentences.length}, got ${editedLines.length}`);
+    error.code = 'SCRIPT_REVIEW_LINE_COUNT_CHANGED';
+    error.status = 400;
+    throw error;
+  }
+  const approvedSentences = originalSentences.map((sentence, index) => {
+    const edited = editedLines[index];
+    if (edited.anchor_label !== String(sentence.anchor_label || '').trim()) {
+      const error = new Error(`script review anchor mismatch on line ${index + 1}: expected [${sentence.anchor_label}], got [${edited.anchor_label}]`);
+      error.code = 'SCRIPT_REVIEW_ANCHOR_MISMATCH';
+      error.status = 400;
+      throw error;
+    }
+    return {
+      ...sentence,
+      text: edited.text,
+      anchor_scene_id: sentence.anchor_scene_id || sentence.source_scene_ids?.[0] || '',
+      source_scene_ids: Array.isArray(sentence.source_scene_ids) ? sentence.source_scene_ids : []
+    };
+  });
+  const sentenceIssues = validateApprovedScriptReviewSentences(approvedSentences);
+  const updatedGuide = updateGuideForApprovedScript(itemConfig.ottogi_guide_output || {}, approvedSentences);
+  const updatedExplainerBlocks = buildFullCaptionScriptBlocks(
+    updatedGuide.full_caption_script_ko,
+    normalizeSceneTransitions(updatedGuide.scene_transitions, itemConfig.video_metadata?.duration_sec || itemConfig.target_duration_sec || 0),
+    {
+      fallbackDurationSec: itemConfig.video_metadata?.duration_sec || itemConfig.target_duration_sec || 30,
+      animation: 'pop_in',
+      styleProfile: 'full_cut_caption',
+      blockPrefix: 'full_script_ko',
+      language: 'ko'
+    }
+  );
+  const nextItemConfig = normalizeItemConfig({
+    ...itemConfig,
+    ottogi_guide_output: updatedGuide,
+    explainer_blocks: updatedExplainerBlocks.length ? updatedExplainerBlocks : itemConfig.explainer_blocks,
+    explainer_mode: updatedExplainerBlocks.length > 1 ? 'scene_caption_units' : 'single_explainer_fallback'
+  }, id);
+  const queueConfig = loadQueueConfig();
+  const draftConfig = buildKoreanFullDraftConfig({
+    itemId: id,
+    itemConfig: nextItemConfig,
+    queueConfig,
+    baseConfig: mergeBatchConfig(queueConfig, nextItemConfig)
+  });
+  draftConfig.korean_full_actual_video_timeline_sec = await computeDraftActualVideoTimelineSecForPreflight(draftConfig);
+  const plan = buildKoreanFullDraftTtsPlan({ itemId: id, itemConfig: nextItemConfig, draftConfig });
+  const timelinePreflightIssue = buildKoreanFullTimelinePreflightIssue({
+    itemId: id,
+    itemConfig: nextItemConfig,
+    draftConfig,
+    plan
+  });
+  const sceneAssignment = buildSceneAssignmentReport({ sentences: plan.sentences }, sceneBudgetsFromGuide(updatedGuide), updatedGuide.full_caption_script_ko || []);
+  const budgetIssues = sceneAssignment.scenes.filter((scene) => scene.over_guide).map((scene) => ({
+    sentence_id: scene.scene_id,
+    reason: 'scene_budget_exceeded',
+    message: `${scene.scene_id} exceeds guide chars (${scene.assigned_chars}/${scene.guide_chars})`
+  }));
+  const validationIssues = normalizeScriptReviewFailureIssues({
+    sentenceIssues,
+    budgetIssues,
+    planWarnings: plan.warnings,
+    timelinePreflightIssue,
+    anchorSimulation: plan.anchor_simulation
+  });
+  const touchDiff = buildScriptTouchDiff(originalSentences, approvedSentences);
+  const touchEntry = {
+    approved_at: nowIso(),
+    before_sentence_count: originalSentences.length,
+    after_sentence_count: approvedSentences.length,
+    changed_count: touchDiff.length,
+    changed_lines: touchDiff,
+    before_lines: originalSentences.map(scriptReviewTextLine),
+    after_lines: approvedSentences.map(scriptReviewTextLine)
+  };
+  const validationStatus = validationIssues.length
+    ? 'revision_required'
+    : 'approved_for_tts';
+  const validationReport = {
+    item_id: id,
+    validated_at: nowIso(),
+    status: validationStatus,
+    sentence_validation_issues: sentenceIssues,
+    plan_warnings: plan.warnings || [],
+    scene_budget_issues: budgetIssues,
+    validation_issues: validationIssues,
+    failed_checks: [...new Set(validationIssues.map((issue) => issue.check).filter(Boolean))],
+    scene_assignment: sceneAssignment,
+    anchor_simulation: plan.anchor_simulation || null,
+    approval_touch_diff: touchEntry
+  };
+  fs.writeFileSync(getItemScriptReviewValidationPath(id), `${JSON.stringify(validationReport, null, 2)}\n`, 'utf8');
+  const approvalBasis = scriptReviewApprovalBasisHash(nextItemConfig);
+  const finalItemConfig = normalizeItemConfig({
+    ...nextItemConfig,
+    script_review: {
+      ...(nextItemConfig.script_review || {}),
+      status: validationStatus,
+      approved_at: nowIso(),
+      txt_path: reviewTextPath,
+      data_path: reviewDataPath,
+      validation_path: getItemScriptReviewValidationPath(id),
+      sentence_count: approvedSentences.length,
+      warning_count: plan.warnings.length + (timelinePreflightIssue ? 1 : 0),
+      actual_video_timeline_sec: draftConfig.korean_full_actual_video_timeline_sec,
+      approval_basis_hash: approvalBasis.hash,
+      approval_basis_snapshot: approvalBasis.snapshot,
+      approval_invalidated_at: '',
+      approval_invalidated_reason: '',
+      anchor_simulation: plan.anchor_simulation || null,
+      validation_issues: validationIssues,
+      touch_log: [...(Array.isArray(nextItemConfig.script_review?.touch_log) ? nextItemConfig.script_review.touch_log : []), touchEntry]
+    }
+  }, id);
+  writeJsonWithBackup(itemConfigPath, finalItemConfig);
+  if (validationStatus !== 'approved_for_tts') {
+    const error = new Error('Script review updated, but validation failed. Fix script_review.txt and run approval again.');
+    error.code = 'SCRIPT_REVIEW_VALIDATION_FAILED';
+    error.status = 400;
+    error.details = validationReport;
+    throw error;
+  }
+  return {
+    status: validationStatus,
+    item_id: id,
+    script_review_path: reviewTextPath,
+    validation_path: getItemScriptReviewValidationPath(id),
+    changed_count: touchDiff.length,
+    validation: validationReport,
+    item: summarizeItem(finalItemConfig)
+  };
+}
+
+function assertKoreanFullScriptReviewApproved(itemConfig = {}, itemId = '') {
+  const status = String(itemConfig.script_review?.status || '').trim();
+  if (status === 'approved_for_tts') return;
+  const error = new Error('Korean Full script review approval is required before real TTS. Run dry-run, edit script_review.txt, then approve it.');
+  error.code = 'SCRIPT_REVIEW_APPROVAL_REQUIRED';
+  error.status = 400;
+  error.details = {
+    item_id: itemId || itemConfig.item_id || '',
+    script_review_status: status || 'missing',
+    script_review_path: itemConfig.script_review?.txt_path || getItemScriptReviewTextPath(itemId || itemConfig.item_id || '')
+  };
+  throw error;
+}
+
+function koreanFullSrtCharsPerSec(draftConfig = {}, itemConfig = {}, queueConfig = {}) {
+  const candidates = [
+    draftConfig.korean_full_srt_chars_per_sec,
+    itemConfig.korean_full_srt_chars_per_sec,
+    queueConfig.korean_full_srt_chars_per_sec
+  ];
+  for (const candidate of candidates) {
+    const value = Number(candidate);
+    if (Number.isFinite(value) && value > 0) return value;
+  }
+  return 5.0;
+}
+
+function buildKoreanFullSrtWarnings({ plan = {}, draftConfig = {}, itemConfig = {} } = {}) {
+  const warnings = [];
+  const timelineIssue = buildKoreanFullTimelinePreflightIssue({
+    itemId: itemConfig.item_id || '',
+    itemConfig,
+    draftConfig,
+    plan
+  });
+  if (timelineIssue?.message) warnings.push(timelineIssue.message);
+  if (plan.anchor_simulation?.block_real_tts) {
+    warnings.push(`Anchor dry-run drift exceeds limit: max=${plan.anchor_simulation.max_delay_sec}s cumulative=${plan.anchor_simulation.cumulative_positive_delay_sec}s`);
+  }
+  (Array.isArray(plan.warnings) ? plan.warnings : []).forEach((warning) => {
+    if (!warning || typeof warning !== 'object') return;
+    if (warning.message) warnings.push(String(warning.message));
+  });
+  return [...new Set(warnings.filter(Boolean))];
+}
+
+function buildKoreanFullSrtEntries({ plan = {}, charsPerSec = 5.0 } = {}) {
+  const sentences = Array.isArray(plan.sentences) ? plan.sentences : [];
+  const safeCharsPerSec = Number(charsPerSec) > 0 ? Number(charsPerSec) : 5.0;
+  let cursorSec = 0;
+  return sentences.map((sentence) => {
+    const text = normalizeTtsText(sentence.text || '');
+    const charCount = countKoreanVisibleCharsNoSpaces(text);
+    const durationSec = roundSyncSec(charCount > 0 ? charCount / safeCharsPerSec : 0);
+    const preferredStartSec = Number.isFinite(Number(sentence.anchor_target_start_sec))
+      ? Number(sentence.anchor_target_start_sec)
+      : (Number.isFinite(Number(sentence.anchor_start_sec)) ? Number(sentence.anchor_start_sec) : cursorSec);
+    const startSec = Math.max(0, preferredStartSec);
+    const endSec = roundSyncSec(startSec + Math.max(0.2, durationSec));
+    cursorSec = Math.max(cursorSec, endSec);
+    return {
+      caption_id: sentence.id || sentence.sentence_id || '',
+      text,
+      start_sec: roundSyncSec(startSec),
+      end_sec: endSec,
+      estimated_duration_sec: roundSyncSec(Math.max(0.2, durationSec)),
+      anchor_scene_id: sentence.anchor_scene_id || '',
+      anchor_scene_ids: sentence.anchor_scene_ids || [],
+      anchor_target_start_sec: Number.isFinite(Number(sentence.anchor_target_start_sec)) ? roundSyncSec(Number(sentence.anchor_target_start_sec)) : null
+    };
+  }).filter((entry) => entry.text);
+}
+
+function writeKoreanFullDraftSrtFile({ itemId = '', itemConfig = {}, draftConfig = {}, queueConfig = {}, plan = {} } = {}) {
+  const charsPerSec = koreanFullSrtCharsPerSec(draftConfig, itemConfig, queueConfig);
+  const entries = buildKoreanFullSrtEntries({ plan, charsPerSec });
+  const warnings = buildKoreanFullSrtWarnings({ plan, draftConfig, itemConfig });
+  const srtBody = generateSRTFromTimedEntries(entries, { warnings });
+  const itemDir = getItemDir(itemId);
+  fs.mkdirSync(itemDir, { recursive: true });
+  const srtPath = path.join(itemDir, 'subtitles.srt');
+  fs.writeFileSync(srtPath, srtBody, 'utf8');
+  return {
+    outputDir: itemDir,
+    plan: {
+      ...plan,
+      srt_entries: entries,
+      warnings: [...(Array.isArray(plan.warnings) ? plan.warnings : []), ...warnings.map((message) => ({ reason: 'srt_warning', message }))]
+    },
+    ttsFiles: [],
+    srtPath,
+    srtWarnings: warnings,
+    charsPerSec
+  };
+}
+
+async function generateKoreanFullDraftTtsAssets({ itemId, itemConfig = {}, draftConfig = {} }) {
+  assertKoreanFullScriptReviewApproved(itemConfig, itemId);
+  const plan = buildKoreanFullDraftTtsPlan({ itemId, itemConfig, draftConfig });
+  if (!draftConfig.korean_full_actual_video_timeline_sec) {
+    draftConfig.korean_full_actual_video_timeline_sec = await computeDraftActualVideoTimelineSecForPreflight(draftConfig);
+  }
+  if (!plan.sentenceUnits.length) return { plan, ttsFiles: [], srtPath: '' };
+  const boundarylessWarning = (plan.warnings || []).find((warning) => warning?.block_real_tts === true || warning?.reason === 'sentence_group_boundary_missing_rejected');
+  if (boundarylessWarning) {
+    const error = new Error(boundarylessWarning.message || 'Korean Full manuscript has a boundaryless sentence group; regenerate before real TTS');
+    error.code = 'FULL_DRAFT_MANUSCRIPT_BOUNDARY_MISSING';
+    error.details = { itemId, warning: boundarylessWarning, plan };
+    throw error;
+  }
+  if (plan.sentenceUnits.length > FULL_DRAFT_TTS_SENTENCE_LIMIT) {
+    const error = new Error(`TTS sentence count ${plan.sentenceUnits.length} exceeds limit ${FULL_DRAFT_TTS_SENTENCE_LIMIT}`);
+    error.code = 'TTS_SENTENCE_LIMIT_EXCEEDED';
+    error.details = { plan };
+    throw error;
+  }
+  if (plan.anchor_simulation?.block_real_tts) {
+    const error = new Error(`Anchor dry-run drift exceeds limit: max=${plan.anchor_simulation.max_delay_sec}s cumulative=${plan.anchor_simulation.cumulative_positive_delay_sec}s`);
+    error.code = 'FULL_DRAFT_ANCHOR_SIMULATION_DRIFT_EXCEEDED';
+    error.details = { itemId, anchor_simulation: plan.anchor_simulation, plan };
+    throw error;
+  }
+  assertKoreanFullTtsFitsVideoTimeline({
+    itemId,
+    itemConfig,
+    draftConfig,
+    ttsFiles: [],
+    plan
+  });
+  const apiKey = requireApiKey('ELEVENLABS_API_KEY');
+  const { batchId, dir } = createBatchDir();
+  const voiceId = draftConfig.tts_voice_id || draftConfig.elevenlabs_voice_id || itemConfig.tts_voice_id || itemConfig.elevenlabs_voice_id || undefined;
+  const modelId = draftConfig.tts_model_id || draftConfig.elevenlabs_model_id || itemConfig.tts_model_id || itemConfig.elevenlabs_model_id || undefined;
+  if (!voiceId) {
+    const error = new Error('ElevenLabs voice ID is required for Korean full draft TTS');
+    error.code = 'TTS_VOICE_ID_REQUIRED';
+    error.details = { itemId };
+    throw error;
+  }
+  let generation;
+  try {
+    generation = await generateAllTTS(plan.sentenceUnits, voiceId, modelId, apiKey, dir);
+  } catch (error) {
+    fs.rmSync(dir, { recursive: true, force: true });
+    throw error;
+  }
+  const anchorBySentenceId = new Map(plan.sentenceUnits.map((sentence) => [String(sentence.caption_id || sentence.segment_id || ''), {
+    anchor_scene_id: sentence.anchor_scene_id,
+    anchor_scene_ids: sentence.anchor_scene_ids || [],
+    anchor_scene_index: sentence.anchor_scene_index,
+    anchor_start_sec: sentence.anchor_start_sec,
+    anchor_end_sec: sentence.anchor_end_sec,
+    anchor_target_start_sec: sentence.anchor_target_start_sec,
+    anchor_target_source: sentence.anchor_target_source,
+    anchor_source: sentence.anchor_source
+  }]));
+  const ttsFiles = (generation.files || []).map((file) => ({
+    ...file,
+    ...(anchorBySentenceId.get(String(file.caption_id || file.segment_id || '')) || {})
+  }));
+  const failedSegments = generation.failedSegments || [];
+  if (failedSegments.length || ttsFiles.length !== plan.sentenceUnits.length) {
+    fs.rmSync(dir, { recursive: true, force: true });
+    const error = new Error(`TTS generation incomplete: ${ttsFiles.length}/${plan.sentenceUnits.length} sentences generated`);
+    error.code = 'TTS_GENERATION_INCOMPLETE';
+    error.details = { failedSegments, plan };
+    throw error;
+  }
+  const srtBody = generateSRT(ttsFiles);
+  const srtPath = path.join(dir, 'subtitles.srt');
+  fs.writeFileSync(srtPath, srtBody, 'utf8');
+  return {
+    batchId,
+    outputDir: dir,
+    plan: {
+      ...plan,
+      warnings: [...plan.warnings, ...(generation.warnings || [])],
+      failed_segments: failedSegments
+    },
+    ttsFiles,
+    srtPath
+  };
+}
+
+function sumTtsDurationSec(ttsFiles = []) {
+  return (Array.isArray(ttsFiles) ? ttsFiles : []).reduce((total, file) => {
+    const duration = Number(file?.duration_sec || file?.duration || 0);
+    return total + (Number.isFinite(duration) && duration > 0 ? duration : 0);
+  }, 0);
+}
+
+function roundSyncSec(value = 0) {
+  const number = Number(value || 0);
+  return Number.isFinite(number) ? Number(number.toFixed(6)) : 0;
+}
+
+function normalizeAnchorSceneTransitions(itemConfig = {}) {
+  const guide = itemConfig.ottogi_guide_output || {};
+  return (Array.isArray(guide.scene_transitions) ? guide.scene_transitions : [])
+    .map((scene, index) => {
+      const sceneId = String(scene?.scene_id || '').trim();
+      const startSec = Number(scene?.start_sec || 0);
+      const endSec = Number(scene?.end_sec || 0);
+      if (!sceneId || !Number.isFinite(startSec) || !Number.isFinite(endSec) || endSec <= startSec) return null;
+      return {
+        scene_id: sceneId,
+        scene_index: index,
+        start_sec: roundSyncSec(startSec),
+        end_sec: roundSyncSec(endSec)
+      };
+    })
+    .filter(Boolean);
+}
+
+function sceneAnchorFieldsForSentence(sentence = {}, sceneById = new Map(), source = 'explicit_scene_id') {
+  const candidateIds = Array.isArray(sentence.source_scene_ids) && sentence.source_scene_ids.length
+    ? sentence.source_scene_ids
+    : [sentence.source_scene_id].filter(Boolean);
+  const scenes = candidateIds
+    .map((id) => String(id || '').trim())
+    .filter((id, index, array) => id && array.indexOf(id) === index && sceneById.has(id))
+    .map((id) => sceneById.get(id))
+    .sort((a, b) => a.scene_index - b.scene_index);
+  if (!scenes.length) {
+    return {
+      anchor_scene_id: '',
+      anchor_scene_ids: [],
+      anchor_scene_index: null,
+      anchor_start_sec: null,
+      anchor_end_sec: null,
+      anchor_source: 'continuous_fallback_no_scene_anchor'
+    };
+  }
+  const firstScene = scenes[0];
+  const lastScene = scenes[scenes.length - 1];
+  return {
+    anchor_scene_id: firstScene.scene_id,
+    anchor_scene_ids: scenes.map((scene) => scene.scene_id),
+    anchor_scene_index: firstScene.scene_index,
+    anchor_start_sec: firstScene.start_sec,
+    anchor_end_sec: lastScene.end_sec,
+    anchor_source: scenes.length > 1 ? `${source}_range` : source
+  };
+}
+
+function estimatedKoreanTtsDurationSec(text = '') {
+  const chars = countKoreanVisibleCharsNoSpaces(text);
+  return roundSyncSec(chars / 5.0);
+}
+
+function assignDistributedAnchorTargets(sentences = []) {
+  const sceneCursorById = new Map();
+  return (Array.isArray(sentences) ? sentences : []).map((sentence) => {
+    const durationSec = estimatedKoreanTtsDurationSec(sentence.text || '');
+    const sceneId = String(sentence.anchor_scene_id || '').trim();
+    const hasAnchor = sceneId && Number.isFinite(Number(sentence.anchor_start_sec));
+    if (!hasAnchor) {
+      return {
+        ...sentence,
+        estimated_duration_sec: durationSec,
+        anchor_target_start_sec: null,
+        anchor_target_source: 'continuous_fallback_no_scene_anchor'
+      };
+    }
+    const sceneStartSec = Number(sentence.anchor_start_sec);
+    const targetStartSec = sceneCursorById.has(sceneId)
+      ? Math.max(sceneStartSec, sceneCursorById.get(sceneId))
+      : sceneStartSec;
+    sceneCursorById.set(sceneId, roundSyncSec(targetStartSec + durationSec));
+    return {
+      ...sentence,
+      estimated_duration_sec: durationSec,
+      anchor_target_start_sec: roundSyncSec(targetStartSec),
+      anchor_target_source: 'distributed_within_anchor_scene'
+    };
+  });
+}
+
+function simulateAnchoredSentencePlacement(sentences = [], options = {}) {
+  const maxAllowedDelaySec = Number(options.maxDelaySec || FULL_DRAFT_ANCHOR_MAX_DELAY_SEC);
+  const maxAllowedCumulativeDelaySec = Number(options.maxCumulativeDelaySec || FULL_DRAFT_ANCHOR_CUMULATIVE_DELAY_SEC);
+  let cursorSec = 0;
+  let maxSceneInvasionSec = 0;
+  let cumulativeSceneInvasionSec = 0;
+  let anchoredCount = 0;
+  const distributedSentences = assignDistributedAnchorTargets(sentences);
+  const sentenceTimeline = distributedSentences.map((sentence) => {
+    const durationSec = Number.isFinite(Number(sentence.estimated_duration_sec))
+      ? Number(sentence.estimated_duration_sec)
+      : estimatedKoreanTtsDurationSec(sentence.text || '');
+    const hasAnchor = sentence.anchor_scene_id && Number.isFinite(Number(sentence.anchor_start_sec));
+    if (hasAnchor) anchoredCount += 1;
+    const targetStartSec = hasAnchor && Number.isFinite(Number(sentence.anchor_target_start_sec))
+      ? Number(sentence.anchor_target_start_sec)
+      : hasAnchor ? Number(sentence.anchor_start_sec) : cursorSec;
+    const actualStartSec = hasAnchor ? Math.max(targetStartSec, cursorSec) : cursorSec;
+    const delaySec = hasAnchor ? Math.max(0, actualStartSec - targetStartSec) : 0;
+    const actualEndSec = actualStartSec + durationSec;
+    const anchorEndSec = Number.isFinite(Number(sentence.anchor_end_sec)) ? Number(sentence.anchor_end_sec) : null;
+    const sceneInvasionSec = hasAnchor && anchorEndSec !== null ? Math.max(0, actualEndSec - anchorEndSec) : 0;
+    cursorSec = actualEndSec;
+    maxSceneInvasionSec = Math.max(maxSceneInvasionSec, sceneInvasionSec);
+    cumulativeSceneInvasionSec += sceneInvasionSec;
+    return {
+      caption_id: sentence.id || sentence.caption_id || '',
+      anchor_scene_id: sentence.anchor_scene_id || '',
+      anchor_scene_ids: sentence.anchor_scene_ids || [],
+      anchor_scene_index: sentence.anchor_scene_index ?? null,
+      anchor_source: sentence.anchor_source || 'continuous_fallback_no_scene_anchor',
+      anchor_end_sec: anchorEndSec !== null ? roundSyncSec(anchorEndSec) : null,
+      anchor_target_start_sec: hasAnchor ? roundSyncSec(targetStartSec) : null,
+      anchor_target_source: sentence.anchor_target_source || (hasAnchor ? 'distributed_within_anchor_scene' : 'continuous_fallback_no_scene_anchor'),
+      target_start_sec: roundSyncSec(targetStartSec),
+      actual_start_sec: roundSyncSec(actualStartSec),
+      actual_end_sec: roundSyncSec(actualEndSec),
+      estimated_duration_sec: durationSec,
+      delay_sec: roundSyncSec(delaySec),
+      scene_invasion_sec: roundSyncSec(sceneInvasionSec),
+      placement_mode: hasAnchor ? 'scene_anchor_estimated' : 'continuous_fallback_estimated'
+    };
+  });
+  const blockRealTts = maxSceneInvasionSec > maxAllowedDelaySec || cumulativeSceneInvasionSec > maxAllowedCumulativeDelaySec;
+  return {
+    enabled: anchoredCount > 0,
+    anchored_sentence_count: anchoredCount,
+    sentence_count: sentenceTimeline.length,
+    duration_basis: 'korean_visible_chars_divided_by_5.0',
+    drift_metric: 'scene_invasion_after_anchor_end',
+    max_delay_sec: roundSyncSec(maxSceneInvasionSec),
+    cumulative_positive_delay_sec: roundSyncSec(cumulativeSceneInvasionSec),
+    max_scene_invasion_sec: roundSyncSec(maxSceneInvasionSec),
+    cumulative_scene_invasion_sec: roundSyncSec(cumulativeSceneInvasionSec),
+    max_allowed_delay_sec: maxAllowedDelaySec,
+    max_allowed_cumulative_delay_sec: maxAllowedCumulativeDelaySec,
+    block_real_tts: blockRealTts,
+    sentence_timeline: sentenceTimeline
+  };
+}
+
+function occupiedTimelineEndSecFromAnchorSimulation(plan = {}) {
+  const sentenceTimeline = Array.isArray(plan.anchor_simulation?.sentence_timeline)
+    ? plan.anchor_simulation.sentence_timeline
+    : [];
+  return roundSyncSec(sentenceTimeline.reduce((maxEndSec, sentence) => {
+    const actualEndSec = Number(sentence?.actual_end_sec || 0);
+    return actualEndSec > maxEndSec ? actualEndSec : maxEndSec;
+  }, 0));
+}
+
+async function computeDraftActualVideoTimelineSecForPreflight(draftConfig = {}) {
+  const preflightConfig = normalizeConfig({
+    ...draftConfig,
+    use_tts: false
+  });
+  const preflightDraft = await createProcessDraft({
+    config: preflightConfig,
+    useExistingConfig: false,
+    createZip: false,
+    ttsFiles: [],
+    captionUnits: [],
+    captionWarnings: [],
+    srtFile: ''
+  });
+  try {
+    const manifest = readJsonIfExists(path.join(preflightDraft.draftPath, 'edit_manifest.json')) || {};
+    return roundSyncSec(manifest.actual_timeline_duration_sec || manifest.target_duration_sec || preflightConfig.target_duration_sec || 0);
+  } finally {
+    removeDirRecursive(preflightDraft.draftPath);
+  }
+}
+
+function buildKoreanFullSyncEvidence({ itemConfig = {}, draftConfig = {}, ttsFiles = [], plan = {}, syncDecision = 'pending' } = {}) {
+  const budget = itemConfig.ottogi_guide_output?.korean_full_speech_budget && Number(itemConfig.ottogi_guide_output.korean_full_speech_budget.target_chars) > 0
+    ? itemConfig.ottogi_guide_output.korean_full_speech_budget
+    : calculateKoreanFullSpeechBudget({ targetDurationSec: draftConfig.target_duration_sec || itemConfig.target_duration_sec || itemConfig.video_metadata?.duration_sec || 0 });
+  const generatedChars = countKoreanFullScriptVisibleChars(itemConfig.ottogi_guide_output?.full_caption_script_ko || []);
+  const rawTtsSec = sumTtsDurationSec(ttsFiles);
+  const occupiedTimelineSec = occupiedTimelineEndSecFromAnchorSimulation(plan);
+  const actualTtsSec = occupiedTimelineSec > 0 ? occupiedTimelineSec : rawTtsSec;
+  const charsPerSec = koreanFullSrtCharsPerSec(draftConfig, itemConfig, {});
+  const videoTimelineSec = Number(
+    draftConfig.korean_full_actual_video_timeline_sec
+    || draftConfig.target_duration_sec
+    || itemConfig.target_duration_sec
+    || itemConfig.video_metadata?.duration_sec
+    || 0
+  );
+  const estimatedSpeechSec = roundSyncSec(generatedChars / charsPerSec);
+  const ttsVsBudgetDeltaSec = roundSyncSec(actualTtsSec - estimatedSpeechSec);
+  return {
+    speech_budget_chars: Number(budget.target_chars || 0),
+    generated_script_chars: generatedChars,
+    estimated_speech_sec: estimatedSpeechSec,
+    actual_tts_sec: roundSyncSec(actualTtsSec),
+    actual_tts_raw_sum_sec: roundSyncSec(rawTtsSec),
+    actual_tts_occupied_timeline_sec: roundSyncSec(actualTtsSec),
+    actual_tts_vs_budget_delta_sec: ttsVsBudgetDeltaSec,
+    actual_tts_vs_budget_ratio: estimatedSpeechSec > 0 ? roundSyncSec(actualTtsSec / estimatedSpeechSec) : 0,
+    video_timeline_sec: roundSyncSec(videoTimelineSec),
+    chars_per_sec: charsPerSec,
+    sync_decision: syncDecision,
+    tolerance_sec: FULL_DRAFT_TTS_TIMELINE_TOLERANCE_SEC,
+    budget,
+    sentence_count: Number(plan.sentence_count || plan.sentenceUnits?.length || 0),
+    anchor_simulation: plan.anchor_simulation || null
+  };
+}
+
+function buildKoreanFullTimelinePreflightIssue({ itemId = '', itemConfig = {}, draftConfig = {}, plan = {} } = {}) {
+  const evidence = buildKoreanFullSyncEvidence({
+    itemConfig,
+    draftConfig,
+    ttsFiles: [],
+    plan,
+    syncDecision: 'preflight_anchor_occupied_timeline_check'
+  });
+  if (evidence.actual_tts_sec <= evidence.video_timeline_sec + FULL_DRAFT_TTS_TIMELINE_TOLERANCE_SEC) {
+    return null;
+  }
+  return {
+    check: 'timeline_preflight',
+    reason: 'occupied_timeline_exceeds_actual_video_timeline',
+    block_real_tts: true,
+    item_id: itemId,
+    actual_tts_sec: evidence.actual_tts_sec,
+    actual_tts_raw_sum_sec: evidence.actual_tts_raw_sum_sec,
+    video_timeline_sec: evidence.video_timeline_sec,
+    tolerance_sec: evidence.tolerance_sec,
+    message: `Anchored occupied timeline ${evidence.actual_tts_sec}s exceeds actual video timeline ${evidence.video_timeline_sec}s + ${evidence.tolerance_sec}s`
+  };
+}
+
+function normalizeScriptReviewFailureIssues({
+  sentenceIssues = [],
+  budgetIssues = [],
+  planWarnings = [],
+  timelinePreflightIssue = null,
+  anchorSimulation = null
+} = {}) {
+  const issues = [];
+  const pushIssue = (issue) => {
+    if (!issue || typeof issue !== 'object') return;
+    issues.push(issue);
+  };
+
+  sentenceIssues.forEach((issue) => pushIssue({
+    check: 'sentence_validation',
+    ...issue
+  }));
+
+  budgetIssues.forEach((issue) => pushIssue({
+    check: 'scene_budget',
+    ...issue
+  }));
+
+  (Array.isArray(planWarnings) ? planWarnings : []).forEach((warning, index) => {
+    if (!warning || typeof warning !== 'object') return;
+    pushIssue({
+      check: warning.reason === 'anchor_simulation_drift_exceeded' ? 'anchor_simulation' : 'plan_warning',
+      reason: String(warning.reason || `plan_warning_${index + 1}`).trim(),
+      message: String(warning.message || '').trim(),
+      block_real_tts: warning.block_real_tts === true,
+      warning
+    });
+  });
+
+  if (timelinePreflightIssue) pushIssue(timelinePreflightIssue);
+
+  if (anchorSimulation?.block_real_tts === true && !issues.some((issue) => issue.check === 'anchor_simulation')) {
+    pushIssue({
+      check: 'anchor_simulation',
+      reason: 'anchor_simulation_drift_exceeded',
+      message: `Anchor dry-run drift exceeds limit: max=${anchorSimulation.max_delay_sec}s cumulative=${anchorSimulation.cumulative_positive_delay_sec}s`,
+      block_real_tts: true,
+      anchor_simulation: anchorSimulation
+    });
+  }
+
+  return issues;
+}
+
+function assertKoreanFullTtsFitsVideoTimeline({ itemId = '', itemConfig = {}, draftConfig = {}, ttsFiles = [], plan = {} } = {}) {
+  const evidence = buildKoreanFullSyncEvidence({ itemConfig, draftConfig, ttsFiles, plan, syncDecision: 'fits_video_timeline' });
+  if (evidence.actual_tts_sec > evidence.video_timeline_sec + FULL_DRAFT_TTS_TIMELINE_TOLERANCE_SEC) {
+    const error = new Error(`Korean Full TTS duration exceeds video timeline: ${evidence.actual_tts_sec}s > ${evidence.video_timeline_sec}s + ${FULL_DRAFT_TTS_TIMELINE_TOLERANCE_SEC}s`);
+    error.code = 'FULL_DRAFT_TTS_DURATION_EXCEEDS_VIDEO_TIMELINE';
+    error.details = {
+      item_id: itemId,
+      ...evidence,
+      sync_decision: 'fail_loud_tts_exceeds_video_timeline'
+    };
+    throw error;
+  }
+  return evidence;
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -267,6 +1871,7 @@ function defaultQueueConfig() {
     korean_highlight_bgm_volume: base.bgm_volume,
     bgm_volume: base.bgm_volume,
     use_tts: false,
+    korean_full_srt_chars_per_sec: base.korean_full_srt_chars_per_sec,
     output: {
       mode: 'capcut_draft_root',
       output_root: '',
@@ -535,6 +2140,9 @@ function normalizeQueueConfig(config = {}) {
     korean_bgm_volume: Number(config.korean_bgm_volume) >= 0 ? Number(config.korean_bgm_volume) : defaults.korean_bgm_volume,
     korean_highlight_bgm_volume: Number(config.korean_highlight_bgm_volume) >= 0 ? Number(config.korean_highlight_bgm_volume) : defaults.korean_highlight_bgm_volume,
     use_bgm: !!String(config.custom_bgm_path || defaults.custom_bgm_path || ''),
+    korean_full_srt_chars_per_sec: Number(config.korean_full_srt_chars_per_sec) > 0
+      ? Number(config.korean_full_srt_chars_per_sec)
+      : defaults.korean_full_srt_chars_per_sec,
     create_highlight_draft: config.create_highlight_draft === true,
     create_midform_draft: config.create_midform_draft !== false,
     create_korean_drafts: false,
@@ -627,6 +2235,18 @@ function getItemOcrReviewPath(itemId) {
 
 function getItemOcrApprovedReportPath(itemId) {
   return path.join(getItemDir(itemId), 'ocr_text_regions.approved.json');
+}
+
+function getItemScriptReviewTextPath(itemId) {
+  return path.join(getItemDir(itemId), 'script_review.txt');
+}
+
+function getItemScriptReviewDataPath(itemId) {
+  return path.join(getItemDir(itemId), 'script_review.json');
+}
+
+function getItemScriptReviewValidationPath(itemId) {
+  return path.join(getItemDir(itemId), 'script_review_validation.json');
 }
 
 function nextItemId(existingIds = []) {
@@ -3535,6 +5155,7 @@ function summarizeItem(itemConfig) {
     highlight_candidate_windows: highlightCandidates,
     explainer_blocks_count: Array.isArray(item.explainer_blocks) ? item.explainer_blocks.length : 0,
     explainer_preview: item.explainer_blocks?.[0]?.text || '',
+    script_review: item.script_review || null,
     ocr_text_detection: ocrReport
       ? {
           status: ocrReport.status || '',
@@ -7070,6 +8691,9 @@ function buildKoreanFullDraftConfig({ itemId, itemConfig, queueConfig, baseConfi
     channel_asset: channelAsset,
     channel_frame_asset: disabledChannelFrameAsset(),
     video_transform_preset: fullTransform.presetId,
+    use_tts: false,
+    subtitle_delivery_mode: KOREAN_FULL_SRT_DELIVERY_MODE,
+    korean_full_srt_chars_per_sec: koreanFullSrtCharsPerSec(baseConfig, itemConfig, queueConfig),
     use_bgm: queueConfig.korean_custom_bgm_path ? true : baseConfig.use_bgm,
     custom_bgm_path: queueConfig.korean_custom_bgm_path || baseConfig.custom_bgm_path || '',
     custom_bgm_original_name: queueConfig.korean_custom_bgm_original_name || baseConfig.custom_bgm_original_name || '',
@@ -7092,10 +8716,24 @@ async function createKoreanFullDraftForItem({
 }) {
   const titleInfo = selectKoreanTitle(itemConfig, 'full');
   const koreanConfig = buildKoreanFullDraftConfig({ itemId, itemConfig, queueConfig, baseConfig });
+  const srtPlan = buildKoreanFullDraftTtsPlan({ itemId, itemConfig, draftConfig: koreanConfig });
+  const ttsAssets = writeKoreanFullDraftSrtFile({ itemId, itemConfig, draftConfig: koreanConfig, queueConfig, plan: srtPlan });
+  const syncEvidence = buildKoreanFullSyncEvidence({
+    itemConfig,
+    draftConfig: koreanConfig,
+    ttsFiles: [],
+    plan: ttsAssets.plan,
+    syncDecision: 'srt_only_external_warning'
+  });
+  koreanConfig.korean_full_sync_evidence = syncEvidence;
   const result = await createProcessDraft({
     config: koreanConfig,
     useExistingConfig: false,
-    createZip
+    createZip,
+    ttsFiles: [],
+    captionUnits: [],
+    captionWarnings: ttsAssets.plan.warnings,
+    srtFile: ttsAssets.srtPath
   });
   const projectName = draftFolderNameForBatchItem({
     startedAtStamp: draftStartedAtStamp,
@@ -7106,6 +8744,19 @@ async function createKoreanFullDraftForItem({
   });
   const outDir = path.join(outputRoot, projectName);
   copyDirContents(result.draftPath, outDir);
+  const copiedManifest = readJsonIfExists(path.join(outDir, 'edit_manifest.json')) || {};
+  const manifestSyncEvidence = copiedManifest.korean_full_sync_evidence || syncEvidence;
+  attachJsonFilePatch(path.join(outDir, 'edit_manifest.json'), {
+    korean_full_tts_plan: {
+      enabled: koreanConfig.use_tts === true,
+      delivery_mode: KOREAN_FULL_SRT_DELIVERY_MODE,
+      sentence_count: ttsAssets.plan.sentence_count,
+      tts_call_count: 0,
+      warning_count: ttsAssets.plan.warnings.length,
+      batch_id: ttsAssets.batchId || ''
+    },
+    korean_full_sync_evidence: manifestSyncEvidence
+  });
   const finalCaptionNormalization = normalizeFinalDraftCaptions(outDir);
   const metadataFiles = copyOttogiMetadataFiles(itemId, outDir, projectName, 'full', 'ko', itemConfig.ottogi_guide_output || {});
   const manifest = readJsonIfExists(path.join(outDir, 'edit_manifest.json')) || {};
@@ -7115,10 +8766,15 @@ async function createKoreanFullDraftForItem({
       variant: 'full',
       language: 'ko',
       source_item_id: itemId,
-      caption_mode: 'korean_scene_caption_units',
+      caption_mode: 'external_srt_only',
       full_draft_video_transform_analysis: koreanConfig.full_draft_video_transform_analysis || null
     },
     final_caption_normalization: finalCaptionNormalization,
+    ...buildScriptReviewManifestPatch(itemConfig),
+    touch_log: {
+      ...((manifest.touch_log && typeof manifest.touch_log === 'object') ? manifest.touch_log : {}),
+      script_manuscript: Array.isArray(itemConfig.script_review?.touch_log) ? itemConfig.script_review.touch_log : []
+    },
     ...buildVariantStrategyManifestPatch(itemConfig, 'kr_full')
   });
   fs.appendFileSync(
@@ -7128,7 +8784,10 @@ async function createKoreanFullDraftForItem({
       '## Korean Full Draft',
       '- Enabled: true',
       '- Language: ko',
-      '- Caption Mode: Korean scene captions',
+      '- Caption Mode: external SRT only',
+      `- External SRT: ${ttsAssets.srtPath}`,
+      `- SRT chars/sec: ${ttsAssets.charsPerSec}`,
+      ...ttsAssets.srtWarnings.map((warning) => `- SRT Warning: ${warning}`),
       `- Auto Full Video Transform Preset: ${koreanConfig.full_draft_video_transform_analysis?.selected_preset_id || koreanConfig.video_transform_preset || 'unknown'}`,
       `- Full Transform Reason: ${koreanConfig.full_draft_video_transform_analysis?.reason || 'unknown'}`,
       `- Korean BGM: ${queueConfig.korean_custom_bgm_original_name || queueConfig.korean_custom_bgm_path || 'default/full BGM'}`,
@@ -7613,15 +9272,50 @@ async function generateQueue({ batch_name, item_ids, stop_on_error = false, draf
           });
           koreanFullConfig.source_preprocess = mergedConfig.source_preprocess;
           koreanFullConfig.ocr_mask_overlay = mergedConfig.ocr_mask_overlay;
+          const koreanFullPlan = buildKoreanFullDraftTtsPlan({
+            itemId,
+            itemConfig: fullDraftItemConfig,
+            draftConfig: koreanFullConfig
+          });
+          const koreanFullTtsAssets = writeKoreanFullDraftSrtFile({
+            itemId,
+            itemConfig: fullDraftItemConfig,
+            draftConfig: koreanFullConfig,
+            queueConfig,
+            plan: koreanFullPlan
+          });
+          row.korean_full_tts = {
+            enabled: false,
+            delivery_mode: KOREAN_FULL_SRT_DELIVERY_MODE,
+            sentence_count: koreanFullTtsAssets.plan.sentence_count,
+            tts_call_count: 0,
+            warning_count: koreanFullTtsAssets.plan.warnings.length,
+            batch_id: koreanFullTtsAssets.batchId || ''
+          };
+          const koreanFullSyncEvidence = buildKoreanFullSyncEvidence({
+            itemConfig: fullDraftItemConfig,
+            draftConfig: koreanFullConfig,
+            ttsFiles: [],
+            plan: koreanFullTtsAssets.plan,
+            syncDecision: 'srt_only_external_warning'
+          });
+          koreanFullConfig.korean_full_sync_evidence = koreanFullSyncEvidence;
+          row.korean_full_sync_evidence = koreanFullSyncEvidence;
           result = await createProcessDraft({
             config: koreanFullConfig,
             useExistingConfig: false,
-            createZip
+            createZip,
+            ttsFiles: [],
+            captionUnits: [],
+            captionWarnings: koreanFullTtsAssets.plan.warnings,
+            srtFile: koreanFullTtsAssets.srtPath
           });
 
           const itemWorkingDir = copyDraftToGeneratingFolder(result.draftPath, itemOutDir);
           const finalCaptionNormalization = normalizeFinalDraftCaptions(itemWorkingDir);
           const fullManifest = readJsonIfExists(path.join(itemWorkingDir, 'edit_manifest.json')) || {};
+          const manifestSyncEvidence = fullManifest.korean_full_sync_evidence || koreanFullSyncEvidence;
+          row.korean_full_sync_evidence = manifestSyncEvidence;
           row.full_preroll_hook = fullManifest.full_preroll_hook || null;
           row.full_source_window = fullDraftPreparation.sourceWindow || null;
           attachJsonFilePatch(path.join(itemWorkingDir, 'edit_manifest.json'), {
@@ -7650,8 +9344,15 @@ async function generateQueue({ batch_name, item_ids, stop_on_error = false, draf
               variant: 'full',
               language: OUTPUT_CONFIG.full_draft.lang,
               source_item_id: itemId,
-              caption_mode: 'korean_scene_caption_units',
+              caption_mode: 'external_srt_only',
               product_rule: `${OUTPUT_CONFIG.full_draft.label}_and_${OUTPUT_CONFIG.highlight.label}`
+            },
+            korean_full_tts_plan: row.korean_full_tts,
+            korean_full_sync_evidence: manifestSyncEvidence,
+            ...buildScriptReviewManifestPatch(fullDraftItemConfig),
+            touch_log: {
+              ...((fullManifest.touch_log && typeof fullManifest.touch_log === 'object') ? fullManifest.touch_log : {}),
+              script_manuscript: Array.isArray(fullDraftItemConfig.script_review?.touch_log) ? fullDraftItemConfig.script_review.touch_log : []
             },
             ...buildVariantStrategyManifestPatch(itemConfig, 'kr_full')
           });
@@ -7931,6 +9632,36 @@ function getReport(batchId) {
   };
 }
 
+function buildScriptReviewManifestPatch(itemConfig = {}) {
+  const scriptReview = itemConfig.script_review && typeof itemConfig.script_review === 'object'
+    ? itemConfig.script_review
+    : null;
+  const touchLog = Array.isArray(scriptReview?.touch_log) ? scriptReview.touch_log : [];
+  return {
+    script_review: scriptReview
+      ? {
+          status: scriptReview.status || '',
+          generated_at: scriptReview.generated_at || '',
+          approved_at: scriptReview.approved_at || '',
+          txt_path: scriptReview.txt_path || '',
+          validation_path: scriptReview.validation_path || '',
+          sentence_count: Number(scriptReview.sentence_count || 0),
+          warning_count: Number(scriptReview.warning_count || 0),
+          dry_run_passed: scriptReview.dry_run_passed === true,
+          blocked_reasons: Array.isArray(scriptReview.blocked_reasons) ? scriptReview.blocked_reasons : [],
+          anchor_simulation: scriptReview.anchor_simulation || null
+        }
+      : null,
+    touch_log: {
+      script_manuscript: touchLog
+    }
+  };
+}
+
+async function previewKoreanFullDraftTts(itemIds = []) {
+  return createKoreanFullDraftScriptReview(itemIds);
+}
+
 module.exports = {
   QUEUE_ROOT,
   QUEUE_CONFIG_PATH,
@@ -7957,7 +9688,21 @@ module.exports = {
   duplicateQueueItem,
   saveQueue,
   syncCaptionTemplateSettings,
+  previewKoreanFullDraftTts,
+  createKoreanFullDraftScriptReview,
+  approveKoreanFullDraftScriptReview,
   generateQueue,
-  getReport
+  getReport,
+  __test: {
+    assertCaptionUnitsMatchTtsSentences,
+    assertKoreanFullTtsFitsVideoTimeline,
+    buildKoreanFullDraftTtsPlan,
+    buildKoreanFullSyncEvidence,
+    normalizeAnchorSceneTransitions,
+    regroupKoreanFullCaptionScript,
+    simulateAnchoredSentencePlacement,
+    sumTtsDurationSec,
+    splitKoreanTtsSentenceIntoCaptionSlices
+  }
 };
 

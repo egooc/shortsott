@@ -8,6 +8,40 @@ const OUTPUT_DIR = path.join(__dirname, '../output');
 const TEMPLATE_BASE_DIR = path.resolve(__dirname, '../../templates/capcut/channel_default');
 const CAPCUT_DRAFT_TIMEOUT_MS = Number(process.env.CAPCUT_DRAFT_TIMEOUT_MS || 20 * 60 * 1000);
 
+function normalizeCaptionText(value = '') {
+  return String(value || '').replace(/\s+/g, ' ').trim();
+}
+
+function assertCaptionUnitsMatchTtsFiles(ttsFiles = [], captionUnits = []) {
+  if (!Array.isArray(ttsFiles) || !ttsFiles.length || !Array.isArray(captionUnits) || !captionUnits.length) return true;
+  const sentenceTextById = new Map(ttsFiles.map((file) => [String(file.caption_id || file.segment_id || ''), normalizeCaptionText(file.text || '')]));
+  const unitsBySentence = new Map();
+  for (const unit of captionUnits) {
+    const sentenceId = String(unit.tts_caption_id || unit.segment_id || '');
+    const sentenceText = sentenceTextById.get(sentenceId) || '';
+    const unitText = normalizeCaptionText(unit.text || '');
+    if (!sentenceText || !unitText || !sentenceText.includes(unitText)) {
+      const error = new Error(`caption unit text does not match TTS sentence: ${unit.caption_id || sentenceId}`);
+      error.code = 'CAPTION_TTS_TEXT_MISMATCH';
+      error.details = { sentence_id: sentenceId, caption_id: unit.caption_id || '', unit_text: unitText, sentence_text: sentenceText };
+      throw error;
+    }
+    if (!unitsBySentence.has(sentenceId)) unitsBySentence.set(sentenceId, []);
+    unitsBySentence.get(sentenceId).push(unitText);
+  }
+  for (const [sentenceId, unitTexts] of unitsBySentence.entries()) {
+    const sentenceText = sentenceTextById.get(sentenceId) || '';
+    const joinedText = normalizeCaptionText(unitTexts.join(' '));
+    if (joinedText !== sentenceText) {
+      const error = new Error(`caption units do not reconstruct TTS sentence: ${sentenceId}`);
+      error.code = 'CAPTION_TTS_TEXT_MISMATCH';
+      error.details = { sentence_id: sentenceId, unit_text: joinedText, sentence_text: sentenceText };
+      throw error;
+    }
+  }
+  return true;
+}
+
 function walkDirs(baseDir, maxDepth = 2) {
   const results = [];
   function visit(current, depth) {
@@ -209,7 +243,17 @@ function runCapcutScript(payload, inputFilename = 'draft_input.json') {
   });
 }
 
-function generateProcessDraft({ config, videoTransformPreset, bgmPreset, createZip = true }) {
+function generateProcessDraft({
+  config,
+  videoTransformPreset,
+  bgmPreset,
+  createZip = true,
+  ttsFiles = [],
+  captionUnits = [],
+  captionWarnings = [],
+  srtFile = ''
+}) {
+  assertCaptionUnitsMatchTtsFiles(ttsFiles, captionUnits);
   const resolvedBgmPreset = {
     ...(bgmPreset || {}),
     process_config: config || {},
@@ -220,6 +264,10 @@ function generateProcessDraft({ config, videoTransformPreset, bgmPreset, createZ
     processConfig: config || {},
     videoTransformPreset: videoTransformPreset || {},
     bgmPreset: resolvedBgmPreset,
+    ttsFiles,
+    captionUnits,
+    captionWarnings,
+    srtFile: resolveSrtPath(srtFile, ttsFiles),
     resolution: { width: 1080, height: 1920 },
     fps: 30,
     audioPathMode: 'absolute',
@@ -229,4 +277,4 @@ function generateProcessDraft({ config, videoTransformPreset, bgmPreset, createZ
   return runCapcutScript(payload, 'process_draft_input.json');
 }
 
-module.exports = { generateDraft, generateProcessDraft, getCapcutTemplateStatus };
+module.exports = { generateDraft, generateProcessDraft, getCapcutTemplateStatus, __test: { assertCaptionUnitsMatchTtsFiles } };

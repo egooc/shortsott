@@ -7,6 +7,10 @@ function formatSRTTime(seconds) {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')},${String(ms).padStart(3, '0')}`;
 }
 
+function escapeSrtHeaderLine(value = '') {
+  return String(value || '').replace(/\r?\n/g, ' ').trim();
+}
+
 function generateSRT(ttsResults) {
   let srt = '';
   let currentTime = 0;
@@ -32,4 +36,29 @@ function generateSRT(ttsResults) {
   return srt;
 }
 
-module.exports = { generateSRT, formatSRTTime };
+function generateSRTFromTimedEntries(entries = [], options = {}) {
+  const warnings = Array.isArray(options.warnings) ? options.warnings.map(escapeSrtHeaderLine).filter(Boolean) : [];
+  let srt = '';
+  if (warnings.length) {
+    srt += `NOTE Generated warnings\n`;
+    warnings.forEach((warning) => {
+      srt += `NOTE ${warning}\n`;
+    });
+    srt += `\n`;
+  }
+
+  let seq = 1;
+  (Array.isArray(entries) ? entries : []).forEach((entry) => {
+    const text = String(entry?.text || '').trim();
+    const startSec = Number(entry?.start_sec || 0);
+    const endSec = Number(entry?.end_sec || 0);
+    if (!text || !Number.isFinite(startSec) || !Number.isFinite(endSec) || endSec <= startSec) return;
+    srt += `${seq}\n`;
+    srt += `${formatSRTTime(startSec)} --> ${formatSRTTime(endSec)}\n`;
+    srt += `${text}\n\n`;
+    seq += 1;
+  });
+  return srt;
+}
+
+module.exports = { generateSRT, generateSRTFromTimedEntries, formatSRTTime };

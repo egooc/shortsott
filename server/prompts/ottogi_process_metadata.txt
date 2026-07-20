@@ -136,6 +136,22 @@ Full Draft captions are not keyword labels. They are a short on-screen manuscrip
 - `highlight_metadata.onscreen_caption_block` is the authoritative Japanese Highlight screen block.
 - English fallback is forbidden in Korean Full and Japanese Highlight production fields.
 
+### Korean Full narration rewrite rules
+
+For `full_caption_script_ko`, scene data is reference material only. Do not copy `visual_summary`, `caption_text_ko`, or `screen_captions_ko` as the script.
+- First imagine one hidden Korean narration that a friendly process-channel host would say to the viewer, then split it into short caption items.
+- Use the visible scenes to ground facts, timing, tools, materials, and process order, but rewrite them into fresh spoken Korean narration.
+- The script must sound connected when read top to bottom, not like separate scene descriptions.
+- The assigned hook type is chosen by code. Follow the assigned hook type exactly when it is provided.
+- Do not write the literal sentence "이게 뭔지 아세요?" anywhere. Use a fresh opening every time.
+- If the opening hides the identity, reveal the object/product/material name later in the manuscript. If you ask a question, answer it. Hooks without payoff are forbidden.
+- Do not fill process lines with decorative adjectives such as 정성껏, 섬세한, 거침없이, 반짝이는. Prefer a reason, a risk, or a concrete number.
+- Prefer natural endings such as `-요`, `-죠`, `-예요`, `-해요`, `-돼요`, and short connected fragments that clearly continue the narration.
+- Forbidden Korean Full endings: do not end caption items with report-style noun endings such as `~함` or `~됨`.
+- Forbidden Korean Full rhythm: do not write three consecutive items ending in `합니다`. If that happens, rewrite the manuscript once before any repair fallback.
+- Bad KO scene-copy rhythm: ["작업자가 볼트를 조임", "플라이어로 부품을 고정함", "기계가 금속을 누름"].
+- Good KO narration rhythm: ["처음엔 작아 보여도", "작은 볼트를", "먼저 자리에 맞추고", "흔들리면 안 되니까", "플라이어로 잡아줘요", "여기서 중요한 건", "힘보다 방향이에요"].
+
 ## Required fields
 
 Return JSON matching this shape:
@@ -164,7 +180,7 @@ Return JSON matching this shape:
   "highlight_explainer_text": "Japanese long highlight caption. Focus on visual hook, repeated process rhythm, and curiosity. Around 160-240 Japanese characters is acceptable.",
   "highlight_explainer_text_ko": "Korean review version.",
   "full_caption_script_ko": [
-    { "scene_id": "script_001", "role": "hook", "text": "이게 뭔지 아세요?", "source_basis": "korean_full_manuscript" }
+    { "scene_id": "script_001", "role": "hook", "text": "순서가 중요한 이유는", "source_basis": "korean_full_manuscript" }
   ],
   "highlight_hook_captions_ja": ["Short Japanese hook phrase 1", "Short Japanese hook phrase 2"],
   "highlight_hook_captions_ko": ["Korean review phrase 1", "Korean review phrase 2"],

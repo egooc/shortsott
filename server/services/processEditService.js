@@ -445,6 +445,8 @@ function defaultConfig() {
     source_video: 'input/source_clean.mp4',
     target_duration_sec: 30,
     use_tts: false,
+    subtitle_delivery_mode: 'capcut_text_track',
+    korean_full_srt_chars_per_sec: 5.0,
     use_bgm: true,
     bgm_preset: 'process_satisfying',
     custom_bgm_path: '',
@@ -634,6 +636,7 @@ function normalizeExplainerBlock(block, index) {
     scene_id: String(block?.scene_id || ''),
     parent_scene_id: String(block?.parent_scene_id || block?.scene_id || ''),
     source_scene_index: Number.isFinite(Number(block?.source_scene_index)) ? Number(block.source_scene_index) : undefined,
+    source_script_index: Number.isFinite(Number(block?.source_script_index)) ? Number(block.source_script_index) : undefined,
     caption_part_index: Number.isFinite(Number(block?.caption_part_index)) ? Number(block.caption_part_index) : undefined,
     caption_parts_count: Number.isFinite(Number(block?.caption_parts_count)) ? Number(block.caption_parts_count) : undefined,
     caption_unit_mode: String(block?.caption_unit_mode || ''),
@@ -676,6 +679,10 @@ function normalizeConfig(input = {}) {
     source_video: String(base.source_video || 'input/source_clean.mp4'),
     target_duration_sec: Number(base.target_duration_sec) > 0 ? Number(base.target_duration_sec) : 30,
     use_tts: !!base.use_tts,
+    subtitle_delivery_mode: String(base.subtitle_delivery_mode || 'capcut_text_track').trim() || 'capcut_text_track',
+    korean_full_srt_chars_per_sec: Number(base.korean_full_srt_chars_per_sec) > 0
+      ? Number(base.korean_full_srt_chars_per_sec)
+      : 5.0,
     use_bgm: base.use_bgm !== false,
     bgm_preset: String(base.bgm_preset || 'process_satisfying'),
     custom_bgm_path: String(base.custom_bgm_path || ''),
@@ -695,6 +702,12 @@ function normalizeConfig(input = {}) {
     upload_title: uploadTitle || defaultConfig().upload_title,
     upload_description: String(base.upload_description || ''),
     upload_hashtags: uploadHashtags,
+    variant_policy_id: String(base.variant_policy_id || ''),
+    caption_mode: String(base.caption_mode || ''),
+    visual_template: String(base.visual_template || ''),
+    korean_full_sync_evidence: base.korean_full_sync_evidence && typeof base.korean_full_sync_evidence === 'object'
+      ? base.korean_full_sync_evidence
+      : {},
     explainer_blocks: explainerBlocks.length ? explainerBlocks : defaultConfig().explainer_blocks,
     channel_tag: {
       text: String(base.channel_tag?.text || 'PROCESS LAB'),
@@ -882,7 +895,15 @@ function getPresets() {
   };
 }
 
-async function createProcessDraft({ config, useExistingConfig = true, createZip = true } = {}) {
+async function createProcessDraft({
+  config,
+  useExistingConfig = true,
+  createZip = true,
+  ttsFiles = [],
+  captionUnits = [],
+  captionWarnings = [],
+  srtFile = ''
+} = {}) {
   const resolvedConfig = config && typeof config === 'object'
     ? normalizeConfig(config)
     : (useExistingConfig ? getConfig().config : normalizeConfig(defaultConfig()));
@@ -902,7 +923,11 @@ async function createProcessDraft({ config, useExistingConfig = true, createZip 
       ...selectedBgmPreset,
       asset_path: findFirstBgmFile()
     },
-    createZip
+    createZip,
+    ttsFiles,
+    captionUnits,
+    captionWarnings,
+    srtFile
   });
 
   result.ocrTextDetection = fixedMaskTextDetectionSummary({
