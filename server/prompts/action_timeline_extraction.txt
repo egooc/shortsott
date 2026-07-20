@@ -17,4 +17,7 @@ Only report timestamps for moments you can actually see - do not guess or
 interpolate. A clip may have zero or multiple of each event type. Give each
 event a one-line factual description of what is on screen at that instant.
 
+Every timestamp must stay inside the real clip duration. Never report a time
+after the last visible frame of the uploaded clip.
+
 Return JSON matching the provided schema. Do not add commentary.

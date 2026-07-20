@@ -3,6 +3,7 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { GoogleAIFileManager } = require('@google/generative-ai/server');
 const { createHttpError } = require('./errorService');
 const { loadPrompt } = require('./promptService');
+const { getVideoMetadata } = require('../utils/ffprobe');
 const {
   isVertexAdcMode,
   getVertexConfig,
@@ -26,6 +27,7 @@ const FILE_POLL_MAX_RETRIES = 180;
 const VERTEX_CALL_MIN_INTERVAL_MS = 20_000;
 const VERTEX_CALL_MAX_INTERVAL_MS = 160_000;
 const VERTEX_429_MAX_RETRIES = 6;
+const DEFAULT_TIMELINE_MEDIA_RESOLUTION = 'MEDIA_RESOLUTION_LOW';
 let vertexCallIntervalMs = VERTEX_CALL_MIN_INTERVAL_MS;
 let vertexConsecutiveSuccesses = 0;
 let vertexLastCallAt = 0;
@@ -486,7 +488,71 @@ function validateActionTimelineResponse(parsed) {
   }
 }
 
-async function callVertexGemini({ filePath, promptFile, schema, model }) {
+function normalizeActionTimelineEvents(events = [], sourceDurationSec = 0) {
+  const normalizedEvents = [];
+  const stats = {
+    source_duration_sec: Number(Number(sourceDurationSec || 0).toFixed(3)),
+    original_event_count: Array.isArray(events) ? events.length : 0,
+    kept_event_count: 0,
+    clamped_event_count: 0,
+    dropped_event_count: 0,
+    dropped_out_of_range_count: 0,
+    dropped_invalid_type_count: 0,
+    dropped_invalid_time_count: 0,
+    max_original_time_sec: 0,
+    max_kept_time_sec: 0
+  };
+
+  const safeSourceDurationSec = Number(sourceDurationSec || 0);
+  const clampToleranceSec = 0.25;
+  const validTypes = new Set(['IMPACT', 'RESULT_REVEAL', 'RESET']);
+
+  for (const rawEvent of Array.isArray(events) ? events : []) {
+    const rawTime = Number(rawEvent?.time ?? rawEvent?.start_time ?? rawEvent?.end_time);
+    const rawType = String(rawEvent?.type || rawEvent?.event_type || '').trim();
+    if (!Number.isFinite(rawTime)) {
+      stats.dropped_event_count += 1;
+      stats.dropped_invalid_time_count += 1;
+      continue;
+    }
+    stats.max_original_time_sec = Math.max(stats.max_original_time_sec, rawTime);
+    if (!validTypes.has(rawType)) {
+      stats.dropped_event_count += 1;
+      stats.dropped_invalid_type_count += 1;
+      continue;
+    }
+
+    let nextTime = rawTime;
+    let clamped = false;
+    if (safeSourceDurationSec > 0) {
+      if (rawTime < -clampToleranceSec || rawTime > safeSourceDurationSec + clampToleranceSec) {
+        stats.dropped_event_count += 1;
+        stats.dropped_out_of_range_count += 1;
+        continue;
+      }
+      const boundedTime = Math.max(0, Math.min(safeSourceDurationSec, rawTime));
+      clamped = Math.abs(boundedTime - rawTime) > 0.0001;
+      nextTime = boundedTime;
+    }
+
+    if (clamped) stats.clamped_event_count += 1;
+    const normalizedEvent = {
+      time: Number(nextTime.toFixed(3)),
+      type: rawType,
+      description: String(rawEvent?.description || '').trim()
+    };
+    normalizedEvents.push(normalizedEvent);
+    stats.max_kept_time_sec = Math.max(stats.max_kept_time_sec, normalizedEvent.time);
+  }
+
+  normalizedEvents.sort((a, b) => a.time - b.time || a.type.localeCompare(b.type));
+  stats.kept_event_count = normalizedEvents.length;
+  stats.max_original_time_sec = Number(stats.max_original_time_sec.toFixed(3));
+  stats.max_kept_time_sec = Number(stats.max_kept_time_sec.toFixed(3));
+  return { events: normalizedEvents, stats };
+}
+
+async function callVertexGemini({ filePath, promptFile, schema, model, mediaResolution = '' }) {
   const config = getVertexConfig();
   if (!config.project) {
     throw createHttpError(400, 'GOOGLE_CLOUD_PROJECT_REQUIRED', 'GOOGLE_CLOUD_PROJECT is required for Vertex ADC mode');
@@ -539,7 +605,8 @@ async function callVertexGemini({ filePath, promptFile, schema, model }) {
           generationConfig: {
             responseMimeType: 'application/json',
             responseSchema: schema,
-            temperature: 0.1
+            temperature: 0.1,
+            ...(mediaResolution ? { mediaResolution } : {})
           }
         })
       });
@@ -578,7 +645,7 @@ async function callVertexGemini({ filePath, promptFile, schema, model }) {
   throw createHttpError(500, 'VERTEX_GEMINI_ANALYSIS_FAILED', 'Vertex Gemini analysis failed after retries');
 }
 
-async function callApiKeyGemini({ filePath, promptFile, schema, apiKey, displayNamePrefix, model }) {
+async function callApiKeyGemini({ filePath, promptFile, schema, apiKey, displayNamePrefix, model, mediaResolution = '' }) {
   const effectiveModel = model || GEMINI_MODEL;
   const genAI = new GoogleGenerativeAI(apiKey);
   const fileManager = new GoogleAIFileManager(apiKey);
@@ -589,7 +656,8 @@ async function callApiKeyGemini({ filePath, promptFile, schema, apiKey, displayN
     generationConfig: {
       responseMimeType: 'application/json',
       responseSchema: schema,
-      temperature: 0.1
+      temperature: 0.1,
+      ...(mediaResolution ? { mediaResolution } : {})
     }
   });
 
@@ -631,11 +699,51 @@ async function analyzeMomentPattern({ filePath, sourceUrl, apiKey, model }) {
 }
 
 async function extractActionTimeline({ filePath, sourceUrl, apiKey }) {
-  const { parsed, modelVersion } = isVertexAdcMode()
-    ? await callVertexGemini({ filePath, promptFile: 'action_timeline_extraction.txt', schema: ACTION_TIMELINE_SCHEMA })
-    : await callApiKeyGemini({ filePath, promptFile: 'action_timeline_extraction.txt', schema: ACTION_TIMELINE_SCHEMA, apiKey, displayNamePrefix: 'action_timeline' });
+  const preferVertexAdc = isVertexAdcMode();
+  const fallbackApiKey = String(apiKey || process.env.GEMINI_API_KEY || '').trim();
+
+  let parsed;
+  let modelVersion;
+
+  if (preferVertexAdc) {
+    ({ parsed, modelVersion } = await callVertexGemini({
+      filePath,
+      promptFile: 'action_timeline_extraction.txt',
+      schema: ACTION_TIMELINE_SCHEMA,
+      mediaResolution: DEFAULT_TIMELINE_MEDIA_RESOLUTION
+    }));
+  }
+
+  if (!parsed) {
+    if (!fallbackApiKey) {
+      throw createHttpError(400, 'GEMINI_TIMELINE_AUTH_UNAVAILABLE', 'Timeline extraction requires Vertex ADC mode or a Gemini API key fallback');
+    }
+    ({ parsed, modelVersion } = await callApiKeyGemini({
+      filePath,
+      promptFile: 'action_timeline_extraction.txt',
+      schema: ACTION_TIMELINE_SCHEMA,
+      apiKey: fallbackApiKey,
+      displayNamePrefix: 'action_timeline',
+      mediaResolution: DEFAULT_TIMELINE_MEDIA_RESOLUTION
+    }));
+  }
+
   validateActionTimelineResponse(parsed);
-  return { events: parsed.events, modelVersion, promptVersion: TIMELINE_PROMPT_VERSION };
+  const sourceDurationSec = Number(getVideoMetadata(filePath)?.duration_sec || 0);
+  const normalization = normalizeActionTimelineEvents(parsed.events, sourceDurationSec);
+  if (normalization.stats.clamped_event_count > 0 || normalization.stats.dropped_event_count > 0) {
+    console.warn('[timeline-normalization]', JSON.stringify({
+      filePath,
+      sourceUrl,
+      ...normalization.stats
+    }));
+  }
+  return {
+    events: normalization.events,
+    modelVersion,
+    promptVersion: TIMELINE_PROMPT_VERSION,
+    normalization: normalization.stats
+  };
 }
 
-module.exports = { analyzeVideo, analyzeMomentPattern, extractActionTimeline, detectHallucinationGuardViolation, resetVertexThrottle };
+module.exports = { analyzeVideo, analyzeMomentPattern, extractActionTimeline, detectHallucinationGuardViolation, resetVertexThrottle, normalizeActionTimelineEvents };
