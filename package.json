@@ -1,24 +1,26 @@
 {
-  "name": "content-pipeline",
+  "name": "movie-recap-midform-studio",
   "private": true,
   "version": "1.0.0",
-  "description": "3분 오뚝이영상 로컬 캡컷 드래프트 생성 앱",
+  "description": "Movie recap midform local CapCut draft studio",
   "author": "local",
   "main": "electron/main.cjs",
   "scripts": {
     "clean:ports": "node scripts/clean-ports.js",
-    "dev": "npm run clean:ports && concurrently --kill-others-on-fail --names server,client --prefix-colors blue,magenta \"npm --prefix server run dev\" \"npm --prefix client run dev\"",
-    "build": "cd client && npm run build",
+    "dev": "npm run clean:ports && npm --prefix server run dev:midform",
+    "dev:ui": "npm --prefix client_midform run dev",
     "start": "cd server && node index.js",
-    "electron": "npm run build && electron electron/main.cjs",
-    "dist:win": "npm run build && electron-builder --win portable",
-    "generate:claude": "node scripts/generate-claude-midform.js",
+    "start:midform": "cd server && node index.js",
     "check:encoding": "node scripts/check-encoding.js",
-    "verify": "npm run check:encoding && npm run build"
+    "verify:js": "node --check server/index.js && node --check server/routes/gpt_midform.js && node --check server/routes/gemini_midform.js && node --check server/routes/capcut.js && node --check server/routes/settings.js && node --check server/routes/midform_pipeline.js && node --check server/routes/midform_materials.js && node --check server/services/gptMidformCliService.js && node --check server/services/geminiMidformService.js && node --check server/services/movieResearchService.js && node --check server/services/capcutService.js && node --check server/services/elevenlabsService.js && node --check server/services/midformPipelineService.js && node --check server/services/midformMaterialsService.js && node --check server/services/midformCompressionService.js && node --check scripts/midform.js",
+    "verify:py": "python -m py_compile midform/scripts/preflight_material_gate.py midform/scripts/build_slot_map.py midform/scripts/assemble_slot_draft_input.py midform/scripts/validate_slot_draft.py midform/scripts/report_caption_balance.py midform/scripts/report_ending_distribution.py scripts/capcut_draft.py",
+    "verify:fixture": "python midform/scripts/validate_slot_draft.py --manifest server/output/drafts/pipeline_1784045533/edit_manifest.json --slot-map midform/test_runs/run_013_tVxYCeRXzGo_e2e/slot_map_signature_quotes.json --transcript midform/test_runs/run_013_tVxYCeRXzGo_e2e/source_transcript.json && python midform/scripts/report_caption_balance.py --srt signature_quotes=server/output/drafts/pipeline_1784045533/subtitles/subtitles.srt --output midform/test_runs/run_013_tVxYCeRXzGo_e2e/caption_balance_verify.json && python midform/scripts/report_ending_distribution.py --item signature_quotes=midform/test_runs/run_013_tVxYCeRXzGo_e2e/script_signature_quotes.json --output midform/test_runs/run_013_tVxYCeRXzGo_e2e/ending_distribution_verify.json",
+    "verify:ui": "npm --prefix client_midform run build",
+    "verify": "npm run check:encoding && npm run verify:js && npm run verify:py && npm run verify:fixture"
   },
   "build": {
-    "appId": "local.ottogi.process.studio",
-    "productName": "3분 오뚝이영상",
+    "appId": "local.movie.recap.midform.studio",
+    "productName": "Movie Recap Midform",
     "asar": false,
     "files": [
       "electron/**/*",
@@ -27,12 +29,10 @@
       "!server/node_modules/**/*",
       "!server/data/**/*",
       "!server/uploads/**/*",
-      "client/dist/**/*",
       "scripts/**/*",
       "tools/**/*",
       "assets/**/*",
       "templates/**/*",
-      "config/**/*",
       "package.json"
     ],
     "extraResources": [
@@ -52,6 +52,7 @@
     }
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.110.0",
     "@google/generative-ai": "^0.24.1",
     "ajv": "^8.20.0",
     "archiver": "^7.0.1",

@@ -1,6 +1,6 @@
 const { execSync } = require('child_process');
 
-const ports = [3001, 5173, 5174, 5175, 5176];
+const ports = [3016, 5177];
 
 function listPidsByPort(port) {
   try {
@@ -29,7 +29,7 @@ function killPid(pid, port) {
   }
 }
 
-console.log('Cleaning ports 3001, 5173, 5174, 5175, 5176...');
+console.log('Cleaning midform copy ports 3016, 5177...');
 
 for (const port of ports) {
   const pids = listPidsByPort(port);
