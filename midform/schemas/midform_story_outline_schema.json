@@ -1,0 +1,27 @@
+{
+  "type": "object",
+  "properties": {
+    "premise": { "type": "string" },
+    "beats": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "beat_id": { "type": "string" },
+          "source_range": {
+            "type": "array",
+            "items": { "type": "number" },
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "story_event": { "type": "string" }
+        },
+        "required": ["beat_id", "source_range", "story_event"],
+        "additionalProperties": false
+      }
+    },
+    "arc": { "type": "string" }
+  },
+  "required": ["premise", "beats", "arc"],
+  "additionalProperties": false
+}

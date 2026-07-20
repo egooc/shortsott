@@ -1,0 +1,631 @@
+{
+  "script_id": "tfatws_recap_midform_01",
+  "source_reference": {
+    "gemini_analysis_source_id": "black_panther_wakanda_forever_recap_01",
+    "duration_sec": 148.901
+  },
+  "content_context": {
+    "content_guess": "와칸다 장면에서 세뇌 신호를 끊는 과정의 여파를 좁게 포착한 액션형 클립",
+    "genre": "action",
+    "style_hint_used": "3분무비 스타일: 빠른 후킹, 이해 쉬운 설명, 과장 없이 궁금증을 유지하는 톤",
+    "movie_identity": {
+      "status": "confirmed",
+      "title_en": "The Falcon and the Winter Soldier",
+      "title_kr": "팔콘과 윈터 솔져",
+      "year": 2021,
+      "evidence": [
+        "YouTube title points to The Falcon and the Winter Soldier: Bucky Is Finally Free – Ayo Removes the Winter Soldier Program - Wakanda Scene - TFATWS",
+        "YouTube description points to The Falcon and the Winter Soldier.",
+        "YouTube tags point to The Falcon and the Winter Soldier: the falcon and the winter soldier, TFATWS",
+        "Extracted proper nouns point to The Falcon and the Winter Soldier: TFATWS Ayo Helps Bucky Barnes, TFATWS S1E1 TM"
+      ]
+    },
+    "movie_knowledge": {
+      "title_kr": "팔콘과 윈터 솔져",
+      "title_en": "The Falcon and the Winter Soldier",
+      "year": 2021,
+      "characters": [
+        {
+          "screen_name": "버키 반즈 / 윈터 솔져",
+          "role": "세뇌 프로그램에서 벗어나려는 인물",
+          "motivation": "히드라 암시어에 더 이상 조종되지 않는지 확인하려 한다."
+        },
+        {
+          "screen_name": "아요",
+          "role": "와칸다 도라 밀라제 전사",
+          "motivation": "버키의 세뇌 해제가 안전하게 끝났는지 검증하고 보호한다."
+        }
+      ],
+      "full_plot": "The Falcon and the Winter Soldier is an American television miniseries created by Malcolm Spellman for the streaming service Disney+, based on Marvel Comics featuring the characters Sam Wilson / Falcon and Bucky Barnes / Winter Soldier. It is the second television series in the Marvel Cinematic Universe (MCU) produced by Marvel Studios, sharing continuity with the films of the franchise, and is set six months after Sam Wilson was handed the mantle of Captain America in the film Avengers: Endgame (2019). Wilson teams up with Bucky Barnes to stop anti-patriots who believe the world was better during the Blip. Spellman served as head writer for the series, which was directed by Kari Skogland.",
+      "clip_context": "와칸다에서 버키 반즈가 윈터 솔져 세뇌 암시어에서 벗어났는지 확인하는 장면이다. 직전 맥락은 버키가 과거의 조종 프로그램을 끝내려는 상태이고, 직후에는 그가 더 이상 암시어에 반응하지 않는다는 안도와 해방감이 온다.",
+      "stakes": "버키가 다시 조종당할 수 있는 괴물인지, 아니면 자기 의지로 살아갈 수 있는 사람인지가 걸려 있다.",
+      "sources": [
+        "https://en.wikipedia.org/wiki/The_Falcon_and_the_Winter_Soldier"
+      ]
+    }
+  },
+  "segments": [
+    {
+      "segment_id": "seg_01",
+      "segment_type": "recap",
+      "utt_id": "",
+      "tts_enabled": true,
+      "narration": "밤하늘의 와칸다 불빛이 먼저 번지며, 장면은 곧 과거로 넘어갈 준비를 하고 있었습니다.",
+      "dialogue_original": "",
+      "translated_caption_ko": "와칸다 야경이 6년 전으로 이동한다.",
+      "caption_text": "와칸다 야경이 6년 전으로 이동한다.",
+      "story_anchor": {
+        "source_range_hint": [
+          0,
+          16
+        ],
+        "scene_refs": [
+          "scene_001",
+          "scene_002"
+        ]
+      },
+      "source_scenes": [
+        {
+          "clip_id": "clip_01",
+          "scene_id": "scene_001",
+          "start": "0.000",
+          "end": "5.000",
+          "speed_multiplier": 1
+        },
+        {
+          "clip_id": "clip_01",
+          "scene_id": "scene_002",
+          "start": "5.000",
+          "end": "16.000",
+          "speed_multiplier": 1
+        }
+      ],
+      "edit_instruction": {
+        "visual_role": "wide_opening",
+        "pace": "fast",
+        "transition": "slow_fade",
+        "zoom": "wide",
+        "sfx": [
+          "ambient_city",
+          "soft_rumble"
+        ]
+      }
+    },
+    {
+      "segment_id": "seg_02",
+      "segment_type": "recap",
+      "utt_id": "",
+      "tts_enabled": true,
+      "narration": "이때 떠오른 '6년 전' 자막이 분위기를 비틀어, 장면이 과거의 사건 시작점이 아니라 판단의 시작임을 알렸습니다.",
+      "dialogue_original": "",
+      "translated_caption_ko": "6년 전 표시와 함께 긴장감이 바뀐다.",
+      "caption_text": "6년 전 표시와 함께 긴장감이 바뀐다.",
+      "story_anchor": {
+        "source_range_hint": [
+          16,
+          19
+        ],
+        "scene_refs": [
+          "scene_003"
+        ]
+      },
+      "source_scenes": [
+        {
+          "clip_id": "clip_01",
+          "scene_id": "scene_003",
+          "start": "16.000",
+          "end": "19.000",
+          "speed_multiplier": 1
+        }
+      ],
+      "edit_instruction": {
+        "visual_role": "beat_marker",
+        "pace": "steady",
+        "transition": "cut",
+        "zoom": "in",
+        "sfx": [
+          "low_tone_hit"
+        ]
+      }
+    },
+    {
+      "segment_id": "seg_03",
+      "segment_type": "dialogue_quote",
+      "utt_id": "",
+      "tts_enabled": false,
+      "narration": "",
+      "dialogue_original": "It is time. You sure about this?",
+      "translated_caption_ko": "때가 됐어. 확실해?",
+      "caption_text": "때가 됐어. 확실해?",
+      "story_anchor": {
+        "source_range_hint": [
+          19,
+          25
+        ],
+        "scene_refs": [
+          "scene_004"
+        ]
+      },
+      "source_scenes": [
+        {
+          "clip_id": "clip_01",
+          "scene_id": "scene_004",
+          "start": "19.000",
+          "end": "25.000",
+          "speed_multiplier": 1
+        }
+      ],
+      "edit_instruction": {
+        "visual_role": "dialogue_keep",
+        "pace": "hold",
+        "transition": "jump_cut",
+        "zoom": "none",
+        "sfx": [
+          "dialogue_only"
+        ]
+      }
+    },
+    {
+      "segment_id": "seg_04",
+      "segment_type": "dialogue_quote",
+      "utt_id": "",
+      "tts_enabled": false,
+      "narration": "",
+      "dialogue_original": "I won\\'t let you hurt anyone.",
+      "translated_caption_ko": "누구도 다치게 하지 않을 거야.",
+      "caption_text": "누구도 다치게 하지 않을 거야.",
+      "story_anchor": {
+        "source_range_hint": [
+          25,
+          28
+        ],
+        "scene_refs": [
+          "scene_005"
+        ]
+      },
+      "source_scenes": [
+        {
+          "clip_id": "clip_01",
+          "scene_id": "scene_005",
+          "start": "25.000",
+          "end": "28.000",
+          "speed_multiplier": 1
+        }
+      ],
+      "edit_instruction": {
+        "visual_role": "dialogue_keep",
+        "pace": "hold",
+        "transition": "jump_cut",
+        "zoom": "none",
+        "sfx": [
+          "dialogue_only"
+        ]
+      }
+    },
+    {
+      "segment_id": "seg_05",
+      "segment_type": "recap",
+      "utt_id": "",
+      "tts_enabled": true,
+      "narration": "그런데 단호한 여성 전사의 확인 질문 뒤로, 세뇌된 남성은 한 번에 위치를 바꾸며 긴장을 높였습니다.",
+      "dialogue_original": "",
+      "translated_caption_ko": "결심이 움직이며 장면의 긴장이 확 올라간다.",
+      "caption_text": "결심이 움직이며 장면의 긴장이 확 올라간다.",
+      "story_anchor": {
+        "source_range_hint": [
+          33,
+          36
+        ],
+        "scene_refs": [
+          "scene_006",
+          "scene_007"
+        ]
+      },
+      "source_scenes": [
+        {
+          "clip_id": "clip_01",
+          "scene_id": "scene_006",
+          "start": "33.000",
+          "end": "34.000",
+          "speed_multiplier": 1
+        },
+        {
+          "clip_id": "clip_01",
+          "scene_id": "scene_007",
+          "start": "34.000",
+          "end": "36.000",
+          "speed_multiplier": 1
+        }
+      ],
+      "edit_instruction": {
+        "visual_role": "reaction_bridge",
+        "pace": "fast",
+        "transition": "cut",
+        "zoom": "medium_in",
+        "sfx": [
+          "bike_pass",
+          "wind"
+        ]
+      }
+    },
+    {
+      "segment_id": "seg_06",
+      "segment_type": "dialogue_quote",
+      "utt_id": "",
+      "tts_enabled": false,
+      "narration": "",
+      "dialogue_original": "Benign",
+      "translated_caption_ko": "양성",
+      "caption_text": "양성",
+      "story_anchor": {
+        "source_range_hint": [
+          36,
+          39
+        ],
+        "scene_refs": [
+          "scene_008"
+        ]
+      },
+      "source_scenes": [
+        {
+          "clip_id": "clip_01",
+          "scene_id": "scene_008",
+          "start": "36.000",
+          "end": "39.000",
+          "speed_multiplier": 1
+        }
+      ],
+      "edit_instruction": {
+        "visual_role": "dialogue_keep",
+        "pace": "hold",
+        "transition": "hard_cut",
+        "zoom": "none",
+        "sfx": [
+          "dialogue_only"
+        ]
+      }
+    },
+    {
+      "segment_id": "seg_07",
+      "segment_type": "dialogue_quote",
+      "utt_id": "",
+      "tts_enabled": false,
+      "narration": "",
+      "dialogue_original": "Dobrý si vděčný.",
+      "translated_caption_ko": "당신은 감사하다.",
+      "caption_text": "당신은 감사하다.",
+      "story_anchor": {
+        "source_range_hint": [
+          69.5,
+          74.5
+        ],
+        "scene_refs": [
+          "scene_010"
+        ]
+      },
+      "source_scenes": [
+        {
+          "clip_id": "clip_01",
+          "scene_id": "scene_010",
+          "start": "69.500",
+          "end": "74.500",
+          "speed_multiplier": 1
+        }
+      ],
+      "edit_instruction": {
+        "visual_role": "dialogue_keep",
+        "pace": "hold",
+        "transition": "hard_cut",
+        "zoom": "none",
+        "sfx": [
+          "dialogue_only"
+        ]
+      }
+    },
+    {
+      "segment_id": "seg_08",
+      "segment_type": "dialogue_quote",
+      "utt_id": "",
+      "tts_enabled": false,
+      "narration": "",
+      "dialogue_original": "Freight Car / Грузовой вагон.",
+      "translated_caption_ko": "화물칸",
+      "caption_text": "화물칸",
+      "story_anchor": {
+        "source_range_hint": [
+          81.5,
+          91.5
+        ],
+        "scene_refs": [
+          "scene_013"
+        ]
+      },
+      "source_scenes": [
+        {
+          "clip_id": "clip_01",
+          "scene_id": "scene_013",
+          "start": "81.500",
+          "end": "91.500",
+          "speed_multiplier": 1
+        }
+      ],
+      "edit_instruction": {
+        "visual_role": "dialogue_keep",
+        "pace": "hold",
+        "transition": "hard_cut",
+        "zoom": "none",
+        "sfx": [
+          "dialogue_only"
+        ]
+      }
+    },
+    {
+      "segment_id": "seg_09",
+      "segment_type": "recap",
+      "utt_id": "",
+      "tts_enabled": true,
+      "narration": "문제는 반복되는 단어들이 고통을 줄여주지 않고, 반응을 고정하는 방식으로 작동한다는 점인데.",
+      "dialogue_original": "",
+      "translated_caption_ko": "단어의 반복이 긴장을 잠재우지 못한다.",
+      "caption_text": "단어의 반복이 긴장을 잠재우지 못한다.",
+      "story_anchor": {
+        "source_range_hint": [
+          91.5,
+          95.5
+        ],
+        "scene_refs": [
+          "scene_014"
+        ]
+      },
+      "source_scenes": [
+        {
+          "clip_id": "clip_01",
+          "scene_id": "scene_014",
+          "start": "91.500",
+          "end": "95.500",
+          "speed_multiplier": 1
+        }
+      ],
+      "edit_instruction": {
+        "visual_role": "reaction_hold",
+        "pace": "slow",
+        "transition": "hold",
+        "zoom": "medium",
+        "sfx": [
+          "low_drone"
+        ]
+      }
+    },
+    {
+      "segment_id": "seg_10",
+      "segment_type": "recap",
+      "utt_id": "",
+      "tts_enabled": true,
+      "narration": "그 순간의 눈물은 사라지지 않았고, 세뇌된 남성은 마지막까지 버텨 버렸습니다.",
+      "dialogue_original": "",
+      "translated_caption_ko": "눈물을 참고 한 번 더 버텬이 이어진다.",
+      "caption_text": "눈물을 참고 한 번 더 버텬이 이어진다.",
+      "story_anchor": {
+        "source_range_hint": [
+          95.5,
+          99.5
+        ],
+        "scene_refs": [
+          "scene_015"
+        ]
+      },
+      "source_scenes": [
+        {
+          "clip_id": "clip_01",
+          "scene_id": "scene_015",
+          "start": "95.500",
+          "end": "99.500",
+          "speed_multiplier": 1
+        }
+      ],
+      "edit_instruction": {
+        "visual_role": "close_emotion",
+        "pace": "steady",
+        "transition": "hold",
+        "zoom": "tight",
+        "sfx": [
+          "tense_heartbeat"
+        ]
+      }
+    },
+    {
+      "segment_id": "seg_11",
+      "segment_type": "recap",
+      "utt_id": "",
+      "tts_enabled": true,
+      "narration": "알고 보니 단호한 여성 전사는 뒤로 물러나지 않고, 시선으로 그를 지켜주는 쪽을 택했죠.",
+      "dialogue_original": "",
+      "translated_caption_ko": "뒤에서 지켜보는 선택이 핵심이 된다.",
+      "caption_text": "뒤에서 지켜보는 선택이 핵심이 된다.",
+      "story_anchor": {
+        "source_range_hint": [
+          103,
+          104.5
+        ],
+        "scene_refs": [
+          "scene_016"
+        ]
+      },
+      "source_scenes": [
+        {
+          "clip_id": "clip_01",
+          "scene_id": "scene_016",
+          "start": "103.000",
+          "end": "104.500",
+          "speed_multiplier": 1
+        }
+      ],
+      "edit_instruction": {
+        "visual_role": "silent_support",
+        "pace": "slow",
+        "transition": "cut",
+        "zoom": "tight",
+        "sfx": [
+          "soft_roomtone"
+        ]
+      }
+    },
+    {
+      "segment_id": "seg_12",
+      "segment_type": "recap",
+      "utt_id": "",
+      "tts_enabled": true,
+      "narration": "한 발뒤로 물러선 남성은 흔들리는 숨결을 가르지 못해도, 다시 한 번 제어를 벗겨 버렸습니다.",
+      "dialogue_original": "",
+      "translated_caption_ko": "흔들림은 있되 중심은 놓지 않는다.",
+      "caption_text": "흔들림은 있되 중심은 놓지 않는다.",
+      "story_anchor": {
+        "source_range_hint": [
+          104.5,
+          108.5
+        ],
+        "scene_refs": [
+          "scene_017"
+        ]
+      },
+      "source_scenes": [
+        {
+          "clip_id": "clip_01",
+          "scene_id": "scene_017",
+          "start": "104.500",
+          "end": "108.500",
+          "speed_multiplier": 1
+        }
+      ],
+      "edit_instruction": {
+        "visual_role": "emotional_contain",
+        "pace": "steady",
+        "transition": "cut",
+        "zoom": "medium",
+        "sfx": [
+          "deep_bass"
+        ]
+      }
+    },
+    {
+      "segment_id": "seg_13",
+      "segment_type": "recap",
+      "utt_id": "",
+      "tts_enabled": true,
+      "narration": "분위기가 이상해지는 사이, 세뇌된 남성의 표정은 침묵을 붙잡은 채 흔들리지만 계속 버틴다는 것을 보여 줬습니다.",
+      "dialogue_original": "",
+      "translated_caption_ko": "불안한 침묵 속에서 버팀의 표정이 남는다.",
+      "caption_text": "불안한 침묵 속에서 버팀의 표정이 남는다.",
+      "story_anchor": {
+        "source_range_hint": [
+          108.5,
+          119.5
+        ],
+        "scene_refs": [
+          "scene_018",
+          "scene_019",
+          "scene_020"
+        ]
+      },
+      "source_scenes": [
+        {
+          "clip_id": "clip_01",
+          "scene_id": "scene_018",
+          "start": "108.500",
+          "end": "112.500",
+          "speed_multiplier": 1
+        },
+        {
+          "clip_id": "clip_01",
+          "scene_id": "scene_019",
+          "start": "112.500",
+          "end": "115.500",
+          "speed_multiplier": 1
+        },
+        {
+          "clip_id": "clip_01",
+          "scene_id": "scene_020",
+          "start": "115.500",
+          "end": "119.500",
+          "speed_multiplier": 1
+        }
+      ],
+      "edit_instruction": {
+        "visual_role": "linger_frame",
+        "pace": "slow",
+        "transition": "fade",
+        "zoom": "tight",
+        "sfx": [
+          "distant_strings"
+        ]
+      }
+    },
+    {
+      "segment_id": "seg_14",
+      "segment_type": "recap",
+      "utt_id": "",
+      "tts_enabled": true,
+      "narration": "결국 남은 건 과도한 폭주가 아니라, 해방을 향한 여운이 천천히 정렬되는 장면의 결말이었습니다.",
+      "dialogue_original": "",
+      "translated_caption_ko": "끝이 아니라 해방의 여운으로 닫힌다.",
+      "caption_text": "끝이 아니라 해방의 여운으로 닫힌다.",
+      "story_anchor": {
+        "source_range_hint": [
+          119.5,
+          148.901
+        ],
+        "scene_refs": [
+          "scene_021",
+          "scene_022"
+        ]
+      },
+      "source_scenes": [
+        {
+          "clip_id": "clip_01",
+          "scene_id": "scene_021",
+          "start": "119.500",
+          "end": "129.000",
+          "speed_multiplier": 1
+        },
+        {
+          "clip_id": "clip_01",
+          "scene_id": "scene_022",
+          "start": "129.000",
+          "end": "148.901",
+          "speed_multiplier": 1
+        }
+      ],
+      "edit_instruction": {
+        "visual_role": "closing_emphasis",
+        "pace": "calm",
+        "transition": "hold",
+        "zoom": "wide",
+        "sfx": [
+          "soft_resolution"
+        ]
+      }
+    }
+  ],
+  "quality_check": {
+    "segment_count": 14,
+    "estimated_total_duration_sec": 95,
+    "duration_within_60_180": true,
+    "all_scene_ids_exist_in_gemini_analysis": true,
+    "no_source_scene_exceeds_30_sec": true,
+    "korean_ending_rules_ok": true,
+    "dialogue_quote_count": 5,
+    "recap_tts_segment_count": 9,
+    "ending_rules_check": {
+      "eomi_ratio_seumnida_pct": 56,
+      "eomi_ratio_jyo_pct": 11,
+      "eomi_ratio_neunde_pct": 11,
+      "eomi_ratio_beoryeot_pct": 22,
+      "forbidden_eomi_count": 0,
+      "character_naming_consistent": true,
+      "real_name_used": false,
+      "mystery_4steps_applied": true,
+      "closing_drip_present": true
+    }
+  },
+  "created_at": "2026-07-14T00:00:00+09:00"
+}

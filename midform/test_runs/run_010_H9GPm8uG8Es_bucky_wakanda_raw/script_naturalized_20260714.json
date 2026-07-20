@@ -1,0 +1,1303 @@
+{
+  "script_id": "fws-ayo-bucky-recap-001",
+  "source_reference": {
+    "gemini_analysis_source_id": "black_panther_wakanda_forever_recap_01",
+    "duration_sec": 148.901
+  },
+  "content_context": {
+    "content_guess": "Black Panther: Wakanda Forever",
+    "genre": "action",
+    "content_profile": "movie_recap",
+    "style_hint_used": "slot-map-first midform hybrid",
+    "movie_identity": {
+      "status": "confirmed",
+      "title_en": "The Falcon and the Winter Soldier",
+      "title_kr": "팔콘과 윈터 솔져",
+      "year": 2021,
+      "evidence": [
+        "YouTube title points to The Falcon and the Winter Soldier: Bucky Is Finally Free – Ayo Removes the Winter Soldier Program - Wakanda Scene - TFATWS",
+        "YouTube description points to The Falcon and the Winter Soldier.",
+        "YouTube tags point to The Falcon and the Winter Soldier: the falcon and the winter soldier, TFATWS",
+        "Extracted proper nouns point to The Falcon and the Winter Soldier: TFATWS Ayo Helps Bucky Barnes, TFATWS S1E1 TM"
+      ]
+    },
+    "movie_knowledge": {
+      "title_kr": "팔콘과 윈터 솔져",
+      "title_en": "The Falcon and the Winter Soldier",
+      "year": 2021,
+      "characters": [
+        {
+          "screen_name": "버키 반즈 / 윈터 솔져",
+          "role": "세뇌 프로그램에서 벗어나려는 인물",
+          "motivation": "히드라 암시어에 더 이상 조종되지 않는지 확인하려 한다."
+        },
+        {
+          "screen_name": "아요",
+          "role": "와칸다 도라 밀라제 전사",
+          "motivation": "버키의 세뇌 해제가 안전하게 끝났는지 검증하고 보호한다."
+        }
+      ],
+      "full_plot": "The Falcon and the Winter Soldier is an American television miniseries created by Malcolm Spellman for the streaming service Disney+, based on Marvel Comics featuring the characters Sam Wilson / Falcon and Bucky Barnes / Winter Soldier. It is the second television series in the Marvel Cinematic Universe (MCU) produced by Marvel Studios, sharing continuity with the films of the franchise, and is set six months after Sam Wilson was handed the mantle of Captain America in the film Avengers: Endgame (2019). Wilson teams up with Bucky Barnes to stop anti-patriots who believe the world was better during the Blip. Spellman served as head writer for the series, which was directed by Kari Skogland.",
+      "clip_context": "와칸다에서 버키 반즈가 윈터 솔져 세뇌 암시어에서 벗어났는지 확인하는 장면이다. 직전 맥락은 버키가 과거의 조종 프로그램을 끝내려는 상태이고, 직후에는 그가 더 이상 암시어에 반응하지 않는다는 안도와 해방감이 온다.",
+      "stakes": "버키가 다시 조종당할 수 있는 괴물인지, 아니면 자기 의지로 살아갈 수 있는 사람인지가 걸려 있다.",
+      "sources": [
+        "https://en.wikipedia.org/wiki/The_Falcon_and_the_Winter_Soldier"
+      ]
+    }
+  },
+  "slot_map": {
+    "source_duration_sec": 148.901,
+    "slots": [
+      {
+        "type": "narration",
+        "source_range": [
+          0,
+          17.99
+        ],
+        "duration": 17.99,
+        "scene_summary": "밤하늘 아래 빛나는 와칸다 도시의 전경이 폭포와 함께 서서히 드러난다. 화면 하단에 'WAKANDA'라는 글자가 나타난다. / 카메라가 와칸다 도시에서 멀어져 숲 속의 어두운 풍경을 비춘다. 멀리서 작은 불빛이 보인다. / 어두운 배경에 불꽃이 튀어 오르고, 'SIX YEARS AGO'라는 자막이 화면 중앙에 나타난다.",
+        "scene_ids": [
+          "scene_001",
+          "scene_002",
+          "scene_003"
+        ],
+        "tts_budget_sec": [
+          13.492,
+          17.09
+        ],
+        "slot_id": "s01"
+      },
+      {
+        "type": "dialogue",
+        "utt_id": "utt_001",
+        "source_range": [
+          18.04,
+          19.98
+        ],
+        "duration": 1.94,
+        "caption_source_text": "It is time.",
+        "needs_translation": true,
+        "scene_id": "scene_004",
+        "scene_summary": "불꽃이 튀는 배경으로 한 남자의 얼굴이 클로즈업된다. 그는 진지한 표정으로 불을 응시한다. / 발화: It is time.",
+        "slot_id": "s02"
+      },
+      {
+        "type": "dialogue",
+        "utt_id": "utt_002",
+        "source_range": [
+          23.64,
+          24.72
+        ],
+        "duration": 1.08,
+        "caption_source_text": "You sure about this?",
+        "needs_translation": true,
+        "scene_id": "scene_004",
+        "scene_summary": "불꽃이 튀는 배경으로 한 남자의 얼굴이 클로즈업된다. 그는 진지한 표정으로 불을 응시한다. / 발화: You sure about this?",
+        "slot_id": "s03"
+      },
+      {
+        "type": "dialogue",
+        "utt_id": "utt_003",
+        "source_range": [
+          25.88,
+          27.72
+        ],
+        "duration": 1.84,
+        "caption_source_text": "I won't let you hurt anyone.",
+        "needs_translation": true,
+        "scene_id": "scene_005",
+        "scene_summary": "불빛 앞에서 창을 든 여인의 얼굴이 클로즈업된다. 그녀는 단호한 표정으로 말한다. / 발화: I won't let you hurt anyone.",
+        "slot_id": "s04"
+      },
+      {
+        "type": "narration",
+        "source_range": [
+          27.77,
+          33.13
+        ],
+        "duration": 5.36,
+        "scene_summary": "불빛 앞에서 창을 든 여인의 얼굴이 클로즈업된다. 그녀는 단호한 표정으로 말한다. / 윈터 솔져가 기계에 묶여 고통스럽게 비명을 지르고 있다.",
+        "scene_ids": [
+          "scene_005",
+          "scene_006"
+        ],
+        "tts_budget_sec": [
+          4.02,
+          5.092
+        ],
+        "slot_id": "s05"
+      },
+      {
+        "type": "narration",
+        "source_range": [
+          34.19,
+          38.23
+        ],
+        "duration": 4.04,
+        "scene_summary": "윈터 솔져가 오토바이를 타고 밤길을 달리고 있으며, 옆으로 차가 지나간다. / 윈터 솔져의 얼굴이 불꽃 뒤로 흐릿하게 보이며 고통스러운 표정을 짓고 있다. 'Benign'이라는 단어가 화면에 나타난다.",
+        "scene_ids": [
+          "scene_007",
+          "scene_008"
+        ],
+        "tts_budget_sec": [
+          3.03,
+          3.838
+        ],
+        "slot_id": "s06"
+      },
+      {
+        "type": "narration",
+        "source_range": [
+          39,
+          44.81
+        ],
+        "duration": 5.81,
+        "scene_summary": "비발화 장면",
+        "scene_ids": [],
+        "tts_budget_sec": [
+          4.358,
+          5.52
+        ],
+        "slot_id": "s07"
+      },
+      {
+        "type": "narration",
+        "source_range": [
+          49.57,
+          53.67
+        ],
+        "duration": 4.1,
+        "scene_summary": "비발화 장면",
+        "scene_ids": [],
+        "tts_budget_sec": [
+          3.075,
+          3.895
+        ],
+        "slot_id": "s08"
+      },
+      {
+        "type": "narration",
+        "source_range": [
+          60.75,
+          67.51
+        ],
+        "duration": 6.76,
+        "scene_summary": "비발화 장면",
+        "scene_ids": [],
+        "tts_budget_sec": [
+          5.07,
+          6.422
+        ],
+        "slot_id": "s09"
+      },
+      {
+        "type": "dialogue",
+        "utt_id": "utt_011",
+        "source_range": [
+          67.56,
+          71.32
+        ],
+        "duration": 3.76,
+        "caption_source_text": "The heart. The dream.",
+        "needs_translation": true,
+        "scene_id": "scene_010",
+        "scene_summary": "윈터 솔져가 고통스러운 표정으로 카메라를 응시하고, 전경에 불꽃이 보인다. 폴란드어 자막이 나타난다. / 발화: The heart. The dream.",
+        "slot_id": "s10"
+      },
+      {
+        "type": "dialogue",
+        "utt_id": "utt_012",
+        "source_range": [
+          73.92,
+          75.5
+        ],
+        "duration": 1.58,
+        "caption_source_text": "The return of the people.",
+        "needs_translation": true,
+        "scene_id": "scene_011",
+        "scene_summary": "윈터 솔져가 고통스러워하며 'Homecoming'과 러시아어 자막이 화면에 나타난다. / 발화: The return of the people.",
+        "slot_id": "s11"
+      },
+      {
+        "type": "dialogue",
+        "utt_id": "utt_013",
+        "source_range": [
+          79.48,
+          80.52
+        ],
+        "duration": 1.04,
+        "caption_source_text": "The one.",
+        "needs_translation": true,
+        "scene_id": "scene_012",
+        "scene_summary": "윈터 솔져가 고통스러운 표정으로 'One'이라는 단어가 화면에 나타난다. / 발화: The one.",
+        "slot_id": "s12"
+      },
+      {
+        "type": "dialogue",
+        "utt_id": "utt_014",
+        "source_range": [
+          83.98,
+          85.06
+        ],
+        "duration": 1.08,
+        "caption_source_text": "The cargo ship.",
+        "needs_translation": true,
+        "scene_id": "scene_013",
+        "scene_summary": "윈터 솔져가 눈물을 흘리며 고통스러워하고, 'Freight Car'와 러시아어 자막이 화면에 나타난다. / 발화: The cargo ship.",
+        "slot_id": "s13"
+      },
+      {
+        "type": "narration",
+        "source_range": [
+          85.11,
+          101.77
+        ],
+        "duration": 16.66,
+        "scene_summary": "윈터 솔져가 눈물을 흘리며 고통스러워하고, 'Freight Car'와 러시아어 자막이 화면에 나타난다. / 여성 전사가 진지한 표정으로 무언가를 응시한다. / 윈터 솔져가 눈물을 흘리며 고통스러워한다.",
+        "scene_ids": [
+          "scene_013",
+          "scene_014",
+          "scene_015"
+        ],
+        "tts_budget_sec": [
+          12.495,
+          15.827
+        ],
+        "slot_id": "s14"
+      },
+      {
+        "type": "narration",
+        "source_range": [
+          103.85,
+          110.69
+        ],
+        "duration": 6.84,
+        "scene_summary": "한 여성이 진지한 표정으로 말을 한다. / 한 남성이 눈물을 흘리며 감격한 표정을 짓는다. / 여성이 다시 한번 진지한 표정으로 말을 한다.",
+        "scene_ids": [
+          "scene_016",
+          "scene_017",
+          "scene_018"
+        ],
+        "tts_budget_sec": [
+          5.13,
+          6.498
+        ],
+        "slot_id": "s15"
+      },
+      {
+        "type": "narration",
+        "source_range": [
+          111.45,
+          129
+        ],
+        "duration": 17.55,
+        "scene_summary": "여성이 다시 한번 진지한 표정으로 말을 한다. / 남성이 고개를 숙인 채 눈물을 흘린다. / 여성이 차분한 표정으로 남성을 바라본다. / 남성이 손으로 입을 가린 채 흐느끼며 슬퍼한다.",
+        "scene_ids": [
+          "scene_018",
+          "scene_019",
+          "scene_020",
+          "scene_021"
+        ],
+        "tts_budget_sec": [
+          13.162,
+          16.672
+        ],
+        "slot_id": "s16"
+      }
+    ],
+    "excluded_ranges": [
+      [
+        33.18,
+        34.14,
+        "unselected_speech"
+      ],
+      [
+        38.28,
+        38.95,
+        "unselected_speech"
+      ],
+      [
+        44.86,
+        46.02,
+        "unselected_speech"
+      ],
+      [
+        48.26,
+        49.52,
+        "unselected_speech"
+      ],
+      [
+        53.72,
+        55.12,
+        "unselected_speech"
+      ],
+      [
+        56.44,
+        57.34,
+        "unselected_speech"
+      ],
+      [
+        59.34,
+        60.7,
+        "unselected_speech"
+      ],
+      [
+        101.82,
+        103.8,
+        "unselected_speech"
+      ],
+      [
+        110.74,
+        111.4,
+        "unselected_speech"
+      ],
+      [
+        129,
+        148.901,
+        "excluded_end_screen_or_static"
+      ]
+    ],
+    "excluded_dialogue_utterances": [
+      {
+        "utt_id": "utt_004",
+        "source_range": [
+          33.18,
+          34.14
+        ],
+        "text": "Je l'aime bien.",
+        "score": 0,
+        "reason": "foreign_misrecognition_dialogue"
+      },
+      {
+        "utt_id": "utt_005",
+        "source_range": [
+          38.28,
+          38.95
+        ],
+        "text": "Je j'avoue.",
+        "score": 195,
+        "reason": "foreign_misrecognition_dialogue"
+      },
+      {
+        "utt_id": "utt_006",
+        "source_range": [
+          44.86,
+          46.02
+        ],
+        "text": "C'est n'a-t-s-s.",
+        "score": 0,
+        "reason": "foreign_misrecognition_dialogue"
+      },
+      {
+        "utt_id": "utt_007",
+        "source_range": [
+          48.26,
+          49.52
+        ],
+        "text": "It's not going to work.",
+        "score": 0,
+        "reason": "not_selected_by_dialogue_budget_or_score"
+      },
+      {
+        "utt_id": "utt_008",
+        "source_range": [
+          53.72,
+          55.12
+        ],
+        "text": "Reveal.",
+        "score": 0,
+        "reason": "short_low_confidence_dialogue"
+      },
+      {
+        "utt_id": "utt_009",
+        "source_range": [
+          56.44,
+          57.34
+        ],
+        "text": "The key.",
+        "score": 0,
+        "reason": "short_low_confidence_dialogue"
+      },
+      {
+        "utt_id": "utt_010",
+        "source_range": [
+          59.34,
+          60.7
+        ],
+        "text": "The nine.",
+        "score": 0,
+        "reason": "short_low_confidence_dialogue"
+      },
+      {
+        "utt_id": "utt_015",
+        "source_range": [
+          101.82,
+          103.8
+        ],
+        "text": "You're free.",
+        "score": 0,
+        "reason": "short_low_confidence_dialogue"
+      },
+      {
+        "utt_id": "utt_016",
+        "source_range": [
+          110.74,
+          111.4
+        ],
+        "text": "You're free.",
+        "score": 0,
+        "reason": "short_low_confidence_dialogue"
+      }
+    ],
+    "total_output_estimate_sec": 84.663,
+    "dialogue_selected_duration_sec": 12.32
+  },
+  "story_outline": null,
+  "slot_fills": [
+    {
+      "slot_id": "s01",
+      "narration": "와칸다의 밤은 조용하지만, 버키에게는 가장 무서운 시험이 시작됩니다. 아요는 그가 아직 세뇌에 붙잡혀 있는지 끝까지 확인합니다.",
+      "caption_units": [
+        "와칸다의 밤은 조용하지만,",
+        "버키에게는 가장 무서운 시험이 시작됩니다.",
+        "아요는 그가 아직 세뇌에 붙잡혀 있는지",
+        "끝까지 확인합니다."
+      ],
+      "caption_kr": "와칸다의 밤은 조용하지만, 버키에게는 가장 무서운 시험이 시작됩니다. 아요는 그가 아직 세뇌에 붙잡혀 있는지 끝까지 확인합니다."
+    },
+    {
+      "slot_id": "s02",
+      "narration": "",
+      "caption_units": [
+        "이제 시작이야."
+      ],
+      "caption_kr": "이제 시작이야."
+    },
+    {
+      "slot_id": "s03",
+      "narration": "",
+      "caption_units": [
+        "진짜 할 거야?"
+      ],
+      "caption_kr": "진짜 할 거야?"
+    },
+    {
+      "slot_id": "s04",
+      "narration": "",
+      "caption_units": [
+        "아무도 다치게 안 할 거야."
+      ],
+      "caption_kr": "아무도 다치게 안 할 거야."
+    },
+    {
+      "slot_id": "s05",
+      "narration": "아요는 버키가 아직 세뇌에 붙잡혀 있는지 봅니다.",
+      "caption_units": [
+        "아요는 버키가 아직",
+        "세뇌에 붙잡혀 있는지 봅니다."
+      ],
+      "caption_kr": "아요는 버키가 아직 세뇌에 붙잡혀 있는지 봅니다."
+    },
+    {
+      "slot_id": "s06",
+      "narration": "버키는 묶인 채 버티고 있습니다.",
+      "caption_units": [
+        "버키는 묶인 채",
+        "버티고 있습니다."
+      ],
+      "caption_kr": "버키는 묶인 채 버티고 있습니다."
+    },
+    {
+      "slot_id": "s07",
+      "narration": "아요는 흔들림이 멈추는지 조용히 기다립니다.",
+      "caption_units": [
+        "아요는 흔들림이 멈추는지",
+        "조용히 기다립니다."
+      ],
+      "caption_kr": "아요는 흔들림이 멈추는지 조용히 기다립니다."
+    },
+    {
+      "slot_id": "s08",
+      "narration": "버키가 버티는지 다시 봅니다.",
+      "caption_units": [
+        "버키가 버티는지",
+        "다시 봅니다."
+      ],
+      "caption_kr": "버키가 버티는지 다시 봅니다."
+    },
+    {
+      "slot_id": "s09",
+      "narration": "이제 아요가 예전 암시어를 하나씩 읊기 시작합니다.",
+      "caption_units": [
+        "이제 아요가 예전 암시어를",
+        "하나씩 읊기 시작합니다."
+      ],
+      "caption_kr": "이제 아요가 예전 암시어를 하나씩 읊기 시작합니다."
+    },
+    {
+      "slot_id": "s10",
+      "narration": "",
+      "caption_units": [
+        "젤라니예…",
+        "꿈…"
+      ],
+      "caption_kr": "젤라니예… 꿈…"
+    },
+    {
+      "slot_id": "s11",
+      "narration": "",
+      "caption_units": [
+        "돌아가는 길…",
+        "집…"
+      ],
+      "caption_kr": "돌아가는 길… 집…"
+    },
+    {
+      "slot_id": "s12",
+      "narration": "",
+      "caption_units": [
+        "하나…"
+      ],
+      "caption_kr": "하나…"
+    },
+    {
+      "slot_id": "s13",
+      "narration": "",
+      "caption_units": [
+        "화물열차…"
+      ],
+      "caption_kr": "화물열차…"
+    },
+    {
+      "slot_id": "s14",
+      "narration": "암시어가 이어질수록 버키는 더 크게 흔들립니다. 그래도 무너지지 않자, 아요는 세뇌가 풀렸는지 끝까지 지켜봅니다.",
+      "caption_units": [
+        "암시어가 이어질수록",
+        "버키는 더 크게 흔들립니다.",
+        "그래도 무너지지 않자,",
+        "아요는 세뇌가 풀렸는지",
+        "끝까지 지켜봅니다."
+      ],
+      "caption_kr": "암시어가 이어질수록 버키는 더 크게 흔들립니다. 그래도 무너지지 않자, 아요는 세뇌가 풀렸는지 끝까지 지켜봅니다."
+    },
+    {
+      "slot_id": "s15",
+      "narration": "버키가 울자 아요도 공격을 멈춥니다. 이제 답은 거의 나왔습니다.",
+      "caption_units": [
+        "버키가 울자",
+        "아요도 공격을 멈춥니다.",
+        "이제 답은 거의 나왔습니다."
+      ],
+      "caption_kr": "버키가 울자 아요도 공격을 멈춥니다. 이제 답은 거의 나왔습니다."
+    },
+    {
+      "slot_id": "s16",
+      "narration": "버키는 끝내 명령에 무너지지 않았습니다. 아요는 그가 다시 사람으로 돌아왔다는 걸 확인하죠. 여러분, 이 정도면 치료가 아니라 졸업시험입니다.",
+      "caption_units": [
+        "버키는 끝내 명령에",
+        "무너지지 않았습니다.",
+        "아요는 그가 다시 사람으로",
+        "돌아왔다는 걸 확인하죠.",
+        "여러분, 이 정도면 치료가 아니라",
+        "졸업시험입니다."
+      ],
+      "caption_kr": "버키는 끝내 명령에 무너지지 않았습니다. 아요는 그가 다시 사람으로 돌아왔다는 걸 확인하죠. 여러분, 이 정도면 치료가 아니라 졸업시험입니다."
+    }
+  ],
+  "segments": [
+    {
+      "segment_id": "s01",
+      "segment_type": "recap",
+      "storytelling_role": "hook",
+      "slot_id": "s01",
+      "scene_summary": "밤하늘 아래 빛나는 와칸다 도시의 전경이 폭포와 함께 서서히 드러난다. 화면 하단에 'WAKANDA'라는 글자가 나타난다. / 카메라가 와칸다 도시에서 멀어져 숲 속의 어두운 풍경을 비춘다. 멀리서 작은 불빛이 보인다. / 어두운 배경에 불꽃이 튀어 오르고, 'SIX YEARS AGO'라는 자막이 화면 중앙에 나타난다.",
+      "utt_id": "",
+      "tts_enabled": true,
+      "narration": "와칸다의 밤은 조용하지만, 버키에게는 가장 무서운 시험이 시작됩니다. 아요는 그가 아직 세뇌에 붙잡혀 있는지 끝까지 확인합니다.",
+      "caption_units": [
+        "와칸다의 밤은 조용하지만,",
+        "버키에게는 가장 무서운 시험이 시작됩니다.",
+        "아요는 그가 아직 세뇌에 붙잡혀 있는지",
+        "끝까지 확인합니다."
+      ],
+      "dialogue_original": "",
+      "translated_caption_ko": "",
+      "caption_text": "와칸다의 밤은 조용하지만, 버키에게는 가장 무서운 시험이 시작됩니다. 아요는 그가 아직 세뇌에 붙잡혀 있는지 끝까지 확인합니다.",
+      "source_scenes": [
+        {
+          "clip_id": "slot_s01",
+          "scene_id": "scene_001",
+          "start": "00:00.000",
+          "end": "00:17.990",
+          "speed_multiplier": 1
+        }
+      ],
+      "source_clips": [
+        {
+          "clip_id": "slot_s01",
+          "scene_id": "scene_001",
+          "start": "00:00.000",
+          "end": "00:17.990",
+          "speed_multiplier": 1,
+          "source": "slot_map_narration"
+        }
+      ],
+      "edit_instruction": {
+        "visual_role": "slot_narration",
+        "pace": "snappy",
+        "transition": "cut",
+        "zoom": "medium",
+        "sfx": []
+      },
+      "order": 1
+    },
+    {
+      "segment_id": "s02",
+      "segment_type": "dialogue_quote",
+      "slot_id": "s02",
+      "scene_summary": "불꽃이 튀는 배경으로 한 남자의 얼굴이 클로즈업된다. 그는 진지한 표정으로 불을 응시한다. / 발화: It is time.",
+      "utt_id": "utt_001",
+      "tts_enabled": false,
+      "narration": "",
+      "dialogue_original": "It is time.",
+      "translated_caption_ko": "이제 시작이야.",
+      "caption_text": "이제 시작이야.",
+      "source_scenes": [
+        {
+          "clip_id": "slot_s02",
+          "scene_id": "scene_004",
+          "start": "00:18.040",
+          "end": "00:19.980",
+          "speed_multiplier": 1
+        }
+      ],
+      "source_clips": [
+        {
+          "clip_id": "slot_s02",
+          "scene_id": "scene_004",
+          "start": "00:18.040",
+          "end": "00:19.980",
+          "speed_multiplier": 1,
+          "source": "slot_map_dialogue"
+        }
+      ],
+      "edit_instruction": {
+        "visual_role": "slot_dialogue",
+        "pace": "hold",
+        "transition": "cut",
+        "zoom": "medium",
+        "sfx": []
+      }
+    },
+    {
+      "segment_id": "s03",
+      "segment_type": "dialogue_quote",
+      "slot_id": "s03",
+      "scene_summary": "불꽃이 튀는 배경으로 한 남자의 얼굴이 클로즈업된다. 그는 진지한 표정으로 불을 응시한다. / 발화: You sure about this?",
+      "utt_id": "utt_002",
+      "tts_enabled": false,
+      "narration": "",
+      "dialogue_original": "You sure about this?",
+      "translated_caption_ko": "진짜 할 거야?",
+      "caption_text": "진짜 할 거야?",
+      "source_scenes": [
+        {
+          "clip_id": "slot_s03",
+          "scene_id": "scene_004",
+          "start": "00:23.640",
+          "end": "00:24.720",
+          "speed_multiplier": 1
+        }
+      ],
+      "source_clips": [
+        {
+          "clip_id": "slot_s03",
+          "scene_id": "scene_004",
+          "start": "00:23.640",
+          "end": "00:24.720",
+          "speed_multiplier": 1,
+          "source": "slot_map_dialogue"
+        }
+      ],
+      "edit_instruction": {
+        "visual_role": "slot_dialogue",
+        "pace": "hold",
+        "transition": "cut",
+        "zoom": "medium",
+        "sfx": []
+      }
+    },
+    {
+      "segment_id": "s04",
+      "segment_type": "dialogue_quote",
+      "slot_id": "s04",
+      "scene_summary": "불빛 앞에서 창을 든 여인의 얼굴이 클로즈업된다. 그녀는 단호한 표정으로 말한다. / 발화: I won't let you hurt anyone.",
+      "utt_id": "utt_003",
+      "tts_enabled": false,
+      "narration": "",
+      "dialogue_original": "I won't let you hurt anyone.",
+      "translated_caption_ko": "아무도 다치게 안 할 거야.",
+      "caption_text": "아무도 다치게 안 할 거야.",
+      "source_scenes": [
+        {
+          "clip_id": "slot_s04",
+          "scene_id": "scene_005",
+          "start": "00:25.880",
+          "end": "00:27.720",
+          "speed_multiplier": 1
+        }
+      ],
+      "source_clips": [
+        {
+          "clip_id": "slot_s04",
+          "scene_id": "scene_005",
+          "start": "00:25.880",
+          "end": "00:27.720",
+          "speed_multiplier": 1,
+          "source": "slot_map_dialogue"
+        }
+      ],
+      "edit_instruction": {
+        "visual_role": "slot_dialogue",
+        "pace": "hold",
+        "transition": "cut",
+        "zoom": "medium",
+        "sfx": []
+      }
+    },
+    {
+      "segment_id": "s05",
+      "segment_type": "recap",
+      "storytelling_role": "bridge",
+      "slot_id": "s05",
+      "scene_summary": "불빛 앞에서 창을 든 여인의 얼굴이 클로즈업된다. 그녀는 단호한 표정으로 말한다. / 윈터 솔져가 기계에 묶여 고통스럽게 비명을 지르고 있다.",
+      "utt_id": "",
+      "tts_enabled": true,
+      "narration": "아요는 버키가 아직 세뇌에 붙잡혀 있는지 봅니다.",
+      "caption_units": [
+        "아요는 버키가 아직",
+        "세뇌에 붙잡혀 있는지 봅니다."
+      ],
+      "dialogue_original": "",
+      "translated_caption_ko": "",
+      "caption_text": "아요는 버키가 아직 세뇌에 붙잡혀 있는지 봅니다.",
+      "source_scenes": [
+        {
+          "clip_id": "slot_s05",
+          "scene_id": "scene_005",
+          "start": "00:27.770",
+          "end": "00:33.130",
+          "speed_multiplier": 1
+        }
+      ],
+      "source_clips": [
+        {
+          "clip_id": "slot_s05",
+          "scene_id": "scene_005",
+          "start": "00:27.770",
+          "end": "00:33.130",
+          "speed_multiplier": 1,
+          "source": "slot_map_narration"
+        }
+      ],
+      "edit_instruction": {
+        "visual_role": "slot_narration",
+        "pace": "snappy",
+        "transition": "cut",
+        "zoom": "medium",
+        "sfx": []
+      },
+      "order": 5
+    },
+    {
+      "segment_id": "s06",
+      "segment_type": "recap",
+      "storytelling_role": "bridge",
+      "slot_id": "s06",
+      "scene_summary": "윈터 솔져가 오토바이를 타고 밤길을 달리고 있으며, 옆으로 차가 지나간다. / 윈터 솔져의 얼굴이 불꽃 뒤로 흐릿하게 보이며 고통스러운 표정을 짓고 있다. 'Benign'이라는 단어가 화면에 나타난다.",
+      "utt_id": "",
+      "tts_enabled": true,
+      "narration": "버키는 묶인 채 버티고 있습니다.",
+      "caption_units": [
+        "버키는 묶인 채",
+        "버티고 있습니다."
+      ],
+      "dialogue_original": "",
+      "translated_caption_ko": "",
+      "caption_text": "버키는 묶인 채 버티고 있습니다.",
+      "source_scenes": [
+        {
+          "clip_id": "slot_s06",
+          "scene_id": "scene_007",
+          "start": "00:34.190",
+          "end": "00:38.230",
+          "speed_multiplier": 1
+        }
+      ],
+      "source_clips": [
+        {
+          "clip_id": "slot_s06",
+          "scene_id": "scene_007",
+          "start": "00:34.190",
+          "end": "00:38.230",
+          "speed_multiplier": 1,
+          "source": "slot_map_narration"
+        }
+      ],
+      "edit_instruction": {
+        "visual_role": "slot_narration",
+        "pace": "snappy",
+        "transition": "cut",
+        "zoom": "medium",
+        "sfx": []
+      },
+      "order": 6
+    },
+    {
+      "segment_id": "s07",
+      "segment_type": "recap",
+      "storytelling_role": "bridge",
+      "slot_id": "s07",
+      "scene_summary": "비발화 장면",
+      "utt_id": "",
+      "tts_enabled": true,
+      "narration": "아요는 흔들림이 멈추는지 조용히 기다립니다.",
+      "caption_units": [
+        "아요는 흔들림이 멈추는지",
+        "조용히 기다립니다."
+      ],
+      "dialogue_original": "",
+      "translated_caption_ko": "",
+      "caption_text": "아요는 흔들림이 멈추는지 조용히 기다립니다.",
+      "source_scenes": [
+        {
+          "clip_id": "slot_s07",
+          "scene_id": "slot_map",
+          "start": "00:39.000",
+          "end": "00:44.810",
+          "speed_multiplier": 1
+        }
+      ],
+      "source_clips": [
+        {
+          "clip_id": "slot_s07",
+          "scene_id": "slot_map",
+          "start": "00:39.000",
+          "end": "00:44.810",
+          "speed_multiplier": 1,
+          "source": "slot_map_narration"
+        }
+      ],
+      "edit_instruction": {
+        "visual_role": "slot_narration",
+        "pace": "snappy",
+        "transition": "cut",
+        "zoom": "medium",
+        "sfx": []
+      },
+      "order": 7
+    },
+    {
+      "segment_id": "s08",
+      "segment_type": "recap",
+      "storytelling_role": "bridge",
+      "slot_id": "s08",
+      "scene_summary": "비발화 장면",
+      "utt_id": "",
+      "tts_enabled": true,
+      "narration": "버키가 버티는지 다시 봅니다.",
+      "caption_units": [
+        "버키가 버티는지",
+        "다시 봅니다."
+      ],
+      "dialogue_original": "",
+      "translated_caption_ko": "",
+      "caption_text": "버키가 버티는지 다시 봅니다.",
+      "source_scenes": [
+        {
+          "clip_id": "slot_s08",
+          "scene_id": "slot_map",
+          "start": "00:49.570",
+          "end": "00:53.670",
+          "speed_multiplier": 1
+        }
+      ],
+      "source_clips": [
+        {
+          "clip_id": "slot_s08",
+          "scene_id": "slot_map",
+          "start": "00:49.570",
+          "end": "00:53.670",
+          "speed_multiplier": 1,
+          "source": "slot_map_narration"
+        }
+      ],
+      "edit_instruction": {
+        "visual_role": "slot_narration",
+        "pace": "snappy",
+        "transition": "cut",
+        "zoom": "medium",
+        "sfx": []
+      },
+      "order": 8
+    },
+    {
+      "segment_id": "s09",
+      "segment_type": "recap",
+      "storytelling_role": "setup",
+      "slot_id": "s09",
+      "scene_summary": "비발화 장면",
+      "utt_id": "",
+      "tts_enabled": true,
+      "narration": "이제 아요가 예전 암시어를 하나씩 읊기 시작합니다.",
+      "caption_units": [
+        "이제 아요가 예전 암시어를",
+        "하나씩 읊기 시작합니다."
+      ],
+      "dialogue_original": "",
+      "translated_caption_ko": "",
+      "caption_text": "이제 아요가 예전 암시어를 하나씩 읊기 시작합니다.",
+      "source_scenes": [
+        {
+          "clip_id": "slot_s09",
+          "scene_id": "slot_map",
+          "start": "01:00.750",
+          "end": "01:07.510",
+          "speed_multiplier": 1
+        }
+      ],
+      "source_clips": [
+        {
+          "clip_id": "slot_s09",
+          "scene_id": "slot_map",
+          "start": "01:00.750",
+          "end": "01:07.510",
+          "speed_multiplier": 1,
+          "source": "slot_map_narration"
+        }
+      ],
+      "edit_instruction": {
+        "visual_role": "slot_narration",
+        "pace": "snappy",
+        "transition": "cut",
+        "zoom": "medium",
+        "sfx": []
+      },
+      "order": 9
+    },
+    {
+      "segment_id": "s10",
+      "segment_type": "dialogue_quote",
+      "slot_id": "s10",
+      "scene_summary": "윈터 솔져가 고통스러운 표정으로 카메라를 응시하고, 전경에 불꽃이 보인다. 폴란드어 자막이 나타난다. / 발화: The heart. The dream.",
+      "utt_id": "utt_011",
+      "tts_enabled": false,
+      "narration": "",
+      "dialogue_original": "The heart. The dream.",
+      "translated_caption_ko": "젤라니예… 꿈…",
+      "caption_text": "젤라니예… 꿈…",
+      "source_scenes": [
+        {
+          "clip_id": "slot_s10",
+          "scene_id": "scene_010",
+          "start": "01:07.560",
+          "end": "01:11.320",
+          "speed_multiplier": 1
+        }
+      ],
+      "source_clips": [
+        {
+          "clip_id": "slot_s10",
+          "scene_id": "scene_010",
+          "start": "01:07.560",
+          "end": "01:11.320",
+          "speed_multiplier": 1,
+          "source": "slot_map_dialogue"
+        }
+      ],
+      "edit_instruction": {
+        "visual_role": "slot_dialogue",
+        "pace": "hold",
+        "transition": "cut",
+        "zoom": "medium",
+        "sfx": []
+      }
+    },
+    {
+      "segment_id": "s11",
+      "segment_type": "dialogue_quote",
+      "slot_id": "s11",
+      "scene_summary": "윈터 솔져가 고통스러워하며 'Homecoming'과 러시아어 자막이 화면에 나타난다. / 발화: The return of the people.",
+      "utt_id": "utt_012",
+      "tts_enabled": false,
+      "narration": "",
+      "dialogue_original": "The return of the people.",
+      "translated_caption_ko": "돌아가는 길… 집…",
+      "caption_text": "돌아가는 길… 집…",
+      "source_scenes": [
+        {
+          "clip_id": "slot_s11",
+          "scene_id": "scene_011",
+          "start": "01:13.920",
+          "end": "01:15.500",
+          "speed_multiplier": 1
+        }
+      ],
+      "source_clips": [
+        {
+          "clip_id": "slot_s11",
+          "scene_id": "scene_011",
+          "start": "01:13.920",
+          "end": "01:15.500",
+          "speed_multiplier": 1,
+          "source": "slot_map_dialogue"
+        }
+      ],
+      "edit_instruction": {
+        "visual_role": "slot_dialogue",
+        "pace": "hold",
+        "transition": "cut",
+        "zoom": "medium",
+        "sfx": []
+      }
+    },
+    {
+      "segment_id": "s12",
+      "segment_type": "dialogue_quote",
+      "slot_id": "s12",
+      "scene_summary": "윈터 솔져가 고통스러운 표정으로 'One'이라는 단어가 화면에 나타난다. / 발화: The one.",
+      "utt_id": "utt_013",
+      "tts_enabled": false,
+      "narration": "",
+      "dialogue_original": "The one.",
+      "translated_caption_ko": "하나…",
+      "caption_text": "하나…",
+      "source_scenes": [
+        {
+          "clip_id": "slot_s12",
+          "scene_id": "scene_012",
+          "start": "01:19.480",
+          "end": "01:20.520",
+          "speed_multiplier": 1
+        }
+      ],
+      "source_clips": [
+        {
+          "clip_id": "slot_s12",
+          "scene_id": "scene_012",
+          "start": "01:19.480",
+          "end": "01:20.520",
+          "speed_multiplier": 1,
+          "source": "slot_map_dialogue"
+        }
+      ],
+      "edit_instruction": {
+        "visual_role": "slot_dialogue",
+        "pace": "hold",
+        "transition": "cut",
+        "zoom": "medium",
+        "sfx": []
+      }
+    },
+    {
+      "segment_id": "s13",
+      "segment_type": "dialogue_quote",
+      "slot_id": "s13",
+      "scene_summary": "윈터 솔져가 눈물을 흘리며 고통스러워하고, 'Freight Car'와 러시아어 자막이 화면에 나타난다. / 발화: The cargo ship.",
+      "utt_id": "utt_014",
+      "tts_enabled": false,
+      "narration": "",
+      "dialogue_original": "The cargo ship.",
+      "translated_caption_ko": "화물열차…",
+      "caption_text": "화물열차…",
+      "source_scenes": [
+        {
+          "clip_id": "slot_s13",
+          "scene_id": "scene_013",
+          "start": "01:23.980",
+          "end": "01:25.060",
+          "speed_multiplier": 1
+        }
+      ],
+      "source_clips": [
+        {
+          "clip_id": "slot_s13",
+          "scene_id": "scene_013",
+          "start": "01:23.980",
+          "end": "01:25.060",
+          "speed_multiplier": 1,
+          "source": "slot_map_dialogue"
+        }
+      ],
+      "edit_instruction": {
+        "visual_role": "slot_dialogue",
+        "pace": "hold",
+        "transition": "cut",
+        "zoom": "medium",
+        "sfx": []
+      }
+    },
+    {
+      "segment_id": "s14",
+      "segment_type": "recap",
+      "storytelling_role": "bridge",
+      "slot_id": "s14",
+      "scene_summary": "윈터 솔져가 눈물을 흘리며 고통스러워하고, 'Freight Car'와 러시아어 자막이 화면에 나타난다. / 여성 전사가 진지한 표정으로 무언가를 응시한다. / 윈터 솔져가 눈물을 흘리며 고통스러워한다.",
+      "utt_id": "",
+      "tts_enabled": true,
+      "narration": "암시어가 이어질수록 버키는 더 크게 흔들립니다. 그래도 무너지지 않자, 아요는 세뇌가 풀렸는지 끝까지 지켜봅니다.",
+      "caption_units": [
+        "암시어가 이어질수록",
+        "버키는 더 크게 흔들립니다.",
+        "그래도 무너지지 않자,",
+        "아요는 세뇌가 풀렸는지",
+        "끝까지 지켜봅니다."
+      ],
+      "dialogue_original": "",
+      "translated_caption_ko": "",
+      "caption_text": "암시어가 이어질수록 버키는 더 크게 흔들립니다. 그래도 무너지지 않자, 아요는 세뇌가 풀렸는지 끝까지 지켜봅니다.",
+      "source_scenes": [
+        {
+          "clip_id": "slot_s14",
+          "scene_id": "scene_013",
+          "start": "01:25.110",
+          "end": "01:41.770",
+          "speed_multiplier": 1
+        }
+      ],
+      "source_clips": [
+        {
+          "clip_id": "slot_s14",
+          "scene_id": "scene_013",
+          "start": "01:25.110",
+          "end": "01:41.770",
+          "speed_multiplier": 1,
+          "source": "slot_map_narration"
+        }
+      ],
+      "edit_instruction": {
+        "visual_role": "slot_narration",
+        "pace": "snappy",
+        "transition": "cut",
+        "zoom": "medium",
+        "sfx": []
+      },
+      "order": 14
+    },
+    {
+      "segment_id": "s15",
+      "segment_type": "recap",
+      "storytelling_role": "bridge",
+      "slot_id": "s15",
+      "scene_summary": "한 여성이 진지한 표정으로 말을 한다. / 한 남성이 눈물을 흘리며 감격한 표정을 짓는다. / 여성이 다시 한번 진지한 표정으로 말을 한다.",
+      "utt_id": "",
+      "tts_enabled": true,
+      "narration": "버키가 울자 아요도 공격을 멈춥니다. 이제 답은 거의 나왔습니다.",
+      "caption_units": [
+        "버키가 울자",
+        "아요도 공격을 멈춥니다.",
+        "이제 답은 거의 나왔습니다."
+      ],
+      "dialogue_original": "",
+      "translated_caption_ko": "",
+      "caption_text": "버키가 울자 아요도 공격을 멈춥니다. 이제 답은 거의 나왔습니다.",
+      "source_scenes": [
+        {
+          "clip_id": "slot_s15",
+          "scene_id": "scene_016",
+          "start": "01:43.850",
+          "end": "01:50.690",
+          "speed_multiplier": 1
+        }
+      ],
+      "source_clips": [
+        {
+          "clip_id": "slot_s15",
+          "scene_id": "scene_016",
+          "start": "01:43.850",
+          "end": "01:50.690",
+          "speed_multiplier": 1,
+          "source": "slot_map_narration"
+        }
+      ],
+      "edit_instruction": {
+        "visual_role": "slot_narration",
+        "pace": "snappy",
+        "transition": "cut",
+        "zoom": "medium",
+        "sfx": []
+      },
+      "order": 15
+    },
+    {
+      "segment_id": "s16",
+      "segment_type": "recap",
+      "storytelling_role": "payoff",
+      "slot_id": "s16",
+      "scene_summary": "여성이 다시 한번 진지한 표정으로 말을 한다. / 남성이 고개를 숙인 채 눈물을 흘린다. / 여성이 차분한 표정으로 남성을 바라본다. / 남성이 손으로 입을 가린 채 흐느끼며 슬퍼한다.",
+      "utt_id": "",
+      "tts_enabled": true,
+      "narration": "버키는 끝내 명령에 무너지지 않았습니다. 아요는 그가 다시 사람으로 돌아왔다는 걸 확인하죠. 여러분, 이 정도면 치료가 아니라 졸업시험입니다.",
+      "caption_units": [
+        "버키는 끝내 명령에",
+        "무너지지 않았습니다.",
+        "아요는 그가 다시 사람으로",
+        "돌아왔다는 걸 확인하죠.",
+        "여러분, 이 정도면 치료가 아니라",
+        "졸업시험입니다."
+      ],
+      "dialogue_original": "",
+      "translated_caption_ko": "",
+      "caption_text": "버키는 끝내 명령에 무너지지 않았습니다. 아요는 그가 다시 사람으로 돌아왔다는 걸 확인하죠. 여러분, 이 정도면 치료가 아니라 졸업시험입니다.",
+      "source_scenes": [
+        {
+          "clip_id": "slot_s16",
+          "scene_id": "scene_018",
+          "start": "01:51.450",
+          "end": "02:09.000",
+          "speed_multiplier": 1
+        }
+      ],
+      "source_clips": [
+        {
+          "clip_id": "slot_s16",
+          "scene_id": "scene_018",
+          "start": "01:51.450",
+          "end": "02:09.000",
+          "speed_multiplier": 1,
+          "source": "slot_map_narration"
+        }
+      ],
+      "edit_instruction": {
+        "visual_role": "slot_narration",
+        "pace": "snappy",
+        "transition": "cut",
+        "zoom": "medium",
+        "sfx": []
+      },
+      "order": 16
+    }
+  ],
+  "quality_check": {
+    "segment_count": 16,
+    "estimated_total_duration_sec": 84.663,
+    "duration_within_60_180": true,
+    "all_scene_ids_exist_in_gemini_analysis": true,
+    "no_source_scene_exceeds_30_sec": true,
+    "korean_ending_rules_ok": true,
+    "dialogue_quote_count": 7,
+    "recap_tts_segment_count": 9,
+    "ending_rules_check": {
+      "eomi_ratio_seumnida_pct": 60,
+      "eomi_ratio_jyo_pct": 15,
+      "eomi_ratio_neunde_pct": 10,
+      "eomi_ratio_beoryeot_pct": 15,
+      "forbidden_eomi_count": 0,
+      "character_naming_consistent": true,
+      "real_name_used": false,
+      "mystery_4steps_applied": false,
+      "closing_drip_present": true
+    }
+  },
+  "created_at": "2026-07-14T03:52:38.643Z"
+}

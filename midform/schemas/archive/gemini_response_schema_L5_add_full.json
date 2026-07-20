@@ -1,0 +1,343 @@
+{
+  "type": "object",
+  "propertyOrdering": [
+    "source",
+    "story_context",
+    "scenes",
+    "characters",
+    "safety_scan",
+    "integrity_check"
+  ],
+  "properties": {
+    "source": {
+      "type": "object",
+      "propertyOrdering": [
+        "source_id",
+        "duration_sec",
+        "aspect_ratio",
+        "content_type"
+      ],
+      "properties": {
+        "source_id": {
+          "type": "string"
+        },
+        "duration_sec": {
+          "type": "number"
+        },
+        "aspect_ratio": {
+          "type": "string"
+        },
+        "content_type": {
+          "type": "string",
+          "enum": [
+            "movie_midform_recap"
+          ]
+        }
+      },
+      "required": [
+        "source_id",
+        "duration_sec",
+        "aspect_ratio",
+        "content_type"
+      ]
+    },
+    "story_context": {
+      "type": "object",
+      "propertyOrdering": [
+        "content_guess",
+        "content_confidence",
+        "plot_summary_neutral",
+        "genre",
+        "language_of_dialogue"
+      ],
+      "properties": {
+        "content_guess": {
+          "type": "string"
+        },
+        "plot_summary_neutral": {
+          "type": "string"
+        },
+        "genre": {
+          "type": "string",
+          "enum": [
+            "action",
+            "thriller",
+            "romance",
+            "comedy",
+            "drama",
+            "horror",
+            "sci_fi",
+            "fantasy",
+            "animation",
+            "unknown"
+          ]
+        },
+        "language_of_dialogue": {
+          "type": "string"
+        },
+        "content_confidence": {
+          "type": "string",
+          "enum": [
+            "high",
+            "medium",
+            "low",
+            "source_unconfirmed"
+          ]
+        }
+      },
+      "required": [
+        "content_guess",
+        "content_confidence",
+        "plot_summary_neutral",
+        "genre",
+        "language_of_dialogue"
+      ]
+    },
+    "scenes": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "propertyOrdering": [
+          "scene_id",
+          "start_sec",
+          "end_sec",
+          "duration_sec",
+          "visible_action",
+          "dialogue_or_caption",
+          "shot_type",
+          "characters_visible",
+          "vertical_crop_note"
+        ],
+        "properties": {
+          "scene_id": {
+            "type": "string"
+          },
+          "start_sec": {
+            "type": "number"
+          },
+          "end_sec": {
+            "type": "number"
+          },
+          "duration_sec": {
+            "type": "number"
+          },
+          "visible_action": {
+            "type": "string"
+          },
+          "shot_type": {
+            "type": "string",
+            "enum": [
+              "close_up",
+              "medium",
+              "wide",
+              "action",
+              "dialogue",
+              "insert",
+              "establishing",
+              "unknown"
+            ]
+          },
+          "characters_visible": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "vertical_crop_note": {
+            "type": "string"
+          },
+          "dialogue_or_caption": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "scene_id",
+          "start_sec",
+          "end_sec",
+          "duration_sec",
+          "visible_action",
+          "dialogue_or_caption",
+          "shot_type",
+          "characters_visible",
+          "vertical_crop_note"
+        ]
+      }
+    },
+    "characters": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "propertyOrdering": [
+          "safe_display_name",
+          "role",
+          "first_seen_sec"
+        ],
+        "properties": {
+          "role": {
+            "type": "string"
+          },
+          "first_seen_sec": {
+            "type": "number"
+          },
+          "safe_display_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "safe_display_name",
+          "role",
+          "first_seen_sec"
+        ]
+      }
+    },
+    "safety_scan": {
+      "type": "object",
+      "propertyOrdering": [
+        "violence",
+        "sexual",
+        "gore",
+        "minor_safety",
+        "sensitive_topic"
+      ],
+      "properties": {
+        "violence": {
+          "type": "object",
+          "properties": {
+            "present": {
+              "type": "boolean"
+            },
+            "timecodes": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            }
+          },
+          "required": [
+            "present",
+            "timecodes"
+          ]
+        },
+        "sexual": {
+          "type": "object",
+          "properties": {
+            "present": {
+              "type": "boolean"
+            },
+            "timecodes": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            }
+          },
+          "required": [
+            "present",
+            "timecodes"
+          ]
+        },
+        "gore": {
+          "type": "object",
+          "properties": {
+            "present": {
+              "type": "boolean"
+            },
+            "timecodes": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            }
+          },
+          "required": [
+            "present",
+            "timecodes"
+          ]
+        },
+        "minor_safety": {
+          "type": "object",
+          "properties": {
+            "present": {
+              "type": "boolean"
+            },
+            "timecodes": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            }
+          },
+          "required": [
+            "present",
+            "timecodes"
+          ]
+        },
+        "sensitive_topic": {
+          "type": "object",
+          "properties": {
+            "present": {
+              "type": "boolean"
+            },
+            "timecodes": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            }
+          },
+          "required": [
+            "present",
+            "timecodes"
+          ]
+        }
+      },
+      "required": [
+        "violence",
+        "sexual",
+        "gore",
+        "minor_safety",
+        "sensitive_topic"
+      ]
+    },
+    "integrity_check": {
+      "type": "object",
+      "propertyOrdering": [
+        "total_scenes_count",
+        "total_duration_sec",
+        "all_scene_times_within_source",
+        "no_empty_required_fields"
+      ],
+      "properties": {
+        "total_scenes_count": {
+          "type": "integer"
+        },
+        "all_scene_times_within_source": {
+          "type": "boolean"
+        },
+        "no_empty_required_fields": {
+          "type": "boolean"
+        },
+        "total_duration_sec": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "total_scenes_count",
+        "total_duration_sec",
+        "all_scene_times_within_source",
+        "no_empty_required_fields"
+      ]
+    }
+  },
+  "required": [
+    "source",
+    "story_context",
+    "scenes",
+    "characters",
+    "safety_scan",
+    "integrity_check"
+  ]
+}

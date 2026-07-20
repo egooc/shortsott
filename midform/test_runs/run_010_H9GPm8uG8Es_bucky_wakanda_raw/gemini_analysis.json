@@ -1,0 +1,692 @@
+{
+  "source": {
+    "source_id": "black_panther_wakanda_forever_recap_01",
+    "duration_sec": 148.901,
+    "aspect_ratio": "16:9",
+    "content_type": "movie_midform_recap"
+  },
+  "story_context": {
+    "content_guess": "Black Panther: Wakanda Forever",
+    "content_confidence": "high",
+    "plot_summary_neutral": "밤하늘 아래 빛나는 와칸다 도시의 전경이 보인 후, 6년 전으로 돌아가 숲 속에서 버키와 오코예가 대화하는 장면이 이어진다.",
+    "genre": "action",
+    "language_of_dialogue": "English",
+    "burned_subtitle_position": "bottom"
+  },
+  "scenes": [
+    {
+      "scene_id": "scene_001",
+      "start_sec": 0,
+      "end_sec": 5,
+      "duration_sec": 5,
+      "visible_action": "밤하늘 아래 빛나는 와칸다 도시의 전경이 폭포와 함께 서서히 드러난다. 화면 하단에 'WAKANDA'라는 글자가 나타난다.",
+      "dialogue_or_caption": "WAKANDA",
+      "utt_refs": [],
+      "shot_type": "establishing",
+      "characters_visible": [],
+      "dialogue_importance": "none",
+      "dialogue_function": "none",
+      "should_preserve_original_dialogue": false,
+      "dialogue_preserve_reason": "none",
+      "translated_caption_ko": "와칸다",
+      "recap_bridge_before": "none",
+      "recap_bridge_after": "none",
+      "vertical_crop_note": "중앙에 도시가 잘 보이며, 좌우 여백이 충분하다."
+    },
+    {
+      "scene_id": "scene_002",
+      "start_sec": 5,
+      "end_sec": 16,
+      "duration_sec": 11,
+      "visible_action": "카메라가 와칸다 도시에서 멀어져 숲 속의 어두운 풍경을 비춘다. 멀리서 작은 불빛이 보인다.",
+      "dialogue_or_caption": "none",
+      "utt_refs": [],
+      "shot_type": "wide",
+      "characters_visible": [],
+      "dialogue_importance": "none",
+      "dialogue_function": "none",
+      "should_preserve_original_dialogue": false,
+      "dialogue_preserve_reason": "none",
+      "translated_caption_ko": "none",
+      "recap_bridge_before": "none",
+      "recap_bridge_after": "none",
+      "vertical_crop_note": "숲의 풍경이 넓게 담겨있어 중앙 크롭 시 일부 배경이 잘릴 수 있다."
+    },
+    {
+      "scene_id": "scene_003",
+      "start_sec": 16,
+      "end_sec": 19,
+      "duration_sec": 3,
+      "visible_action": "어두운 배경에 불꽃이 튀어 오르고, 'SIX YEARS AGO'라는 자막이 화면 중앙에 나타난다.",
+      "dialogue_or_caption": "SIX YEARS AGO",
+      "utt_refs": [],
+      "shot_type": "insert",
+      "characters_visible": [],
+      "dialogue_importance": "none",
+      "dialogue_function": "setup",
+      "should_preserve_original_dialogue": false,
+      "dialogue_preserve_reason": "자막은 요약으로 대체 가능",
+      "translated_caption_ko": "6년 전",
+      "recap_bridge_before": "none",
+      "recap_bridge_after": "none",
+      "vertical_crop_note": "텍스트가 중앙에 위치하여 크롭에 문제 없다."
+    },
+    {
+      "scene_id": "scene_004",
+      "start_sec": 19,
+      "end_sec": 25,
+      "duration_sec": 6,
+      "visible_action": "불꽃이 튀는 배경으로 한 남자의 얼굴이 클로즈업된다. 그는 진지한 표정으로 불을 응시한다.",
+      "dialogue_or_caption": "It is time. You sure about this?",
+      "utt_refs": [
+        "utt_001",
+        "utt_002"
+      ],
+      "shot_type": "close_up",
+      "characters_visible": [
+        "bucky_barnes"
+      ],
+      "dialogue_importance": "high",
+      "dialogue_function": "setup",
+      "should_preserve_original_dialogue": true,
+      "dialogue_preserve_reason": "중요한 결정에 대한 대화의 시작.",
+      "translated_caption_ko": "때가 됐어. 확실해?",
+      "recap_bridge_before": "6년 전, 버키는 중요한 결정을 앞두고 있었다.",
+      "recap_bridge_after": "버키는 결심한 듯 보인다.",
+      "vertical_crop_note": "인물의 얼굴이 중앙에 잘 위치한다."
+    },
+    {
+      "scene_id": "scene_005",
+      "start_sec": 25,
+      "end_sec": 28,
+      "duration_sec": 3,
+      "visible_action": "불빛 앞에서 창을 든 여인의 얼굴이 클로즈업된다. 그녀는 단호한 표정으로 말한다.",
+      "dialogue_or_caption": "I won't let you hurt anyone.",
+      "utt_refs": [
+        "utt_003"
+      ],
+      "shot_type": "close_up",
+      "characters_visible": [
+        "okoye"
+      ],
+      "dialogue_importance": "high",
+      "dialogue_function": "threat",
+      "should_preserve_original_dialogue": true,
+      "dialogue_preserve_reason": "중요한 경고성 대사로 인물의 의지를 보여준다.",
+      "translated_caption_ko": "누구도 다치게 하지 않을 거야.",
+      "recap_bridge_before": "오코예는 그에게 경고한다.",
+      "recap_bridge_after": "그녀의 단호한 의지가 엿보인다.",
+      "vertical_crop_note": "인물의 얼굴이 중앙에 잘 위치한다."
+    },
+    {
+      "scene_id": "scene_006",
+      "start_sec": 33,
+      "end_sec": 34,
+      "duration_sec": 1,
+      "visible_action": "윈터 솔져가 기계에 묶여 고통스럽게 비명을 지르고 있다.",
+      "dialogue_or_caption": "none",
+      "utt_refs": [],
+      "shot_type": "close_up",
+      "characters_visible": [
+        "winter_soldier"
+      ],
+      "dialogue_importance": "none",
+      "dialogue_function": "none",
+      "should_preserve_original_dialogue": false,
+      "dialogue_preserve_reason": "none",
+      "translated_caption_ko": "none",
+      "recap_bridge_before": "none",
+      "recap_bridge_after": "none",
+      "vertical_crop_note": "none"
+    },
+    {
+      "scene_id": "scene_007",
+      "start_sec": 34,
+      "end_sec": 36,
+      "duration_sec": 2,
+      "visible_action": "윈터 솔져가 오토바이를 타고 밤길을 달리고 있으며, 옆으로 차가 지나간다.",
+      "dialogue_or_caption": "none",
+      "utt_refs": [],
+      "shot_type": "action",
+      "characters_visible": [
+        "winter_soldier"
+      ],
+      "dialogue_importance": "none",
+      "dialogue_function": "none",
+      "should_preserve_original_dialogue": false,
+      "dialogue_preserve_reason": "none",
+      "translated_caption_ko": "none",
+      "recap_bridge_before": "none",
+      "recap_bridge_after": "none",
+      "vertical_crop_note": "none"
+    },
+    {
+      "scene_id": "scene_008",
+      "start_sec": 36,
+      "end_sec": 39,
+      "duration_sec": 3,
+      "visible_action": "윈터 솔져의 얼굴이 불꽃 뒤로 흐릿하게 보이며 고통스러운 표정을 짓고 있다. 'Benign'이라는 단어가 화면에 나타난다.",
+      "dialogue_or_caption": "Benign",
+      "utt_refs": [
+        "utt_009"
+      ],
+      "shot_type": "close_up",
+      "characters_visible": [
+        "winter_soldier"
+      ],
+      "dialogue_importance": "high",
+      "dialogue_function": "character_emotion",
+      "should_preserve_original_dialogue": true,
+      "dialogue_preserve_reason": "윈터 솔져의 세뇌를 나타내는 핵심 단어이며, 그의 고통을 강조한다.",
+      "translated_caption_ko": "양성",
+      "recap_bridge_before": "세뇌 과정 중, 그의 정신에 새겨지는 단어는...",
+      "recap_bridge_after": "이 단어는 그의 기억을 조작하는 데 사용됩니다.",
+      "vertical_crop_note": "none"
+    },
+    {
+      "scene_id": "scene_009",
+      "start_sec": 68,
+      "end_sec": 69.5,
+      "duration_sec": 1.5,
+      "visible_action": "윈터 솔져가 고문 의자에 묶여 괴로워하며 'Benign'이라는 단어가 화면에 나타난다.",
+      "dialogue_or_caption": "Benign",
+      "utt_refs": [
+        "utt_001"
+      ],
+      "shot_type": "medium",
+      "characters_visible": [
+        "윈터_솔져"
+      ],
+      "dialogue_importance": "high",
+      "dialogue_function": "setup",
+      "should_preserve_original_dialogue": true,
+      "dialogue_preserve_reason": "핵심 트리거 단어.",
+      "translated_caption_ko": "양성",
+      "recap_bridge_before": "none",
+      "recap_bridge_after": "none",
+      "vertical_crop_note": "얼굴이 중앙에 잘 맞춰져 있음."
+    },
+    {
+      "scene_id": "scene_010",
+      "start_sec": 69.5,
+      "end_sec": 74.5,
+      "duration_sec": 5,
+      "visible_action": "윈터 솔져가 고통스러운 표정으로 카메라를 응시하고, 전경에 불꽃이 보인다. 폴란드어 자막이 나타난다.",
+      "dialogue_or_caption": "Dobrý si vděčný.",
+      "utt_refs": [
+        "utt_002"
+      ],
+      "shot_type": "close_up",
+      "characters_visible": [
+        "윈터_솔져"
+      ],
+      "dialogue_importance": "high",
+      "dialogue_function": "setup",
+      "should_preserve_original_dialogue": true,
+      "dialogue_preserve_reason": "핵심 트리거 단어.",
+      "translated_caption_ko": "당신은 감사하다.",
+      "recap_bridge_before": "none",
+      "recap_bridge_after": "none",
+      "vertical_crop_note": "얼굴이 중앙에 잘 맞춰져 있음."
+    },
+    {
+      "scene_id": "scene_011",
+      "start_sec": 74.5,
+      "end_sec": 76.5,
+      "duration_sec": 2,
+      "visible_action": "윈터 솔져가 고통스러워하며 'Homecoming'과 러시아어 자막이 화면에 나타난다.",
+      "dialogue_or_caption": "Homecoming / Возвращение на родину.",
+      "utt_refs": [
+        "utt_003",
+        "utt_004"
+      ],
+      "shot_type": "close_up",
+      "characters_visible": [
+        "윈터_솔져"
+      ],
+      "dialogue_importance": "high",
+      "dialogue_function": "setup",
+      "should_preserve_original_dialogue": true,
+      "dialogue_preserve_reason": "핵심 트리거 단어.",
+      "translated_caption_ko": "귀향",
+      "recap_bridge_before": "none",
+      "recap_bridge_after": "none",
+      "vertical_crop_note": "얼굴이 중앙에 잘 맞춰져 있음."
+    },
+    {
+      "scene_id": "scene_012",
+      "start_sec": 76.5,
+      "end_sec": 81.5,
+      "duration_sec": 5,
+      "visible_action": "윈터 솔져가 고통스러운 표정으로 'One'이라는 단어가 화면에 나타난다.",
+      "dialogue_or_caption": "One",
+      "utt_refs": [
+        "utt_005"
+      ],
+      "shot_type": "close_up",
+      "characters_visible": [
+        "윈터_솔져"
+      ],
+      "dialogue_importance": "high",
+      "dialogue_function": "setup",
+      "should_preserve_original_dialogue": true,
+      "dialogue_preserve_reason": "핵심 트리거 단어.",
+      "translated_caption_ko": "하나",
+      "recap_bridge_before": "none",
+      "recap_bridge_after": "none",
+      "vertical_crop_note": "얼굴이 중앙에 잘 맞춰져 있음."
+    },
+    {
+      "scene_id": "scene_013",
+      "start_sec": 81.5,
+      "end_sec": 91.5,
+      "duration_sec": 10,
+      "visible_action": "윈터 솔져가 눈물을 흘리며 고통스러워하고, 'Freight Car'와 러시아어 자막이 화면에 나타난다.",
+      "dialogue_or_caption": "Freight Car / Грузовой вагон.",
+      "utt_refs": [
+        "utt_006",
+        "utt_007"
+      ],
+      "shot_type": "close_up",
+      "characters_visible": [
+        "윈터_솔져"
+      ],
+      "dialogue_importance": "high",
+      "dialogue_function": "setup",
+      "should_preserve_original_dialogue": true,
+      "dialogue_preserve_reason": "핵심 트리거 단어.",
+      "translated_caption_ko": "화물칸",
+      "recap_bridge_before": "none",
+      "recap_bridge_after": "none",
+      "vertical_crop_note": "얼굴이 중앙에 잘 맞춰져 있음."
+    },
+    {
+      "scene_id": "scene_014",
+      "start_sec": 91.5,
+      "end_sec": 95.5,
+      "duration_sec": 4,
+      "visible_action": "여성 전사가 진지한 표정으로 무언가를 응시한다.",
+      "dialogue_or_caption": "none",
+      "utt_refs": [],
+      "shot_type": "medium",
+      "characters_visible": [
+        "여성_전사"
+      ],
+      "dialogue_importance": "none",
+      "dialogue_function": "none",
+      "should_preserve_original_dialogue": false,
+      "dialogue_preserve_reason": "대화 없음.",
+      "translated_caption_ko": "none",
+      "recap_bridge_before": "none",
+      "recap_bridge_after": "none",
+      "vertical_crop_note": "주요 인물이 중앙에 위치하며, 중요한 액션이나 정보 손실 없음."
+    },
+    {
+      "scene_id": "scene_015",
+      "start_sec": 95.5,
+      "end_sec": 99.5,
+      "duration_sec": 4,
+      "visible_action": "윈터 솔져가 눈물을 흘리며 고통스러워한다.",
+      "dialogue_or_caption": "none",
+      "utt_refs": [],
+      "shot_type": "close_up",
+      "characters_visible": [
+        "윈터_솔져"
+      ],
+      "dialogue_importance": "none",
+      "dialogue_function": "character_emotion",
+      "should_preserve_original_dialogue": false,
+      "dialogue_preserve_reason": "대화 없음.",
+      "translated_caption_ko": "none",
+      "recap_bridge_before": "none",
+      "recap_bridge_after": "none",
+      "vertical_crop_note": "얼굴이 중앙에 잘 맞춰져 있음."
+    },
+    {
+      "scene_id": "scene_016",
+      "start_sec": 103,
+      "end_sec": 104.5,
+      "duration_sec": 1.5,
+      "visible_action": "한 여성이 진지한 표정으로 말을 한다.",
+      "dialogue_or_caption": "none",
+      "utt_refs": [],
+      "shot_type": "close_up",
+      "characters_visible": [
+        "여성 조력자"
+      ],
+      "dialogue_importance": "none",
+      "dialogue_function": "none",
+      "should_preserve_original_dialogue": false,
+      "dialogue_preserve_reason": "none",
+      "translated_caption_ko": "none",
+      "recap_bridge_before": "none",
+      "recap_bridge_after": "none",
+      "vertical_crop_note": "none"
+    },
+    {
+      "scene_id": "scene_017",
+      "start_sec": 104.5,
+      "end_sec": 108.5,
+      "duration_sec": 4,
+      "visible_action": "한 남성이 눈물을 흘리며 감격한 표정을 짓는다.",
+      "dialogue_or_caption": "none",
+      "utt_refs": [],
+      "shot_type": "close_up",
+      "characters_visible": [
+        "주인공 남성"
+      ],
+      "dialogue_importance": "none",
+      "dialogue_function": "none",
+      "should_preserve_original_dialogue": false,
+      "dialogue_preserve_reason": "none",
+      "translated_caption_ko": "none",
+      "recap_bridge_before": "none",
+      "recap_bridge_after": "none",
+      "vertical_crop_note": "none"
+    },
+    {
+      "scene_id": "scene_018",
+      "start_sec": 108.5,
+      "end_sec": 112.5,
+      "duration_sec": 4,
+      "visible_action": "여성이 다시 한번 진지한 표정으로 말을 한다.",
+      "dialogue_or_caption": "none",
+      "utt_refs": [],
+      "shot_type": "close_up",
+      "characters_visible": [
+        "여성 조력자"
+      ],
+      "dialogue_importance": "none",
+      "dialogue_function": "none",
+      "should_preserve_original_dialogue": false,
+      "dialogue_preserve_reason": "none",
+      "translated_caption_ko": "none",
+      "recap_bridge_before": "none",
+      "recap_bridge_after": "none",
+      "vertical_crop_note": "none"
+    },
+    {
+      "scene_id": "scene_019",
+      "start_sec": 112.5,
+      "end_sec": 115.5,
+      "duration_sec": 3,
+      "visible_action": "남성이 고개를 숙인 채 눈물을 흘린다.",
+      "dialogue_or_caption": "none",
+      "utt_refs": [],
+      "shot_type": "close_up",
+      "characters_visible": [
+        "주인공 남성"
+      ],
+      "dialogue_importance": "none",
+      "dialogue_function": "none",
+      "should_preserve_original_dialogue": false,
+      "dialogue_preserve_reason": "none",
+      "translated_caption_ko": "none",
+      "recap_bridge_before": "none",
+      "recap_bridge_after": "none",
+      "vertical_crop_note": "none"
+    },
+    {
+      "scene_id": "scene_020",
+      "start_sec": 115.5,
+      "end_sec": 119.5,
+      "duration_sec": 4,
+      "visible_action": "여성이 차분한 표정으로 남성을 바라본다.",
+      "dialogue_or_caption": "none",
+      "utt_refs": [],
+      "shot_type": "close_up",
+      "characters_visible": [
+        "여성 조력자"
+      ],
+      "dialogue_importance": "none",
+      "dialogue_function": "none",
+      "should_preserve_original_dialogue": false,
+      "dialogue_preserve_reason": "none",
+      "translated_caption_ko": "none",
+      "recap_bridge_before": "none",
+      "recap_bridge_after": "none",
+      "vertical_crop_note": "none"
+    },
+    {
+      "scene_id": "scene_021",
+      "start_sec": 119.5,
+      "end_sec": 129,
+      "duration_sec": 9.5,
+      "visible_action": "남성이 손으로 입을 가린 채 흐느끼며 슬퍼한다.",
+      "dialogue_or_caption": "none",
+      "utt_refs": [],
+      "shot_type": "medium",
+      "characters_visible": [
+        "주인공 남성"
+      ],
+      "dialogue_importance": "none",
+      "dialogue_function": "none",
+      "should_preserve_original_dialogue": false,
+      "dialogue_preserve_reason": "none",
+      "translated_caption_ko": "none",
+      "recap_bridge_before": "none",
+      "recap_bridge_after": "none",
+      "vertical_crop_note": "none"
+    },
+    {
+      "scene_id": "scene_022",
+      "start_sec": 129,
+      "end_sec": 148.901,
+      "duration_sec": 19.901,
+      "visible_action": "영화의 두 주인공이 나란히 서 있는 이미지와 함께 구독 및 더보기 버튼이 표시된다.",
+      "dialogue_or_caption": "SUBSCRIBE, WATCH MORE",
+      "utt_refs": [],
+      "shot_type": "wide",
+      "characters_visible": [
+        "주인공 남성",
+        "다른 남성 조력자"
+      ],
+      "dialogue_importance": "low",
+      "dialogue_function": "setup",
+      "should_preserve_original_dialogue": false,
+      "dialogue_preserve_reason": "아웃트로 화면의 텍스트는 원본 오디오 보존의 대상이 아님",
+      "translated_caption_ko": "구독, 더보기",
+      "recap_bridge_before": "none",
+      "recap_bridge_after": "none",
+      "vertical_crop_note": "none"
+    }
+  ],
+  "characters": [
+    {
+      "safe_display_name": "bucky_barnes",
+      "role": "protagonist",
+      "first_seen_sec": 19
+    },
+    {
+      "safe_display_name": "okoye",
+      "role": "ally",
+      "first_seen_sec": 25
+    },
+    {
+      "safe_display_name": "winter_soldier",
+      "role": "protagonist",
+      "first_seen_sec": 33
+    },
+    {
+      "safe_display_name": "scientist",
+      "role": "antagonist",
+      "first_seen_sec": 39
+    },
+    {
+      "safe_display_name": "윈터_솔져",
+      "role": "protagonist",
+      "first_seen_sec": 68
+    },
+    {
+      "safe_display_name": "여성_전사",
+      "role": "ally",
+      "first_seen_sec": 91.5
+    },
+    {
+      "safe_display_name": "여성 조력자",
+      "role": "조력자",
+      "first_seen_sec": 103
+    },
+    {
+      "safe_display_name": "주인공 남성",
+      "role": "주인공",
+      "first_seen_sec": 104.5
+    },
+    {
+      "safe_display_name": "다른 남성 조력자",
+      "role": "조력자",
+      "first_seen_sec": 129
+    }
+  ],
+  "safety_scan": {
+    "violence": {
+      "present": true,
+      "timecodes": [
+        33,
+        39,
+        68,
+        69,
+        70,
+        71,
+        72,
+        73,
+        74,
+        75,
+        76,
+        77,
+        78,
+        79,
+        80,
+        81,
+        82,
+        83,
+        84,
+        85,
+        86,
+        87,
+        88,
+        89,
+        90,
+        91,
+        95,
+        96,
+        97,
+        98
+      ]
+    },
+    "sexual": {
+      "present": false,
+      "timecodes": []
+    },
+    "gore": {
+      "present": false,
+      "timecodes": []
+    },
+    "minor_safety": {
+      "present": false,
+      "timecodes": []
+    },
+    "sensitive_topic": {
+      "present": true,
+      "timecodes": [
+        33,
+        36,
+        39,
+        68,
+        69,
+        70,
+        71,
+        72,
+        73,
+        74,
+        75,
+        76,
+        77,
+        78,
+        79,
+        80,
+        81,
+        82,
+        83,
+        84,
+        85,
+        86,
+        87,
+        88,
+        89,
+        90,
+        91,
+        95,
+        96,
+        97,
+        98
+      ]
+    }
+  },
+  "integrity_check": {
+    "total_scenes_count": 22,
+    "total_duration_sec": 148.901,
+    "all_scene_times_within_source": true,
+    "no_empty_required_fields": true
+  },
+  "chunk_analysis": {
+    "enabled": true,
+    "threshold_sec": 90,
+    "target_chunk_sec": 35,
+    "overlap_sec": 2,
+    "chunks": [
+      {
+        "index": 1,
+        "start_sec": 0,
+        "end_sec": 35,
+        "duration_sec": 35,
+        "scenes_count": 6,
+        "log_path": "C:\\Users\\sejun\\Documents\\Codex\\2026-05-26\\midform\\midform\\analysis\\uploads\\logs\\gemini_midform_chunks_20260714005715_15c97e2c86d5ef5b192076757889b3a6\\responses\\chunk_01_response.json",
+        "chunk_video_path": "C:\\Users\\sejun\\Documents\\Codex\\2026-05-26\\midform\\midform\\analysis\\uploads\\logs\\gemini_midform_chunks_20260714005715_15c97e2c86d5ef5b192076757889b3a6\\videos\\chunk_01_0_35000.mp4",
+        "summary_sample": [
+          "밤하늘 아래 빛나는 와칸다 도시의 전경이 폭포와 함께 서서히 드러난다. 화면 하단에 'WAKANDA'라는 글자가 나타난다.",
+          "카메라가 와칸다 도시에서 멀어져 숲 속의 어두운 풍경을 비춘다. 멀리서 작은 불빛이 보인다."
+        ]
+      },
+      {
+        "index": 2,
+        "start_sec": 33,
+        "end_sec": 70,
+        "duration_sec": 37,
+        "scenes_count": 4,
+        "log_path": "C:\\Users\\sejun\\Documents\\Codex\\2026-05-26\\midform\\midform\\analysis\\uploads\\logs\\gemini_midform_chunks_20260714005715_15c97e2c86d5ef5b192076757889b3a6\\responses\\chunk_02_response.json",
+        "chunk_video_path": "C:\\Users\\sejun\\Documents\\Codex\\2026-05-26\\midform\\midform\\analysis\\uploads\\logs\\gemini_midform_chunks_20260714005715_15c97e2c86d5ef5b192076757889b3a6\\videos\\chunk_02_33000_70000.mp4",
+        "summary_sample": [
+          "윈터 솔져가 기계에 묶여 고통스럽게 비명을 지르고 있다.",
+          "윈터 솔져가 오토바이를 타고 밤길을 달리고 있으며, 옆으로 차가 지나간다."
+        ]
+      },
+      {
+        "index": 3,
+        "start_sec": 68,
+        "end_sec": 105,
+        "duration_sec": 37,
+        "scenes_count": 8,
+        "log_path": "C:\\Users\\sejun\\Documents\\Codex\\2026-05-26\\midform\\midform\\analysis\\uploads\\logs\\gemini_midform_chunks_20260714005715_15c97e2c86d5ef5b192076757889b3a6\\responses\\chunk_03_response.json",
+        "chunk_video_path": "C:\\Users\\sejun\\Documents\\Codex\\2026-05-26\\midform\\midform\\analysis\\uploads\\logs\\gemini_midform_chunks_20260714005715_15c97e2c86d5ef5b192076757889b3a6\\videos\\chunk_03_68000_105000.mp4",
+        "summary_sample": [
+          "윈터 솔져가 고문 의자에 묶여 괴로워하며 'Benign'이라는 단어가 화면에 나타난다.",
+          "윈터 솔져가 고통스러운 표정으로 카메라를 응시하고, 전경에 불꽃이 보인다. 폴란드어 자막이 나타난다."
+        ]
+      },
+      {
+        "index": 4,
+        "start_sec": 103,
+        "end_sec": 148.901,
+        "duration_sec": 45.901,
+        "scenes_count": 7,
+        "log_path": "C:\\Users\\sejun\\Documents\\Codex\\2026-05-26\\midform\\midform\\analysis\\uploads\\logs\\gemini_midform_chunks_20260714005715_15c97e2c86d5ef5b192076757889b3a6\\responses\\chunk_04_response.json",
+        "chunk_video_path": "C:\\Users\\sejun\\Documents\\Codex\\2026-05-26\\midform\\midform\\analysis\\uploads\\logs\\gemini_midform_chunks_20260714005715_15c97e2c86d5ef5b192076757889b3a6\\videos\\chunk_04_103000_148901.mp4",
+        "summary_sample": [
+          "한 여성이 진지한 표정으로 말을 한다.",
+          "한 남성이 눈물을 흘리며 감격한 표정을 짓는다."
+        ]
+      }
+    ]
+  }
+}

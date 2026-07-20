@@ -1,0 +1,87 @@
+{
+  "type": "object",
+  "properties": {
+    "cold_open_selection": {
+      "type": "object",
+      "properties": {
+        "beat_id": { "type": "string" },
+        "source": { "type": "string" },
+        "fallback_used": { "type": "boolean" },
+        "fallback_reason": { "type": "string" },
+        "heatmap_peak_start_sec": { "type": "number" },
+        "heatmap_peak_end_sec": { "type": "number" },
+        "reason": { "type": "string" }
+      },
+      "required": [
+        "beat_id",
+        "source",
+        "fallback_used",
+        "fallback_reason",
+        "heatmap_peak_start_sec",
+        "heatmap_peak_end_sec",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "timeline": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "slot_id": { "type": "string" },
+          "beat_id": { "type": "string" },
+          "role": { "type": "string" },
+          "decision": { "type": "string" },
+          "start_sec": { "type": "number" },
+          "end_sec": { "type": "number" },
+          "estimated_duration_sec": { "type": "number" },
+          "reason": { "type": "string" },
+          "spoiler_policy": { "type": "string" },
+          "repeat_policy": { "type": "string" }
+        },
+        "required": [
+          "slot_id",
+          "beat_id",
+          "role",
+          "decision",
+          "start_sec",
+          "end_sec",
+          "estimated_duration_sec",
+          "reason",
+          "spoiler_policy",
+          "repeat_policy"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "duration_budget": {
+      "type": "object",
+      "properties": {
+        "target_sec": { "type": "number" },
+        "estimated_total_sec": { "type": "number" },
+        "keep_dialogue_sec": { "type": "number" },
+        "narration_sec": { "type": "number" }
+      },
+      "required": ["target_sec", "estimated_total_sec", "keep_dialogue_sec", "narration_sec"],
+      "additionalProperties": false
+    },
+    "quality_check": {
+      "type": "object",
+      "properties": {
+        "cold_open_has_no_answer": { "type": "boolean" },
+        "body_reaches_cold_open_again": { "type": "boolean" },
+        "timeline_roles_present": { "type": "boolean" },
+        "target_duration_reasonable": { "type": "boolean" }
+      },
+      "required": [
+        "cold_open_has_no_answer",
+        "body_reaches_cold_open_again",
+        "timeline_roles_present",
+        "target_duration_reasonable"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": ["cold_open_selection", "timeline", "duration_budget", "quality_check"],
+  "additionalProperties": false
+}

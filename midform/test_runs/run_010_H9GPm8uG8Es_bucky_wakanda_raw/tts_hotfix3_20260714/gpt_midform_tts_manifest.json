@@ -1,0 +1,888 @@
+{
+  "model_id": "edge-tts:ko-KR-SunHiNeural",
+  "tts_provider": "Microsoft Edge online TTS via edge-tts",
+  "tts_network_disclosure": "Narration text is sent to Microsoft's online Edge TTS service during synthesis.",
+  "caption_units": [
+    {
+      "caption_id": "s01_sent_001_cap_001",
+      "sentence_id": "s01_sent_001",
+      "tts_caption_id": "s01_sent_001",
+      "segment_id": "s01",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 1,
+      "text": "와칸다의 밤은",
+      "source_segment_order": 1
+    },
+    {
+      "caption_id": "s01_sent_001_cap_002",
+      "sentence_id": "s01_sent_001",
+      "tts_caption_id": "s01_sent_001",
+      "segment_id": "s01",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 2,
+      "text": "조용하지만,",
+      "source_segment_order": 1
+    },
+    {
+      "caption_id": "s01_sent_001_cap_003",
+      "sentence_id": "s01_sent_001",
+      "tts_caption_id": "s01_sent_001",
+      "segment_id": "s01",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 3,
+      "text": "버키에게는",
+      "source_segment_order": 1
+    },
+    {
+      "caption_id": "s01_sent_001_cap_004",
+      "sentence_id": "s01_sent_001",
+      "tts_caption_id": "s01_sent_001",
+      "segment_id": "s01",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 4,
+      "text": "가장 무서운 시험이",
+      "source_segment_order": 1
+    },
+    {
+      "caption_id": "s01_sent_001_cap_005",
+      "sentence_id": "s01_sent_001",
+      "tts_caption_id": "s01_sent_001",
+      "segment_id": "s01",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 5,
+      "text": "시작됩니다.",
+      "source_segment_order": 1
+    },
+    {
+      "caption_id": "s01_sent_002_cap_001",
+      "sentence_id": "s01_sent_002",
+      "tts_caption_id": "s01_sent_002",
+      "segment_id": "s01",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 1,
+      "text": "아요는 그가",
+      "source_segment_order": 1
+    },
+    {
+      "caption_id": "s01_sent_002_cap_002",
+      "sentence_id": "s01_sent_002",
+      "tts_caption_id": "s01_sent_002",
+      "segment_id": "s01",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 2,
+      "text": "아직 세뇌에",
+      "source_segment_order": 1
+    },
+    {
+      "caption_id": "s01_sent_002_cap_003",
+      "sentence_id": "s01_sent_002",
+      "tts_caption_id": "s01_sent_002",
+      "segment_id": "s01",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 3,
+      "text": "붙잡혀 있는지 끝까지",
+      "source_segment_order": 1
+    },
+    {
+      "caption_id": "s01_sent_002_cap_004",
+      "sentence_id": "s01_sent_002",
+      "tts_caption_id": "s01_sent_002",
+      "segment_id": "s01",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 4,
+      "text": "확인합니다.",
+      "source_segment_order": 1
+    },
+    {
+      "caption_id": "s02_cap_001",
+      "segment_id": "s02",
+      "segment_type": "dialogue_quote",
+      "tts_enabled": false,
+      "order": 1,
+      "text": "이제 시작이야.",
+      "source_segment_order": 2
+    },
+    {
+      "caption_id": "s03_cap_001",
+      "segment_id": "s03",
+      "segment_type": "dialogue_quote",
+      "tts_enabled": false,
+      "order": 1,
+      "text": "진짜 할 거야?",
+      "source_segment_order": 3
+    },
+    {
+      "caption_id": "s04_cap_001",
+      "segment_id": "s04",
+      "segment_type": "dialogue_quote",
+      "tts_enabled": false,
+      "order": 1,
+      "text": "아무도 다치게 안 할",
+      "source_segment_order": 4
+    },
+    {
+      "caption_id": "s04_cap_002",
+      "segment_id": "s04",
+      "segment_type": "dialogue_quote",
+      "tts_enabled": false,
+      "order": 2,
+      "text": "거야.",
+      "source_segment_order": 4
+    },
+    {
+      "caption_id": "s05_sent_001_cap_001",
+      "sentence_id": "s05_sent_001",
+      "tts_caption_id": "s05_sent_001",
+      "segment_id": "s05",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 1,
+      "text": "아요는 버키가",
+      "source_segment_order": 5
+    },
+    {
+      "caption_id": "s05_sent_001_cap_002",
+      "sentence_id": "s05_sent_001",
+      "tts_caption_id": "s05_sent_001",
+      "segment_id": "s05",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 2,
+      "text": "아직 세뇌에",
+      "source_segment_order": 5
+    },
+    {
+      "caption_id": "s05_sent_001_cap_003",
+      "sentence_id": "s05_sent_001",
+      "tts_caption_id": "s05_sent_001",
+      "segment_id": "s05",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 3,
+      "text": "붙잡혀 있는지",
+      "source_segment_order": 5
+    },
+    {
+      "caption_id": "s05_sent_001_cap_004",
+      "sentence_id": "s05_sent_001",
+      "tts_caption_id": "s05_sent_001",
+      "segment_id": "s05",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 4,
+      "text": "봅니다.",
+      "source_segment_order": 5
+    },
+    {
+      "caption_id": "s06_sent_001_cap_001",
+      "sentence_id": "s06_sent_001",
+      "tts_caption_id": "s06_sent_001",
+      "segment_id": "s06",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 1,
+      "text": "버키는",
+      "source_segment_order": 6
+    },
+    {
+      "caption_id": "s06_sent_001_cap_002",
+      "sentence_id": "s06_sent_001",
+      "tts_caption_id": "s06_sent_001",
+      "segment_id": "s06",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 2,
+      "text": "묶인 채 버티고",
+      "source_segment_order": 6
+    },
+    {
+      "caption_id": "s06_sent_001_cap_003",
+      "sentence_id": "s06_sent_001",
+      "tts_caption_id": "s06_sent_001",
+      "segment_id": "s06",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 3,
+      "text": "있습니다.",
+      "source_segment_order": 6
+    },
+    {
+      "caption_id": "s07_sent_001_cap_001",
+      "sentence_id": "s07_sent_001",
+      "tts_caption_id": "s07_sent_001",
+      "segment_id": "s07",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 1,
+      "text": "아요는 흔들림이",
+      "source_segment_order": 7
+    },
+    {
+      "caption_id": "s07_sent_001_cap_002",
+      "sentence_id": "s07_sent_001",
+      "tts_caption_id": "s07_sent_001",
+      "segment_id": "s07",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 2,
+      "text": "멈추는지 조용히",
+      "source_segment_order": 7
+    },
+    {
+      "caption_id": "s07_sent_001_cap_003",
+      "sentence_id": "s07_sent_001",
+      "tts_caption_id": "s07_sent_001",
+      "segment_id": "s07",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 3,
+      "text": "기다립니다.",
+      "source_segment_order": 7
+    },
+    {
+      "caption_id": "s08_sent_001_cap_001",
+      "sentence_id": "s08_sent_001",
+      "tts_caption_id": "s08_sent_001",
+      "segment_id": "s08",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 1,
+      "text": "버키가",
+      "source_segment_order": 8
+    },
+    {
+      "caption_id": "s08_sent_001_cap_002",
+      "sentence_id": "s08_sent_001",
+      "tts_caption_id": "s08_sent_001",
+      "segment_id": "s08",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 2,
+      "text": "버티는지 다시",
+      "source_segment_order": 8
+    },
+    {
+      "caption_id": "s08_sent_001_cap_003",
+      "sentence_id": "s08_sent_001",
+      "tts_caption_id": "s08_sent_001",
+      "segment_id": "s08",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 3,
+      "text": "봅니다.",
+      "source_segment_order": 8
+    },
+    {
+      "caption_id": "s09_sent_001_cap_001",
+      "sentence_id": "s09_sent_001",
+      "tts_caption_id": "s09_sent_001",
+      "segment_id": "s09",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 1,
+      "text": "이제 아요가",
+      "source_segment_order": 9
+    },
+    {
+      "caption_id": "s09_sent_001_cap_002",
+      "sentence_id": "s09_sent_001",
+      "tts_caption_id": "s09_sent_001",
+      "segment_id": "s09",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 2,
+      "text": "예전 암시어를",
+      "source_segment_order": 9
+    },
+    {
+      "caption_id": "s09_sent_001_cap_003",
+      "sentence_id": "s09_sent_001",
+      "tts_caption_id": "s09_sent_001",
+      "segment_id": "s09",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 3,
+      "text": "하나씩 읊기",
+      "source_segment_order": 9
+    },
+    {
+      "caption_id": "s09_sent_001_cap_004",
+      "sentence_id": "s09_sent_001",
+      "tts_caption_id": "s09_sent_001",
+      "segment_id": "s09",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 4,
+      "text": "시작합니다.",
+      "source_segment_order": 9
+    },
+    {
+      "caption_id": "s10_cap_001",
+      "segment_id": "s10",
+      "segment_type": "dialogue_quote",
+      "tts_enabled": false,
+      "order": 1,
+      "text": "젤라니예… 꿈…",
+      "source_segment_order": 10
+    },
+    {
+      "caption_id": "s11_cap_001",
+      "segment_id": "s11",
+      "segment_type": "dialogue_quote",
+      "tts_enabled": false,
+      "order": 1,
+      "text": "돌아가는 길… 집…",
+      "source_segment_order": 11
+    },
+    {
+      "caption_id": "s12_cap_001",
+      "segment_id": "s12",
+      "segment_type": "dialogue_quote",
+      "tts_enabled": false,
+      "order": 1,
+      "text": "하나…",
+      "source_segment_order": 12
+    },
+    {
+      "caption_id": "s13_cap_001",
+      "segment_id": "s13",
+      "segment_type": "dialogue_quote",
+      "tts_enabled": false,
+      "order": 1,
+      "text": "화물열차…",
+      "source_segment_order": 13
+    },
+    {
+      "caption_id": "s14_sent_001_cap_001",
+      "sentence_id": "s14_sent_001",
+      "tts_caption_id": "s14_sent_001",
+      "segment_id": "s14",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 1,
+      "text": "암시어가",
+      "source_segment_order": 14
+    },
+    {
+      "caption_id": "s14_sent_001_cap_002",
+      "sentence_id": "s14_sent_001",
+      "tts_caption_id": "s14_sent_001",
+      "segment_id": "s14",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 2,
+      "text": "이어질수록 버키는",
+      "source_segment_order": 14
+    },
+    {
+      "caption_id": "s14_sent_001_cap_003",
+      "sentence_id": "s14_sent_001",
+      "tts_caption_id": "s14_sent_001",
+      "segment_id": "s14",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 3,
+      "text": "더 크게 흔들립니다.",
+      "source_segment_order": 14
+    },
+    {
+      "caption_id": "s14_sent_002_cap_001",
+      "sentence_id": "s14_sent_002",
+      "tts_caption_id": "s14_sent_002",
+      "segment_id": "s14",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 1,
+      "text": "그래도 무너지지",
+      "source_segment_order": 14
+    },
+    {
+      "caption_id": "s14_sent_002_cap_002",
+      "sentence_id": "s14_sent_002",
+      "tts_caption_id": "s14_sent_002",
+      "segment_id": "s14",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 2,
+      "text": "않자,",
+      "source_segment_order": 14
+    },
+    {
+      "caption_id": "s14_sent_002_cap_003",
+      "sentence_id": "s14_sent_002",
+      "tts_caption_id": "s14_sent_002",
+      "segment_id": "s14",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 3,
+      "text": "아요는 세뇌가",
+      "source_segment_order": 14
+    },
+    {
+      "caption_id": "s14_sent_002_cap_004",
+      "sentence_id": "s14_sent_002",
+      "tts_caption_id": "s14_sent_002",
+      "segment_id": "s14",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 4,
+      "text": "풀렸는지 끝까지",
+      "source_segment_order": 14
+    },
+    {
+      "caption_id": "s14_sent_002_cap_005",
+      "sentence_id": "s14_sent_002",
+      "tts_caption_id": "s14_sent_002",
+      "segment_id": "s14",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 5,
+      "text": "지켜봅니다.",
+      "source_segment_order": 14
+    },
+    {
+      "caption_id": "s15_sent_001_cap_001",
+      "sentence_id": "s15_sent_001",
+      "tts_caption_id": "s15_sent_001",
+      "segment_id": "s15",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 1,
+      "text": "버키가 울자",
+      "source_segment_order": 15
+    },
+    {
+      "caption_id": "s15_sent_001_cap_002",
+      "sentence_id": "s15_sent_001",
+      "tts_caption_id": "s15_sent_001",
+      "segment_id": "s15",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 2,
+      "text": "아요도 공격을",
+      "source_segment_order": 15
+    },
+    {
+      "caption_id": "s15_sent_001_cap_003",
+      "sentence_id": "s15_sent_001",
+      "tts_caption_id": "s15_sent_001",
+      "segment_id": "s15",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 3,
+      "text": "멈춥니다.",
+      "source_segment_order": 15
+    },
+    {
+      "caption_id": "s15_sent_002_cap_001",
+      "sentence_id": "s15_sent_002",
+      "tts_caption_id": "s15_sent_002",
+      "segment_id": "s15",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 1,
+      "text": "이제 답은",
+      "source_segment_order": 15
+    },
+    {
+      "caption_id": "s15_sent_002_cap_002",
+      "sentence_id": "s15_sent_002",
+      "tts_caption_id": "s15_sent_002",
+      "segment_id": "s15",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 2,
+      "text": "거의 나왔습니다.",
+      "source_segment_order": 15
+    },
+    {
+      "caption_id": "s16_sent_001_cap_001",
+      "sentence_id": "s16_sent_001",
+      "tts_caption_id": "s16_sent_001",
+      "segment_id": "s16",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 1,
+      "text": "버키는 끝내 명령에",
+      "source_segment_order": 16
+    },
+    {
+      "caption_id": "s16_sent_001_cap_002",
+      "sentence_id": "s16_sent_001",
+      "tts_caption_id": "s16_sent_001",
+      "segment_id": "s16",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 2,
+      "text": "무너지지 않았습니다.",
+      "source_segment_order": 16
+    },
+    {
+      "caption_id": "s16_sent_002_cap_001",
+      "sentence_id": "s16_sent_002",
+      "tts_caption_id": "s16_sent_002",
+      "segment_id": "s16",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 1,
+      "text": "아요는 그가",
+      "source_segment_order": 16
+    },
+    {
+      "caption_id": "s16_sent_002_cap_002",
+      "sentence_id": "s16_sent_002",
+      "tts_caption_id": "s16_sent_002",
+      "segment_id": "s16",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 2,
+      "text": "다시 사람으로",
+      "source_segment_order": 16
+    },
+    {
+      "caption_id": "s16_sent_002_cap_003",
+      "sentence_id": "s16_sent_002",
+      "tts_caption_id": "s16_sent_002",
+      "segment_id": "s16",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 3,
+      "text": "돌아왔다는",
+      "source_segment_order": 16
+    },
+    {
+      "caption_id": "s16_sent_002_cap_004",
+      "sentence_id": "s16_sent_002",
+      "tts_caption_id": "s16_sent_002",
+      "segment_id": "s16",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 4,
+      "text": "걸 확인하죠.",
+      "source_segment_order": 16
+    },
+    {
+      "caption_id": "s16_sent_003_cap_001",
+      "sentence_id": "s16_sent_003",
+      "tts_caption_id": "s16_sent_003",
+      "segment_id": "s16",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 1,
+      "text": "여러분,",
+      "source_segment_order": 16
+    },
+    {
+      "caption_id": "s16_sent_003_cap_002",
+      "sentence_id": "s16_sent_003",
+      "tts_caption_id": "s16_sent_003",
+      "segment_id": "s16",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 2,
+      "text": "이 정도면 치료가",
+      "source_segment_order": 16
+    },
+    {
+      "caption_id": "s16_sent_003_cap_003",
+      "sentence_id": "s16_sent_003",
+      "tts_caption_id": "s16_sent_003",
+      "segment_id": "s16",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 3,
+      "text": "아니라",
+      "source_segment_order": 16
+    },
+    {
+      "caption_id": "s16_sent_003_cap_004",
+      "sentence_id": "s16_sent_003",
+      "tts_caption_id": "s16_sent_003",
+      "segment_id": "s16",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 4,
+      "text": "졸업시험입니다.",
+      "source_segment_order": 16
+    }
+  ],
+  "tts_units": [
+    {
+      "caption_id": "s01_sent_001",
+      "sentence_id": "s01_sent_001",
+      "segment_id": "s01",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 1,
+      "text": "와칸다의 밤은 조용하지만, 버키에게는 가장 무서운 시험이 시작됩니다.",
+      "source_segment_order": 1
+    },
+    {
+      "caption_id": "s01_sent_002",
+      "sentence_id": "s01_sent_002",
+      "segment_id": "s01",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 2,
+      "text": "아요는 그가 아직 세뇌에 붙잡혀 있는지 끝까지 확인합니다.",
+      "source_segment_order": 1
+    },
+    {
+      "caption_id": "s05_sent_001",
+      "sentence_id": "s05_sent_001",
+      "segment_id": "s05",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 1,
+      "text": "아요는 버키가 아직 세뇌에 붙잡혀 있는지 봅니다.",
+      "source_segment_order": 5
+    },
+    {
+      "caption_id": "s06_sent_001",
+      "sentence_id": "s06_sent_001",
+      "segment_id": "s06",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 1,
+      "text": "버키는 묶인 채 버티고 있습니다.",
+      "source_segment_order": 6
+    },
+    {
+      "caption_id": "s07_sent_001",
+      "sentence_id": "s07_sent_001",
+      "segment_id": "s07",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 1,
+      "text": "아요는 흔들림이 멈추는지 조용히 기다립니다.",
+      "source_segment_order": 7
+    },
+    {
+      "caption_id": "s08_sent_001",
+      "sentence_id": "s08_sent_001",
+      "segment_id": "s08",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 1,
+      "text": "버키가 버티는지 다시 봅니다.",
+      "source_segment_order": 8
+    },
+    {
+      "caption_id": "s09_sent_001",
+      "sentence_id": "s09_sent_001",
+      "segment_id": "s09",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 1,
+      "text": "이제 아요가 예전 암시어를 하나씩 읊기 시작합니다.",
+      "source_segment_order": 9
+    },
+    {
+      "caption_id": "s14_sent_001",
+      "sentence_id": "s14_sent_001",
+      "segment_id": "s14",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 1,
+      "text": "암시어가 이어질수록 버키는 더 크게 흔들립니다.",
+      "source_segment_order": 14
+    },
+    {
+      "caption_id": "s14_sent_002",
+      "sentence_id": "s14_sent_002",
+      "segment_id": "s14",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 2,
+      "text": "그래도 무너지지 않자, 아요는 세뇌가 풀렸는지 끝까지 지켜봅니다.",
+      "source_segment_order": 14
+    },
+    {
+      "caption_id": "s15_sent_001",
+      "sentence_id": "s15_sent_001",
+      "segment_id": "s15",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 1,
+      "text": "버키가 울자 아요도 공격을 멈춥니다.",
+      "source_segment_order": 15
+    },
+    {
+      "caption_id": "s15_sent_002",
+      "sentence_id": "s15_sent_002",
+      "segment_id": "s15",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 2,
+      "text": "이제 답은 거의 나왔습니다.",
+      "source_segment_order": 15
+    },
+    {
+      "caption_id": "s16_sent_001",
+      "sentence_id": "s16_sent_001",
+      "segment_id": "s16",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 1,
+      "text": "버키는 끝내 명령에 무너지지 않았습니다.",
+      "source_segment_order": 16
+    },
+    {
+      "caption_id": "s16_sent_002",
+      "sentence_id": "s16_sent_002",
+      "segment_id": "s16",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 2,
+      "text": "아요는 그가 다시 사람으로 돌아왔다는 걸 확인하죠.",
+      "source_segment_order": 16
+    },
+    {
+      "caption_id": "s16_sent_003",
+      "sentence_id": "s16_sent_003",
+      "segment_id": "s16",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 3,
+      "text": "여러분, 이 정도면 치료가 아니라 졸업시험입니다.",
+      "source_segment_order": 16
+    }
+  ],
+  "files": [
+    {
+      "caption_id": "s01_sent_001",
+      "segment_id": "s01",
+      "filename": "s01_sent_001.mp3",
+      "filepath": "C:\\Users\\sejun\\Documents\\Codex\\2026-05-26\\midform\\midform\\test_runs\\run_010_H9GPm8uG8Es_bucky_wakanda_raw\\tts_hotfix3_20260714\\s01_sent_001.mp3",
+      "duration_sec": 5.952,
+      "text": "와칸다의 밤은 조용하지만, 버키에게는 가장 무서운 시험이 시작됩니다.",
+      "success": true
+    },
+    {
+      "caption_id": "s01_sent_002",
+      "segment_id": "s01",
+      "filename": "s01_sent_002.mp3",
+      "filepath": "C:\\Users\\sejun\\Documents\\Codex\\2026-05-26\\midform\\midform\\test_runs\\run_010_H9GPm8uG8Es_bucky_wakanda_raw\\tts_hotfix3_20260714\\s01_sent_002.mp3",
+      "duration_sec": 5.232,
+      "text": "아요는 그가 아직 세뇌에 붙잡혀 있는지 끝까지 확인합니다.",
+      "success": true
+    },
+    {
+      "caption_id": "s05_sent_001",
+      "segment_id": "s05",
+      "filename": "s05_sent_001.mp3",
+      "filepath": "C:\\Users\\sejun\\Documents\\Codex\\2026-05-26\\midform\\midform\\test_runs\\run_010_H9GPm8uG8Es_bucky_wakanda_raw\\tts_hotfix3_20260714\\s05_sent_001.mp3",
+      "duration_sec": 4.512,
+      "text": "아요는 버키가 아직 세뇌에 붙잡혀 있는지 봅니다.",
+      "success": true
+    },
+    {
+      "caption_id": "s06_sent_001",
+      "segment_id": "s06",
+      "filename": "s06_sent_001.mp3",
+      "filepath": "C:\\Users\\sejun\\Documents\\Codex\\2026-05-26\\midform\\midform\\test_runs\\run_010_H9GPm8uG8Es_bucky_wakanda_raw\\tts_hotfix3_20260714\\s06_sent_001.mp3",
+      "duration_sec": 3.384,
+      "text": "버키는 묶인 채 버티고 있습니다.",
+      "success": true
+    },
+    {
+      "caption_id": "s07_sent_001",
+      "segment_id": "s07",
+      "filename": "s07_sent_001.mp3",
+      "filepath": "C:\\Users\\sejun\\Documents\\Codex\\2026-05-26\\midform\\midform\\test_runs\\run_010_H9GPm8uG8Es_bucky_wakanda_raw\\tts_hotfix3_20260714\\s07_sent_001.mp3",
+      "duration_sec": 4.008,
+      "text": "아요는 흔들림이 멈추는지 조용히 기다립니다.",
+      "success": true
+    },
+    {
+      "caption_id": "s08_sent_001",
+      "segment_id": "s08",
+      "filename": "s08_sent_001.mp3",
+      "filepath": "C:\\Users\\sejun\\Documents\\Codex\\2026-05-26\\midform\\midform\\test_runs\\run_010_H9GPm8uG8Es_bucky_wakanda_raw\\tts_hotfix3_20260714\\s08_sent_001.mp3",
+      "duration_sec": 3.168,
+      "text": "버키가 버티는지 다시 봅니다.",
+      "success": true
+    },
+    {
+      "caption_id": "s09_sent_001",
+      "segment_id": "s09",
+      "filename": "s09_sent_001.mp3",
+      "filepath": "C:\\Users\\sejun\\Documents\\Codex\\2026-05-26\\midform\\midform\\test_runs\\run_010_H9GPm8uG8Es_bucky_wakanda_raw\\tts_hotfix3_20260714\\s09_sent_001.mp3",
+      "duration_sec": 4.392,
+      "text": "이제 아요가 예전 암시어를 하나씩 읊기 시작합니다.",
+      "success": true
+    },
+    {
+      "caption_id": "s14_sent_001",
+      "segment_id": "s14",
+      "filename": "s14_sent_001.mp3",
+      "filepath": "C:\\Users\\sejun\\Documents\\Codex\\2026-05-26\\midform\\midform\\test_runs\\run_010_H9GPm8uG8Es_bucky_wakanda_raw\\tts_hotfix3_20260714\\s14_sent_001.mp3",
+      "duration_sec": 4.368,
+      "text": "암시어가 이어질수록 버키는 더 크게 흔들립니다.",
+      "success": true
+    },
+    {
+      "caption_id": "s14_sent_002",
+      "segment_id": "s14",
+      "filename": "s14_sent_002.mp3",
+      "filepath": "C:\\Users\\sejun\\Documents\\Codex\\2026-05-26\\midform\\midform\\test_runs\\run_010_H9GPm8uG8Es_bucky_wakanda_raw\\tts_hotfix3_20260714\\s14_sent_002.mp3",
+      "duration_sec": 5.664,
+      "text": "그래도 무너지지 않자, 아요는 세뇌가 풀렸는지 끝까지 지켜봅니다.",
+      "success": true
+    },
+    {
+      "caption_id": "s15_sent_001",
+      "segment_id": "s15",
+      "filename": "s15_sent_001.mp3",
+      "filepath": "C:\\Users\\sejun\\Documents\\Codex\\2026-05-26\\midform\\midform\\test_runs\\run_010_H9GPm8uG8Es_bucky_wakanda_raw\\tts_hotfix3_20260714\\s15_sent_001.mp3",
+      "duration_sec": 3.576,
+      "text": "버키가 울자 아요도 공격을 멈춥니다.",
+      "success": true
+    },
+    {
+      "caption_id": "s15_sent_002",
+      "segment_id": "s15",
+      "filename": "s15_sent_002.mp3",
+      "filepath": "C:\\Users\\sejun\\Documents\\Codex\\2026-05-26\\midform\\midform\\test_runs\\run_010_H9GPm8uG8Es_bucky_wakanda_raw\\tts_hotfix3_20260714\\s15_sent_002.mp3",
+      "duration_sec": 2.904,
+      "text": "이제 답은 거의 나왔습니다.",
+      "success": true
+    },
+    {
+      "caption_id": "s16_sent_001",
+      "segment_id": "s16",
+      "filename": "s16_sent_001.mp3",
+      "filepath": "C:\\Users\\sejun\\Documents\\Codex\\2026-05-26\\midform\\midform\\test_runs\\run_010_H9GPm8uG8Es_bucky_wakanda_raw\\tts_hotfix3_20260714\\s16_sent_001.mp3",
+      "duration_sec": 3.672,
+      "text": "버키는 끝내 명령에 무너지지 않았습니다.",
+      "success": true
+    },
+    {
+      "caption_id": "s16_sent_002",
+      "segment_id": "s16",
+      "filename": "s16_sent_002.mp3",
+      "filepath": "C:\\Users\\sejun\\Documents\\Codex\\2026-05-26\\midform\\midform\\test_runs\\run_010_H9GPm8uG8Es_bucky_wakanda_raw\\tts_hotfix3_20260714\\s16_sent_002.mp3",
+      "duration_sec": 4.368,
+      "text": "아요는 그가 다시 사람으로 돌아왔다는 걸 확인하죠.",
+      "success": true
+    },
+    {
+      "caption_id": "s16_sent_003",
+      "segment_id": "s16",
+      "filename": "s16_sent_003.mp3",
+      "filepath": "C:\\Users\\sejun\\Documents\\Codex\\2026-05-26\\midform\\midform\\test_runs\\run_010_H9GPm8uG8Es_bucky_wakanda_raw\\tts_hotfix3_20260714\\s16_sent_003.mp3",
+      "duration_sec": 4.488,
+      "text": "여러분, 이 정도면 치료가 아니라 졸업시험입니다.",
+      "success": true
+    }
+  ]
+}

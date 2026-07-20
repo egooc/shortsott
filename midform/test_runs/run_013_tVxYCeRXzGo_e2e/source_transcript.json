@@ -1,0 +1,2613 @@
+{
+  "tool": "faster-whisper",
+  "model": "medium",
+  "language": "en",
+  "language_probability": 0.9972,
+  "utterances": [
+    {
+      "utt_id": "utt_001",
+      "start": 0.52,
+      "end": 1.52,
+      "text": "Can I ask you a question?",
+      "lang": "en",
+      "words": [
+        {
+          "word": " Can",
+          "start": 0.52,
+          "end": 0.84,
+          "lang": "en"
+        },
+        {
+          "word": " I",
+          "start": 0.84,
+          "end": 0.84,
+          "lang": "en"
+        },
+        {
+          "word": " ask",
+          "start": 0.84,
+          "end": 0.98,
+          "lang": "en"
+        },
+        {
+          "word": " you",
+          "start": 0.98,
+          "end": 1.12,
+          "lang": "en"
+        },
+        {
+          "word": " a",
+          "start": 1.12,
+          "end": 1.2,
+          "lang": "en"
+        },
+        {
+          "word": " question?",
+          "start": 1.2,
+          "end": 1.52,
+          "lang": "en"
+        }
+      ]
+    },
+    {
+      "utt_id": "utt_002",
+      "start": 2.94,
+      "end": 5.6,
+      "text": "What the hell you got to ask me? Mr. Stowickie, the one you got the questions for.",
+      "lang": "en",
+      "words": [
+        {
+          "word": " What",
+          "start": 2.94,
+          "end": 3.02,
+          "lang": "en"
+        },
+        {
+          "word": " the",
+          "start": 3.02,
+          "end": 3.02,
+          "lang": "en"
+        },
+        {
+          "word": " hell",
+          "start": 3.02,
+          "end": 3.08,
+          "lang": "en"
+        },
+        {
+          "word": " you",
+          "start": 3.08,
+          "end": 3.2,
+          "lang": "en"
+        },
+        {
+          "word": " got",
+          "start": 3.2,
+          "end": 3.3,
+          "lang": "en"
+        },
+        {
+          "word": " to",
+          "start": 3.3,
+          "end": 3.42,
+          "lang": "en"
+        },
+        {
+          "word": " ask",
+          "start": 3.42,
+          "end": 3.58,
+          "lang": "en"
+        },
+        {
+          "word": " me?",
+          "start": 3.58,
+          "end": 3.74,
+          "lang": "en"
+        },
+        {
+          "word": " Mr.",
+          "start": 3.76,
+          "end": 4.02,
+          "lang": "en"
+        },
+        {
+          "word": " Stowickie,",
+          "start": 4.14,
+          "end": 4.38,
+          "lang": "en"
+        },
+        {
+          "word": " the",
+          "start": 4.46,
+          "end": 4.52,
+          "lang": "en"
+        },
+        {
+          "word": " one",
+          "start": 4.52,
+          "end": 4.58,
+          "lang": "en"
+        },
+        {
+          "word": " you",
+          "start": 4.58,
+          "end": 4.68,
+          "lang": "en"
+        },
+        {
+          "word": " got",
+          "start": 4.68,
+          "end": 4.84,
+          "lang": "en"
+        },
+        {
+          "word": " the",
+          "start": 4.84,
+          "end": 5.0,
+          "lang": "en"
+        },
+        {
+          "word": " questions",
+          "start": 5.0,
+          "end": 5.26,
+          "lang": "en"
+        },
+        {
+          "word": " for.",
+          "start": 5.26,
+          "end": 5.6,
+          "lang": "en"
+        }
+      ]
+    },
+    {
+      "utt_id": "utt_003",
+      "start": 7.0,
+      "end": 8.42,
+      "text": "How come you ain't ever like me?",
+      "lang": "en",
+      "words": [
+        {
+          "word": " How",
+          "start": 7.0,
+          "end": 7.16,
+          "lang": "en"
+        },
+        {
+          "word": " come",
+          "start": 7.16,
+          "end": 7.24,
+          "lang": "en"
+        },
+        {
+          "word": " you",
+          "start": 7.24,
+          "end": 7.38,
+          "lang": "en"
+        },
+        {
+          "word": " ain't",
+          "start": 7.38,
+          "end": 7.48,
+          "lang": "en"
+        },
+        {
+          "word": " ever",
+          "start": 7.48,
+          "end": 7.66,
+          "lang": "en"
+        },
+        {
+          "word": " like",
+          "start": 7.66,
+          "end": 7.86,
+          "lang": "en"
+        },
+        {
+          "word": " me?",
+          "start": 7.86,
+          "end": 8.42,
+          "lang": "en"
+        }
+      ]
+    },
+    {
+      "utt_id": "utt_004",
+      "start": 9.62,
+      "end": 10.22,
+      "text": "Like you?",
+      "lang": "en",
+      "words": [
+        {
+          "word": " Like",
+          "start": 9.62,
+          "end": 9.94,
+          "lang": "en"
+        },
+        {
+          "word": " you?",
+          "start": 9.94,
+          "end": 10.22,
+          "lang": "en"
+        }
+      ]
+    },
+    {
+      "utt_id": "utt_005",
+      "start": 11.7,
+      "end": 13.36,
+      "text": "Who the hell said I got to like you?",
+      "lang": "en",
+      "words": [
+        {
+          "word": " Who",
+          "start": 11.7,
+          "end": 12.02,
+          "lang": "en"
+        },
+        {
+          "word": " the",
+          "start": 12.02,
+          "end": 12.14,
+          "lang": "en"
+        },
+        {
+          "word": " hell",
+          "start": 12.14,
+          "end": 12.22,
+          "lang": "en"
+        },
+        {
+          "word": " said",
+          "start": 12.22,
+          "end": 12.4,
+          "lang": "en"
+        },
+        {
+          "word": " I",
+          "start": 12.4,
+          "end": 12.5,
+          "lang": "en"
+        },
+        {
+          "word": " got",
+          "start": 12.5,
+          "end": 12.7,
+          "lang": "en"
+        },
+        {
+          "word": " to",
+          "start": 12.7,
+          "end": 12.88,
+          "lang": "en"
+        },
+        {
+          "word": " like",
+          "start": 12.88,
+          "end": 13.08,
+          "lang": "en"
+        },
+        {
+          "word": " you?",
+          "start": 13.08,
+          "end": 13.36,
+          "lang": "en"
+        }
+      ]
+    },
+    {
+      "utt_id": "utt_006",
+      "start": 15.12,
+      "end": 23.72,
+      "text": "What law is there say I got to like you? Wanna stand up in front of my face and ask a damn fool-ass question like that? Talkin' about likin' somebody. Call me a boy when I talk to you.",
+      "lang": "en",
+      "words": [
+        {
+          "word": " What",
+          "start": 15.12,
+          "end": 15.44,
+          "lang": "en"
+        },
+        {
+          "word": " law",
+          "start": 15.44,
+          "end": 15.76,
+          "lang": "en"
+        },
+        {
+          "word": " is",
+          "start": 15.76,
+          "end": 16.04,
+          "lang": "en"
+        },
+        {
+          "word": " there",
+          "start": 16.04,
+          "end": 16.32,
+          "lang": "en"
+        },
+        {
+          "word": " say",
+          "start": 16.32,
+          "end": 16.54,
+          "lang": "en"
+        },
+        {
+          "word": " I",
+          "start": 16.54,
+          "end": 16.7,
+          "lang": "en"
+        },
+        {
+          "word": " got",
+          "start": 16.7,
+          "end": 16.94,
+          "lang": "en"
+        },
+        {
+          "word": " to",
+          "start": 16.94,
+          "end": 17.12,
+          "lang": "en"
+        },
+        {
+          "word": " like",
+          "start": 17.12,
+          "end": 17.28,
+          "lang": "en"
+        },
+        {
+          "word": " you?",
+          "start": 17.28,
+          "end": 17.42,
+          "lang": "en"
+        },
+        {
+          "word": " Wanna",
+          "start": 17.54,
+          "end": 17.6,
+          "lang": "en"
+        },
+        {
+          "word": " stand",
+          "start": 17.6,
+          "end": 17.84,
+          "lang": "en"
+        },
+        {
+          "word": " up",
+          "start": 17.84,
+          "end": 18.0,
+          "lang": "en"
+        },
+        {
+          "word": " in",
+          "start": 18.0,
+          "end": 18.08,
+          "lang": "en"
+        },
+        {
+          "word": " front",
+          "start": 18.08,
+          "end": 18.18,
+          "lang": "en"
+        },
+        {
+          "word": " of",
+          "start": 18.18,
+          "end": 18.32,
+          "lang": "en"
+        },
+        {
+          "word": " my",
+          "start": 18.32,
+          "end": 18.5,
+          "lang": "en"
+        },
+        {
+          "word": " face",
+          "start": 18.5,
+          "end": 18.64,
+          "lang": "en"
+        },
+        {
+          "word": " and",
+          "start": 18.64,
+          "end": 18.8,
+          "lang": "en"
+        },
+        {
+          "word": " ask",
+          "start": 18.8,
+          "end": 18.92,
+          "lang": "en"
+        },
+        {
+          "word": " a",
+          "start": 18.92,
+          "end": 19.02,
+          "lang": "en"
+        },
+        {
+          "word": " damn",
+          "start": 19.02,
+          "end": 19.34,
+          "lang": "en"
+        },
+        {
+          "word": " fool",
+          "start": 19.34,
+          "end": 19.56,
+          "lang": "en"
+        },
+        {
+          "word": "-ass",
+          "start": 19.56,
+          "end": 19.72,
+          "lang": "en"
+        },
+        {
+          "word": " question",
+          "start": 19.72,
+          "end": 20.02,
+          "lang": "en"
+        },
+        {
+          "word": " like",
+          "start": 20.02,
+          "end": 20.3,
+          "lang": "en"
+        },
+        {
+          "word": " that?",
+          "start": 20.3,
+          "end": 20.54,
+          "lang": "en"
+        },
+        {
+          "word": " Talkin'",
+          "start": 20.7,
+          "end": 20.86,
+          "lang": "en"
+        },
+        {
+          "word": " about",
+          "start": 20.86,
+          "end": 21.0,
+          "lang": "en"
+        },
+        {
+          "word": " likin'",
+          "start": 21.0,
+          "end": 21.34,
+          "lang": "en"
+        },
+        {
+          "word": " somebody.",
+          "start": 21.42,
+          "end": 21.72,
+          "lang": "en"
+        },
+        {
+          "word": " Call",
+          "start": 22.06,
+          "end": 22.16,
+          "lang": "en"
+        },
+        {
+          "word": " me",
+          "start": 22.16,
+          "end": 22.26,
+          "lang": "en"
+        },
+        {
+          "word": " a",
+          "start": 22.26,
+          "end": 22.36,
+          "lang": "en"
+        },
+        {
+          "word": " boy",
+          "start": 22.36,
+          "end": 22.46,
+          "lang": "en"
+        },
+        {
+          "word": " when",
+          "start": 22.46,
+          "end": 22.6,
+          "lang": "en"
+        },
+        {
+          "word": " I",
+          "start": 22.6,
+          "end": 22.76,
+          "lang": "en"
+        },
+        {
+          "word": " talk",
+          "start": 22.76,
+          "end": 22.96,
+          "lang": "en"
+        },
+        {
+          "word": " to",
+          "start": 22.96,
+          "end": 23.1,
+          "lang": "en"
+        },
+        {
+          "word": " you.",
+          "start": 23.1,
+          "end": 23.72,
+          "lang": "en"
+        }
+      ]
+    },
+    {
+      "utt_id": "utt_007",
+      "start": 25.9,
+      "end": 27.24,
+      "text": "Straighten up, goddammit.",
+      "lang": "en",
+      "words": [
+        {
+          "word": " Straighten",
+          "start": 25.9,
+          "end": 26.22,
+          "lang": "en"
+        },
+        {
+          "word": " up,",
+          "start": 26.22,
+          "end": 26.34,
+          "lang": "en"
+        },
+        {
+          "word": " goddammit.",
+          "start": 26.42,
+          "end": 27.24,
+          "lang": "en"
+        }
+      ]
+    },
+    {
+      "utt_id": "utt_008",
+      "start": 28.36,
+      "end": 35.38,
+      "text": "I asked you a question. What law is there say I got to like you? None. All right, then. Don't you eat every day?",
+      "lang": "en",
+      "words": [
+        {
+          "word": " I",
+          "start": 28.36,
+          "end": 28.72,
+          "lang": "en"
+        },
+        {
+          "word": " asked",
+          "start": 28.72,
+          "end": 28.96,
+          "lang": "en"
+        },
+        {
+          "word": " you",
+          "start": 28.96,
+          "end": 29.16,
+          "lang": "en"
+        },
+        {
+          "word": " a",
+          "start": 29.16,
+          "end": 29.26,
+          "lang": "en"
+        },
+        {
+          "word": " question.",
+          "start": 29.26,
+          "end": 29.66,
+          "lang": "en"
+        },
+        {
+          "word": " What",
+          "start": 30.22,
+          "end": 30.38,
+          "lang": "en"
+        },
+        {
+          "word": " law",
+          "start": 30.38,
+          "end": 31.0,
+          "lang": "en"
+        },
+        {
+          "word": " is",
+          "start": 31.0,
+          "end": 31.38,
+          "lang": "en"
+        },
+        {
+          "word": " there",
+          "start": 31.38,
+          "end": 31.58,
+          "lang": "en"
+        },
+        {
+          "word": " say",
+          "start": 31.58,
+          "end": 31.8,
+          "lang": "en"
+        },
+        {
+          "word": " I",
+          "start": 31.8,
+          "end": 31.96,
+          "lang": "en"
+        },
+        {
+          "word": " got",
+          "start": 31.96,
+          "end": 32.14,
+          "lang": "en"
+        },
+        {
+          "word": " to",
+          "start": 32.14,
+          "end": 32.32,
+          "lang": "en"
+        },
+        {
+          "word": " like",
+          "start": 32.32,
+          "end": 32.52,
+          "lang": "en"
+        },
+        {
+          "word": " you?",
+          "start": 32.52,
+          "end": 32.74,
+          "lang": "en"
+        },
+        {
+          "word": " None.",
+          "start": 32.76,
+          "end": 33.0,
+          "lang": "en"
+        },
+        {
+          "word": " All",
+          "start": 33.3,
+          "end": 33.6,
+          "lang": "en"
+        },
+        {
+          "word": " right,",
+          "start": 33.6,
+          "end": 33.82,
+          "lang": "en"
+        },
+        {
+          "word": " then.",
+          "start": 33.88,
+          "end": 34.08,
+          "lang": "en"
+        },
+        {
+          "word": " Don't",
+          "start": 34.46,
+          "end": 34.66,
+          "lang": "en"
+        },
+        {
+          "word": " you",
+          "start": 34.66,
+          "end": 34.74,
+          "lang": "en"
+        },
+        {
+          "word": " eat",
+          "start": 34.74,
+          "end": 34.86,
+          "lang": "en"
+        },
+        {
+          "word": " every",
+          "start": 34.86,
+          "end": 35.08,
+          "lang": "en"
+        },
+        {
+          "word": " day?",
+          "start": 35.08,
+          "end": 35.38,
+          "lang": "en"
+        }
+      ]
+    },
+    {
+      "utt_id": "utt_009",
+      "start": 37.04,
+      "end": 48.62,
+      "text": "Answer me when I talk to you. Don't you eat every day? Yeah. Nigga, as long as you in my house, you put a sir on the end of it when you talk to me. Yes, sir. You eat every day. Yes, sir. Got a roof over your head. Yes, sir. Got clothes on your back. Yes, sir. Why you think that is? Because of you.",
+      "lang": "en",
+      "words": [
+        {
+          "word": " Answer",
+          "start": 37.04,
+          "end": 37.3,
+          "lang": "en"
+        },
+        {
+          "word": " me",
+          "start": 37.3,
+          "end": 37.44,
+          "lang": "en"
+        },
+        {
+          "word": " when",
+          "start": 37.44,
+          "end": 37.58,
+          "lang": "en"
+        },
+        {
+          "word": " I",
+          "start": 37.58,
+          "end": 37.76,
+          "lang": "en"
+        },
+        {
+          "word": " talk",
+          "start": 37.76,
+          "end": 37.9,
+          "lang": "en"
+        },
+        {
+          "word": " to",
+          "start": 37.9,
+          "end": 37.94,
+          "lang": "en"
+        },
+        {
+          "word": " you.",
+          "start": 37.94,
+          "end": 38.02,
+          "lang": "en"
+        },
+        {
+          "word": " Don't",
+          "start": 38.02,
+          "end": 38.16,
+          "lang": "en"
+        },
+        {
+          "word": " you",
+          "start": 38.16,
+          "end": 38.32,
+          "lang": "en"
+        },
+        {
+          "word": " eat",
+          "start": 38.32,
+          "end": 38.48,
+          "lang": "en"
+        },
+        {
+          "word": " every",
+          "start": 38.48,
+          "end": 38.72,
+          "lang": "en"
+        },
+        {
+          "word": " day?",
+          "start": 38.72,
+          "end": 38.84,
+          "lang": "en"
+        },
+        {
+          "word": " Yeah.",
+          "start": 38.84,
+          "end": 39.12,
+          "lang": "en"
+        },
+        {
+          "word": " Nigga,",
+          "start": 39.22,
+          "end": 39.58,
+          "lang": "en"
+        },
+        {
+          "word": " as",
+          "start": 39.6,
+          "end": 39.82,
+          "lang": "en"
+        },
+        {
+          "word": " long",
+          "start": 39.82,
+          "end": 40.02,
+          "lang": "en"
+        },
+        {
+          "word": " as",
+          "start": 40.02,
+          "end": 40.08,
+          "lang": "en"
+        },
+        {
+          "word": " you",
+          "start": 40.08,
+          "end": 40.22,
+          "lang": "en"
+        },
+        {
+          "word": " in",
+          "start": 40.22,
+          "end": 40.32,
+          "lang": "en"
+        },
+        {
+          "word": " my",
+          "start": 40.32,
+          "end": 40.58,
+          "lang": "en"
+        },
+        {
+          "word": " house,",
+          "start": 40.58,
+          "end": 41.0,
+          "lang": "en"
+        },
+        {
+          "word": " you",
+          "start": 41.14,
+          "end": 41.28,
+          "lang": "en"
+        },
+        {
+          "word": " put",
+          "start": 41.28,
+          "end": 41.48,
+          "lang": "en"
+        },
+        {
+          "word": " a",
+          "start": 41.48,
+          "end": 41.68,
+          "lang": "en"
+        },
+        {
+          "word": " sir",
+          "start": 41.68,
+          "end": 41.82,
+          "lang": "en"
+        },
+        {
+          "word": " on",
+          "start": 41.82,
+          "end": 42.0,
+          "lang": "en"
+        },
+        {
+          "word": " the",
+          "start": 42.0,
+          "end": 42.1,
+          "lang": "en"
+        },
+        {
+          "word": " end",
+          "start": 42.1,
+          "end": 42.22,
+          "lang": "en"
+        },
+        {
+          "word": " of",
+          "start": 42.22,
+          "end": 42.34,
+          "lang": "en"
+        },
+        {
+          "word": " it",
+          "start": 42.34,
+          "end": 42.42,
+          "lang": "en"
+        },
+        {
+          "word": " when",
+          "start": 42.42,
+          "end": 42.52,
+          "lang": "en"
+        },
+        {
+          "word": " you",
+          "start": 42.52,
+          "end": 42.74,
+          "lang": "en"
+        },
+        {
+          "word": " talk",
+          "start": 42.74,
+          "end": 42.86,
+          "lang": "en"
+        },
+        {
+          "word": " to",
+          "start": 42.86,
+          "end": 43.02,
+          "lang": "en"
+        },
+        {
+          "word": " me.",
+          "start": 43.02,
+          "end": 43.18,
+          "lang": "en"
+        },
+        {
+          "word": " Yes,",
+          "start": 43.18,
+          "end": 43.42,
+          "lang": "en"
+        },
+        {
+          "word": " sir.",
+          "start": 43.42,
+          "end": 43.46,
+          "lang": "en"
+        },
+        {
+          "word": " You",
+          "start": 43.46,
+          "end": 43.66,
+          "lang": "en"
+        },
+        {
+          "word": " eat",
+          "start": 43.66,
+          "end": 43.86,
+          "lang": "en"
+        },
+        {
+          "word": " every",
+          "start": 43.86,
+          "end": 44.2,
+          "lang": "en"
+        },
+        {
+          "word": " day.",
+          "start": 44.2,
+          "end": 44.32,
+          "lang": "en"
+        },
+        {
+          "word": " Yes,",
+          "start": 44.32,
+          "end": 44.54,
+          "lang": "en"
+        },
+        {
+          "word": " sir.",
+          "start": 44.54,
+          "end": 44.58,
+          "lang": "en"
+        },
+        {
+          "word": " Got",
+          "start": 44.58,
+          "end": 44.78,
+          "lang": "en"
+        },
+        {
+          "word": " a",
+          "start": 44.78,
+          "end": 44.9,
+          "lang": "en"
+        },
+        {
+          "word": " roof",
+          "start": 44.9,
+          "end": 45.02,
+          "lang": "en"
+        },
+        {
+          "word": " over",
+          "start": 45.02,
+          "end": 45.24,
+          "lang": "en"
+        },
+        {
+          "word": " your",
+          "start": 45.24,
+          "end": 45.44,
+          "lang": "en"
+        },
+        {
+          "word": " head.",
+          "start": 45.44,
+          "end": 45.56,
+          "lang": "en"
+        },
+        {
+          "word": " Yes,",
+          "start": 45.58,
+          "end": 45.82,
+          "lang": "en"
+        },
+        {
+          "word": " sir.",
+          "start": 45.82,
+          "end": 45.86,
+          "lang": "en"
+        },
+        {
+          "word": " Got",
+          "start": 45.86,
+          "end": 46.04,
+          "lang": "en"
+        },
+        {
+          "word": " clothes",
+          "start": 46.04,
+          "end": 46.3,
+          "lang": "en"
+        },
+        {
+          "word": " on",
+          "start": 46.3,
+          "end": 46.48,
+          "lang": "en"
+        },
+        {
+          "word": " your",
+          "start": 46.48,
+          "end": 46.7,
+          "lang": "en"
+        },
+        {
+          "word": " back.",
+          "start": 46.7,
+          "end": 46.8,
+          "lang": "en"
+        },
+        {
+          "word": " Yes,",
+          "start": 46.8,
+          "end": 47.02,
+          "lang": "en"
+        },
+        {
+          "word": " sir.",
+          "start": 47.02,
+          "end": 47.12,
+          "lang": "en"
+        },
+        {
+          "word": " Why",
+          "start": 47.12,
+          "end": 47.3,
+          "lang": "en"
+        },
+        {
+          "word": " you",
+          "start": 47.3,
+          "end": 47.48,
+          "lang": "en"
+        },
+        {
+          "word": " think",
+          "start": 47.48,
+          "end": 47.6,
+          "lang": "en"
+        },
+        {
+          "word": " that",
+          "start": 47.6,
+          "end": 47.84,
+          "lang": "en"
+        },
+        {
+          "word": " is?",
+          "start": 47.84,
+          "end": 48.04,
+          "lang": "en"
+        },
+        {
+          "word": " Because",
+          "start": 48.1,
+          "end": 48.32,
+          "lang": "en"
+        },
+        {
+          "word": " of",
+          "start": 48.32,
+          "end": 48.48,
+          "lang": "en"
+        },
+        {
+          "word": " you.",
+          "start": 48.48,
+          "end": 48.62,
+          "lang": "en"
+        }
+      ]
+    },
+    {
+      "utt_id": "utt_010",
+      "start": 49.42,
+      "end": 52.88,
+      "text": "Hell, I know it's because of me, but why do you think that is?",
+      "lang": "en",
+      "words": [
+        {
+          "word": " Hell,",
+          "start": 49.42,
+          "end": 49.72,
+          "lang": "en"
+        },
+        {
+          "word": " I",
+          "start": 49.88,
+          "end": 49.92,
+          "lang": "en"
+        },
+        {
+          "word": " know",
+          "start": 49.92,
+          "end": 50.08,
+          "lang": "en"
+        },
+        {
+          "word": " it's",
+          "start": 50.08,
+          "end": 50.26,
+          "lang": "en"
+        },
+        {
+          "word": " because",
+          "start": 50.26,
+          "end": 50.44,
+          "lang": "en"
+        },
+        {
+          "word": " of",
+          "start": 50.44,
+          "end": 50.62,
+          "lang": "en"
+        },
+        {
+          "word": " me,",
+          "start": 50.62,
+          "end": 50.9,
+          "lang": "en"
+        },
+        {
+          "word": " but",
+          "start": 50.98,
+          "end": 51.26,
+          "lang": "en"
+        },
+        {
+          "word": " why",
+          "start": 51.26,
+          "end": 51.62,
+          "lang": "en"
+        },
+        {
+          "word": " do",
+          "start": 51.62,
+          "end": 51.82,
+          "lang": "en"
+        },
+        {
+          "word": " you",
+          "start": 51.82,
+          "end": 52.04,
+          "lang": "en"
+        },
+        {
+          "word": " think",
+          "start": 52.04,
+          "end": 52.2,
+          "lang": "en"
+        },
+        {
+          "word": " that",
+          "start": 52.2,
+          "end": 52.5,
+          "lang": "en"
+        },
+        {
+          "word": " is?",
+          "start": 52.5,
+          "end": 52.88,
+          "lang": "en"
+        }
+      ]
+    },
+    {
+      "utt_id": "utt_011",
+      "start": 54.82,
+      "end": 56.04,
+      "text": "Because you like me.",
+      "lang": "en",
+      "words": [
+        {
+          "word": " Because",
+          "start": 54.82,
+          "end": 55.18,
+          "lang": "en"
+        },
+        {
+          "word": " you",
+          "start": 55.18,
+          "end": 55.36,
+          "lang": "en"
+        },
+        {
+          "word": " like",
+          "start": 55.36,
+          "end": 55.5,
+          "lang": "en"
+        },
+        {
+          "word": " me.",
+          "start": 55.5,
+          "end": 56.04,
+          "lang": "en"
+        }
+      ]
+    },
+    {
+      "utt_id": "utt_012",
+      "start": 56.72,
+      "end": 57.62,
+      "text": "Like you.",
+      "lang": "en",
+      "words": [
+        {
+          "word": " Like",
+          "start": 56.72,
+          "end": 57.22,
+          "lang": "en"
+        },
+        {
+          "word": " you.",
+          "start": 57.22,
+          "end": 57.62,
+          "lang": "en"
+        }
+      ]
+    },
+    {
+      "utt_id": "utt_013",
+      "start": 58.76,
+      "end": 59.98,
+      "text": "I go out of here every morning.",
+      "lang": "en",
+      "words": [
+        {
+          "word": " I",
+          "start": 58.76,
+          "end": 58.88,
+          "lang": "en"
+        },
+        {
+          "word": " go",
+          "start": 58.88,
+          "end": 59.06,
+          "lang": "en"
+        },
+        {
+          "word": " out",
+          "start": 59.06,
+          "end": 59.24,
+          "lang": "en"
+        },
+        {
+          "word": " of",
+          "start": 59.24,
+          "end": 59.32,
+          "lang": "en"
+        },
+        {
+          "word": " here",
+          "start": 59.32,
+          "end": 59.42,
+          "lang": "en"
+        },
+        {
+          "word": " every",
+          "start": 59.42,
+          "end": 59.62,
+          "lang": "en"
+        },
+        {
+          "word": " morning.",
+          "start": 59.62,
+          "end": 59.98,
+          "lang": "en"
+        }
+      ]
+    },
+    {
+      "utt_id": "utt_014",
+      "start": 60.68,
+      "end": 65.1,
+      "text": "I bust my butt puttin' up with them crackers every day, because I like you.",
+      "lang": "en",
+      "words": [
+        {
+          "word": " I",
+          "start": 60.68,
+          "end": 60.86,
+          "lang": "en"
+        },
+        {
+          "word": " bust",
+          "start": 60.86,
+          "end": 61.08,
+          "lang": "en"
+        },
+        {
+          "word": " my",
+          "start": 61.08,
+          "end": 61.54,
+          "lang": "en"
+        },
+        {
+          "word": " butt",
+          "start": 61.54,
+          "end": 61.92,
+          "lang": "en"
+        },
+        {
+          "word": " puttin'",
+          "start": 61.92,
+          "end": 62.22,
+          "lang": "en"
+        },
+        {
+          "word": " up",
+          "start": 62.22,
+          "end": 62.36,
+          "lang": "en"
+        },
+        {
+          "word": " with",
+          "start": 62.36,
+          "end": 62.46,
+          "lang": "en"
+        },
+        {
+          "word": " them",
+          "start": 62.46,
+          "end": 62.68,
+          "lang": "en"
+        },
+        {
+          "word": " crackers",
+          "start": 62.68,
+          "end": 63.0,
+          "lang": "en"
+        },
+        {
+          "word": " every",
+          "start": 63.0,
+          "end": 63.36,
+          "lang": "en"
+        },
+        {
+          "word": " day,",
+          "start": 63.36,
+          "end": 64.12,
+          "lang": "en"
+        },
+        {
+          "word": " because",
+          "start": 64.26,
+          "end": 64.32,
+          "lang": "en"
+        },
+        {
+          "word": " I",
+          "start": 64.32,
+          "end": 64.58,
+          "lang": "en"
+        },
+        {
+          "word": " like",
+          "start": 64.58,
+          "end": 64.82,
+          "lang": "en"
+        },
+        {
+          "word": " you.",
+          "start": 64.82,
+          "end": 65.1,
+          "lang": "en"
+        }
+      ]
+    },
+    {
+      "utt_id": "utt_015",
+      "start": 65.7,
+      "end": 79.68,
+      "text": "You're about the biggest fool I ever saw. It's my job. It's my responsibility. A man is supposed to take care of his family. You live in my house, fill your belly with my food, put you behind on my bed because you're my son.",
+      "lang": "en",
+      "words": [
+        {
+          "word": " You're",
+          "start": 65.7,
+          "end": 65.98,
+          "lang": "en"
+        },
+        {
+          "word": " about",
+          "start": 65.98,
+          "end": 66.12,
+          "lang": "en"
+        },
+        {
+          "word": " the",
+          "start": 66.12,
+          "end": 66.4,
+          "lang": "en"
+        },
+        {
+          "word": " biggest",
+          "start": 66.4,
+          "end": 66.66,
+          "lang": "en"
+        },
+        {
+          "word": " fool",
+          "start": 66.66,
+          "end": 66.98,
+          "lang": "en"
+        },
+        {
+          "word": " I",
+          "start": 66.98,
+          "end": 67.12,
+          "lang": "en"
+        },
+        {
+          "word": " ever",
+          "start": 67.12,
+          "end": 67.38,
+          "lang": "en"
+        },
+        {
+          "word": " saw.",
+          "start": 67.38,
+          "end": 67.6,
+          "lang": "en"
+        },
+        {
+          "word": " It's",
+          "start": 67.72,
+          "end": 67.82,
+          "lang": "en"
+        },
+        {
+          "word": " my",
+          "start": 67.82,
+          "end": 68.12,
+          "lang": "en"
+        },
+        {
+          "word": " job.",
+          "start": 68.12,
+          "end": 68.8,
+          "lang": "en"
+        },
+        {
+          "word": " It's",
+          "start": 68.98,
+          "end": 69.28,
+          "lang": "en"
+        },
+        {
+          "word": " my",
+          "start": 69.28,
+          "end": 69.48,
+          "lang": "en"
+        },
+        {
+          "word": " responsibility.",
+          "start": 69.48,
+          "end": 70.46,
+          "lang": "en"
+        },
+        {
+          "word": " A",
+          "start": 70.92,
+          "end": 71.18,
+          "lang": "en"
+        },
+        {
+          "word": " man",
+          "start": 71.18,
+          "end": 71.74,
+          "lang": "en"
+        },
+        {
+          "word": " is",
+          "start": 71.74,
+          "end": 72.14,
+          "lang": "en"
+        },
+        {
+          "word": " supposed",
+          "start": 72.14,
+          "end": 72.44,
+          "lang": "en"
+        },
+        {
+          "word": " to",
+          "start": 72.44,
+          "end": 72.66,
+          "lang": "en"
+        },
+        {
+          "word": " take",
+          "start": 72.66,
+          "end": 72.8,
+          "lang": "en"
+        },
+        {
+          "word": " care",
+          "start": 72.8,
+          "end": 72.92,
+          "lang": "en"
+        },
+        {
+          "word": " of",
+          "start": 72.92,
+          "end": 73.04,
+          "lang": "en"
+        },
+        {
+          "word": " his",
+          "start": 73.04,
+          "end": 73.2,
+          "lang": "en"
+        },
+        {
+          "word": " family.",
+          "start": 73.2,
+          "end": 73.52,
+          "lang": "en"
+        },
+        {
+          "word": " You",
+          "start": 73.86,
+          "end": 74.04,
+          "lang": "en"
+        },
+        {
+          "word": " live",
+          "start": 74.04,
+          "end": 74.18,
+          "lang": "en"
+        },
+        {
+          "word": " in",
+          "start": 74.18,
+          "end": 74.3,
+          "lang": "en"
+        },
+        {
+          "word": " my",
+          "start": 74.3,
+          "end": 74.56,
+          "lang": "en"
+        },
+        {
+          "word": " house,",
+          "start": 74.56,
+          "end": 75.02,
+          "lang": "en"
+        },
+        {
+          "word": " fill",
+          "start": 75.26,
+          "end": 75.26,
+          "lang": "en"
+        },
+        {
+          "word": " your",
+          "start": 75.26,
+          "end": 75.44,
+          "lang": "en"
+        },
+        {
+          "word": " belly",
+          "start": 75.44,
+          "end": 75.6,
+          "lang": "en"
+        },
+        {
+          "word": " with",
+          "start": 75.6,
+          "end": 75.78,
+          "lang": "en"
+        },
+        {
+          "word": " my",
+          "start": 75.78,
+          "end": 76.12,
+          "lang": "en"
+        },
+        {
+          "word": " food,",
+          "start": 76.12,
+          "end": 76.46,
+          "lang": "en"
+        },
+        {
+          "word": " put",
+          "start": 76.72,
+          "end": 76.86,
+          "lang": "en"
+        },
+        {
+          "word": " you",
+          "start": 76.86,
+          "end": 77.06,
+          "lang": "en"
+        },
+        {
+          "word": " behind",
+          "start": 77.06,
+          "end": 77.38,
+          "lang": "en"
+        },
+        {
+          "word": " on",
+          "start": 77.38,
+          "end": 77.54,
+          "lang": "en"
+        },
+        {
+          "word": " my",
+          "start": 77.54,
+          "end": 77.9,
+          "lang": "en"
+        },
+        {
+          "word": " bed",
+          "start": 77.9,
+          "end": 78.14,
+          "lang": "en"
+        },
+        {
+          "word": " because",
+          "start": 78.14,
+          "end": 78.54,
+          "lang": "en"
+        },
+        {
+          "word": " you're",
+          "start": 78.54,
+          "end": 78.86,
+          "lang": "en"
+        },
+        {
+          "word": " my",
+          "start": 78.86,
+          "end": 79.16,
+          "lang": "en"
+        },
+        {
+          "word": " son.",
+          "start": 79.16,
+          "end": 79.68,
+          "lang": "en"
+        }
+      ]
+    },
+    {
+      "utt_id": "utt_016",
+      "start": 80.6,
+      "end": 96.28,
+      "text": "Not because I like you, it's because it's my duty to take care of you. I owe a responsibility to you. Now, let's get this straight right here now before I go along any further. I ain't got to like you. Mr. Rand don't give me my money. Come pay day because he like me. He give it to me because he owe me.",
+      "lang": "en",
+      "words": [
+        {
+          "word": " Not",
+          "start": 80.6,
+          "end": 80.82,
+          "lang": "en"
+        },
+        {
+          "word": " because",
+          "start": 80.82,
+          "end": 80.94,
+          "lang": "en"
+        },
+        {
+          "word": " I",
+          "start": 80.94,
+          "end": 81.2,
+          "lang": "en"
+        },
+        {
+          "word": " like",
+          "start": 81.2,
+          "end": 81.4,
+          "lang": "en"
+        },
+        {
+          "word": " you,",
+          "start": 81.4,
+          "end": 81.66,
+          "lang": "en"
+        },
+        {
+          "word": " it's",
+          "start": 81.66,
+          "end": 81.74,
+          "lang": "en"
+        },
+        {
+          "word": " because",
+          "start": 81.74,
+          "end": 81.84,
+          "lang": "en"
+        },
+        {
+          "word": " it's",
+          "start": 81.84,
+          "end": 82.08,
+          "lang": "en"
+        },
+        {
+          "word": " my",
+          "start": 82.08,
+          "end": 82.24,
+          "lang": "en"
+        },
+        {
+          "word": " duty",
+          "start": 82.24,
+          "end": 82.46,
+          "lang": "en"
+        },
+        {
+          "word": " to",
+          "start": 82.46,
+          "end": 82.72,
+          "lang": "en"
+        },
+        {
+          "word": " take",
+          "start": 82.72,
+          "end": 82.88,
+          "lang": "en"
+        },
+        {
+          "word": " care",
+          "start": 82.88,
+          "end": 83.06,
+          "lang": "en"
+        },
+        {
+          "word": " of",
+          "start": 83.06,
+          "end": 83.18,
+          "lang": "en"
+        },
+        {
+          "word": " you.",
+          "start": 83.18,
+          "end": 83.26,
+          "lang": "en"
+        },
+        {
+          "word": " I",
+          "start": 83.3,
+          "end": 83.38,
+          "lang": "en"
+        },
+        {
+          "word": " owe",
+          "start": 83.38,
+          "end": 83.7,
+          "lang": "en"
+        },
+        {
+          "word": " a",
+          "start": 83.7,
+          "end": 84.12,
+          "lang": "en"
+        },
+        {
+          "word": " responsibility",
+          "start": 84.12,
+          "end": 84.76,
+          "lang": "en"
+        },
+        {
+          "word": " to",
+          "start": 84.76,
+          "end": 85.08,
+          "lang": "en"
+        },
+        {
+          "word": " you.",
+          "start": 85.08,
+          "end": 85.48,
+          "lang": "en"
+        },
+        {
+          "word": " Now,",
+          "start": 85.48,
+          "end": 86.18,
+          "lang": "en"
+        },
+        {
+          "word": " let's",
+          "start": 86.18,
+          "end": 86.38,
+          "lang": "en"
+        },
+        {
+          "word": " get",
+          "start": 86.38,
+          "end": 86.6,
+          "lang": "en"
+        },
+        {
+          "word": " this",
+          "start": 86.6,
+          "end": 86.86,
+          "lang": "en"
+        },
+        {
+          "word": " straight",
+          "start": 86.86,
+          "end": 87.04,
+          "lang": "en"
+        },
+        {
+          "word": " right",
+          "start": 87.04,
+          "end": 87.4,
+          "lang": "en"
+        },
+        {
+          "word": " here",
+          "start": 87.4,
+          "end": 87.68,
+          "lang": "en"
+        },
+        {
+          "word": " now",
+          "start": 87.68,
+          "end": 87.96,
+          "lang": "en"
+        },
+        {
+          "word": " before",
+          "start": 87.96,
+          "end": 88.38,
+          "lang": "en"
+        },
+        {
+          "word": " I",
+          "start": 88.38,
+          "end": 88.54,
+          "lang": "en"
+        },
+        {
+          "word": " go",
+          "start": 88.54,
+          "end": 88.68,
+          "lang": "en"
+        },
+        {
+          "word": " along",
+          "start": 88.68,
+          "end": 88.9,
+          "lang": "en"
+        },
+        {
+          "word": " any",
+          "start": 88.9,
+          "end": 89.16,
+          "lang": "en"
+        },
+        {
+          "word": " further.",
+          "start": 89.16,
+          "end": 89.4,
+          "lang": "en"
+        },
+        {
+          "word": " I",
+          "start": 89.68,
+          "end": 89.92,
+          "lang": "en"
+        },
+        {
+          "word": " ain't",
+          "start": 89.92,
+          "end": 90.08,
+          "lang": "en"
+        },
+        {
+          "word": " got",
+          "start": 90.08,
+          "end": 90.3,
+          "lang": "en"
+        },
+        {
+          "word": " to",
+          "start": 90.3,
+          "end": 90.48,
+          "lang": "en"
+        },
+        {
+          "word": " like",
+          "start": 90.48,
+          "end": 90.66,
+          "lang": "en"
+        },
+        {
+          "word": " you.",
+          "start": 90.66,
+          "end": 91.04,
+          "lang": "en"
+        },
+        {
+          "word": " Mr.",
+          "start": 91.3,
+          "end": 91.52,
+          "lang": "en"
+        },
+        {
+          "word": " Rand",
+          "start": 91.66,
+          "end": 91.78,
+          "lang": "en"
+        },
+        {
+          "word": " don't",
+          "start": 91.78,
+          "end": 91.98,
+          "lang": "en"
+        },
+        {
+          "word": " give",
+          "start": 91.98,
+          "end": 92.1,
+          "lang": "en"
+        },
+        {
+          "word": " me",
+          "start": 92.1,
+          "end": 92.26,
+          "lang": "en"
+        },
+        {
+          "word": " my",
+          "start": 92.26,
+          "end": 92.44,
+          "lang": "en"
+        },
+        {
+          "word": " money.",
+          "start": 92.44,
+          "end": 92.72,
+          "lang": "en"
+        },
+        {
+          "word": " Come",
+          "start": 92.92,
+          "end": 93.06,
+          "lang": "en"
+        },
+        {
+          "word": " pay",
+          "start": 93.06,
+          "end": 93.28,
+          "lang": "en"
+        },
+        {
+          "word": " day",
+          "start": 93.28,
+          "end": 93.4,
+          "lang": "en"
+        },
+        {
+          "word": " because",
+          "start": 93.4,
+          "end": 93.58,
+          "lang": "en"
+        },
+        {
+          "word": " he",
+          "start": 93.58,
+          "end": 93.78,
+          "lang": "en"
+        },
+        {
+          "word": " like",
+          "start": 93.78,
+          "end": 93.94,
+          "lang": "en"
+        },
+        {
+          "word": " me.",
+          "start": 93.94,
+          "end": 94.2,
+          "lang": "en"
+        },
+        {
+          "word": " He",
+          "start": 94.3,
+          "end": 94.52,
+          "lang": "en"
+        },
+        {
+          "word": " give",
+          "start": 94.52,
+          "end": 94.68,
+          "lang": "en"
+        },
+        {
+          "word": " it",
+          "start": 94.68,
+          "end": 94.82,
+          "lang": "en"
+        },
+        {
+          "word": " to",
+          "start": 94.82,
+          "end": 94.96,
+          "lang": "en"
+        },
+        {
+          "word": " me",
+          "start": 94.96,
+          "end": 95.2,
+          "lang": "en"
+        },
+        {
+          "word": " because",
+          "start": 95.2,
+          "end": 95.38,
+          "lang": "en"
+        },
+        {
+          "word": " he",
+          "start": 95.38,
+          "end": 95.6,
+          "lang": "en"
+        },
+        {
+          "word": " owe",
+          "start": 95.6,
+          "end": 95.74,
+          "lang": "en"
+        },
+        {
+          "word": " me.",
+          "start": 95.74,
+          "end": 96.28,
+          "lang": "en"
+        }
+      ]
+    },
+    {
+      "utt_id": "utt_017",
+      "start": 97.7,
+      "end": 100.74,
+      "text": "Now, I don't give you everything I got to give you. I give you your life.",
+      "lang": "en",
+      "words": [
+        {
+          "word": " Now,",
+          "start": 97.7,
+          "end": 97.9,
+          "lang": "en"
+        },
+        {
+          "word": " I",
+          "start": 97.9,
+          "end": 97.94,
+          "lang": "en"
+        },
+        {
+          "word": " don't",
+          "start": 97.94,
+          "end": 98.14,
+          "lang": "en"
+        },
+        {
+          "word": " give",
+          "start": 98.14,
+          "end": 98.34,
+          "lang": "en"
+        },
+        {
+          "word": " you",
+          "start": 98.34,
+          "end": 98.52,
+          "lang": "en"
+        },
+        {
+          "word": " everything",
+          "start": 98.52,
+          "end": 98.8,
+          "lang": "en"
+        },
+        {
+          "word": " I",
+          "start": 98.8,
+          "end": 98.94,
+          "lang": "en"
+        },
+        {
+          "word": " got",
+          "start": 98.94,
+          "end": 99.12,
+          "lang": "en"
+        },
+        {
+          "word": " to",
+          "start": 99.12,
+          "end": 99.34,
+          "lang": "en"
+        },
+        {
+          "word": " give",
+          "start": 99.34,
+          "end": 99.44,
+          "lang": "en"
+        },
+        {
+          "word": " you.",
+          "start": 99.44,
+          "end": 99.52,
+          "lang": "en"
+        },
+        {
+          "word": " I",
+          "start": 99.58,
+          "end": 99.6,
+          "lang": "en"
+        },
+        {
+          "word": " give",
+          "start": 99.6,
+          "end": 99.76,
+          "lang": "en"
+        },
+        {
+          "word": " you",
+          "start": 99.76,
+          "end": 99.94,
+          "lang": "en"
+        },
+        {
+          "word": " your",
+          "start": 99.94,
+          "end": 100.32,
+          "lang": "en"
+        },
+        {
+          "word": " life.",
+          "start": 100.32,
+          "end": 100.74,
+          "lang": "en"
+        }
+      ]
+    },
+    {
+      "utt_id": "utt_018",
+      "start": 101.92,
+      "end": 105.8,
+      "text": "Me and your mama worked that out between us, and liking your black ass wasn't part of the bargain.",
+      "lang": "en",
+      "words": [
+        {
+          "word": " Me",
+          "start": 101.92,
+          "end": 102.08,
+          "lang": "en"
+        },
+        {
+          "word": " and",
+          "start": 102.08,
+          "end": 102.18,
+          "lang": "en"
+        },
+        {
+          "word": " your",
+          "start": 102.18,
+          "end": 102.36,
+          "lang": "en"
+        },
+        {
+          "word": " mama",
+          "start": 102.36,
+          "end": 102.52,
+          "lang": "en"
+        },
+        {
+          "word": " worked",
+          "start": 102.52,
+          "end": 102.76,
+          "lang": "en"
+        },
+        {
+          "word": " that",
+          "start": 102.76,
+          "end": 102.98,
+          "lang": "en"
+        },
+        {
+          "word": " out",
+          "start": 102.98,
+          "end": 103.1,
+          "lang": "en"
+        },
+        {
+          "word": " between",
+          "start": 103.1,
+          "end": 103.38,
+          "lang": "en"
+        },
+        {
+          "word": " us,",
+          "start": 103.38,
+          "end": 103.58,
+          "lang": "en"
+        },
+        {
+          "word": " and",
+          "start": 103.66,
+          "end": 103.72,
+          "lang": "en"
+        },
+        {
+          "word": " liking",
+          "start": 103.72,
+          "end": 103.9,
+          "lang": "en"
+        },
+        {
+          "word": " your",
+          "start": 103.9,
+          "end": 104.16,
+          "lang": "en"
+        },
+        {
+          "word": " black",
+          "start": 104.16,
+          "end": 104.42,
+          "lang": "en"
+        },
+        {
+          "word": " ass",
+          "start": 104.42,
+          "end": 104.66,
+          "lang": "en"
+        },
+        {
+          "word": " wasn't",
+          "start": 104.66,
+          "end": 104.9,
+          "lang": "en"
+        },
+        {
+          "word": " part",
+          "start": 104.9,
+          "end": 105.18,
+          "lang": "en"
+        },
+        {
+          "word": " of",
+          "start": 105.18,
+          "end": 105.3,
+          "lang": "en"
+        },
+        {
+          "word": " the",
+          "start": 105.3,
+          "end": 105.46,
+          "lang": "en"
+        },
+        {
+          "word": " bargain.",
+          "start": 105.46,
+          "end": 105.8,
+          "lang": "en"
+        }
+      ]
+    },
+    {
+      "utt_id": "utt_019",
+      "start": 106.92,
+      "end": 118.8,
+      "text": "Now, don't you go through life worrying about whether somebody like you or not. You best be making sure they're doing right by you. You understand what I'm saying? Then get the hell out of my face and get on down to that A&P.",
+      "lang": "en",
+      "words": [
+        {
+          "word": " Now,",
+          "start": 106.92,
+          "end": 107.12,
+          "lang": "en"
+        },
+        {
+          "word": " don't",
+          "start": 107.12,
+          "end": 107.3,
+          "lang": "en"
+        },
+        {
+          "word": " you",
+          "start": 107.3,
+          "end": 107.5,
+          "lang": "en"
+        },
+        {
+          "word": " go",
+          "start": 107.5,
+          "end": 107.72,
+          "lang": "en"
+        },
+        {
+          "word": " through",
+          "start": 107.72,
+          "end": 108.02,
+          "lang": "en"
+        },
+        {
+          "word": " life",
+          "start": 108.02,
+          "end": 108.44,
+          "lang": "en"
+        },
+        {
+          "word": " worrying",
+          "start": 108.44,
+          "end": 108.88,
+          "lang": "en"
+        },
+        {
+          "word": " about",
+          "start": 108.88,
+          "end": 109.24,
+          "lang": "en"
+        },
+        {
+          "word": " whether",
+          "start": 109.24,
+          "end": 109.42,
+          "lang": "en"
+        },
+        {
+          "word": " somebody",
+          "start": 109.42,
+          "end": 109.76,
+          "lang": "en"
+        },
+        {
+          "word": " like",
+          "start": 109.76,
+          "end": 110.0,
+          "lang": "en"
+        },
+        {
+          "word": " you",
+          "start": 110.0,
+          "end": 110.2,
+          "lang": "en"
+        },
+        {
+          "word": " or",
+          "start": 110.2,
+          "end": 110.34,
+          "lang": "en"
+        },
+        {
+          "word": " not.",
+          "start": 110.34,
+          "end": 110.5,
+          "lang": "en"
+        },
+        {
+          "word": " You",
+          "start": 110.66,
+          "end": 110.88,
+          "lang": "en"
+        },
+        {
+          "word": " best",
+          "start": 110.88,
+          "end": 111.18,
+          "lang": "en"
+        },
+        {
+          "word": " be",
+          "start": 111.18,
+          "end": 111.46,
+          "lang": "en"
+        },
+        {
+          "word": " making",
+          "start": 111.46,
+          "end": 111.7,
+          "lang": "en"
+        },
+        {
+          "word": " sure",
+          "start": 111.7,
+          "end": 112.18,
+          "lang": "en"
+        },
+        {
+          "word": " they're",
+          "start": 112.18,
+          "end": 112.56,
+          "lang": "en"
+        },
+        {
+          "word": " doing",
+          "start": 112.56,
+          "end": 112.8,
+          "lang": "en"
+        },
+        {
+          "word": " right",
+          "start": 112.8,
+          "end": 113.12,
+          "lang": "en"
+        },
+        {
+          "word": " by",
+          "start": 113.12,
+          "end": 113.44,
+          "lang": "en"
+        },
+        {
+          "word": " you.",
+          "start": 113.44,
+          "end": 113.66,
+          "lang": "en"
+        },
+        {
+          "word": " You",
+          "start": 113.8,
+          "end": 113.94,
+          "lang": "en"
+        },
+        {
+          "word": " understand",
+          "start": 113.94,
+          "end": 114.36,
+          "lang": "en"
+        },
+        {
+          "word": " what",
+          "start": 114.36,
+          "end": 114.54,
+          "lang": "en"
+        },
+        {
+          "word": " I'm",
+          "start": 114.54,
+          "end": 114.7,
+          "lang": "en"
+        },
+        {
+          "word": " saying?",
+          "start": 114.7,
+          "end": 114.94,
+          "lang": "en"
+        },
+        {
+          "word": " Then",
+          "start": 114.94,
+          "end": 115.46,
+          "lang": "en"
+        },
+        {
+          "word": " get",
+          "start": 115.46,
+          "end": 115.76,
+          "lang": "en"
+        },
+        {
+          "word": " the",
+          "start": 115.76,
+          "end": 115.98,
+          "lang": "en"
+        },
+        {
+          "word": " hell",
+          "start": 115.98,
+          "end": 116.18,
+          "lang": "en"
+        },
+        {
+          "word": " out",
+          "start": 116.18,
+          "end": 116.38,
+          "lang": "en"
+        },
+        {
+          "word": " of",
+          "start": 116.38,
+          "end": 116.48,
+          "lang": "en"
+        },
+        {
+          "word": " my",
+          "start": 116.48,
+          "end": 116.7,
+          "lang": "en"
+        },
+        {
+          "word": " face",
+          "start": 116.7,
+          "end": 116.98,
+          "lang": "en"
+        },
+        {
+          "word": " and",
+          "start": 116.98,
+          "end": 117.26,
+          "lang": "en"
+        },
+        {
+          "word": " get",
+          "start": 117.26,
+          "end": 117.46,
+          "lang": "en"
+        },
+        {
+          "word": " on",
+          "start": 117.46,
+          "end": 117.62,
+          "lang": "en"
+        },
+        {
+          "word": " down",
+          "start": 117.62,
+          "end": 117.84,
+          "lang": "en"
+        },
+        {
+          "word": " to",
+          "start": 117.84,
+          "end": 118.02,
+          "lang": "en"
+        },
+        {
+          "word": " that",
+          "start": 118.02,
+          "end": 118.24,
+          "lang": "en"
+        },
+        {
+          "word": " A",
+          "start": 118.24,
+          "end": 118.42,
+          "lang": "en"
+        },
+        {
+          "word": "&P.",
+          "start": 118.42,
+          "end": 118.8,
+          "lang": "en"
+        }
+      ]
+    }
+  ],
+  "source_path": "C:\\Users\\sejun\\Documents\\Codex\\2026-05-26\\midform\\midform\\test_runs\\run_013_tVxYCeRXzGo_e2e\\source.mp4",
+  "source_duration": 140.039546,
+  "utterance_count": 19,
+  "total_utterance_duration": 95.56
+}

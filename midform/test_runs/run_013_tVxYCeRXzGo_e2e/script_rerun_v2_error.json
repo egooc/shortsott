@@ -1,0 +1,12 @@
+{
+  "message": "GPT slot fills failed validation after retry",
+  "code": "GPT_SLOT_FILLS_VALIDATION_FAILED",
+  "details": {
+    "errors": [
+      "s01 changed during targeted naturalization retry; only flagged slots may change"
+    ],
+    "promptPath": "C:\\Users\\sejun\\Documents\\Codex\\2026-05-26\\midform\\midform\\work\\gpt_cli\\codex_midform_prompt_20260714-215825_8cb114fd-2e18-4b9a-865b-9624376325fc.md",
+    "outputPath": "C:\\Users\\sejun\\Documents\\Codex\\2026-05-26\\midform\\midform\\work\\gpt_cli\\codex_midform_output_20260714-215825_8dfcb984-834a-46bb-89b6-2fdb6925aeda.txt"
+  },
+  "status": 500
+}

@@ -1,0 +1,21 @@
+{
+  "type": "object",
+  "properties": {
+    "issues": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "slot_id": { "type": "string" },
+          "sentence": { "type": "string" },
+          "reason": { "type": "string" },
+          "suggested_direction": { "type": "string" }
+        },
+        "required": ["slot_id", "sentence", "reason", "suggested_direction"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["issues"],
+  "additionalProperties": false
+}

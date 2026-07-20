@@ -1,0 +1,328 @@
+{
+  "source_duration_sec": 140.039546,
+  "composition_mode": "dialogue_heavy",
+  "composition_mode_reason": "transcript speech ratio exceeds 50%; dialogue carries the story and narration should act as hook/bridge/payoff frame",
+  "speech_duration_sec": 95.56,
+  "speech_ratio": 0.6824,
+  "dialogue_heavy_mode": true,
+  "narration_strategy": {
+    "max_narration_slots": 3,
+    "roles": [
+      "hook",
+      "bridge",
+      "payoff"
+    ],
+    "instruction": "대사가 스토리를 끌고 가므로 나레이션은 도입, 전환 1개, 마무리 액자만 담당한다."
+  },
+  "slots": [
+    {
+      "type": "dialogue",
+      "utt_id": "utt_016",
+      "source_range": [
+        80.6,
+        96.28
+      ],
+      "duration": 15.68,
+      "caption_source_text": "Not because I like you, it's because it's my duty to take care of you. I owe a responsibility to you. Now, let's get this straight right here now before I go along any further. I ain't got to like you. Mr. Rand don't give me my money. Come pay day because he like me. He give it to me because he owe me.",
+      "needs_translation": true,
+      "scene_id": "scene_012",
+      "scene_summary": "나이 든 남자가 젊은 남자에게 자신은 아들을 좋아해서가 아니라 의무감 때문에 돌본다고 강조한다. / 발화: Not because I like you, it's because it's my duty to take care of you. I owe a responsibility to you. Now, let's get this straight right here now before I go along any further. I ain't got to like you. Mr. Rand don't give me my money. Come pay day because he like me. He give it to me because he owe me.",
+      "slot_id": "s01"
+    },
+    {
+      "type": "narration",
+      "source_range": [
+        118.85,
+        140.04
+      ],
+      "duration": 21.19,
+      "scene_summary": "아버지가 아들에게서 등을 돌려 집으로 향하고, 아들도 반대 방향으로 걸어간다. / 아들이 집 문을 열고 들어선다. 아들은 여전히 굳은 표정이다. / 부엌에 서 있는 어머니가 걱정스러운 표정으로 아들을 바라본다.",
+      "scene_ids": [
+        "scene_015",
+        "scene_016",
+        "scene_017"
+      ],
+      "tts_budget_sec": [
+        15.892,
+        20.13
+      ],
+      "slot_id": "s02"
+    }
+  ],
+  "excluded_ranges": [
+    [
+      0.52,
+      1.52,
+      "unselected_speech"
+    ],
+    [
+      2.94,
+      5.6,
+      "unselected_speech"
+    ],
+    [
+      7.0,
+      8.42,
+      "unselected_speech"
+    ],
+    [
+      9.62,
+      10.22,
+      "unselected_speech"
+    ],
+    [
+      11.7,
+      13.36,
+      "unselected_speech"
+    ],
+    [
+      15.12,
+      23.72,
+      "unselected_speech"
+    ],
+    [
+      25.9,
+      27.24,
+      "unselected_speech"
+    ],
+    [
+      28.36,
+      35.38,
+      "unselected_speech"
+    ],
+    [
+      37.04,
+      48.62,
+      "unselected_speech"
+    ],
+    [
+      49.42,
+      52.88,
+      "unselected_speech"
+    ],
+    [
+      54.82,
+      56.04,
+      "unselected_speech"
+    ],
+    [
+      56.72,
+      57.62,
+      "unselected_speech"
+    ],
+    [
+      58.76,
+      59.98,
+      "unselected_speech"
+    ],
+    [
+      60.68,
+      65.1,
+      "unselected_speech"
+    ],
+    [
+      65.7,
+      79.68,
+      "unselected_speech"
+    ],
+    [
+      97.7,
+      100.74,
+      "unselected_speech"
+    ],
+    [
+      101.92,
+      105.8,
+      "unselected_speech"
+    ],
+    [
+      106.92,
+      118.8,
+      "unselected_speech"
+    ]
+  ],
+  "excluded_dialogue_utterances": [
+    {
+      "utt_id": "utt_001",
+      "source_range": [
+        0.52,
+        1.52
+      ],
+      "text": "Can I ask you a question?",
+      "score": 45,
+      "reason": "not_selected_by_dialogue_budget_or_score"
+    },
+    {
+      "utt_id": "utt_002",
+      "source_range": [
+        2.94,
+        5.6
+      ],
+      "text": "What the hell you got to ask me? Mr. Stowickie, the one you got the questions for.",
+      "score": 60,
+      "reason": "not_selected_by_dialogue_budget_or_score"
+    },
+    {
+      "utt_id": "utt_003",
+      "source_range": [
+        7.0,
+        8.42
+      ],
+      "text": "How come you ain't ever like me?",
+      "score": 195,
+      "reason": "not_selected_by_dialogue_budget_or_score"
+    },
+    {
+      "utt_id": "utt_004",
+      "source_range": [
+        9.62,
+        10.22
+      ],
+      "text": "Like you?",
+      "score": 195,
+      "reason": "not_selected_by_dialogue_budget_or_score"
+    },
+    {
+      "utt_id": "utt_005",
+      "source_range": [
+        11.7,
+        13.36
+      ],
+      "text": "Who the hell said I got to like you?",
+      "score": 195,
+      "reason": "not_selected_by_dialogue_budget_or_score"
+    },
+    {
+      "utt_id": "utt_006",
+      "source_range": [
+        15.12,
+        23.72
+      ],
+      "text": "What law is there say I got to like you? Wanna stand up in front of my face and ask a damn fool-ass question like that? Talkin' about likin' somebody. Call me a boy when I talk to you.",
+      "score": 90,
+      "reason": "not_selected_by_dialogue_budget_or_score"
+    },
+    {
+      "utt_id": "utt_007",
+      "source_range": [
+        25.9,
+        27.24
+      ],
+      "text": "Straighten up, goddammit.",
+      "score": 55,
+      "reason": "not_selected_by_dialogue_budget_or_score"
+    },
+    {
+      "utt_id": "utt_008",
+      "source_range": [
+        28.36,
+        35.38
+      ],
+      "text": "I asked you a question. What law is there say I got to like you? None. All right, then. Don't you eat every day?",
+      "score": 45,
+      "reason": "not_selected_by_dialogue_budget_or_score"
+    },
+    {
+      "utt_id": "utt_009",
+      "source_range": [
+        37.04,
+        48.62
+      ],
+      "text": "Answer me when I talk to you. Don't you eat every day? Yeah. Nigga, as long as you in my house, you put a sir on the end of it when you talk to me. Yes, sir. You eat every day. Yes, sir. Got a roof over your head. Yes, sir. Got clothes on your back. Yes, sir. Why you think that is? Because of you.",
+      "score": 175,
+      "reason": "not_selected_by_dialogue_budget_or_score"
+    },
+    {
+      "utt_id": "utt_010",
+      "source_range": [
+        49.42,
+        52.88
+      ],
+      "text": "Hell, I know it's because of me, but why do you think that is?",
+      "score": 60,
+      "reason": "not_selected_by_dialogue_budget_or_score"
+    },
+    {
+      "utt_id": "utt_011",
+      "source_range": [
+        54.82,
+        56.04
+      ],
+      "text": "Because you like me.",
+      "score": 60,
+      "reason": "not_selected_by_dialogue_budget_or_score"
+    },
+    {
+      "utt_id": "utt_012",
+      "source_range": [
+        56.72,
+        57.62
+      ],
+      "text": "Like you.",
+      "score": 0,
+      "reason": "short_low_confidence_dialogue"
+    },
+    {
+      "utt_id": "utt_013",
+      "source_range": [
+        58.76,
+        59.98
+      ],
+      "text": "I go out of here every morning.",
+      "score": 0,
+      "reason": "not_selected_by_dialogue_budget_or_score"
+    },
+    {
+      "utt_id": "utt_014",
+      "source_range": [
+        60.68,
+        65.1
+      ],
+      "text": "I bust my butt puttin' up with them crackers every day, because I like you.",
+      "score": 60,
+      "reason": "not_selected_by_dialogue_budget_or_score"
+    },
+    {
+      "utt_id": "utt_015",
+      "source_range": [
+        65.7,
+        79.68
+      ],
+      "text": "You're about the biggest fool I ever saw. It's my job. It's my responsibility. A man is supposed to take care of his family. You live in my house, fill your belly with my food, put you behind on my bed because you're my son.",
+      "score": 175,
+      "reason": "not_selected_by_dialogue_budget_or_score"
+    },
+    {
+      "utt_id": "utt_017",
+      "source_range": [
+        97.7,
+        100.74
+      ],
+      "text": "Now, I don't give you everything I got to give you. I give you your life.",
+      "score": 195,
+      "reason": "not_selected_by_dialogue_budget_or_score"
+    },
+    {
+      "utt_id": "utt_018",
+      "source_range": [
+        101.92,
+        105.8
+      ],
+      "text": "Me and your mama worked that out between us, and liking your black ass wasn't part of the bargain.",
+      "score": 195,
+      "reason": "not_selected_by_dialogue_budget_or_score"
+    },
+    {
+      "utt_id": "utt_019",
+      "source_range": [
+        106.92,
+        118.8
+      ],
+      "text": "Now, don't you go through life worrying about whether somebody like you or not. You best be making sure they're doing right by you. You understand what I'm saying? Then get the hell out of my face and get on down to that A&P.",
+      "score": 190,
+      "reason": "not_selected_by_dialogue_budget_or_score"
+    }
+  ],
+  "total_output_estimate_sec": 33.691,
+  "dialogue_selected_duration_sec": 15.68
+}

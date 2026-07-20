@@ -1,0 +1,407 @@
+{
+  "source_duration_sec": 148.901,
+  "slots": [
+    {
+      "type": "narration",
+      "source_range": [
+        0.0,
+        17.99
+      ],
+      "duration": 17.99,
+      "scene_summary": "밤하늘 아래 빛나는 와칸다 도시의 전경이 폭포와 함께 서서히 드러난다. 화면 하단에 'WAKANDA'라는 글자가 나타난다. / 카메라가 와칸다 도시에서 멀어져 숲 속의 어두운 풍경을 비춘다. 멀리서 작은 불빛이 보인다. / 어두운 배경에 불꽃이 튀어 오르고, 'SIX YEARS AGO'라는 자막이 화면 중앙에 나타난다.",
+      "scene_ids": [
+        "scene_001",
+        "scene_002",
+        "scene_003"
+      ],
+      "tts_budget_sec": [
+        13.492,
+        17.09
+      ],
+      "slot_id": "s01"
+    },
+    {
+      "type": "dialogue",
+      "utt_id": "utt_001",
+      "source_range": [
+        18.04,
+        19.98
+      ],
+      "duration": 1.94,
+      "caption_source_text": "It is time.",
+      "needs_translation": true,
+      "scene_id": "scene_004",
+      "scene_summary": "불꽃이 튀는 배경으로 한 남자의 얼굴이 클로즈업된다. 그는 진지한 표정으로 불을 응시한다. / 발화: It is time.",
+      "slot_id": "s02"
+    },
+    {
+      "type": "dialogue",
+      "utt_id": "utt_002",
+      "source_range": [
+        23.64,
+        24.72
+      ],
+      "duration": 1.08,
+      "caption_source_text": "You sure about this?",
+      "needs_translation": true,
+      "scene_id": "scene_004",
+      "scene_summary": "불꽃이 튀는 배경으로 한 남자의 얼굴이 클로즈업된다. 그는 진지한 표정으로 불을 응시한다. / 발화: You sure about this?",
+      "slot_id": "s03"
+    },
+    {
+      "type": "dialogue",
+      "utt_id": "utt_003",
+      "source_range": [
+        25.88,
+        27.72
+      ],
+      "duration": 1.84,
+      "caption_source_text": "I won't let you hurt anyone.",
+      "needs_translation": true,
+      "scene_id": "scene_005",
+      "scene_summary": "불빛 앞에서 창을 든 여인의 얼굴이 클로즈업된다. 그녀는 단호한 표정으로 말한다. / 발화: I won't let you hurt anyone.",
+      "slot_id": "s04"
+    },
+    {
+      "type": "narration",
+      "source_range": [
+        27.77,
+        33.13
+      ],
+      "duration": 5.36,
+      "scene_summary": "불빛 앞에서 창을 든 여인의 얼굴이 클로즈업된다. 그녀는 단호한 표정으로 말한다. / 윈터 솔져가 기계에 묶여 고통스럽게 비명을 지르고 있다.",
+      "scene_ids": [
+        "scene_005",
+        "scene_006"
+      ],
+      "tts_budget_sec": [
+        4.02,
+        5.092
+      ],
+      "slot_id": "s05"
+    },
+    {
+      "type": "narration",
+      "source_range": [
+        34.19,
+        38.23
+      ],
+      "duration": 4.04,
+      "scene_summary": "윈터 솔져가 오토바이를 타고 밤길을 달리고 있으며, 옆으로 차가 지나간다. / 윈터 솔져의 얼굴이 불꽃 뒤로 흐릿하게 보이며 고통스러운 표정을 짓고 있다. 'Benign'이라는 단어가 화면에 나타난다.",
+      "scene_ids": [
+        "scene_007",
+        "scene_008"
+      ],
+      "tts_budget_sec": [
+        3.03,
+        3.838
+      ],
+      "slot_id": "s06"
+    },
+    {
+      "type": "narration",
+      "source_range": [
+        39.0,
+        44.81
+      ],
+      "duration": 5.81,
+      "scene_summary": "비발화 장면",
+      "scene_ids": [],
+      "tts_budget_sec": [
+        4.358,
+        5.52
+      ],
+      "slot_id": "s07"
+    },
+    {
+      "type": "narration",
+      "source_range": [
+        49.57,
+        53.67
+      ],
+      "duration": 4.1,
+      "scene_summary": "비발화 장면",
+      "scene_ids": [],
+      "tts_budget_sec": [
+        3.075,
+        3.895
+      ],
+      "slot_id": "s08"
+    },
+    {
+      "type": "narration",
+      "source_range": [
+        60.75,
+        67.51
+      ],
+      "duration": 6.76,
+      "scene_summary": "비발화 장면",
+      "scene_ids": [],
+      "tts_budget_sec": [
+        5.07,
+        6.422
+      ],
+      "slot_id": "s09"
+    },
+    {
+      "type": "dialogue",
+      "utt_id": "utt_011",
+      "source_range": [
+        67.56,
+        71.32
+      ],
+      "duration": 3.76,
+      "caption_source_text": "The heart. The dream.",
+      "needs_translation": true,
+      "scene_id": "scene_010",
+      "scene_summary": "윈터 솔져가 고통스러운 표정으로 카메라를 응시하고, 전경에 불꽃이 보인다. 폴란드어 자막이 나타난다. / 발화: The heart. The dream.",
+      "slot_id": "s10"
+    },
+    {
+      "type": "dialogue",
+      "utt_id": "utt_012",
+      "source_range": [
+        73.92,
+        75.5
+      ],
+      "duration": 1.58,
+      "caption_source_text": "The return of the people.",
+      "needs_translation": true,
+      "scene_id": "scene_011",
+      "scene_summary": "윈터 솔져가 고통스러워하며 'Homecoming'과 러시아어 자막이 화면에 나타난다. / 발화: The return of the people.",
+      "slot_id": "s11"
+    },
+    {
+      "type": "dialogue",
+      "utt_id": "utt_013",
+      "source_range": [
+        79.48,
+        80.52
+      ],
+      "duration": 1.04,
+      "caption_source_text": "The one.",
+      "needs_translation": true,
+      "scene_id": "scene_012",
+      "scene_summary": "윈터 솔져가 고통스러운 표정으로 'One'이라는 단어가 화면에 나타난다. / 발화: The one.",
+      "slot_id": "s12"
+    },
+    {
+      "type": "dialogue",
+      "utt_id": "utt_014",
+      "source_range": [
+        83.98,
+        85.06
+      ],
+      "duration": 1.08,
+      "caption_source_text": "The cargo ship.",
+      "needs_translation": true,
+      "scene_id": "scene_013",
+      "scene_summary": "윈터 솔져가 눈물을 흘리며 고통스러워하고, 'Freight Car'와 러시아어 자막이 화면에 나타난다. / 발화: The cargo ship.",
+      "slot_id": "s13"
+    },
+    {
+      "type": "narration",
+      "source_range": [
+        85.11,
+        101.77
+      ],
+      "duration": 16.66,
+      "scene_summary": "윈터 솔져가 눈물을 흘리며 고통스러워하고, 'Freight Car'와 러시아어 자막이 화면에 나타난다. / 여성 전사가 진지한 표정으로 무언가를 응시한다. / 윈터 솔져가 눈물을 흘리며 고통스러워한다.",
+      "scene_ids": [
+        "scene_013",
+        "scene_014",
+        "scene_015"
+      ],
+      "tts_budget_sec": [
+        12.495,
+        15.827
+      ],
+      "slot_id": "s14"
+    },
+    {
+      "type": "narration",
+      "source_range": [
+        103.85,
+        110.69
+      ],
+      "duration": 6.84,
+      "scene_summary": "한 여성이 진지한 표정으로 말을 한다. / 한 남성이 눈물을 흘리며 감격한 표정을 짓는다. / 여성이 다시 한번 진지한 표정으로 말을 한다.",
+      "scene_ids": [
+        "scene_016",
+        "scene_017",
+        "scene_018"
+      ],
+      "tts_budget_sec": [
+        5.13,
+        6.498
+      ],
+      "slot_id": "s15"
+    },
+    {
+      "type": "narration",
+      "source_range": [
+        111.45,
+        129.0
+      ],
+      "duration": 17.55,
+      "scene_summary": "여성이 다시 한번 진지한 표정으로 말을 한다. / 남성이 고개를 숙인 채 눈물을 흘린다. / 여성이 차분한 표정으로 남성을 바라본다. / 남성이 손으로 입을 가린 채 흐느끼며 슬퍼한다.",
+      "scene_ids": [
+        "scene_018",
+        "scene_019",
+        "scene_020",
+        "scene_021"
+      ],
+      "tts_budget_sec": [
+        13.162,
+        16.672
+      ],
+      "slot_id": "s16"
+    }
+  ],
+  "excluded_ranges": [
+    [
+      33.18,
+      34.14,
+      "unselected_speech"
+    ],
+    [
+      38.28,
+      38.95,
+      "unselected_speech"
+    ],
+    [
+      44.86,
+      46.02,
+      "unselected_speech"
+    ],
+    [
+      48.26,
+      49.52,
+      "unselected_speech"
+    ],
+    [
+      53.72,
+      55.12,
+      "unselected_speech"
+    ],
+    [
+      56.44,
+      57.34,
+      "unselected_speech"
+    ],
+    [
+      59.34,
+      60.7,
+      "unselected_speech"
+    ],
+    [
+      101.82,
+      103.8,
+      "unselected_speech"
+    ],
+    [
+      110.74,
+      111.4,
+      "unselected_speech"
+    ],
+    [
+      129.0,
+      148.901,
+      "excluded_end_screen_or_static"
+    ]
+  ],
+  "excluded_dialogue_utterances": [
+    {
+      "utt_id": "utt_004",
+      "source_range": [
+        33.18,
+        34.14
+      ],
+      "text": "Je l'aime bien.",
+      "score": 0,
+      "reason": "foreign_misrecognition_dialogue"
+    },
+    {
+      "utt_id": "utt_005",
+      "source_range": [
+        38.28,
+        38.95
+      ],
+      "text": "Je j'avoue.",
+      "score": 195,
+      "reason": "foreign_misrecognition_dialogue"
+    },
+    {
+      "utt_id": "utt_006",
+      "source_range": [
+        44.86,
+        46.02
+      ],
+      "text": "C'est n'a-t-s-s.",
+      "score": 0,
+      "reason": "foreign_misrecognition_dialogue"
+    },
+    {
+      "utt_id": "utt_007",
+      "source_range": [
+        48.26,
+        49.52
+      ],
+      "text": "It's not going to work.",
+      "score": 0,
+      "reason": "not_selected_by_dialogue_budget_or_score"
+    },
+    {
+      "utt_id": "utt_008",
+      "source_range": [
+        53.72,
+        55.12
+      ],
+      "text": "Reveal.",
+      "score": 0,
+      "reason": "short_low_confidence_dialogue"
+    },
+    {
+      "utt_id": "utt_009",
+      "source_range": [
+        56.44,
+        57.34
+      ],
+      "text": "The key.",
+      "score": 0,
+      "reason": "short_low_confidence_dialogue"
+    },
+    {
+      "utt_id": "utt_010",
+      "source_range": [
+        59.34,
+        60.7
+      ],
+      "text": "The nine.",
+      "score": 0,
+      "reason": "short_low_confidence_dialogue"
+    },
+    {
+      "utt_id": "utt_015",
+      "source_range": [
+        101.82,
+        103.8
+      ],
+      "text": "You're free.",
+      "score": 0,
+      "reason": "short_low_confidence_dialogue"
+    },
+    {
+      "utt_id": "utt_016",
+      "source_range": [
+        110.74,
+        111.4
+      ],
+      "text": "You're free.",
+      "score": 0,
+      "reason": "short_low_confidence_dialogue"
+    }
+  ],
+  "total_output_estimate_sec": 84.663,
+  "dialogue_selected_duration_sec": 12.32
+}

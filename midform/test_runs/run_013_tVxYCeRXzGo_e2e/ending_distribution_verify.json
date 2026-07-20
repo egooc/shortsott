@@ -1,0 +1,87 @@
+{
+  "signature_quotes": {
+    "script_path": "midform\\test_runs\\run_013_tVxYCeRXzGo_e2e\\script_signature_quotes.json",
+    "sentence_count": 13,
+    "counts": {
+      "nida": 8,
+      "jyo": 5,
+      "neunde": 0,
+      "beoryeot": 0,
+      "other": 0
+    },
+    "pct": {
+      "nida": 61.5,
+      "jyo": 38.5,
+      "neunde": 0.0,
+      "beoryeot": 0.0,
+      "other": 0.0
+    },
+    "rows": [
+      {
+        "segment_id": "s01",
+        "sentence": "아들이 원하는 건 거창한 게 아니었습니다.",
+        "ending": "nida"
+      },
+      {
+        "segment_id": "s01",
+        "sentence": "아버지 트로이에게 자신이 사랑받는 아들인지 확인하고 싶었죠.",
+        "ending": "jyo"
+      },
+      {
+        "segment_id": "s03",
+        "sentence": "트로이는 그 질문을 사랑의 확인이 아니라 자기 권위에 대한 도전으로 받아들였습니다.",
+        "ending": "nida"
+      },
+      {
+        "segment_id": "s03",
+        "sentence": "그래서 코리를 더 세게 몰아붙이고, 밥과 집과 옷을 누가 줬는지 하나씩 묻습니다.",
+        "ending": "nida"
+      },
+      {
+        "segment_id": "s03",
+        "sentence": "이 집에서 트로이는 아버지보다 가장으로 인정받고 싶어 했고, 코리는 그 안에서 아들로 사랑받는지 묻고 있었습니다.",
+        "ending": "nida"
+      },
+      {
+        "segment_id": "s03",
+        "sentence": "코리는 그 부양이 애정의 증거라고 믿고 싶었는데, 트로이는 말을 전혀 다른 쪽으로 끌고 가죠.",
+        "ending": "jyo"
+      },
+      {
+        "segment_id": "s05",
+        "sentence": "트로이는 이제 아버지의 희생을 사랑이 아니라 책임으로 못 박습니다.",
+        "ending": "nida"
+      },
+      {
+        "segment_id": "s05",
+        "sentence": "집과 밥을 줬으니 할 만큼 했다는 뜻이었죠.",
+        "ending": "jyo"
+      },
+      {
+        "segment_id": "s05",
+        "sentence": "그 한마디로 코리가 기대했던 대답은 사실상 사라집니다.",
+        "ending": "nida"
+      },
+      {
+        "segment_id": "s07",
+        "sentence": "그 뒤 트로이는 자신이 준 건 돈이나 밥이 아니라 코리의 삶 그 자체라고 밀어붙입니다.",
+        "ending": "nida"
+      },
+      {
+        "segment_id": "s07",
+        "sentence": "코리는 반박하지 못하고, 아버지의 말만 더 차갑게 남죠.",
+        "ending": "jyo"
+      },
+      {
+        "segment_id": "s09",
+        "sentence": "트로이의 말은 조언처럼 들리지만, 코리에게는 사랑을 포기하라는 결론이었습니다.",
+        "ending": "nida"
+      },
+      {
+        "segment_id": "s09",
+        "sentence": "결국 둘은 서로 다른 쪽으로 물러나고, 집 안의 로즈는 아들의 굳은 얼굴에서 상처를 알아차렸죠.",
+        "ending": "jyo"
+      }
+    ]
+  }
+}

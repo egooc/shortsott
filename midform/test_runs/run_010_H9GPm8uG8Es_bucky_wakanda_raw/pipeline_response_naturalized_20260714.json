@@ -1,0 +1,35 @@
+{
+  "draftPath": "C:\\Users\\sejun\\Documents\\Codex\\2026-05-26\\midform\\server\\output\\drafts\\pipeline_1784001222",
+  "zipFile": "pipeline_1784001222.zip",
+  "recommendedZip": "pipeline_1784001222.zip",
+  "zipPath": "C:\\Users\\sejun\\Documents\\Codex\\2026-05-26\\midform\\server\\output\\drafts\\pipeline_1784001222.zip",
+  "totalDurationUs": 73688000,
+  "totalDurationSec": 73.688,
+  "audioTrackCount": 16,
+  "subtitleTrackCount": 20,
+  "draftAudioDir": "C:\\Users\\sejun\\Documents\\Codex\\2026-05-26\\midform\\server\\output\\drafts\\pipeline_1784001222\\audio",
+  "draftSubtitlePath": "C:\\Users\\sejun\\Documents\\Codex\\2026-05-26\\midform\\server\\output\\drafts\\pipeline_1784001222\\subtitles\\subtitles.srt",
+  "editManifestPath": "C:\\Users\\sejun\\Documents\\Codex\\2026-05-26\\midform\\server\\output\\drafts\\pipeline_1784001222\\edit_manifest.json",
+  "notesPath": "C:\\Users\\sejun\\Documents\\Codex\\2026-05-26\\midform\\server\\output\\drafts\\pipeline_1784001222\\capcut_notes.md",
+  "checklistPath": "C:\\Users\\sejun\\Documents\\Codex\\2026-05-26\\midform\\server\\output\\drafts\\pipeline_1784001222\\capcut_import_checklist.md",
+  "audioPathMode": "absolute",
+  "capcutTemplateUsed": true,
+  "templatePath": "C:\\Users\\sejun\\Documents\\Codex\\2026-05-26\\midform\\templates\\capcut\\channel_default\\실패한 아내를 질책한 남편의 숨겼던 진심",
+  "templateLoadStatus": "loaded",
+  "templateCloneMode": true,
+  "templateMarkersFound": [
+    "TEMPLATE_MOVIE_TITLE",
+    "TEMPLATE_PRETITLE",
+    "TEMPLATE_SUBTITLE",
+    "TEMPLATE_TITLE"
+  ],
+  "missingTemplateMarkers": [],
+  "zipVariants": {
+    "absolute": {
+      "draftPath": "C:\\Users\\sejun\\Documents\\Codex\\2026-05-26\\midform\\server\\output\\drafts\\pipeline_1784001222",
+      "zipFile": "pipeline_1784001222.zip",
+      "zipPath": "C:\\Users\\sejun\\Documents\\Codex\\2026-05-26\\midform\\server\\output\\drafts\\pipeline_1784001222.zip"
+    }
+  },
+  "warnings": []
+}

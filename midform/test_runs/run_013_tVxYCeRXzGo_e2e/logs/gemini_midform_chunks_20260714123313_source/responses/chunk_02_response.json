@@ -1,0 +1,166 @@
+{
+  "chunk": {
+    "index": 2,
+    "start_sec": 34.21,
+    "end_sec": 65.4,
+    "duration_sec": 31.19,
+    "overlap_before_sec": 2,
+    "snapped_boundary_sec": 36.21
+  },
+  "result": {
+    "source": {
+      "source_id": "movie_recap_chunk2",
+      "duration_sec": 31.19,
+      "aspect_ratio": "16:9",
+      "content_type": "movie_midform_recap"
+    },
+    "story_context": {
+      "content_guess": "Fences",
+      "content_confidence": "high",
+      "plot_summary_neutral": "아버지가 아들에게 책임감과 사랑에 대해 이야기하며 자신의 희생을 설명한다.",
+      "genre": "drama",
+      "language_of_dialogue": "English",
+      "burned_subtitle_position": "none"
+    },
+    "scenes": [
+      {
+        "scene_id": "scene_001",
+        "start_sec": 0,
+        "end_sec": 2.82,
+        "duration_sec": 2.82,
+        "visible_action": "아버지가 아들에게 질문하며 엄하게 말한다.",
+        "dialogue_or_caption": "I asked you a question. What law is there say I got to like you? None. All right, then. Don't you eat every day?",
+        "utt_refs": [
+          "utt_008"
+        ],
+        "shot_type": "dialogue",
+        "characters_visible": [
+          "father",
+          "son"
+        ],
+        "dialogue_importance": "medium",
+        "dialogue_function": "setup",
+        "should_preserve_original_dialogue": false,
+        "dialogue_preserve_reason": "대화의 흐름을 설정하지만 요약 가능하다.",
+        "translated_caption_ko": "내가 널 좋아해야 한다는 법이라도 있냐? 매일 밥은 먹고 살지 않니?",
+        "recap_bridge_before": "아버지는 아들에게 엄하게 말합니다.",
+        "recap_bridge_after": "아들은 아버지의 질문에 대답합니다.",
+        "vertical_crop_note": "두 인물의 얼굴이 중앙에 위치하여 세로 크롭에 적합하다."
+      },
+      {
+        "scene_id": "scene_002",
+        "start_sec": 2.83,
+        "end_sec": 14.98,
+        "duration_sec": 12.15,
+        "visible_action": "아들이 아버지의 질문에 대답하고, 아버지는 아들에게 존칭을 요구하며 자신이 제공하는 것들을 상기시킨다.",
+        "dialogue_or_caption": "Answer me when I talk to you. Don't you eat every day? Yeah. Nigga, as long as you in my house, you put a sir on the end of it when you talk to me. Yes, sir. You eat every day. Yes, sir. Got a roof over your head. Yes, sir. Got clothes on your back. Yes, sir. Why you think that is? Because of you.",
+        "utt_refs": [
+          "utt_009"
+        ],
+        "shot_type": "dialogue",
+        "characters_visible": [
+          "father",
+          "son"
+        ],
+        "dialogue_importance": "high",
+        "dialogue_function": "exposition",
+        "should_preserve_original_dialogue": true,
+        "dialogue_preserve_reason": "핵심적인 대화로, 아버지의 희생과 아들에 대한 기대가 드러난다.",
+        "translated_caption_ko": "내가 말할 땐 대답해. 매일 밥은 먹지? 그래. 이 집에 사는 동안엔 나한테 말할 때 '네'라고 붙여. 네. 매일 밥 먹지? 네. 머리 위엔 지붕이 있고? 네. 옷도 입고 있지? 네. 왜 그렇다고 생각하니? 아빠 덕분에요.",
+        "recap_bridge_before": "아버지는 아들에게 자신이 제공하는 것들을 상기시키며 질문합니다.",
+        "recap_bridge_after": "아버지는 아들의 대답에 다시 질문합니다.",
+        "vertical_crop_note": "두 인물의 얼굴이 번갈아 중앙에 위치하며 세로 크롭에 적합하다."
+      },
+      {
+        "scene_id": "scene_003",
+        "start_sec": 14.99,
+        "end_sec": 22.49,
+        "duration_sec": 7.5,
+        "visible_action": "아버지가 아들의 대답에 반응하며 다시 질문하고, 아들은 아버지가 자신을 좋아하기 때문이라고 답한다.",
+        "dialogue_or_caption": "Hell, I know it's because of me, but why do you think that is? Because you like me.",
+        "utt_refs": [
+          "utt_010",
+          "utt_011"
+        ],
+        "shot_type": "wide",
+        "characters_visible": [
+          "father",
+          "son"
+        ],
+        "dialogue_importance": "medium",
+        "dialogue_function": "character_emotion",
+        "should_preserve_original_dialogue": false,
+        "dialogue_preserve_reason": "다음 대사가 더 중요하며, 이 부분은 요약 가능하다.",
+        "translated_caption_ko": "나 때문인 건 나도 알아, 근데 왜 그렇다고 생각하냐고? 아빠가 날 좋아하니까요.",
+        "recap_bridge_before": "아버지는 아들의 대답에 다시 질문합니다.",
+        "recap_bridge_after": "아버지는 아들의 말에 답합니다.",
+        "vertical_crop_note": "와이드 샷에서 두 인물이 모두 잘 보이며, 세로 크롭 시에도 주요 인물은 유지된다."
+      },
+      {
+        "scene_id": "scene_004",
+        "start_sec": 22.5,
+        "end_sec": 31.19,
+        "duration_sec": 8.69,
+        "visible_action": "아버지가 아들을 향해 자신이 매일 겪는 고난과 희생을 설명하며 감정을 드러낸다.",
+        "dialogue_or_caption": "Like you. I go out of here every morning. I bust my butt puttin' up with them crackers every day, because I like you.",
+        "utt_refs": [
+          "utt_012",
+          "utt_013",
+          "utt_014"
+        ],
+        "shot_type": "close_up",
+        "characters_visible": [
+          "father"
+        ],
+        "dialogue_importance": "high",
+        "dialogue_function": "character_emotion",
+        "should_preserve_original_dialogue": true,
+        "dialogue_preserve_reason": "아버지의 핵심적인 감정과 희생이 담긴 중요한 대사이다.",
+        "translated_caption_ko": "널 좋아한다고? 난 매일 아침 일하러 나가. 매일 그 빌어먹을 놈들 참아가면서 뼈 빠지게 일해, 널 좋아해서가 아니라.",
+        "recap_bridge_before": "아버지는 자신이 매일 겪는 고난을 설명하며 아들을 향한 진심을 드러냅니다.",
+        "recap_bridge_after": "아버지는 아들에게 자신의 희생을 강조합니다.",
+        "vertical_crop_note": "아버지의 얼굴이 중앙에 위치하여 세로 크롭에 적합하다."
+      }
+    ],
+    "characters": [
+      {
+        "safe_display_name": "father",
+        "role": "protagonist",
+        "first_seen_sec": 0
+      },
+      {
+        "safe_display_name": "son",
+        "role": "ally",
+        "first_seen_sec": 0
+      }
+    ],
+    "safety_scan": {
+      "violence": {
+        "present": false,
+        "timecodes": []
+      },
+      "sexual": {
+        "present": false,
+        "timecodes": []
+      },
+      "gore": {
+        "present": false,
+        "timecodes": []
+      },
+      "minor_safety": {
+        "present": false,
+        "timecodes": []
+      },
+      "sensitive_topic": {
+        "present": false,
+        "timecodes": []
+      }
+    },
+    "integrity_check": {
+      "total_scenes_count": 4,
+      "total_duration_sec": 31.19,
+      "all_scene_times_within_source": true,
+      "no_empty_required_fields": true
+    }
+  }
+}

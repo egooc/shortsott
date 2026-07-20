@@ -1,0 +1,486 @@
+{
+  "tool": "faster-whisper",
+  "model": "medium",
+  "language": "en",
+  "language_probability": 0.9502,
+  "utterances": [
+    {
+      "utt_id": "utt_001",
+      "start": 18.04,
+      "end": 19.98,
+      "text": "It is time.",
+      "lang": "en",
+      "words": [
+        {
+          "word": " It",
+          "start": 18.04,
+          "end": 19.12,
+          "lang": "en"
+        },
+        {
+          "word": " is",
+          "start": 19.12,
+          "end": 19.42,
+          "lang": "en"
+        },
+        {
+          "word": " time.",
+          "start": 19.42,
+          "end": 19.98,
+          "lang": "en"
+        }
+      ]
+    },
+    {
+      "utt_id": "utt_002",
+      "start": 23.64,
+      "end": 24.72,
+      "text": "You sure about this?",
+      "lang": "en",
+      "words": [
+        {
+          "word": " You",
+          "start": 23.64,
+          "end": 23.76,
+          "lang": "en"
+        },
+        {
+          "word": " sure",
+          "start": 23.76,
+          "end": 23.94,
+          "lang": "en"
+        },
+        {
+          "word": " about",
+          "start": 23.94,
+          "end": 24.18,
+          "lang": "en"
+        },
+        {
+          "word": " this?",
+          "start": 24.18,
+          "end": 24.72,
+          "lang": "en"
+        }
+      ]
+    },
+    {
+      "utt_id": "utt_003",
+      "start": 25.88,
+      "end": 27.72,
+      "text": "I won't let you hurt anyone.",
+      "lang": "en",
+      "words": [
+        {
+          "word": " I",
+          "start": 25.88,
+          "end": 26.38,
+          "lang": "en"
+        },
+        {
+          "word": " won't",
+          "start": 26.38,
+          "end": 26.64,
+          "lang": "en"
+        },
+        {
+          "word": " let",
+          "start": 26.64,
+          "end": 26.74,
+          "lang": "en"
+        },
+        {
+          "word": " you",
+          "start": 26.74,
+          "end": 26.92,
+          "lang": "en"
+        },
+        {
+          "word": " hurt",
+          "start": 26.92,
+          "end": 27.12,
+          "lang": "en"
+        },
+        {
+          "word": " anyone.",
+          "start": 27.12,
+          "end": 27.72,
+          "lang": "en"
+        }
+      ]
+    },
+    {
+      "utt_id": "utt_004",
+      "start": 33.18,
+      "end": 34.14,
+      "text": "Je l'aime bien.",
+      "lang": "en",
+      "words": [
+        {
+          "word": " Je",
+          "start": 33.18,
+          "end": 33.18,
+          "lang": "en"
+        },
+        {
+          "word": " l",
+          "start": 33.18,
+          "end": 33.4,
+          "lang": "en"
+        },
+        {
+          "word": "'aime",
+          "start": 33.4,
+          "end": 33.54,
+          "lang": "en"
+        },
+        {
+          "word": " bien.",
+          "start": 33.54,
+          "end": 34.14,
+          "lang": "en"
+        }
+      ]
+    },
+    {
+      "utt_id": "utt_005",
+      "start": 38.28,
+      "end": 38.95,
+      "text": "Je j'avoue.",
+      "lang": "en",
+      "words": [
+        {
+          "word": " Je",
+          "start": 38.28,
+          "end": 38.52,
+          "lang": "en"
+        },
+        {
+          "word": " j",
+          "start": 38.52,
+          "end": 38.7,
+          "lang": "en"
+        },
+        {
+          "word": "'avoue.",
+          "start": 38.7,
+          "end": 38.95,
+          "lang": "en"
+        }
+      ]
+    },
+    {
+      "utt_id": "utt_006",
+      "start": 44.86,
+      "end": 46.02,
+      "text": "C'est n'a-t-s-s.",
+      "lang": "en",
+      "words": [
+        {
+          "word": " C",
+          "start": 44.86,
+          "end": 44.98,
+          "lang": "en"
+        },
+        {
+          "word": "'est",
+          "start": 44.98,
+          "end": 45.12,
+          "lang": "en"
+        },
+        {
+          "word": " n",
+          "start": 45.12,
+          "end": 45.42,
+          "lang": "en"
+        },
+        {
+          "word": "'a",
+          "start": 45.42,
+          "end": 45.46,
+          "lang": "en"
+        },
+        {
+          "word": "-t",
+          "start": 45.46,
+          "end": 45.62,
+          "lang": "en"
+        },
+        {
+          "word": "-s",
+          "start": 45.62,
+          "end": 45.62,
+          "lang": "en"
+        },
+        {
+          "word": "-s.",
+          "start": 45.62,
+          "end": 46.02,
+          "lang": "en"
+        }
+      ]
+    },
+    {
+      "utt_id": "utt_007",
+      "start": 48.26,
+      "end": 49.52,
+      "text": "It's not going to work.",
+      "lang": "en",
+      "words": [
+        {
+          "word": " It's",
+          "start": 48.26,
+          "end": 48.76,
+          "lang": "en"
+        },
+        {
+          "word": " not",
+          "start": 48.76,
+          "end": 48.88,
+          "lang": "en"
+        },
+        {
+          "word": " going",
+          "start": 48.88,
+          "end": 49.1,
+          "lang": "en"
+        },
+        {
+          "word": " to",
+          "start": 49.1,
+          "end": 49.18,
+          "lang": "en"
+        },
+        {
+          "word": " work.",
+          "start": 49.18,
+          "end": 49.52,
+          "lang": "en"
+        }
+      ]
+    },
+    {
+      "utt_id": "utt_008",
+      "start": 53.72,
+      "end": 55.12,
+      "text": "Reveal.",
+      "lang": "en",
+      "words": [
+        {
+          "word": " Reveal.",
+          "start": 53.72,
+          "end": 55.12,
+          "lang": "en"
+        }
+      ]
+    },
+    {
+      "utt_id": "utt_009",
+      "start": 56.44,
+      "end": 57.34,
+      "text": "The key.",
+      "lang": "en",
+      "words": [
+        {
+          "word": " The",
+          "start": 56.44,
+          "end": 56.58,
+          "lang": "en"
+        },
+        {
+          "word": " key.",
+          "start": 56.58,
+          "end": 57.34,
+          "lang": "en"
+        }
+      ]
+    },
+    {
+      "utt_id": "utt_010",
+      "start": 59.34,
+      "end": 60.7,
+      "text": "The nine.",
+      "lang": "en",
+      "words": [
+        {
+          "word": " The",
+          "start": 59.34,
+          "end": 60.7,
+          "lang": "en"
+        },
+        {
+          "word": " nine.",
+          "start": 60.7,
+          "end": 60.7,
+          "lang": "en"
+        }
+      ]
+    },
+    {
+      "utt_id": "utt_011",
+      "start": 67.56,
+      "end": 71.32,
+      "text": "The heart. The dream.",
+      "lang": "en",
+      "words": [
+        {
+          "word": " The",
+          "start": 67.56,
+          "end": 68.96,
+          "lang": "en"
+        },
+        {
+          "word": " heart.",
+          "start": 68.96,
+          "end": 69.2,
+          "lang": "en"
+        },
+        {
+          "word": " The",
+          "start": 69.2,
+          "end": 71.32,
+          "lang": "en"
+        },
+        {
+          "word": " dream.",
+          "start": 71.32,
+          "end": 71.32,
+          "lang": "en"
+        }
+      ]
+    },
+    {
+      "utt_id": "utt_012",
+      "start": 73.92,
+      "end": 75.5,
+      "text": "The return of the people.",
+      "lang": "en",
+      "words": [
+        {
+          "word": " The",
+          "start": 73.92,
+          "end": 74.1,
+          "lang": "en"
+        },
+        {
+          "word": " return",
+          "start": 74.1,
+          "end": 74.74,
+          "lang": "en"
+        },
+        {
+          "word": " of",
+          "start": 74.74,
+          "end": 75.5,
+          "lang": "en"
+        },
+        {
+          "word": " the",
+          "start": 75.5,
+          "end": 75.5,
+          "lang": "en"
+        },
+        {
+          "word": " people.",
+          "start": 75.5,
+          "end": 75.5,
+          "lang": "en"
+        }
+      ]
+    },
+    {
+      "utt_id": "utt_013",
+      "start": 79.48,
+      "end": 80.52,
+      "text": "The one.",
+      "lang": "en",
+      "words": [
+        {
+          "word": " The",
+          "start": 79.48,
+          "end": 79.82,
+          "lang": "en"
+        },
+        {
+          "word": " one.",
+          "start": 79.82,
+          "end": 80.52,
+          "lang": "en"
+        }
+      ]
+    },
+    {
+      "utt_id": "utt_014",
+      "start": 83.98,
+      "end": 85.06,
+      "text": "The cargo ship.",
+      "lang": "en",
+      "words": [
+        {
+          "word": " The",
+          "start": 83.98,
+          "end": 84.68,
+          "lang": "en"
+        },
+        {
+          "word": " cargo",
+          "start": 84.68,
+          "end": 84.68,
+          "lang": "en"
+        },
+        {
+          "word": " ship.",
+          "start": 84.68,
+          "end": 85.06,
+          "lang": "en"
+        }
+      ]
+    },
+    {
+      "utt_id": "utt_015",
+      "start": 101.82,
+      "end": 103.8,
+      "text": "You're free.",
+      "lang": "en",
+      "words": [
+        {
+          "word": " You're",
+          "start": 101.82,
+          "end": 103.22,
+          "lang": "en"
+        },
+        {
+          "word": " free.",
+          "start": 103.22,
+          "end": 103.8,
+          "lang": "en"
+        }
+      ]
+    },
+    {
+      "utt_id": "utt_016",
+      "start": 110.74,
+      "end": 111.4,
+      "text": "You're free.",
+      "lang": "en",
+      "words": [
+        {
+          "word": " You're",
+          "start": 110.74,
+          "end": 111.0,
+          "lang": "en"
+        },
+        {
+          "word": " free.",
+          "start": 111.0,
+          "end": 111.4,
+          "lang": "en"
+        }
+      ]
+    }
+  ],
+  "source_path": "C:\\Users\\sejun\\Documents\\Codex\\2026-05-26\\midform\\midform\\test_runs\\run_010_H9GPm8uG8Es_bucky_wakanda_raw\\source.mp4",
+  "source_duration": 148.901,
+  "utterance_count": 16,
+  "total_utterance_duration": 22.67
+}

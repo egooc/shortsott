@@ -1,0 +1,237 @@
+{
+  "model_id": "edge-tts:ko-KR-SunHiNeural",
+  "tts_provider": "Microsoft Edge online TTS via edge-tts",
+  "tts_network_disclosure": "Narration text is sent to Microsoft's online Edge TTS service during synthesis.",
+  "reused_from_manifest": "",
+  "caption_units": [
+    {
+      "caption_id": "s01_cap_001",
+      "segment_id": "s01",
+      "segment_type": "dialogue_quote",
+      "tts_enabled": false,
+      "order": 1,
+      "text": "널 좋아해서가 아니야.",
+      "source_segment_order": 1
+    },
+    {
+      "caption_id": "s01_cap_002",
+      "segment_id": "s01",
+      "segment_type": "dialogue_quote",
+      "tts_enabled": false,
+      "order": 2,
+      "text": "널 돌보는",
+      "source_segment_order": 1
+    },
+    {
+      "caption_id": "s01_cap_003",
+      "segment_id": "s01",
+      "segment_type": "dialogue_quote",
+      "tts_enabled": false,
+      "order": 3,
+      "text": "건 내 의무라서야.",
+      "source_segment_order": 1
+    },
+    {
+      "caption_id": "s01_cap_004",
+      "segment_id": "s01",
+      "segment_type": "dialogue_quote",
+      "tts_enabled": false,
+      "order": 4,
+      "text": "난 너한테 책임이 있어.",
+      "source_segment_order": 1
+    },
+    {
+      "caption_id": "s01_cap_005",
+      "segment_id": "s01",
+      "segment_type": "dialogue_quote",
+      "tts_enabled": false,
+      "order": 5,
+      "text": "여기서 확실히 해두자.",
+      "source_segment_order": 1
+    },
+    {
+      "caption_id": "s01_cap_006",
+      "segment_id": "s01",
+      "segment_type": "dialogue_quote",
+      "tts_enabled": false,
+      "order": 6,
+      "text": "더 말하기 전에.",
+      "source_segment_order": 1
+    },
+    {
+      "caption_id": "s01_cap_007",
+      "segment_id": "s01",
+      "segment_type": "dialogue_quote",
+      "tts_enabled": false,
+      "order": 7,
+      "text": "난 널 좋아할 필요 없어.",
+      "source_segment_order": 1
+    },
+    {
+      "caption_id": "s01_cap_008",
+      "segment_id": "s01",
+      "segment_type": "dialogue_quote",
+      "tts_enabled": false,
+      "order": 8,
+      "text": "랜드 씨가 월급날 돈 주는",
+      "source_segment_order": 1
+    },
+    {
+      "caption_id": "s01_cap_009",
+      "segment_id": "s01",
+      "segment_type": "dialogue_quote",
+      "tts_enabled": false,
+      "order": 9,
+      "text": "건 날 좋아해서가 아니야.",
+      "source_segment_order": 1
+    },
+    {
+      "caption_id": "s01_cap_010",
+      "segment_id": "s01",
+      "segment_type": "dialogue_quote",
+      "tts_enabled": false,
+      "order": 10,
+      "text": "그 사람이",
+      "source_segment_order": 1
+    },
+    {
+      "caption_id": "s01_cap_011",
+      "segment_id": "s01",
+      "segment_type": "dialogue_quote",
+      "tts_enabled": false,
+      "order": 11,
+      "text": "나한테 빚진 돈이라 주는 거야.",
+      "source_segment_order": 1
+    },
+    {
+      "caption_id": "s02_sent_001_cap_001",
+      "sentence_id": "s02_sent_001",
+      "tts_caption_id": "s02_sent_001",
+      "segment_id": "s02",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 1,
+      "text": "코리는 사랑을",
+      "source_segment_order": 2
+    },
+    {
+      "caption_id": "s02_sent_001_cap_002",
+      "sentence_id": "s02_sent_001",
+      "tts_caption_id": "s02_sent_001",
+      "segment_id": "s02",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 2,
+      "text": "묻고 싶었지만,",
+      "source_segment_order": 2
+    },
+    {
+      "caption_id": "s02_sent_001_cap_003",
+      "sentence_id": "s02_sent_001",
+      "tts_caption_id": "s02_sent_001",
+      "segment_id": "s02",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 3,
+      "text": "트로이는 책임이라는 말로",
+      "source_segment_order": 2
+    },
+    {
+      "caption_id": "s02_sent_001_cap_004",
+      "sentence_id": "s02_sent_001",
+      "tts_caption_id": "s02_sent_001",
+      "segment_id": "s02",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 4,
+      "text": "대답을 끝냈습니다.",
+      "source_segment_order": 2
+    },
+    {
+      "caption_id": "s02_sent_002_cap_001",
+      "sentence_id": "s02_sent_002",
+      "tts_caption_id": "s02_sent_002",
+      "segment_id": "s02",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 1,
+      "text": "아들이 집 안으로",
+      "source_segment_order": 2
+    },
+    {
+      "caption_id": "s02_sent_002_cap_002",
+      "sentence_id": "s02_sent_002",
+      "tts_caption_id": "s02_sent_002",
+      "segment_id": "s02",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 2,
+      "text": "돌아가자 로즈는",
+      "source_segment_order": 2
+    },
+    {
+      "caption_id": "s02_sent_002_cap_003",
+      "sentence_id": "s02_sent_002",
+      "tts_caption_id": "s02_sent_002",
+      "segment_id": "s02",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 3,
+      "text": "그 상처가 가족 전체로",
+      "source_segment_order": 2
+    },
+    {
+      "caption_id": "s02_sent_002_cap_004",
+      "sentence_id": "s02_sent_002",
+      "tts_caption_id": "s02_sent_002",
+      "segment_id": "s02",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 4,
+      "text": "번졌다는 걸 알았죠.",
+      "source_segment_order": 2
+    }
+  ],
+  "tts_units": [
+    {
+      "caption_id": "s02_sent_001",
+      "sentence_id": "s02_sent_001",
+      "segment_id": "s02",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 1,
+      "text": "코리는 사랑을 묻고 싶었지만, 트로이는 책임이라는 말로 대답을 끝냈습니다.",
+      "source_segment_order": 2
+    },
+    {
+      "caption_id": "s02_sent_002",
+      "sentence_id": "s02_sent_002",
+      "segment_id": "s02",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 2,
+      "text": "아들이 집 안으로 돌아가자 로즈는 그 상처가 가족 전체로 번졌다는 걸 알았죠.",
+      "source_segment_order": 2
+    }
+  ],
+  "files": [
+    {
+      "caption_id": "s02_sent_001",
+      "segment_id": "s02",
+      "filename": "s02_sent_001.mp3",
+      "filepath": "C:\\Users\\sejun\\Documents\\Codex\\2026-05-26\\midform\\midform\\test_runs\\run_013_tVxYCeRXzGo_e2e\\tts_rerun\\s02_sent_001.mp3",
+      "duration_sec": 6.072,
+      "text": "코리는 사랑을 묻고 싶었지만, 트로이는 책임이라는 말로 대답을 끝냈습니다.",
+      "success": true
+    },
+    {
+      "caption_id": "s02_sent_002",
+      "segment_id": "s02",
+      "filename": "s02_sent_002.mp3",
+      "filepath": "C:\\Users\\sejun\\Documents\\Codex\\2026-05-26\\midform\\midform\\test_runs\\run_013_tVxYCeRXzGo_e2e\\tts_rerun\\s02_sent_002.mp3",
+      "duration_sec": 6.24,
+      "text": "아들이 집 안으로 돌아가자 로즈는 그 상처가 가족 전체로 번졌다는 걸 알았죠.",
+      "success": true
+    }
+  ]
+}

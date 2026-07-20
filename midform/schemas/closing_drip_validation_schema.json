@@ -1,0 +1,15 @@
+{
+  "type": "object",
+  "properties": {
+    "verdict": {
+      "type": "string",
+      "enum": ["yes", "no"]
+    },
+    "reason": {
+      "type": "string",
+      "maxLength": 80
+    }
+  },
+  "required": ["verdict", "reason"],
+  "additionalProperties": false
+}

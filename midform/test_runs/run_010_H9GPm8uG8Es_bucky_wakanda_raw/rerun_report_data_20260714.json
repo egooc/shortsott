@@ -1,0 +1,158 @@
+{
+  "stt": {
+    "language": "en",
+    "language_probability": 0.9502,
+    "utterance_count": 16,
+    "utterance_lang_distribution": {
+      "en": 16
+    },
+    "word_lang_distribution": {
+      "en": 55
+    },
+    "codeword_hits": [
+      {
+        "utt_id": "utt_003",
+        "start": 25.88,
+        "end": 27.72,
+        "text": "I won't let you hurt anyone.",
+        "lang": "en"
+      },
+      {
+        "utt_id": "utt_011",
+        "start": 67.56,
+        "end": 71.32,
+        "text": "The heart. The dream.",
+        "lang": "en"
+      },
+      {
+        "utt_id": "utt_012",
+        "start": 73.92,
+        "end": 75.5,
+        "text": "The return of the people.",
+        "lang": "en"
+      },
+      {
+        "utt_id": "utt_013",
+        "start": 79.48,
+        "end": 80.52,
+        "text": "The one.",
+        "lang": "en"
+      },
+      {
+        "utt_id": "utt_014",
+        "start": 83.98,
+        "end": 85.06,
+        "text": "The cargo ship.",
+        "lang": "en"
+      }
+    ]
+  },
+  "slot_map": {
+    "slots": 17,
+    "narration_slots": 9,
+    "dialogue_slots": 8,
+    "excluded_dialogue_utterances": [
+      {
+        "utt_id": "utt_004",
+        "source_range": [
+          33.18,
+          34.14
+        ],
+        "text": "Je l'aime bien.",
+        "score": 0,
+        "reason": "not_selected_by_dialogue_budget_or_score"
+      },
+      {
+        "utt_id": "utt_006",
+        "source_range": [
+          44.86,
+          46.02
+        ],
+        "text": "C'est n'a-t-s-s.",
+        "score": 0,
+        "reason": "short_low_confidence_dialogue"
+      },
+      {
+        "utt_id": "utt_007",
+        "source_range": [
+          48.26,
+          49.52
+        ],
+        "text": "It's not going to work.",
+        "score": 0,
+        "reason": "not_selected_by_dialogue_budget_or_score"
+      },
+      {
+        "utt_id": "utt_008",
+        "source_range": [
+          53.72,
+          55.12
+        ],
+        "text": "Reveal.",
+        "score": 0,
+        "reason": "short_low_confidence_dialogue"
+      },
+      {
+        "utt_id": "utt_009",
+        "source_range": [
+          56.44,
+          57.34
+        ],
+        "text": "The key.",
+        "score": 0,
+        "reason": "short_low_confidence_dialogue"
+      },
+      {
+        "utt_id": "utt_010",
+        "source_range": [
+          59.34,
+          60.7
+        ],
+        "text": "The nine.",
+        "score": 0,
+        "reason": "short_low_confidence_dialogue"
+      },
+      {
+        "utt_id": "utt_015",
+        "source_range": [
+          101.82,
+          103.8
+        ],
+        "text": "You're free.",
+        "score": 0,
+        "reason": "short_low_confidence_dialogue"
+      },
+      {
+        "utt_id": "utt_016",
+        "source_range": [
+          110.74,
+          111.4
+        ],
+        "text": "You're free.",
+        "score": 0,
+        "reason": "short_low_confidence_dialogue"
+      }
+    ]
+  },
+  "script": {
+    "segments": 17,
+    "slot_map_slots": 17,
+    "camera_term_hits": {},
+    "character_name_hits": {
+      "아요": 3,
+      "버키": 24,
+      "버키 반즈": 3,
+      "오코예": 9
+    }
+  },
+  "draft": {
+    "path": "server/output/drafts/pipeline_1783999593",
+    "totalDurationSec": 86.31,
+    "audioTrackCount": 19,
+    "subtitleTrackCount": 24,
+    "slot_map_mode": true,
+    "warnings": [],
+    "split_warnings": [],
+    "dialogue_reserved_range_violations": []
+  }
+}

@@ -1,0 +1,169 @@
+{
+  "chunk": {
+    "index": 3,
+    "start_sec": 63.4,
+    "end_sec": 101.33,
+    "duration_sec": 37.93,
+    "overlap_before_sec": 2,
+    "snapped_boundary_sec": 65.4
+  },
+  "result": {
+    "source": {
+      "source_id": "fences_chunk_3",
+      "duration_sec": 37.93,
+      "aspect_ratio": "16:9",
+      "content_type": "movie_midform_recap"
+    },
+    "story_context": {
+      "content_guess": "Fences",
+      "content_confidence": "high",
+      "plot_summary_neutral": "한 남자가 아들에게 가족을 부양하는 것이 자신의 의무이자 책임이라고 강하게 말한다. 그는 아들에게 자신은 아들을 좋아해서가 아니라 의무감 때문에 돌본다고 강조한다.",
+      "genre": "drama",
+      "language_of_dialogue": "English",
+      "burned_subtitle_position": "none"
+    },
+    "scenes": [
+      {
+        "scene_id": "scene_001",
+        "start_sec": 0,
+        "end_sec": 2.3,
+        "duration_sec": 2.3,
+        "visible_action": "나이 든 남자가 젊은 남자에게 격렬하게 말하고, 젊은 남자는 듣고 있다.",
+        "dialogue_or_caption": "I bust my butt puttin' up with them crackers every day, because I like you.",
+        "utt_refs": [
+          "utt_014"
+        ],
+        "shot_type": "close_up",
+        "characters_visible": [
+          "older_man",
+          "younger_man"
+        ],
+        "dialogue_importance": "medium",
+        "dialogue_function": "character_emotion",
+        "should_preserve_original_dialogue": false,
+        "dialogue_preserve_reason": "더 중요한 대화가 뒤에 이어진다.",
+        "translated_caption_ko": "나는 매일 그 백인들과 씨름하며 일해. 왜냐하면 널 좋아하니까.",
+        "recap_bridge_before": "none",
+        "recap_bridge_after": "none",
+        "vertical_crop_note": "두 인물 모두 중앙에 잘 배치되어 있다."
+      },
+      {
+        "scene_id": "scene_002",
+        "start_sec": 2.3,
+        "end_sec": 17.2,
+        "duration_sec": 14.9,
+        "visible_action": "나이 든 남자가 젊은 남자에게 가족 부양의 책임에 대해 강하게 말하고, 젊은 남자는 진지하게 듣고 있다.",
+        "dialogue_or_caption": "You're about the biggest fool I ever saw. It's my job. It's my responsibility. A man is supposed to take care of his family. You live in my house, fill your belly with my food, put you behind on my bed because you're my son.",
+        "utt_refs": [
+          "utt_015"
+        ],
+        "shot_type": "dialogue",
+        "characters_visible": [
+          "older_man",
+          "younger_man"
+        ],
+        "dialogue_importance": "high",
+        "dialogue_function": "exposition",
+        "should_preserve_original_dialogue": true,
+        "dialogue_preserve_reason": "아버지의 책임감을 명확히 보여주는 핵심 대사이다.",
+        "translated_caption_ko": "넌 내가 본 가장 큰 바보야. 그건 내 일이야. 내 책임이라고. 남자는 가족을 돌봐야 해. 넌 내 집에서 살고, 내 음식으로 배를 채우고, 내 침대에서 자. 왜냐하면 넌 내 아들이니까.",
+        "recap_bridge_before": "아버지는 아들에게 자신의 의무를 강조하며 말합니다.",
+        "recap_bridge_after": "아버지는 아들을 향한 자신의 감정을 솔직하게 드러냅니다.",
+        "vertical_crop_note": "두 인물 모두 중앙에 잘 배치되어 있다."
+      },
+      {
+        "scene_id": "scene_003",
+        "start_sec": 17.2,
+        "end_sec": 34.3,
+        "duration_sec": 17.1,
+        "visible_action": "나이 든 남자가 젊은 남자에게 자신은 아들을 좋아해서가 아니라 의무감 때문에 돌본다고 강조한다.",
+        "dialogue_or_caption": "Not because I like you, it's because it's my duty to take care of you. I owe a responsibility to you. Now, let's get this straight right here now before I go along any further. I ain't got to like you. Mr. Rand don't give me my money. Come pay day because he like me. He give it to me because he owe me.",
+        "utt_refs": [
+          "utt_016"
+        ],
+        "shot_type": "dialogue",
+        "characters_visible": [
+          "older_man",
+          "younger_man"
+        ],
+        "dialogue_importance": "high",
+        "dialogue_function": "turning_point",
+        "should_preserve_original_dialogue": true,
+        "dialogue_preserve_reason": "아버지의 감정과 의무 사이의 갈등을 보여주는 중요한 대사이다.",
+        "translated_caption_ko": "널 좋아해서가 아니라, 널 돌보는 게 내 의무이기 때문이야. 난 너에게 책임이 있어. 더 이상 가기 전에 여기서 분명히 해두자. 난 널 좋아할 필요 없어. 랜드 씨는 날 좋아해서 월급을 주는 게 아니야. 그는 나에게 빚을 졌기 때문에 주는 거지.",
+        "recap_bridge_before": "아버지는 아들을 향한 자신의 감정을 솔직하게 드러냅니다.",
+        "recap_bridge_after": "아버지는 아들에게 자신이 준 가장 큰 선물을 언급합니다.",
+        "vertical_crop_note": "두 인물 모두 중앙에 잘 배치되어 있다."
+      },
+      {
+        "scene_id": "scene_004",
+        "start_sec": 34.3,
+        "end_sec": 37.93,
+        "duration_sec": 3.63,
+        "visible_action": "나이 든 남자가 젊은 남자에게 자신이 모든 것을 주었다고 말하며 격렬하게 외친다.",
+        "dialogue_or_caption": "Now, I don't give you everything I got to give you. I give you your life.",
+        "utt_refs": [
+          "utt_017"
+        ],
+        "shot_type": "close_up",
+        "characters_visible": [
+          "older_man",
+          "younger_man"
+        ],
+        "dialogue_importance": "high",
+        "dialogue_function": "character_emotion",
+        "should_preserve_original_dialogue": true,
+        "dialogue_preserve_reason": "아버지의 희생과 감정을 강렬하게 전달하는 대사이다.",
+        "translated_caption_ko": "내가 줄 수 있는 모든 것을 너에게 주지 않았어. 난 너에게 네 삶을 주었어.",
+        "recap_bridge_before": "아버지는 아들에게 자신이 준 가장 큰 선물을 언급합니다.",
+        "recap_bridge_after": "none",
+        "vertical_crop_note": "두 인물 모두 중앙에 잘 배치되어 있다."
+      }
+    ],
+    "characters": [
+      {
+        "safe_display_name": "older_man",
+        "role": "protagonist",
+        "first_seen_sec": 0
+      },
+      {
+        "safe_display_name": "younger_man",
+        "role": "son",
+        "first_seen_sec": 0
+      }
+    ],
+    "safety_scan": {
+      "violence": {
+        "present": false,
+        "timecodes": []
+      },
+      "sexual": {
+        "present": false,
+        "timecodes": []
+      },
+      "gore": {
+        "present": false,
+        "timecodes": []
+      },
+      "minor_safety": {
+        "present": false,
+        "timecodes": []
+      },
+      "sensitive_topic": {
+        "present": true,
+        "timecodes": [
+          0,
+          2.3,
+          17.2,
+          34.3
+        ]
+      }
+    },
+    "integrity_check": {
+      "total_scenes_count": 4,
+      "total_duration_sec": 37.93,
+      "all_scene_times_within_source": true,
+      "no_empty_required_fields": true
+    }
+  }
+}

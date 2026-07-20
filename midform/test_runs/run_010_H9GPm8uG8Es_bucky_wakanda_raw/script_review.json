@@ -1,0 +1,15 @@
+{
+  "status": "approved",
+  "approved_at": "2026-07-14T02:14:25.028Z",
+  "script_path": "C:\\Users\\sejun\\Documents\\Codex\\2026-05-26\\midform\\midform\\test_runs\\run_010_H9GPm8uG8Es_bucky_wakanda_raw\\script_pass0_draft_edgefit.json",
+  "checks": {
+    "story_flow_ok": true,
+    "all_scenes_valid": true,
+    "korean_ending_ok": true,
+    "duration_ok": true,
+    "ready_for_tts": true,
+    "ready_for_capcut": true
+  },
+  "reviewer_notes": "run_010 Pass 0 movie research + Edge TTS speed-fitted draft approval",
+  "created_at": "2026-07-14T02:14:25.028Z"
+}

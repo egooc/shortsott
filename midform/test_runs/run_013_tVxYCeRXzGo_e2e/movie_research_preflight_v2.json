@@ -1,0 +1,165 @@
+{
+  "movie_identity": {
+    "status": "probable",
+    "title_en": "Fences (2016)",
+    "title_kr": "",
+    "year": 2016,
+    "evidence": [
+      "Pre-flight gate extracted title: Fences (2016)",
+      "Pre-flight title source: title_prefix"
+    ]
+  },
+  "movie_knowledge": {
+    "title_kr": "Fences",
+    "title_en": "Fences (2016)",
+    "year": 2016,
+    "characters": [
+      {
+        "screen_name": "트로이 맥슨",
+        "role": "가족을 책임진다는 명분으로 아들을 몰아붙이는 아버지",
+        "motivation": "자신이 해온 의무와 책임을 인정받고 싶어 한다."
+      },
+      {
+        "screen_name": "코리 맥슨",
+        "role": "아버지에게 사랑과 인정을 묻는 아들",
+        "motivation": "아버지가 자신을 왜 이렇게 대하는지 확인하고 싶어 한다."
+      },
+      {
+        "screen_name": "로즈 맥슨",
+        "role": "부자 갈등을 지켜보는 어머니",
+        "motivation": "가족이 무너지지 않기를 바라지만 갈등의 상처를 피할 수 없다."
+      }
+    ],
+    "full_plot": "Fences is a 2016 American period drama film directed and co-produced by Denzel Washington from a screenplay by August Wilson, based on his 1985 play. It stars Washington, Viola Davis, Stephen McKinley Henderson, Jovan Adepo, Russell Hornsby, Mykelti Williamson, and Saniyya Sidney. It follows a working-class African-American father who tries to raise his family in the 1950s, while coming to terms with the events of his life.",
+    "clip_context": "영화 Fences에서 트로이 맥슨이 아들 코리에게 “널 좋아해서가 아니라 책임 때문에 돌본다”고 말하며 부자 관계가 정면으로 갈라지는 장면이다. 직전 맥락은 코리가 아버지의 사랑과 인정을 확인하려는 순간이고, 직후에는 그 말이 가족 안에 오래 남는 상처로 이어진다.",
+    "stakes": "아들이 아버지에게 사랑받는 존재인지, 아니면 책임이라는 이름 아래 밀려나는 존재인지가 걸려 있다.",
+    "sources": [
+      "https://en.wikipedia.org/wiki/Fences_(film)"
+    ]
+  },
+  "evidence_package": {
+    "preflight_movie_identity": {
+      "status": "known",
+      "title_en": "Fences (2016)",
+      "title_kr": "",
+      "year": 2016,
+      "source": "title_prefix"
+    },
+    "source_metadata": {
+      "id": "tVxYCeRXzGo",
+      "title": "Fences (2016) - I Ain't Got to Like You Scene (2/10) | Movieclips",
+      "description": "Fences - I Ain't Got to Like You: Cory (Jovan Adepo) asks his father (Denzel Washington) a simple question and gets an honest answer. BUY THE MOVIE: https://www.fandangonow.com/details/movie/fences-2016/MMV4E2199976E5F1C411E2DB00F6DDF255F7?cmp=Movieclips_YT_Description Watch the best Fences scenes & clips: https://www.youtube.com/playlist?list=PLZbXA4lyCtqqyvVjQJ5JubFArQVy3wt8f FILM DESCRIPTION: Troy Maxson (Denzel Washington) makes his living as a sanitation worker in 1950s Pittsburgh. Maxson once dreamed of becoming a professional baseball player, but was deemed too old when the major leagues began admitting black athletes. Bitter over his missed opportunity, Troy creates further tension in his family when he squashes his son's (Jovan Adepo) chance to meet a college football recruiter. CREDITS: TM & © Paramount (2016) Cast: Denzel Washington, Jovan Adepo Screenwriter: August Wilson Director: Denzel Washington WHO ARE WE? The MOVIECLIPS channel is the largest collection of licensed movie clips on the web. Here you will find unforgettable moments, scenes and lines from all your favorite films. Made by movie fans, for movie fans. SUBSCRIBE TO OUR MOVIE CHANNELS: MOVIECLIPS: http://b",
+      "tags": [
+        "fences movie",
+        "fences full movie",
+        "fences scene",
+        "fences clip",
+        "fences part",
+        "fences movie clips",
+        "fences hd",
+        "fences denzel washington",
+        "fences Viola Davis",
+        "fences death monologue",
+        "fences troy and rose",
+        "fences standing with you",
+        "fences august wilson",
+        "fences august wilson play",
+        "denzel washington movies",
+        "viola davis movies",
+        "viola davis monologue fences",
+        "denzel washington monologue fences",
+        "august wilson plays",
+        "mykelti williamson fences",
+        "i ain't got to like you denzel"
+      ],
+      "uploader": "Movieclips",
+      "webpage_url": "https://www.youtube.com/watch?v=tVxYCeRXzGo"
+    },
+    "transcript_signals": {
+      "proper_nouns": [
+        "Fences",
+        "I Ain",
+        "Got",
+        "Like You Scene",
+        "Movieclips Fences",
+        "Like You",
+        "Cory",
+        "Jovan Adepo",
+        "Denzel Washington",
+        "BUY THE MOVIE",
+        "MMV4E2199976E5F1C411E2DB00F6DDF255F7",
+        "Watch",
+        "PLZbXA4lyCtqqyvVjQJ5JubFArQVy3wt8f FILM DESCRIPTION",
+        "Troy Maxson",
+        "Pittsburgh",
+        "Maxson",
+        "Bitter",
+        "Troy",
+        "CREDITS",
+        "Paramount"
+      ],
+      "distinctive_dialogue": [
+        "Not because I like you, it's because it's my duty to take care of you. I owe a responsibility to you. Now, let's get this straight right here now before I go along any further. I ain't got to like you. Mr. Rand don't give me my money. Come pay day because he like me. He give it to me because he owe me.",
+        "Answer me when I talk to you. Don't you eat every day? Yeah. Nigga, as long as you in my house, you put a sir on the end of it when you talk to me. Yes, sir. You eat every day. Yes, sir. Got a roof over your head. Yes, sir. Got clothes on your back. Yes, sir. Why you think that is? Because of you.",
+        "Now, don't you go through life worrying about whether somebody like you or not. You best be making sure they're doing right by you. You understand what I'm saying? Then get the hell out of my face and get on down to that A&P.",
+        "You're about the biggest fool I ever saw. It's my job. It's my responsibility. A man is supposed to take care of his family. You live in my house, fill your belly with my food, put you behind on my bed because you're my son.",
+        "What law is there say I got to like you? Wanna stand up in front of my face and ask a damn fool-ass question like that? Talkin' about likin' somebody. Call me a boy when I talk to you."
+      ]
+    },
+    "gemini_visual_evidence": {
+      "characters": [
+        {
+          "name": "father_figure",
+          "visual_description": ""
+        },
+        {
+          "name": "son",
+          "visual_description": ""
+        },
+        {
+          "name": "father",
+          "visual_description": ""
+        },
+        {
+          "name": "older_man",
+          "visual_description": ""
+        },
+        {
+          "name": "younger_man",
+          "visual_description": ""
+        },
+        {
+          "name": "mother",
+          "visual_description": ""
+        }
+      ],
+      "distinctive_visuals": [
+        "젊은 남자가 나이 든 남자에게 다가가 질문을 던진다. son, father_figure",
+        "나이 든 남자가 젊은 남자에게 등을 돌린 채 무시하는 듯한 태도로 대답한다. son, father_figure",
+        "나이 든 남자가 카메라를 응시하며 젊은 남자의 질문을 듣는다. 젊은 남자는 화면 밖에 있다. father_figure",
+        "나이 든 남자가 아들의 질문에 불신과 분노가 섞인 표정으로 반응한다. father_figure",
+        "나이 든 남자가 격렬하게 말을 이어가며 젊은 남자에게 가까이 오라고 손짓한다. 젊은 남자가 다가온다. father_figure, son",
+        "나이 든 남자가 젊은 남자와 마주 서서 손짓하며 똑바로 서라고 명령한다. father_figure, son",
+        "아버지가 아들에게 질문하며 엄하게 말한다. father, son",
+        "아들이 아버지의 질문에 대답하고, 아버지는 아들에게 존칭을 요구하며 자신이 제공하는 것들을 상기시킨다. father, son",
+        "아버지가 아들의 대답에 반응하며 다시 질문하고, 아들은 아버지가 자신을 좋아하기 때문이라고 답한다. father, son",
+        "나이 든 남자가 젊은 남자에게 격렬하게 말하고, 젊은 남자는 듣고 있다. older_man, younger_man"
+      ]
+    },
+    "gemini_story_context": {
+      "content_guess": "Fences",
+      "plot_summary_neutral": "아들이 아버지에게 왜 자신을 좋아하지 않느냐고 묻자, 아버지는 자신에게 아들을 좋아할 의무가 없다고 격렬하게 반박하며 대화가 이어진다.",
+      "genre": "drama"
+    }
+  },
+  "search_queries": [
+    "Fences (2016) film plot cast",
+    "Fences (2016) \"Not because I like you, it's because it's my duty to take care of you. I owe a r\" scene",
+    "Fences (2016) movie",
+    "\"Not because I like you, it's because it's my duty to take care of you. I owe a responsibil\" movie quote",
+    "Fences I Ain Got film scene",
+    "Fences plot summary"
+  ],
+  "search_results": [],
+  "generated_at": "2026-07-14T12:56:25.026Z"
+}

@@ -1,0 +1,30 @@
+{
+  "type": "object",
+  "properties": {
+    "source": {
+      "type": "object",
+      "properties": {
+        "duration_sec": {
+          "type": "number"
+        }
+      }
+    },
+    "scenes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "scene_id": {
+            "type": "string"
+          },
+          "start_sec": {
+            "type": "number"
+          },
+          "end_sec": {
+            "type": "number"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "type": "object",
+  "properties": {
+    "script_id": { "type": "string" },
+    "slot_fills": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "slot_id": { "type": "string" },
+          "narration": { "type": "string" },
+          "caption_units": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "caption_kr": { "type": "string" }
+        },
+        "required": ["slot_id", "narration", "caption_units", "caption_kr"],
+        "additionalProperties": false
+      }
+    },
+    "quality_check": {
+      "type": "object",
+      "properties": {
+        "all_slots_filled": { "type": "boolean" },
+        "slot_order_preserved": { "type": "boolean" },
+        "forbidden_eomi_count": { "type": "number" },
+        "translationese_risk_count": { "type": "number" },
+        "budget_violations": { "type": "number" }
+      },
+      "required": [
+        "all_slots_filled",
+        "slot_order_preserved",
+        "forbidden_eomi_count",
+        "translationese_risk_count",
+        "budget_violations"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": ["script_id", "slot_fills", "quality_check"],
+  "additionalProperties": false
+}

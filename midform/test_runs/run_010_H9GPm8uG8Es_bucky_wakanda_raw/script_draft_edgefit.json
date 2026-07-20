@@ -1,0 +1,647 @@
+{
+  "script_id": "midform_black_panther_wakanda_recap_01_20260714",
+  "source_reference": {
+    "gemini_analysis_source_id": "black_panther_wakanda_forever_recap_01",
+    "duration_sec": 148.901
+  },
+  "content_context": {
+    "content_guess": "Black Panther: Wakanda Forever",
+    "genre": "action/thriller",
+    "style_hint_used": "3분무비 스타일: 빠른 후킹, 이해 쉬운 설명, 호기심은 유지하되 과장은 자제"
+  },
+  "segments": [
+    {
+      "segment_id": "seg_001",
+      "segment_type": "recap",
+      "utt_id": "",
+      "tts_enabled": true,
+      "narration": "밤하늘이 어두워지자 와칸다의 불빛이 파도처럼 번지며 장면의 시작을 열었습니다.",
+      "dialogue_original": "",
+      "translated_caption_ko": "와칸다 불빛으로 시작",
+      "caption_text": "와칸다 불빛으로 시작",
+      "story_anchor": {
+        "source_range_hint": [
+          0,
+          16
+        ],
+        "scene_refs": [
+          "scene_001",
+          "scene_002"
+        ]
+      },
+      "source_scenes": [
+        {
+          "clip_id": "clip_001",
+          "scene_id": "scene_001",
+          "start": "00:00.000",
+          "end": "00:05.000",
+          "speed_multiplier": 1
+        },
+        {
+          "clip_id": "clip_001",
+          "scene_id": "scene_002",
+          "start": "00:05.000",
+          "end": "00:16.000",
+          "speed_multiplier": 1
+        }
+      ],
+      "edit_instruction": {
+        "visual_role": "wide_establishing",
+        "pace": "build",
+        "transition": "fade_in",
+        "zoom": "wide",
+        "sfx": []
+      }
+    },
+    {
+      "segment_id": "seg_002",
+      "segment_type": "bridge",
+      "utt_id": "",
+      "tts_enabled": true,
+      "narration": "카메라가 도시를 벗어나 6년 전 자막으로 넘어가자, 여기서부터 문제의 시간대가 본격적으로 열렸습니다.",
+      "dialogue_original": "",
+      "translated_caption_ko": "6년 전으로 시간 점프",
+      "caption_text": "6년 전으로 시간 점프",
+      "story_anchor": {
+        "source_range_hint": [
+          16,
+          19
+        ],
+        "scene_refs": [
+          "scene_003"
+        ]
+      },
+      "source_scenes": [
+        {
+          "clip_id": "clip_002",
+          "scene_id": "scene_003",
+          "start": "00:16.000",
+          "end": "00:19.000",
+          "speed_multiplier": 0.3295
+        }
+      ],
+      "edit_instruction": {
+        "visual_role": "title_card_push",
+        "pace": "steady",
+        "transition": "cut",
+        "zoom": "narrow",
+        "sfx": []
+      }
+    },
+    {
+      "segment_id": "seg_003",
+      "segment_type": "dialogue_quote",
+      "utt_id": "",
+      "tts_enabled": false,
+      "narration": "",
+      "dialogue_original": "It is time. You sure about this?",
+      "translated_caption_ko": "때가 됐어. 확실해?",
+      "caption_text": "때가 됐어. 확실해?",
+      "story_anchor": {
+        "source_range_hint": [
+          19,
+          25
+        ],
+        "scene_refs": [
+          "scene_004"
+        ]
+      },
+      "source_scenes": [
+        {
+          "clip_id": "clip_003",
+          "scene_id": "scene_004",
+          "start": "00:19.000",
+          "end": "00:25.000",
+          "speed_multiplier": 1
+        }
+      ],
+      "edit_instruction": {
+        "visual_role": "dialogue_closeup",
+        "pace": "urgent",
+        "transition": "cut",
+        "zoom": "close",
+        "sfx": []
+      }
+    },
+    {
+      "segment_id": "seg_004",
+      "segment_type": "dialogue_quote",
+      "utt_id": "",
+      "tts_enabled": false,
+      "narration": "",
+      "dialogue_original": "I won't let you hurt anyone.",
+      "translated_caption_ko": "누구도 다치게 하지 않을 거야.",
+      "caption_text": "누구도 다치게 하지 않을 거야.",
+      "story_anchor": {
+        "source_range_hint": [
+          25,
+          28
+        ],
+        "scene_refs": [
+          "scene_005"
+        ]
+      },
+      "source_scenes": [
+        {
+          "clip_id": "clip_004",
+          "scene_id": "scene_005",
+          "start": "00:25.000",
+          "end": "00:28.000",
+          "speed_multiplier": 1
+        }
+      ],
+      "edit_instruction": {
+        "visual_role": "dialogue_closeup",
+        "pace": "urgent",
+        "transition": "cut",
+        "zoom": "close",
+        "sfx": []
+      }
+    },
+    {
+      "segment_id": "seg_005",
+      "segment_type": "bridge",
+      "utt_id": "",
+      "tts_enabled": true,
+      "narration": "그때부터 불꽃이 더 거칠어졌고, 윈터 솔져의 움직임이 밤길을 가로지르며 장면을 압도했습니다.",
+      "dialogue_original": "",
+      "translated_caption_ko": "긴장감이 본격화",
+      "caption_text": "긴장감이 본격화",
+      "story_anchor": {
+        "source_range_hint": [
+          33,
+          36
+        ],
+        "scene_refs": [
+          "scene_006",
+          "scene_007"
+        ]
+      },
+      "source_scenes": [
+        {
+          "clip_id": "clip_005",
+          "scene_id": "scene_006",
+          "start": "00:33.000",
+          "end": "00:34.000",
+          "speed_multiplier": 0.2957
+        },
+        {
+          "clip_id": "clip_005",
+          "scene_id": "scene_007",
+          "start": "00:34.000",
+          "end": "00:36.000",
+          "speed_multiplier": 0.2957
+        }
+      ],
+      "edit_instruction": {
+        "visual_role": "transition_chase",
+        "pace": "urgent",
+        "transition": "cut",
+        "zoom": "none",
+        "sfx": []
+      }
+    },
+    {
+      "segment_id": "seg_006",
+      "segment_type": "dialogue_quote",
+      "utt_id": "",
+      "tts_enabled": false,
+      "narration": "",
+      "dialogue_original": "Benign",
+      "translated_caption_ko": "양성",
+      "caption_text": "양성",
+      "story_anchor": {
+        "source_range_hint": [
+          36,
+          39
+        ],
+        "scene_refs": [
+          "scene_008"
+        ]
+      },
+      "source_scenes": [
+        {
+          "clip_id": "clip_006",
+          "scene_id": "scene_008",
+          "start": "00:36.000",
+          "end": "00:39.000",
+          "speed_multiplier": 1
+        }
+      ],
+      "edit_instruction": {
+        "visual_role": "audio_key_word",
+        "pace": "urgent",
+        "transition": "hold",
+        "zoom": "medium",
+        "sfx": []
+      }
+    },
+    {
+      "segment_id": "seg_007",
+      "segment_type": "dialogue_quote",
+      "utt_id": "",
+      "tts_enabled": false,
+      "narration": "",
+      "dialogue_original": "Dobrý si vděčný.",
+      "translated_caption_ko": "당신은 감사하다.",
+      "caption_text": "당신은 감사하다.",
+      "story_anchor": {
+        "source_range_hint": [
+          69.5,
+          74.5
+        ],
+        "scene_refs": [
+          "scene_010"
+        ]
+      },
+      "source_scenes": [
+        {
+          "clip_id": "clip_007",
+          "scene_id": "scene_010",
+          "start": "01:09.500",
+          "end": "01:14.500",
+          "speed_multiplier": 1
+        }
+      ],
+      "edit_instruction": {
+        "visual_role": "audio_key_word",
+        "pace": "urgent",
+        "transition": "hold",
+        "zoom": "medium",
+        "sfx": []
+      }
+    },
+    {
+      "segment_id": "seg_008",
+      "segment_type": "dialogue_quote",
+      "utt_id": "",
+      "tts_enabled": false,
+      "narration": "",
+      "dialogue_original": "Freight Car / Грузовой вагон.",
+      "translated_caption_ko": "화물칸",
+      "caption_text": "화물칸",
+      "story_anchor": {
+        "source_range_hint": [
+          81.5,
+          91.5
+        ],
+        "scene_refs": [
+          "scene_013"
+        ]
+      },
+      "source_scenes": [
+        {
+          "clip_id": "clip_008",
+          "scene_id": "scene_013",
+          "start": "01:21.500",
+          "end": "01:31.500",
+          "speed_multiplier": 1
+        }
+      ],
+      "edit_instruction": {
+        "visual_role": "audio_key_word",
+        "pace": "urgent",
+        "transition": "hold",
+        "zoom": "close",
+        "sfx": []
+      }
+    },
+    {
+      "segment_id": "seg_009",
+      "segment_type": "recap",
+      "utt_id": "",
+      "tts_enabled": true,
+      "narration": "여성 전사의 응시는 한순간 멈춘 듯했지만, 긴장감은 끝까지 눌러왔죠.",
+      "dialogue_original": "",
+      "translated_caption_ko": "여성 전사의 고요한 압박",
+      "caption_text": "여성 전사의 고요한 압박",
+      "story_anchor": {
+        "source_range_hint": [
+          91.5,
+          95.5
+        ],
+        "scene_refs": [
+          "scene_014"
+        ]
+      },
+      "source_scenes": [
+        {
+          "clip_id": "clip_009",
+          "scene_id": "scene_014",
+          "start": "01:31.500",
+          "end": "01:35.500",
+          "speed_multiplier": 0.5537
+        }
+      ],
+      "edit_instruction": {
+        "visual_role": "reaction_read",
+        "pace": "pause",
+        "transition": "cut",
+        "zoom": "medium",
+        "sfx": []
+      }
+    },
+    {
+      "segment_id": "seg_010",
+      "segment_type": "recap",
+      "utt_id": "",
+      "tts_enabled": true,
+      "narration": "바로 이어진 프레임에서 윈터 솔져의 눈물은 불꽃 위로 천천히 흘러내려 표정을 더 무겁게 만들었습니다.",
+      "dialogue_original": "",
+      "translated_caption_ko": "윗부분의 눈물 클로즈업",
+      "caption_text": "윗부분의 눈물 클로즈업",
+      "story_anchor": {
+        "source_range_hint": [
+          95.5,
+          99.5
+        ],
+        "scene_refs": [
+          "scene_015"
+        ]
+      },
+      "source_scenes": [
+        {
+          "clip_id": "clip_010",
+          "scene_id": "scene_015",
+          "start": "01:35.500",
+          "end": "01:39.500",
+          "speed_multiplier": 0.4277
+        }
+      ],
+      "edit_instruction": {
+        "visual_role": "emotional_closeup",
+        "pace": "slow",
+        "transition": "cut",
+        "zoom": "close",
+        "sfx": []
+      }
+    },
+    {
+      "segment_id": "seg_011",
+      "segment_type": "recap",
+      "utt_id": "",
+      "tts_enabled": true,
+      "narration": "여성 조력자가 말문을 여는 찰나, 방 안의 공기가 잠시 멈춰 있었는데.",
+      "dialogue_original": "",
+      "translated_caption_ko": "대사 전의 긴 멈춤",
+      "caption_text": "대사 전의 긴 멈춤",
+      "story_anchor": {
+        "source_range_hint": [
+          103,
+          104.5
+        ],
+        "scene_refs": [
+          "scene_016"
+        ]
+      },
+      "source_scenes": [
+        {
+          "clip_id": "clip_011",
+          "scene_id": "scene_016",
+          "start": "01:43.000",
+          "end": "01:44.500",
+          "speed_multiplier": 0.2135
+        }
+      ],
+      "edit_instruction": {
+        "visual_role": "reaction_pause",
+        "pace": "slow",
+        "transition": "hold",
+        "zoom": "close",
+        "sfx": []
+      }
+    },
+    {
+      "segment_id": "seg_012",
+      "segment_type": "recap",
+      "utt_id": "",
+      "tts_enabled": true,
+      "narration": "옆의 남성은 고개를 숙인 채로 감정의 속도를 낮추고, 표정은 천천히 무너졌습니다.",
+      "dialogue_original": "",
+      "translated_caption_ko": "남성의 무너지는 표정",
+      "caption_text": "남성의 무너지는 표정",
+      "story_anchor": {
+        "source_range_hint": [
+          104.5,
+          108.5
+        ],
+        "scene_refs": [
+          "scene_017"
+        ]
+      },
+      "source_scenes": [
+        {
+          "clip_id": "clip_012",
+          "scene_id": "scene_017",
+          "start": "01:44.500",
+          "end": "01:48.500",
+          "speed_multiplier": 0.4944
+        }
+      ],
+      "edit_instruction": {
+        "visual_role": "reaction_closeup",
+        "pace": "slow",
+        "transition": "cut",
+        "zoom": "close",
+        "sfx": []
+      }
+    },
+    {
+      "segment_id": "seg_013",
+      "segment_type": "recap",
+      "utt_id": "",
+      "tts_enabled": true,
+      "narration": "다시 한 번 여성의 시선이 길어지며, 분위기는 더 날카로워졌죠.",
+      "dialogue_original": "",
+      "translated_caption_ko": "지속되는 응시의 압력",
+      "caption_text": "지속되는 응시의 압력",
+      "story_anchor": {
+        "source_range_hint": [
+          108.5,
+          112.5
+        ],
+        "scene_refs": [
+          "scene_018"
+        ]
+      },
+      "source_scenes": [
+        {
+          "clip_id": "clip_013",
+          "scene_id": "scene_018",
+          "start": "01:48.500",
+          "end": "01:52.500",
+          "speed_multiplier": 0.6218
+        }
+      ],
+      "edit_instruction": {
+        "visual_role": "reaction_read",
+        "pace": "pause",
+        "transition": "cut",
+        "zoom": "close",
+        "sfx": []
+      }
+    },
+    {
+      "segment_id": "seg_014",
+      "segment_type": "recap",
+      "utt_id": "",
+      "tts_enabled": true,
+      "narration": "남성은 입을 가린 채 참아 온 떨림을 결국 터버렸습니다.",
+      "dialogue_original": "",
+      "translated_caption_ko": "감정 폭발 직전",
+      "caption_text": "감정 폭발 직전",
+      "story_anchor": {
+        "source_range_hint": [
+          112.5,
+          115.5
+        ],
+        "scene_refs": [
+          "scene_019"
+        ]
+      },
+      "source_scenes": [
+        {
+          "clip_id": "clip_014",
+          "scene_id": "scene_019",
+          "start": "01:52.500",
+          "end": "01:55.500",
+          "speed_multiplier": 0.4909
+        }
+      ],
+      "edit_instruction": {
+        "visual_role": "tear_closeup",
+        "pace": "urgent",
+        "transition": "cut",
+        "zoom": "close",
+        "sfx": []
+      }
+    },
+    {
+      "segment_id": "seg_015",
+      "segment_type": "recap",
+      "utt_id": "",
+      "tts_enabled": true,
+      "narration": "여성의 차분한 얼굴 앞에서 남성의 가슴은 마지막 숨을 내버렸습니다.",
+      "dialogue_original": "",
+      "translated_caption_ko": "무너지는 숨결",
+      "caption_text": "무너지는 숨결",
+      "story_anchor": {
+        "source_range_hint": [
+          115.5,
+          119.5
+        ],
+        "scene_refs": [
+          "scene_020"
+        ]
+      },
+      "source_scenes": [
+        {
+          "clip_id": "clip_015",
+          "scene_id": "scene_020",
+          "start": "01:55.500",
+          "end": "01:59.500",
+          "speed_multiplier": 0.5673
+        }
+      ],
+      "edit_instruction": {
+        "visual_role": "reactive_close",
+        "pace": "slow",
+        "transition": "hold",
+        "zoom": "close",
+        "sfx": []
+      }
+    },
+    {
+      "segment_id": "seg_016",
+      "segment_type": "recap",
+      "utt_id": "",
+      "tts_enabled": true,
+      "narration": "장면이 더 다가가자 손으로 입을 막은 남성의 흐느낌이 길어졌고, 마음의 바닥이 조금씩 드러났습니다.",
+      "dialogue_original": "",
+      "translated_caption_ko": "침묵과 흐느낌",
+      "caption_text": "침묵과 흐느낌",
+      "story_anchor": {
+        "source_range_hint": [
+          119.5,
+          129
+        ],
+        "scene_refs": [
+          "scene_021"
+        ]
+      },
+      "source_scenes": [
+        {
+          "clip_id": "clip_016",
+          "scene_id": "scene_021",
+          "start": "01:59.500",
+          "end": "02:09.000",
+          "speed_multiplier": 0.9208
+        }
+      ],
+      "edit_instruction": {
+        "visual_role": "wide_emotion",
+        "pace": "slow",
+        "transition": "cut",
+        "zoom": "medium",
+        "sfx": []
+      }
+    },
+    {
+      "segment_id": "seg_017",
+      "segment_type": "recap",
+      "utt_id": "",
+      "tts_enabled": true,
+      "narration": "마지막 와이드샷에서는 두 사람의 실루엣만 오래 남고, 이어진 구독 문구는 덤처럼 잠깐 지나갔을 뿐입니다.",
+      "dialogue_original": "",
+      "translated_caption_ko": "남겨진 실루엣",
+      "caption_text": "남겨진 실루엣",
+      "story_anchor": {
+        "source_range_hint": [
+          129,
+          148.901
+        ],
+        "scene_refs": [
+          "scene_022"
+        ]
+      },
+      "source_scenes": [
+        {
+          "clip_id": "clip_017",
+          "scene_id": "scene_022",
+          "start": "02:09.000",
+          "end": "02:28.901",
+          "speed_multiplier": 1
+        }
+      ],
+      "edit_instruction": {
+        "visual_role": "outro_hold",
+        "pace": "slow",
+        "transition": "fade_out",
+        "zoom": "wide",
+        "sfx": []
+      }
+    }
+  ],
+  "quality_check": {
+    "segment_count": 17,
+    "estimated_total_duration_sec": 82.3,
+    "duration_within_60_180": true,
+    "all_scene_ids_exist_in_gemini_analysis": true,
+    "no_source_scene_exceeds_30_sec": true,
+    "korean_ending_rules_ok": true,
+    "dialogue_quote_count": 5,
+    "recap_tts_segment_count": 12,
+    "ending_rules_check": {
+      "eomi_ratio_seumnida_pct": 58.3,
+      "eomi_ratio_jyo_pct": 16.7,
+      "eomi_ratio_neunde_pct": 8.3,
+      "eomi_ratio_beoryeot_pct": 16.7,
+      "forbidden_eomi_count": 0,
+      "character_naming_consistent": true,
+      "real_name_used": false,
+      "mystery_4steps_applied": true,
+      "closing_drip_present": true
+    }
+  },
+  "created_at": "2026-07-14T00:00:00+09:00"
+}

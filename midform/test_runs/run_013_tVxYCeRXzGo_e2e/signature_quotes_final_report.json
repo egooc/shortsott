@@ -1,0 +1,186 @@
+{
+  "draft": {
+    "path": "server/output/drafts/pipeline_1784045533",
+    "totalDurationSec": 86.799999,
+    "subtitleTrackCount": 57,
+    "audioTrackCount": 14
+  },
+  "slot_map": {
+    "composition_mode": "dialogue_heavy_signature_quotes",
+    "total_output_estimate_sec": 102.085,
+    "speech_ratio": 0.6824,
+    "material_fit": {
+      "status": "pass",
+      "failures": []
+    }
+  },
+  "selected_signature_quotes": [
+    {
+      "rank": 1,
+      "utt_id": "utt_003",
+      "source_range": [
+        7,
+        8.42
+      ],
+      "text": "How come you ain't ever like me?",
+      "rationale": "아들이 사랑받고 싶은 마음을 직접 묻는 감정 출발점이다.",
+      "score": 285
+    },
+    {
+      "rank": 2,
+      "utt_id": "utt_015",
+      "source_range": [
+        68.98,
+        70.46
+      ],
+      "text": "It's my responsibility.",
+      "rationale": "아버지가 애정보다 의무를 앞세우는 갈등의 핵심 근거다.",
+      "score": 238
+    },
+    {
+      "rank": 3,
+      "utt_id": "utt_016",
+      "source_range": [
+        89.68,
+        91.04
+      ],
+      "text": "I ain't got to like you.",
+      "rationale": "장면의 주제를 관통하는 펀치라인: 사랑이 아니라 책임이라는 아버지의 논리를 드러낸다.",
+      "score": 325
+    },
+    {
+      "rank": 4,
+      "utt_id": "utt_019",
+      "source_range": [
+        106.92,
+        110.5
+      ],
+      "text": "Now, don't you go through life worrying about whether somebody like you or not.",
+      "rationale": "아버지의 냉혹한 인생관이 정리되는 마무리 철학이다.",
+      "score": 230
+    }
+  ],
+  "quote_segments": [
+    {
+      "segment_id": "s02",
+      "utt_id": "utt_003",
+      "source_range": [
+        "00:07.000",
+        "00:08.420"
+      ],
+      "dialogue_original": "How come you ain't ever like me?",
+      "caption_text": "아빠는 왜 날 한 번도 좋아한 적 없어?",
+      "quote_selection": {
+        "rank": 1,
+        "score": 285,
+        "rationale": "아들이 사랑받고 싶은 마음을 직접 묻는 감정 출발점이다.",
+        "shot_type": "close_up"
+      }
+    },
+    {
+      "segment_id": "s04",
+      "utt_id": "utt_015",
+      "source_range": [
+        "01:08.980",
+        "01:10.460"
+      ],
+      "dialogue_original": "It's my responsibility.",
+      "caption_text": "내 책임이야.",
+      "quote_selection": {
+        "rank": 2,
+        "score": 238,
+        "rationale": "아버지가 애정보다 의무를 앞세우는 갈등의 핵심 근거다.",
+        "shot_type": "dialogue"
+      }
+    },
+    {
+      "segment_id": "s06",
+      "utt_id": "utt_016",
+      "source_range": [
+        "01:29.680",
+        "01:31.040"
+      ],
+      "dialogue_original": "I ain't got to like you.",
+      "caption_text": "널 좋아할 의무는 없어.",
+      "quote_selection": {
+        "rank": 3,
+        "score": 325,
+        "rationale": "장면의 주제를 관통하는 펀치라인: 사랑이 아니라 책임이라는 아버지의 논리를 드러낸다.",
+        "shot_type": "dialogue"
+      }
+    },
+    {
+      "segment_id": "s08",
+      "utt_id": "utt_019",
+      "source_range": [
+        "01:46.920",
+        "01:50.500"
+      ],
+      "dialogue_original": "Now, don't you go through life worrying about whether somebody like you or not.",
+      "caption_text": "살면서 남들이 널 좋아하는지만 붙잡고 살지 마.",
+      "quote_selection": {
+        "rank": 4,
+        "score": 230,
+        "rationale": "아버지의 냉혹한 인생관이 정리되는 마무리 철학이다.",
+        "shot_type": "dialogue"
+      }
+    }
+  ],
+  "structure": [
+    {
+      "segment_id": "s01",
+      "type": "narration",
+      "role": "hook",
+      "narration_background": false
+    },
+    {
+      "segment_id": "s02",
+      "type": "dialogue",
+      "role": "",
+      "narration_background": false
+    },
+    {
+      "segment_id": "s03",
+      "type": "narration",
+      "role": "setup",
+      "narration_background": false
+    },
+    {
+      "segment_id": "s04",
+      "type": "dialogue",
+      "role": "",
+      "narration_background": false
+    },
+    {
+      "segment_id": "s05",
+      "type": "narration",
+      "role": "setup",
+      "narration_background": false
+    },
+    {
+      "segment_id": "s06",
+      "type": "dialogue",
+      "role": "",
+      "narration_background": false
+    },
+    {
+      "segment_id": "s07",
+      "type": "narration",
+      "role": "setup",
+      "narration_background": false
+    },
+    {
+      "segment_id": "s08",
+      "type": "dialogue",
+      "role": "",
+      "narration_background": false
+    },
+    {
+      "segment_id": "s09",
+      "type": "narration",
+      "role": "payoff",
+      "narration_background": false
+    }
+  ],
+  "alternating_structure_ok": true
+}

@@ -1,0 +1,158 @@
+{
+  "type": "object",
+  "properties": {
+    "script_id": { "type": "string" },
+    "source_reference": {
+      "type": "object",
+      "properties": {
+        "gemini_analysis_source_id": { "type": "string" },
+        "duration_sec": { "type": "number" }
+      },
+      "required": ["gemini_analysis_source_id", "duration_sec"],
+      "additionalProperties": false
+    },
+    "content_context": {
+      "type": "object",
+      "properties": {
+        "content_guess": { "type": "string" },
+        "genre": { "type": "string" },
+        "style_hint_used": { "type": "string" }
+      },
+      "required": ["content_guess", "genre", "style_hint_used"],
+      "additionalProperties": false
+    },
+    "segments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "segment_id": { "type": "string" },
+          "segment_type": {
+            "type": "string",
+            "enum": ["recap", "dialogue_quote", "dialogue", "bridge"]
+          },
+          "utt_id": { "type": "string" },
+          "tts_enabled": { "type": "boolean" },
+          "narration": { "type": "string" },
+          "dialogue_original": { "type": "string" },
+          "translated_caption_ko": { "type": "string" },
+          "caption_text": { "type": "string" },
+          "story_anchor": {
+            "type": "object",
+            "properties": {
+              "source_range_hint": {
+                "type": "array",
+                "items": { "type": "number" },
+                "minItems": 2,
+                "maxItems": 2
+              },
+              "scene_refs": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            },
+            "required": ["source_range_hint", "scene_refs"],
+            "additionalProperties": false
+          },
+          "source_scenes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "clip_id": { "type": "string" },
+                "scene_id": { "type": "string" },
+                "start": { "type": "string" },
+                "end": { "type": "string" },
+                "speed_multiplier": { "type": "number" }
+              },
+              "required": ["clip_id", "scene_id", "start", "end", "speed_multiplier"],
+              "additionalProperties": false
+            }
+          },
+          "edit_instruction": {
+            "type": "object",
+            "properties": {
+              "visual_role": { "type": "string" },
+              "pace": { "type": "string" },
+              "transition": { "type": "string" },
+              "zoom": { "type": "string" },
+              "sfx": { "type": "array", "items": { "type": "string" } }
+            },
+            "required": ["visual_role", "pace", "transition", "zoom", "sfx"],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "segment_id",
+          "segment_type",
+          "tts_enabled",
+          "narration",
+          "dialogue_original",
+          "translated_caption_ko",
+          "caption_text",
+          "utt_id",
+          "story_anchor",
+          "source_scenes",
+          "edit_instruction"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "quality_check": {
+      "type": "object",
+      "properties": {
+        "segment_count": { "type": "number" },
+        "estimated_total_duration_sec": { "type": "number" },
+        "duration_within_60_180": { "type": "boolean" },
+        "all_scene_ids_exist_in_gemini_analysis": { "type": "boolean" },
+        "no_source_scene_exceeds_30_sec": { "type": "boolean" },
+        "korean_ending_rules_ok": { "type": "boolean" },
+        "knowledge_context_used": { "type": "boolean" },
+        "dialogue_quote_count": { "type": "number" },
+        "recap_tts_segment_count": { "type": "number" },
+        "ending_rules_check": {
+          "type": "object",
+          "properties": {
+            "eomi_ratio_seumnida_pct": { "type": "number" },
+            "eomi_ratio_jyo_pct": { "type": "number" },
+            "eomi_ratio_neunde_pct": { "type": "number" },
+            "eomi_ratio_beoryeot_pct": { "type": "number" },
+            "forbidden_eomi_count": { "type": "number" },
+            "character_naming_consistent": { "type": "boolean" },
+            "real_name_used": { "type": "boolean" },
+            "mystery_4steps_applied": { "type": "boolean" },
+            "closing_drip_present": { "type": "boolean" }
+          },
+          "required": [
+            "eomi_ratio_seumnida_pct",
+            "eomi_ratio_jyo_pct",
+            "eomi_ratio_neunde_pct",
+            "eomi_ratio_beoryeot_pct",
+            "forbidden_eomi_count",
+            "character_naming_consistent",
+            "real_name_used",
+            "mystery_4steps_applied",
+            "closing_drip_present"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "segment_count",
+        "estimated_total_duration_sec",
+        "duration_within_60_180",
+        "all_scene_ids_exist_in_gemini_analysis",
+        "no_source_scene_exceeds_30_sec",
+        "korean_ending_rules_ok",
+        "knowledge_context_used",
+        "dialogue_quote_count",
+        "recap_tts_segment_count",
+        "ending_rules_check"
+      ],
+      "additionalProperties": false
+    },
+    "created_at": { "type": "string" }
+  },
+  "required": ["script_id", "source_reference", "content_context", "segments", "quality_check", "created_at"],
+  "additionalProperties": false
+}

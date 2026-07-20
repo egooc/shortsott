@@ -1,0 +1,140 @@
+{
+  "script_id": "tfatws_ending_gate_repaired_20260714",
+  "slot_fills": [
+    {
+      "slot_id": "s01",
+      "narration": "와칸다는 평온했지만, 버키에게는 과거 명령을 떼어낼 마지막 시험이 시작됐습니다.",
+      "caption_units": [
+        "와칸다는 평온했지만, 버키에게는 과거 명령을 떼어낼 마지막 시험이 시작됐습니다."
+      ],
+      "caption_kr": "와칸다는 평온했지만, 버키에게는 과거 명령을 떼어낼 마지막 시험이 시작됐습니다."
+    },
+    {
+      "slot_id": "s02",
+      "narration": "",
+      "caption_units": [
+        "이제 시작이야."
+      ],
+      "caption_kr": "이제 시작이야."
+    },
+    {
+      "slot_id": "s03",
+      "narration": "",
+      "caption_units": [
+        "정말 할 수 있겠어?"
+      ],
+      "caption_kr": "정말 할 수 있겠어?"
+    },
+    {
+      "slot_id": "s04",
+      "narration": "",
+      "caption_units": [
+        "아무도 다치게 안 할 거야."
+      ],
+      "caption_kr": "아무도 다치게 안 할 거야."
+    },
+    {
+      "slot_id": "s05",
+      "narration": "아무리 비명이 커져도 아요는 물러서지 않았습니다.",
+      "caption_units": [
+        "아무리 비명이 커져도 아요는 물러서지 않았습니다."
+      ],
+      "caption_kr": "아무리 비명이 커져도 아요는 물러서지 않았습니다."
+    },
+    {
+      "slot_id": "s06",
+      "narration": "불빛만 스쳐도 버키는 흔들렸죠.",
+      "caption_units": [
+        "불빛만 스쳐도 버키는 흔들렸죠."
+      ],
+      "caption_kr": "불빛만 스쳐도 버키는 흔들렸죠."
+    },
+    {
+      "slot_id": "s07",
+      "narration": "버키는 버티고 있었는데.",
+      "caption_units": [
+        "버키는 버티고 있었는데."
+      ],
+      "caption_kr": "버키는 버티고 있었는데."
+    },
+    {
+      "slot_id": "s08",
+      "narration": "침묵 속에서도 버키는 무너지지 않았습니다.",
+      "caption_units": [
+        "침묵 속에서도 버키는 무너지지 않았습니다."
+      ],
+      "caption_kr": "침묵 속에서도 버키는 무너지지 않았습니다."
+    },
+    {
+      "slot_id": "s09",
+      "narration": "말이 끊긴 뒤에도 아요는 한 치도 흔들리지 않았습니다.",
+      "caption_units": [
+        "말이 끊긴 뒤에도 아요는 한 치도 흔들리지 않았습니다."
+      ],
+      "caption_kr": "말이 끊긴 뒤에도 아요는 한 치도 흔들리지 않았습니다."
+    },
+    {
+      "slot_id": "s10",
+      "narration": "",
+      "caption_units": [
+        "심장... 꿈..."
+      ],
+      "caption_kr": "심장... 꿈..."
+    },
+    {
+      "slot_id": "s11",
+      "narration": "",
+      "caption_units": [
+        "홈커밍..."
+      ],
+      "caption_kr": "홈커밍..."
+    },
+    {
+      "slot_id": "s12",
+      "narration": "",
+      "caption_units": [
+        "그 하나..."
+      ],
+      "caption_kr": "그 하나..."
+    },
+    {
+      "slot_id": "s13",
+      "narration": "",
+      "caption_units": [
+        "화물칸..."
+      ],
+      "caption_kr": "화물칸..."
+    },
+    {
+      "slot_id": "s14",
+      "narration": "암시어가 이어질수록 버키의 얼굴은 무너졌지만, 아요는 단어 하나마다 반응을 붙잡았습니다.",
+      "caption_units": [
+        "암시어가 이어질수록 버키의 얼굴은 무너졌지만, 아요는 단어 하나마다 반응을 붙잡았습니다."
+      ],
+      "caption_kr": "암시어가 이어질수록 버키의 얼굴은 무너졌지만, 아요는 단어 하나마다 반응을 붙잡았습니다."
+    },
+    {
+      "slot_id": "s15",
+      "narration": "마지막 단어가 지나가자 버키는 겨우 자기 자신으로 돌아왔죠.",
+      "caption_units": [
+        "마지막 단어가 지나가자 버키는 겨우 자기 자신으로 돌아왔죠."
+      ],
+      "caption_kr": "마지막 단어가 지나가자 버키는 겨우 자기 자신으로 돌아왔죠."
+    },
+    {
+      "slot_id": "s16",
+      "narration": "이건 승리가 아니라 버키가 더는 명령에 끌려가지 않는다는 증거였습니다. 여러분, 이 정도면 해방도 전투였죠.",
+      "caption_units": [
+        "이건 승리가 아니라 버키가 더는 명령에 끌려가지 않는다는 증거였습니다. 여러분, 이 정도면 해방도 전투였죠."
+      ],
+      "caption_kr": "이건 승리가 아니라 버키가 더는 명령에 끌려가지 않는다는 증거였습니다. 여러분, 이 정도면 해방도 전투였죠."
+    }
+  ],
+  "quality_check": {
+    "all_slots_filled": true,
+    "slot_order_preserved": true,
+    "forbidden_eomi_count": 0,
+    "translationese_risk_count": 0,
+    "budget_violations": 0
+  }
+}

@@ -1,0 +1,186 @@
+{
+  "chunk": {
+    "index": 4,
+    "start_sec": 99.33,
+    "end_sec": 140.04,
+    "duration_sec": 40.71,
+    "overlap_before_sec": 2,
+    "snapped_boundary_sec": 101.33
+  },
+  "result": {
+    "source": {
+      "source_id": "fences_chunk_4",
+      "duration_sec": 32,
+      "aspect_ratio": "16:9",
+      "content_type": "movie_midform_recap"
+    },
+    "story_context": {
+      "content_guess": "Fences",
+      "content_confidence": "high",
+      "plot_summary_neutral": "아버지가 아들에게 자신의 삶의 철학을 강요하며 강하게 질책하고, 아들은 상처받은 표정으로 집으로 들어간다. 어머니는 아들을 걱정스럽게 바라본다.",
+      "genre": "drama",
+      "language_of_dialogue": "English",
+      "burned_subtitle_position": "none"
+    },
+    "scenes": [
+      {
+        "scene_id": "scene_001",
+        "start_sec": 0,
+        "end_sec": 6.47,
+        "duration_sec": 6.47,
+        "visible_action": "아버지가 아들에게 자신의 희생과 삶에 대해 강하게 이야기한다. 아들은 아버지를 응시한다.",
+        "dialogue_or_caption": "Now, I don't give you everything I got to give you. I give you your life. Me and your mama worked that out between us, and liking your black ass wasn't part of the bargain.",
+        "utt_refs": [
+          "utt_017",
+          "utt_018"
+        ],
+        "shot_type": "dialogue",
+        "characters_visible": [
+          "father",
+          "son"
+        ],
+        "dialogue_importance": "high",
+        "dialogue_function": "character_emotion",
+        "should_preserve_original_dialogue": true,
+        "dialogue_preserve_reason": "아버지의 강압적인 태도와 아들에 대한 기대, 그리고 아들의 존재에 대한 복잡한 감정을 보여주는 중요한 대사.",
+        "translated_caption_ko": "내가 너에게 줄 수 있는 모든 것을 주지 않았어. 네게 삶을 줬지. 너와 네 엄마가 우리 둘 사이에서 해결한 일이고, 네 존재가 거래의 일부는 아니었어.",
+        "recap_bridge_before": "아버지는 아들에게 자신의 희생을 강조하며 강하게 말합니다.",
+        "recap_bridge_after": "아버지는 아들에게 세상의 냉혹함을 가르치며 더욱 강한 말을 쏟아냅니다.",
+        "vertical_crop_note": "두 인물의 얼굴이 중앙에 잘 위치하여 크롭에 문제 없음."
+      },
+      {
+        "scene_id": "scene_002",
+        "start_sec": 7,
+        "end_sec": 19.47,
+        "duration_sec": 12.47,
+        "visible_action": "아버지가 아들에게 세상에 대한 자신의 철학을 강요하며 질책한다. 아들은 굳은 표정으로 듣는다.",
+        "dialogue_or_caption": "Now, don't you go through life worrying about whether somebody like you or not. You best be making sure they're doing right by you. You understand what I'm saying? Then get the hell out of my face and get on down to that A&P.",
+        "utt_refs": [
+          "utt_019"
+        ],
+        "shot_type": "dialogue",
+        "characters_visible": [
+          "father",
+          "son"
+        ],
+        "dialogue_importance": "high",
+        "dialogue_function": "threat",
+        "should_preserve_original_dialogue": true,
+        "dialogue_preserve_reason": "아버지가 아들에게 세상에 대한 자신의 철학을 강요하며, 아들을 밀어내는 중요한 대사.",
+        "translated_caption_ko": "누가 널 좋아하든 말든 신경 쓰지 마. 사람들이 너에게 제대로 대하는지나 확인해. 내 말 알아듣겠어? 그럼 내 눈앞에서 사라져서 A&P로 가.",
+        "recap_bridge_before": "아버지는 아들에게 세상의 냉혹함을 가르치며...",
+        "recap_bridge_after": "아버지는 아들을 외면하고, 아들은 상처받은 채 집으로 들어갑니다.",
+        "vertical_crop_note": "두 인물의 얼굴이 중앙에 잘 위치하여 크롭에 문제 없음."
+      },
+      {
+        "scene_id": "scene_003",
+        "start_sec": 19.47,
+        "end_sec": 23,
+        "duration_sec": 3.53,
+        "visible_action": "아버지가 아들에게서 등을 돌려 집으로 향하고, 아들도 반대 방향으로 걸어간다.",
+        "dialogue_or_caption": "none",
+        "utt_refs": [],
+        "shot_type": "wide",
+        "characters_visible": [
+          "father",
+          "son"
+        ],
+        "dialogue_importance": "none",
+        "dialogue_function": "none",
+        "should_preserve_original_dialogue": false,
+        "dialogue_preserve_reason": "none",
+        "translated_caption_ko": "none",
+        "recap_bridge_before": "결국 아버지는 아들을 외면하고...",
+        "recap_bridge_after": "아들은 집으로 들어서고, 어머니는 걱정스러운 표정으로 아들을 맞이합니다.",
+        "vertical_crop_note": "인물들이 화면 중앙에 위치하며, 배경이 넓게 보여 크롭에 문제 없음."
+      },
+      {
+        "scene_id": "scene_004",
+        "start_sec": 23,
+        "end_sec": 29,
+        "duration_sec": 6,
+        "visible_action": "아들이 집 문을 열고 들어선다. 아들은 여전히 굳은 표정이다.",
+        "dialogue_or_caption": "none",
+        "utt_refs": [],
+        "shot_type": "medium",
+        "characters_visible": [
+          "son"
+        ],
+        "dialogue_importance": "none",
+        "dialogue_function": "none",
+        "should_preserve_original_dialogue": false,
+        "dialogue_preserve_reason": "none",
+        "translated_caption_ko": "none",
+        "recap_bridge_before": "아버지를 뒤로하고 집으로 들어선 아들은...",
+        "recap_bridge_after": "어머니는 아들의 표정을 보고 걱정한다.",
+        "vertical_crop_note": "인물의 얼굴이 중앙에 잘 위치하여 크롭에 문제 없음."
+      },
+      {
+        "scene_id": "scene_005",
+        "start_sec": 29,
+        "end_sec": 32,
+        "duration_sec": 3,
+        "visible_action": "부엌에 서 있는 어머니가 걱정스러운 표정으로 아들을 바라본다.",
+        "dialogue_or_caption": "none",
+        "utt_refs": [],
+        "shot_type": "medium",
+        "characters_visible": [
+          "mother"
+        ],
+        "dialogue_importance": "none",
+        "dialogue_function": "none",
+        "should_preserve_original_dialogue": false,
+        "dialogue_preserve_reason": "none",
+        "translated_caption_ko": "none",
+        "recap_bridge_before": "아들의 모습을 본 어머니는...",
+        "recap_bridge_after": "none",
+        "vertical_crop_note": "인물의 얼굴이 중앙에 잘 위치하여 크롭에 문제 없음."
+      }
+    ],
+    "characters": [
+      {
+        "safe_display_name": "father",
+        "role": "protagonist",
+        "first_seen_sec": 0
+      },
+      {
+        "safe_display_name": "son",
+        "role": "protagonist",
+        "first_seen_sec": 0
+      },
+      {
+        "safe_display_name": "mother",
+        "role": "ally",
+        "first_seen_sec": 29
+      }
+    ],
+    "safety_scan": {
+      "violence": {
+        "present": false,
+        "timecodes": []
+      },
+      "sexual": {
+        "present": false,
+        "timecodes": []
+      },
+      "gore": {
+        "present": false,
+        "timecodes": []
+      },
+      "minor_safety": {
+        "present": false,
+        "timecodes": []
+      },
+      "sensitive_topic": {
+        "present": false,
+        "timecodes": []
+      }
+    },
+    "integrity_check": {
+      "total_scenes_count": 5,
+      "total_duration_sec": 32,
+      "all_scene_times_within_source": true,
+      "no_empty_required_fields": true
+    }
+  }
+}

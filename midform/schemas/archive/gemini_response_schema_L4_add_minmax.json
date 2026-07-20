@@ -1,0 +1,65 @@
+{
+  "type": "object",
+  "properties": {
+    "source": {
+      "type": "object",
+      "properties": {
+        "duration_sec": {
+          "type": "number"
+        },
+        "content_type": {
+          "type": "string",
+          "enum": [
+            "movie_midform_recap"
+          ]
+        }
+      },
+      "required": [
+        "duration_sec",
+        "content_type"
+      ]
+    },
+    "scenes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "scene_id": {
+            "type": "string"
+          },
+          "start_sec": {
+            "type": "number"
+          },
+          "end_sec": {
+            "type": "number"
+          },
+          "shot_type": {
+            "type": "string",
+            "enum": [
+              "close_up",
+              "medium",
+              "wide",
+              "action",
+              "dialogue",
+              "insert",
+              "establishing",
+              "unknown"
+            ]
+          }
+        },
+        "required": [
+          "scene_id",
+          "start_sec",
+          "end_sec",
+          "shot_type"
+        ]
+      },
+      "minItems": 3,
+      "maxItems": 20
+    }
+  },
+  "required": [
+    "source",
+    "scenes"
+  ]
+}

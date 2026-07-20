@@ -1,0 +1,516 @@
+{
+  "source_duration_sec": 140.039546,
+  "composition_mode": "dialogue_heavy_signature_quotes",
+  "composition_mode_reason": "speech ratio exceeds 50%; select only 2-4 signature quotes and convert remaining dialogue-heavy ranges into narrated background",
+  "speech_duration_sec": 95.56,
+  "speech_ratio": 0.6824,
+  "dialogue_heavy_mode": true,
+  "target_output_sec": [
+    70.02,
+    112.032
+  ],
+  "material_fit": {
+    "status": "pass",
+    "failures": []
+  },
+  "narration_strategy": {
+    "max_narration_slots": 5,
+    "roles": [
+      "hook",
+      "bridge",
+      "payoff"
+    ],
+    "instruction": "명대사 2~4개만 원음으로 살리고, 나머지 대사 구간은 원음 0.3 덕킹 아래 나레이션 배경으로 사용한다."
+  },
+  "selected_signature_quotes": [
+    {
+      "rank": 1,
+      "utt_id": "utt_003",
+      "source_range": [
+        7.0,
+        8.42
+      ],
+      "text": "How come you ain't ever like me?",
+      "rationale": "아들이 사랑받고 싶은 마음을 직접 묻는 감정 출발점이다.",
+      "score": 285
+    },
+    {
+      "rank": 2,
+      "utt_id": "utt_015",
+      "source_range": [
+        68.98,
+        70.46
+      ],
+      "text": "It's my responsibility.",
+      "rationale": "아버지가 애정보다 의무를 앞세우는 갈등의 핵심 근거다.",
+      "score": 238
+    },
+    {
+      "rank": 3,
+      "utt_id": "utt_016",
+      "source_range": [
+        89.68,
+        91.04
+      ],
+      "text": "I ain't got to like you.",
+      "rationale": "장면의 주제를 관통하는 펀치라인: 사랑이 아니라 책임이라는 아버지의 논리를 드러낸다.",
+      "score": 325
+    },
+    {
+      "rank": 4,
+      "utt_id": "utt_019",
+      "source_range": [
+        106.92,
+        110.5
+      ],
+      "text": "Now, don't you go through life worrying about whether somebody like you or not.",
+      "rationale": "아버지의 냉혹한 인생관이 정리되는 마무리 철학이다.",
+      "score": 230
+    }
+  ],
+  "quote_candidate_count": 44,
+  "slots": [
+    {
+      "type": "narration",
+      "source_range": [
+        0.0,
+        7.0
+      ],
+      "duration": 7.0,
+      "scene_summary": "젊은 남자가 나이 든 남자에게 다가가 질문을 던진다. / 나이 든 남자가 젊은 남자에게 등을 돌린 채 무시하는 듯한 태도로 대답한다. / 나이 든 남자가 카메라를 응시하며 젊은 남자의 질문을 듣는다. 젊은 남자는 화면 밖에 있다.",
+      "scene_ids": [
+        "scene_001",
+        "scene_002",
+        "scene_003"
+      ],
+      "tts_budget_sec": [
+        8.0,
+        10.0
+      ],
+      "require_min_chars": true,
+      "narration_background": true,
+      "source_audio_ducking": 0.3,
+      "lip_sync_risk": true,
+      "shot_types": [
+        "medium",
+        "close_up"
+      ],
+      "dialogue_heavy_role": "hook",
+      "slot_id": "s01"
+    },
+    {
+      "type": "dialogue",
+      "utt_id": "utt_003",
+      "source_range": [
+        7.0,
+        8.42
+      ],
+      "duration": 1.42,
+      "caption_source_text": "How come you ain't ever like me?",
+      "needs_translation": true,
+      "scene_id": "scene_003",
+      "scene_summary": "나이 든 남자가 카메라를 응시하며 젊은 남자의 질문을 듣는다. 젊은 남자는 화면 밖에 있다. / 명대사: How come you ain't ever like me?",
+      "quote_selection": {
+        "rank": 1,
+        "score": 285,
+        "rationale": "아들이 사랑받고 싶은 마음을 직접 묻는 감정 출발점이다.",
+        "shot_type": "close_up"
+      },
+      "slot_id": "s02"
+    },
+    {
+      "type": "narration",
+      "source_range": [
+        8.42,
+        68.98
+      ],
+      "duration": 60.56,
+      "scene_summary": "나이 든 남자가 카메라를 응시하며 젊은 남자의 질문을 듣는다. 젊은 남자는 화면 밖에 있다. / 나이 든 남자가 아들의 질문에 불신과 분노가 섞인 표정으로 반응한다. / 나이 든 남자가 격렬하게 말을 이어가며 젊은 남자에게 가까이 오라고 손짓한다. 젊은 남자가 다가온다. / 나이 든 남자가 젊은 남자와 마주 서서 손짓하며 똑바로 서라고 명령한다. / 아버지가 아들에게 질문하며 엄하게 말한다. / 아들이 아버지의 질문에 대답하고, 아버지는 아들에게 존칭을 요구하며 자신이 제공하는 것들을 상기시킨다. / 아버지가 아들의 대답에 반응하며 다시 질문하고, 아들은 아버지가 자신을 좋아하기 때문이라고 답한다. / 나이 든 남자가 젊은 남자에게 격렬하게 말하고, 젊은 남자는 듣고 있다. / 나이 든 남자가 젊은 남자에게 가족 부양의 책임에 대해 강하게 말하고, 젊은 남자는 진지하게 듣고 있다.",
+      "scene_ids": [
+        "scene_003",
+        "scene_004",
+        "scene_005",
+        "scene_006",
+        "scene_007",
+        "scene_008",
+        "scene_009",
+        "scene_010",
+        "scene_011"
+      ],
+      "tts_budget_sec": [
+        37.547,
+        53.293
+      ],
+      "require_min_chars": true,
+      "narration_background": true,
+      "source_audio_ducking": 0.3,
+      "lip_sync_risk": true,
+      "shot_types": [
+        "close_up",
+        "dialogue",
+        "wide"
+      ],
+      "dialogue_heavy_role": "bridge",
+      "slot_id": "s03"
+    },
+    {
+      "type": "dialogue",
+      "utt_id": "utt_015",
+      "source_range": [
+        68.98,
+        70.46
+      ],
+      "duration": 1.48,
+      "caption_source_text": "It's my responsibility.",
+      "needs_translation": true,
+      "scene_id": "scene_011",
+      "scene_summary": "나이 든 남자가 젊은 남자에게 가족 부양의 책임에 대해 강하게 말하고, 젊은 남자는 진지하게 듣고 있다. / 명대사: It's my responsibility.",
+      "quote_selection": {
+        "rank": 2,
+        "score": 238,
+        "rationale": "아버지가 애정보다 의무를 앞세우는 갈등의 핵심 근거다.",
+        "shot_type": "dialogue"
+      },
+      "slot_id": "s04"
+    },
+    {
+      "type": "narration",
+      "source_range": [
+        70.46,
+        89.68
+      ],
+      "duration": 19.22,
+      "scene_summary": "나이 든 남자가 젊은 남자에게 가족 부양의 책임에 대해 강하게 말하고, 젊은 남자는 진지하게 듣고 있다. / 나이 든 남자가 젊은 남자에게 자신은 아들을 좋아해서가 아니라 의무감 때문에 돌본다고 강조한다.",
+      "scene_ids": [
+        "scene_011",
+        "scene_012"
+      ],
+      "tts_budget_sec": [
+        11.916,
+        16.914
+      ],
+      "require_min_chars": true,
+      "narration_background": true,
+      "source_audio_ducking": 0.3,
+      "lip_sync_risk": false,
+      "shot_types": [
+        "dialogue"
+      ],
+      "dialogue_heavy_role": "bridge",
+      "slot_id": "s05"
+    },
+    {
+      "type": "dialogue",
+      "utt_id": "utt_016",
+      "source_range": [
+        89.68,
+        91.04
+      ],
+      "duration": 1.36,
+      "caption_source_text": "I ain't got to like you.",
+      "needs_translation": true,
+      "scene_id": "scene_012",
+      "scene_summary": "나이 든 남자가 젊은 남자에게 자신은 아들을 좋아해서가 아니라 의무감 때문에 돌본다고 강조한다. / 명대사: I ain't got to like you.",
+      "quote_selection": {
+        "rank": 3,
+        "score": 325,
+        "rationale": "장면의 주제를 관통하는 펀치라인: 사랑이 아니라 책임이라는 아버지의 논리를 드러낸다.",
+        "shot_type": "dialogue"
+      },
+      "slot_id": "s06"
+    },
+    {
+      "type": "narration",
+      "source_range": [
+        91.04,
+        106.92
+      ],
+      "duration": 15.88,
+      "scene_summary": "나이 든 남자가 젊은 남자에게 자신은 아들을 좋아해서가 아니라 의무감 때문에 돌본다고 강조한다. / 아버지가 아들에게 자신의 희생과 삶에 대해 강하게 이야기한다. 아들은 아버지를 응시한다. / 아버지가 아들에게 세상에 대한 자신의 철학을 강요하며 질책한다. 아들은 굳은 표정으로 듣는다.",
+      "scene_ids": [
+        "scene_012",
+        "scene_013",
+        "scene_014"
+      ],
+      "tts_budget_sec": [
+        9.846,
+        13.974
+      ],
+      "require_min_chars": true,
+      "narration_background": true,
+      "source_audio_ducking": 0.3,
+      "lip_sync_risk": false,
+      "shot_types": [
+        "dialogue"
+      ],
+      "dialogue_heavy_role": "bridge",
+      "slot_id": "s07"
+    },
+    {
+      "type": "dialogue",
+      "utt_id": "utt_019",
+      "source_range": [
+        106.92,
+        110.5
+      ],
+      "duration": 3.58,
+      "caption_source_text": "Now, don't you go through life worrying about whether somebody like you or not.",
+      "needs_translation": true,
+      "scene_id": "scene_014",
+      "scene_summary": "아버지가 아들에게 세상에 대한 자신의 철학을 강요하며 질책한다. 아들은 굳은 표정으로 듣는다. / 명대사: Now, don't you go through life worrying about whether somebody like you or not.",
+      "quote_selection": {
+        "rank": 4,
+        "score": 230,
+        "rationale": "아버지의 냉혹한 인생관이 정리되는 마무리 철학이다.",
+        "shot_type": "dialogue"
+      },
+      "slot_id": "s08"
+    },
+    {
+      "type": "narration",
+      "source_range": [
+        110.5,
+        128.5
+      ],
+      "duration": 18.0,
+      "scene_summary": "아버지가 아들에게 세상에 대한 자신의 철학을 강요하며 질책한다. 아들은 굳은 표정으로 듣는다. / 아버지가 아들에게서 등을 돌려 집으로 향하고, 아들도 반대 방향으로 걸어간다. / 아들이 집 문을 열고 들어선다. 아들은 여전히 굳은 표정이다. / 부엌에 서 있는 어머니가 걱정스러운 표정으로 아들을 바라본다.",
+      "scene_ids": [
+        "scene_014",
+        "scene_015",
+        "scene_016",
+        "scene_017"
+      ],
+      "tts_budget_sec": [
+        11.16,
+        15.84
+      ],
+      "require_min_chars": true,
+      "narration_background": true,
+      "source_audio_ducking": 0.3,
+      "lip_sync_risk": false,
+      "shot_types": [
+        "dialogue",
+        "wide",
+        "medium"
+      ],
+      "dialogue_heavy_role": "payoff",
+      "slot_id": "s09"
+    }
+  ],
+  "excluded_ranges": [
+    [
+      0.52,
+      1.52,
+      "unselected_dialogue_as_narration_background"
+    ],
+    [
+      2.94,
+      5.6,
+      "unselected_dialogue_as_narration_background"
+    ],
+    [
+      9.62,
+      10.22,
+      "unselected_dialogue_as_narration_background"
+    ],
+    [
+      11.7,
+      13.36,
+      "unselected_dialogue_as_narration_background"
+    ],
+    [
+      15.12,
+      23.72,
+      "unselected_dialogue_as_narration_background"
+    ],
+    [
+      25.9,
+      27.24,
+      "unselected_dialogue_as_narration_background"
+    ],
+    [
+      28.36,
+      35.38,
+      "unselected_dialogue_as_narration_background"
+    ],
+    [
+      37.04,
+      48.62,
+      "unselected_dialogue_as_narration_background"
+    ],
+    [
+      49.42,
+      52.88,
+      "unselected_dialogue_as_narration_background"
+    ],
+    [
+      54.82,
+      56.04,
+      "unselected_dialogue_as_narration_background"
+    ],
+    [
+      56.72,
+      57.62,
+      "unselected_dialogue_as_narration_background"
+    ],
+    [
+      58.76,
+      59.98,
+      "unselected_dialogue_as_narration_background"
+    ],
+    [
+      60.68,
+      65.1,
+      "unselected_dialogue_as_narration_background"
+    ],
+    [
+      97.7,
+      100.74,
+      "unselected_dialogue_as_narration_background"
+    ],
+    [
+      101.92,
+      105.8,
+      "unselected_dialogue_as_narration_background"
+    ]
+  ],
+  "excluded_dialogue_utterances": [
+    {
+      "utt_id": "utt_001",
+      "source_range": [
+        0.52,
+        1.52
+      ],
+      "text": "Can I ask you a question?",
+      "reason": "not_selected_signature_quote_background_allowed"
+    },
+    {
+      "utt_id": "utt_002",
+      "source_range": [
+        2.94,
+        5.6
+      ],
+      "text": "What the hell you got to ask me? Mr. Stowickie, the one you got the questions for.",
+      "reason": "not_selected_signature_quote_background_allowed"
+    },
+    {
+      "utt_id": "utt_004",
+      "source_range": [
+        9.62,
+        10.22
+      ],
+      "text": "Like you?",
+      "reason": "not_selected_signature_quote_background_allowed"
+    },
+    {
+      "utt_id": "utt_005",
+      "source_range": [
+        11.7,
+        13.36
+      ],
+      "text": "Who the hell said I got to like you?",
+      "reason": "not_selected_signature_quote_background_allowed"
+    },
+    {
+      "utt_id": "utt_006",
+      "source_range": [
+        15.12,
+        23.72
+      ],
+      "text": "What law is there say I got to like you? Wanna stand up in front of my face and ask a damn fool-ass question like that? Talkin' about likin' somebody. Call me a boy when I talk to you.",
+      "reason": "not_selected_signature_quote_background_allowed"
+    },
+    {
+      "utt_id": "utt_007",
+      "source_range": [
+        25.9,
+        27.24
+      ],
+      "text": "Straighten up, goddammit.",
+      "reason": "not_selected_signature_quote_background_allowed"
+    },
+    {
+      "utt_id": "utt_008",
+      "source_range": [
+        28.36,
+        35.38
+      ],
+      "text": "I asked you a question. What law is there say I got to like you? None. All right, then. Don't you eat every day?",
+      "reason": "not_selected_signature_quote_background_allowed"
+    },
+    {
+      "utt_id": "utt_009",
+      "source_range": [
+        37.04,
+        48.62
+      ],
+      "text": "Answer me when I talk to you. Don't you eat every day? Yeah. Nigga, as long as you in my house, you put a sir on the end of it when you talk to me. Yes, sir. You eat every day. Yes, sir. Got a roof over your head. Yes, sir. Got clothes on your back. Yes, sir. Why you think that is? Because of you.",
+      "reason": "not_selected_signature_quote_background_allowed"
+    },
+    {
+      "utt_id": "utt_010",
+      "source_range": [
+        49.42,
+        52.88
+      ],
+      "text": "Hell, I know it's because of me, but why do you think that is?",
+      "reason": "not_selected_signature_quote_background_allowed"
+    },
+    {
+      "utt_id": "utt_011",
+      "source_range": [
+        54.82,
+        56.04
+      ],
+      "text": "Because you like me.",
+      "reason": "not_selected_signature_quote_background_allowed"
+    },
+    {
+      "utt_id": "utt_012",
+      "source_range": [
+        56.72,
+        57.62
+      ],
+      "text": "Like you.",
+      "reason": "not_selected_signature_quote_background_allowed"
+    },
+    {
+      "utt_id": "utt_013",
+      "source_range": [
+        58.76,
+        59.98
+      ],
+      "text": "I go out of here every morning.",
+      "reason": "not_selected_signature_quote_background_allowed"
+    },
+    {
+      "utt_id": "utt_014",
+      "source_range": [
+        60.68,
+        65.1
+      ],
+      "text": "I bust my butt puttin' up with them crackers every day, because I like you.",
+      "reason": "not_selected_signature_quote_background_allowed"
+    },
+    {
+      "utt_id": "utt_017",
+      "source_range": [
+        97.7,
+        100.74
+      ],
+      "text": "Now, I don't give you everything I got to give you. I give you your life.",
+      "reason": "not_selected_signature_quote_background_allowed"
+    },
+    {
+      "utt_id": "utt_018",
+      "source_range": [
+        101.92,
+        105.8
+      ],
+      "text": "Me and your mama worked that out between us, and liking your black ass wasn't part of the bargain.",
+      "reason": "not_selected_signature_quote_background_allowed"
+    }
+  ],
+  "total_output_estimate_sec": 102.085,
+  "dialogue_selected_duration_sec": 7.84
+}

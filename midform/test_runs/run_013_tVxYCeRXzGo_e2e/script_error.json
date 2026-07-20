@@ -1,0 +1,12 @@
+{
+  "message": "GPT slot fills failed validation after retry",
+  "code": "GPT_SLOT_FILLS_VALIDATION_FAILED",
+  "details": {
+    "errors": [
+      "어미 분포 현재 니다 75%, 죠 25%, 는데 0%, 버렸 0% / 목표(drama) 니다 75%, 죠 15%, 는데 8%, 버렸 2%. 문말 ~는데/~했는데가 최소 1회 필요합니다. 다음 문장들을 ~죠/~는데로 전환하라: [s02: 아들은 사랑을 묻고 있었는데, 아버지는 끝까지 의무만 내밀었습니다. / s02: 그래서 어머니의 걱정스러운 얼굴이 더 아픕니다. / s02: 여러분, 가족회의 한 번에 마음이 문밖으로 쫓겨났습니다.]"
+    ],
+    "promptPath": "C:\\Users\\sejun\\Documents\\Codex\\2026-05-26\\midform\\midform\\work\\gpt_cli\\codex_midform_prompt_20260714-213833_69c27730-94f0-4968-8c32-0396c54f3fcf.md",
+    "outputPath": "C:\\Users\\sejun\\Documents\\Codex\\2026-05-26\\midform\\midform\\work\\gpt_cli\\codex_midform_output_20260714-213833_995ef9c0-08e9-483e-a524-bcf987a6476b.txt"
+  },
+  "status": 500
+}

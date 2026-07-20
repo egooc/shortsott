@@ -1,0 +1,47 @@
+{
+  "type": "object",
+  "properties": {
+    "beats": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "beat_id": { "type": "string" },
+          "start_sec": { "type": "number" },
+          "end_sec": { "type": "number" },
+          "summary": { "type": "string" },
+          "key_dialogue": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "dramatic_weight": { "type": "number" },
+          "dialogue_quality": { "type": "string" },
+          "hook_potential": { "type": "number" }
+        },
+        "required": [
+          "beat_id",
+          "start_sec",
+          "end_sec",
+          "summary",
+          "key_dialogue",
+          "dramatic_weight",
+          "dialogue_quality",
+          "hook_potential"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "quality_check": {
+      "type": "object",
+      "properties": {
+        "timecodes_within_transcript": { "type": "boolean" },
+        "no_invented_events": { "type": "boolean" },
+        "beats_in_source_order": { "type": "boolean" }
+      },
+      "required": ["timecodes_within_transcript", "no_invented_events", "beats_in_source_order"],
+      "additionalProperties": false
+    }
+  },
+  "required": ["beats", "quality_check"],
+  "additionalProperties": false
+}

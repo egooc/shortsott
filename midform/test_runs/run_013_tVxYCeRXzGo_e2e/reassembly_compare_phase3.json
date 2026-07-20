@@ -1,0 +1,22 @@
+{
+  "old": "pipeline_1784045533",
+  "fresh": "pipeline_1784098153",
+  "duration_sec": [
+    86.799999,
+    86.799999
+  ],
+  "subtitle_segments_count": [
+    57,
+    57
+  ],
+  "caption_units_count": [
+    57,
+    57
+  ],
+  "warnings": [
+    0,
+    0
+  ],
+  "template_markers_equal": true,
+  "fixed_overlay_texts_equal": true
+}

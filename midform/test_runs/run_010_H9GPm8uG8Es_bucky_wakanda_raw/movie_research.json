@@ -1,0 +1,166 @@
+{
+  "movie_identity": {
+    "status": "confirmed",
+    "title_en": "The Falcon and the Winter Soldier",
+    "title_kr": "팔콘과 윈터 솔져",
+    "year": 2021,
+    "evidence": [
+      "YouTube title points to The Falcon and the Winter Soldier: Bucky Is Finally Free – Ayo Removes the Winter Soldier Program - Wakanda Scene - TFATWS",
+      "YouTube description points to The Falcon and the Winter Soldier.",
+      "YouTube tags point to The Falcon and the Winter Soldier: the falcon and the winter soldier, TFATWS",
+      "Extracted proper nouns point to The Falcon and the Winter Soldier: TFATWS Ayo Helps Bucky Barnes, TFATWS S1E1 TM"
+    ]
+  },
+  "movie_knowledge": {
+    "title_kr": "팔콘과 윈터 솔져",
+    "title_en": "The Falcon and the Winter Soldier",
+    "year": 2021,
+    "characters": [
+      {
+        "screen_name": "버키 반즈 / 윈터 솔져",
+        "role": "세뇌 프로그램에서 벗어나려는 인물",
+        "motivation": "히드라 암시어에 더 이상 조종되지 않는지 확인하려 한다."
+      },
+      {
+        "screen_name": "아요",
+        "role": "와칸다 도라 밀라제 전사",
+        "motivation": "버키의 세뇌 해제가 안전하게 끝났는지 검증하고 보호한다."
+      }
+    ],
+    "full_plot": "The Falcon and the Winter Soldier is an American television miniseries created by Malcolm Spellman for the streaming service Disney+, based on Marvel Comics featuring the characters Sam Wilson / Falcon and Bucky Barnes / Winter Soldier. It is the second television series in the Marvel Cinematic Universe (MCU) produced by Marvel Studios, sharing continuity with the films of the franchise, and is set six months after Sam Wilson was handed the mantle of Captain America in the film Avengers: Endgame (2019). Wilson teams up with Bucky Barnes to stop anti-patriots who believe the world was better during the Blip. Spellman served as head writer for the series, which was directed by Kari Skogland.",
+    "clip_context": "와칸다에서 버키 반즈가 윈터 솔져 세뇌 암시어에서 벗어났는지 확인하는 장면이다. 직전 맥락은 버키가 과거의 조종 프로그램을 끝내려는 상태이고, 직후에는 그가 더 이상 암시어에 반응하지 않는다는 안도와 해방감이 온다.",
+    "stakes": "버키가 다시 조종당할 수 있는 괴물인지, 아니면 자기 의지로 살아갈 수 있는 사람인지가 걸려 있다.",
+    "sources": [
+      "https://en.wikipedia.org/wiki/The_Falcon_and_the_Winter_Soldier"
+    ]
+  },
+  "evidence_package": {
+    "source_metadata": {
+      "id": "H9GPm8uG8Es",
+      "title": "Bucky Is Finally Free – Ayo Removes the Winter Soldier Program - Wakanda Scene - TFATWS",
+      "description": "Ayo Helps Bucky Barnes Remove the Winter Soldier Program from His Mind - Bucky's Deprogramming Flashback - Bucky is finally free - Ayo Frees Bucky - Bucky crying - Wakanda - The Falcon and the Winter Soldier (TV Mini Series 2021) TFATWS S1E1 TM & © Disney Enterprises (2021) Fair use. Copyright Disclaimer Under Section 107 of the Copyright Act 1976, allowance is made for \"fair use\" for purposes such as criticism, comment, news reporting, teaching, scholarship, and research. Fair use is a use permitted by copyright statute that might otherwise be infringing. Non-profit, educational or personal use tips the balance in favor of fair use. No copyright infringement intended.",
+      "tags": [
+        "winter soldier",
+        "bucky barnes",
+        "wakanda",
+        "winter soldier flashback",
+        "bucky barnes moments",
+        "bucky barnes scenes",
+        "thunderbolts",
+        "captain america",
+        "marvel",
+        "avengers",
+        "bucky",
+        "new avengers",
+        "sebastian stan",
+        "scene",
+        "scenes",
+        "movie clip",
+        "clip",
+        "marvel comics",
+        "Superhero",
+        "superheroes",
+        "the falcon and the winter soldier",
+        "TFATWS"
+      ],
+      "uploader": "TopMovieClips",
+      "webpage_url": "https://www.youtube.com/watch?v=H9GPm8uG8Es"
+    },
+    "transcript_signals": {
+      "proper_nouns": [
+        "Wakanda",
+        "Bucky",
+        "Ayo",
+        "Winter Soldier",
+        "Bucky Is Finally Free",
+        "Ayo Removes",
+        "Winter Soldier Program",
+        "Wakanda Scene",
+        "TFATWS Ayo Helps Bucky Barnes",
+        "Remove",
+        "His Mind",
+        "Deprogramming Flashback",
+        "Ayo Frees Bucky",
+        "The Falcon",
+        "TV Mini Series",
+        "TFATWS S1E1 TM",
+        "Disney Enterprises",
+        "Fair",
+        "Copyright Disclaimer Under Section",
+        "Copyright Act"
+      ],
+      "distinctive_dialogue": [
+        "Homecoming / Возвращение на родину.",
+        "It is time. You sure about this?",
+        "Freight Car / Грузовой вагон.",
+        "I won't let you hurt anyone.",
+        "SUBSCRIBE, WATCH MORE"
+      ]
+    },
+    "gemini_visual_evidence": {
+      "characters": [
+        {
+          "name": "bucky_barnes",
+          "visual_description": ""
+        },
+        {
+          "name": "okoye",
+          "visual_description": ""
+        },
+        {
+          "name": "winter_soldier",
+          "visual_description": ""
+        },
+        {
+          "name": "scientist",
+          "visual_description": ""
+        },
+        {
+          "name": "윈터_솔져",
+          "visual_description": ""
+        },
+        {
+          "name": "여성_전사",
+          "visual_description": ""
+        },
+        {
+          "name": "여성 조력자",
+          "visual_description": ""
+        },
+        {
+          "name": "주인공 남성",
+          "visual_description": ""
+        },
+        {
+          "name": "다른 남성 조력자",
+          "visual_description": ""
+        }
+      ],
+      "distinctive_visuals": [
+        "밤하늘 아래 빛나는 와칸다 도시의 전경이 폭포와 함께 서서히 드러난다. 화면 하단에 'WAKANDA'라는 글자가 나타난다.",
+        "카메라가 와칸다 도시에서 멀어져 숲 속의 어두운 풍경을 비춘다. 멀리서 작은 불빛이 보인다.",
+        "어두운 배경에 불꽃이 튀어 오르고, 'SIX YEARS AGO'라는 자막이 화면 중앙에 나타난다.",
+        "불꽃이 튀는 배경으로 한 남자의 얼굴이 클로즈업된다. 그는 진지한 표정으로 불을 응시한다. bucky_barnes",
+        "불빛 앞에서 창을 든 여인의 얼굴이 클로즈업된다. 그녀는 단호한 표정으로 말한다. okoye",
+        "윈터 솔져가 기계에 묶여 고통스럽게 비명을 지르고 있다. winter_soldier",
+        "윈터 솔져가 오토바이를 타고 밤길을 달리고 있으며, 옆으로 차가 지나간다. winter_soldier",
+        "윈터 솔져의 얼굴이 불꽃 뒤로 흐릿하게 보이며 고통스러운 표정을 짓고 있다. 'Benign'이라는 단어가 화면에 나타난다. winter_soldier",
+        "윈터 솔져가 고문 의자에 묶여 괴로워하며 'Benign'이라는 단어가 화면에 나타난다. 윈터_솔져",
+        "윈터 솔져가 고통스러운 표정으로 카메라를 응시하고, 전경에 불꽃이 보인다. 폴란드어 자막이 나타난다. 윈터_솔져"
+      ]
+    },
+    "gemini_story_context": {
+      "content_guess": "Black Panther: Wakanda Forever",
+      "plot_summary_neutral": "밤하늘 아래 빛나는 와칸다 도시의 전경이 보인 후, 6년 전으로 돌아가 숲 속에서 버키와 오코예가 대화하는 장면이 이어진다.",
+      "genre": "action"
+    }
+  },
+  "search_queries": [
+    "Bucky Is Finally Free movie",
+    "\"Homecoming / Возвращение на родину.\" movie quote",
+    "Wakanda Bucky Ayo film scene",
+    "Black Panther: Wakanda Forever plot summary"
+  ],
+  "search_results": [],
+  "generated_at": "2026-07-14T02:09:47.080Z"
+}

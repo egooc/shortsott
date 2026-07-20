@@ -1,0 +1,162 @@
+{
+  "new_draft": {
+    "path": "server/output/drafts/pipeline_1784001222",
+    "duration_sec": 73.688,
+    "audio_tracks": 16,
+    "subtitle_tracks": 20,
+    "slot_map_mode": true,
+    "warnings": [],
+    "split_warnings": [],
+    "dialogue_reserved_range_violations": []
+  },
+  "slot_map": {
+    "slots": 16,
+    "dialogue_slots": [
+      {
+        "slot_id": "s02",
+        "utt_id": "utt_001",
+        "text": "It is time."
+      },
+      {
+        "slot_id": "s03",
+        "utt_id": "utt_002",
+        "text": "You sure about this?"
+      },
+      {
+        "slot_id": "s04",
+        "utt_id": "utt_003",
+        "text": "I won't let you hurt anyone."
+      },
+      {
+        "slot_id": "s10",
+        "utt_id": "utt_011",
+        "text": "The heart. The dream."
+      },
+      {
+        "slot_id": "s11",
+        "utt_id": "utt_012",
+        "text": "The return of the people."
+      },
+      {
+        "slot_id": "s12",
+        "utt_id": "utt_013",
+        "text": "The one."
+      },
+      {
+        "slot_id": "s13",
+        "utt_id": "utt_014",
+        "text": "The cargo ship."
+      }
+    ],
+    "excluded_dialogue_utterances": [
+      {
+        "utt_id": "utt_004",
+        "source_range": [
+          33.18,
+          34.14
+        ],
+        "text": "Je l'aime bien.",
+        "score": 0,
+        "reason": "foreign_misrecognition_dialogue"
+      },
+      {
+        "utt_id": "utt_005",
+        "source_range": [
+          38.28,
+          38.95
+        ],
+        "text": "Je j'avoue.",
+        "score": 195,
+        "reason": "foreign_misrecognition_dialogue"
+      },
+      {
+        "utt_id": "utt_006",
+        "source_range": [
+          44.86,
+          46.02
+        ],
+        "text": "C'est n'a-t-s-s.",
+        "score": 0,
+        "reason": "foreign_misrecognition_dialogue"
+      },
+      {
+        "utt_id": "utt_007",
+        "source_range": [
+          48.26,
+          49.52
+        ],
+        "text": "It's not going to work.",
+        "score": 0,
+        "reason": "not_selected_by_dialogue_budget_or_score"
+      },
+      {
+        "utt_id": "utt_008",
+        "source_range": [
+          53.72,
+          55.12
+        ],
+        "text": "Reveal.",
+        "score": 0,
+        "reason": "short_low_confidence_dialogue"
+      },
+      {
+        "utt_id": "utt_009",
+        "source_range": [
+          56.44,
+          57.34
+        ],
+        "text": "The key.",
+        "score": 0,
+        "reason": "short_low_confidence_dialogue"
+      },
+      {
+        "utt_id": "utt_010",
+        "source_range": [
+          59.34,
+          60.7
+        ],
+        "text": "The nine.",
+        "score": 0,
+        "reason": "short_low_confidence_dialogue"
+      },
+      {
+        "utt_id": "utt_015",
+        "source_range": [
+          101.82,
+          103.8
+        ],
+        "text": "You're free.",
+        "score": 0,
+        "reason": "short_low_confidence_dialogue"
+      },
+      {
+        "utt_id": "utt_016",
+        "source_range": [
+          110.74,
+          111.4
+        ],
+        "text": "You're free.",
+        "score": 0,
+        "reason": "short_low_confidence_dialogue"
+      }
+    ]
+  },
+  "text_checks": {
+    "camera_term_hits": {},
+    "bad_phrase_hits": {},
+    "name_hits": {
+      "아요": 21,
+      "버키": 21
+    }
+  },
+  "before_after_codeword": {
+    "before": [
+      "심장이야. 꿈이야.",
+      "사람들이 돌아오는 거야. 그 사람이야. 화물선이다."
+    ],
+    "after": [
+      "젤라니예… 꿈…",
+      "돌아가는 길… 집… 하나… 화물열차…"
+    ]
+  }
+}

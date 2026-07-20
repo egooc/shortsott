@@ -1,0 +1,524 @@
+{
+  "model_id": "edge-tts:ko-KR-SunHiNeural",
+  "tts_provider": "Microsoft Edge online TTS via edge-tts",
+  "tts_network_disclosure": "Narration text is sent to Microsoft's online Edge TTS service during synthesis.",
+  "reused_from_manifest": "C:\\Users\\sejun\\Documents\\Codex\\2026-05-26\\midform\\midform\\test_runs\\run_010_H9GPm8uG8Es_bucky_wakanda_raw\\tts_ending_gate_20260714\\gpt_midform_tts_manifest.json",
+  "caption_units": [
+    {
+      "caption_id": "s01_sent_001_cap_001",
+      "sentence_id": "s01_sent_001",
+      "tts_caption_id": "s01_sent_001",
+      "segment_id": "s01",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 1,
+      "text": "와칸다는 평온했지만,",
+      "source_segment_order": 1
+    },
+    {
+      "caption_id": "s01_sent_001_cap_002",
+      "sentence_id": "s01_sent_001",
+      "tts_caption_id": "s01_sent_001",
+      "segment_id": "s01",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 2,
+      "text": "버키에게는",
+      "source_segment_order": 1
+    },
+    {
+      "caption_id": "s01_sent_001_cap_003",
+      "sentence_id": "s01_sent_001",
+      "tts_caption_id": "s01_sent_001",
+      "segment_id": "s01",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 3,
+      "text": "과거 명령을 떼어낼 마지막 시험이 시작됐습니다.",
+      "source_segment_order": 1
+    },
+    {
+      "caption_id": "s02_cap_001",
+      "segment_id": "s02",
+      "segment_type": "dialogue_quote",
+      "tts_enabled": false,
+      "order": 1,
+      "text": "이제 시작이야.",
+      "source_segment_order": 2
+    },
+    {
+      "caption_id": "s03_cap_001",
+      "segment_id": "s03",
+      "segment_type": "dialogue_quote",
+      "tts_enabled": false,
+      "order": 1,
+      "text": "정말 할 수 있겠어?",
+      "source_segment_order": 3
+    },
+    {
+      "caption_id": "s04_cap_001",
+      "segment_id": "s04",
+      "segment_type": "dialogue_quote",
+      "tts_enabled": false,
+      "order": 1,
+      "text": "아무도 다치게 안 할 거야.",
+      "source_segment_order": 4
+    },
+    {
+      "caption_id": "s05_sent_001_cap_001",
+      "sentence_id": "s05_sent_001",
+      "tts_caption_id": "s05_sent_001",
+      "segment_id": "s05",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 1,
+      "text": "아무리 비명이",
+      "source_segment_order": 5
+    },
+    {
+      "caption_id": "s05_sent_001_cap_002",
+      "sentence_id": "s05_sent_001",
+      "tts_caption_id": "s05_sent_001",
+      "segment_id": "s05",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 2,
+      "text": "커져도 아요는 물러서지 않았습니다.",
+      "source_segment_order": 5
+    },
+    {
+      "caption_id": "s06_sent_001_cap_001",
+      "sentence_id": "s06_sent_001",
+      "tts_caption_id": "s06_sent_001",
+      "segment_id": "s06",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 1,
+      "text": "불빛만 스쳐도 버키는 흔들렸죠.",
+      "source_segment_order": 6
+    },
+    {
+      "caption_id": "s07_sent_001_cap_001",
+      "sentence_id": "s07_sent_001",
+      "tts_caption_id": "s07_sent_001",
+      "segment_id": "s07",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 1,
+      "text": "버키는 버티고 있었는데.",
+      "source_segment_order": 7
+    },
+    {
+      "caption_id": "s08_sent_001_cap_001",
+      "sentence_id": "s08_sent_001",
+      "tts_caption_id": "s08_sent_001",
+      "segment_id": "s08",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 1,
+      "text": "침묵 속에서도 버키는 무너지지 않았습니다.",
+      "source_segment_order": 8
+    },
+    {
+      "caption_id": "s09_sent_001_cap_001",
+      "sentence_id": "s09_sent_001",
+      "tts_caption_id": "s09_sent_001",
+      "segment_id": "s09",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 1,
+      "text": "말이",
+      "source_segment_order": 9
+    },
+    {
+      "caption_id": "s09_sent_001_cap_002",
+      "sentence_id": "s09_sent_001",
+      "tts_caption_id": "s09_sent_001",
+      "segment_id": "s09",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 2,
+      "text": "끊긴 뒤에도 아요는",
+      "source_segment_order": 9
+    },
+    {
+      "caption_id": "s09_sent_001_cap_003",
+      "sentence_id": "s09_sent_001",
+      "tts_caption_id": "s09_sent_001",
+      "segment_id": "s09",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 3,
+      "text": "한 치도 흔들리지 않았습니다.",
+      "source_segment_order": 9
+    },
+    {
+      "caption_id": "s10_cap_001",
+      "segment_id": "s10",
+      "segment_type": "dialogue_quote",
+      "tts_enabled": false,
+      "order": 1,
+      "text": "심장...",
+      "source_segment_order": 10
+    },
+    {
+      "caption_id": "s10_cap_002",
+      "segment_id": "s10",
+      "segment_type": "dialogue_quote",
+      "tts_enabled": false,
+      "order": 2,
+      "text": "꿈...",
+      "source_segment_order": 10
+    },
+    {
+      "caption_id": "s11_cap_001",
+      "segment_id": "s11",
+      "segment_type": "dialogue_quote",
+      "tts_enabled": false,
+      "order": 1,
+      "text": "홈커밍...",
+      "source_segment_order": 11
+    },
+    {
+      "caption_id": "s12_cap_001",
+      "segment_id": "s12",
+      "segment_type": "dialogue_quote",
+      "tts_enabled": false,
+      "order": 1,
+      "text": "그 하나...",
+      "source_segment_order": 12
+    },
+    {
+      "caption_id": "s13_cap_001",
+      "segment_id": "s13",
+      "segment_type": "dialogue_quote",
+      "tts_enabled": false,
+      "order": 1,
+      "text": "화물칸...",
+      "source_segment_order": 13
+    },
+    {
+      "caption_id": "s14_sent_001_cap_001",
+      "sentence_id": "s14_sent_001",
+      "tts_caption_id": "s14_sent_001",
+      "segment_id": "s14",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 1,
+      "text": "암시어가 이어질수록 버키의 얼굴은 무너졌지만,",
+      "source_segment_order": 14
+    },
+    {
+      "caption_id": "s14_sent_001_cap_002",
+      "sentence_id": "s14_sent_001",
+      "tts_caption_id": "s14_sent_001",
+      "segment_id": "s14",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 2,
+      "text": "아요는 단어 하나마다",
+      "source_segment_order": 14
+    },
+    {
+      "caption_id": "s14_sent_002_cap_001",
+      "sentence_id": "s14_sent_002",
+      "tts_caption_id": "s14_sent_002",
+      "segment_id": "s14",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 1,
+      "text": "반응을 붙잡았습니다.",
+      "source_segment_order": 14
+    },
+    {
+      "caption_id": "s15_sent_001_cap_001",
+      "sentence_id": "s15_sent_001",
+      "tts_caption_id": "s15_sent_001",
+      "segment_id": "s15",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 1,
+      "text": "마지막 단어가 지나가자",
+      "source_segment_order": 15
+    },
+    {
+      "caption_id": "s15_sent_001_cap_002",
+      "sentence_id": "s15_sent_001",
+      "tts_caption_id": "s15_sent_001",
+      "segment_id": "s15",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 2,
+      "text": "버키는 겨우 자기 자신으로 돌아왔죠.",
+      "source_segment_order": 15
+    },
+    {
+      "caption_id": "s16_sent_001_cap_001",
+      "sentence_id": "s16_sent_001",
+      "tts_caption_id": "s16_sent_001",
+      "segment_id": "s16",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 1,
+      "text": "이건 승리가",
+      "source_segment_order": 16
+    },
+    {
+      "caption_id": "s16_sent_001_cap_002",
+      "sentence_id": "s16_sent_001",
+      "tts_caption_id": "s16_sent_001",
+      "segment_id": "s16",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 2,
+      "text": "아니라 버키가 더는",
+      "source_segment_order": 16
+    },
+    {
+      "caption_id": "s16_sent_001_cap_003",
+      "sentence_id": "s16_sent_001",
+      "tts_caption_id": "s16_sent_001",
+      "segment_id": "s16",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 3,
+      "text": "명령에 끌려가지 않는다는 증거였습니다.",
+      "source_segment_order": 16
+    },
+    {
+      "caption_id": "s16_sent_002_cap_001",
+      "sentence_id": "s16_sent_002",
+      "tts_caption_id": "s16_sent_002",
+      "segment_id": "s16",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 1,
+      "text": "여러분,",
+      "source_segment_order": 16
+    },
+    {
+      "caption_id": "s16_sent_002_cap_002",
+      "sentence_id": "s16_sent_002",
+      "tts_caption_id": "s16_sent_002",
+      "segment_id": "s16",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 2,
+      "text": "이 정도면 해방도 전투였죠.",
+      "source_segment_order": 16
+    }
+  ],
+  "tts_units": [
+    {
+      "caption_id": "s01_sent_001",
+      "sentence_id": "s01_sent_001",
+      "segment_id": "s01",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 1,
+      "text": "와칸다는 평온했지만, 버키에게는 과거 명령을 떼어낼 마지막 시험이 시작됐습니다.",
+      "source_segment_order": 1
+    },
+    {
+      "caption_id": "s05_sent_001",
+      "sentence_id": "s05_sent_001",
+      "segment_id": "s05",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 1,
+      "text": "아무리 비명이 커져도 아요는 물러서지 않았습니다.",
+      "source_segment_order": 5
+    },
+    {
+      "caption_id": "s06_sent_001",
+      "sentence_id": "s06_sent_001",
+      "segment_id": "s06",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 1,
+      "text": "불빛만 스쳐도 버키는 흔들렸죠.",
+      "source_segment_order": 6
+    },
+    {
+      "caption_id": "s07_sent_001",
+      "sentence_id": "s07_sent_001",
+      "segment_id": "s07",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 1,
+      "text": "버키는 버티고 있었는데.",
+      "source_segment_order": 7
+    },
+    {
+      "caption_id": "s08_sent_001",
+      "sentence_id": "s08_sent_001",
+      "segment_id": "s08",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 1,
+      "text": "침묵 속에서도 버키는 무너지지 않았습니다.",
+      "source_segment_order": 8
+    },
+    {
+      "caption_id": "s09_sent_001",
+      "sentence_id": "s09_sent_001",
+      "segment_id": "s09",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 1,
+      "text": "말이 끊긴 뒤에도 아요는 한 치도 흔들리지 않았습니다.",
+      "source_segment_order": 9
+    },
+    {
+      "caption_id": "s14_sent_001",
+      "sentence_id": "s14_sent_001",
+      "segment_id": "s14",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 1,
+      "text": "암시어가 이어질수록 버키의 얼굴은 무너졌지만, 아요는 단어 하나마다",
+      "source_segment_order": 14
+    },
+    {
+      "caption_id": "s14_sent_002",
+      "sentence_id": "s14_sent_002",
+      "segment_id": "s14",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 2,
+      "text": "반응을 붙잡았습니다.",
+      "source_segment_order": 14
+    },
+    {
+      "caption_id": "s15_sent_001",
+      "sentence_id": "s15_sent_001",
+      "segment_id": "s15",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 1,
+      "text": "마지막 단어가 지나가자 버키는 겨우 자기 자신으로 돌아왔죠.",
+      "source_segment_order": 15
+    },
+    {
+      "caption_id": "s16_sent_001",
+      "sentence_id": "s16_sent_001",
+      "segment_id": "s16",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 1,
+      "text": "이건 승리가 아니라 버키가 더는 명령에 끌려가지 않는다는 증거였습니다.",
+      "source_segment_order": 16
+    },
+    {
+      "caption_id": "s16_sent_002",
+      "sentence_id": "s16_sent_002",
+      "segment_id": "s16",
+      "segment_type": "recap",
+      "tts_enabled": true,
+      "order": 2,
+      "text": "여러분, 이 정도면 해방도 전투였죠.",
+      "source_segment_order": 16
+    }
+  ],
+  "files": [
+    {
+      "caption_id": "s01_sent_001",
+      "segment_id": "s01",
+      "filename": "s01_sent_001.mp3",
+      "filepath": "C:\\Users\\sejun\\Documents\\Codex\\2026-05-26\\midform\\midform\\test_runs\\run_010_H9GPm8uG8Es_bucky_wakanda_raw\\tts_ending_gate_20260714\\s01_sent_001.mp3",
+      "duration_sec": 6.72,
+      "text": "와칸다는 평온했지만, 버키에게는 과거 명령을 떼어낼 마지막 시험이 시작됐습니다.",
+      "success": true
+    },
+    {
+      "caption_id": "s05_sent_001",
+      "segment_id": "s05",
+      "filename": "s05_sent_001.mp3",
+      "filepath": "C:\\Users\\sejun\\Documents\\Codex\\2026-05-26\\midform\\midform\\test_runs\\run_010_H9GPm8uG8Es_bucky_wakanda_raw\\tts_ending_gate_20260714\\s05_sent_001.mp3",
+      "duration_sec": 4.104,
+      "text": "아무리 비명이 커져도 아요는 물러서지 않았습니다.",
+      "success": true
+    },
+    {
+      "caption_id": "s06_sent_001",
+      "segment_id": "s06",
+      "filename": "s06_sent_001.mp3",
+      "filepath": "C:\\Users\\sejun\\Documents\\Codex\\2026-05-26\\midform\\midform\\test_runs\\run_010_H9GPm8uG8Es_bucky_wakanda_raw\\tts_ending_gate_20260714\\s06_sent_001.mp3",
+      "duration_sec": 3.24,
+      "text": "불빛만 스쳐도 버키는 흔들렸죠.",
+      "success": true
+    },
+    {
+      "caption_id": "s07_sent_001",
+      "segment_id": "s07",
+      "filename": "s07_sent_001.mp3",
+      "filepath": "C:\\Users\\sejun\\Documents\\Codex\\2026-05-26\\midform\\midform\\test_runs\\run_010_H9GPm8uG8Es_bucky_wakanda_raw\\tts_ending_gate_20260714\\s07_sent_001.mp3",
+      "duration_sec": 2.688,
+      "text": "버키는 버티고 있었는데.",
+      "success": true
+    },
+    {
+      "caption_id": "s08_sent_001",
+      "segment_id": "s08",
+      "filename": "s08_sent_001.mp3",
+      "filepath": "C:\\Users\\sejun\\Documents\\Codex\\2026-05-26\\midform\\midform\\test_runs\\run_010_H9GPm8uG8Es_bucky_wakanda_raw\\tts_ending_gate_20260714\\s08_sent_001.mp3",
+      "duration_sec": 4.008,
+      "text": "침묵 속에서도 버키는 무너지지 않았습니다.",
+      "success": true
+    },
+    {
+      "caption_id": "s09_sent_001",
+      "segment_id": "s09",
+      "filename": "s09_sent_001.mp3",
+      "filepath": "C:\\Users\\sejun\\Documents\\Codex\\2026-05-26\\midform\\midform\\test_runs\\run_010_H9GPm8uG8Es_bucky_wakanda_raw\\tts_ending_gate_20260714\\s09_sent_001.mp3",
+      "duration_sec": 4.536,
+      "text": "말이 끊긴 뒤에도 아요는 한 치도 흔들리지 않았습니다.",
+      "success": true
+    },
+    {
+      "caption_id": "s14_sent_001",
+      "segment_id": "s14",
+      "filename": "s14_sent_001.mp3",
+      "filepath": "C:\\Users\\sejun\\Documents\\Codex\\2026-05-26\\midform\\midform\\test_runs\\run_010_H9GPm8uG8Es_bucky_wakanda_raw\\tts_ending_gate_20260714\\s14_sent_001.mp3",
+      "duration_sec": 5.904,
+      "text": "암시어가 이어질수록 버키의 얼굴은 무너졌지만, 아요는 단어 하나마다",
+      "success": true
+    },
+    {
+      "caption_id": "s14_sent_002",
+      "segment_id": "s14",
+      "filename": "s14_sent_002.mp3",
+      "filepath": "C:\\Users\\sejun\\Documents\\Codex\\2026-05-26\\midform\\midform\\test_runs\\run_010_H9GPm8uG8Es_bucky_wakanda_raw\\tts_ending_gate_20260714\\s14_sent_002.mp3",
+      "duration_sec": 2.448,
+      "text": "반응을 붙잡았습니다.",
+      "success": true
+    },
+    {
+      "caption_id": "s15_sent_001",
+      "segment_id": "s15",
+      "filename": "s15_sent_001.mp3",
+      "filepath": "C:\\Users\\sejun\\Documents\\Codex\\2026-05-26\\midform\\midform\\test_runs\\run_010_H9GPm8uG8Es_bucky_wakanda_raw\\tts_ending_gate_20260714\\s15_sent_001.mp3",
+      "duration_sec": 5.016,
+      "text": "마지막 단어가 지나가자 버키는 겨우 자기 자신으로 돌아왔죠.",
+      "success": true
+    },
+    {
+      "caption_id": "s16_sent_001",
+      "segment_id": "s16",
+      "filename": "s16_sent_001.mp3",
+      "filepath": "C:\\Users\\sejun\\Documents\\Codex\\2026-05-26\\midform\\midform\\test_runs\\run_010_H9GPm8uG8Es_bucky_wakanda_raw\\tts_ending_gate_20260714\\s16_sent_001.mp3",
+      "duration_sec": 5.784,
+      "text": "이건 승리가 아니라 버키가 더는 명령에 끌려가지 않는다는 증거였습니다.",
+      "success": true
+    },
+    {
+      "caption_id": "s16_sent_002",
+      "segment_id": "s16",
+      "filename": "s16_sent_002.mp3",
+      "filepath": "C:\\Users\\sejun\\Documents\\Codex\\2026-05-26\\midform\\midform\\test_runs\\run_010_H9GPm8uG8Es_bucky_wakanda_raw\\tts_ending_gate_20260714\\s16_sent_002.mp3",
+      "duration_sec": 3.888,
+      "text": "여러분, 이 정도면 해방도 전투였죠.",
+      "success": true
+    }
+  ]
+}

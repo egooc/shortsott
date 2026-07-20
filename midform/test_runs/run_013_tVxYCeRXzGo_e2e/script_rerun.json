@@ -1,0 +1,605 @@
+{
+  "script_id": "fences_2016_midform_slot_fill",
+  "source_reference": {
+    "gemini_analysis_source_id": "fences_clip_01",
+    "duration_sec": 140.039546
+  },
+  "content_context": {
+    "content_guess": "Fences",
+    "genre": "drama",
+    "content_profile": "movie_recap",
+    "style_hint_used": "slot-map-first midform hybrid",
+    "movie_identity": {
+      "status": "confirmed",
+      "title_en": "Fences (2016)",
+      "title_kr": "",
+      "year": 2016,
+      "evidence": [
+        "Pre-flight gate extracted title: Fences (2016)",
+        "Pre-flight title source: title_prefix",
+        "Search result: Fences (film) - Wikipedia — https://en.wikipedia.org/wiki/Fences_(film)",
+        "Search result: Fences (2016) - Plot - IMDb — https://www.imdb.com/title/tt2671706/plotsummary/",
+        "Search result: Fences (2016) - Full cast & crew - IMDb — https://www.imdb.com/title/tt2671706/fullcredits/"
+      ]
+    },
+    "movie_knowledge": {
+      "title_kr": "Fences",
+      "title_en": "Fences (2016)",
+      "year": 2016,
+      "characters": [
+        {
+          "screen_name": "트로이 맥슨",
+          "role": "가족을 책임진다는 명분으로 아들을 몰아붙이는 아버지",
+          "motivation": "자신이 해온 의무와 책임을 인정받고 싶어 한다."
+        },
+        {
+          "screen_name": "코리 맥슨",
+          "role": "아버지에게 사랑과 인정을 묻는 아들",
+          "motivation": "아버지가 자신을 왜 이렇게 대하는지 확인하고 싶어 한다."
+        },
+        {
+          "screen_name": "로즈 맥슨",
+          "role": "부자 갈등을 지켜보는 어머니",
+          "motivation": "가족이 무너지지 않기를 바라지만 갈등의 상처를 피할 수 없다."
+        }
+      ],
+      "full_plot": "A fence is a barrier enclosing or bordering a field, yard, etc., usually made of posts and wire or wood, used to prevent entrance, to confine, or to mark a boundary.",
+      "clip_context": "영화 Fences에서 트로이 맥슨이 아들 코리에게 “널 좋아해서가 아니라 책임 때문에 돌본다”고 말하며 부자 관계가 정면으로 갈라지는 장면이다. 직전 맥락은 코리가 아버지의 사랑과 인정을 확인하려는 순간이고, 직후에는 그 말이 가족 안에 오래 남는 상처로 이어진다.",
+      "stakes": "아들이 아버지에게 사랑받는 존재인지, 아니면 책임이라는 이름 아래 밀려나는 존재인지가 걸려 있다.",
+      "sources": [
+        "https://en.wikipedia.org/wiki/Fences_(film)",
+        "https://www.imdb.com/title/tt2671706/plotsummary/",
+        "https://www.imdb.com/title/tt2671706/fullcredits/",
+        "https://en.wikipedia.org/wiki/Fences_(play)",
+        "https://spoilertown.com/fences-2016/",
+        "https://en.wikipedia.org/wiki/Fence_(disambiguation)"
+      ]
+    }
+  },
+  "slot_map": {
+    "source_duration_sec": 140.039546,
+    "composition_mode": "dialogue_heavy",
+    "composition_mode_reason": "transcript speech ratio exceeds 50%; dialogue carries the story and narration should act as hook/bridge/payoff frame",
+    "speech_duration_sec": 95.56,
+    "speech_ratio": 0.6824,
+    "dialogue_heavy_mode": true,
+    "narration_strategy": {
+      "max_narration_slots": 3,
+      "roles": [
+        "hook",
+        "bridge",
+        "payoff"
+      ],
+      "instruction": "대사가 스토리를 끌고 가므로 나레이션은 도입, 전환 1개, 마무리 액자만 담당한다."
+    },
+    "slots": [
+      {
+        "type": "dialogue",
+        "utt_id": "utt_016",
+        "source_range": [
+          80.6,
+          96.28
+        ],
+        "duration": 15.68,
+        "caption_source_text": "Not because I like you, it's because it's my duty to take care of you. I owe a responsibility to you. Now, let's get this straight right here now before I go along any further. I ain't got to like you. Mr. Rand don't give me my money. Come pay day because he like me. He give it to me because he owe me.",
+        "needs_translation": true,
+        "scene_id": "scene_012",
+        "scene_summary": "나이 든 남자가 젊은 남자에게 자신은 아들을 좋아해서가 아니라 의무감 때문에 돌본다고 강조한다. / 발화: Not because I like you, it's because it's my duty to take care of you. I owe a responsibility to you. Now, let's get this straight right here now before I go along any further. I ain't got to like you. Mr. Rand don't give me my money. Come pay day because he like me. He give it to me because he owe me.",
+        "slot_id": "s01"
+      },
+      {
+        "type": "narration",
+        "source_range": [
+          118.85,
+          140.04
+        ],
+        "duration": 21.19,
+        "scene_summary": "아버지가 아들에게서 등을 돌려 집으로 향하고, 아들도 반대 방향으로 걸어간다. / 아들이 집 문을 열고 들어선다. 아들은 여전히 굳은 표정이다. / 부엌에 서 있는 어머니가 걱정스러운 표정으로 아들을 바라본다.",
+        "scene_ids": [
+          "scene_015",
+          "scene_016",
+          "scene_017"
+        ],
+        "tts_budget_sec": [
+          15.892,
+          20.13
+        ],
+        "slot_id": "s02"
+      }
+    ],
+    "excluded_ranges": [
+      [
+        0.52,
+        1.52,
+        "unselected_speech"
+      ],
+      [
+        2.94,
+        5.6,
+        "unselected_speech"
+      ],
+      [
+        7,
+        8.42,
+        "unselected_speech"
+      ],
+      [
+        9.62,
+        10.22,
+        "unselected_speech"
+      ],
+      [
+        11.7,
+        13.36,
+        "unselected_speech"
+      ],
+      [
+        15.12,
+        23.72,
+        "unselected_speech"
+      ],
+      [
+        25.9,
+        27.24,
+        "unselected_speech"
+      ],
+      [
+        28.36,
+        35.38,
+        "unselected_speech"
+      ],
+      [
+        37.04,
+        48.62,
+        "unselected_speech"
+      ],
+      [
+        49.42,
+        52.88,
+        "unselected_speech"
+      ],
+      [
+        54.82,
+        56.04,
+        "unselected_speech"
+      ],
+      [
+        56.72,
+        57.62,
+        "unselected_speech"
+      ],
+      [
+        58.76,
+        59.98,
+        "unselected_speech"
+      ],
+      [
+        60.68,
+        65.1,
+        "unselected_speech"
+      ],
+      [
+        65.7,
+        79.68,
+        "unselected_speech"
+      ],
+      [
+        97.7,
+        100.74,
+        "unselected_speech"
+      ],
+      [
+        101.92,
+        105.8,
+        "unselected_speech"
+      ],
+      [
+        106.92,
+        118.8,
+        "unselected_speech"
+      ]
+    ],
+    "excluded_dialogue_utterances": [
+      {
+        "utt_id": "utt_001",
+        "source_range": [
+          0.52,
+          1.52
+        ],
+        "text": "Can I ask you a question?",
+        "score": 45,
+        "reason": "not_selected_by_dialogue_budget_or_score"
+      },
+      {
+        "utt_id": "utt_002",
+        "source_range": [
+          2.94,
+          5.6
+        ],
+        "text": "What the hell you got to ask me? Mr. Stowickie, the one you got the questions for.",
+        "score": 60,
+        "reason": "not_selected_by_dialogue_budget_or_score"
+      },
+      {
+        "utt_id": "utt_003",
+        "source_range": [
+          7,
+          8.42
+        ],
+        "text": "How come you ain't ever like me?",
+        "score": 195,
+        "reason": "not_selected_by_dialogue_budget_or_score"
+      },
+      {
+        "utt_id": "utt_004",
+        "source_range": [
+          9.62,
+          10.22
+        ],
+        "text": "Like you?",
+        "score": 195,
+        "reason": "not_selected_by_dialogue_budget_or_score"
+      },
+      {
+        "utt_id": "utt_005",
+        "source_range": [
+          11.7,
+          13.36
+        ],
+        "text": "Who the hell said I got to like you?",
+        "score": 195,
+        "reason": "not_selected_by_dialogue_budget_or_score"
+      },
+      {
+        "utt_id": "utt_006",
+        "source_range": [
+          15.12,
+          23.72
+        ],
+        "text": "What law is there say I got to like you? Wanna stand up in front of my face and ask a damn fool-ass question like that? Talkin' about likin' somebody. Call me a boy when I talk to you.",
+        "score": 90,
+        "reason": "not_selected_by_dialogue_budget_or_score"
+      },
+      {
+        "utt_id": "utt_007",
+        "source_range": [
+          25.9,
+          27.24
+        ],
+        "text": "Straighten up, goddammit.",
+        "score": 55,
+        "reason": "not_selected_by_dialogue_budget_or_score"
+      },
+      {
+        "utt_id": "utt_008",
+        "source_range": [
+          28.36,
+          35.38
+        ],
+        "text": "I asked you a question. What law is there say I got to like you? None. All right, then. Don't you eat every day?",
+        "score": 45,
+        "reason": "not_selected_by_dialogue_budget_or_score"
+      },
+      {
+        "utt_id": "utt_009",
+        "source_range": [
+          37.04,
+          48.62
+        ],
+        "text": "Answer me when I talk to you. Don't you eat every day? Yeah. Nigga, as long as you in my house, you put a sir on the end of it when you talk to me. Yes, sir. You eat every day. Yes, sir. Got a roof over your head. Yes, sir. Got clothes on your back. Yes, sir. Why you think that is? Because of you.",
+        "score": 175,
+        "reason": "not_selected_by_dialogue_budget_or_score"
+      },
+      {
+        "utt_id": "utt_010",
+        "source_range": [
+          49.42,
+          52.88
+        ],
+        "text": "Hell, I know it's because of me, but why do you think that is?",
+        "score": 60,
+        "reason": "not_selected_by_dialogue_budget_or_score"
+      },
+      {
+        "utt_id": "utt_011",
+        "source_range": [
+          54.82,
+          56.04
+        ],
+        "text": "Because you like me.",
+        "score": 60,
+        "reason": "not_selected_by_dialogue_budget_or_score"
+      },
+      {
+        "utt_id": "utt_012",
+        "source_range": [
+          56.72,
+          57.62
+        ],
+        "text": "Like you.",
+        "score": 0,
+        "reason": "short_low_confidence_dialogue"
+      },
+      {
+        "utt_id": "utt_013",
+        "source_range": [
+          58.76,
+          59.98
+        ],
+        "text": "I go out of here every morning.",
+        "score": 0,
+        "reason": "not_selected_by_dialogue_budget_or_score"
+      },
+      {
+        "utt_id": "utt_014",
+        "source_range": [
+          60.68,
+          65.1
+        ],
+        "text": "I bust my butt puttin' up with them crackers every day, because I like you.",
+        "score": 60,
+        "reason": "not_selected_by_dialogue_budget_or_score"
+      },
+      {
+        "utt_id": "utt_015",
+        "source_range": [
+          65.7,
+          79.68
+        ],
+        "text": "You're about the biggest fool I ever saw. It's my job. It's my responsibility. A man is supposed to take care of his family. You live in my house, fill your belly with my food, put you behind on my bed because you're my son.",
+        "score": 175,
+        "reason": "not_selected_by_dialogue_budget_or_score"
+      },
+      {
+        "utt_id": "utt_017",
+        "source_range": [
+          97.7,
+          100.74
+        ],
+        "text": "Now, I don't give you everything I got to give you. I give you your life.",
+        "score": 195,
+        "reason": "not_selected_by_dialogue_budget_or_score"
+      },
+      {
+        "utt_id": "utt_018",
+        "source_range": [
+          101.92,
+          105.8
+        ],
+        "text": "Me and your mama worked that out between us, and liking your black ass wasn't part of the bargain.",
+        "score": 195,
+        "reason": "not_selected_by_dialogue_budget_or_score"
+      },
+      {
+        "utt_id": "utt_019",
+        "source_range": [
+          106.92,
+          118.8
+        ],
+        "text": "Now, don't you go through life worrying about whether somebody like you or not. You best be making sure they're doing right by you. You understand what I'm saying? Then get the hell out of my face and get on down to that A&P.",
+        "score": 190,
+        "reason": "not_selected_by_dialogue_budget_or_score"
+      }
+    ],
+    "total_output_estimate_sec": 33.691,
+    "dialogue_selected_duration_sec": 15.68
+  },
+  "story_outline": {
+    "premise": "코리 맥슨이 아버지 트로이 맥슨에게 자신을 왜 좋아하지 않느냐고 묻자, 트로이는 사랑을 요구하는 아들의 기대를 책임과 의무의 논리로 짓눌러 부자 관계의 상처를 드러낸다.",
+    "beats": [
+      {
+        "beat_id": "beat_001",
+        "source_range": [
+          0.52,
+          9.62
+        ],
+        "story_event": "코리 맥슨은 트로이 맥슨에게 조심스럽게 질문을 꺼낸 뒤, 오래 눌러둔 상처를 확인하려고 왜 자신을 좋아하지 않느냐고 묻는다. 이 질문은 단순한 불만이 아니라 아버지에게 사랑과 인정을 받고 싶은 코리의 절박한 요구가 된다."
+      },
+      {
+        "beat_id": "beat_002",
+        "source_range": [
+          9.62,
+          28.36
+        ],
+        "story_event": "트로이는 코리의 질문을 받아들이지 않고, 자신에게 아들을 좋아해야 할 의무가 없다고 되받아치며 아들을 자기 앞에 세운다. 코리가 감정적 대답을 원할수록 트로이는 권위와 복종을 앞세워 대화를 힘의 문제로 바꾼다."
+      },
+      {
+        "beat_id": "beat_003",
+        "source_range": [
+          28.36,
+          49.19
+        ],
+        "story_event": "트로이는 코리에게 밥과 집과 옷을 누가 제공하는지 하나씩 인정하게 만들고, 코리는 결국 그것이 아버지 덕분이라고 답한다. 트로이는 이 문답으로 자신이 가족을 부양해 왔다는 사실을 증거로 삼아, 코리의 사랑 요구를 빚진 자식의 태도 문제로 몰아간다."
+      },
+      {
+        "beat_id": "beat_004",
+        "source_range": [
+          49.2,
+          65.7
+        ],
+        "story_event": "코리는 아버지가 자신을 돌보는 이유가 자신을 좋아하기 때문이라고 믿고 싶어 하지만, 트로이는 그 대답을 어리석다고 몰아붙인다. 트로이는 매일 힘든 노동을 견디는 이유가 애정이 아니라 생존과 책임이라고 선언할 준비를 하며 코리의 기대를 무너뜨린다."
+      },
+      {
+        "beat_id": "beat_005",
+        "source_range": [
+          65.7,
+          97.7
+        ],
+        "story_event": "트로이는 남자가 가족을 돌보는 것은 일이고 책임이라며, 코리가 아들이기 때문에 먹이고 재우는 것이라고 못박는다. 그는 자신을 좋아해서가 아니라 의무 때문에 돈을 받는 노동자에 비유하며, 부자 관계마저 사랑보다 책임의 거래로 설명한다."
+      },
+      {
+        "beat_id": "beat_006",
+        "source_range": [
+          97.7,
+          105.8
+        ],
+        "story_event": "트로이는 자신이 코리에게 모든 것을 준 것이 아니라 생명을 주었을 뿐이라고 말하고, 로즈와 함께 부모가 된 일에도 애정은 조건이 아니었다고 선을 긋는다. 이 말은 코리에게 자신이 사랑받는 아들이 아니라 책임으로 떠안은 존재처럼 느끼게 만들어 상처를 더 깊게 한다."
+      },
+      {
+        "beat_id": "beat_007",
+        "source_range": [
+          106.33,
+          122.33
+        ],
+        "story_event": "트로이는 코리에게 누가 자신을 좋아하는지 신경 쓰지 말고 사람들이 제대로 대하는지만 따지라고 훈계한 뒤, 일을 하러 가라며 그를 밀어낸다. 코리는 답을 얻는 대신 아버지의 냉혹한 삶의 철학만 떠안고, 부자는 서로 다른 방향으로 물러나며 갈등이 해결되지 않은 채 남는다."
+      },
+      {
+        "beat_id": "beat_008",
+        "source_range": [
+          122.33,
+          131.33
+        ],
+        "story_event": "코리는 상처 입은 표정으로 집 안으로 들어가고, 로즈 맥슨은 그런 아들을 걱정스럽게 바라본다. 트로이의 말은 부자 사이에만 머무르지 않고 가족 전체가 감당해야 할 균열로 번진다."
+      }
+    ],
+    "arc": "코리는 사랑을 확인하려고 질문을 시작하지만, 트로이는 자신의 고된 삶과 부양 책임을 근거로 애정의 의무를 부정한다. 대화는 인정받고 싶은 아들의 호소에서 책임만을 내세우는 아버지의 훈계로 밀려가고, 결국 코리는 답보다 상처를 얻으며 가족 안의 균열이 더 선명해진다."
+  },
+  "slot_fills": [
+    {
+      "slot_id": "s01",
+      "narration": "",
+      "caption_units": [
+        "널 좋아해서가 아니야.",
+        "널 돌보는 건 내 의무라서야.",
+        "난 너한테 책임이 있어.",
+        "여기서 확실히 해두자.",
+        "더 말하기 전에.",
+        "난 널 좋아할 필요 없어.",
+        "랜드 씨가 월급날 돈 주는 건",
+        "날 좋아해서가 아니야.",
+        "그 사람이 나한테",
+        "빚진 돈이라 주는 거야."
+      ],
+      "caption_kr": "널 좋아해서가 아니야. 널 돌보는 건 내 의무라서야. 난 너한테 책임이 있어. 여기서 확실히 해두자. 더 말하기 전에. 난 널 좋아할 필요 없어. 랜드 씨가 월급날 돈 주는 건 날 좋아해서가 아니야. 그 사람이 나한테 빚진 돈이라 주는 거야."
+    },
+    {
+      "slot_id": "s02",
+      "narration": "코리는 사랑을 묻고 싶었지만, 트로이는 책임이라는 말로 대답을 끝냈습니다. 아들이 집 안으로 돌아가자 로즈는 그 상처가 가족 전체로 번졌다는 걸 알았죠.",
+      "caption_units": [
+        "코리는 사랑을 묻고 싶었지만,",
+        "트로이는 책임이라는 말로",
+        "대답을 끝냈습니다.",
+        "아들이 집 안으로 돌아가자",
+        "로즈는 그 상처가",
+        "가족 전체로 번졌다는 걸 알았죠."
+      ],
+      "caption_kr": "코리는 사랑을 묻고 싶었지만, 트로이는 책임이라는 말로 대답을 끝냈습니다. 아들이 집 안으로 돌아가자 로즈는 그 상처가 가족 전체로 번졌다는 걸 알았죠."
+    }
+  ],
+  "segments": [
+    {
+      "segment_id": "s01",
+      "segment_type": "dialogue_quote",
+      "slot_id": "s01",
+      "scene_summary": "나이 든 남자가 젊은 남자에게 자신은 아들을 좋아해서가 아니라 의무감 때문에 돌본다고 강조한다. / 발화: Not because I like you, it's because it's my duty to take care of you. I owe a responsibility to you. Now, let's get this straight right here now before I go along any further. I ain't got to like you. Mr. Rand don't give me my money. Come pay day because he like me. He give it to me because he owe me.",
+      "utt_id": "utt_016",
+      "tts_enabled": false,
+      "narration": "",
+      "dialogue_original": "Not because I like you, it's because it's my duty to take care of you. I owe a responsibility to you. Now, let's get this straight right here now before I go along any further. I ain't got to like you. Mr. Rand don't give me my money. Come pay day because he like me. He give it to me because he owe me.",
+      "translated_caption_ko": "널 좋아해서가 아니야. 널 돌보는 건 내 의무라서야. 난 너한테 책임이 있어. 여기서 확실히 해두자. 더 말하기 전에. 난 널 좋아할 필요 없어. 랜드 씨가 월급날 돈 주는 건 날 좋아해서가 아니야. 그 사람이 나한테 빚진 돈이라 주는 거야.",
+      "caption_text": "널 좋아해서가 아니야. 널 돌보는 건 내 의무라서야. 난 너한테 책임이 있어. 여기서 확실히 해두자. 더 말하기 전에. 난 널 좋아할 필요 없어. 랜드 씨가 월급날 돈 주는 건 날 좋아해서가 아니야. 그 사람이 나한테 빚진 돈이라 주는 거야.",
+      "source_scenes": [
+        {
+          "clip_id": "slot_s01",
+          "scene_id": "scene_012",
+          "start": "01:20.600",
+          "end": "01:36.280",
+          "speed_multiplier": 1
+        }
+      ],
+      "source_clips": [
+        {
+          "clip_id": "slot_s01",
+          "scene_id": "scene_012",
+          "start": "01:20.600",
+          "end": "01:36.280",
+          "speed_multiplier": 1,
+          "source": "slot_map_dialogue"
+        }
+      ],
+      "edit_instruction": {
+        "visual_role": "slot_dialogue",
+        "pace": "hold",
+        "transition": "cut",
+        "zoom": "medium",
+        "sfx": []
+      }
+    },
+    {
+      "segment_id": "s02",
+      "segment_type": "recap",
+      "storytelling_role": "hook",
+      "slot_id": "s02",
+      "scene_summary": "아버지가 아들에게서 등을 돌려 집으로 향하고, 아들도 반대 방향으로 걸어간다. / 아들이 집 문을 열고 들어선다. 아들은 여전히 굳은 표정이다. / 부엌에 서 있는 어머니가 걱정스러운 표정으로 아들을 바라본다.",
+      "utt_id": "",
+      "tts_enabled": true,
+      "narration": "코리는 사랑을 묻고 싶었지만, 트로이는 책임이라는 말로 대답을 끝냈습니다. 아들이 집 안으로 돌아가자 로즈는 그 상처가 가족 전체로 번졌다는 걸 알았죠.",
+      "caption_units": [
+        "코리는 사랑을 묻고 싶었지만,",
+        "트로이는 책임이라는 말로",
+        "대답을 끝냈습니다.",
+        "아들이 집 안으로 돌아가자",
+        "로즈는 그 상처가",
+        "가족 전체로 번졌다는 걸 알았죠."
+      ],
+      "dialogue_original": "",
+      "translated_caption_ko": "",
+      "caption_text": "코리는 사랑을 묻고 싶었지만, 트로이는 책임이라는 말로 대답을 끝냈습니다. 아들이 집 안으로 돌아가자 로즈는 그 상처가 가족 전체로 번졌다는 걸 알았죠.",
+      "source_scenes": [
+        {
+          "clip_id": "slot_s02",
+          "scene_id": "scene_015",
+          "start": "01:58.850",
+          "end": "02:20.040",
+          "speed_multiplier": 1
+        }
+      ],
+      "source_clips": [
+        {
+          "clip_id": "slot_s02",
+          "scene_id": "scene_015",
+          "start": "01:58.850",
+          "end": "02:20.040",
+          "speed_multiplier": 1,
+          "source": "slot_map_narration"
+        }
+      ],
+      "edit_instruction": {
+        "visual_role": "slot_narration",
+        "pace": "snappy",
+        "transition": "cut",
+        "zoom": "medium",
+        "sfx": []
+      },
+      "order": 2
+    }
+  ],
+  "quality_check": {
+    "segment_count": 2,
+    "estimated_total_duration_sec": 33.691,
+    "duration_within_60_180": false,
+    "all_scene_ids_exist_in_gemini_analysis": true,
+    "no_source_scene_exceeds_30_sec": true,
+    "korean_ending_rules_ok": true,
+    "dialogue_quote_count": 1,
+    "recap_tts_segment_count": 1,
+    "ending_rules_check": {
+      "preset": "drama",
+      "target_eomi_ratio_seumnida_pct": 75,
+      "target_eomi_ratio_jyo_pct": 15,
+      "target_eomi_ratio_neunde_pct": 8,
+      "target_eomi_ratio_beoryeot_pct": 2,
+      "eomi_ratio_seumnida_pct": 50,
+      "eomi_ratio_jyo_pct": 50,
+      "eomi_ratio_neunde_pct": 0,
+      "eomi_ratio_beoryeot_pct": 0,
+      "eomi_sentence_count": 2,
+      "forbidden_eomi_count": 0,
+      "character_naming_consistent": true,
+      "real_name_used": false,
+      "mystery_4steps_applied": false,
+      "closing_drip_present": true
+    }
+  },
+  "created_at": "2026-07-14T12:54:26.251Z"
+}

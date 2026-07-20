@@ -1,0 +1,228 @@
+{
+  "movie_identity": {
+    "status": "unknown",
+    "title_en": "",
+    "title_kr": "",
+    "year": null,
+    "evidence": [
+      "No stable title hint found in source metadata, transcript, or Gemini observations."
+    ]
+  },
+  "movie_knowledge": {
+    "title_kr": "",
+    "title_en": "",
+    "year": null,
+    "characters": [],
+    "full_plot": "",
+    "clip_context": "",
+    "stakes": "",
+    "sources": []
+  },
+  "evidence_package": {
+    "source_metadata": {
+      "id": "tVxYCeRXzGo",
+      "title": "Fences (2016) - I Ain't Got to Like You Scene (2/10) | Movieclips",
+      "description": "Fences - I Ain't Got to Like You: Cory (Jovan Adepo) asks his father (Denzel Washington) a simple question and gets an honest answer. BUY THE MOVIE: https://www.fandangonow.com/details/movie/fences-2016/MMV4E2199976E5F1C411E2DB00F6DDF255F7?cmp=Movieclips_YT_Description Watch the best Fences scenes & clips: https://www.youtube.com/playlist?list=PLZbXA4lyCtqqyvVjQJ5JubFArQVy3wt8f FILM DESCRIPTION: Troy Maxson (Denzel Washington) makes his living as a sanitation worker in 1950s Pittsburgh. Maxson once dreamed of becoming a professional baseball player, but was deemed too old when the major leagues began admitting black athletes. Bitter over his missed opportunity, Troy creates further tension in his family when he squashes his son's (Jovan Adepo) chance to meet a college football recruiter. CREDITS: TM & © Paramount (2016) Cast: Denzel Washington, Jovan Adepo Screenwriter: August Wilson Director: Denzel Washington WHO ARE WE? The MOVIECLIPS channel is the largest collection of licensed movie clips on the web. Here you will find unforgettable moments, scenes and lines from all your favorite films. Made by movie fans, for movie fans. SUBSCRIBE TO OUR MOVIE CHANNELS: MOVIECLIPS: http://b",
+      "tags": [
+        "fences movie",
+        "fences full movie",
+        "fences scene",
+        "fences clip",
+        "fences part",
+        "fences movie clips",
+        "fences hd",
+        "fences denzel washington",
+        "fences Viola Davis",
+        "fences death monologue",
+        "fences troy and rose",
+        "fences standing with you",
+        "fences august wilson",
+        "fences august wilson play",
+        "denzel washington movies",
+        "viola davis movies",
+        "viola davis monologue fences",
+        "denzel washington monologue fences",
+        "august wilson plays",
+        "mykelti williamson fences",
+        "i ain't got to like you denzel"
+      ],
+      "uploader": "Movieclips",
+      "webpage_url": "https://www.youtube.com/watch?v=tVxYCeRXzGo"
+    },
+    "transcript_signals": {
+      "proper_nouns": [
+        "Fences",
+        "I Ain",
+        "Got",
+        "Like You Scene",
+        "Movieclips Fences",
+        "Like You",
+        "Cory",
+        "Jovan Adepo",
+        "Denzel Washington",
+        "BUY THE MOVIE",
+        "MMV4E2199976E5F1C411E2DB00F6DDF255F7",
+        "Watch",
+        "PLZbXA4lyCtqqyvVjQJ5JubFArQVy3wt8f FILM DESCRIPTION",
+        "Troy Maxson",
+        "Pittsburgh",
+        "Maxson",
+        "Bitter",
+        "Troy",
+        "CREDITS",
+        "Paramount"
+      ],
+      "distinctive_dialogue": [
+        "Not because I like you, it's because it's my duty to take care of you. I owe a responsibility to you. Now, let's get this straight right here now before I go along any further. I ain't got to like you. Mr. Rand don't give me my money. Come pay day because he like me. He give it to me because he owe me.",
+        "Answer me when I talk to you. Don't you eat every day? Yeah. Nigga, as long as you in my house, you put a sir on the end of it when you talk to me. Yes, sir. You eat every day. Yes, sir. Got a roof over your head. Yes, sir. Got clothes on your back. Yes, sir. Why you think that is? Because of you.",
+        "Now, don't you go through life worrying about whether somebody like you or not. You best be making sure they're doing right by you. You understand what I'm saying? Then get the hell out of my face and get on down to that A&P.",
+        "You're about the biggest fool I ever saw. It's my job. It's my responsibility. A man is supposed to take care of his family. You live in my house, fill your belly with my food, put you behind on my bed because you're my son.",
+        "What law is there say I got to like you? Wanna stand up in front of my face and ask a damn fool-ass question like that? Talkin' about likin' somebody. Call me a boy when I talk to you."
+      ]
+    },
+    "gemini_visual_evidence": {
+      "characters": [
+        {
+          "name": "father_figure",
+          "visual_description": ""
+        },
+        {
+          "name": "son",
+          "visual_description": ""
+        },
+        {
+          "name": "father",
+          "visual_description": ""
+        },
+        {
+          "name": "older_man",
+          "visual_description": ""
+        },
+        {
+          "name": "younger_man",
+          "visual_description": ""
+        },
+        {
+          "name": "mother",
+          "visual_description": ""
+        }
+      ],
+      "distinctive_visuals": [
+        "젊은 남자가 나이 든 남자에게 다가가 질문을 던진다. son, father_figure",
+        "나이 든 남자가 젊은 남자에게 등을 돌린 채 무시하는 듯한 태도로 대답한다. son, father_figure",
+        "나이 든 남자가 카메라를 응시하며 젊은 남자의 질문을 듣는다. 젊은 남자는 화면 밖에 있다. father_figure",
+        "나이 든 남자가 아들의 질문에 불신과 분노가 섞인 표정으로 반응한다. father_figure",
+        "나이 든 남자가 격렬하게 말을 이어가며 젊은 남자에게 가까이 오라고 손짓한다. 젊은 남자가 다가온다. father_figure, son",
+        "나이 든 남자가 젊은 남자와 마주 서서 손짓하며 똑바로 서라고 명령한다. father_figure, son",
+        "아버지가 아들에게 질문하며 엄하게 말한다. father, son",
+        "아들이 아버지의 질문에 대답하고, 아버지는 아들에게 존칭을 요구하며 자신이 제공하는 것들을 상기시킨다. father, son",
+        "아버지가 아들의 대답에 반응하며 다시 질문하고, 아들은 아버지가 자신을 좋아하기 때문이라고 답한다. father, son",
+        "나이 든 남자가 젊은 남자에게 격렬하게 말하고, 젊은 남자는 듣고 있다. older_man, younger_man"
+      ]
+    },
+    "gemini_story_context": {
+      "content_guess": "Fences",
+      "plot_summary_neutral": "아들이 아버지에게 왜 자신을 좋아하지 않느냐고 묻자, 아버지는 자신에게 아들을 좋아할 의무가 없다고 격렬하게 반박하며 대화가 이어진다.",
+      "genre": "drama"
+    }
+  },
+  "search_queries": [
+    "Fences (2016) movie",
+    "\"Not because I like you, it's because it's my duty to take care of you. I owe a responsibil\" movie quote",
+    "Fences I Ain Got film scene",
+    "Fences plot summary"
+  ],
+  "search_results": [
+    {
+      "query": "Fences (2016) movie",
+      "title": "Fences (film) - Wikipedia",
+      "url": "https://en.wikipedia.org/wiki/Fences_(film)",
+      "snippet": "Fences is a 2016 American period drama film directed and co-produced by Denzel Washington from a screenplay by August Wilson, based on his 1985 play. It stars Washington, Viola Davis, Stephen McKinley Henderson, Jovan Adepo, Russell Hornsby, Mykelti Williamson, and Saniyya Sidney."
+    },
+    {
+      "query": "Fences (2016) movie",
+      "title": "Fences (2016) - IMDb",
+      "url": "https://www.imdb.com/title/tt2671706/",
+      "snippet": "Fences : Directed by Denzel Washington. With Denzel Washington, Viola Davis, Stephen McKinley Henderson, Jovan Adepo. A working-class African-American father tries to raise his family in the 1950s, while coming to terms with the events of his life."
+    },
+    {
+      "query": "Fences (2016) movie",
+      "title": "Fences (2016) - Movie | Moviefone",
+      "url": "https://www.moviefone.com/movie/fences/20086208/main/",
+      "snippet": "Some people build fences to keep people out, and other people build fences to keep people in. In 1950s Pittsburgh, a frustrated African-American father strug..."
+    },
+    {
+      "query": "Fences (2016) movie",
+      "title": "Watch Fences | Netflix",
+      "url": "https://www.netflix.com/title/80125981",
+      "snippet": "A once-promising baseball player who was denied a shot at the big leagues because of his race comes to terms with his life in 1950s Pittsburgh."
+    },
+    {
+      "query": "Fences (2016) movie",
+      "title": "Fences (2016) | Rotten Tomatoes",
+      "url": "https://www.rottentomatoes.com/m/fences_2016",
+      "snippet": "Discover reviews, ratings, and trailers for Fences (2016) on Rotten Tomatoes. Stay updated with critic and audience scores today!"
+    },
+    {
+      "query": "Fences I Ain Got film scene",
+      "title": "Fences (2016) - I Ain&#x27;t Got to Like You Scene (2/10) | Movieclips",
+      "url": "https://www.youtube.com/watch?v=tVxYCeRXzGo",
+      "snippet": "Fences - I Ain&#x27;t Got to Like You: Cory (Jovan Adepo) asks his father (Denzel Washington) a simple question and gets an honest answer.BUY THE MOVIE: https://w..."
+    },
+    {
+      "query": "Fences I Ain Got film scene",
+      "title": "Fences | I Ain&#x27;t Got to Like You | Movie Moment - YouTube",
+      "url": "https://www.youtube.com/watch?v=xjZBO4kW_Cw",
+      "snippet": "A tough scene with some amazing and powerful acting from Denzel himself"
+    },
+    {
+      "query": "Fences I Ain Got film scene",
+      "title": "Fences (2016) - I Ain&#x27;t Got to Like You Scene (2/10) - Listal",
+      "url": "https://www.listal.com/video/10819581",
+      "snippet": "Fences (2016) - I Ain&#x27;t Got to Like You Scene (2/10) | Movieclips Movieclips Watch on Added by Djbrothamax 5 years ago on 17 January 2021 07:17"
+    },
+    {
+      "query": "Fences I Ain Got film scene",
+      "title": "Fences Movie Script",
+      "url": "https://www.scripts.com/script.php?id=fences_1316",
+      "snippet": "Synopsis: Troy Maxson (Denzel Washington) makes his living as a sanitation worker in 1950s Pittsburgh. Maxson once dreamed of becoming a professional baseball player, but was deemed too old when the major leagues began admitting black athletes. Bitter over his missed opportunity, Troy creates further tension in his family when he squashes his son&#x27;s (Jovan Adepo) chance to meet a college ..."
+    },
+    {
+      "query": "Fences I Ain Got film scene",
+      "title": "\"I ain&#x27;t got to like you.\"⁣ Troy Maxson played ... - Facebook",
+      "url": "https://www.facebook.com/FilmFreeway/videos/i-aint-got-to-like-you-fences-2016/2572903459693076/",
+      "snippet": "\" I ain&#x27;t got to like you.\"⁣ 🎞 Troy Maxson played by Denzel Washington⁣ 🎬 Fences (2016)⁣ 🎥 Directed by Denzel Washington ⁣ ⁣ (Via filmoment, IG)"
+    },
+    {
+      "query": "Fences plot summary",
+      "title": "Fences: Full Play Summary | SparkNotes",
+      "url": "https://www.sparknotes.com/drama/fences/summary/",
+      "snippet": "A short summary of August Wilson&#39;s Fences . This free synopsis covers all the crucial plot points of Fences ."
+    },
+    {
+      "query": "Fences plot summary",
+      "title": "Fences by August Wilson Plot Summary | LitCharts",
+      "url": "https://www.litcharts.com/lit/fences/summary",
+      "snippet": "Get all the key plot points of August Wilson&#x27;s Fences on one page. From the creators of SparkNotes."
+    },
+    {
+      "query": "Fences plot summary",
+      "title": "Fences Summary - eNotes.com",
+      "url": "https://www.enotes.com/topics/fences",
+      "snippet": "Fences is a play by August Wilson in which frustrated protagonist Troy alienates his family through a series of tragic decisions. Troy moved up north in his youth and struggled to build a new life ..."
+    },
+    {
+      "query": "Fences plot summary",
+      "title": "Fences (film) - Wikipedia",
+      "url": "https://en.wikipedia.org/wiki/Fences_(film)",
+      "snippet": "Fences is a 2016 American period drama film directed and co-produced by Denzel Washington from a screenplay by August Wilson, based on his 1985 play. It stars Washington, Viola Davis, Stephen McKinley Henderson, Jovan Adepo, Russell Hornsby, Mykelti Williamson, and Saniyya Sidney."
+    },
+    {
+      "query": "Fences plot summary",
+      "title": "Fences Summary | GradeSaver",
+      "url": "https://www.gradesaver.com/fences/study-guide/summary",
+      "snippet": "Fences study guide contains a biography of August Wilson, literature essays, quiz questions, major themes, characters, and a full summary and analysis."
+    }
+  ],
+  "generated_at": "2026-07-14T12:36:40.647Z"
+}

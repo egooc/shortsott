@@ -1,0 +1,31 @@
+{
+  "status": "pass",
+  "source": {
+    "id": "tVxYCeRXzGo",
+    "title": "Fences (2016) - I Ain't Got to Like You Scene (2/10) | Movieclips",
+    "webpage_url": "https://www.youtube.com/watch?v=tVxYCeRXzGo"
+  },
+  "criteria": {
+    "min_utterances": 6,
+    "min_speech_ratio": 0.15,
+    "requires_explicit_movie_title": true,
+    "requires_scene_metadata_signal": true
+  },
+  "speech": {
+    "utterance_count": 19,
+    "total_speech_sec": 95.56,
+    "source_duration_sec": 140.0,
+    "speech_ratio": 0.6826,
+    "passes": true
+  },
+  "movie_identity_pre_gemini": {
+    "status": "known",
+    "title_en": "Fences (2016)",
+    "source": "title_prefix"
+  },
+  "scene_metadata_signal": {
+    "passes": true,
+    "matched": "Scene"
+  },
+  "failures": []
+}

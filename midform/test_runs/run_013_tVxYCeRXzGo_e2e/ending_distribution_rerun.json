@@ -1,0 +1,32 @@
+{
+  "run_013": {
+    "script_path": "midform\\test_runs\\run_013_tVxYCeRXzGo_e2e\\script_rerun.json",
+    "sentence_count": 2,
+    "counts": {
+      "nida": 1,
+      "jyo": 1,
+      "neunde": 0,
+      "beoryeot": 0,
+      "other": 0
+    },
+    "pct": {
+      "nida": 50.0,
+      "jyo": 50.0,
+      "neunde": 0.0,
+      "beoryeot": 0.0,
+      "other": 0.0
+    },
+    "rows": [
+      {
+        "segment_id": "s02",
+        "sentence": "코리는 사랑을 묻고 싶었지만, 트로이는 책임이라는 말로 대답을 끝냈습니다.",
+        "ending": "nida"
+      },
+      {
+        "segment_id": "s02",
+        "sentence": "아들이 집 안으로 돌아가자 로즈는 그 상처가 가족 전체로 번졌다는 걸 알았죠.",
+        "ending": "jyo"
+      }
+    ]
+  }
+}
