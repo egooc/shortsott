@@ -2052,14 +2052,17 @@ function buildFullCaptionScriptRepairPrompt({ sourceUrl, filename, durationSec, 
       sourceText: JSON.stringify(guide?.scene_transitions || [])
     }),
     '- Avoid repeated 입니다/습니다/됩니다/집니다 endings.',
-    '- Sentence validity rule v2: never output 3 consecutive caption items without sentence-closing endings. At least every 1 to 2 short pieces must close or complete a Korean sentence with endings like -요, -죠, -예요, -해요, -돼요, -합니다, -됩니다, -입니다, -니다, -까, or punctuation.',
+    '- Sentence validity rule v3: every caption item must be its own complete clause. Never end an item with only a bare noun, an object/topic/subject particle (을/를/은/는/이/가), or a half-finished modifier — never split one grammatical unit across two items. Each item must end in a natural Korean ending or connector such as -요, -죠, -예요, -해요, -돼요, -고, -니까, -면서, -합니다, -됩니다, -입니다, -니다, -까, or punctuation.',
     ...koreanFullSpeechBudgetPromptLines(speechBudget),
     ...koreanFullSceneSpeechBudgetPromptLines(sceneSummary),
     `- Each text should fit the caption box: target ${OUTPUT_CONFIG.full_draft.caption.promptTargetMinChars} to ${OUTPUT_CONFIG.full_draft.caption.promptTargetMaxChars} Korean characters, hard max ${OUTPUT_CONFIG.full_draft.caption.safeMaxChars} visible characters.`,
     '- Do not return full_caption_script_ja or any Japanese Full fields.',
     '',
-    'Good Korean output rhythm:',
-    JSON.stringify(['버려질 줄 알았던 게', '다시 쓰임을 얻어요', '먼저 기준을 맞추고', '흔들리면 안 되니까', '손으로 위치를 잡죠', '여기서 중요한 건', '힘보다 방향이에요', '기계가 눌러도', '기준이 틀어지면', '품질이 달라져요', '같은 움직임을', '계속 반복하면서', '정밀함이 쌓이고', '마지막 형태가', '조용히 완성돼요'], null, 2),
+    'Bad output rhythm (items with no predicate of their own; do not do this):',
+    JSON.stringify(['여기서 중요한 건', '힘보다', '같은 움직임을', '마지막 형태가'], null, 2),
+    '',
+    'Good Korean output rhythm (every item has its own predicate):',
+    JSON.stringify(['버려질 줄 알았던 게 다시 쓰임을 얻어요', '먼저 기준을 정확히 맞추고', '흔들리면 안 되니까 손으로 위치를 잡죠', '힘보다 방향이 중요해요', '기계가 눌러도 기준이 틀어지면', '품질이 눈에 띄게 달라져요', '같은 움직임을 계속 반복하면서', '정밀함이 조금씩 쌓이고', '마지막 형태가 조용히 완성돼요'], null, 2),
     '',
     'Invalid issues:',
     JSON.stringify(issues || [], null, 2),
@@ -2118,7 +2121,7 @@ function buildInitialFullCaptionScriptSeedPrompt({ sourceUrl, filename, duration
     '- The first 3 to 5 items must quickly answer what is being assembled and why precision matters.',
     '- Never leave the script empty. Empty arrays are invalid.',
     '- Never output bare noun labels or scene tags instead of spoken Korean narration.',
-    '- At least every 1 to 2 short pieces must close or complete a Korean sentence with endings like -요, -죠, -예요, -해요, -돼요, -합니다, -됩니다, -입니다, -니다, -까, or punctuation.',
+    '- Every item must be its own complete clause that ends in a natural Korean ending or connector (-요, -죠, -예요, -해요, -돼요, -고, -니까, -면서, -합니다, -됩니다, -입니다, -니다, -까, or punctuation). Never end an item with only a bare noun, an object/topic/subject particle (을/를/은/는/이/가), or a half-finished modifier — never split one grammatical unit across two items.',
     '- Pseudo-sentences made only of fragments such as ["위험,", "청결,", "끝."] are forbidden.',
     '- Do not write three consecutive fragment lines without a real spoken predicate.',
     ...koreanFullSpeechBudgetPromptLines(speechBudget),
@@ -2128,10 +2131,8 @@ function buildInitialFullCaptionScriptSeedPrompt({ sourceUrl, filename, duration
     'Example shape (structure only, not content):',
     JSON.stringify({
       full_caption_script_ko: [
-        { scene_id: 'scene_01', role: 'hook', text: '처음엔 뭐 하는지', source_basis: 'initial_full_caption_script_seed' },
-        { scene_id: 'scene_01', role: 'process_purpose', text: '잘 안 보여도요.', source_basis: 'initial_full_caption_script_seed' },
-        { scene_id: 'scene_02', role: 'technical_context', text: '이건 소리를 버틸', source_basis: 'initial_full_caption_script_seed' },
-        { scene_id: 'scene_02', role: 'process_purpose', text: '기초를 맞추는 공정이에요.', source_basis: 'initial_full_caption_script_seed' }
+        { scene_id: 'scene_01', role: 'hook', text: '처음엔 뭘 만드는지 잘 안 보여도요', source_basis: 'initial_full_caption_script_seed' },
+        { scene_id: 'scene_02', role: 'technical_context', text: '이건 소리를 버틸 기초를 맞추는 공정이에요', source_basis: 'initial_full_caption_script_seed' }
       ]
     }, null, 2),
     '',
@@ -2184,8 +2185,7 @@ function buildKoreanFullCaptionScriptRegenerationPrompt({ sourceUrl, filename, d
       sourceText: JSON.stringify(guide?.scene_transitions || [])
     }),
     '- Use natural spoken Korean for a friendly process-channel host.',
-    '- Prefer endings like -요, -죠, -예요, -해요, -돼요, and connected short fragments.',
-    '- Sentence validity rule v2: never output 3 consecutive caption items without sentence-closing endings. At least every 1 to 2 short pieces must close or complete a Korean sentence with endings like -요, -죠, -예요, -해요, -돼요, -합니다, -됩니다, -입니다, -니다, -까, or punctuation.',
+    '- Sentence validity rule v3: every caption item must be its own complete clause. Never end an item with only a bare noun, an object/topic/subject particle (을/를/은/는/이/가), or a half-finished modifier — never split one grammatical unit across two items. Each item must end in a natural Korean ending or connector such as -요, -죠, -예요, -해요, -돼요, -고, -니까, -면서, -합니다, -됩니다, -입니다, -니다, -까, or punctuation.',
     '- Forbidden: no caption item may end with 함 or 됨.',
     '- Forbidden: do not write three consecutive caption items ending in 합니다.',
     ...koreanFullSpeechBudgetPromptLines(speechBudget),
@@ -2193,11 +2193,14 @@ function buildKoreanFullCaptionScriptRegenerationPrompt({ sourceUrl, filename, d
     `- Target ${OUTPUT_CONFIG.full_draft.caption.promptTargetMinChars} to ${OUTPUT_CONFIG.full_draft.caption.promptTargetMaxChars} Korean characters per item; hard max ${OUTPUT_CONFIG.full_draft.caption.safeMaxChars} visible characters.`,
     '- Scene_observation is optional support, not a quota target. Use it sparingly only when a visible beat helps the spoken manuscript.',
     '- Do not make scene_observation items consecutive. Sentence flow and timing budget are more important than role counts.',
-    '- Use connector/explanation lines such as 여기서 중요한 건, 그래서, 이 기준이, 사람의 손이, 기계의 힘이, 조금씩, 마지막에는 when they help the manuscript read as real Korean.',
+    '- Use connector/explanation clauses such as 여기서 중요한 건 방향이에요, 그래서 힘 조절이 필요해요, 이 기준이 정밀함을 만들어요, 사람의 손이 마지막을 다듬어요 when they help the manuscript read as real Korean — always attach the reason/predicate in the same item, never leave the connector as a bare item by itself.',
     '- If a draft line says only what is visible, rewrite the text to explain why that visible action matters.',
     '',
-    'Good Korean output rhythm:',
-    JSON.stringify(['처음엔 평범해 보여도', '이 부품은 곧', '새 역할을 얻어요', '먼저 자리를 맞추고', '흔들리면 안 되니까', '손으로 잡아줘요', '여기서 중요한 건', '힘보다 방향이에요', '기계가 눌러도', '기준이 틀어지면', '품질이 달라져요', '같은 움직임을', '계속 반복하면서', '정밀함이 쌓이고', '마지막 형태가', '조용히 완성돼요'], null, 2),
+    'Bad output rhythm (items with no predicate of their own; do not do this):',
+    JSON.stringify(['이 부품은 곧', '여기서 중요한 건', '기준이 틀어지면', '같은 움직임을', '마지막 형태가'], null, 2),
+    '',
+    'Good Korean output rhythm (every item has its own predicate):',
+    JSON.stringify(['처음엔 평범해 보여도 이 부품은 곧 새 역할을 얻어요', '먼저 자리를 맞추고', '흔들리면 안 되니까 손으로 잡아줘요', '여기서 중요한 건 힘보다 방향이에요', '기계가 눌러도 기준이 틀어지면', '품질이 눈에 띄게 달라져요', '같은 움직임을 계속 반복하면서', '정밀함이 조금씩 쌓이고', '마지막 형태가 조용히 완성돼요'], null, 2),
     '',
     'Invalid style issues:',
     JSON.stringify(issues || [], null, 2),
@@ -4981,6 +4984,14 @@ function classifyLongformValidationIssues(guide = {}, error = {}) {
   return { missing, invalidCaptions, allIssues, variantIssue, failedVariants };
 }
 
+// Korean Full CONTENT fields (manuscript, on-screen subtitles, upload description)
+// are all things a human can fix during script review, so a full-variant failure
+// made up entirely of these is recoverable — the item is held for review rather
+// than hard-failed. Structural/schema/scene/API problems are NOT held-eligible.
+function isHeldEligibleFullContentIssue(issue = '') {
+  return /full_caption_script_ko|full_metadata_ko\./i.test(String(issue || ''));
+}
+
 function markValidationFailedVariants(guide = {}, error = {}, allowedVariants = []) {
   const info = classifyLongformValidationIssues(guide, error);
   const allowed = new Set(allowedVariants.length ? allowedVariants : ['full', 'highlight', 'midform']);
@@ -4988,8 +4999,12 @@ function markValidationFailedVariants(guide = {}, error = {}, allowedVariants = 
   if (!failedVariants.length) return { guide, failedVariants, handled: false, info };
   const next = { ...guide };
   failedVariants.forEach((variant) => {
-    next[`${variant}_generation_status`] = 'failed';
-    next[`${variant}_generation_error`] = `${error.message || 'Gemini result validation failed'}: ${info.variantIssue[variant].join(', ')}`;
+    const issues = info.variantIssue[variant];
+    const status = variant === 'full' && issues.length && issues.every(isHeldEligibleFullContentIssue)
+      ? 'held'
+      : 'failed';
+    next[`${variant}_generation_status`] = status;
+    next[`${variant}_generation_error`] = `${error.message || 'Gemini result validation failed'}: ${issues.join(', ')}`;
     next[`${variant}_generation_details`] = {
       missing: info.missing,
       invalid_japanese_captions: info.invalidCaptions
@@ -7510,7 +7525,13 @@ function validateGuide(guide, options = {}) {
   const skipFullValidation = options.skipFullValidation === true || guide?.full_generation_status === 'failed';
   const skipHighlightValidation = options.skipHighlightValidation === true || guide?.highlight_generation_status === 'failed';
   const skipMidformValidation = options.skipMidformValidation === true || guide?.midform_generation_status === 'failed';
-  if (skipFullValidation && skipHighlightValidation && skipMidformValidation) {
+  // A variant that is 'held' (pending human script review) is intentionally skipped,
+  // not failed — a held full draft must not be reported as "all variants failed",
+  // otherwise the item hard-fails before it can be routed to script_review.
+  const anyVariantHeld = guide?.full_generation_status === 'held'
+    || guide?.highlight_generation_status === 'held'
+    || guide?.midform_generation_status === 'held';
+  if (skipFullValidation && skipHighlightValidation && skipMidformValidation && !anyVariantHeld) {
     missing.push('all_variant_generation_failed');
   }
   const baseRequiredKeys = skipFullValidation ? [] : [
@@ -7733,6 +7754,10 @@ function safeStageFileName(value = '') {
 async function validateOrRepairJapaneseCaptions({ guide, generateRepairJson, sourceUrl, filename, durationSec, validationOptions = {}, assignedHookType = null, onProgress, fullDraftStagesDir = '', initialStageRawResponse = null }) {
   let current = guide;
   let koreanFullStyleRegenerationUsed = false;
+  // The last gate-rejected Korean full-caption attempt is kept so that, when the item
+  // is ultimately held for script review, the human has the flawed fragment manuscript
+  // to fix in script_review.txt instead of an empty file.
+  let lastRejectedFullCaptionScriptKo = null;
   let latestRawResponsePath = '';
   let latestCleanedResponsePath = '';
   const initialStageArtifact = persistFullDraftStageArtifact({
@@ -7761,12 +7786,24 @@ async function validateOrRepairJapaneseCaptions({ guide, generateRepairJson, sou
             attempt
           });
         });
-        throw createHttpError(500, 'OTTOGI_METADATA_LANGUAGE_VALIDATION_FAILED', 'Gemini metadata output still contains invalid Japanese/Korean captions after repair attempts', {
+        const finalError = createHttpError(500, 'OTTOGI_METADATA_LANGUAGE_VALIDATION_FAILED', 'Gemini metadata output still contains invalid Japanese/Korean captions after repair attempts', {
           invalid_caption_count: issues.length,
           invalid_japanese_captions: issues,
           raw_response_path: latestRawResponsePath,
           cleaned_response_path: latestCleanedResponsePath
         });
+        // If the caption gate rejected every attempt and left no usable manuscript,
+        // hand the last rejected fragment draft to the caller so a held item still
+        // has editable content in script_review.txt rather than an empty file.
+        const currentFullKoCount = Array.isArray(current?.full_caption_script_ko) ? current.full_caption_script_ko.length : 0;
+        if (currentFullKoCount === 0 && Array.isArray(lastRejectedFullCaptionScriptKo) && lastRejectedFullCaptionScriptKo.length) {
+          finalError.guide = {
+            ...current,
+            full_caption_script_ko: lastRejectedFullCaptionScriptKo,
+            full_caption_script_needs_review: true
+          };
+        }
+        throw finalError;
       }
       const metadataIssues = issues.filter((issue) => normalizeText(issue?.scene_id || '') === 'metadata');
       const captionIssues = issues.filter((issue) => normalizeText(issue?.scene_id || '') !== 'metadata');
@@ -7802,8 +7839,12 @@ async function validateOrRepairJapaneseCaptions({ guide, generateRepairJson, sou
                 attempt
               });
             }
-            const regenerationGateIssues = collectKoreanFullRepairGateIssues(extractRepairScriptArray(regeneratedFullScript, 'full_caption_script_ko'));
+            const regeneratedFullScriptKo = extractRepairScriptArray(regeneratedFullScript, 'full_caption_script_ko');
+            const regenerationGateIssues = collectKoreanFullRepairGateIssues(regeneratedFullScriptKo);
             if (regenerationGateIssues.length) {
+              if (Array.isArray(regeneratedFullScriptKo) && regeneratedFullScriptKo.length) {
+                lastRejectedFullCaptionScriptKo = regeneratedFullScriptKo;
+              }
               emitProgress(onProgress, `Gemini KO Full 원고 재생성 게이트 차단: ${regenerationGateIssues[0].reason}`, {
                 phase: 'full_caption_script_regeneration_gate',
                 attempt,
@@ -7880,8 +7921,12 @@ async function validateOrRepairJapaneseCaptions({ guide, generateRepairJson, sou
               attempt
             });
           }
-          const repairGateIssues = collectKoreanFullRepairGateIssues(extractRepairScriptArray(fullScriptRepair, 'full_caption_script_ko'));
+          const repairFullScriptKo = extractRepairScriptArray(fullScriptRepair, 'full_caption_script_ko');
+          const repairGateIssues = collectKoreanFullRepairGateIssues(repairFullScriptKo);
           if (repairGateIssues.length) {
+            if (Array.isArray(repairFullScriptKo) && repairFullScriptKo.length) {
+              lastRejectedFullCaptionScriptKo = repairFullScriptKo;
+            }
             emitProgress(onProgress, `Gemini Full 원고 repair 게이트 차단: ${repairGateIssues[0].reason}`, {
               phase: 'full_caption_script_repair_gate',
               attempt,
@@ -9085,7 +9130,7 @@ async function runStandardGeminiPipeline({ generateJson, sourceUrl, filename, du
       throw error;
     }
     validateGuide(guide, {
-      skipFullValidation: validationOptions.skipFullValidation || guide.full_generation_status === 'failed',
+      skipFullValidation: validationOptions.skipFullValidation || guide.full_generation_status === 'failed' || guide.full_generation_status === 'held',
       skipHighlightValidation: validationOptions.skipHighlightValidation || guide.highlight_generation_status === 'failed',
       skipMidformValidation: validationOptions.skipMidformValidation || guide.midform_generation_status === 'failed'
     });

@@ -907,7 +907,13 @@ function updateGuideForApprovedScript(guide = {}, approvedSentences = []) {
           onscreen_subtitles: onscreenSubtitles,
           summary_caption: guide.full_metadata_ko.summary_caption || onscreenSubtitles[0] || ''
         }
-      : guide.full_metadata_ko
+      : guide.full_metadata_ko,
+    // A held (fragment-blocked) item's full_generation_status must clear on
+    // human approval, or the draft-generation gate keeps refusing to produce
+    // a draft even after script_review.txt has been fixed and approved.
+    ...(guide.full_generation_status === 'held'
+      ? { full_generation_status: 'ready', full_generation_error: '', full_generation_details: null }
+      : {})
   };
 }
 
@@ -1021,6 +1027,10 @@ async function createKoreanFullDraftScriptReview(itemIds = []) {
     .filter((item) => !requested.length || requested.includes(item.item_id))
     .filter((item) => {
       const config = item.item_config || {};
+      // A full draft held for fragment review is exactly the item that needs a
+      // script_review.txt, so it is always eligible regardless of the normal
+      // output-mode skip decision (which excludes non-ready full drafts).
+      if (String(config.ottogi_guide_output?.full_generation_status || '') === 'held') return true;
       const duration = Number(config.video_metadata?.duration_sec || config.target_duration_sec || 0);
       const decision = decideOutputModeForItem(config, { createHighlightDraft: queue.queueConfig.create_highlight_draft === true });
       return duration >= SHORTFORM_FULL_DRAFT_SKIP_MAX_DURATION_SEC && decision.skip_full_draft !== true;
@@ -9050,6 +9060,7 @@ async function generateQueue({ batch_name, item_ids, stop_on_error = false, draf
     total_items: itemsToRun.length,
     success_count: 0,
     failed_count: 0,
+    held_count: 0,
     capcut_draft_root: capcutDraftRoot,
     report_dir: reportDir,
     metadata_export_dir: metadataExportDir,
@@ -9167,7 +9178,7 @@ async function generateQueue({ batch_name, item_ids, stop_on_error = false, draf
         : itemDraftVariantMode === 'highlight_only';
       const wantsMidformDraft = ['all', 'midform_only'].includes(itemDraftVariantMode);
       const guideOutput = itemConfig.ottogi_guide_output || {};
-      const fullAnalysisReady = guideOutput.full_generation_status !== 'failed';
+      const fullAnalysisReady = guideOutput.full_generation_status !== 'failed' && guideOutput.full_generation_status !== 'held';
       const highlightAnalysisReady = guideOutput.highlight_generation_status !== 'failed';
       const midformAnalysisReady = guideOutput.midform_generation_status !== 'failed';
 
@@ -9224,7 +9235,9 @@ async function generateQueue({ batch_name, item_ids, stop_on_error = false, draf
 
         if (!shouldGenerateFullDraft) {
           row.output_folder = '';
-          row.full_status = wantsFullDraft && !fullAnalysisReady ? 'failed' : 'skipped';
+          row.full_status = wantsFullDraft && !fullAnalysisReady
+            ? (guideOutput.full_generation_status === 'held' ? 'held' : 'failed')
+            : 'skipped';
           row.full_error = wantsFullDraft && !fullAnalysisReady
             ? (guideOutput.full_generation_error || 'Full Gemini analysis failed')
             : '';
@@ -9543,6 +9556,8 @@ async function generateQueue({ batch_name, item_ids, stop_on_error = false, draf
       if (!shouldGenerateFullDraft) {
         if (row.highlight_status === 'success' || row.midform_status === 'success' || row.korean_highlight_status === 'success') {
           row.status = 'success';
+        } else if (row.full_status === 'held') {
+          row.status = 'held';
         } else {
           throw new Error(row.highlight_error || row.midform_error || 'requested item did not produce any draft');
         }
@@ -9560,7 +9575,11 @@ async function generateQueue({ batch_name, item_ids, stop_on_error = false, draf
           batchId
         });
       }
-      report.success_count += 1;
+      if (row.status === 'held') {
+        report.held_count += 1;
+      } else {
+        report.success_count += 1;
+      }
     } catch (error) {
       row.status = 'failed';
       row.error = error.message;
@@ -9592,6 +9611,7 @@ async function generateQueue({ batch_name, item_ids, stop_on_error = false, draf
     `- Finished At: ${report.finished_at}`,
     `- Total Items: ${report.total_items}`,
     `- Success Count: ${report.success_count}`,
+    `- Held Count: ${report.held_count}`,
     `- Failed Count: ${report.failed_count}`,
     `- Stop On Error: ${String(!!stop_on_error)}`,
     `- Highlight Drafts: ${queueConfig.create_highlight_draft === true ? 'enabled' : 'disabled'}`,

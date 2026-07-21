@@ -8,7 +8,8 @@ const {
   getQueueItemSourceInfo,
   downloadQueueItemSourceFromUrl,
   applyOttogiGuideToItem,
-  generateQueue
+  generateQueue,
+  createKoreanFullDraftScriptReview
 } = require('./processQueueService');
 const {
   analyzeOttogiProcessMetadata,
@@ -1012,12 +1013,40 @@ async function runMetadataStage(jobId, items, options = {}) {
           appendJobLog(jobId, label + ' ' + message, 'info', refreshed.item_id, data);
         }
       });
-      const applied = applyOttogiGuideToItem(refreshed.item_id, guide, sourceUrl);
-      const title = applied.item_config?.upload_title || '';
-      const guideOutput = applied.item_config?.ottogi_guide_output || {};
+      let applied = applyOttogiGuideToItem(refreshed.item_id, guide, sourceUrl);
+      let title = applied.item_config?.upload_title || '';
+      let guideOutput = applied.item_config?.ottogi_guide_output || {};
+      if (guideOutput.full_generation_status === 'held') {
+        try {
+          const review = await createKoreanFullDraftScriptReview([refreshed.item_id]);
+          const reviewItem = (review.items || [])[0];
+          appendJobLog(
+            jobId,
+            `${label} full 포맷 보류(held): 파편 원고 감지, script_review.txt 생성됨 — ${reviewItem?.script_review_path || '(경로 확인 필요)'}`,
+            'warning',
+            refreshed.item_id,
+            { variant: 'full', script_review_path: reviewItem?.script_review_path || '', sentence_count: reviewItem?.sentence_count ?? 0 }
+          );
+          const refreshedItem = (review.queue?.queueItems || []).find((queueItem) => queueItem.item_id === refreshed.item_id);
+          if (refreshedItem?.item_config) {
+            applied = { ...applied, item_config: refreshedItem.item_config };
+          }
+          title = applied.item_config?.upload_title || title;
+          guideOutput = applied.item_config?.ottogi_guide_output || guideOutput;
+        } catch (reviewError) {
+          appendJobLog(
+            jobId,
+            `${label} full 포맷 보류(held) 처리 중 script_review.txt 생성 실패: ${reviewError.message}`,
+            'error',
+            refreshed.item_id
+          );
+        }
+      }
       const variantStates = {
         full: {
-          status: guideOutput.full_generation_status === 'failed' ? 'failed' : 'ready',
+          status: guideOutput.full_generation_status === 'failed'
+            ? 'failed'
+            : guideOutput.full_generation_status === 'held' ? 'held' : 'ready',
           error: guideOutput.full_generation_error || '',
           details: guideOutput.full_generation_details || null
         },
@@ -1036,7 +1065,10 @@ async function runMetadataStage(jobId, items, options = {}) {
       const failedVariants = Object.entries(scopedVariantStates)
         .filter(([, state]) => state.status === 'failed')
         .map(([variant]) => variant);
-      const partialFailure = failedVariants.length > 0;
+      const heldVariants = Object.entries(scopedVariantStates)
+        .filter(([, state]) => state.status === 'held')
+        .map(([variant]) => variant);
+      const partialFailure = failedVariants.length > 0 || heldVariants.length > 0;
       const jobVariantState = (variant) => scopedVariantStates[variant] || {
         status: 'not_requested',
         error: '',
@@ -1053,6 +1085,7 @@ async function runMetadataStage(jobId, items, options = {}) {
         variant_statuses: scopedVariantStates,
         all_variant_statuses: variantStates,
         failed_variants: failedVariants,
+        held_variants: heldVariants,
         full_status: jobVariantState('full').status,
         full_error: jobVariantState('full').error,
         highlight_status: jobVariantState('highlight').status,
@@ -1067,6 +1100,7 @@ async function runMetadataStage(jobId, items, options = {}) {
         variant_statuses: scopedVariantStates,
         all_variant_statuses: variantStates,
         failed_variants: failedVariants,
+        held_variants: heldVariants,
         full_status: jobVariantState('full').status,
         full_error: jobVariantState('full').error,
         highlight_status: jobVariantState('highlight').status,
@@ -1139,6 +1173,7 @@ async function runDraftStage(jobId, items, options = {}) {
 
   let success = 0;
   let failed = 0;
+  let held = 0;
   const batchReports = [];
   const aggregateItems = [];
   let lastResponse = null;
@@ -1235,6 +1270,19 @@ async function runDraftStage(jobId, items, options = {}) {
         } else if (row.midform_status === 'skipped') {
           appendJobLog(jobId, `${label} Midform 드래프트 생성 건너뜀: ${row.midform_skip_reason || 'Midform 분석 결과 없음'}`, 'warning', item.item_id);
         }
+      } else if (row.status === 'held') {
+        held += 1;
+        updateItemStatus(jobId, item.item_id, {
+          stage: 'draft',
+          draft_status: 'held',
+          output_folder: row.output_folder || '',
+          full_status: row.full_status || 'held',
+          full_error: row.full_error || '',
+          highlight_status: row.highlight_status || 'disabled',
+          highlight_output_folder: row.highlight_output_folder || '',
+          midform_status: row.midform_status || 'disabled'
+        });
+        appendJobLog(jobId, `${label} 드래프트 생성 보류(held): ${row.full_error || 'full 원고가 script_review.txt 검수 대기 중'} / 다음 항목으로 진행합니다.`, 'warning', item.item_id);
       } else {
         failed += 1;
         updateItemStatus(jobId, item.item_id, {
@@ -1288,6 +1336,7 @@ async function runDraftStage(jobId, items, options = {}) {
       batch_id: `${baseBatchName}_server_job_${jobId}`,
       total_items: aggregateItems.length,
       success_count: success,
+      held_count: held,
       failed_count: failed,
       capcut_draft_root: lastResponse?.report?.capcut_draft_root || '',
       output_root: lastResponse?.report?.output_root || '',
@@ -1295,10 +1344,10 @@ async function runDraftStage(jobId, items, options = {}) {
     }
   };
 
-  appendJobLog(jobId, `\uB4DC\uB798\uD504\uD2B8 \uC0DD\uC131 \uC885\uB8CC: \uC131\uACF5 ${success}\uAC1C, \uC2E4\uD328 ${failed}\uAC1C`, failed ? 'warning' : 'success', '', {
+  appendJobLog(jobId, `\uB4DC\uB798\uD504\uD2B8 \uC0DD\uC131 \uC885\uB8CC: \uC131\uACF5 ${success}\uAC1C, \uBCF4\uB958(held) ${held}\uAC1C, \uC2E4\uD328 ${failed}\uAC1C`, failed ? 'warning' : 'success', '', {
     result: aggregateResult
   });
-  return { success, failed, result: aggregateResult };
+  return { success, failed, held, result: aggregateResult };
 }
 
 async function runJob(jobId) {
