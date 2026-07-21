@@ -8051,8 +8051,77 @@ function buildHighlightPresetById(presetId, basePreset = {}, analysis = {}) {
   });
 }
 
+// The two-layer longform highlight (deep crop + source-characteristic motion) applies
+// automatically for wide 16:9 longform sources after visual sign-off. It only ever runs
+// when classifyHighlightHook already flagged wide_longform_core_crop, so shortform is
+// never affected. Set highlight_two_layer_longform: false on an item to fall back to the
+// generic core_crop (kill switch).
+function isLongformHighlightTwoLayerEnabled(itemConfig = {}) {
+  return itemConfig.highlight_two_layer_longform !== false
+    && itemConfig.longform_highlight_two_layer !== false;
+}
+
+// Two-layer longform highlight: keep the deep vertical-crop depth from
+// highlight_longform_core_crop (fills 9:16 for wide 16:9 sources) but drive the
+// pan/speed/rotation rhythm from the source-characteristic preset that
+// classifyHighlightHook already picked (hand -> hand_focus, impact -> punch_cut, ...).
+// The characteristic pattern's scales are remapped into the deep-crop range so both
+// the crop depth and the characteristic motion apply at once. Reuses the existing
+// buildHighlightPresetById read-only; classifyHighlightHook is not modified.
+function buildLongformHighlightTwoLayerPreset(analysis = {}, basePreset = {}) {
+  const cropBase = buildHighlightPresetById('highlight_longform_core_crop', basePreset, analysis);
+  const characteristicId = String(analysis.shortform_preset_id || 'highlight_hook_zoom_out');
+  const characteristic = buildHighlightPresetById(characteristicId, basePreset, analysis);
+  const cropFloor = Number(cropBase.global_transform?.scale || 2.28);
+  const cropCeil = Number(cropBase.max_zoom_scale || 3.05);
+  const charPattern = Array.isArray(characteristic.pattern) ? characteristic.pattern : [];
+  const charScales = charPattern.map((segment) => Number(segment.scale || 0)).filter((value) => value > 0);
+  const charMin = charScales.length ? Math.min(...charScales) : cropFloor;
+  const charMax = charScales.length ? Math.max(...charScales) : cropCeil;
+  const charRange = Math.max(0.01, charMax - charMin);
+  const cropRange = Math.max(0.01, cropCeil - cropFloor);
+  const pattern = charPattern.map((segment) => ({
+    ...segment,
+    scale: Number((cropFloor + ((Number(segment.scale || charMin) - charMin) / charRange) * cropRange).toFixed(3))
+  }));
+  const patternScales = pattern.map((segment) => segment.scale);
+  return mergeHighlightPresetBase(basePreset, {
+    ...cropBase,
+    preset_id: `highlight_longform_core_crop__${characteristicId}`,
+    name: `Highlight Longform Core Crop + ${characteristic.name || characteristicId}`,
+    display_name: `Highlight Longform Core Crop + ${characteristic.display_name || characteristicId}`,
+    pattern,
+    crop_mode: 'vertical_fill',
+    auto_highlight_preset: true,
+    two_layer_longform_highlight: {
+      enabled: true,
+      crop_base_preset_id: 'highlight_longform_core_crop',
+      crop_base_scale: cropFloor,
+      crop_base_max_zoom: cropCeil,
+      characteristic_preset_id: characteristicId,
+      characteristic_preset_name: characteristic.name || characteristicId,
+      characteristic_source: 'classify_highlight_hook_shortform_preset_id',
+      pattern_scale_range: patternScales.length
+        ? [Number(Math.min(...patternScales).toFixed(3)), Number(Math.max(...patternScales).toFixed(3))]
+        : []
+    },
+    highlight_hook_analysis: {
+      ...analysis,
+      two_layer_longform_applied: true,
+      two_layer_characteristic_preset_id: characteristicId
+    }
+  });
+}
+
 function buildHighlightHookZoomOutPreset(basePreset = {}, itemConfig = {}, window = {}) {
   const analysis = classifyHighlightHook(itemConfig, window);
+  if (
+    analysis.wide_longform_core_crop === true
+    && analysis.shortform_preset_id
+    && isLongformHighlightTwoLayerEnabled(itemConfig)
+  ) {
+    return buildLongformHighlightTwoLayerPreset(analysis, basePreset);
+  }
   return buildHighlightPresetById(analysis.preset_id, basePreset, analysis);
 }
 
@@ -9722,7 +9791,10 @@ module.exports = {
     regroupKoreanFullCaptionScript,
     simulateAnchoredSentencePlacement,
     sumTtsDurationSec,
-    splitKoreanTtsSentenceIntoCaptionSlices
+    splitKoreanTtsSentenceIntoCaptionSlices,
+    classifyHighlightHook,
+    buildHighlightHookZoomOutPreset,
+    buildLongformHighlightTwoLayerPreset
   }
 };
 
