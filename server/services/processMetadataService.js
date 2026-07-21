@@ -4055,23 +4055,23 @@ function mergeMidformSplitOutputs(metadataGuide = {}, captionParts = []) {
 
 function validateLongformVariantFinalGuide(variant, guide = {}, options = {}) {
   if (variant === 'full') {
-    const jaCount = Array.isArray(guide.full_caption_script_ja) ? guide.full_caption_script_ja.length : 0;
+    // Full drafts are Korean-only (see buildLongformVariantFinalPrompt: "Full drafts are
+    // Korean only. Do not create full_caption_script_ja."). Japanese full fields are no
+    // longer generated, so only the Korean production fields are required here — validating
+    // Japanese would fail every Korean-only Full output (the ja_too_short regression).
     const koCount = Array.isArray(guide.full_caption_script_ko) ? guide.full_caption_script_ko.length : 0;
-    const metadataSubtitleCount = Array.isArray(guide.full_metadata?.onscreen_subtitles)
-      ? guide.full_metadata.onscreen_subtitles.length
+    const koSubtitleCount = Array.isArray(guide.full_metadata_ko?.onscreen_subtitles)
+      ? guide.full_metadata_ko.onscreen_subtitles.length
       : 0;
     const missing = [];
-    if (!guide.full_metadata || typeof guide.full_metadata !== 'object') missing.push('missing_full_metadata');
     if (!guide.full_metadata_ko || typeof guide.full_metadata_ko !== 'object') missing.push('missing_full_review_metadata');
-    if (jaCount < 20) missing.push('full_caption_script_ja_too_short');
     if (koCount < 20) missing.push('full_caption_script_ko_too_short');
-    if (metadataSubtitleCount < 8 && jaCount < 20) missing.push('full_metadata_onscreen_subtitles_too_short');
+    if (koSubtitleCount < 8 && koCount < 20) missing.push('full_metadata_ko_onscreen_subtitles_too_short');
     if (missing.length) {
-      throw createHttpError(500, 'OTTOGI_FULL_FINAL_VALIDATION_FAILED', 'Gemini Full output is missing required full-draft caption script fields', {
+      throw createHttpError(500, 'OTTOGI_FULL_FINAL_VALIDATION_FAILED', 'Gemini Full output is missing required Korean full-draft caption script fields', {
         missing,
-        full_caption_script_ja_count: jaCount,
         full_caption_script_ko_count: koCount,
-        full_metadata_onscreen_subtitles_count: metadataSubtitleCount,
+        full_metadata_ko_onscreen_subtitles_count: koSubtitleCount,
         expected_caption_script_items: '20-24'
       });
     }
@@ -9457,6 +9457,7 @@ module.exports = {
     koreanFullSceneSpeechBudgetPromptLines,
     sceneTransitionIdSet,
     assertRepairNormalizationDidNotCollapse,
+    validateLongformVariantFinalGuide,
     OTTOGI_METADATA_FIELD_REPAIR_SCHEMA,
     OTTOGI_FULL_CAPTION_SCRIPT_REPAIR_SCHEMA
   }
