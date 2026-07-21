@@ -16,6 +16,26 @@ const GEMINI_GENERATE_MAX_ATTEMPTS = 3;
 const GEMINI_GENERATE_RETRY_BASE_MS = 10000;
 const GEMINI_LONGFORM_FINAL_MAX_ATTEMPTS = 5;
 const GEMINI_LONGFORM_FINAL_RETRY_BASE_MS = 60000;
+// Full-draft Korean caption repair/regeneration is capped at 3 attempts. Space the
+// attempts so the repair calls do not fire back-to-back and self-inflict a rate-limit
+// (429) burst before the item can reach the held state (esp. heavy longform batches).
+const FULL_DRAFT_REGENERATION_MIN_INTERVAL_MS = 8000;
+// Process-global minimum interval between full-draft Gemini calls (scene / metadata /
+// window / final / regeneration). Each item fires several calls in quick succession; the
+// burst self-inflicts a rate-limit (429) that lands on the tail call (e.g. regeneration).
+// Spacing every call at least this far apart across the whole worker process keeps the
+// per-minute request rate under the quota. Completion over speed. Tune via env to the
+// project's actual gemini-2.5-flash RPM (e.g. limit N/min -> ~60000/N ms).
+const GEMINI_MIN_CALL_INTERVAL_MS = Math.max(0, Number(process.env.PROCESS_METADATA_GEMINI_MIN_INTERVAL_MS) || 6000);
+let geminiNextCallSlotAt = 0;
+async function throttleGeminiCall() {
+  if (GEMINI_MIN_CALL_INTERVAL_MS <= 0) return;
+  const nowMs = Date.now();
+  const slotAt = Math.max(nowMs, geminiNextCallSlotAt);
+  geminiNextCallSlotAt = slotAt + GEMINI_MIN_CALL_INTERVAL_MS;
+  const waitMs = slotAt - nowMs;
+  if (waitMs > 0) await new Promise((resolve) => setTimeout(resolve, waitMs));
+}
 const GEMINI_REQUEST_HEARTBEAT_MS = 25000;
 const GEMINI_REQUEST_TIMEOUT_MS = 6 * 60 * 1000;
 const SHORTFORM_HIGHLIGHT_GEMINI_TIMEOUT_MS = 3 * 60 * 1000;
@@ -7772,6 +7792,12 @@ async function validateOrRepairJapaneseCaptions({ guide, generateRepairJson, sou
   latestRawResponsePath = initialStageArtifact.rawPath || latestRawResponsePath;
   latestCleanedResponsePath = initialStageArtifact.summaryPath || latestCleanedResponsePath;
   for (let attempt = 1; attempt <= 3; attempt += 1) {
+    // Space repair/regeneration retries (attempt 2+) so consecutive Gemini repair calls
+    // do not fire back-to-back and self-inflict a 429 burst — otherwise the repair call
+    // itself gets rate-limited and the item dies transient instead of reaching held.
+    if (attempt > 1) {
+      await new Promise((resolve) => setTimeout(resolve, FULL_DRAFT_REGENERATION_MIN_INTERVAL_MS));
+    }
     try {
       const normalizedCurrent = normalizeGuide(current, sourceUrl, durationSec);
       validateGuide(normalizedCurrent, validationOptions);
@@ -9198,6 +9224,7 @@ async function analyzeWithVertexAdc({ filePath, sourceUrl, durationSec, original
     const maxAttempts = geminiMaxAttemptsForPhase(phase, options);
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       checkCancellation(throwIfCancelled);
+      await throttleGeminiCall();
       try {
         emitProgress(onProgress, `Gemini ${phase} 요청 시작 (${attempt}/${maxAttempts})`, {
           phase,
@@ -9343,6 +9370,7 @@ async function analyzeWithApiKey({ filePath, sourceUrl, apiKey, durationSec, ori
     const maxAttempts = geminiMaxAttemptsForPhase(phase, options);
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       checkCancellation(throwIfCancelled);
+      await throttleGeminiCall();
       try {
         emitProgress(onProgress, `Gemini ${phase} 요청 시작 (${attempt}/${maxAttempts})`, {
           phase,
