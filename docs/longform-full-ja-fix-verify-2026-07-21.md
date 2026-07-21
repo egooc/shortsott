@@ -31,15 +31,17 @@ PASS  D: ja absent, ko=20 -> 통과 (일본어 불필요)
 → 400초 실패 형태(ko=20/ja=0)는 이제 **통과**. 한국어 검증(ko<20 실패, 한국어 metadata
 필수)은 **그대로**.
 
-### 2. 실제 로그 (item_001, 474s, job_20260721123827) — end-to-end 거동 변화
+### 2. 실제 로그 (item_001·item_002, job_20260721123827) — end-to-end 거동 변화 (2/3 확인)
 ```
-12:47:32 Gemini longform_final_full 응답 JSON 파싱 완료 (4/5)
-12:47:32 Gemini KO Full 원고 문체 재생성: 금지 문체 3개 감지     ← 한국어 파편 게이트로 진입
+item_001 (474s): 12:47:32 KO Full 원고 문체 재생성: 금지 문체 3개 감지   ← 한국어 파편 게이트 진입
+item_002 (727s): 12:56:43 KO Full 원고 문체 재생성: 금지 문체 1개 감지   ← 한국어 파편 게이트 진입
 ```
-→ full 출력이 **`ja_too_short` 없이 롱폼 full 검증을 통과**하고 다음 단계인 **한국어 파편
-게이트**로 넘어감. (수정 전 동일 지점 로그: `11:45:22 longform_final_full 검증 실패
-(missing missing_full_metadata|full_caption_script_ja_too_short|...)`.) → 일본어 필수
-검증이 풀드래프트를 죽이던 것이 제거됨을 실측으로 확인.
+→ 두 항목 모두 full 출력이 **`ja_too_short` 없이 롱폼 full 검증을 통과**하고 다음 단계인
+**한국어 파편 게이트**로 넘어감. (수정 전 동일 지점 로그: `11:45:22 longform_final_full
+검증 실패 (missing missing_full_metadata|full_caption_script_ja_too_short|...)`.) → 일본어
+필수 검증이 풀드래프트를 죽이던 것이 제거됨을 **2개 소스에서 실측 확인**.
+- 단 두 항목 다 그 직후 `Gemini 일시 오류`(rate limit)로 실패, item_003(944s)은 job이
+  rate limit에 걸려 미처리. → **green/held 최종은 쿼터 회복 후 재실행 필요**(아래 미완 참조).
 
 ### 3. 가드/빌드
 `npm run verify` 전체 통과(encoding, shortform-highlight, metadata-repair, output-config,
