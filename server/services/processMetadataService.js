@@ -6494,11 +6494,17 @@ function collectJapaneseCaptionIssues(guide = {}, options = {}) {
   const includeJapaneseFull = includeJapanese && options.includeJapaneseFull === true;
   const includeKorean = options.includeKorean === true;
   const strictHighlightMetadata = options.strictHighlightMetadata !== false;
-  const requireJapaneseField = (field, value) => {
+  // allowEmbeddedLatin: for review/upload-description fields (report_description) that
+  // are NOT burned-in on-screen subtitles. A foreign technique name in the description
+  // (e.g. "lost wax casting") must not fail the variant; we still require the field to
+  // carry real Japanese/Korean content (isValidJapanese/KoreanCaption rejects empty /
+  // mostly-Latin). On-screen subtitle and title fields keep the strict hasLongLatinWord guard.
+  const requireJapaneseField = (field, value, opts = {}) => {
     const validationValue = /(?:recommended_titles\[\d+\]\.title|upload_title)$/u.test(field)
       ? stripHashtagsForLanguageValidation(value)
       : normalizeText(value || '');
-    if (!isValidJapaneseCaption(validationValue) || hasLongLatinWord(validationValue)) {
+    const latinContaminated = opts.allowEmbeddedLatin ? false : hasLongLatinWord(validationValue);
+    if (!isValidJapaneseCaption(validationValue) || latinContaminated) {
       issues.push({
         scene_id: 'metadata',
         field,
@@ -6507,11 +6513,12 @@ function collectJapaneseCaptionIssues(guide = {}, options = {}) {
       });
     }
   };
-  const requireKoreanField = (field, value) => {
+  const requireKoreanField = (field, value, opts = {}) => {
     const validationValue = /(?:recommended_titles\[\d+\]\.title|upload_title)$/u.test(field)
       ? stripHashtagsForLanguageValidation(value)
       : normalizeText(value || '');
-    if (!isValidKoreanCaption(validationValue) || hasLongLatinWord(validationValue)) {
+    const latinContaminated = opts.allowEmbeddedLatin ? false : hasLongLatinWord(validationValue);
+    if (!isValidKoreanCaption(validationValue) || latinContaminated) {
       issues.push({
         scene_id: 'metadata',
         field,
@@ -6932,7 +6939,7 @@ function collectJapaneseCaptionIssues(guide = {}, options = {}) {
     const metadata = guide?.[section] || {};
     requireJapaneseField(`${section}.short_description`, metadata.short_description);
     requireJapaneseField(`${section}.summary_caption`, metadata.summary_caption);
-    requireJapaneseField(`${section}.report_description`, metadata.report_description);
+    requireJapaneseField(`${section}.report_description`, metadata.report_description, { allowEmbeddedLatin: true });
     requireJapaneseField(`${section}.upload_title`, metadata.upload_title);
     validateMetadataSubtitles(section, metadata, false);
     const titles = Array.isArray(metadata.recommended_titles) ? metadata.recommended_titles : [];
@@ -6959,7 +6966,7 @@ function collectJapaneseCaptionIssues(guide = {}, options = {}) {
     if (strictHighlightMetadata) {
       requireJapaneseField(`${section}.short_description`, metadata.short_description);
       requireJapaneseField(`${section}.summary_caption`, metadata.summary_caption);
-      requireJapaneseField(`${section}.report_description`, metadata.report_description);
+      requireJapaneseField(`${section}.report_description`, metadata.report_description, { allowEmbeddedLatin: true });
       requireJapaneseField(`${section}.upload_title`, metadata.upload_title);
       validateHighlightCaptionBlock(section, metadata, false);
       const titles = Array.isArray(metadata.recommended_titles) ? metadata.recommended_titles : [];
@@ -6982,7 +6989,7 @@ function collectJapaneseCaptionIssues(guide = {}, options = {}) {
     const metadata = guide?.[section] || {};
     requireKoreanField(`${section}.short_description`, metadata.short_description);
     requireKoreanField(`${section}.summary_caption`, metadata.summary_caption);
-    requireKoreanField(`${section}.report_description`, metadata.report_description);
+    requireKoreanField(`${section}.report_description`, metadata.report_description, { allowEmbeddedLatin: true });
     requireKoreanField(`${section}.upload_title`, metadata.upload_title);
     validateMetadataSubtitles(section, metadata, true);
     const titles = Array.isArray(metadata.recommended_titles) ? metadata.recommended_titles : [];
@@ -7003,7 +7010,7 @@ function collectJapaneseCaptionIssues(guide = {}, options = {}) {
     if (strictHighlightMetadata) {
       requireKoreanField(`${section}.short_description`, metadata.short_description);
       requireKoreanField(`${section}.summary_caption`, metadata.summary_caption);
-      requireKoreanField(`${section}.report_description`, metadata.report_description);
+      requireKoreanField(`${section}.report_description`, metadata.report_description, { allowEmbeddedLatin: true });
       requireKoreanField(`${section}.upload_title`, metadata.upload_title);
       validateHighlightCaptionBlock(section, metadata, true);
       const titles = Array.isArray(metadata.recommended_titles) ? metadata.recommended_titles : [];
