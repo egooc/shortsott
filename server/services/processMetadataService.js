@@ -759,6 +759,34 @@ const OTTOGI_FULL_CAPTION_SCRIPT_REPAIR_SCHEMA = {
   required: ['full_caption_script_ko']
 };
 
+// Pass 1 of the 2-pass Korean Full manuscript flow (STANDARD/shortform path only):
+// a text-only knowledge outline produced from scene_transitions before the Full manuscript
+// is written, so Pass 2 (buildMetadataPrompt) writes a knowledge narration instead of a
+// screen transcription. key_moments are exactly 3 scene anchors that must reference real
+// scene_transitions IDs (validated in validateFullStoryOutline).
+const OTTOGI_STORY_OUTLINE_SCHEMA = {
+  type: 'object',
+  properties: {
+    premise: { type: 'string' },
+    arc: { type: 'string' },
+    key_moments: {
+      type: 'array',
+      minItems: 3,
+      maxItems: 3,
+      items: {
+        type: 'object',
+        properties: {
+          scene_id: { type: 'string' },
+          knowledge_point: { type: 'string' }
+        },
+        required: ['scene_id', 'knowledge_point']
+      }
+    },
+    knowledge_angle: { type: 'string' }
+  },
+  required: ['premise', 'arc', 'key_moments', 'knowledge_angle']
+};
+
 const CAPTION_REPAIR_BATCH_SIZE = 12;
 
 const DEFAULT_REGIONAL_EDITING_STRATEGY = {
@@ -1523,7 +1551,55 @@ function buildLongformFinalPrompt({ sourceUrl, filename, durationSec, candidateG
   ].join('\n');
 }
 
-function buildMetadataPrompt({ sourceUrl, filename, durationSec, sceneGuide, sourceType = 'unknown', sourceWorkflowMode = 'unknown', assignedHookType = null, metadataVariantMode = 'all' }) {
+// Pass 1 (STANDARD Full path): text-only knowledge-outline prompt built from scene_transitions.
+// Produces the story_outline that Pass 2 (buildMetadataPrompt) turns into a knowledge narration.
+// No captions/manuscript here — only premise / arc / 3 scene-anchored knowledge points / angle.
+function buildStoryOutlinePrompt({ sourceUrl, filename, durationSec, sceneGuide, sourceType = 'unknown', sourceWorkflowMode = 'unknown' }) {
+  const sceneList = (sceneGuide?.scene_transitions || [])
+    .slice(0, 30)
+    .map((scene) => `${scene.scene_id || ''} ${scene.start_sec}-${scene.end_sec}: ${scene.visual_summary || scene.caption_text || ''}`)
+    .join('\n');
+  const sceneIds = (sceneGuide?.scene_transitions || [])
+    .map((scene) => scene.scene_id)
+    .filter(Boolean);
+  return [
+    `You are the story planner for the ${OUTPUT_CONFIG.full_draft.label} Korean process video.`,
+    'Return JSON only. Do not include Markdown.',
+    '',
+    'Goal: plan ONE knowledge story this process video will teach, BEFORE any script is written.',
+    'This is not a caption script. Do not write screen captions here. Plan the knowledge only.',
+    '',
+    'Produce these fields, all in natural Korean:',
+    '- premise: one sentence stating the single core knowledge this video conveys (what the viewer learns).',
+    '- arc: one short line describing the flow as 도입 -> 핵심 -> 마무리 (introduction -> core -> closing).',
+    '- key_moments: EXACTLY 3 objects, each { scene_id, knowledge_point }.',
+    '    - scene_id MUST be one of the real scene IDs listed below (e.g. scene_01). Do not invent IDs.',
+    '    - knowledge_point: what that moment shows AND the knowledge behind it (principle, reason, number, or meaning), in Korean.',
+    '    - Choose 3 distinct, well-spread scenes that carry the most important knowledge, not three adjacent shots.',
+    '- knowledge_angle: one line stating the angle — 왜 이렇게 하는가 / 몰랐던 사실 / 왜 중요한가 (why it is done / a fact people do not know / why it matters).',
+    '',
+    'Hard rules:',
+    '- Explain the process and its knowledge, never the filming. Do NOT use camera/editing words: 클로즈업, 컷, 전환, 프레임, 샷, 앵글, 줌, 카메라 (and English close-up/cut/transition/frame/shot/angle/zoom/pan).',
+    '- Do not claim results not visible in the footage; describe unseen outcomes as purpose/goal only.',
+    '- Korean only. No Japanese kana, no English fallback phrases, no emoji.',
+    '',
+    `Real scene IDs you may use for key_moments: ${sceneIds.join(', ') || 'none provided'}`,
+    '',
+    'Scene analysis:',
+    sceneList || 'No scene summary provided. Use the visible process only.',
+    '',
+    'Source information:',
+    `- Source URL: ${sourceUrl || 'not provided'}`,
+    `- Original Filename: ${filename || 'unknown'}`,
+    `- Duration Sec: ${durationSec || 'unknown'}`,
+    `- Source Type: ${sourceType || 'unknown'}`,
+    `- Source Workflow Mode: ${sourceWorkflowMode || 'unknown'}`,
+    '',
+    'Return JSON only.'
+  ].join('\n');
+}
+
+function buildMetadataPrompt({ sourceUrl, filename, durationSec, sceneGuide, sourceType = 'unknown', sourceWorkflowMode = 'unknown', assignedHookType = null, metadataVariantMode = 'all', storyOutline = null }) {
   const speechBudget = calculateKoreanFullSpeechBudget({ targetDurationSec: durationSec });
   const normalizedMetadataVariantMode = normalizeMetadataVariantMode(metadataVariantMode);
   const wantsFull = ['all', 'full_highlight_only', 'full_only'].includes(normalizedMetadataVariantMode);
@@ -1585,6 +1661,23 @@ function buildMetadataPrompt({ sourceUrl, filename, durationSec, sceneGuide, sou
     '- Highlight onscreen_caption_block should target about 200 Japanese/Korean characters. Ideal range is 195 to 215 characters; acceptable range is 180 to 240 characters. Keep it natural for Shorts viewers and focused on the strongest visual hook.',
     `- Full onscreen_subtitles must mirror ${OUTPUT_CONFIG.full_draft.scriptKey} text for upload metadata. Do not create Japanese Full subtitles.`,
     '',
+    ...(storyOutline && Array.isArray(storyOutline.key_moments) ? [
+      'Pre-planned knowledge story (story_outline) — the Full script must be a KNOWLEDGE NARRATION of this plan, not a description of the footage:',
+      JSON.stringify({
+        premise: storyOutline.premise,
+        arc: storyOutline.arc,
+        key_moments: storyOutline.key_moments,
+        knowledge_angle: storyOutline.knowledge_angle
+      }, null, 2),
+      '- premise is the single knowledge this Full script must deliver. arc is the flow 도입 -> 핵심 -> 마무리.',
+      '- The FIRST caption is the hook (role "hook"): follow the assigned Korean hook type; curiosity/surprise.',
+      `- At each of the 3 key_moments scene_ids place EXACTLY ONE caption with role "scene_observation" that says what that scene shows AND its knowledge_point. These 3 are the ONLY scene_observation captions in the whole script (exactly 3, no more, no fewer).`,
+      '- EVERY other caption is knowledge narration (roles process_purpose / technical_context / quality_reason / method / emotional_expression): explain the principle, the reason, the numbers, and the meaning behind the process. Do NOT transcribe what is on screen.',
+      '- The LAST caption is the closing (role "closing"): the knowledge landing.',
+      '- scene_transitions and scene labels are contradiction-avoidance reference ONLY, never a description target. Do not turn scenes into captions.',
+      '- Never use camera/editing words (클로즈업, 컷, 전환, 프레임, 샷, 앵글, 줌, 카메라 / close-up, cut, transition, frame, shot, angle, zoom, pan) anywhere in the script.',
+      ''
+    ] : []),
     'Priority deliverable: full_caption_script_ko',
     `- ${OUTPUT_CONFIG.full_draft.scriptKey} is a first-class required output, not optional metadata support text. If it is missing, empty, or shorter than 20 items, the whole response is invalid.`,
     `- Before writing metadata prose, fully draft ${OUTPUT_CONFIG.full_draft.scriptKey} as 20 to 24 Korean caption objects with scene_id, role, text, and source_basis.`,
@@ -1608,7 +1701,7 @@ function buildMetadataPrompt({ sourceUrl, filename, durationSec, sceneGuide, sou
     '- Full caption script structure must be: curiosity hook -> whole-process purpose/explanation -> technical process explanation -> scene mention around 25 percent -> process/emotional explanation -> scene mention around 50 percent -> process/emotional explanation -> scene mention around 75 percent -> emotional closing.',
     ...koreanFullSpeechBudgetPromptLines(speechBudget),
     ...koreanFullSceneSpeechBudgetPromptLines(sceneGuide?.scene_transitions || []),
-    '- Full caption script roles are descriptive, not a quota target. Use scene_observation only when a visible beat is necessary; otherwise explain purpose, method, risk, quality, or emotion.',
+    '- The Full script must contain EXACTLY 3 scene_observation captions (at the 3 planned key moments) and no more; every other caption is knowledge narration that explains purpose, method, risk, quality, or emotion.',
     '- Full script is not an action checklist. Do not write the process as "wide place -> material -> machine picks -> trailer loads -> factory". That is still label sequencing.',
     '- Sentence rule v2 is more important than role counts: captions must join into human Korean sentences, not a sequence of noun phrases.',
     ...koreanFullHookPromptLines(assignedHookType, {
@@ -1626,17 +1719,17 @@ function buildMetadataPrompt({ sourceUrl, filename, durationSec, sceneGuide, sou
     '- Sentence validity rule v2: never output 3 consecutive caption items without sentence-closing endings. At least every 1 to 2 short pieces must close or complete a Korean sentence with endings like -요, -죠, -예요, -해요, -돼요, -합니다, -됩니다, -입니다, -니다, -까, or punctuation.',
     '- The next 2 to 4 captions must answer what is being made and why this process exists. Split long thoughts into short connected phrases, not isolated labels.',
     '- Use natural Korean connector ideas when needed, such as 사실은, 여기서 중요한 건, 그래서, 이 정밀함이, 사람의 손으로, 기계의 힘으로, 조금씩, 마지막에는.',
-    '- Scene labels are only raw material. Use scene_observation only near the 25%, 50%, and 75% positions of the script, not for every scene.',
+    '- Scene labels are only raw material. Place the 3 scene_observation captions at the 3 planned key moments, well spread across the script, not clustered and not one per scene.',
     `- Write ${OUTPUT_CONFIG.full_draft.scriptKey} as 20 to 24 short connected Korean screen-phrase items. Each item.scene_id must be one of the real scene_transitions IDs such as scene_01, scene_02, scene_03; never invent script_001 IDs. Reuse a scene_id for multiple nearby caption chunks when needed.`,
     '- Each full_caption_script item must have role: hook, process_purpose, technical_context, emotional_expression, scene_observation, method, quality_reason, progress, or closing.',
-    '- Use scene_observation sparingly near meaningful beats. Do not describe every visible cut, and never sacrifice sentence flow or timing budget to hit a role count.',
+    '- The 3 scene_observation captions mark the key moments only. Do not describe every visible cut, and keep natural sentence flow and the timing budget.',
     '- Most Full script items must explain the whole process purpose, method, material change, quality reason, and emotional meaning. Scene labels are supporting material only.',
     '- Each Full caption item must be short enough to fit in the 9:16 caption box. Hard limit: Korean 12 visible characters, Japanese 14 visible characters. Split longer ideas into multiple connected items.',
     '- The final 1 to 2 Full captions must be a natural emotional closing about precision, craftsmanship, repetition, transformation, quality, or completion.',
     '- The emotional closing must stay honest to the footage. Good if water is not visible: "水を探すため", "見えない努力が", "深さを重ねる". Bad if water is not visible: "水脈へ届く", "水が湧き出る", "大地を潤す", "恵みへ繋がる".',
     `- ${OUTPUT_CONFIG.full_draft.label} script: explanation tone. It should help the viewer understand the purpose and technical meaning of the visible process.`,
     '- Korean metadata and caption fields must not contain Japanese Hiragana or Katakana. Translate words like チューブ into natural Korean such as 튜브.',
-    '- Do not make Full captions all scene labels. Scene labels should be about 30 percent of the script at most.',
+    '- Do not make Full captions scene labels. Only the 3 scene_observation captions may reference what is on screen; every other caption must be knowledge narration, not a scene label.',
     '- Forbidden pattern: do not write three or more consecutive independent captions shaped like "[noun]が[verb]ます" or "[명사]을 [동사]합니다". Use connected wording so the next caption continues the narration.',
     '- Never end a Japanese Full caption with an unfinished particle such as を, が, の, に, へ, と, や, な. These are broken captions and must be rewritten.',
     '- Bad broken Japanese fragments: ["ワイヤーを部品が", "手作業で隙間に", "コイルを形を", "しっかり中央を完璧な", "たくさんの"].',
@@ -2103,7 +2196,7 @@ function buildFullCaptionScriptRepairPrompt({ sourceUrl, filename, durationSec, 
   ].join('\n');
 }
 
-function buildInitialFullCaptionScriptSeedPrompt({ sourceUrl, filename, durationSec, guide, assignedHookType = null }) {
+function buildInitialFullCaptionScriptSeedPrompt({ sourceUrl, filename, durationSec, guide, assignedHookType = null, storyOutline = null }) {
   const speechBudget = koreanFullSpeechBudgetFromGuide(guide, durationSec);
   const sceneSummary = (Array.isArray(guide?.scene_transitions) ? guide.scene_transitions : [])
     .slice(0, 16)
@@ -2129,6 +2222,20 @@ function buildInitialFullCaptionScriptSeedPrompt({ sourceUrl, filename, duration
     '- source_basis must be "initial_full_caption_script_seed" for every item.',
     '- Do not return upload descriptions, title lists, or any non-script fields.',
     '',
+    ...(storyOutline && Array.isArray(storyOutline.key_moments) ? [
+      'Pre-planned knowledge story (story_outline) — write the manuscript as a KNOWLEDGE NARRATION of this plan, not a description of the footage:',
+      JSON.stringify({
+        premise: storyOutline.premise,
+        arc: storyOutline.arc,
+        key_moments: storyOutline.key_moments,
+        knowledge_angle: storyOutline.knowledge_angle
+      }, null, 2),
+      '- The FIRST item is role "hook"; the LAST item is role "closing".',
+      '- Place EXACTLY 3 items with role "scene_observation", one at each key_moments scene_id, saying what that scene shows AND its knowledge_point. No other scene_observation items.',
+      '- Every other item is knowledge narration (principle, reason, number, meaning), never a transcription of the screen.',
+      '- Never use camera/editing words (클로즈업, 컷, 전환, 프레임, 샷, 앵글, 줌, 카메라 / close-up, cut, transition, frame, shot, angle, zoom, pan).',
+      ''
+    ] : []),
     'Korean narration rules:',
     '- First write one hidden connected Korean narration, then split it into short screen-caption items.',
     ...koreanFullHookPromptLines(assignedHookType, {
@@ -6283,6 +6390,65 @@ function hasKoreanSentencePredicateSignal(text = '') {
   return /(?:요|죠|예요|이에요|해요|돼요|합니다|됩니다|입니다|집니다|니다|까|네요|군요|어요|아요|다|하고|되어|되고|맞추|세우|얹|쌓|만들|열|확인|결정|영향|중요|시작|완성|이어|잡|고정|지탱|버티|달라지|흔들리|맞물리)/u.test(normalizeText(text));
 }
 
+// Camera/editing vocabulary is banned from the Korean Full knowledge manuscript and from the
+// Pass-1 story_outline: the narration must explain the process/knowledge, not describe the shot.
+// Covers the Korean terms the spec listed plus common English equivalents.
+const CAMERA_EDITING_TERM_REGEX = /클로즈업|클로즈\s*업|컷|전환|프레임|샷|앵글|줌인|줌아웃|줌\s*인|줌\s*아웃|패닝|화면\s*전환|카메라|촬영\s*기법|\b(?:close[-\s]?up|cut(?:away)?|transition|frame|shot|angle|zoom|pan(?:ning)?|dolly|tracking\s*shot)\b/iu;
+function collectCameraEditingTermHits(values = []) {
+  const hits = [];
+  (Array.isArray(values) ? values : [values]).forEach((value) => {
+    const text = normalizeText(value || '');
+    const match = text.match(CAMERA_EDITING_TERM_REGEX);
+    if (match) hits.push({ term: match[0], text });
+  });
+  return hits;
+}
+
+// Pass-1 story_outline validator (STANDARD Full path). Throws OTTOGI_STORY_OUTLINE_VALIDATION_FAILED
+// so generateJson retries. Guarantees: premise/arc/knowledge_angle present, exactly 3 key_moments,
+// every key_moment.scene_id is a real scene_transitions ID, and no camera/editing terms anywhere.
+function validateFullStoryOutline(outline = {}, sceneTransitions = []) {
+  const missing = [];
+  const premise = normalizeText(outline?.premise || '');
+  const arc = normalizeText(outline?.arc || '');
+  const angle = normalizeText(outline?.knowledge_angle || '');
+  if (!premise) missing.push('story_outline_premise_missing');
+  if (!arc) missing.push('story_outline_arc_missing');
+  if (!angle) missing.push('story_outline_knowledge_angle_missing');
+  const keyMoments = Array.isArray(outline?.key_moments) ? outline.key_moments : [];
+  if (keyMoments.length !== 3) missing.push('story_outline_key_moments_must_be_3');
+  const validSceneIds = new Set(
+    (Array.isArray(sceneTransitions) ? sceneTransitions : [])
+      .map((scene) => normalizeText(scene?.scene_id || ''))
+      .filter(Boolean)
+  );
+  const invalidSceneIds = [];
+  keyMoments.forEach((moment, index) => {
+    const sceneId = normalizeText(moment?.scene_id || '');
+    if (!normalizeText(moment?.knowledge_point || '')) missing.push(`story_outline_key_moment_${index + 1}_knowledge_point_missing`);
+    if (validSceneIds.size && (!sceneId || !validSceneIds.has(sceneId))) {
+      invalidSceneIds.push({ index: index + 1, scene_id: sceneId });
+    }
+  });
+  const cameraHits = collectCameraEditingTermHits([
+    premise,
+    arc,
+    angle,
+    ...keyMoments.map((moment) => moment?.knowledge_point || '')
+  ]);
+  if (invalidSceneIds.length) missing.push('story_outline_key_moment_scene_id_not_real');
+  if (cameraHits.length) missing.push('story_outline_camera_editing_terms_present');
+  if (missing.length) {
+    throw createHttpError(500, 'OTTOGI_STORY_OUTLINE_VALIDATION_FAILED', 'Gemini story_outline is invalid', {
+      missing,
+      invalid_scene_ids: invalidSceneIds,
+      allowed_scene_ids: [...validSceneIds],
+      camera_editing_terms: cameraHits.map((hit) => hit.term)
+    });
+  }
+  return outline;
+}
+
 function koreanFullDraftStyleViolations(texts = []) {
   const normalizedTexts = (Array.isArray(texts) ? texts : [])
     .map((text) => normalizeText(text || ''));
@@ -6711,7 +6877,7 @@ function collectJapaneseCaptionIssues(guide = {}, options = {}) {
     const sceneRoleRatioOk = isMidform
       ? sceneRoleCount >= 5 && sceneRoleRatio <= 0.7
       : korean
-        ? sceneRoleRatio <= 0.5
+        ? sceneRoleCount === 3
         : sceneRoleCount >= 3 && sceneRoleCount <= 6;
     const missingArcCount = [hookOk, identityOk, technicalOk, closingOk, hasPurposeRole, hasEmotionRole, sceneRoleRatioOk].filter((ok) => !ok).length;
     if (!sceneRoleRatioOk) {
@@ -6722,9 +6888,47 @@ function collectJapaneseCaptionIssues(guide = {}, options = {}) {
         reason: isMidform
           ? 'Midform scene_observation captions must be spread through the process flow without turning every caption into a bare scene label'
           : korean
-            ? 'Korean Full Draft uses too many scene_observation roles. Role counts are not a target; rewrite visible beats as sentence-based narration when needed.'
-            : 'Full Draft scene_observation must be limited to about 4-6 scene mentions in a 20-24 caption script; do not turn the whole script into scene-by-scene captions'
+            ? `Korean Full Draft must contain exactly 3 scene_observation captions (one per planned key moment); found ${sceneRoleCount}. Rewrite the extra/missing ones as knowledge narration.`
+            : 'Full Draft scene_observation must be limited to about 4-6 scene mentions in a 20-24 caption script; do not turn the whole script into scene-by-scene captions',
+        ...(korean && !isMidform ? { style_regeneration_required: true, issue_type: 'ko_full_scene_observation_not_3' } : {})
       });
+    }
+    // 2-pass knowledge-manuscript gates (Korean Full only): first=hook, last=closing, and no
+    // camera/editing vocabulary. These route through the regeneration path (style_regeneration_required).
+    if (korean && !isMidform && lines.length) {
+      const firstRole = normalizeText(lines[0]?.role || '');
+      const lastRole = normalizeText(lines[lines.length - 1]?.role || '');
+      if (firstRole !== 'hook') {
+        issues.push({
+          scene_id: 'metadata',
+          field,
+          value: { index: 1, role: firstRole, text: normalizeText(lines[0]?.text || '') },
+          reason: `Korean Full Draft first caption must have role "hook"; found "${firstRole || '(none)'}".`,
+          style_regeneration_required: true,
+          issue_type: 'ko_full_first_not_hook'
+        });
+      }
+      if (lastRole !== 'closing') {
+        issues.push({
+          scene_id: 'metadata',
+          field,
+          value: { index: lines.length, role: lastRole, text: normalizeText(lines[lines.length - 1]?.text || '') },
+          reason: `Korean Full Draft last caption must have role "closing"; found "${lastRole || '(none)'}".`,
+          style_regeneration_required: true,
+          issue_type: 'ko_full_last_not_closing'
+        });
+      }
+      const cameraHits = collectCameraEditingTermHits(texts);
+      if (cameraHits.length) {
+        issues.push({
+          scene_id: 'metadata',
+          field,
+          value: cameraHits,
+          reason: `Korean Full Draft must not use camera/editing terms (e.g. ${cameraHits.map((hit) => hit.term).slice(0, 3).join(', ')}); describe the process/knowledge, not the shot.`,
+          style_regeneration_required: true,
+          issue_type: 'ko_full_camera_editing_terms'
+        });
+      }
     }
     if (missingArcCount >= 3) {
       issues.push({
@@ -9075,9 +9279,35 @@ async function runStandardGeminiPipeline({ generateJson, sourceUrl, filename, du
     scene_count: sceneGuide.scene_transitions.length
   });
 
+  // Pass 1 (knowledge story outline) — text-only, Full path only. Best-effort: on failure we
+  // degrade to the (already strengthened) Pass-2 rules rather than blocking the item.
+  let storyOutline = null;
+  if (effectiveMetadataVariantMode !== 'highlight_only') {
+    try {
+      emitProgress(onProgress, 'Gemini 2/3-0 시작: 지식 스토리 아웃라인 생성', { phase: 'metadata_story_outline' });
+      const outlineRaw = await generateJson(
+        buildStoryOutlinePrompt({ sourceUrl, filename, durationSec, sceneGuide, sourceType, sourceWorkflowMode }),
+        OTTOGI_STORY_OUTLINE_SCHEMA,
+        'metadata_story_outline',
+        { includeVideo: false, timeoutMs: GEMINI_REQUEST_TIMEOUT_MS }
+      );
+      storyOutline = validateFullStoryOutline(outlineRaw, sceneGuide.scene_transitions);
+      emitProgress(onProgress, `Gemini 2/3-0 완료: 지식 스토리 아웃라인 key_moments ${storyOutline.key_moments.length}개`, {
+        phase: 'metadata_story_outline',
+        key_moment_count: storyOutline.key_moments.length
+      });
+    } catch (error) {
+      storyOutline = null;
+      emitProgress(onProgress, `Gemini 2/3-0 스토리 아웃라인 생략: ${error.message || 'unknown'} (기존 규칙으로 진행)`, {
+        phase: 'metadata_story_outline_skipped',
+        error_code: error.code || error.errorCode || ''
+      });
+    }
+  }
+
   emitProgress(onProgress, 'Gemini 2/3 시작: 제목/메타데이터 원고 생성', { phase: 'metadata' });
   let metadataGuide = await generateJson(
-      buildMetadataPrompt({ sourceUrl, filename, durationSec, sceneGuide, sourceType, sourceWorkflowMode, assignedHookType: resolvedHookType, metadataVariantMode: effectiveMetadataVariantMode }),
+      buildMetadataPrompt({ sourceUrl, filename, durationSec, sceneGuide, sourceType, sourceWorkflowMode, assignedHookType: resolvedHookType, metadataVariantMode: effectiveMetadataVariantMode, storyOutline }),
     OTTOGI_METADATA_ONLY_SCHEMA,
     'metadata',
       {
@@ -9093,7 +9323,8 @@ async function runStandardGeminiPipeline({ generateJson, sourceUrl, filename, du
         filename,
         durationSec,
         guide: mergeSplitGuides(sceneGuide, metadataGuide, sourceUrl, durationSec),
-        assignedHookType: resolvedHookType
+        assignedHookType: resolvedHookType,
+        storyOutline
       }),
       OTTOGI_FULL_CAPTION_SCRIPT_REPAIR_SCHEMA,
       'metadata_full_script_seed',
@@ -9496,6 +9727,10 @@ module.exports = {
     applyMetadataFieldRepair,
     applyLocalMetadataFallbacks,
     buildMetadataPrompt,
+    buildStoryOutlinePrompt,
+    buildInitialFullCaptionScriptSeedPrompt,
+    validateFullStoryOutline,
+    collectCameraEditingTermHits,
     buildReviewPrompt,
     collectJapaneseCaptionIssues,
     coerceStandardMetadataVariantModeForSource,
