@@ -6581,8 +6581,25 @@ function collectJapaneseCaptionIssues(guide = {}, options = {}) {
 
   const validateHighlightCaptionBlock = (section, metadata, korean = false, minLength = 120) => {
     const block = normalizeText(metadata.onscreen_caption_block || '');
+    if (korean) {
+      // highlight_metadata_ko is REVIEW-ONLY: the Japanese highlight_metadata block is what gets
+      // burned into the video and uploaded; this Korean block is shown read-only in the Phase 3
+      // upload-matching UI as free text (whitespace-pre-wrap) and is stripped from the published
+      // description (stripReviewOnlySections). So it only needs to be non-empty Korean the reviewer
+      // can read — the published-caption structure (long_bottom_explainer mode + 120-340 chars) must
+      // NOT gate a review field. Published JA caption block below keeps the strict structural guard.
+      if (!block || !isValidKoreanCaption(block)) {
+        issues.push({
+          scene_id: 'metadata',
+          field: `${section}.onscreen_caption_block`,
+          value: block,
+          reason: `${section}.onscreen_caption_block must be non-empty Korean review text`
+        });
+      }
+      return;
+    }
     const len = [...block].length;
-    const invalidLanguage = korean ? !isValidKoreanCaption(block) : !isValidJapaneseCaption(block);
+    const invalidLanguage = !isValidJapaneseCaption(block);
     if (
       metadata.caption_mode !== 'long_bottom_explainer' ||
       !block ||
@@ -7008,10 +7025,14 @@ function collectJapaneseCaptionIssues(guide = {}, options = {}) {
   if (includeKorean && includeHighlight) ['highlight_metadata_ko'].forEach((section) => {
     const metadata = guide?.[section] || {};
     if (strictHighlightMetadata) {
-      requireKoreanField(`${section}.short_description`, metadata.short_description);
-      requireKoreanField(`${section}.summary_caption`, metadata.summary_caption);
+      // highlight_metadata_ko is review-only (see validateHighlightCaptionBlock korean branch).
+      // Foreign technique names ("lost wax casting") are acceptable in these review fields, so the
+      // English guard is relaxed here (allowEmbeddedLatin) exactly like report_description; the
+      // isValidKoreanCaption check inside requireKoreanField still requires readable Korean content.
+      requireKoreanField(`${section}.short_description`, metadata.short_description, { allowEmbeddedLatin: true });
+      requireKoreanField(`${section}.summary_caption`, metadata.summary_caption, { allowEmbeddedLatin: true });
       requireKoreanField(`${section}.report_description`, metadata.report_description, { allowEmbeddedLatin: true });
-      requireKoreanField(`${section}.upload_title`, metadata.upload_title);
+      requireKoreanField(`${section}.upload_title`, metadata.upload_title, { allowEmbeddedLatin: true });
       validateHighlightCaptionBlock(section, metadata, true);
       const titles = Array.isArray(metadata.recommended_titles) ? metadata.recommended_titles : [];
       titles.forEach((item, index) => requireKoreanField(`${section}.recommended_titles[${index}].title`, item?.title));
