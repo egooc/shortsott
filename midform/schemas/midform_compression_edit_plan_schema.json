@@ -1,6 +1,79 @@
 {
   "type": "object",
   "properties": {
+    "editorial_pattern": {
+      "type": "string",
+      "enum": ["cold_open_callback", "standard_chronological"]
+    },
+    "scene_type": {
+      "type": "string",
+      "enum": [
+        "dialogue_confrontation",
+        "confession",
+        "comedy_setpiece",
+        "visual_setpiece",
+        "standard_recap"
+      ]
+    },
+    "hook_teaser": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "source_lines": { "type": "array", "items": { "type": "string" } },
+        "time_range": { "type": "array", "items": { "type": "number" } },
+        "speaker": { "type": "string" },
+        "hook_score": { "type": "number" },
+        "context_dependency": { "type": "string", "enum": ["low", "medium", "high"] },
+        "editorial_role": { "type": "string" },
+        "dialogue_unit": {
+          "type": "object",
+          "properties": {
+            "unit_id": { "type": "string" },
+            "relation_type": { "type": "string" },
+            "source_line_ids": { "type": "array", "items": { "type": "string" } },
+            "start_sec": { "type": "number" },
+            "end_sec": { "type": "number" }
+          },
+          "required": ["unit_id", "relation_type", "source_line_ids", "start_sec", "end_sec"],
+          "additionalProperties": false
+        },
+        "teaser_slot_id": { "type": "string" },
+        "callback_slot_id": { "type": "string" },
+        "callback_relation": { "type": "string" },
+        "reused_conflict_axis": { "type": "string" }
+      },
+      "required": ["enabled", "source_lines", "time_range", "speaker", "hook_score", "context_dependency"],
+      "additionalProperties": false
+    },
+    "context_reset": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "target_duration_sec": { "type": "number" },
+        "explanation_sufficiency": { "type": "string" },
+        "spoiler_leakage": { "type": "string" },
+        "callback_readiness": { "type": "string" }
+      },
+      "required": ["enabled", "target_duration_sec"],
+      "additionalProperties": false
+    },
+    "callback_dialogue": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "source_lines": { "type": "array", "items": { "type": "string" } },
+        "time_range": { "type": "array", "items": { "type": "number" } },
+        "relation_to_teaser": {
+          "type": "string",
+          "enum": ["same_conflict_axis", "same_line_callback", "payoff_response"]
+        },
+        "callback_slot_id": { "type": "string" },
+        "callback_relation": { "type": "string" },
+        "reused_conflict_axis": { "type": "string" }
+      },
+      "required": ["enabled", "source_lines", "time_range", "relation_to_teaser"],
+      "additionalProperties": false
+    },
     "cold_open_selection": {
       "type": "object",
       "properties": {
@@ -10,7 +83,11 @@
         "fallback_reason": { "type": "string" },
         "heatmap_peak_start_sec": { "type": "number" },
         "heatmap_peak_end_sec": { "type": "number" },
-        "reason": { "type": "string" }
+        "reason": { "type": "string" },
+        "teaser_visual_mode": { "type": "string" },
+        "teaser_visual_beat_id": { "type": "string" },
+        "teaser_visual_start_sec": { "type": "number" },
+        "teaser_visual_end_sec": { "type": "number" }
       },
       "required": [
         "beat_id",
@@ -19,7 +96,11 @@
         "fallback_reason",
         "heatmap_peak_start_sec",
         "heatmap_peak_end_sec",
-        "reason"
+        "reason",
+        "teaser_visual_mode",
+        "teaser_visual_beat_id",
+        "teaser_visual_start_sec",
+        "teaser_visual_end_sec"
       ],
       "additionalProperties": false
     },
@@ -37,7 +118,59 @@
           "estimated_duration_sec": { "type": "number" },
           "reason": { "type": "string" },
           "spoiler_policy": { "type": "string" },
-          "repeat_policy": { "type": "string" }
+          "repeat_policy": { "type": "string" },
+          "visual_source_mode": { "type": "string" },
+          "visual_source_beat_id": { "type": "string" },
+          "visual_source_start_sec": { "type": "number" },
+          "visual_source_end_sec": { "type": "number" },
+          "dialogue_focus_source": { "type": "string" },
+          "dialogue_focus_lines": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "dialogue_focus_quotes": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "replay_of_slot_id": { "type": "string" },
+          "replay_mode": { "type": "string" },
+          "scene_type": { "type": "string" },
+          "editorial_role": { "type": "string" },
+          "dialogue_unit": {
+            "type": "object",
+            "properties": {
+              "unit_id": { "type": "string" },
+              "relation_type": { "type": "string" },
+              "source_line_ids": { "type": "array", "items": { "type": "string" } },
+              "start_sec": { "type": "number" },
+              "end_sec": { "type": "number" }
+            },
+            "required": ["unit_id", "relation_type", "source_line_ids", "start_sec", "end_sec"],
+            "additionalProperties": false
+          },
+          "teaser_slot_id": { "type": "string" },
+          "callback_slot_id": { "type": "string" },
+          "callback_relation": { "type": "string" },
+          "reused_conflict_axis": { "type": "string" },
+          "qc_action": {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "enum": [
+                  "none",
+                  "extend_line_window",
+                  "merge_adjacent_lines",
+                  "bridge_required",
+                  "downgrade_to_narrate"
+                ]
+              },
+              "reason": { "type": "string" },
+              "source": { "type": "string" }
+            },
+            "required": ["action", "reason", "source"],
+            "additionalProperties": false
+          }
         },
         "required": [
           "slot_id",
@@ -49,7 +182,16 @@
           "estimated_duration_sec",
           "reason",
           "spoiler_policy",
-          "repeat_policy"
+          "repeat_policy",
+          "visual_source_mode",
+          "visual_source_beat_id",
+          "visual_source_start_sec",
+          "visual_source_end_sec",
+          "dialogue_focus_source",
+          "dialogue_focus_lines",
+          "dialogue_focus_quotes",
+          "replay_of_slot_id",
+          "replay_mode"
         ],
         "additionalProperties": false
       }

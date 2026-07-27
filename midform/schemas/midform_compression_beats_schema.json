@@ -14,6 +14,10 @@
             "type": "array",
             "items": { "type": "string" }
           },
+          "anchor_dialogue": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
           "dramatic_weight": { "type": "number" },
           "dialogue_quality": { "type": "string" },
           "hook_potential": { "type": "number" }
@@ -24,6 +28,7 @@
           "end_sec",
           "summary",
           "key_dialogue",
+          "anchor_dialogue",
           "dramatic_weight",
           "dialogue_quality",
           "hook_potential"

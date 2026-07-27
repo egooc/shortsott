@@ -2,6 +2,30 @@
   "type": "object",
   "properties": {
     "script_id": { "type": "string" },
+    "upload_text": {
+      "type": "object",
+      "properties": {
+        "title_candidates": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "overlay_title": {
+          "type": "object",
+          "properties": {
+            "top": { "type": "string", "maxLength": 8 },
+            "bottom": { "type": "string", "maxLength": 8 }
+          },
+          "required": ["top", "bottom"],
+          "additionalProperties": false
+        },
+        "description": { "type": "string" },
+        "pinned_comment": { "type": "string" }
+      },
+      "required": ["title_candidates", "overlay_title", "description", "pinned_comment"],
+      "additionalProperties": false
+    },
     "slot_fills": {
       "type": "array",
       "items": {
@@ -13,7 +37,20 @@
             "type": "array",
             "items": { "type": "string" }
           },
-          "caption_kr": { "type": "string" }
+          "caption_kr": { "type": "string" },
+          "caption_kr_dialogue": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "speaker": { "type": "string" },
+          "speakers": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "translation_mode": {
+            "type": "string",
+            "enum": ["", "faithful_dialogue"]
+          }
         },
         "required": ["slot_id", "narration", "caption_units", "caption_kr"],
         "additionalProperties": false
@@ -38,6 +75,6 @@
       "additionalProperties": false
     }
   },
-  "required": ["script_id", "slot_fills", "quality_check"],
+  "required": ["script_id", "upload_text", "slot_fills", "quality_check"],
   "additionalProperties": false
 }
