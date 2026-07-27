@@ -840,6 +840,31 @@ async function runDownloadStage(jobId, items) {
           download_progress: 100
         });
         appendJobLog(jobId, `${label} \uC774\uBBF8 \uC18C\uC2A4 \uC601\uC0C1\uC774 \uC788\uC5B4 \uAC74\uB108\uB701\uB2C8\uB2E4.`, 'info', item.item_id);
+        const auxSourceUrl = String(itemConfig.aux_source_url || '').trim();
+        const auxSourcePath = path.join(QUEUE_ROOT, safeId(item.item_id), 'source_aux.mp4');
+        if (auxSourceUrl && !fs.existsSync(auxSourcePath)) {
+          try {
+            appendJobLog(jobId, `${label} Full aux \uC18C\uC2A4 \uB2E4\uC6B4\uB85C\uB4DC \uC2DC\uC791`, 'warning', item.item_id);
+            const auxDownloaded = await downloadQueueItemSourceFromUrl(item.item_id, auxSourceUrl, { sourceRole: 'aux' });
+            updateItemStatus(jobId, item.item_id, {
+              aux_source_download_status: 'success',
+              aux_source_path: auxDownloaded.download?.outputPath || '',
+              aux_source_filename: auxDownloaded.download?.filename || ''
+            });
+            appendJobLog(jobId, `${label} Full aux \uC18C\uC2A4 \uB2E4\uC6B4\uB85C\uB4DC \uC644\uB8CC: ${auxDownloaded.download?.filename || 'source_aux.mp4'}`, 'success', item.item_id);
+          } catch (auxError) {
+            updateItemStatus(jobId, item.item_id, {
+              aux_source_download_status: 'failed',
+              aux_source_error: auxError.message
+            });
+            appendJobLog(jobId, `${label} Full aux \uC18C\uC2A4 \uB2E4\uC6B4\uB85C\uB4DC \uC2E4\uD328: ${auxError.message}`, 'warning', item.item_id);
+          }
+        } else if (auxSourceUrl) {
+          updateItemStatus(jobId, item.item_id, {
+            aux_source_download_status: 'skipped',
+            aux_source_path: auxSourcePath
+          });
+        }
         continue;
       }
     } catch {
@@ -904,6 +929,25 @@ async function runDownloadStage(jobId, items) {
         download_method: downloaded.download?.method || ''
       });
       appendJobLog(jobId, `${label} \uB2E4\uC6B4\uB85C\uB4DC \uC644\uB8CC: ${downloaded.download?.filename || 'source_clean.mp4'}`, 'success', item.item_id);
+      const auxSourceUrl = String(itemConfig.aux_source_url || '').trim();
+      if (auxSourceUrl) {
+        try {
+          appendJobLog(jobId, `${label} Full aux \uC18C\uC2A4 \uB2E4\uC6B4\uB85C\uB4DC \uC2DC\uC791`, 'warning', item.item_id);
+          const auxDownloaded = await downloadQueueItemSourceFromUrl(item.item_id, auxSourceUrl, { sourceRole: 'aux' });
+          updateItemStatus(jobId, item.item_id, {
+            aux_source_download_status: 'success',
+            aux_source_path: auxDownloaded.download?.outputPath || '',
+            aux_source_filename: auxDownloaded.download?.filename || ''
+          });
+          appendJobLog(jobId, `${label} Full aux \uC18C\uC2A4 \uB2E4\uC6B4\uB85C\uB4DC \uC644\uB8CC: ${auxDownloaded.download?.filename || 'source_aux.mp4'}`, 'success', item.item_id);
+        } catch (auxError) {
+          updateItemStatus(jobId, item.item_id, {
+            aux_source_download_status: 'failed',
+            aux_source_error: auxError.message
+          });
+          appendJobLog(jobId, `${label} Full aux \uC18C\uC2A4 \uB2E4\uC6B4\uB85C\uB4DC \uC2E4\uD328: ${auxError.message}`, 'warning', item.item_id);
+        }
+      }
     } catch (error) {
       failed += 1;
       const errorType = error.details?.errorType || error.code || 'unknown';

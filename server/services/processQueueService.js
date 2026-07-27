@@ -11,10 +11,13 @@ const {
 const { defaultConfig, normalizeConfig, createProcessDraft } = require('./processEditService');
 const {
   assertOttogiGuideLanguage,
+  analyzeAuxSceneTransitions,
   OUTPUT_CONFIG,
   calculateKoreanFullSpeechBudget,
   countKoreanFullScriptVisibleChars,
   countKoreanVisibleCharsNoSpaces,
+  isVertexAdcMode,
+  matchAuxScenesToMain,
   outputLanguageForVariant
 } = require('./processMetadataService');
 const { getVideoMetadata } = require('../utils/ffprobe');
@@ -77,6 +80,9 @@ const FULL_DRAFT_MIN_RESULT_SEC = 10;
 const MIDFORM_DRAFT_MIN_RESULT_SEC = 60;
 const FULL_DRAFT_MIN_SOURCE_SEC = FULL_DRAFT_MIN_RESULT_SEC;
 const FULL_DRAFT_REVIEW_MIN_SOURCE_SEC = 20;
+const SOURCE_LANE_STANDARD_SHORTFORM = 'standard_shortform';
+const SOURCE_LANE_LONGFORM_COMPRESS = 'longform_compress';
+const LONGFORM_COMPRESS_LANE_MIN_SOURCE_SEC = 120;
 const FULL_CAPTION_SAFE_MAX_CHARS = {
   ja: 10,
   ko: 12
@@ -168,11 +174,20 @@ function normalizeDraftVariantMode(value = 'all') {
 }
 
 function effectiveDraftVariantModeForItem(draftVariantMode = 'all', itemConfig = {}) {
-  const normalized = normalizeDraftVariantMode(draftVariantMode);
-  if (normalized === 'highlight_only' && isLongformHighlightSource(itemConfig)) {
-    return 'full_highlight_only';
-  }
-  return normalized;
+  void draftVariantMode;
+  void itemConfig;
+  return 'highlight_only';
+}
+
+function highlightOutputCountForItem(itemConfig = {}) {
+  if (isLongformHighlightSource(itemConfig)) return 5;
+  const durationSec = Number(
+    itemConfig.video_metadata?.duration_sec
+      || itemConfig.source_classification?.duration_sec
+      || itemConfig.target_duration_sec
+      || 0
+  );
+  return durationSec >= 24 ? 2 : 1;
 }
 
 function highlightMaxDurationForItem(itemConfig = {}, requestedDurationSec = 0) {
@@ -198,6 +213,18 @@ const FULL_DRAFT_TTS_TIMELINE_TOLERANCE_SEC = 1.5;
 const FULL_DRAFT_ANCHOR_MAX_DELAY_SEC = 1.5;
 const FULL_DRAFT_ANCHOR_CUMULATIVE_DELAY_SEC = 3.0;
 const KOREAN_FULL_SRT_DELIVERY_MODE = 'srt_only_external';
+const KOREAN_FULL_TTS_DELIVERY_MODE = 'tts_audio_caption_units';
+const KOREAN_FULL_SPEECH_CHARS_PER_SEC = 7.12;
+const KOREAN_FULL_TTS_VOICE_ID = 'jB1Cifc2UQbq1gR3wnb0';
+const KOREAN_FULL_TTS_MODEL_ID = 'eleven_multilingual_v2';
+const KOREAN_FULL_TTS_OUTPUT_FORMAT = 'mp3_44100_128';
+const KOREAN_FULL_TTS_VOICE_SETTINGS = Object.freeze({
+  stability: 1.0,
+  similarity_boost: 1.0,
+  style: 0.2,
+  use_speaker_boost: true,
+  speed: 1.1
+});
 
 function normalizeTtsText(value = '') {
   return String(value || '').replace(/\s+/g, ' ').trim();
@@ -642,7 +669,7 @@ function sceneBudgetsFromGuide(guide = {}) {
         start_sec: Number(start.toFixed(3)),
         end_sec: Number(end.toFixed(3)),
         duration_sec: Number(duration.toFixed(3)),
-        guide_chars: Math.max(1, Math.floor(duration * 5.0 * 0.90))
+        guide_chars: Math.max(1, Math.floor(duration * KOREAN_FULL_SPEECH_CHARS_PER_SEC * 0.90))
       };
     })
     .filter(Boolean);
@@ -1318,7 +1345,7 @@ function koreanFullSrtCharsPerSec(draftConfig = {}, itemConfig = {}, queueConfig
     const value = Number(candidate);
     if (Number.isFinite(value) && value > 0) return value;
   }
-  return 5.0;
+  return KOREAN_FULL_SPEECH_CHARS_PER_SEC;
 }
 
 function buildKoreanFullSrtWarnings({ plan = {}, draftConfig = {}, itemConfig = {} } = {}) {
@@ -1340,9 +1367,9 @@ function buildKoreanFullSrtWarnings({ plan = {}, draftConfig = {}, itemConfig = 
   return [...new Set(warnings.filter(Boolean))];
 }
 
-function buildKoreanFullSrtEntries({ plan = {}, charsPerSec = 5.0 } = {}) {
+function buildKoreanFullSrtEntries({ plan = {}, charsPerSec = KOREAN_FULL_SPEECH_CHARS_PER_SEC } = {}) {
   const sentences = Array.isArray(plan.sentences) ? plan.sentences : [];
-  const safeCharsPerSec = Number(charsPerSec) > 0 ? Number(charsPerSec) : 5.0;
+  const safeCharsPerSec = Number(charsPerSec) > 0 ? Number(charsPerSec) : KOREAN_FULL_SPEECH_CHARS_PER_SEC;
   let cursorSec = 0;
   return sentences.map((sentence) => {
     const text = normalizeTtsText(sentence.text || '');
@@ -1390,6 +1417,77 @@ function writeKoreanFullDraftSrtFile({ itemId = '', itemConfig = {}, draftConfig
   };
 }
 
+function buildKoreanFullTtsCaptionUnits({ plan = {}, ttsFiles = [] } = {}) {
+  const ttsFileBySentenceId = new Map((Array.isArray(ttsFiles) ? ttsFiles : []).map((file) => [
+    String(file.caption_id || file.segment_id || ''),
+    file
+  ]));
+  let sentenceCursorSec = 0;
+  const units = [];
+  for (const sentence of Array.isArray(plan.sentenceUnits) ? plan.sentenceUnits : []) {
+    const sentenceId = String(sentence.caption_id || sentence.segment_id || '').trim();
+    const ttsFile = ttsFileBySentenceId.get(sentenceId);
+    if (!sentenceId || !ttsFile) continue;
+    const durationSec = Math.max(0.2, Number(ttsFile.duration_sec || 0));
+    const sourceUnits = (Array.isArray(plan.captionUnits) ? plan.captionUnits : [])
+      .filter((unit) => String(unit.tts_caption_id || unit.segment_id || '') === sentenceId);
+    const usableUnits = sourceUnits.length ? sourceUnits : [{
+      caption_id: `${sentenceId}_unit_01`,
+      block_id: `${sentenceId}_unit_01`,
+      segment_id: sentenceId,
+      tts_caption_id: sentenceId,
+      text: sentence.text || ''
+    }];
+    const visibleCounts = usableUnits.map((unit) => Math.max(1, countKoreanVisibleCharsNoSpaces(unit.text || '')));
+    const totalVisible = visibleCounts.reduce((total, count) => total + count, 0) || usableUnits.length;
+    let localCursorSec = 0;
+    usableUnits.forEach((unit, index) => {
+      const isLast = index === usableUnits.length - 1;
+      const unitDurationSec = isLast
+        ? Math.max(0.2, durationSec - localCursorSec)
+        : Math.max(0.2, roundSyncSec(durationSec * (visibleCounts[index] / totalVisible)));
+      const startSec = roundSyncSec(sentenceCursorSec + localCursorSec);
+      const endSec = roundSyncSec(sentenceCursorSec + Math.min(durationSec, localCursorSec + unitDurationSec));
+      units.push({
+        ...unit,
+        caption_id: unit.caption_id || `${sentenceId}_unit_${String(index + 1).padStart(2, '0')}`,
+        block_id: unit.block_id || unit.caption_id || `${sentenceId}_unit_${String(index + 1).padStart(2, '0')}`,
+        segment_id: unit.segment_id || sentenceId,
+        tts_caption_id: sentenceId,
+        text: normalizeTtsText(unit.text || ''),
+        start_sec: startSec,
+        end_sec: Math.max(startSec + 0.2, endSec),
+        order: units.length + 1
+      });
+      localCursorSec = roundSyncSec(localCursorSec + unitDurationSec);
+    });
+    sentenceCursorSec = roundSyncSec(sentenceCursorSec + durationSec);
+  }
+  return units.filter((unit) => unit.text);
+}
+
+function buildKoreanFullTtsExplainerBlocks(captionUnits = []) {
+  return (Array.isArray(captionUnits) ? captionUnits : []).map((unit, index) => ({
+    block_id: String(unit.block_id || unit.caption_id || `ko_full_tts_${String(index + 1).padStart(3, '0')}`),
+    scene_id: String(unit.anchor_scene_id || unit.segment_id || ''),
+    parent_scene_id: String(unit.anchor_scene_id || unit.segment_id || ''),
+    source_script_index: Number.isInteger(Number(unit.source_script_index)) ? Number(unit.source_script_index) : undefined,
+    caption_part_index: index + 1,
+    caption_parts_count: captionUnits.length,
+    caption_unit_mode: 'tts_caption_unit',
+    output_language: 'ko',
+    language: 'ko',
+    full_scene_caption_text: String(unit.text || ''),
+    text: String(unit.text || '').trim(),
+    start_sec: Number(unit.start_sec || 0),
+    end_sec: Math.max(Number(unit.start_sec || 0) + 0.2, Number(unit.end_sec || 0)),
+    style_role: 'main_explainer',
+    style_profile: 'full_cut_caption',
+    anchor_zone: 'lower_third',
+    animation: 'pop_in'
+  })).filter((block) => block.text);
+}
+
 async function generateKoreanFullDraftTtsAssets({ itemId, itemConfig = {}, draftConfig = {} }) {
   assertKoreanFullScriptReviewApproved(itemConfig, itemId);
   const plan = buildKoreanFullDraftTtsPlan({ itemId, itemConfig, draftConfig });
@@ -1425,8 +1523,8 @@ async function generateKoreanFullDraftTtsAssets({ itemId, itemConfig = {}, draft
   });
   const apiKey = requireApiKey('ELEVENLABS_API_KEY');
   const { batchId, dir } = createBatchDir();
-  const voiceId = draftConfig.tts_voice_id || draftConfig.elevenlabs_voice_id || itemConfig.tts_voice_id || itemConfig.elevenlabs_voice_id || undefined;
-  const modelId = draftConfig.tts_model_id || draftConfig.elevenlabs_model_id || itemConfig.tts_model_id || itemConfig.elevenlabs_model_id || undefined;
+  const voiceId = draftConfig.tts_voice_id || draftConfig.elevenlabs_voice_id || itemConfig.tts_voice_id || itemConfig.elevenlabs_voice_id || KOREAN_FULL_TTS_VOICE_ID;
+  const modelId = draftConfig.tts_model_id || draftConfig.elevenlabs_model_id || itemConfig.tts_model_id || itemConfig.elevenlabs_model_id || KOREAN_FULL_TTS_MODEL_ID;
   if (!voiceId) {
     const error = new Error('ElevenLabs voice ID is required for Korean full draft TTS');
     error.code = 'TTS_VOICE_ID_REQUIRED';
@@ -1435,7 +1533,10 @@ async function generateKoreanFullDraftTtsAssets({ itemId, itemConfig = {}, draft
   }
   let generation;
   try {
-    generation = await generateAllTTS(plan.sentenceUnits, voiceId, modelId, apiKey, dir);
+    generation = await generateAllTTS(plan.sentenceUnits, voiceId, modelId, apiKey, dir, {
+      voiceSettings: KOREAN_FULL_TTS_VOICE_SETTINGS,
+      outputFormat: KOREAN_FULL_TTS_OUTPUT_FORMAT
+    });
   } catch (error) {
     fs.rmSync(dir, { recursive: true, force: true });
     throw error;
@@ -1541,7 +1642,7 @@ function sceneAnchorFieldsForSentence(sentence = {}, sceneById = new Map(), sour
 
 function estimatedKoreanTtsDurationSec(text = '') {
   const chars = countKoreanVisibleCharsNoSpaces(text);
-  return roundSyncSec(chars / 5.0);
+  return roundSyncSec(chars / KOREAN_FULL_SPEECH_CHARS_PER_SEC);
 }
 
 function assignDistributedAnchorTargets(sentences = []) {
@@ -1620,7 +1721,7 @@ function simulateAnchoredSentencePlacement(sentences = [], options = {}) {
     enabled: anchoredCount > 0,
     anchored_sentence_count: anchoredCount,
     sentence_count: sentenceTimeline.length,
-    duration_basis: 'korean_visible_chars_divided_by_5.0',
+    duration_basis: `korean_visible_chars_divided_by_${KOREAN_FULL_SPEECH_CHARS_PER_SEC}`,
     drift_metric: 'scene_invasion_after_anchor_end',
     max_delay_sec: roundSyncSec(maxSceneInvasionSec),
     cumulative_positive_delay_sec: roundSyncSec(cumulativeSceneInvasionSec),
@@ -1644,6 +1745,9 @@ function occupiedTimelineEndSecFromAnchorSimulation(plan = {}) {
 }
 
 async function computeDraftActualVideoTimelineSecForPreflight(draftConfig = {}) {
+  if (process.env.OTTOGI_SKIP_SCRIPT_REVIEW_PREFLIGHT_DRAFT === '1') {
+    return roundSyncSec(draftConfig.target_duration_sec || draftConfig.korean_full_actual_video_timeline_sec || 0);
+  }
   const preflightConfig = normalizeConfig({
     ...draftConfig,
     use_tts: false
@@ -2176,6 +2280,9 @@ function defaultItemConfig(itemId) {
   return {
     item_id: itemId,
     source_video: 'source_clean.mp4',
+    aux_source_url: '',
+    aux_source_video: 'source_aux.mp4',
+    aux_source_file_original_name: '',
     target_duration_sec: 30,
     upload_title: '',
     upload_description: '',
@@ -2223,8 +2330,115 @@ function getItemConfigPath(itemId) {
   return path.join(getItemDir(itemId), 'item_config.json');
 }
 
+function getItemAuxSourcePath(itemId) {
+  return path.join(getItemDir(itemId), 'source_aux.mp4');
+}
+
+function getItemAuxSceneTransitionsPath(itemId) {
+  return path.join(getItemDir(itemId), 'aux_scene_transitions.json');
+}
+
+function getItemAuxSceneMatchPath(itemId) {
+  return path.join(getItemDir(itemId), 'aux_scene_match.json');
+}
+
+function isGeminiGeneratedAuxSemanticArtifact(value) {
+  return value && typeof value === 'object' && Number(value.gemini_call_count || 0) > 0;
+}
+
 function getItemOcrReportPath(itemId) {
   return path.join(getItemDir(itemId), 'ocr_text_regions.json');
+}
+
+async function prepareFullDraftAuxSemanticMatch({ itemId, itemConfig, auxSourcePath }) {
+  const guide = itemConfig?.ottogi_guide_output || {};
+  const mainScenes = Array.isArray(guide.scene_transitions) ? guide.scene_transitions : [];
+  const summary = {
+    enabled: false,
+    mode: 'semantic_match',
+    aux_scene_transitions_path: getItemAuxSceneTransitionsPath(itemId),
+    aux_scene_match_path: getItemAuxSceneMatchPath(itemId),
+    gemini_call_count: 0,
+    main_scene_count: mainScenes.length,
+    aux_scene_count: 0,
+    match_count: 0,
+    skipped_reason: ''
+  };
+
+  if (!String(itemConfig?.aux_source_url || '').trim() || !auxSourcePath || !fs.existsSync(auxSourcePath)) {
+    return { summary: { ...summary, skipped_reason: 'aux source missing' }, match: null };
+  }
+  if (!mainScenes.length) {
+    return { summary: { ...summary, skipped_reason: 'main scene transitions missing' }, match: null };
+  }
+
+  const apiKey = isVertexAdcMode() ? '' : requireApiKey('GEMINI_API_KEY');
+  const auxMetadata = getVideoMetadata(auxSourcePath) || {};
+  const auxDurationSec = Number(auxMetadata.duration_sec || itemConfig?.aux_video_metadata?.duration_sec || 0);
+  const auxScenePath = getItemAuxSceneTransitionsPath(itemId);
+  const auxMatchPath = getItemAuxSceneMatchPath(itemId);
+  let auxSceneAnalysis = readJsonIfExists(auxScenePath);
+  if (
+    !Array.isArray(auxSceneAnalysis?.scene_transitions)
+    || !auxSceneAnalysis.scene_transitions.length
+    || !isGeminiGeneratedAuxSemanticArtifact(auxSceneAnalysis)
+  ) {
+    auxSceneAnalysis = await analyzeAuxSceneTransitions({
+      filePath: auxSourcePath,
+      sourceUrl: itemConfig.aux_source_url || '',
+      apiKey,
+      durationSec: auxDurationSec,
+      originalFilename: itemConfig.aux_source_file_original_name || 'source_aux.mp4'
+    });
+    writeJsonWithBackup(auxScenePath, auxSceneAnalysis);
+    summary.gemini_call_count += Number(auxSceneAnalysis.gemini_call_count || 1);
+  }
+
+  const cachedMatch = readJsonIfExists(auxMatchPath);
+  if (
+    Array.isArray(cachedMatch?.matches)
+    && cachedMatch.matches.length
+    && isGeminiGeneratedAuxSemanticArtifact(cachedMatch)
+  ) {
+    return {
+      summary: {
+        ...summary,
+        enabled: true,
+        aux_scene_count: Array.isArray(auxSceneAnalysis.scene_transitions) ? auxSceneAnalysis.scene_transitions.length : 0,
+        match_count: cachedMatch.matches.length,
+        skipped_reason: '',
+        cache_hit: true
+      },
+      match: {
+        ...cachedMatch,
+        aux_scene_transitions_path: auxScenePath,
+        aux_scene_match_path: auxMatchPath
+      }
+    };
+  }
+
+  const match = await matchAuxScenesToMain({
+    mainScenes,
+    auxScenes: auxSceneAnalysis.scene_transitions || [],
+    apiKey
+  });
+  writeJsonWithBackup(auxMatchPath, match);
+  summary.gemini_call_count += Number(match.gemini_call_count || 0);
+
+  return {
+    summary: {
+      ...summary,
+      enabled: true,
+      aux_scene_count: Array.isArray(auxSceneAnalysis.scene_transitions) ? auxSceneAnalysis.scene_transitions.length : 0,
+      match_count: Array.isArray(match.matches) ? match.matches.length : 0,
+      skipped_reason: Array.isArray(match.matches) && match.matches.length ? '' : 'no semantic aux scene matches'
+    },
+    match: {
+      ...match,
+      aux_scene_transitions_path: auxScenePath,
+      aux_scene_match_path: auxMatchPath
+    }
+  };
 }
 
 function getItemOcrPreviewPath(itemId) {
@@ -2697,6 +2911,9 @@ function normalizeItemConfig(itemConfig, itemId) {
       classified_at: existingClassification.classified_at || ''
     },
     source_file_original_name: normalizePossiblyMojibakeFilename(base.source_file_original_name || ''),
+    aux_source_url: String(base.aux_source_url || '').trim(),
+    aux_source_video: String(base.aux_source_video || 'source_aux.mp4'),
+    aux_source_file_original_name: normalizePossiblyMojibakeFilename(base.aux_source_file_original_name || ''),
     upload_hashtags: Array.isArray(base.upload_hashtags)
       ? base.upload_hashtags
       : String(base.upload_hashtags || '').split(/[,\n]/).map((item) => item.trim()).filter(Boolean),
@@ -2899,9 +3116,34 @@ function getSourceDurationSec(itemConfig = {}) {
   return Number.isFinite(duration) && duration > 0 ? duration : 0;
 }
 
+function decideSourceLaneForItem(itemConfig = {}) {
+  const item = normalizeItemConfig(itemConfig, itemConfig?.item_id);
+  const sourceDuration = getSourceDurationSec(item);
+  const isExplicitLongform = item.source_workflow_mode === 'longform_to_shorts'
+    || item.source_type === 'longform';
+  const isDurationLongform = sourceDuration > LONGFORM_COMPRESS_LANE_MIN_SOURCE_SEC;
+  const sourceLane = isExplicitLongform || isDurationLongform
+    ? SOURCE_LANE_LONGFORM_COMPRESS
+    : SOURCE_LANE_STANDARD_SHORTFORM;
+  const reason = isExplicitLongform
+    ? 'explicit_longform_source_flag'
+    : isDurationLongform
+      ? `source duration ${sourceDuration.toFixed(2)}s exceeds ${LONGFORM_COMPRESS_LANE_MIN_SOURCE_SEC}s longform compression threshold`
+      : `source duration ${sourceDuration.toFixed(2)}s stays on standard shortform lane`;
+
+  return {
+    source_lane: sourceLane,
+    source_lane_reason: reason,
+    longform_compress_threshold_sec: LONGFORM_COMPRESS_LANE_MIN_SOURCE_SEC,
+    source_duration_sec: Number.isFinite(sourceDuration) ? Number(sourceDuration.toFixed(3)) : 0,
+    explicit_longform_source: isExplicitLongform
+  };
+}
+
 function decideOutputModeForItem(itemConfig = {}, options = {}) {
   const item = normalizeItemConfig(itemConfig, itemConfig?.item_id);
   const sourceDuration = getSourceDurationSec(item);
+  const sourceLaneDecision = decideSourceLaneForItem(item);
   const guide = item.ottogi_guide_output && typeof item.ottogi_guide_output === 'object'
     ? item.ottogi_guide_output
     : {};
@@ -2939,18 +3181,8 @@ function decideOutputModeForItem(itemConfig = {}, options = {}) {
   const shortSourceEqualsHighlight = !isLongformSource
     && sourceDuration >= 6
     && sourceDuration <= LONGFORM_HIGHLIGHT_MAX_DURATION_SEC;
-  let skipMidformDraft = false;
-  let skipMidformReason = '';
-  if (!isLongformSource) {
-    skipMidformDraft = true;
-    skipMidformReason = 'midform skipped: source is not longform; use full/highlight drafts only';
-  } else if (!midformWindow) {
-    skipMidformDraft = true;
-    skipMidformReason = `midform skipped: no usable ${MIDFORM_DRAFT_MIN_RESULT_SEC}s+ window was found; use full draft only`;
-  } else if (midformCandidateDuration > 0 && midformCandidateDuration < MIDFORM_DRAFT_MIN_RESULT_SEC) {
-    skipMidformDraft = true;
-    skipMidformReason = `midform candidate duration ${midformCandidateDuration.toFixed(2)}s is under ${MIDFORM_DRAFT_MIN_RESULT_SEC}s; use full draft only`;
-  }
+  const skipMidformDraft = true;
+  const skipMidformReason = 'midform output removed: current product contract generates JP Highlight-only drafts';
 
   let outputMode = 'full_and_highlight';
   let skipFullDraft = false;
@@ -2989,6 +3221,8 @@ function decideOutputModeForItem(itemConfig = {}, options = {}) {
     skip_reason: skipFullDraft ? reasons.join('; ') : '',
     skip_midform_draft: skipMidformDraft,
     skip_midform_reason: skipMidformReason,
+    source_lane: sourceLaneDecision.source_lane,
+    source_lane_reason: sourceLaneDecision.source_lane_reason,
     source_duration_sec: Number.isFinite(sourceDuration) ? Number(sourceDuration.toFixed(3)) : 0,
     full_candidate_duration_sec: Number.isFinite(fullCandidateDuration) ? Number(fullCandidateDuration.toFixed(3)) : 0,
     midform_candidate_duration_sec: Number.isFinite(midformCandidateDuration) ? Number(midformCandidateDuration.toFixed(3)) : 0,
@@ -3005,7 +3239,8 @@ function decideOutputModeForItem(itemConfig = {}, options = {}) {
       midform_draft_min_result_sec: MIDFORM_DRAFT_MIN_RESULT_SEC,
       full_draft_min_source_sec: FULL_DRAFT_MIN_SOURCE_SEC,
       full_draft_review_min_source_sec: FULL_DRAFT_REVIEW_MIN_SOURCE_SEC,
-      short_source_highlight_only_max_sec: LONGFORM_HIGHLIGHT_MAX_DURATION_SEC
+      short_source_highlight_only_max_sec: LONGFORM_HIGHLIGHT_MAX_DURATION_SEC,
+      longform_compress_lane_min_source_sec: LONGFORM_COMPRESS_LANE_MIN_SOURCE_SEC
     }
   };
 }
@@ -4175,18 +4410,77 @@ function stripHighlightScreenInternalNotes(value = '') {
     .trim();
 }
 
-function formatHighlightWindowRange(window = {}) {
+function stripCandidateLabelFromTitle(title = '', label = '') {
+  const cleanLabel = String(label || '').trim();
+  let cleanTitle = stripHashtagsFromTitle(title, '').replace(/\s+/g, ' ').trim();
+  if (cleanLabel) {
+    cleanTitle = cleanTitle
+      .replace(new RegExp(`\\s*${cleanLabel}\\s*$`, 'iu'), '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+  return cleanTitle;
+}
+
+function hasHangulText(value = '') {
+  return /[가-힣]/u.test(String(value || ''));
+}
+
+function cleanPublicHighlightTitle(value = '') {
+  return stripCandidateLabelFromTitle(value, '')
+    .replace(/H\d{2}\s*$/iu, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function japaneseHighlightFallbackTitle(rank = 1) {
+  const fallbacks = [
+    '製造工程の見どころ',
+    '素材が形になる瞬間',
+    '職人技が光る工程',
+    '機械と手作業の流れ',
+    '変化が見える製造現場'
+  ];
+  const index = Math.max(0, Math.round(Number(rank) || 1) - 1);
+  return fallbacks[index] || `製造ハイライト ${index + 1}`;
+}
+
+function safeJapanesePublicHighlightTitle(value = '', rank = 1, fallbackTitle = '') {
+  const candidates = [value, fallbackTitle]
+    .map(cleanPublicHighlightTitle)
+    .filter(Boolean)
+    .filter((title) => !hasHangulText(title));
+  return candidates[0] || japaneseHighlightFallbackTitle(rank);
+}
+
+function safeJapanesePublicRecommendedTitles(titles = [], hashtags = [], primaryTitle = '') {
+  const source = Array.isArray(titles) && titles.length
+    ? titles
+    : [{ category: 'hook', title: primaryTitle, hashtags }];
+  return source.map((item, index) => ({
+    ...item,
+    title: safeJapanesePublicHighlightTitle(
+      index === 0 ? primaryTitle || item.title : item.title,
+      index + 1,
+      index === 0 ? primaryTitle : ''
+    ),
+    hashtags: normalizeHashtags(item.hashtags || hashtags)
+  }));
+}
+
+function formatHighlightWindowRange(window = {}, korean = false) {
   const start = Number(window.start_sec ?? window.start ?? 0);
   const end = Number(window.end_sec ?? window.end ?? start);
   const cleanNumber = (value) => {
     if (!Number.isFinite(value)) return '0';
     return Number(value.toFixed(value % 1 === 0 ? 0 : 1)).toString();
   };
-  return `${cleanNumber(start)}〜${cleanNumber(end)}秒`;
+  const separator = korean ? '~' : '〜';
+  return `${cleanNumber(start)}${separator}${cleanNumber(end)}${korean ? '초' : '秒'}`;
 }
 
 function buildCandidateFocusText(window = {}, label = 'H01', korean = false) {
-  const range = formatHighlightWindowRange(window);
+  const range = formatHighlightWindowRange(window, korean);
   const rawReason = stripEmoji(String(
     window.reason
       || window.selection_reason
@@ -4202,12 +4496,385 @@ function buildCandidateFocusText(window = {}, label = 'H01', korean = false) {
   return `${label}は${range}の見どころです。${reason}`;
 }
 
-function buildCandidateHighlightBlock(baseText = '', focusText = '', minLength = 150, maxLength = 235) {
-  const cleanBase = stripHighlightScreenInternalNotes(baseText);
+function windowRelativeStage(window = {}, sourceDurationSec = 0) {
+  const start = Number(window.start_sec ?? window.start ?? 0);
+  const duration = Number(sourceDurationSec || 0);
+  if (!Number.isFinite(start) || !Number.isFinite(duration) || duration <= 0) return 'middle';
+  const ratio = start / duration;
+  if (ratio < 0.28) return 'opening';
+  if (ratio > 0.68) return 'late';
+  return 'middle';
+}
+
+function getCandidateWindowScenes(guide = {}, window = {}) {
+  const transitions = Array.isArray(guide.scene_transitions) ? guide.scene_transitions : [];
+  const start = Number(window.start_sec ?? window.start ?? 0);
+  const end = Number(window.end_sec ?? window.end ?? (start + Number(window.duration_sec || 0)));
+  const selectedIds = new Set(Array.isArray(window.selected_scene_ids) ? window.selected_scene_ids.filter(Boolean) : []);
+  const byId = selectedIds.size ? transitions.filter((scene) => selectedIds.has(scene.scene_id)) : [];
+  const byOverlap = transitions.filter((scene) => {
+    const sceneStart = Number(scene.start_sec || 0);
+    const sceneEnd = Number(scene.end_sec || scene.transition_at_sec || sceneStart);
+    return sceneEnd > start && sceneStart < end;
+  });
+  const seen = new Set();
+  return [...byId, ...byOverlap].filter((scene) => {
+    const key = scene.scene_id || `${scene.start_sec}-${scene.end_sec}-${scene.visual_summary}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function normalizeHighlightCompareText(value = '') {
+  return stripEmoji(String(value || ''))
+    .toLowerCase()
+    .replace(/h\d{2}/gi, ' ')
+    .replace(/\d+(?:\.\d+)?\s*[~〜-]\s*\d+(?:\.\d+)?\s*(?:秒|초|s|sec|seconds)?/giu, ' ')
+    .replace(/\d+(?:\.\d+)?\s*(?:秒|초|s|sec|seconds)?/giu, ' ')
+    .replace(/\b(?:opening|middle|late|early|first|second|third|candidate|rank)\b/giu, ' ')
+    .replace(/[序中後][盤半]|초반|중반|후반|候補|구간|選定|選定シーン|선택 장면/gu, ' ')
+    .replace(/(?:は|の|은|는)\s*/gu, ' ')
+    .replace(/#[\w\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af-]+/gu, ' ')
+    .replace(/[\s\n\r\t、。,.!！?？:：;；()（）\[\]【】"'`~〜-]+/gu, ' ')
+    .trim();
+}
+
+function isGenericSceneExplanation(value = '') {
+  const normalized = normalizeHighlightCompareText(value);
+  if (!normalized) return true;
+  const compact = normalized.replace(/\s+/g, '');
+  if (compact.length < 8) return true;
+  return /^(工程の動き|作業の流れ|工程|作業|process|processmovement|공정의움직임|공정의움직임에주목|공정|작업)$/iu.test(compact);
+}
+
+function sceneExplanationText(scene = {}, korean = false) {
+  const candidates = korean
+    ? [scene.scene_specific_explanation_ko, scene.caption_text_ko, ...(Array.isArray(scene.screen_captions_ko) ? scene.screen_captions_ko : [])]
+    : [scene.scene_specific_explanation_ja, scene.visual_summary, scene.caption_text, ...(Array.isArray(scene.screen_captions_ja) ? scene.screen_captions_ja : [])];
+  return candidates.map((value) => String(value || '').trim()).find((value) => value && !isGenericSceneExplanation(value)) || '';
+}
+
+function windowMatchesCandidate(window = {}, candidate = {}) {
+  const windowIds = new Set(Array.isArray(window.selected_scene_ids) ? window.selected_scene_ids.filter(Boolean) : []);
+  const candidateIds = Array.isArray(candidate.selected_scene_ids) ? candidate.selected_scene_ids.filter(Boolean) : [];
+  if (windowIds.size && candidateIds.some((id) => windowIds.has(id))) return true;
+  const windowStart = Number(window.start_sec || 0);
+  const windowEnd = Number(window.end_sec || (windowStart + Number(window.duration_sec || 0)));
+  const candidateStart = Number(candidate.start_sec || 0);
+  const candidateEnd = Number(candidate.end_sec || (candidateStart + Number(candidate.duration_sec || 0)));
+  if (!Number.isFinite(windowStart) || !Number.isFinite(windowEnd) || !Number.isFinite(candidateStart) || !Number.isFinite(candidateEnd)) return false;
+  const overlap = Math.max(0, Math.min(windowEnd, candidateEnd) - Math.max(windowStart, candidateStart));
+  const smaller = Math.max(0.1, Math.min(Math.max(0.1, windowEnd - windowStart), Math.max(0.1, candidateEnd - candidateStart)));
+  return overlap / smaller >= 0.45 || Math.abs(windowStart - candidateStart) <= 1.25 || Math.abs(windowEnd - candidateEnd) <= 1.25;
+}
+
+function bestCandidateForWindow(guide = {}, window = {}, highlightOrdinal = 1) {
+  const pools = [
+    ...(Array.isArray(guide.shortform_candidate_windows) ? guide.shortform_candidate_windows : []),
+    ...(Array.isArray(guide.hook_candidates) ? guide.hook_candidates : []),
+    guide.hook_clip_10s,
+    guide.recommended_highlight_window
+  ].filter((candidate) => candidate && typeof candidate === 'object');
+  const indexed = pools.map((candidate, index) => ({ candidate, index }));
+  const ordinalIndex = Math.max(0, Math.round(Number(highlightOrdinal) || 1) - 1);
+  const matched = indexed.find(({ candidate }) => windowMatchesCandidate(window, candidate));
+  if (matched) return matched.candidate;
+  return indexed[ordinalIndex]?.candidate || indexed[0]?.candidate || {};
+}
+
+function buildHighlightCandidatePayload(guide = {}, window = {}, highlightOrdinal = 1, totalHighlights = 1) {
+  const scenes = getCandidateWindowScenes(guide, window);
+  const candidate = bestCandidateForWindow(guide, window, highlightOrdinal);
+  const jaSceneExplanation = scenes.map((scene) => sceneExplanationText(scene, false)).find(Boolean) || '';
+  const koSceneExplanation = scenes.map((scene) => sceneExplanationText(scene, true)).find(Boolean) || '';
+  const textFields = [
+    candidate.visual_hook,
+    candidate.why_this_clip,
+    candidate.first_second_hook,
+    candidate.edit_note,
+    candidate.reason,
+    candidate.process_coverage,
+    candidate.purpose,
+    candidate.distinct_action,
+    candidate.material_or_tool_focus,
+    candidate.visual_change,
+    jaSceneExplanation,
+    koSceneExplanation,
+    ...scenes.flatMap((scene) => [
+      scene.scene_specific_explanation_ja,
+      scene.scene_specific_explanation_ko,
+      scene.distinct_action,
+      scene.material_or_tool_focus,
+      scene.visual_change,
+      scene.why_distinct_from_neighbors,
+      scene.visual_summary,
+      scene.focus_target,
+      scene.curiosity_reason,
+      scene.mechanical_rhythm
+    ])
+  ].map((value) => String(value || '').trim()).filter(Boolean);
+  const search = textFields.join(' ').toLowerCase();
+  const has = (pattern) => pattern.test(search);
+  let semanticKey = 'motion';
+  if (has(/spark|火花|불꽃/u)) semanticKey = 'sparks_hammering';
+  else if (has(/flatten|spread|flat|薄く|広が|펴지|납작|퍼지/u)) semanticKey = 'flattening_spreading';
+  else if (has(/cut|blade|slice|trim|刃|切|절단|자르/u)) semanticKey = 'cutting';
+  else if (has(/pour|flow|liquid|流|注|흐름|붓/u)) semanticKey = 'flow';
+  else if (has(/hand|worker|手|職人|손|작업자/u)) semanticKey = 'handwork';
+  else if (has(/press|hammer|impact|compress|プレス|鍛造|압력|프레스|두드/u)) semanticKey = 'pressing';
+
+  return {
+    rank: Math.max(1, Math.round(Number(highlightOrdinal) || 1)),
+    total: Math.max(1, Math.round(Number(totalHighlights) || 1)),
+    window,
+    matched_candidate: candidate,
+    scenes,
+    semantic_key: semanticKey,
+    semantic_text: textFields.join(' '),
+    ja_scene_explanation: jaSceneExplanation,
+    ko_scene_explanation: koSceneExplanation,
+    selected_scene_ids: scenes.map((scene) => scene.scene_id).filter(Boolean)
+  };
+}
+
+function candidateCueText(window = {}, scenes = []) {
+  return [
+    window.visual_hook,
+    window.hook_type,
+    window.visual_hook_type,
+    window.reason,
+    window.selection_reason,
+    window.purpose,
+    window.process_coverage,
+    ...scenes.map((scene) => [
+      scene.visual_summary,
+      scene.focus_target,
+      scene.change_type,
+      scene.recommended_camera_move,
+      scene.caption_text,
+      scene.caption_text_ko,
+      scene.visual_hook_type,
+      scene.curiosity_reason,
+      scene.mechanical_rhythm,
+      scene.process_focus_priority
+    ].join(' '))
+  ].map((value) => String(value || '').toLowerCase()).join(' ');
+}
+
+function classifyCandidateMetadataCue(window = {}, scenes = []) {
+  const text = candidateCueText(window, scenes);
+  const has = (pattern) => pattern.test(text);
+  if (has(/press|pressed|pressing|stamp|punch|hit|impact|crush|squeeze|compress|forge|forging|hammer|プレス|圧縮|成形|鍛造|打|押|潰|압착|프레스|단조|누르|두드/u)) {
+    return 'impact';
+  }
+  if (has(/pour|flow|stream|extrude|liquid|conveyor|fill|feed|melt|流|注|押し出|コンベア|흐름|붓|주입|압출/u)) {
+    return 'flow';
+  }
+  if (has(/cut|slice|trim|shave|split|knife|blade|saw|切|刃|裁断|절단|자르|칼/u)) {
+    return 'cut';
+  }
+  if (has(/hand|worker|manual|artisan|craft|手元|作業員|職人|手作業|손|장인|수작업/u)) {
+    return 'hand';
+  }
+  if (has(/transform|reveal|change|before|after|shape|becomes|変化|変身|姿|形|변화|변신/u)) {
+    return 'transform';
+  }
+  if (has(/repeat|rhythm|loop|cycle|反復|繰り返|리듬|반복/u)) {
+    return 'rhythm';
+  }
+  return 'motion';
+}
+
+function candidateStageText(stage = 'middle', korean = false) {
+  if (korean) {
+    if (stage === 'opening') return '초반';
+    if (stage === 'late') return '후반';
+    return '중반';
+  }
+  if (stage === 'opening') return '序盤';
+  if (stage === 'late') return '後半';
+  return '中盤';
+}
+
+function candidateCueTitle(cue = 'motion', stage = 'middle', korean = false) {
+  const stageText = candidateStageText(stage, korean);
+  const ja = {
+    impact: `${stageText}の圧力変形`,
+    flow: `${stageText}の流れの動き`,
+    cut: `${stageText}の切断シーン`,
+    hand: `${stageText}の手元作業`,
+    transform: `${stageText}の変化の瞬間`,
+    rhythm: `${stageText}の反復リズム`,
+    motion: `${stageText}の動きの見どころ`
+  };
+  const ko = {
+    impact: `${stageText} 압력 변형`,
+    flow: `${stageText} 흐름 장면`,
+    cut: `${stageText} 절단 장면`,
+    hand: `${stageText} 손작업`,
+    transform: `${stageText} 변화 순간`,
+    rhythm: `${stageText} 반복 리듬`,
+    motion: `${stageText} 움직임 핵심`
+  };
+  return korean ? ko[cue] || ko.motion : ja[cue] || ja.motion;
+}
+
+function buildCandidateHighlightBlock(baseText = '', focusText = '', options = {}) {
+  const maxLength = Number(options.maxLength || 235);
   const cleanFocus = stripHighlightScreenInternalNotes(focusText);
+  if (options.forceCandidateSpecific && cleanFocus) return truncateChars(cleanFocus, maxLength);
+  const cleanBase = stripHighlightScreenInternalNotes(baseText);
   if (cleanBase) return truncateChars(cleanBase, maxLength);
   if (cleanFocus) return truncateChars(cleanFocus, maxLength);
   return 'この工程で最も目を引く瞬間を切り出したハイライトです。素材の形が変わる動き、機械や手作業のリズム、完成へ近づく気持ちよさが短い時間に詰まっています。';
+}
+
+function buildSemanticHighlightBlock(payload = {}, korean = false) {
+  const key = payload.semantic_key || 'motion';
+  const ja = {
+    sparks_hammering: '赤く熱した金属をハンマーで叩くたびに火花が散り、棒材の形が少しずつ整っていく場面です。強い衝撃と光の変化が同時に見えるため、鍛造らしい迫力を短い尺で伝えられます。',
+    flattening_spreading: 'プレスの下で熱い金属が押し広げられ、厚みが変わっていく初期変形の場面です。火花よりも、素材が平たく伸びていく形の変化に集中して見せるハイライトです。',
+    cutting: '刃や工具が素材に入り、形が分かれていく瞬間を見せる場面です。切り込む動きと分離する変化がはっきり見えるため、このカットだけで加工の手応えが伝わります。',
+    flow: '素材や液体が流れに沿って進み、量や形が連続して変わる場面です。一定方向へ動くリズムと表面の変化を中心に、工程の気持ちよさを切り出しています。',
+    handwork: '作業者の手元と道具の細かな動きに注目する場面です。素材を支える位置、持ち替え、調整のタイミングが見えるため、手作業ならではのリズムが伝わります。',
+    pressing: '機械の圧力で素材の形が変わる瞬間を見せる場面です。押し込まれる動きと反動、表面の変化を中心に、短い時間で加工の力強さを伝えます。',
+    motion: '素材、道具、機械の位置関係が変わる場面を切り出しています。全体工程の説明ではなく、このカットで見える動きと変化に絞ったハイライトです。'
+  };
+  const ko = {
+    sparks_hammering: '붉게 달아오른 금속을 망치로 두드릴 때마다 불꽃이 튀고, 막대의 형태가 조금씩 다듬어지는 장면입니다. 강한 충격과 빛의 변화가 함께 보여 단조 공정의 박력을 짧게 전달합니다.',
+    flattening_spreading: '프레스 아래에서 뜨거운 금속이 눌리며 넓게 퍼지고 두께가 바뀌는 초기 변형 장면입니다. 불꽃보다 소재가 납작하게 늘어나는 형태 변화에 집중한 하이라이트입니다.',
+    cutting: '날이나 도구가 소재에 들어가 형태가 나뉘는 순간을 보여주는 장면입니다. 잘려 나가는 움직임과 분리되는 변화가 뚜렷해서 이 컷만으로 가공의 손맛이 전달됩니다.',
+    flow: '소재나 액체가 흐름을 따라 이동하며 양과 형태가 연속적으로 바뀌는 장면입니다. 한 방향으로 이어지는 리듬과 표면 변화를 중심으로 공정의 시원함을 잘라냈습니다.',
+    handwork: '작업자의 손과 도구의 세밀한 움직임에 집중하는 장면입니다. 소재를 받치는 위치, 손을 바꾸는 순간, 조정 타이밍이 보여 수작업 특유의 리듬이 전달됩니다.',
+    pressing: '기계의 압력으로 소재의 형태가 바뀌는 순간을 보여주는 장면입니다. 눌리는 움직임과 반동, 표면 변화를 중심으로 짧은 시간 안에 가공의 힘을 전달합니다.',
+    motion: '소재와 도구, 기계의 위치 관계가 바뀌는 장면을 잘라냈습니다. 전체 공정 설명이 아니라 이 컷에서 보이는 움직임과 변화에 집중한 하이라이트입니다.'
+  };
+  return korean ? ko[key] || ko.motion : ja[key] || ja.motion;
+}
+
+function buildCandidateSpecificBlock(window = {}, scenes = [], label = 'H01', korean = false, sourceDurationSec = 0, payload = null) {
+  if (payload && payload.semantic_key) {
+    return truncateChars(buildSemanticHighlightBlock(payload, korean), korean ? 230 : 235);
+  }
+  const stage = windowRelativeStage(window, sourceDurationSec);
+  const cue = classifyCandidateMetadataCue(window, scenes);
+  const stageText = candidateStageText(stage, korean);
+  const range = formatHighlightWindowRange(window, korean);
+  const templatesJa = {
+    impact: `${stageText}の${range}では、素材に強い圧力が加わり、形が一気に変わる瞬間を切り出しています。押し込まれる動き、反動、表面の変化が短い尺で伝わるため、全体説明ではなくこの打撃感に集中して見せるハイライトです。`,
+    flow: `${stageText}の${range}では、素材や液体が流れに乗って進み、形や量が変わっていく動きを中心に見せます。一定の方向へ進むリズムと連続する変化が分かりやすく、この区間だけで工程の気持ちよさが伝わるハイライトです。`,
+    cut: `${stageText}の${range}では、刃や道具が素材に入って形を分ける瞬間を中心に見せます。切り込む動き、分離する変化、仕上がりへ近づく手応えが短い時間にまとまり、このカットならではの緊張感が出るハイライトです。`,
+    hand: `${stageText}の${range}では、作業者の手元と道具の動きに注目します。細かな調整、持ち替え、素材に触れるタイミングが見えるため、機械だけでは伝わらない手作業のリズムを切り出したハイライトです。`,
+    transform: `${stageText}の${range}では、素材の見た目や形が変わる瞬間を中心に見せます。変化の前後が短い尺の中で分かりやすくつながり、何が起きるのか見続けたくなる場面だけを選んだハイライトです。`,
+    rhythm: `${stageText}の${range}では、同じ動きが繰り返されるリズムを中心に見せます。押す、戻る、進むといった周期が短い時間で伝わり、見ていて気持ちいい反復感を切り出したハイライトです。`,
+    motion: `${stageText}の${range}では、工程の中でも動きが分かりやすい場面を切り出しています。素材、道具、機械の位置関係が変わる瞬間に絞ることで、全体の説明ではなくこのカットだけの見どころが伝わるハイライトです。`
+  };
+  const templatesKo = {
+    impact: `${stageText} ${range} 구간에서는 소재에 강한 압력이 들어가며 형태가 빠르게 바뀌는 순간을 잘라냈습니다. 눌리는 움직임과 반동, 표면 변화가 짧은 시간에 드러나서 전체 설명이 아니라 이 타격감 자체에 집중하는 하이라이트입니다.`,
+    flow: `${stageText} ${range} 구간에서는 소재나 액체가 한 방향으로 흐르며 양과 형태가 바뀌는 움직임을 중심으로 보여줍니다. 이어지는 리듬과 변화가 뚜렷해서 이 구간만으로도 공정의 시원한 흐름이 전달되는 하이라이트입니다.`,
+    cut: `${stageText} ${range} 구간에서는 도구가 소재에 들어가 형태가 나뉘는 순간을 중심으로 보여줍니다. 잘려 나가는 변화와 완성에 가까워지는 긴장감이 짧은 컷 안에 담긴 하이라이트입니다.`,
+    hand: `${stageText} ${range} 구간에서는 작업자의 손과 도구 움직임에 집중합니다. 미세한 조정과 소재를 다루는 타이밍이 보여서 기계 동작만으로는 전달되지 않는 손작업의 리듬을 잘라낸 하이라이트입니다.`,
+    transform: `${stageText} ${range} 구간에서는 소재의 모습이나 형태가 바뀌는 순간을 중심으로 보여줍니다. 변화 전후가 짧은 시간 안에 이어져서 계속 보고 싶게 만드는 장면만 고른 하이라이트입니다.`,
+    rhythm: `${stageText} ${range} 구간에서는 같은 움직임이 반복되는 리듬을 중심으로 보여줍니다. 누르고, 돌아오고, 다시 진행되는 주기가 짧은 시간에 보여서 보는 맛이 있는 반복감을 잘라낸 하이라이트입니다.`,
+    motion: `${stageText} ${range} 구간에서는 공정 중 움직임이 가장 잘 보이는 장면을 잘라냈습니다. 소재와 도구, 기계의 위치가 바뀌는 순간에 집중해 전체 설명이 아니라 이 컷만의 볼거리가 드러나는 하이라이트입니다.`
+  };
+  return truncateChars((korean ? templatesKo : templatesJa)[cue] || (korean ? templatesKo.motion : templatesJa.motion), korean ? 230 : 235);
+}
+
+function highlightMetadataBodiesAreDistinct(metadataList = []) {
+  const bodies = (Array.isArray(metadataList) ? metadataList : [])
+    .map((metadata) => normalizeHighlightCompareText([
+      metadata?.onscreen_caption_block,
+      metadata?.summary_caption,
+      metadata?.report_description
+    ].join(' ')))
+    .filter(Boolean);
+  for (let i = 0; i < bodies.length; i += 1) {
+    for (let j = i + 1; j < bodies.length; j += 1) {
+      if (bodies[i] === bodies[j]) return false;
+      const shorter = Math.min(bodies[i].length, bodies[j].length);
+      if (shorter >= 24 && (bodies[i].includes(bodies[j]) || bodies[j].includes(bodies[i]))) return false;
+    }
+  }
+  return true;
+}
+
+function assertHighlightCandidateMetadataDistinct(itemConfig = {}, highlightWindows = []) {
+  if (!Array.isArray(highlightWindows) || highlightWindows.length <= 1) return { checked: false, metadata: [] };
+  const baseGuide = {
+    ...(itemConfig.ottogi_guide_output || {}),
+    video_metadata: itemConfig.video_metadata || {},
+    source_classification: itemConfig.source_classification || {},
+    target_duration_sec: itemConfig.target_duration_sec || 0
+  };
+  const guides = highlightWindows.map((window, index) => buildHighlightCandidateGuide(
+    baseGuide,
+    window,
+    index + 1,
+    highlightWindows.length
+  ));
+  const metadata = guides.map((guide) => guide.highlight_metadata || {});
+  if (!highlightMetadataBodiesAreDistinct(metadata)) {
+    const error = new Error('JP Highlight metadata blocked: multiple highlight captions/descriptions are duplicates after normalization. Force Gemini reanalysis with scene-specific explanations.');
+    error.code = 'OTTOGI_HIGHLIGHT_METADATA_DUPLICATE_BODY';
+    error.details = {
+      item_id: itemConfig.item_id || '',
+      highlight_count: highlightWindows.length,
+      semantic_keys: guides.map((guide) => guide.highlight_candidate_metadata_cue?.semantic_key || ''),
+      selected_scene_ids: guides.map((guide) => guide.highlight_candidate_metadata_cue?.selected_scene_ids || []),
+      normalized_bodies: metadata.map((item) => normalizeHighlightCompareText([
+        item.onscreen_caption_block,
+        item.summary_caption,
+        item.report_description
+      ].join(' ')))
+    };
+    throw error;
+  }
+  return { checked: true, metadata };
+}
+
+function rankedTitleCandidate(baseMetadata = {}, baseGuide = {}, highlightOrdinal = 1, fallbackTitle = '') {
+  const titles = Array.isArray(baseMetadata.recommended_titles) && baseMetadata.recommended_titles.length
+    ? baseMetadata.recommended_titles
+    : (Array.isArray(baseGuide.recommended_titles) ? baseGuide.recommended_titles : []);
+  const index = Math.max(0, Math.round(Number(highlightOrdinal) || 1) - 1);
+  const picked = titles[index] || titles[0] || null;
+  return safeJapanesePublicHighlightTitle(
+    stripHashtagsFromTitle(picked?.title || baseMetadata.upload_title || fallbackTitle || '', ''),
+    index + 1,
+    fallbackTitle
+  );
+}
+
+function buildCandidateReportDescription(block = '', window = {}, label = 'H01', candidateCount = 1, cueTitle = '', korean = false) {
+  const reason = stripEmoji(String(window.reason || window.selection_reason || window.selection_strategy || '').replace(/\s+/g, ' ').trim());
+  if (korean) {
+    return [
+      '## 1. 하이라이트 개요',
+      block,
+      '',
+      '## 2. 선택 장면',
+      `${label}/${candidateCount} 후보는 ${formatHighlightWindowRange(window, true)} 구간입니다.`,
+      cueTitle ? `장면 유형: ${cueTitle}` : '',
+      reason ? `선정 이유: ${reason}` : '',
+      '',
+      '## 3. 검수 메모',
+      '이 문단은 로컬 검수용이며, 공개 업로드 설명은 일본어 메타데이터를 사용합니다.'
+    ].filter(Boolean).join('\n');
+  }
+  return [
+    '## 1. ハイライト概要',
+    block,
+    '',
+    '## 2. 選定シーン',
+    `${label}/${candidateCount}候補は${formatHighlightWindowRange(window)}の区間です。`,
+    cueTitle ? `シーンタイプ: ${cueTitle}` : '',
+    reason ? `選定理由: ${reason}` : '',
+    '',
+    '## 3. 視聴ポイント',
+    '全体工程の要約ではなく、このカットで目立つ動きと変化に絞ったJP Highlight用メタデータです。'
+  ].filter(Boolean).join('\n');
 }
 
 function withCandidateTitleSuffix(title = '', label = 'H01') {
@@ -4225,14 +4892,22 @@ function buildHighlightCandidateGuide(baseGuide = {}, window = {}, highlightOrdi
   const publicLabelKo = candidateCount > 1 ? label : '선정 구간';
   const baseMetadata = getVariantMetadata(baseGuide, 'highlight');
   const baseReview = getVariantReviewMetadata(baseGuide, 'highlight');
+  const sourceDurationSec = Number(baseGuide.video_metadata?.duration_sec || baseGuide.source_classification?.duration_sec || baseGuide.target_duration_sec || 0);
+  const candidateScenes = getCandidateWindowScenes(baseGuide, window);
+  const candidatePayload = buildHighlightCandidatePayload(baseGuide, window, highlightOrdinal, candidateCount);
+  const cue = classifyCandidateMetadataCue(window, candidateScenes);
+  const stage = windowRelativeStage(window, sourceDurationSec);
+  const titleCueJa = candidateCueTitle(cue, stage, false);
   const rawTitle = highlightTitle || baseMetadata.upload_title || selectGuideTitle(baseGuide, 'highlight')?.title || '';
-  const title = candidateCount > 1 ? withCandidateTitleSuffix(rawTitle, label) : stripHashtagsFromTitle(rawTitle, '').trim();
+  const title = rankedTitleCandidate(baseMetadata, baseGuide, highlightOrdinal, stripCandidateLabelFromTitle(rawTitle, label)) || stripCandidateLabelFromTitle(rawTitle, label) || '工程ハイライト';
   const focusJa = buildCandidateFocusText(window, publicLabelJa, false);
   const focusKo = buildCandidateFocusText(window, publicLabelKo, true);
   const baseBlockJa = baseMetadata.onscreen_caption_block || baseGuide.highlight_onscreen_caption_block_ja || baseGuide.highlight_explainer_text || baseMetadata.short_description || '';
   const baseBlockKo = baseReview.onscreen_caption_block || baseGuide.highlight_onscreen_caption_block_ko || baseGuide.highlight_explainer_text_ko || baseReview.short_description || '';
-  const blockJa = buildCandidateHighlightBlock(baseBlockJa, focusJa);
-  const blockKo = buildCandidateHighlightBlock(baseBlockKo, focusKo);
+  const candidateBlockJa = buildCandidateSpecificBlock(window, candidateScenes, publicLabelJa, false, sourceDurationSec, candidatePayload);
+  const candidateBlockKo = buildCandidateSpecificBlock(window, candidateScenes, publicLabelKo, true, sourceDurationSec, candidatePayload);
+  const blockJa = buildCandidateHighlightBlock(baseBlockJa, candidateBlockJa || focusJa, { forceCandidateSpecific: candidateCount > 1 });
+  const blockKo = buildCandidateHighlightBlock(baseBlockKo, candidateBlockKo || focusKo, { forceCandidateSpecific: candidateCount > 1 });
   const hashtags = normalizeHashtags(baseMetadata.hashtags || baseGuide.highlight_hashtags || baseGuide.upload_hashtags || []);
 
   const recommendedTitles = Array.isArray(baseMetadata.recommended_titles) && baseMetadata.recommended_titles.length
@@ -4251,20 +4926,11 @@ function buildHighlightCandidateGuide(baseGuide = {}, window = {}, highlightOrdi
     short_description: blockJa,
     onscreen_caption_block: blockJa,
     onscreen_subtitles: [],
-    report_description: [
-      baseMetadata.report_description || baseMetadata.short_description || blockJa,
-      '',
-      `候補: ${label}/${candidateCount}`,
-      `抽出区間: ${formatHighlightWindowRange(window)}`,
-      `選定理由: ${stripEmoji(String(window.reason || window.selection_strategy || focusJa).replace(/\s+/g, ' ').trim())}`
-    ].filter(Boolean).join('\n'),
-    recommended_titles: recommendedTitles.map((item, index) => ({
-      ...item,
-      title: index === 0 ? title : (candidateCount > 1 ? withCandidateTitleSuffix(item.title || title, label) : stripHashtagsFromTitle(item.title || title, '').trim()),
-      hashtags: normalizeHashtags(item.hashtags || hashtags)
-    })),
+    report_description: buildCandidateReportDescription(blockJa, window, label, candidateCount, titleCueJa, false),
+    recommended_titles: safeJapanesePublicRecommendedTitles(recommendedTitles, hashtags, title),
     hashtags,
     source_window: window,
+    highlight_candidate_payload: candidatePayload,
     highlight_candidate_label: label,
     highlight_candidate_index: highlightOrdinal,
     highlight_candidate_total: candidateCount
@@ -4278,16 +4944,10 @@ function buildHighlightCandidateGuide(baseGuide = {}, window = {}, highlightOrdi
     short_description: blockKo,
     onscreen_caption_block: blockKo,
     onscreen_subtitles: [],
-    report_description: [
-      baseReview.report_description || baseReview.short_description || blockKo,
-      '',
-      `검수 후보: ${label}/${candidateCount}`,
-      `추출 구간: ${formatHighlightWindowRange(window)}`,
-      `선정 이유: ${stripEmoji(String(window.reason || window.selection_strategy || focusKo).replace(/\s+/g, ' ').trim())}`
-    ].filter(Boolean).join('\n'),
+    report_description: buildCandidateReportDescription(blockKo, window, label, candidateCount, candidateCueTitle(cue, stage, true), true),
     recommended_titles: recommendedTitlesKo.map((item) => ({
       ...item,
-      title: candidateCount > 1 ? withCandidateTitleSuffix(item.title || '', label) : String(item.title || '').trim()
+      title: String(item.title || '').replace(/\s+/g, ' ').trim()
     })),
     hashtags: []
   };
@@ -4300,6 +4960,14 @@ function buildHighlightCandidateGuide(baseGuide = {}, window = {}, highlightOrdi
   guide.highlight_hashtags = hashtags;
   guide.highlight_candidate_label = label;
   guide.highlight_candidate_source_window = window;
+  guide.highlight_candidate_payload = candidatePayload;
+  guide.highlight_candidate_metadata_cue = {
+    cue,
+    stage,
+    title_cue_ja: titleCueJa,
+    semantic_key: candidatePayload.semantic_key,
+    selected_scene_ids: candidateScenes.map((scene) => scene.scene_id).filter(Boolean)
+  };
   return guide;
 }
 
@@ -5375,13 +6043,42 @@ async function downloadQueueItemSourceFromUrl(itemId, url, options = {}) {
 
   const itemDir = getItemDir(id);
   fs.mkdirSync(itemDir, { recursive: true });
-  const targetPath = path.join(itemDir, 'source_clean.mp4');
+  const sourceRole = String(options.sourceRole || options.source_role || options.role || '').trim().toLowerCase();
+  const isAuxSource = ['aux', 'auxiliary', 'full_aux'].includes(sourceRole);
+  const targetFilename = isAuxSource ? 'source_aux.mp4' : 'source_clean.mp4';
+  const targetPath = path.join(itemDir, targetFilename);
   const download = await downloadYoutubeVideo({
     url,
     targetPath,
     onProgress: options.onProgress
   });
   const metadata = getVideoMetadata(download.outputPath);
+  const item = normalizeItemConfig(existingConfig, id);
+
+  if (isAuxSource) {
+    const updatedConfig = normalizeItemConfig({
+      ...item,
+      item_id: id,
+      aux_source_url: download.url,
+      aux_source_video: targetFilename,
+      aux_source_file_original_name: download.filename,
+      aux_video_metadata: metadata
+    }, id);
+
+    writeJsonWithBackup(configPath, updatedConfig);
+    return {
+      status: 'success',
+      sourceRole: 'aux',
+      download: {
+        url: download.url,
+        outputPath: download.outputPath,
+        filename: download.filename
+      },
+      item: summarizeItem(updatedConfig),
+      queue: listQueue()
+    };
+  }
+
   const sourceClassification = classifyItemSource({
     metadata,
     requestedMode: existingConfig.source_classification?.requested_mode || existingConfig.source_type || 'auto',
@@ -5389,7 +6086,6 @@ async function downloadQueueItemSourceFromUrl(itemId, url, options = {}) {
   });
   const durationSec = metadata.duration_sec || existingConfig.target_duration_sec || 30;
   const normalizedDuration = Number(durationSec.toFixed ? durationSec.toFixed(3) : durationSec);
-  const item = normalizeItemConfig(existingConfig, id);
   const blocks = Array.isArray(item.explainer_blocks) && item.explainer_blocks.length
     ? item.explainer_blocks.map((block, index) => ({
         ...block,
@@ -6661,33 +7357,26 @@ function pickHighlightWindow(itemConfig = {}, maxDurationSec = 10) {
     Number(maxDurationSec) || (isLongformSource ? LONGFORM_HIGHLIGHT_DEFAULT_DURATION_SEC : SHORTFORM_HIGHLIGHT_MAX_DURATION_SEC)
   ));
   const duration = sourceDuration > 0 ? Math.min(safeMax, sourceDuration) : safeMax;
-  const guide = itemConfig.ottogi_guide_output || {};
-  const guideWindow = isLongformSource
-    ? normalizeGuideWindow(guide.recommended_highlight_window, sourceDuration || itemConfig.target_duration_sec || 0)
-    : null;
+  const guideWindow = getGeminiBestHighlightWindow(itemConfig, safeMax);
   if (guideWindow) {
     const start = Math.max(0, Number(guideWindow.start_sec || 0));
     const clippedDuration = Math.min(duration, Math.max(1, Number(guideWindow.duration_sec || guideWindow.end_sec - start || duration)));
     const safeStart = sourceDuration > 0 ? Math.min(start, Math.max(0, sourceDuration - clippedDuration)) : start;
-    const selectedSceneIds = Array.isArray(guideWindow.selected_scene_ids)
-      ? guideWindow.selected_scene_ids.filter(Boolean).slice(0, 1)
-      : [];
     return {
+      ...guideWindow,
       start_sec: Number(safeStart.toFixed(3)),
       duration_sec: Number(clippedDuration.toFixed(3)),
       end_sec: Number((safeStart + clippedDuration).toFixed(3)),
       score: Number(guideWindow.score || 0),
-      reason: guideWindow.reason || 'gemini_recommended_longform_highlight_window',
+      reason: guideWindow.reason || 'gemini_recommended_best_highlight_window',
       selection_strategy: 'gemini_single_process_visual_hook_window',
-      selected_scene_ids: selectedSceneIds,
       single_process_only: true,
-      longform_highlight_rule: 'one_continuous_core_process_natural_end'
+      longform_highlight_rule: isLongformSource ? 'one_continuous_core_process_natural_end' : undefined
     };
   }
-  // Highlight drafts should feel like a complete short hook, not a tiny teaser.
-  // Pick the strongest window at the requested duration instead of letting
-  // density scoring collapse the result down to a 3 second segment.
-  const candidateDurations = [Number(duration.toFixed(3))];
+  // Highlight drafts are a single visual hook, not a compressed process summary.
+  // Pick the strongest scene itself so JP Highlight-only runs cannot
+  // inherit the Full draft's multi-scene/process-window behavior.
   const transitions = normalizeSceneTransitions(getItemSceneTransitions(itemConfig), sourceDuration || itemConfig.target_duration_sec || 0);
   if (!transitions.length) {
     return {
@@ -6727,56 +7416,31 @@ function pickHighlightWindow(itemConfig = {}, maxDurationSec = 10) {
     };
   }
 
-  const candidates = transitions.flatMap((scene, index) => {
-    const sceneStart = Number(scene.start_sec || 0);
-    const sceneEnd = Number(scene.end_sec || scene.transition_at_sec || sceneStart + duration);
-    const center = Math.max(sceneStart, Math.min(sceneEnd, (sceneStart + sceneEnd) / 2));
-    return candidateDurations.flatMap((candidateDuration) => {
-      const starts = [
-        sceneStart,
-        Math.max(0, center - candidateDuration / 2),
-        Math.max(0, sceneEnd - candidateDuration),
-        Math.max(0, sceneStart - 0.25)
-      ];
-      return starts.map((rawStart) => {
-        let start = Math.max(0, rawStart);
-        if (sourceDuration > 0) start = Math.min(start, Math.max(0, sourceDuration - candidateDuration));
-        const end = start + candidateDuration;
-        const selected = transitions.filter((item) => {
-          const itemStart = Number(item.start_sec || 0);
-          const itemEnd = Number(item.end_sec || item.transition_at_sec || itemStart);
-          return itemEnd > start && itemStart < end;
-        });
-        const rawScore = selected.reduce((sum, item) => sum + scoreSceneForHighlight(item), 0)
-          + scoreSceneForHighlight(scene)
-          + scoreNaturalRepetitionWindow(selected)
-          + (index === 0 ? 0.5 : 0);
-        const overPackedPenalty = Math.max(0, selected.length - 4) * 32;
-        const durationPenalty = Math.max(0, candidateDuration - 5) * 4;
-        const densityBonus = (rawScore / Math.max(1, candidateDuration)) * 4;
-        const focusedWindowBonus = selected.length >= 2 && selected.length <= 4 ? 18 : 0;
-        const score = rawScore + densityBonus + focusedWindowBonus - overPackedPenalty - durationPenalty;
-        return { start_sec: start, end_sec: end, duration_sec: candidateDuration, score, selected };
-      });
-    });
-  });
-
-  candidates.sort((a, b) => b.score - a.score || a.start_sec - b.start_sec);
-  const best = candidates[0];
+  const bestScene = [...transitions].sort((a, b) => (
+    scoreSceneForHighlight(b) - scoreSceneForHighlight(a)
+    || Number(a.start_sec || 0) - Number(b.start_sec || 0)
+  ))[0];
+  const sceneStart = Number(bestScene.start_sec || 0);
+  const sceneEnd = Number(bestScene.end_sec || bestScene.transition_at_sec || sceneStart + duration);
+  const sceneDuration = Math.max(0.8, sceneEnd - sceneStart);
+  const candidateDuration = Math.min(duration, sceneDuration, sourceDuration || duration);
+  const peak = Number(bestScene.transition_at_sec || 0) > sceneStart && Number(bestScene.transition_at_sec || 0) < sceneEnd
+    ? Number(bestScene.transition_at_sec)
+    : (sceneStart + sceneEnd) / 2;
+  const start = clampWindowStartSec(peak - candidateDuration / 2, candidateDuration, sourceDuration);
   // Best tier among the scenes inside the picked window -- recorded on the
   // window (and thus in the batch report / job payload) so published results
   // can later be checked against the tier the cut actually carried.
-  const bestSceneTierRank = best.selected.length
-    ? Math.min(...best.selected.map((scene) => cutSelectionTierRank(scene)))
-    : 2;
+  const bestSceneTierRank = cutSelectionTierRank(bestScene);
   return {
-    start_sec: Number(best.start_sec.toFixed(3)),
-    duration_sec: Number(best.duration_sec.toFixed(3)),
-    end_sec: Number(best.end_sec.toFixed(3)),
-    score: Number(best.score.toFixed(3)),
-    reason: 'natural_repetitive_mechanical_hook_window',
-    selection_strategy: 'natural_source_repetition_no_artificial_loop',
-    selected_scene_ids: best.selected.map((scene) => scene.scene_id).filter(Boolean),
+    start_sec: Number(start.toFixed(3)),
+    duration_sec: Number(candidateDuration.toFixed(3)),
+    end_sec: Number((start + candidateDuration).toFixed(3)),
+    score: Number(scoreSceneForHighlight(bestScene).toFixed(3)),
+    reason: 'single_strongest_shortform_visual_hook_scene',
+    selection_strategy: 'single_scene_visual_hook_no_process_split',
+    selected_scene_ids: singleProcessSceneIds(bestScene),
+    single_process_only: true,
     cut_selection_tier: ['T1', 'T2', 'T3'][bestSceneTierRank]
   };
 }
@@ -6787,6 +7451,33 @@ function windowsOverlapSeconds(a = {}, b = {}) {
   const bStart = Number(b.start_sec || 0);
   const bEnd = Number(b.end_sec || (bStart + Number(b.duration_sec || 0)));
   return Math.max(0, Math.min(aEnd, bEnd) - Math.max(aStart, bStart));
+}
+
+function isProcessSpanHighlightCandidate(candidate = {}) {
+  const text = [
+    candidate.purpose,
+    candidate.process_coverage,
+    candidate.visual_hook,
+    candidate.story_flow,
+    candidate.process_flow,
+    candidate.selection_strategy,
+    candidate.reason,
+    candidate.window_type,
+    candidate.type
+  ].map((value) => String(value || '').toLowerCase()).join(' ');
+  return /full[_\s-]?process|full[_\s-]?cycle|process[_\s-]?summary|summary|story|overall|entire|whole|전체|요약|스토리|工程全体|全体|まとめ/u.test(text);
+}
+
+function getGeminiBestHighlightWindow(itemConfig = {}, maxDurationSec = 10) {
+  const guide = itemConfig.ottogi_guide_output || {};
+  const candidates = [guide.hook_clip_10s, guide.recommended_highlight_window]
+    .filter((candidate) => candidate && typeof candidate === 'object')
+    .filter((candidate) => !isProcessSpanHighlightCandidate(candidate));
+  for (const candidate of candidates) {
+    const window = normalizeHighlightCandidateWindow(candidate, itemConfig, maxDurationSec, 'gemini_best_highlight_window');
+    if (window) return window;
+  }
+  return null;
 }
 
 function normalizeHighlightCandidateWindow(raw, itemConfig = {}, maxDurationSec = 10, reason = 'highlight_candidate_window') {
@@ -6804,8 +7495,22 @@ function normalizeHighlightCandidateWindow(raw, itemConfig = {}, maxDurationSec 
   const longformSource = isLongformHighlightSource(itemConfig);
   const normalized = normalizeGuideWindow(raw, sourceDuration || itemConfig.target_duration_sec || 0);
   if (!normalized) return null;
-  const rawStart = Number(normalized.start_sec || 0);
-  const rawEnd = Number(normalized.end_sec || (rawStart + Number(normalized.duration_sec || 0)));
+  const selectedSceneIds = Array.isArray(normalized.selected_scene_ids) ? normalized.selected_scene_ids.filter(Boolean).slice(0, 1) : [];
+  const selectedSceneIdSet = new Set(selectedSceneIds);
+  const transitions = selectedSceneIdSet.size
+    ? normalizeSceneTransitions(getItemSceneTransitions(itemConfig), sourceDuration || itemConfig.target_duration_sec || 0)
+    : [];
+  const selectedScene = transitions.find((scene) => selectedSceneIdSet.has(scene.scene_id));
+  let rawStart = Number(normalized.start_sec || 0);
+  let rawEnd = Number(normalized.end_sec || (rawStart + Number(normalized.duration_sec || 0)));
+  if (selectedScene && !longformSource) {
+    const sceneStart = Number(selectedScene.start_sec || 0);
+    const sceneEnd = Number(selectedScene.end_sec || selectedScene.transition_at_sec || sceneStart);
+    if (Number.isFinite(sceneStart) && Number.isFinite(sceneEnd) && sceneEnd > sceneStart) {
+      rawStart = sceneStart;
+      rawEnd = sceneEnd;
+    }
+  }
   if (
     sourceDuration > 0 &&
     longformSource &&
@@ -6815,9 +7520,9 @@ function normalizeHighlightCandidateWindow(raw, itemConfig = {}, maxDurationSec 
   }
   const durationCap = longformSource ? LONGFORM_HIGHLIGHT_MAX_DURATION_SEC : SHORTFORM_HIGHLIGHT_MAX_DURATION_SEC;
   const safeMax = Math.max(1, Math.min(durationCap, Number(maxDurationSec) || durationCap));
-  const safeMin = Math.min(safeMax, Math.max(1, Math.min(6, sourceDuration || safeMax)));
+  const safeMin = Math.min(safeMax, Math.max(1, Math.min(longformSource ? 6 : 3, sourceDuration || safeMax)));
   const start = Math.max(0, rawStart);
-  const rawDuration = Number(normalized.duration_sec || normalized.end_sec - start || safeMax);
+  const rawDuration = Number(rawEnd - start || normalized.duration_sec || safeMax);
   const duration = Math.min(safeMax, Math.max(safeMin, rawDuration));
   const rawCenter = start + Math.max(0.1, rawDuration) / 2;
   const expandedStart = rawDuration < duration ? rawCenter - duration / 2 : start;
@@ -6829,7 +7534,7 @@ function normalizeHighlightCandidateWindow(raw, itemConfig = {}, maxDurationSec 
     end_sec: Number((safeStart + duration).toFixed(3)),
     reason: normalized.reason || reason,
     selection_strategy: normalized.selection_strategy || reason,
-    selected_scene_ids: Array.isArray(normalized.selected_scene_ids) ? normalized.selected_scene_ids.filter(Boolean).slice(0, 1) : [],
+    selected_scene_ids: selectedSceneIds,
     single_process_only: true,
     longform_highlight_rule: longformSource ? 'one_continuous_core_process_natural_end' : undefined
   };
@@ -6863,6 +7568,7 @@ function collectHighlightCandidateWindows(itemConfig = {}, maxDurationSec = 10) 
       return a.tierRank - b.tierRank || scoreB - scoreA || a.index - b.index;
     })
     .forEach(({ candidate }, index) => {
+      if (isProcessSpanHighlightCandidate(candidate)) return;
       const purpose = String(candidate.purpose || candidate.process_coverage || candidate.visual_hook || '').toLowerCase();
       const isHookLike = !purpose || /hook|visual|repeat|rhythm|press|cut|pour|flow|transform|impact|핵심|반복|압착|절단|흐름|変化|反復|切断|押|注/.test(purpose);
       if (isHookLike) {
@@ -6909,24 +7615,32 @@ function collectHighlightCandidateWindows(itemConfig = {}, maxDurationSec = 10) 
 
 function pickHighlightWindows(itemConfig = {}, maxDurationSec = 10, count = 1) {
   const requestedCount = Math.min(5, Math.max(1, Math.round(Number(count) || 1)));
+  const longformSource = isLongformHighlightSource(itemConfig);
+  if (longformSource && isLocalOrFallbackLongformGuide(itemConfig.ottogi_guide_output || {})) return [];
   const primary = pickHighlightWindow(itemConfig, maxDurationSec);
-  const candidates = [primary, ...collectHighlightCandidateWindows(itemConfig, maxDurationSec)];
+  const candidates = [primary, ...collectHighlightCandidateWindows(itemConfig, maxDurationSec)]
+    .filter((candidate) => !(longformSource && isLocalOrFallbackLongformWindow(candidate)));
   const picked = [];
   const seenKeys = new Set();
-  const minGapSec = Math.max(4, Number(maxDurationSec || 10) * 0.8);
 
   for (const candidate of candidates) {
     const start = Number(candidate.start_sec || 0);
     const end = Number(candidate.end_sec || (start + Number(candidate.duration_sec || 0)));
-    const key = `${start.toFixed(1)}-${end.toFixed(1)}`;
+    const sceneKey = Array.isArray(candidate.selected_scene_ids) && candidate.selected_scene_ids.length
+      ? `scene:${candidate.selected_scene_ids.join('|')}`
+      : '';
+    const key = sceneKey || `${start.toFixed(1)}-${end.toFixed(1)}`;
     if (seenKeys.has(key)) continue;
-    seenKeys.add(key);
-    const tooClose = picked.some((window) => {
+    const duplicate = picked.some((window) => {
       const overlap = windowsOverlapSeconds(window, candidate);
-      const gap = Math.max(0, Math.max(Number(window.start_sec || 0), start) - Math.min(Number(window.end_sec || 0), end));
-      return overlap > 0.25 || gap < minGapSec;
+      const windowScenes = Array.isArray(window.selected_scene_ids) ? window.selected_scene_ids : [];
+      const candidateScenes = Array.isArray(candidate.selected_scene_ids) ? candidate.selected_scene_ids : [];
+      const sameScene = windowScenes.length && candidateScenes.length
+        && candidateScenes.some((sceneId) => windowScenes.includes(sceneId));
+      return sameScene || overlap > 0.25;
     });
-    if (tooClose) continue;
+    if (duplicate) continue;
+    seenKeys.add(key);
     picked.push({
       ...candidate,
       highlight_index: picked.length + 1,
@@ -6935,35 +7649,34 @@ function pickHighlightWindows(itemConfig = {}, maxDurationSec = 10, count = 1) {
     if (picked.length >= requestedCount) break;
   }
 
-  const sourceDuration = Number(itemConfig.video_metadata?.duration_sec || itemConfig.target_duration_sec || 0);
-  const safeMax = Math.max(1, Math.min(isLongformHighlightSource(itemConfig) ? LONGFORM_HIGHLIGHT_MAX_DURATION_SEC : SHORTFORM_HIGHLIGHT_MAX_DURATION_SEC, Number(maxDurationSec) || maxDurationSec || 10));
-  const safeMin = Math.min(safeMax, Math.max(1, Math.min(6, sourceDuration || safeMax)));
-  const duration = Math.min(Math.max(safeMin, safeMax), sourceDuration || safeMax);
-  let cursor = 0;
-  while (picked.length < requestedCount && sourceDuration > duration) {
-    const start = clampWindowStartSec(cursor, duration, sourceDuration);
-    const candidate = {
-      start_sec: Number(start.toFixed(3)),
-      duration_sec: Number(duration.toFixed(3)),
-      end_sec: Number((start + duration).toFixed(3)),
-      score: 0,
-      reason: 'fallback_evenly_spaced_highlight_window',
-      selection_strategy: 'fallback_evenly_spaced_highlight_window',
-      selected_scene_ids: [],
-      single_process_only: isLongformHighlightSource(itemConfig),
-      longform_highlight_rule: isLongformHighlightSource(itemConfig) ? 'one_continuous_core_process_natural_end' : undefined,
-      highlight_index: picked.length + 1,
-      highlight_total: requestedCount
-    };
-    const tooClose = picked.some((window) => windowsOverlapSeconds(window, candidate) > 0.25);
-    if (!tooClose) picked.push(candidate);
-    cursor += duration + minGapSec;
-    if (cursor >= sourceDuration) cursor = Math.max(0, sourceDuration - duration - (requestedCount - picked.length) * (duration + minGapSec));
-    if (cursor < 0 || picked.length >= requestedCount || seenKeys.size > requestedCount + 30) break;
-    seenKeys.add(`fallback-${cursor.toFixed(1)}`);
-  }
+  if (longformSource) return picked.length >= requestedCount ? picked : [];
 
   return picked.length ? picked : [primary];
+}
+
+function isLocalOrFallbackLongformWindow(window = {}) {
+  const text = [
+    window?.reason,
+    window?.visual_hook,
+    window?.story_flow,
+    window?.process_flow,
+    window?.opening_type,
+    window?.selection_strategy,
+    window?.local_candidate_strategy?.type
+  ].map((value) => String(value || '').toLowerCase()).join(' ');
+  return /local candidate|local segment|local story|local midform|local_segment_probe|duration_segmented_prepass|fallback_/u.test(text);
+}
+
+function isLocalOrFallbackLongformGuide(guide = {}) {
+  const safeGuide = guide && typeof guide === 'object' ? guide : {};
+  if (safeGuide.local_preprocessed === true || safeGuide.local_candidate_strategy) return true;
+  const buckets = [
+    safeGuide.hook_candidates,
+    safeGuide.story_candidates,
+    safeGuide.midform_candidates,
+    safeGuide.shortform_candidate_windows
+  ];
+  return buckets.some((bucket) => (Array.isArray(bucket) ? bucket : []).some(isLocalOrFallbackLongformWindow));
 }
 
 function getDefaultLongformHighlightWindows(itemConfig = {}, maxDurationSec = 10, limit = MAX_LONGFORM_HIGHLIGHT_CANDIDATES) {
@@ -7017,36 +7730,46 @@ function selectBestHighlightWindow(windows = [], itemConfig = {}, maxDurationSec
 
 function getLongformFullCandidateWindows(itemConfig = {}, targetDurationSec = 60, maxSegmentSec = 10) {
   if (!isLongformHighlightSource(itemConfig)) return [];
-  const sourceDuration = getSourceDurationSec(itemConfig);
-  const baseWindows = getDefaultLongformHighlightWindows(itemConfig, maxSegmentSec, MAX_LONGFORM_HIGHLIGHT_CANDIDATES);
-  const highlightWindow = selectBestHighlightWindow(baseWindows, itemConfig, maxSegmentSec);
+  if (isLocalOrFallbackLongformGuide(itemConfig.ottogi_guide_output || {})) return [];
+  const targetDuration = Math.max(30, Math.min(90, Number(targetDurationSec) || 60));
+  const maxCandidateScenes = 12;
+  const minCandidateScenes = 6;
+  const candidateDurationCap = Math.max(4, Math.min(10, Number(maxSegmentSec) || 10, targetDuration / minCandidateScenes));
+  const baseWindows = getDefaultLongformHighlightWindows(itemConfig, candidateDurationCap, MAX_LONGFORM_HIGHLIGHT_CANDIDATES);
   const normalized = baseWindows
-    .map((window) => normalizeHighlightCandidateWindow(window, itemConfig, maxSegmentSec, 'longform_full_from_highlight_candidate'))
+    .map((window) => normalizeHighlightCandidateWindow(window, itemConfig, candidateDurationCap, 'longform_full_from_highlight_candidate'))
     .filter(Boolean)
-    .filter((window) => {
-      if (!highlightWindow || baseWindows.length <= 1) return true;
-      return windowsOverlapSeconds(window, highlightWindow) <= 0.25;
-    })
-    .sort((a, b) => Number(a.start_sec || 0) - Number(b.start_sec || 0));
+    .sort((a, b) => scoreHighlightWindow(b) - scoreHighlightWindow(a) || Number(a.start_sec || 0) - Number(b.start_sec || 0));
+  const ranked = [];
+  const seen = new Set();
+  for (const window of normalized) {
+    const start = Number(window.start_sec || 0);
+    const end = Number(window.end_sec || (start + Number(window.duration_sec || 0)));
+    const key = `${start.toFixed(1)}-${end.toFixed(1)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    ranked.push(window);
+    if (ranked.length >= maxCandidateScenes) break;
+  }
+
   const picked = [];
   let total = 0;
-  for (const window of normalized) {
-    const duration = Math.min(maxSegmentSec, Math.max(1, Number(window.duration_sec || 0)));
-    if (total + duration > targetDurationSec + 0.25) break;
+  for (const [rankIndex, window] of ranked.entries()) {
+    const duration = Math.min(candidateDurationCap, Math.max(1, Number(window.duration_sec || 0)));
+    if (total + duration > targetDuration + 0.25 && picked.length >= minCandidateScenes) break;
     picked.push({
       ...window,
+      full_candidate_rank: rankIndex + 1,
+      full_explanation_scene: rankIndex < 3,
       duration_sec: Number(duration.toFixed(3)),
       end_sec: Number((Number(window.start_sec || 0) + duration).toFixed(3)),
-      selection_strategy: window.selection_strategy || 'longform_full_from_highlight_candidates'
+      selection_strategy: window.selection_strategy || 'longform_full_from_highlight_candidates',
+      longform_full_role: rankIndex < 3 ? 'direct_explanation_scene' : 'connected_process_backbone_scene'
     });
     total += duration;
+    if (picked.length >= maxCandidateScenes) break;
   }
-  if (!picked.length && sourceDuration > 0) {
-    const best = selectBestHighlightWindow([], itemConfig, maxSegmentSec);
-    const expanded = expandQueueWindowAround(best, Math.min(targetDurationSec, sourceDuration), sourceDuration);
-    return [expanded];
-  }
-  return picked;
+  return picked.sort((a, b) => Number(a.start_sec || 0) - Number(b.start_sec || 0));
 }
 
 function mapWindowScenesToConcatenatedTimeline(itemConfig = {}, windows = []) {
@@ -7308,9 +8031,10 @@ function shiftHighlightSceneTransitions(itemConfig = {}, window = {}) {
 }
 
 function normalizeGuideWindow(window = {}, sourceDuration = 0, fallbackDuration = 30) {
-  const start = Math.max(0, Number(window.start_sec || window.start || 0));
-  const rawEnd = Number(window.end_sec || window.end || 0);
-  const rawDuration = Number(window.duration_sec || window.duration || 0);
+  const guideWindow = window && typeof window === 'object' ? window : {};
+  const start = Math.max(0, Number(guideWindow.start_sec || guideWindow.start || 0));
+  const rawEnd = Number(guideWindow.end_sec || guideWindow.end || 0);
+  const rawDuration = Number(guideWindow.duration_sec || guideWindow.duration || 0);
   const maxSource = Number(sourceDuration || 0);
   const fallback = Math.max(1, Number(fallbackDuration || 30));
   const endFromDuration = start + (rawDuration > 0 ? rawDuration : fallback);
@@ -7318,7 +8042,7 @@ function normalizeGuideWindow(window = {}, sourceDuration = 0, fallbackDuration 
   const boundedEnd = maxSource > 0 ? Math.min(maxSource, end) : end;
   const duration = Math.max(0.8, boundedEnd - start);
   return {
-    ...window,
+    ...guideWindow,
     start_sec: Number(start.toFixed(3)),
     end_sec: Number((start + duration).toFixed(3)),
     duration_sec: Number(duration.toFixed(3))
@@ -8172,7 +8896,21 @@ async function createHighlightDraftForItem({
     maxDurationSec,
     'user_selected_highlight_window'
   );
-  const pickedWindow = highlightWindow || selectedOverrideWindow || pickHighlightWindow(itemForHighlight, maxDurationSec);
+  const geminiBestHighlightWindow = getGeminiBestHighlightWindow(itemForHighlight, maxDurationSec);
+  if (!highlightWindow && !selectedOverrideWindow && !geminiBestHighlightWindow) {
+    const error = new Error('JP Highlight blocked: Gemini did not provide a real best-hook window. Force Gemini reanalysis before draft generation.');
+    error.code = 'OTTOGI_HIGHLIGHT_BEST_HOOK_REQUIRED';
+    error.details = {
+      item_id: itemId,
+      source_type: itemConfig.source_type || '',
+      source_workflow_mode: itemConfig.source_workflow_mode || '',
+      hook_clip_10s: itemConfig.ottogi_guide_output?.hook_clip_10s || null,
+      recommended_highlight_window: itemConfig.ottogi_guide_output?.recommended_highlight_window || null,
+      action: 'force_gemini_reanalysis'
+    };
+    throw error;
+  }
+  const pickedWindow = highlightWindow || selectedOverrideWindow || geminiBestHighlightWindow || pickHighlightWindow(itemForHighlight, maxDurationSec);
   const itemDir = getItemDir(itemId);
   const highlightOrdinal = Math.max(1, Math.round(Number(highlightIndex) || 1));
   const totalHighlights = Math.max(1, Math.round(Number(highlightTotal) || 1));
@@ -8194,14 +8932,20 @@ async function createHighlightDraftForItem({
   const baseHighlightMetadata = getVariantMetadata(baseGuide, 'highlight');
   const highlightGuideTitle = selectGuideTitle(baseGuide, 'highlight');
   const baseHighlightTitle = String(
-    itemConfig.highlight_upload_title ||
+    baseHighlightMetadata.upload_title ||
+      itemConfig.highlight_upload_title ||
       highlightGuideTitle?.title ||
       `${itemConfig.upload_title || baseProjectName} HIGHLIGHT`
   ).trim();
   const highlightTitle = totalHighlights > 1
     ? `${baseHighlightTitle} H${String(highlightOrdinal).padStart(2, '0')}`
     : baseHighlightTitle;
-  const candidateGuide = buildHighlightCandidateGuide(baseGuide, window, highlightOrdinal, totalHighlights, highlightTitle);
+  const candidateGuide = buildHighlightCandidateGuide({
+    ...baseGuide,
+    video_metadata: itemForHighlight.video_metadata || itemConfig.video_metadata || {},
+    source_classification: itemForHighlight.source_classification || itemConfig.source_classification || {},
+    target_duration_sec: itemForHighlight.target_duration_sec || itemConfig.target_duration_sec || 0
+  }, window, highlightOrdinal, totalHighlights, highlightTitle);
   const highlightMetadata = getVariantMetadata(candidateGuide, 'highlight');
   const guideText = stripEmoji(String(
     highlightMetadata.onscreen_caption_block
@@ -8233,8 +8977,12 @@ async function createHighlightDraftForItem({
   const highlightConfigInput = applyOcrMaskConfig({
     ...baseConfig,
     source_video: highlightSourcePath,
+    aux_source_url: '',
+    aux_source_video: '',
     target_duration_sec: window.duration_sec,
-    upload_title: highlightTitle,
+    upload_title: highlightMetadata.upload_title || highlightTitle,
+    upload_description: highlightMetadata.report_description || highlightMetadata.short_description || '',
+    upload_hashtags: Array.isArray(highlightMetadata.hashtags) ? highlightMetadata.hashtags : [],
     channel_asset: highlightChannelAsset,
     channel_frame_asset: disabledChannelFrameAsset(),
     use_bgm: queueConfig.highlight_custom_bgm_path ? true : baseConfig.use_bgm,
@@ -8279,11 +9027,15 @@ async function createHighlightDraftForItem({
     useExistingConfig: false,
     createZip
   });
+  const safeFolderTitleBase = safeJapanesePublicHighlightTitle(highlightMetadata.upload_title || highlightTitle, highlightOrdinal, baseProjectName);
+  const safeFolderTitle = totalHighlights > 1
+    ? `${safeFolderTitleBase} H${String(highlightOrdinal).padStart(2, '0')}`
+    : safeFolderTitleBase;
   const highlightProjectName = draftFolderNameForBatchItem({
     startedAtStamp: draftStartedAtStamp,
     itemNumber,
     variant: 'H',
-    title: highlightTitle || itemConfig.upload_title || baseProjectName,
+    title: safeFolderTitle,
     fallback: `${itemId}_highlight`
   });
   const highlightOutDir = path.join(outputRoot, highlightProjectName);
@@ -8458,6 +9210,8 @@ async function createMidformDraftForItem({
     upload_title: selectGuideTitle(guide, 'midform')?.title || itemConfig.upload_title
   }, itemId);
   const midformConfig = mergeBatchConfig(queueConfig, midformItemConfig);
+  midformConfig.aux_source_url = '';
+  midformConfig.aux_source_video = '';
   const midformChannelAsset = selectQueueAsset(
     queueConfig.midform_channel_asset
   );
@@ -8704,6 +9458,7 @@ function selectKoreanCapcutTemplateDraftName(queueConfig = {}) {
 function buildKoreanFullDraftConfig({ itemId, itemConfig, queueConfig, baseConfig }) {
   const actualSourceDuration = getSourceVideoDurationSec(resolveItemSourcePath(itemConfig), itemConfig);
   const sourceDuration = Number(actualSourceDuration || itemConfig.video_metadata?.duration_sec || itemConfig.target_duration_sec || baseConfig.target_duration_sec || 30);
+  const scriptReviewApprovedForTts = String(itemConfig.script_review?.status || '').trim() === 'approved_for_tts';
   const titleInfo = selectKoreanTitle(itemConfig, 'full');
   const koreanReview = itemConfig.korean_review || {};
   const koreanFullMetadata = getVariantReviewMetadata(itemConfig.ottogi_guide_output || {}, 'full');
@@ -8770,8 +9525,10 @@ function buildKoreanFullDraftConfig({ itemId, itemConfig, queueConfig, baseConfi
     channel_asset: channelAsset,
     channel_frame_asset: disabledChannelFrameAsset(),
     video_transform_preset: fullTransform.presetId,
-    use_tts: false,
-    subtitle_delivery_mode: KOREAN_FULL_SRT_DELIVERY_MODE,
+    use_tts: queueConfig.use_tts === true && scriptReviewApprovedForTts,
+    subtitle_delivery_mode: queueConfig.use_tts === true && scriptReviewApprovedForTts
+      ? KOREAN_FULL_TTS_DELIVERY_MODE
+      : KOREAN_FULL_SRT_DELIVERY_MODE,
     korean_full_srt_chars_per_sec: koreanFullSrtCharsPerSec(baseConfig, itemConfig, queueConfig),
     use_bgm: queueConfig.korean_custom_bgm_path ? true : baseConfig.use_bgm,
     custom_bgm_path: queueConfig.korean_custom_bgm_path || baseConfig.custom_bgm_path || '',
@@ -8795,22 +9552,35 @@ async function createKoreanFullDraftForItem({
 }) {
   const titleInfo = selectKoreanTitle(itemConfig, 'full');
   const koreanConfig = buildKoreanFullDraftConfig({ itemId, itemConfig, queueConfig, baseConfig });
-  const srtPlan = buildKoreanFullDraftTtsPlan({ itemId, itemConfig, draftConfig: koreanConfig });
-  const ttsAssets = writeKoreanFullDraftSrtFile({ itemId, itemConfig, draftConfig: koreanConfig, queueConfig, plan: srtPlan });
+  const ttsAssets = koreanConfig.use_tts === true
+    ? await generateKoreanFullDraftTtsAssets({ itemId, itemConfig, draftConfig: koreanConfig })
+    : writeKoreanFullDraftSrtFile({
+        itemId,
+        itemConfig,
+        draftConfig: koreanConfig,
+        queueConfig,
+        plan: buildKoreanFullDraftTtsPlan({ itemId, itemConfig, draftConfig: koreanConfig })
+      });
+  const captionUnits = koreanConfig.use_tts === true
+    ? buildKoreanFullTtsCaptionUnits({ plan: ttsAssets.plan, ttsFiles: ttsAssets.ttsFiles })
+    : [];
+  if (captionUnits.length) {
+    koreanConfig.explainer_blocks = buildKoreanFullTtsExplainerBlocks(captionUnits);
+  }
   const syncEvidence = buildKoreanFullSyncEvidence({
     itemConfig,
     draftConfig: koreanConfig,
-    ttsFiles: [],
+    ttsFiles: ttsAssets.ttsFiles || [],
     plan: ttsAssets.plan,
-    syncDecision: 'srt_only_external_warning'
+    syncDecision: koreanConfig.use_tts === true ? 'real_tts_caption_units' : 'srt_only_external_warning'
   });
   koreanConfig.korean_full_sync_evidence = syncEvidence;
   const result = await createProcessDraft({
     config: koreanConfig,
     useExistingConfig: false,
     createZip,
-    ttsFiles: [],
-    captionUnits: [],
+    ttsFiles: ttsAssets.ttsFiles || [],
+    captionUnits,
     captionWarnings: ttsAssets.plan.warnings,
     srtFile: ttsAssets.srtPath
   });
@@ -8828,9 +9598,10 @@ async function createKoreanFullDraftForItem({
   attachJsonFilePatch(path.join(outDir, 'edit_manifest.json'), {
     korean_full_tts_plan: {
       enabled: koreanConfig.use_tts === true,
-      delivery_mode: KOREAN_FULL_SRT_DELIVERY_MODE,
+      delivery_mode: koreanConfig.subtitle_delivery_mode,
       sentence_count: ttsAssets.plan.sentence_count,
-      tts_call_count: 0,
+      tts_call_count: koreanConfig.use_tts === true ? ttsAssets.plan.tts_call_count : 0,
+      caption_units_count: captionUnits.length,
       warning_count: ttsAssets.plan.warnings.length,
       batch_id: ttsAssets.batchId || ''
     },
@@ -8845,7 +9616,7 @@ async function createKoreanFullDraftForItem({
       variant: 'full',
       language: 'ko',
       source_item_id: itemId,
-      caption_mode: 'external_srt_only',
+      caption_mode: koreanConfig.use_tts === true ? 'tts_caption_units' : 'external_srt_only',
       full_draft_video_transform_analysis: koreanConfig.full_draft_video_transform_analysis || null
     },
     final_caption_normalization: finalCaptionNormalization,
@@ -8863,10 +9634,13 @@ async function createKoreanFullDraftForItem({
       '## Korean Full Draft',
       '- Enabled: true',
       '- Language: ko',
-      '- Caption Mode: external SRT only',
+      `- Caption Mode: ${koreanConfig.use_tts === true ? 'TTS caption units' : 'external SRT only'}`,
       `- External SRT: ${ttsAssets.srtPath}`,
-      `- SRT chars/sec: ${ttsAssets.charsPerSec}`,
-      ...ttsAssets.srtWarnings.map((warning) => `- SRT Warning: ${warning}`),
+      `- SRT chars/sec: ${ttsAssets.charsPerSec || koreanFullSrtCharsPerSec(koreanConfig, itemConfig, queueConfig)}`,
+      ...((ttsAssets.srtWarnings || []).map((warning) => `- SRT Warning: ${warning}`)),
+      `- TTS Batch: ${ttsAssets.batchId || 'none'}`,
+      `- TTS Files: ${(ttsAssets.ttsFiles || []).length}`,
+      `- Caption Units: ${captionUnits.length}`,
       `- Auto Full Video Transform Preset: ${koreanConfig.full_draft_video_transform_analysis?.selected_preset_id || koreanConfig.video_transform_preset || 'unknown'}`,
       `- Full Transform Reason: ${koreanConfig.full_draft_video_transform_analysis?.reason || 'unknown'}`,
       `- Korean BGM: ${queueConfig.korean_custom_bgm_original_name || queueConfig.korean_custom_bgm_path || 'default/full BGM'}`,
@@ -9160,7 +9934,7 @@ async function generateQueue({ batch_name, item_ids, stop_on_error = false, draf
       midform_logo_path: queueConfig.midform_channel_asset?.path || '',
       video_transform_preset: queueConfig.video_transform_preset,
       create_highlight_draft: queueConfig.create_highlight_draft === true,
-      create_midform_draft: queueConfig.create_midform_draft !== false,
+      create_midform_draft: false,
       create_korean_drafts: queueConfig.create_korean_drafts === true,
       highlight_duration_sec: queueConfig.highlight_duration_sec || 10,
       midform_duration_sec: queueConfig.midform_duration_sec || 120,
@@ -9215,7 +9989,7 @@ async function generateQueue({ batch_name, item_ids, stop_on_error = false, draf
       ocr_text_detection: null,
       korean_full_status: queueConfig.create_korean_drafts === true ? 'pending' : 'disabled',
       korean_highlight_status: queueConfig.create_korean_drafts === true && queueConfig.create_highlight_draft === true ? 'pending' : 'disabled',
-      midform_status: queueConfig.create_midform_draft !== false ? 'pending' : 'disabled',
+      midform_status: 'disabled',
       warnings: []
     };
 
@@ -9241,11 +10015,11 @@ async function generateQueue({ batch_name, item_ids, stop_on_error = false, draf
       }
 
       const itemDraftVariantMode = effectiveDraftVariantModeForItem(normalizedDraftVariantMode, itemConfig);
-      const wantsFullDraft = ['all', 'full_highlight_only', 'full_only'].includes(itemDraftVariantMode);
+      const wantsFullDraft = false;
       const wantsHighlightDraft = ['all', 'full_highlight_only'].includes(itemDraftVariantMode)
         ? queueConfig.create_highlight_draft === true
         : itemDraftVariantMode === 'highlight_only';
-      const wantsMidformDraft = ['all', 'midform_only'].includes(itemDraftVariantMode);
+      const wantsMidformDraft = false;
       const guideOutput = itemConfig.ottogi_guide_output || {};
       const fullAnalysisReady = guideOutput.full_generation_status !== 'failed' && guideOutput.full_generation_status !== 'held';
       const highlightAnalysisReady = guideOutput.highlight_generation_status !== 'failed';
@@ -9306,12 +10080,12 @@ async function generateQueue({ batch_name, item_ids, stop_on_error = false, draf
           row.output_folder = '';
           row.full_status = wantsFullDraft && !fullAnalysisReady
             ? (guideOutput.full_generation_status === 'held' ? 'held' : 'failed')
-            : 'skipped';
+            : 'disabled';
           row.full_error = wantsFullDraft && !fullAnalysisReady
             ? (guideOutput.full_generation_error || 'Full Gemini analysis failed')
             : '';
           row.direct_render_status = 'skipped';
-          row.warnings.push(`full draft skipped: ${fullAnalysisReady ? outputDecision.skip_reason : (guideOutput.full_generation_error || 'Full metadata analysis failed')}`);
+          row.full_skip_reason = 'Full Draft generation is policy-disabled; active Phase 2 outputs are JP Highlight only.';
         } else {
           row.ocr_text_detection_status = 'disabled_fixed_mask';
           row.ocr_text_detection = {
@@ -9352,6 +10126,20 @@ async function generateQueue({ batch_name, item_ids, stop_on_error = false, draf
             queueConfig,
             baseConfig: mergedConfig
           });
+          const auxSourcePath = getItemAuxSourcePath(itemId);
+          if (String(fullDraftItemConfig.aux_source_url || '').trim() && fs.existsSync(auxSourcePath)) {
+            koreanFullConfig.aux_source_video = auxSourcePath;
+            koreanFullConfig.aux_source_url = String(fullDraftItemConfig.aux_source_url || '').trim();
+            const auxSemantic = await prepareFullDraftAuxSemanticMatch({
+              itemId,
+              itemConfig: fullDraftItemConfig,
+              auxSourcePath
+            });
+            row.aux_semantic_match = auxSemantic.summary;
+            if (auxSemantic.match) {
+              koreanFullConfig.aux_scene_match = auxSemantic.match;
+            }
+          }
           koreanFullConfig.source_preprocess = mergedConfig.source_preprocess;
           koreanFullConfig.ocr_mask_overlay = mergedConfig.ocr_mask_overlay;
           const koreanFullPlan = buildKoreanFullDraftTtsPlan({
@@ -9359,27 +10147,40 @@ async function generateQueue({ batch_name, item_ids, stop_on_error = false, draf
             itemConfig: fullDraftItemConfig,
             draftConfig: koreanFullConfig
           });
-          const koreanFullTtsAssets = writeKoreanFullDraftSrtFile({
-            itemId,
-            itemConfig: fullDraftItemConfig,
-            draftConfig: koreanFullConfig,
-            queueConfig,
-            plan: koreanFullPlan
-          });
+          const koreanFullTtsAssets = koreanFullConfig.use_tts === true
+            ? await generateKoreanFullDraftTtsAssets({
+                itemId,
+                itemConfig: fullDraftItemConfig,
+                draftConfig: koreanFullConfig
+              })
+            : writeKoreanFullDraftSrtFile({
+                itemId,
+                itemConfig: fullDraftItemConfig,
+                draftConfig: koreanFullConfig,
+                queueConfig,
+                plan: koreanFullPlan
+              });
+          const koreanFullCaptionUnits = koreanFullConfig.use_tts === true
+            ? buildKoreanFullTtsCaptionUnits({ plan: koreanFullTtsAssets.plan, ttsFiles: koreanFullTtsAssets.ttsFiles })
+            : [];
+          if (koreanFullCaptionUnits.length) {
+            koreanFullConfig.explainer_blocks = buildKoreanFullTtsExplainerBlocks(koreanFullCaptionUnits);
+          }
           row.korean_full_tts = {
-            enabled: false,
-            delivery_mode: KOREAN_FULL_SRT_DELIVERY_MODE,
+            enabled: koreanFullConfig.use_tts === true,
+            delivery_mode: koreanFullConfig.subtitle_delivery_mode,
             sentence_count: koreanFullTtsAssets.plan.sentence_count,
-            tts_call_count: 0,
+            tts_call_count: koreanFullConfig.use_tts === true ? koreanFullTtsAssets.plan.tts_call_count : 0,
+            caption_units_count: koreanFullCaptionUnits.length,
             warning_count: koreanFullTtsAssets.plan.warnings.length,
             batch_id: koreanFullTtsAssets.batchId || ''
           };
           const koreanFullSyncEvidence = buildKoreanFullSyncEvidence({
             itemConfig: fullDraftItemConfig,
             draftConfig: koreanFullConfig,
-            ttsFiles: [],
+            ttsFiles: koreanFullTtsAssets.ttsFiles || [],
             plan: koreanFullTtsAssets.plan,
-            syncDecision: 'srt_only_external_warning'
+            syncDecision: koreanFullConfig.use_tts === true ? 'real_tts_caption_units' : 'srt_only_external_warning'
           });
           koreanFullConfig.korean_full_sync_evidence = koreanFullSyncEvidence;
           row.korean_full_sync_evidence = koreanFullSyncEvidence;
@@ -9387,8 +10188,8 @@ async function generateQueue({ batch_name, item_ids, stop_on_error = false, draf
             config: koreanFullConfig,
             useExistingConfig: false,
             createZip,
-            ttsFiles: [],
-            captionUnits: [],
+            ttsFiles: koreanFullTtsAssets.ttsFiles || [],
+            captionUnits: koreanFullCaptionUnits,
             captionWarnings: koreanFullTtsAssets.plan.warnings,
             srtFile: koreanFullTtsAssets.srtPath
           });
@@ -9421,12 +10222,14 @@ async function generateQueue({ batch_name, item_ids, stop_on_error = false, draf
             source_workflow_mode: itemConfig.source_workflow_mode || 'unknown',
             full_source_window: fullDraftPreparation.sourceWindow || null,
             full_draft_video_transform_analysis: koreanFullConfig.full_draft_video_transform_analysis || null,
+            aux_source_video_path: koreanFullConfig.aux_source_video || '',
+            aux_semantic_match: row.aux_semantic_match || null,
             korean_draft: {
               enabled: true,
               variant: 'full',
               language: OUTPUT_CONFIG.full_draft.lang,
               source_item_id: itemId,
-              caption_mode: 'external_srt_only',
+              caption_mode: koreanFullConfig.use_tts === true ? 'tts_caption_units' : 'external_srt_only',
               product_rule: `${OUTPUT_CONFIG.full_draft.label}_and_${OUTPUT_CONFIG.highlight.label}`
             },
             korean_full_tts_plan: row.korean_full_tts,
@@ -9502,18 +10305,37 @@ async function generateQueue({ batch_name, item_ids, stop_on_error = false, draf
       if (shouldGenerateHighlightDraft) {
         try {
           const isLongformHighlight = isLongformHighlightSource(itemConfig);
-          const highlightWindows = isLongformHighlight
-            ? [selectBestHighlightWindow(
-                [],
-                itemConfig,
-                highlightMaxDurationForItem(itemConfig, queueConfig.highlight_duration_sec)
-              )]
-            : [null];
+          const requestedHighlightCount = highlightOutputCountForItem(itemConfig);
+          const highlightWindows = pickHighlightWindows(
+            itemConfig,
+            highlightMaxDurationForItem(itemConfig, queueConfig.highlight_duration_sec),
+            requestedHighlightCount
+          );
           if (!highlightWindows.length) {
+            if (isLongformHighlight) {
+              const guide = itemConfig.ottogi_guide_output || {};
+              const error = new Error('longform highlight draft blocked: no Gemini/Vision-backed highlight candidates available');
+              error.code = 'OTTOGI_LONGFORM_HIGHLIGHT_CANDIDATES_REQUIRED';
+              error.details = {
+                item_id: itemId,
+                source_type: itemConfig.source_type || '',
+                source_workflow_mode: itemConfig.source_workflow_mode || '',
+                reason: 'generic_or_local_fallback_candidates_are_not_valid_for_longform_five_highlights',
+                shortform_candidate_count: Array.isArray(guide.shortform_candidate_windows) ? guide.shortform_candidate_windows.length : 0,
+                hook_candidate_count: Array.isArray(guide.hook_candidates) ? guide.hook_candidates.length : 0,
+                scene_count: Array.isArray(guide.scene_transitions) ? guide.scene_transitions.length : 0,
+                first_candidate_reason: String(guide.shortform_candidate_windows?.[0]?.reason || guide.hook_candidates?.[0]?.reason || '').slice(0, 240),
+                first_scene_change_type: String(guide.scene_transitions?.[0]?.change_type || '').slice(0, 120),
+                first_scene_caption: String(guide.scene_transitions?.[0]?.caption_text || '').slice(0, 120),
+                recommended_action: 'Run Gemini/Vision reanalysis that returns scene-specific, non-generic longform highlight candidates before generating five JP Highlights.'
+              };
+              throw error;
+            }
             row.highlight_status = 'skipped';
             row.highlight_skip_reason = 'all highlight candidates were excluded';
             row.warnings.push(row.highlight_skip_reason);
           } else {
+          assertHighlightCandidateMetadataDistinct(itemConfig, highlightWindows);
           const highlightResults = [];
           for (const [highlightIndex, highlightWindow] of highlightWindows.entries()) {
             const highlight = await createHighlightDraftForItem({
@@ -9569,10 +10391,12 @@ async function generateQueue({ batch_name, item_ids, stop_on_error = false, draf
         } catch (highlightError) {
           row.highlight_status = 'failed';
           row.highlight_error = highlightError.message;
+          row.highlight_error_code = highlightError.code || highlightError.errorCode || '';
+          row.highlight_error_details = highlightError.details || highlightError.data || null;
           row.warnings.push(`highlight draft failed: ${highlightError.message}`);
         }
       }
-      const shouldGenerateMidformDraft = queueConfig.create_midform_draft !== false
+      const shouldGenerateMidformDraft = false
         && wantsMidformDraft
         && outputDecision.skip_midform_draft !== true
         && itemConfig.ottogi_guide_output?.midform_generation_status !== 'failed';
@@ -9617,10 +10441,10 @@ async function generateQueue({ batch_name, item_ids, stop_on_error = false, draf
           row.warnings.push(`midform draft failed: ${midformError.message}`);
         }
       }
-      row.korean_full_status = shouldGenerateFullDraft ? 'success' : 'skipped';
+      row.korean_full_status = shouldGenerateFullDraft ? 'success' : 'disabled';
       row.korean_full_output_folder = shouldGenerateFullDraft ? row.output_folder : '';
       row.korean_full_final_mp4_path = shouldGenerateFullDraft ? row.final_mp4_path : '';
-      row.korean_full_direct_render_status = shouldGenerateFullDraft ? row.direct_render_status : 'skipped';
+      row.korean_full_direct_render_status = shouldGenerateFullDraft ? row.direct_render_status : 'disabled';
       row.korean_highlight_status = 'disabled';
       if (!shouldGenerateFullDraft) {
         if (row.highlight_status === 'success' || row.midform_status === 'success' || row.korean_highlight_status === 'success') {
@@ -9628,7 +10452,10 @@ async function generateQueue({ batch_name, item_ids, stop_on_error = false, draf
         } else if (row.full_status === 'held') {
           row.status = 'held';
         } else {
-          throw new Error(row.highlight_error || row.midform_error || 'requested item did not produce any draft');
+          const noDraftError = new Error(row.highlight_error || row.midform_error || 'requested item did not produce any draft');
+          noDraftError.code = row.highlight_error_code || row.midform_error_code || '';
+          noDraftError.details = row.highlight_error_details || row.midform_error_details || null;
+          throw noDraftError;
         }
       }
       row.warnings = [
@@ -9684,10 +10511,10 @@ async function generateQueue({ batch_name, item_ids, stop_on_error = false, draf
     `- Failed Count: ${report.failed_count}`,
     `- Stop On Error: ${String(!!stop_on_error)}`,
     `- Highlight Drafts: ${queueConfig.create_highlight_draft === true ? 'enabled' : 'disabled'}`,
-    `- Midform Drafts: ${queueConfig.create_midform_draft !== false ? 'enabled' : 'disabled'}`,
+    '- Midform Drafts: disabled (removed from current JP Highlight-only contract)',
     '- Korean Drafts: disabled (Korean is review-only inside JP metadata TXT)',
     `- Highlight Max Duration Sec: ${queueConfig.highlight_duration_sec || 10}`,
-    `- Midform Target Duration Sec: ${queueConfig.midform_duration_sec || 120}`,
+    '- Midform Target Duration Sec: n/a',
     '',
     '## Items',
     ...report.items.map((item) => `- ${item.item_id}: ${item.status}${item.output_mode ? ` mode=${item.output_mode}` : ''}${item.skip_full_draft ? ' full=skipped' : ''}${item.full_preroll_hook?.applied ? ` full_hook=${item.full_preroll_hook.source_start_sec}~${item.full_preroll_hook.source_end_sec}s` : ''}${item.output_folder ? ` (${item.output_folder})` : ''}${item.highlight_status && item.highlight_status !== 'disabled' ? ` highlight=${item.highlight_status}${item.highlight_output_folder ? ` (${item.highlight_output_folder})` : ''}` : ''}${item.midform_status && item.midform_status !== 'disabled' ? ` midform=${item.midform_status}${item.midform_output_folder ? ` (${item.midform_output_folder})` : ''}` : ''}${item.ocr_text_detection_status ? ` OCR=${item.ocr_text_detection_status}${item.ocr_text_detection?.regions_count !== undefined ? `(${item.ocr_text_detection.regions_count})` : ''}` : ''}${item.zip_file ? ` zip=${item.zip_file}` : ''}${item.error ? ` - ${item.error}` : ''}`)
@@ -9787,14 +10614,30 @@ module.exports = {
     assertKoreanFullTtsFitsVideoTimeline,
     buildKoreanFullDraftTtsPlan,
     buildKoreanFullSyncEvidence,
+    decideOutputModeForItem,
+    decideSourceLaneForItem,
+    effectiveDraftVariantModeForItem,
     normalizeAnchorSceneTransitions,
+    pickHighlightWindow,
+    pickHighlightWindows,
     regroupKoreanFullCaptionScript,
     simulateAnchoredSentencePlacement,
     sumTtsDurationSec,
     splitKoreanTtsSentenceIntoCaptionSlices,
+    buildHighlightCandidatePayload,
     classifyHighlightHook,
+    buildHighlightCandidateGuide,
+    highlightMetadataBodiesAreDistinct,
+    assertHighlightCandidateMetadataDistinct,
+    isGenericSceneExplanation,
+    normalizeHighlightCompareText,
+    rankedTitleCandidate,
     buildHighlightHookZoomOutPreset,
-    buildLongformHighlightTwoLayerPreset
+    buildLongformHighlightTwoLayerPreset,
+    highlightOutputCountForItem,
+    LONGFORM_COMPRESS_LANE_MIN_SOURCE_SEC,
+    SOURCE_LANE_LONGFORM_COMPRESS,
+    SOURCE_LANE_STANDARD_SHORTFORM
   }
 };
 

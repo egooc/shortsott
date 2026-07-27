@@ -6,6 +6,7 @@ const { GoogleAuth } = require('google-auth-library');
 const { createHttpError } = require('./errorService');
 const { loadPrompt } = require('./promptService');
 const { computeCutSelectionTier } = require('../utils/cutSelectionTier');
+const { SHORTFORM_FULL_DRAFT_SKIP_MAX_DURATION_SEC } = require('../utils/fullDraftRules');
 
 const GEMINI_MODEL = 'gemini-2.5-flash';
 const DEFAULT_VERTEX_LOCATION = 'global';
@@ -46,11 +47,13 @@ const LOCAL_LONGFORM_HOOK_DURATION_SEC = 16;
 const LOCAL_LONGFORM_STORY_DURATION_SEC = 60;
 const LOCAL_LONGFORM_MIDFORM_DURATION_SEC = 120;
 const ULTRA_LONGFORM_ANALYSIS_HORIZON_SEC = 1800;
+const LONGFORM_VISION_CANDIDATE_SCHEMA_VERSION = 'longform_vision_candidates_v1';
+const LONGFORM_MIN_PRODUCTION_HOOK_CANDIDATES = 5;
 const SHORT_DESCRIPTION_SOFT_MAX = 260;
 const MIDFORM_CAPTION_MIN_ITEMS_120S = 30;
 const MIDFORM_CAPTION_MAX_ITEMS_120S = 45;
 const MIDFORM_CAPTION_SPLIT_COUNT = 2;
-const KOREAN_FULL_SPEECH_CHARS_PER_SEC = 5.0;
+const KOREAN_FULL_SPEECH_CHARS_PER_SEC = 7.12;
 const KOREAN_FULL_SPEECH_SAFETY_RATIO = 0.90;
 const KOREAN_FULL_SPEECH_DEFAULT_MARGIN_SEC = 1.5;
 const KOREAN_FULL_SPEECH_DEFAULT_SENTENCE_COUNT = 22;
@@ -258,6 +261,25 @@ function koreanFullSpeechBudgetPromptLines(budget = {}) {
   ];
 }
 
+function koreanFullKnowledgeNarrationDistributionPromptLines(budget = {}) {
+  const normalized = calculateKoreanFullSpeechBudget({
+    targetDurationSec: budget.target_duration_sec,
+    prerollSec: budget.preroll_sec,
+    marginSec: budget.margin_sec,
+    sentenceCount: budget.target_sentence_count
+  });
+  const itemCount = Math.max(20, Math.min(24, Number(normalized.target_sentence_count || 22)));
+  const minAverage = Math.max(1, Math.ceil(normalized.min_chars / itemCount));
+  const targetAverage = Math.max(minAverage, Math.ceil(normalized.target_chars / itemCount));
+  return [
+    `- Korean Full length distribution: write ${itemCount} items totaling ${normalized.min_chars}-${normalized.max_chars} Korean visible characters. Target average is about ${targetAverage} Korean chars per item; never average below ${minAverage}.`,
+    '- Keep the scene_observation items very short. Use the other roughly 19 knowledge-narration items to carry the length budget.',
+    '- Practical allocation: scene_observation items may be 5-8 Korean chars each; process_purpose, technical_context, method, quality_reason, emotional_expression, and closing items should usually be 9-11 Korean chars each when the budget needs more text.',
+    '- Use story_outline.knowledge_angle aggressively: add why/meaning/risk/quality sentences between visible scene beats so the script reaches the length budget without adding extra scene_observation roles.',
+    '- If the draft is under the minimum, add knowledge narration, not more scene descriptions.'
+  ];
+}
+
 const OTTOGI_VARIANT_METADATA_SCHEMA = {
   type: 'object',
   properties: {
@@ -439,6 +461,15 @@ const OTTOGI_METADATA_SCHEMA = {
           end_sec: { type: 'number' },
           purpose: { type: 'string' },
           hook_score: { type: 'number' },
+          visual_hook: { type: 'string' },
+          why_this_clip: { type: 'string' },
+          first_second_hook: { type: 'string' },
+          edit_note: { type: 'string' },
+          scene_specific_explanation_ja: { type: 'string' },
+          scene_specific_explanation_ko: { type: 'string' },
+          distinct_action: { type: 'string' },
+          material_or_tool_focus: { type: 'string' },
+          visual_change: { type: 'string' },
           process_coverage: { type: 'string' },
           crop_hint: { type: 'string' },
           reason: { type: 'string' },
@@ -467,6 +498,12 @@ const OTTOGI_METADATA_SCHEMA = {
           end_sec: { type: 'number' },
           transition_at_sec: { type: 'number' },
           visual_summary: { type: 'string' },
+          scene_specific_explanation_ja: { type: 'string' },
+          scene_specific_explanation_ko: { type: 'string' },
+          distinct_action: { type: 'string' },
+          material_or_tool_focus: { type: 'string' },
+          visual_change: { type: 'string' },
+          why_distinct_from_neighbors: { type: 'string' },
           caption_text: { type: 'string' },
           caption_text_ko: { type: 'string' },
           screen_captions_ja: { type: 'array', items: { type: 'string' } },
@@ -501,6 +538,12 @@ const OTTOGI_METADATA_SCHEMA = {
           'end_sec',
           'transition_at_sec',
           'visual_summary',
+          'scene_specific_explanation_ja',
+          'scene_specific_explanation_ko',
+          'distinct_action',
+          'material_or_tool_focus',
+          'visual_change',
+          'why_distinct_from_neighbors',
           'caption_text',
           'focus_zone',
           'recommended_camera_move',
@@ -542,6 +585,51 @@ const OTTOGI_SCENE_SCHEMA = {
     highlight_hook_captions_ko: { type: 'array', items: { type: 'string' } }
   },
   required: ['scene_transitions']
+};
+
+const AUX_SCENE_TRANSITIONS_SCHEMA = {
+  type: 'object',
+  properties: {
+    scene_transitions: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          scene_id: { type: 'string' },
+          start_sec: { type: 'number' },
+          end_sec: { type: 'number' },
+          visual_summary: { type: 'string' },
+          focus_target: { type: 'string' },
+          process_focus_priority: { type: 'string' },
+          action_keywords: { type: 'array', items: { type: 'string' } }
+        },
+        required: ['scene_id', 'start_sec', 'end_sec', 'visual_summary', 'focus_target', 'process_focus_priority']
+      }
+    }
+  },
+  required: ['scene_transitions']
+};
+
+const AUX_SCENE_MATCH_SCHEMA = {
+  type: 'object',
+  properties: {
+    matches: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          main_scene_id: { type: 'string' },
+          aux_scene_id: { type: 'string' },
+          aux_start_sec: { type: 'number' },
+          aux_end_sec: { type: 'number' },
+          match_reason: { type: 'string' },
+          confidence: { type: 'string' }
+        },
+        required: ['main_scene_id', 'aux_scene_id', 'aux_start_sec', 'aux_end_sec', 'match_reason']
+      }
+    }
+  },
+  required: ['matches']
 };
 
 const LONGFORM_CANDIDATE_SCHEMA = {
@@ -610,7 +698,7 @@ const LONGFORM_CANDIDATE_SCHEMA = {
       }
     }
   },
-  required: ['source_time_basis', 'hook_candidates', 'story_candidates']
+  required: ['source_time_basis', 'hook_candidates']
 };
 
 const LONGFORM_HOOK_SCHEMA = {
@@ -690,7 +778,106 @@ const OTTOGI_METADATA_ONLY_SCHEMA = {
   required: ['short_description_ko', 'recommended_titles_ko', 'report_description_ko', 'explainer_text_ko', 'full_metadata_ko', 'full_caption_script_ko']
 };
 
-const OTTOGI_REVIEW_SCHEMA = OTTOGI_METADATA_SCHEMA;
+const LOOSE_OBJECT_SCHEMA = { type: 'object' };
+
+const OTTOGI_HIGHLIGHT_METADATA_ONLY_SCHEMA = {
+  type: 'object',
+  properties: {
+    short_description_200: { type: 'string' },
+    short_description_ko: { type: 'string' },
+    recommended_titles: OTTOGI_METADATA_SCHEMA.properties.recommended_titles,
+    recommended_titles_ko: OTTOGI_METADATA_SCHEMA.properties.recommended_titles_ko,
+    report_description: { type: 'string' },
+    report_description_ko: { type: 'string' },
+    explainer_text: { type: 'string' },
+    explainer_text_ko: { type: 'string' },
+    highlight_explainer_text: { type: 'string' },
+    highlight_explainer_text_ko: { type: 'string' },
+    highlight_metadata: OTTOGI_VARIANT_METADATA_SCHEMA,
+    highlight_metadata_ko: OTTOGI_VARIANT_METADATA_SCHEMA,
+    regional_editing_strategy: { type: 'object' },
+    variant_strategy: { type: 'object' },
+    detected_subject: { type: 'string' },
+    safety_note: { type: 'string' },
+    source_url: { type: 'string' }
+  },
+  required: ['highlight_metadata', 'highlight_metadata_ko']
+};
+
+// Review is a text-only quality gate over an already generated draft. Keep this schema
+// deliberately loose: using the full metadata schema here can make Vertex reject the
+// request before the local salvage/partial-validation path gets a chance to run.
+const OTTOGI_REVIEW_SCHEMA = {
+  type: 'object',
+  properties: {
+    short_description_200: { type: 'string' },
+    short_description_ko: { type: 'string' },
+    recommended_titles: OTTOGI_METADATA_SCHEMA.properties.recommended_titles,
+    recommended_titles_ko: OTTOGI_METADATA_SCHEMA.properties.recommended_titles_ko,
+    report_description: { type: 'string' },
+    report_description_ko: { type: 'string' },
+    explainer_text: { type: 'string' },
+    explainer_text_ko: { type: 'string' },
+    highlight_explainer_text: { type: 'string' },
+    highlight_explainer_text_ko: { type: 'string' },
+    full_metadata: LOOSE_OBJECT_SCHEMA,
+    full_metadata_ko: LOOSE_OBJECT_SCHEMA,
+    highlight_metadata: LOOSE_OBJECT_SCHEMA,
+    highlight_metadata_ko: LOOSE_OBJECT_SCHEMA,
+    midform_metadata: LOOSE_OBJECT_SCHEMA,
+    midform_metadata_ko: LOOSE_OBJECT_SCHEMA,
+    full_caption_script_ko: OTTOGI_METADATA_SCHEMA.properties.full_caption_script_ko,
+    midform_caption_script_ja: OTTOGI_METADATA_SCHEMA.properties.midform_caption_script_ja,
+    midform_caption_script_ko: OTTOGI_METADATA_SCHEMA.properties.midform_caption_script_ko,
+    highlight_hook_captions_ja: { type: 'array', items: { type: 'string' } },
+    highlight_hook_captions_ko: { type: 'array', items: { type: 'string' } },
+    regional_editing_strategy: { type: 'object' },
+    variant_strategy: { type: 'object' },
+    detected_subject: { type: 'string' },
+    safety_note: { type: 'string' },
+    source_url: { type: 'string' },
+    scene_transitions: {
+      type: 'array',
+      items: LOOSE_OBJECT_SCHEMA
+    },
+    full_generation_status: { type: 'string' },
+    highlight_generation_status: { type: 'string' },
+    midform_generation_status: { type: 'string' }
+  },
+  required: ['scene_transitions']
+};
+
+const OTTOGI_HIGHLIGHT_ONLY_REVIEW_SCHEMA = {
+  type: 'object',
+  properties: {
+    short_description_200: { type: 'string' },
+    short_description_ko: { type: 'string' },
+    recommended_titles: OTTOGI_METADATA_SCHEMA.properties.recommended_titles,
+    recommended_titles_ko: OTTOGI_METADATA_SCHEMA.properties.recommended_titles_ko,
+    report_description: { type: 'string' },
+    report_description_ko: { type: 'string' },
+    explainer_text: { type: 'string' },
+    explainer_text_ko: { type: 'string' },
+    highlight_explainer_text: { type: 'string' },
+    highlight_explainer_text_ko: { type: 'string' },
+    highlight_metadata: LOOSE_OBJECT_SCHEMA,
+    highlight_metadata_ko: LOOSE_OBJECT_SCHEMA,
+    highlight_hook_captions_ja: { type: 'array', items: { type: 'string' } },
+    highlight_hook_captions_ko: { type: 'array', items: { type: 'string' } },
+    regional_editing_strategy: { type: 'object' },
+    variant_strategy: { type: 'object' },
+    detected_subject: { type: 'string' },
+    safety_note: { type: 'string' },
+    source_url: { type: 'string' },
+    scene_transitions: {
+      type: 'array',
+      items: LOOSE_OBJECT_SCHEMA
+    },
+    full_generation_status: { type: 'string' },
+    highlight_generation_status: { type: 'string' }
+  },
+  required: ['highlight_metadata', 'highlight_metadata_ko', 'scene_transitions']
+};
 
 const OTTOGI_CAPTION_REPAIR_SCHEMA = {
   type: 'object',
@@ -808,9 +995,9 @@ const DEFAULT_REGIONAL_EDITING_STRATEGY = {
 
 const DEFAULT_VARIANT_STRATEGY = {
   jp_full: {
-    cut_plan_source: 'full_cut_plan_base',
-    caption_goal: 'process observation and satisfying flow',
-    metadata_goal: 'Japanese process-observation upload copy'
+    cut_plan_source: 'disabled',
+    caption_goal: 'disabled by active Highlight-only policy',
+    metadata_goal: 'disabled by active Highlight-only policy'
   },
   jp_highlight: {
     cut_plan_source: 'highlight_cut_plan_base',
@@ -818,16 +1005,16 @@ const DEFAULT_VARIANT_STRATEGY = {
     metadata_goal: 'Japanese visual-hook upload copy'
   },
   jp_midform: {
-    cut_plan_source: 'midform_cut_plan_base',
-    caption_goal: 'fuller Japanese process-flow explanation across the selected 120-second window',
-    metadata_goal: 'Japanese midform process upload copy'
+    cut_plan_source: 'disabled',
+    caption_goal: 'disabled by active Highlight-only policy',
+    metadata_goal: 'disabled by active Highlight-only policy'
   },
   ko_review: {
     cut_plan_source: 'none',
     caption_goal: 'Korean review text only for local checking',
     metadata_goal: 'review-only Korean summary that must not be uploaded'
   },
-  phase2_note: 'Phase 2 creates JP Full, JP Highlight, and JP Midform drafts only. Korean text is review-only inside each TXT package and must not become upload metadata or a draft variant.'
+  phase2_note: 'Phase 2 creates JP Highlight-only drafts. Full and Midform generation are policy-disabled; Korean text is review-only inside TXT packages and must not become upload metadata or a draft variant.'
 };
 
 function cloneJson(value) {
@@ -997,6 +1184,13 @@ function buildPrompt({ sourceUrl, filename, durationSec }) {
 }
 
 function buildScenePrompt({ sourceUrl, filename, durationSec, sourceType = 'unknown', sourceWorkflowMode = 'unknown', metadataVariantMode = 'all' }) {
+  const normalizedMetadataVariantMode = normalizeMetadataVariantMode(metadataVariantMode);
+  const wantsHighlight = normalizedMetadataVariantMode !== 'full_only' && normalizedMetadataVariantMode !== 'midform_only';
+  const requestedHighlightCount = sourceWorkflowMode === 'longform_to_shorts' || sourceType === 'longform'
+    ? 5
+    : Number(durationSec || 0) >= 24
+      ? 2
+      : 1;
   const longformInstructions = sourceWorkflowMode === 'longform_to_shorts' || sourceType === 'longform'
     ? [
         '',
@@ -1004,23 +1198,37 @@ function buildScenePrompt({ sourceUrl, filename, durationSec, sourceType = 'unkn
         '- This source is long-form or likely long-form. Do not compress the whole video blindly.',
         '- First identify short-form candidate windows suitable for vertical short videos.',
         '- Return shortform_candidate_windows with 3 to 8 candidates when possible.',
-        '- Each candidate window should include start_sec, end_sec, purpose, hook_score, process_coverage, crop_hint, and reason.',
-        '- Produce two different long-form extraction outputs: hook_clip_10s and story_clip_40s.',
+        '- Each candidate window should include start_sec, end_sec, purpose, hook_score, visual_hook, why_this_clip, first_second_hook, edit_note, scene_specific_explanation_ja, scene_specific_explanation_ko, distinct_action, material_or_tool_focus, visual_change, process_coverage, crop_hint, and reason.',
+        '- Produce ranked JP Highlight hook candidates only.',
+        '- hook_clip_10s is a legacy field name for the top-ranked JP Highlight hook window.',
         '- hook_clip_10s is NOT a summary. It is the strongest visual teaser only: strange, satisfying, fast-moving, repetitive, cutting, pressing, pouring, transforming, assembling, or a result-reveal moment.',
-    '- hook_clip_10s is a legacy field name. For long-form sources, the actual highlight may be 6 to 24 seconds if that is needed for one complete action cycle to end naturally.',
-    '- The first second must make viewers wonder "what is this?". Use very few captions.',
-        '- story_clip_40s is the JP Full core-process window. Despite the legacy field name, it should usually last 55 to 65 seconds, preferably 60 seconds.',
-        '- story_clip_40s must cover ONE coherent core process only. Do not combine unrelated processes from different parts of the long video.',
-        '- hook_clip_10s and story_clip_40s must contain real absolute source timestamps in seconds. Do not return empty objects.',
+        '- For long-form sources, each highlight may be 6 to 24 seconds if that is needed for one complete action cycle to end naturally.',
+        '- The first second must make viewers wonder "what is this?". Use very few captions.',
+        '- hook_clip_10s must contain real absolute source timestamps in seconds. Do not return an empty object.',
         '- Do not use sampled, normalized, or relative timeline values such as 0.11 to 0.25 unless the source video itself is truly under one second.',
-    '- If a visually strong moment is very brief, expand the window before and after it so hook_clip_10s covers one natural action cycle, while story_clip_40s is still about 60 seconds when the source is long enough.',
-        '- shortform_candidate_windows are also real source timestamp windows. Each candidate should usually last at least 4 seconds.',
+        '- If a visually strong moment is very brief, expand the window before and after it so the Highlight covers one natural action cycle.',
+        '- shortform_candidate_windows are real source timestamp windows ranked by visual-hook strength. Each candidate should usually last at least 4 seconds.',
         '- Set recommended_highlight_window to the same start_sec/end_sec as hook_clip_10s for backwards compatibility.',
-        '- Set recommended_full_window to the same start_sec/end_sec as story_clip_40s for backwards compatibility.',
-        '- scene_transitions must describe ONLY the selected 60-second story_clip_40s core process, not the whole long-form source and not hook_clip_10s.',
-        '- Return 8 to 16 scene_transitions for story_clip_40s. Do not return dozens of scenes from the whole long-form video.',
-        '- If the long-form video contains many unrelated processes, ignore the weaker ones and use only the strongest coherent process.',
+        '- scene_transitions should describe the ranked cut scenes used for highlight scoring, not a Full Draft story window.',
+        '- If the long-form video contains many unrelated processes, rank the strongest visual-hook process cuts independently.',
         '- Scene timestamps may be global source timestamps within the selected window. Draft generation will shift selected windows to timeline zero.',
+        ''
+      ]
+    : [];
+  const standardHighlightInstructions = wantsHighlight && !longformInstructions.length
+    ? [
+        '',
+        'Standard short-form Highlight handling:',
+        `- You MUST rank ${requestedHighlightCount} JP Highlight visual-hook window${requestedHighlightCount > 1 ? 's' : ''} when enough distinct cut scenes exist.`,
+        '- Return the rank #1 window in hook_clip_10s for backwards compatibility.',
+        '- Set recommended_highlight_window to the same start_sec/end_sec/duration_sec as hook_clip_10s for backwards compatibility.',
+        '- Each Highlight window must be one specific strongest moment/action cycle, not the whole source and not a process summary.',
+        '- Best hook means the moment with the strongest immediate visual curiosity, impact, repetition, pressing, cutting, pouring, transformation, hand-machine tension, sparks, texture flow, or satisfying motion.',
+        '- For sources longer than 15 seconds, hook_clip_10s must usually be 3 to 10 seconds and must not exceed half of the source duration.',
+        '- Do not return null or empty objects for hook_clip_10s or recommended_highlight_window when Highlight is requested.',
+        '- shortform_candidate_windows must contain ranked JP Highlight candidates when multiple distinct cut scenes exist.',
+        '- Every shortform_candidate_windows item must explain the specific selected cut scene. If candidate 1 is sparks/hammering and candidate 2 is initial flattening/spreading, write those exact distinctions in visual_hook/why_this_clip/scene_specific_explanation fields.',
+        '- Use scene-level uniqueness. Do not add arbitrary fixed time-distance rules; only avoid overlapping or near-duplicate windows that represent the same action cycle.',
         ''
       ]
     : [];
@@ -1032,11 +1240,17 @@ function buildScenePrompt({ sourceUrl, filename, durationSec, sourceType = 'unkn
     '',
     'Required task:',
     '- Keep this analysis lightweight and visual. Do not perform four-part narrative analysis, 10-framework strategy classification, or duplication strategy analysis here.',
-    '- Return only the scene/cut information needed for editing, highlight selection, focus crop, and later Full Draft script writing.',
+    '- Return only the scene/cut information needed for editing, highlight selection, and focus crop.',
     '- Detect scene transitions and meaningful process/action changes.',
     '- If no clear scene transition exists, create scene timestamps using a forced 3-second rule.',
     '- Every scene\'s start_sec/end_sec/transition_at_sec must be REAL absolute source seconds spanning the whole video. Collapsed or placeholder values (e.g. every scene reporting start 1 / end 1.2) are forbidden -- if the video is 58 seconds long, the scene list must cover roughly 0 to 58 seconds.',
-    '- Every scene must include start_sec, end_sec, transition_at_sec, visual_summary, caption_text, caption_text_ko, screen_captions_ja, screen_captions_ko, focus_target, focus_zone, recommended_camera_move, motion_intensity, visual_hook_score, visual_hook_type, curiosity_reason, repetition_potential, mechanical_rhythm, human_presence, process_focus_priority.',
+    '- Every scene must include start_sec, end_sec, transition_at_sec, visual_summary, scene_specific_explanation_ja, scene_specific_explanation_ko, distinct_action, material_or_tool_focus, visual_change, why_distinct_from_neighbors, caption_text, caption_text_ko, screen_captions_ja, screen_captions_ko, focus_target, focus_zone, recommended_camera_move, motion_intensity, visual_hook_score, visual_hook_type, curiosity_reason, repetition_potential, mechanical_rhythm, human_presence, process_focus_priority.',
+    '- scene_specific_explanation_ja must explain what visibly happens in THIS cut scene, in natural Japanese, using concrete action/focus/tool/material/change details. Generic repeated labels such as "工程の動き", "作業の流れ", "process movement", or the same sentence reused across scenes are forbidden for multi-highlight sources.',
+    '- scene_specific_explanation_ko must be the Korean review explanation of the same cut scene. It is local review-only text and must not become upload metadata.',
+    '- distinct_action must name the unique action in this cut, such as hammering with sparks, initial flattening, liquid pouring, blade cutting, hand alignment, or result reveal. Do not use broad labels like "process" only.',
+    '- material_or_tool_focus must identify the visible material/tool/machine focus for this exact cut.',
+    '- visual_change must state what changes visually in this cut: shape, surface, position, amount, texture, direction, separation, compression, spread, or reveal.',
+    '- why_distinct_from_neighbors must explain why this cut is different from adjacent/other candidate cuts. Time position alone is not a valid distinction.',
     '- Also include A-grade scoring fields: tempo_score, tension_score, transformation_score, framing_score, flow_score, a_grade_score, and scene_role.',
     '- Score scenes using manufacturing-process criteria: tempo, machine/hand tension, instant transformation, close-up/POV framing, and repeated flow.',
     '',
@@ -1048,11 +1262,11 @@ function buildScenePrompt({ sourceUrl, filename, durationSec, sourceType = 'unkn
     '- caption_text and screen_captions_ja must be natural Japanese only. Do not output English captions in Japanese fields.',
     '- Do not use emoji, emoticons, decorative symbols, or reaction icons in any caption field.',
     '- caption_text_ko and screen_captions_ko must be natural Korean review captions for local checking only.',
-    '- JP Full screen_captions_ja must be observational: describe what is visibly happening in that exact cut, as if the viewer is watching the action now.',
+    '- JP Highlight screen_captions_ja must be observational: describe what is visibly happening in that exact cut, as if the viewer is watching the action now.',
     '- Korean review captions should explain what the Japanese viewer-facing caption means, but they are not a separate draft variant.',
     '- Japanese screen captions are the only viewer-facing draft captions.',
     '',
-    'On-screen caption writing rules for full drafts:',
+    'On-screen caption writing rules for Highlight cut analysis:',
     '- Do not translate long sentences. Rewrite them as short spoken Shorts captions for the edited cut rhythm.',
     '- Do not output noun-only labels, keyword tags, or factory-report terms.',
     '- Do not split grammar across caption lines. A caption line must not end with an unfinished particle, comma, or verb stem.',
@@ -1073,6 +1287,7 @@ function buildScenePrompt({ sourceUrl, filename, durationSec, sourceType = 'unkn
     '- Bad Korean style examples: "타이어 골격 형성", "로봇 운반", "공기 압력 주입", "고정 완료", "정밀 자동화 공정".',
     '- Focus on material, machine, hands, or process. If a person is visible, do not make the person the main subject.',
     '- Highlight scoring should prefer visual hooks, mechanical repetition, material transformation, close-up curiosity, texture flow, color contrast, and hand-machine interaction.',
+    ...standardHighlightInstructions,
     ...longformInstructions,
     '',
     'Source information:',
@@ -1086,7 +1301,42 @@ function buildScenePrompt({ sourceUrl, filename, durationSec, sourceType = 'unkn
   ].join('\n');
 }
 
-function buildLongformCandidatePrompt({ sourceUrl, filename, durationSec, sourceType = 'longform', sourceWorkflowMode = 'longform_to_shorts' }) {
+function normalizeSourceContext(sourceContext = {}) {
+  const raw = sourceContext && typeof sourceContext === 'object' ? sourceContext : {};
+  return {
+    title: normalizeText(raw.title || raw.source_title || raw.original_title || ''),
+    description: normalizeText(raw.description || raw.source_description || ''),
+    creator: normalizeText(raw.creator || raw.channel || raw.source_creator || ''),
+    handle: normalizeText(raw.handle || raw.source_handle || ''),
+    views: raw.views || raw.source_views || 0,
+    publishedAt: normalizeText(raw.publishedAt || raw.published_at || raw.source_published_at || ''),
+    thumbnail: normalizeText(raw.thumbnail || raw.source_thumbnail || ''),
+    sourceMode: normalizeText(raw.sourceMode || raw.source_mode || ''),
+    sourceTypeGuess: normalizeText(raw.sourceTypeGuess || raw.source_type_guess || '')
+  };
+}
+
+function compactSourceDescription(value = '') {
+  const text = normalizeText(value).replace(/\s+/g, ' ').trim();
+  return text.length > 700 ? `${text.slice(0, 700)}...` : text;
+}
+
+function sourceContextPromptLines(sourceContext = {}) {
+  const context = normalizeSourceContext(sourceContext);
+  const lines = [];
+  if (context.title) lines.push(`- Original YouTube Title: ${context.title}`);
+  if (context.creator) lines.push(`- Source Creator: ${context.creator}`);
+  if (context.handle) lines.push(`- Source Handle: ${context.handle}`);
+  if (context.views) lines.push(`- Source Views: ${context.views}`);
+  if (context.publishedAt) lines.push(`- Source Published At: ${context.publishedAt}`);
+  if (context.sourceMode) lines.push(`- Source Mode From Discovery: ${context.sourceMode}`);
+  if (context.sourceTypeGuess) lines.push(`- Source Type Guess From Discovery: ${context.sourceTypeGuess}`);
+  const description = compactSourceDescription(context.description);
+  if (description) lines.push(`- Original YouTube Description: ${description}`);
+  return lines;
+}
+
+function buildLongformCandidatePrompt({ sourceUrl, filename, durationSec, sourceType = 'longform', sourceWorkflowMode = 'longform_to_shorts', sourceContext = {} }) {
   return [
     'You are a long-form video editor analyzing a source for short-form extraction.',
     'Find candidate windows only. Return JSON only. Do not include Markdown.',
@@ -1125,21 +1375,10 @@ function buildLongformCandidatePrompt({ sourceUrl, filename, durationSec, source
     '- Start in-media-res from the strongest Action moment, not from the beginning of the process.',
     '- Logical process order is not important for hook_candidates. Dopamine, rhythm, curiosity, and visual impact are more important.',
     '- Must be visually interesting without explanation.',
+    '- Candidate descriptions must stay consistent with the original source topic below. Do not invent a different industry, material, food item, or product category.',
     '',
-    '2. story_candidates',
-    '- 55 to 65 seconds each, preferably about 60 seconds.',
-    '- One coherent core process or event flow only.',
-    '- Should show material input -> core processing -> inspection/result inside one continuous work zone when possible.',
-    '- Must be useful for understanding how or why the thing is made, not merely a chain of intense hook shots.',
-    '- May overlap the hook candidate, but must not be identical to it.',
-    '- For 16:9 long-form sources, prefer a process where the active tool/material area can be enlarged as a vertical 9:16 crop.',
-    '',
-    '3. midform_candidates',
-    '- 105 to 130 seconds each, preferably around 120 seconds.',
-    '- Use only when the source is long enough to support it.',
-    '- Should start from Ambient or context when possible: factory atmosphere, machine warm-up, wide shot, preparation, or a strong establishing shot.',
-    '- Should cover the broadest useful process flow: input/material, setup, main process, transformation, result, and closing.',
-    '- Must start at a different source moment from hook_candidates and story_candidates when possible.',
+    'Return at least five hook_candidates when the source has enough distinct cut scenes. Rank them from strongest to weakest visual hook.',
+    'Use scene-level uniqueness. Do not add arbitrary fixed time-distance rules; only avoid overlapping or near-duplicate windows that represent the same action cycle.',
     '',
     'Return shape:',
     JSON.stringify({
@@ -1164,32 +1403,8 @@ function buildLongformCandidatePrompt({ sourceUrl, filename, durationSec, source
           risk: ''
         }
       ],
-      story_candidates: [
-        {
-          start_sec: 0,
-          end_sec: 60,
-          duration_sec: 60,
-          story_flow: '',
-          opening_type: 'result_or_raw_material',
-          hook_score: 7,
-          process_coverage_score: 5,
-          reason: '',
-          risk: ''
-        }
-      ],
-      midform_candidates: [
-        {
-          start_sec: 0,
-          end_sec: 120,
-          duration_sec: 120,
-          process_flow: '',
-          opening_type: 'ambient_context',
-          atmosphere_score: 5,
-          process_coverage_score: 5,
-          reason: '',
-          risk: ''
-        }
-      ]
+      story_candidates: [],
+      midform_candidates: []
     }, null, 2),
     '',
     'Source information:',
@@ -1197,7 +1412,8 @@ function buildLongformCandidatePrompt({ sourceUrl, filename, durationSec, source
     `- Original Filename: ${filename || 'unknown'}`,
     `- Duration Sec: ${durationSec || 'unknown'}`,
     `- Source Type: ${sourceType || 'unknown'}`,
-    `- Source Workflow Mode: ${sourceWorkflowMode || 'unknown'}`
+    `- Source Workflow Mode: ${sourceWorkflowMode || 'unknown'}`,
+    ...sourceContextPromptLines(sourceContext)
   ].join('\n');
 }
 
@@ -1367,6 +1583,97 @@ function buildLongformHookPrompt({ candidateGuide }) {
     'Candidate windows:',
     JSON.stringify(annotatedGuide || {}, null, 2)
   ].join('\n');
+}
+
+function buildStandardShortformHookPrompt({ sourceUrl, filename, durationSec, sceneGuide = {}, sourceType = 'shortform', sourceWorkflowMode = 'shortform_direct' }) {
+  return [
+    'You are an editing director choosing the ONE best JP Highlight hook from a short-form process video.',
+    'Return JSON only. Do not include Markdown.',
+    '',
+    'Critical goal:',
+    '- Pick the strongest visual-hook moment in the actual video.',
+    '- This is NOT a process summary and NOT the whole source.',
+    '- The selected window must be one specific action cycle or peak moment: pressing, impact, cutting, pouring, sparks, hand-machine tension, material transformation, rhythmic repetition, texture flow, or curiosity/reveal.',
+    '- Start at or just before the strongest action, not automatically at 0 seconds unless the opening is truly the strongest hook.',
+    '- If the video is longer than 15 seconds, the hook must usually be 3 to 10 seconds and must not exceed half of the source duration.',
+    '- Never return null or an empty object. Choose the best available hook from the visible footage.',
+    '',
+    'Use the existing rough scene analysis only as a reference. If it is generic, ignore the labels and inspect the video directly.',
+    'Rough scene analysis:',
+    JSON.stringify({
+      shortform_candidate_windows: sceneGuide.shortform_candidate_windows || [],
+      scene_transitions: sceneGuide.scene_transitions || []
+    }, null, 2),
+    '',
+    'Return shape:',
+    JSON.stringify({
+      hook_clip_10s: {
+        start_sec: 0,
+        end_sec: 4,
+        duration_sec: 4,
+        source_time_basis: 'absolute_original_seconds',
+        visual_hook: '',
+        why_this_clip: '',
+        first_second_hook: '',
+        edit_note: ''
+      }
+    }, null, 2),
+    '',
+    'Source information:',
+    `- Source URL: ${sourceUrl || 'not provided'}`,
+    `- Original Filename: ${filename || 'unknown'}`,
+    `- Duration Sec: ${durationSec || 'unknown'}`,
+    `- Source Type: ${sourceType || 'unknown'}`,
+    `- Source Workflow Mode: ${sourceWorkflowMode || 'unknown'}`
+  ].join('\n');
+}
+
+async function ensureStandardShortformBestHook({ generateJson, sceneGuide, sourceUrl, filename, durationSec, sourceType, sourceWorkflowMode, metadataVariantMode, onProgress }) {
+  const requestedVariants = requestedStandardVariants(metadataVariantMode);
+  const shouldSelectHighlight = requestedVariants.includes('highlight')
+    && sourceWorkflowMode !== 'longform_to_shorts'
+    && sourceType !== 'longform';
+  if (!shouldSelectHighlight || isUsableBestHighlightWindow(sceneGuide, durationSec)) {
+    return sceneGuide;
+  }
+
+  emitProgress(onProgress, 'Gemini 1/3a 시작: JP Highlight 베스트 훅 전용 재분석', {
+    phase: 'standard_shortform_best_hook'
+  });
+  const hookGuide = normalizeGuide(
+    await generateJson(
+      buildStandardShortformHookPrompt({ sourceUrl, filename, durationSec, sceneGuide, sourceType, sourceWorkflowMode }),
+      LONGFORM_HOOK_SCHEMA,
+      'standard_shortform_best_hook',
+      {
+        includeVideo: true,
+        timeoutMs: SHORTFORM_HIGHLIGHT_GEMINI_TIMEOUT_MS
+      }
+    ),
+    sourceUrl,
+    durationSec
+  );
+  const hookWindow = normalizeWindow(hookGuide.hook_clip_10s);
+  const mergedGuide = normalizeGuide({
+    ...sceneGuide,
+    hook_clip_10s: hookGuide.hook_clip_10s || sceneGuide.hook_clip_10s || null,
+    recommended_highlight_window: hookWindow
+      ? {
+          ...hookGuide.hook_clip_10s,
+          ...hookWindow,
+          duration_sec: Number((hookWindow.end_sec - hookWindow.start_sec).toFixed(3)),
+          source_time_basis: 'absolute_original_seconds'
+        }
+      : sceneGuide.recommended_highlight_window || null
+  }, sourceUrl, durationSec);
+  emitProgress(onProgress, isUsableBestHighlightWindow(mergedGuide, durationSec)
+    ? 'Gemini 1/3a 완료: JP Highlight 베스트 훅 확보'
+    : 'Gemini 1/3a 실패: 베스트 훅 전용 재분석도 사용 가능한 훅을 반환하지 않음', {
+    phase: 'standard_shortform_best_hook',
+    hook_clip_10s: mergedGuide.hook_clip_10s || null,
+    recommended_highlight_window: mergedGuide.recommended_highlight_window || null
+  });
+  return mergedGuide;
 }
 
 function buildLongformStoryPrompt({ candidateGuide, hookGuide }) {
@@ -1615,9 +1922,6 @@ function buildMetadataPrompt({ sourceUrl, filename, durationSec, sceneGuide, sou
       '',
       `Highlight draft production language: ${OUTPUT_CONFIG.highlight.lang.toUpperCase()} (${OUTPUT_CONFIG.highlight.label}).`,
       '',
-      'This source is below the Full Draft threshold.',
-      '- Do not generate, repair, or regenerate Korean Full script fields for this item.',
-      '- Treat Full Draft as skipped, not failed.',
       `- Write ${OUTPUT_CONFIG.highlight.metadataKey} for the natural-action highlight draft: Japanese upload metadata focused on visual hook, rhythm, repetition, curiosity, and satisfying motion.`,
       '- Write highlight_metadata_ko as Korean review text for the Japanese highlight draft. This is not upload metadata.',
       '- Highlight metadata must use variant_type="highlight", caption_mode="long_bottom_explainer", and onscreen_caption_block as one long lower-third explainer paragraph.',
@@ -1671,7 +1975,7 @@ function buildMetadataPrompt({ sourceUrl, filename, durationSec, sceneGuide, sou
       }, null, 2),
       '- premise is the single knowledge this Full script must deliver. arc is the flow 도입 -> 핵심 -> 마무리.',
       '- The FIRST caption is the hook (role "hook"): follow the assigned Korean hook type; curiosity/surprise.',
-      `- At each of the 3 key_moments scene_ids place EXACTLY ONE caption with role "scene_observation" that says what that scene shows AND its knowledge_point. These 3 are the ONLY scene_observation captions in the whole script (exactly 3, no more, no fewer).`,
+      `- At up to 3 key_moments scene_ids place ONE short caption with role "scene_observation" that says what that scene shows AND its knowledge_point. These are the ONLY scene_observation captions in the whole script (1 to 3 total, never more than 3).`,
       '- EVERY other caption is knowledge narration (roles process_purpose / technical_context / quality_reason / method / emotional_expression): explain the principle, the reason, the numbers, and the meaning behind the process. Do NOT transcribe what is on screen.',
       '- The LAST caption is the closing (role "closing"): the knowledge landing.',
       '- scene_transitions and scene labels are contradiction-avoidance reference ONLY, never a description target. Do not turn scenes into captions.',
@@ -1697,11 +2001,12 @@ function buildMetadataPrompt({ sourceUrl, filename, durationSec, sceneGuide, sou
     '- Do not claim a final result that is not visible in the selected clip. If water, finished product, packaging, or completion is not shown, describe it only as the purpose or goal, not as an achieved result.',
     '- Each caption item is a cut piece of that hidden manuscript. It is not a standalone title card, keyword tag, or scene name.',
     '- Core test: when the Full caption items are read in order, they must sound like one person speaking a connected process narration. If each item feels like an independent scene label, the script is invalid.',
-    '- Full Draft script only: use a four-part narrative feel internally. Start with curiosity, explain what is being made, weave in 4 to 6 scene observations around 25/50/75 percent and completion beats, and close emotionally around precision, repetition, craftsmanship, transformation, or completion.',
+    '- Full Draft script only: use a four-part narrative feel internally. Start with curiosity, explain what is being made, weave in up to 3 short scene observations around 25/50/75 percent, and close emotionally around precision, repetition, craftsmanship, transformation, or completion.',
     '- Full caption script structure must be: curiosity hook -> whole-process purpose/explanation -> technical process explanation -> scene mention around 25 percent -> process/emotional explanation -> scene mention around 50 percent -> process/emotional explanation -> scene mention around 75 percent -> emotional closing.',
     ...koreanFullSpeechBudgetPromptLines(speechBudget),
+    ...koreanFullKnowledgeNarrationDistributionPromptLines(speechBudget),
     ...koreanFullSceneSpeechBudgetPromptLines(sceneGuide?.scene_transitions || []),
-    '- The Full script must contain EXACTLY 3 scene_observation captions (at the 3 planned key moments) and no more; every other caption is knowledge narration that explains purpose, method, risk, quality, or emotion.',
+    '- The Full script may contain 1 to 3 scene_observation captions and never more than 3. Every other caption must be knowledge narration that explains purpose, method, risk, quality, or emotion.',
     '- Full script is not an action checklist. Do not write the process as "wide place -> material -> machine picks -> trailer loads -> factory". That is still label sequencing.',
     '- Sentence rule v2 is more important than role counts: captions must join into human Korean sentences, not a sequence of noun phrases.',
     ...koreanFullHookPromptLines(assignedHookType, {
@@ -1719,10 +2024,10 @@ function buildMetadataPrompt({ sourceUrl, filename, durationSec, sceneGuide, sou
     '- Sentence validity rule v2: never output 3 consecutive caption items without sentence-closing endings. At least every 1 to 2 short pieces must close or complete a Korean sentence with endings like -요, -죠, -예요, -해요, -돼요, -합니다, -됩니다, -입니다, -니다, -까, or punctuation.',
     '- The next 2 to 4 captions must answer what is being made and why this process exists. Split long thoughts into short connected phrases, not isolated labels.',
     '- Use natural Korean connector ideas when needed, such as 사실은, 여기서 중요한 건, 그래서, 이 정밀함이, 사람의 손으로, 기계의 힘으로, 조금씩, 마지막에는.',
-    '- Scene labels are only raw material. Place the 3 scene_observation captions at the 3 planned key moments, well spread across the script, not clustered and not one per scene.',
+    '- Scene labels are only raw material. Place scene_observation captions only at the strongest planned key moments, well spread across the script, not clustered and not one per scene.',
     `- Write ${OUTPUT_CONFIG.full_draft.scriptKey} as 20 to 24 short connected Korean screen-phrase items. Each item.scene_id must be one of the real scene_transitions IDs such as scene_01, scene_02, scene_03; never invent script_001 IDs. Reuse a scene_id for multiple nearby caption chunks when needed.`,
     '- Each full_caption_script item must have role: hook, process_purpose, technical_context, emotional_expression, scene_observation, method, quality_reason, progress, or closing.',
-    '- The 3 scene_observation captions mark the key moments only. Do not describe every visible cut, and keep natural sentence flow and the timing budget.',
+    '- The scene_observation captions mark key moments only. Do not describe every visible cut, and keep natural sentence flow and the timing budget.',
     '- Most Full script items must explain the whole process purpose, method, material change, quality reason, and emotional meaning. Scene labels are supporting material only.',
     '- Each Full caption item must be short enough to fit in the 9:16 caption box. Hard limit: Korean 12 visible characters, Japanese 14 visible characters. Split longer ideas into multiple connected items.',
     '- The final 1 to 2 Full captions must be a natural emotional closing about precision, craftsmanship, repetition, transformation, quality, or completion.',
@@ -1801,9 +2106,6 @@ function buildReviewPrompt({ sourceUrl, filename, durationSec, draftGuide, sourc
       'Do not re-analyze the video. Review and repair the provided draft JSON only.',
       'Return one complete JSON object only. Do not include Markdown.',
       '',
-      'This source is below the Full Draft threshold.',
-      '- Do not generate, repair, regenerate, or validate Korean Full script fields.',
-      '- Treat full_generation_status as skipped rather than failed.',
       '- Ensure highlight_metadata uses caption_mode="long_bottom_explainer" and contains a Japanese onscreen_caption_block string.',
       '- Ensure highlight_metadata_ko is a Korean review-only long explainer block, not upload metadata.',
       '- Ensure scene_transitions is not empty.',
@@ -2131,7 +2433,7 @@ function koreanFullHookPromptLines(assignedHookType, context = {}) {
   ];
 }
 
-function buildFullCaptionScriptRepairPrompt({ sourceUrl, filename, durationSec, guide, issues, assignedHookType = null }) {
+function buildFullCaptionScriptRepairPrompt({ sourceUrl, filename, durationSec, guide, issues, assignedHookType = null, storyOutline = null }) {
   const speechBudget = koreanFullSpeechBudgetFromGuide(guide, durationSec);
   const sceneSummary = (Array.isArray(guide?.scene_transitions) ? guide.scene_transitions : [])
     .slice(0, 16)
@@ -2157,6 +2459,18 @@ function buildFullCaptionScriptRepairPrompt({ sourceUrl, filename, durationSec, 
     '',
     'Korean Full Draft style:',
     '- Explanation tone, natural Korean, not translationese.',
+    ...(storyOutline && Array.isArray(storyOutline.key_moments) ? [
+      'Pre-planned knowledge story (story_outline) — repair must follow this plan instead of drifting into scene-by-scene description:',
+      JSON.stringify({
+        premise: storyOutline.premise,
+        arc: storyOutline.arc,
+        key_moments: storyOutline.key_moments,
+        knowledge_angle: storyOutline.knowledge_angle
+      }, null, 2),
+      '- Use knowledge_angle to add purpose/risk/quality reasoning. Do not add extra scene_observation roles just to increase length.',
+      '- Use only 1 to 3 scene_observation items total, tied to the strongest key_moments. Every other item is knowledge narration.',
+      ''
+    ] : []),
     ...koreanFullHookPromptLines(assignedHookType, {
       seed: `${sourceUrl || ''}:${filename || ''}`,
       sourceUrl,
@@ -2167,6 +2481,7 @@ function buildFullCaptionScriptRepairPrompt({ sourceUrl, filename, durationSec, 
     '- Avoid repeated 입니다/습니다/됩니다/집니다 endings.',
     '- Sentence validity rule v3: every caption item must be its own complete clause. Never end an item with only a bare noun, an object/topic/subject particle (을/를/은/는/이/가), or a half-finished modifier — never split one grammatical unit across two items. Each item must end in a natural Korean ending or connector such as -요, -죠, -예요, -해요, -돼요, -고, -니까, -면서, -합니다, -됩니다, -입니다, -니다, -까, or punctuation.',
     ...koreanFullSpeechBudgetPromptLines(speechBudget),
+    ...koreanFullKnowledgeNarrationDistributionPromptLines(speechBudget),
     ...koreanFullSceneSpeechBudgetPromptLines(sceneSummary),
     `- Each text should fit the caption box: target ${OUTPUT_CONFIG.full_draft.caption.promptTargetMinChars} to ${OUTPUT_CONFIG.full_draft.caption.promptTargetMaxChars} Korean characters, hard max ${OUTPUT_CONFIG.full_draft.caption.safeMaxChars} visible characters.`,
     '- Do not return full_caption_script_ja or any Japanese Full fields.',
@@ -2231,7 +2546,7 @@ function buildInitialFullCaptionScriptSeedPrompt({ sourceUrl, filename, duration
         knowledge_angle: storyOutline.knowledge_angle
       }, null, 2),
       '- The FIRST item is role "hook"; the LAST item is role "closing".',
-      '- Place EXACTLY 3 items with role "scene_observation", one at each key_moments scene_id, saying what that scene shows AND its knowledge_point. No other scene_observation items.',
+      '- Place 1 to 3 short items with role "scene_observation", tied to the strongest key_moments, saying what that scene shows AND its knowledge_point. No other scene_observation items.',
       '- Every other item is knowledge narration (principle, reason, number, meaning), never a transcription of the screen.',
       '- Never use camera/editing words (클로즈업, 컷, 전환, 프레임, 샷, 앵글, 줌, 카메라 / close-up, cut, transition, frame, shot, angle, zoom, pan).',
       ''
@@ -2252,6 +2567,7 @@ function buildInitialFullCaptionScriptSeedPrompt({ sourceUrl, filename, duration
     '- Pseudo-sentences made only of fragments such as ["위험,", "청결,", "끝."] are forbidden.',
     '- Do not write three consecutive fragment lines without a real spoken predicate.',
     ...koreanFullSpeechBudgetPromptLines(speechBudget),
+    ...koreanFullKnowledgeNarrationDistributionPromptLines(speechBudget),
     ...koreanFullSceneSpeechBudgetPromptLines(sceneSummary),
     `- Target ${OUTPUT_CONFIG.full_draft.caption.promptTargetMinChars} to ${OUTPUT_CONFIG.full_draft.caption.promptTargetMaxChars} Korean characters per item; hard max ${OUTPUT_CONFIG.full_draft.caption.safeMaxChars} visible characters.`,
     '',
@@ -2273,7 +2589,7 @@ function buildInitialFullCaptionScriptSeedPrompt({ sourceUrl, filename, duration
   ].join('\n');
 }
 
-function buildKoreanFullCaptionScriptRegenerationPrompt({ sourceUrl, filename, durationSec, guide, issues, assignedHookType = null }) {
+function buildKoreanFullCaptionScriptRegenerationPrompt({ sourceUrl, filename, durationSec, guide, issues, assignedHookType = null, storyOutline = null }) {
   const speechBudget = koreanFullSpeechBudgetFromGuide(guide, durationSec);
   const sceneSummary = (Array.isArray(guide?.scene_transitions) ? guide.scene_transitions : [])
     .slice(0, 16)
@@ -2304,6 +2620,18 @@ function buildKoreanFullCaptionScriptRegenerationPrompt({ sourceUrl, filename, d
     'Korean narration rules:',
     '- Scene data is factual reference only. Do not copy visual_summary, caption_text_ko, or screen_captions_ko as the script.',
     '- First write one hidden connected Korean narration, then split it into short screen-caption items.',
+    ...(storyOutline && Array.isArray(storyOutline.key_moments) ? [
+      'Pre-planned knowledge story (story_outline) — regeneration must follow this plan instead of drifting into scene-by-scene description:',
+      JSON.stringify({
+        premise: storyOutline.premise,
+        arc: storyOutline.arc,
+        key_moments: storyOutline.key_moments,
+        knowledge_angle: storyOutline.knowledge_angle
+      }, null, 2),
+      '- Use knowledge_angle to expand the non-visual explanation: why this step matters, what risk it prevents, and what quality it creates.',
+      '- Use only 1 to 3 scene_observation items total, tied to the strongest key_moments. Every other item is knowledge narration.',
+      ''
+    ] : []),
     ...koreanFullHookPromptLines(assignedHookType, {
       seed: `${sourceUrl || ''}:${filename || ''}`,
       sourceUrl,
@@ -2316,6 +2644,7 @@ function buildKoreanFullCaptionScriptRegenerationPrompt({ sourceUrl, filename, d
     '- Forbidden: no caption item may end with 함 or 됨.',
     '- Forbidden: do not write three consecutive caption items ending in 합니다.',
     ...koreanFullSpeechBudgetPromptLines(speechBudget),
+    ...koreanFullKnowledgeNarrationDistributionPromptLines(speechBudget),
     ...koreanFullSceneSpeechBudgetPromptLines(sceneSummary),
     `- Target ${OUTPUT_CONFIG.full_draft.caption.promptTargetMinChars} to ${OUTPUT_CONFIG.full_draft.caption.promptTargetMaxChars} Korean characters per item; hard max ${OUTPUT_CONFIG.full_draft.caption.safeMaxChars} visible characters.`,
     '- Scene_observation is optional support, not a quota target. Use it sparingly only when a visible beat helps the spoken manuscript.',
@@ -3696,9 +4025,24 @@ function safeMetadataSeed(candidates = [], korean = false) {
   for (const candidate of candidates) {
     const text = stripMetadataHashtags(candidate);
     if (!text || metadataTextHasLatin(text)) continue;
+    if (!korean && hasKoreanText(text)) continue;
     if (korean ? isValidKoreanCaption(text) : isValidJapaneseCaption(text)) return text;
   }
   return korean ? '제조 공정' : '製造工程';
+}
+
+function compactMetadataTitleSeed(seed = '', korean = false) {
+  const text = safeMetadataSeed([seed], korean);
+  if (korean) {
+    if (/해머|망치|단조|금속|강철|쇠/u.test(text)) return '단조 공정';
+    if (/절단|자르|커팅/u.test(text)) return '절단 공정';
+    if (/주조|붓|용탕/u.test(text)) return '주조 공정';
+    return text.length > 18 ? '제조 공정' : text;
+  }
+  if (/ハンマー|鍛造|金属|鋼|鉄|メタル/u.test(text)) return '鍛造工程';
+  if (/切断|カット/u.test(text)) return '切断工程';
+  if (/鋳造|注ぐ|溶融/u.test(text)) return '鋳造工程';
+  return text.length > 16 ? '製造工程' : text;
 }
 
 function metadataSectionTextCandidates(metadata = {}) {
@@ -3746,6 +4090,7 @@ function deterministicTitlePatterns(seed = '', korean = false) {
 }
 
 function rebuildMetadataTitles(metadata = {}, seed = '', korean = false) {
+  const titleSeed = compactMetadataTitleSeed(seed, korean);
   const categories = korean
     ? ['간결형', '간결형', '정보형', '후킹형', '후킹형']
     : ['concise', 'concise', 'informational', 'hook', 'hook'];
@@ -3755,16 +4100,24 @@ function rebuildMetadataTitles(metadata = {}, seed = '', korean = false) {
       ? metadata.recommended_titles.flatMap((item) => Array.isArray(item?.hashtags) ? item.hashtags : [])
       : [])
   ], korean);
-  return deterministicTitlePatterns(seed, korean).map((title, index) => ({
+  return deterministicTitlePatterns(titleSeed, korean).map((title, index) => ({
     category: categories[index] || categories[0],
     title: titleWithEnglishHashtags(title, hashtags),
     hashtags
   }));
 }
 
-function publicTitleNeedsRebuild(metadata = {}) {
+function publicMetadataTextHasWrongLanguage(value = '', korean = false) {
+  const text = stripMetadataHashtags(value || '');
+  if (!text) return true;
+  if (metadataTextHasLatin(text)) return true;
+  if (korean) return !isValidKoreanCaption(text);
+  return hasKoreanText(text) || !isValidJapaneseCaption(text);
+}
+
+function publicTitleNeedsRebuild(metadata = {}, korean = false) {
   const titles = Array.isArray(metadata.recommended_titles) ? metadata.recommended_titles : [];
-  return titles.length < 5 || titles.some((item) => metadataTextHasLatin(stripMetadataHashtags(item?.title || '')));
+  return titles.length < 5 || titles.some((item) => publicMetadataTextHasWrongLanguage(item?.title || '', korean));
 }
 
 function enforceMetadataSectionLanguage(metadata = {}, seedCandidates = [], korean = false) {
@@ -3773,27 +4126,27 @@ function enforceMetadataSectionLanguage(metadata = {}, seedCandidates = [], kore
   const next = { ...source };
   ['upload_title', 'short_description', 'summary_caption'].forEach((field) => {
     const value = normalizeText(next[field] || '');
-    if (!value || metadataTextHasLatin(stripMetadataHashtags(value)) || !(korean ? isValidKoreanCaption(stripMetadataHashtags(value)) : isValidJapaneseCaption(stripMetadataHashtags(value)))) {
+    if (publicMetadataTextHasWrongLanguage(value, korean)) {
       next[field] = field === 'upload_title'
-        ? titleWithEnglishHashtags(deterministicTitlePatterns(seed, korean)[0], next.hashtags || [])
+        ? titleWithEnglishHashtags(deterministicTitlePatterns(compactMetadataTitleSeed(seed, korean), korean)[0], next.hashtags || [])
         : deterministicDescription(seed, korean);
     }
   });
   if (Object.prototype.hasOwnProperty.call(next, 'onscreen_caption_block')) {
     const value = normalizeText(next.onscreen_caption_block || '');
-    if (!value || metadataTextHasLatin(value) || !(korean ? isValidKoreanCaption(value) : isValidJapaneseCaption(value))) {
+    if (publicMetadataTextHasWrongLanguage(value, korean)) {
       next.onscreen_caption_block = deterministicCaptionBlock(seed, korean);
     }
   }
   const reportValue = normalizeText(next.report_description || '');
-  if (!reportValue || metadataTextHasLatin(reportValue) || !(korean ? isValidKoreanCaption(reportValue) : isValidJapaneseCaption(reportValue))) {
+  if (publicMetadataTextHasWrongLanguage(reportValue, korean)) {
     next.report_description = formatStructuredReportDescription(buildFallbackReport(
       seed,
       deterministicDescription(seed, korean),
       korean
     ), korean);
   }
-  if (publicTitleNeedsRebuild(next)) {
+  if (publicTitleNeedsRebuild(next, korean)) {
     next.recommended_titles = rebuildMetadataTitles(next, seed, korean);
   }
   return next;
@@ -3829,7 +4182,7 @@ function enforcePublicMetadataLanguage(guide = {}) {
   return next;
 }
 
-function buildLongformVariantFinalPrompt({ variant, sourceUrl, filename, durationSec, candidateGuide, hookGuide, storyGuide, midformGuide, assignedHookType = null }) {
+function buildLongformVariantFinalPrompt({ variant, sourceUrl, filename, durationSec, candidateGuide, hookGuide, storyGuide, midformGuide, assignedHookType = null, sourceContext = {} }) {
   const storyDurationSec = durationFromWindow(storyGuide?.story_clip_40s)
     || durationFromWindow(candidateGuide?.story_clip_40s)
     || durationFromWindow(candidateGuide?.recommended_full_window)
@@ -3851,8 +4204,11 @@ function buildLongformVariantFinalPrompt({ variant, sourceUrl, filename, duratio
       ],
       rules: [
         '- Create only the KR Full process-summary draft metadata and scripts.',
-        '- Full uses story_clip_40s only. The field name is legacy; treat it as one about-60-second core-process source window.',
-        '- Full must explain one important process in depth, not summarize unrelated moments from the whole long-form video.',
+        '- Full uses story_clip_40s only as the selected KR Full source. The field name is legacy; treat it as the final short-form Full source window.',
+        '- For longform sources, KR Full is built from multiple highlight-candidate scenes inside the source, not from a uniform timeline summary.',
+        '- Select an adaptive 6 to 12 highlight-candidate scenes for KR Full. Candidate rank 1, 2, and 3 are direct explanation scenes; the remaining candidates become connected process-flow evidence.',
+        '- Put the strongest hook first, then blend the top explanation scenes with natural Korean narration so the Full feels like one coherent manufacturing/process story.',
+        '- Only about three captions should directly describe visible scenes. The rest should connect purpose, method, quality, transformation, and payoff in natural spoken Korean.',
         '- Full must not claim an unseen result. If the selected source window does not visibly show water, final products, packaging, or completion, describe those as purpose/goal only.',
         '- Full caption mode is scene_based_short_subtitles for compatibility, but the content must be manuscript-based caption chunks, not scene labels.',
         '- Full production language is Korean. full_caption_script_ko and full_metadata_ko are the real production output for this variant.',
@@ -3860,7 +4216,7 @@ function buildLongformVariantFinalPrompt({ variant, sourceUrl, filename, duratio
         '- Avoid bare label chunks such as "모터의 심장부", "정밀 기계가", "작은 오차도" unless they continue naturally into the next phrase.',
         '- Prefer connected Korean phrasing such as "모터의 심장부예요", "정밀 기계가 움직이고", "작은 오차도 그냥 넘기지 않고".',
         '- Do not leave English fallback phrases like "material transformation" inside Korean Full fields. Rewrite them into natural Korean.',
-        '- full_caption_script_ko should be 20 to 24 short Korean connected narration phrases for the selected core-process window.',
+        '- full_caption_script_ko should be 20 to 24 short Korean connected narration phrases for the selected highlight-candidate-backed core-process window.',
         '- Each full_caption_script_ko item.scene_id must be copied from the selected scene_transitions real IDs such as scene_01, scene_02, scene_03. Reuse a scene ID for multiple nearby caption chunks when needed; never output script_001 IDs.',
         ...fullSpeechBudgetLines,
         ...koreanFullSceneSpeechBudgetPromptLines(storyGuide?.scene_transitions || candidateGuide?.scene_transitions || []),
@@ -3893,6 +4249,7 @@ function buildLongformVariantFinalPrompt({ variant, sourceUrl, filename, duratio
       rules: [
         '- Create only the JP Highlight visual-hook metadata.',
         '- Highlight uses hook_clip_10s only.',
+        '- The production workflow creates two separate JP Highlight drafts per source: one for the best highlight candidate and one for the second-best candidate. This response describes the fixed candidate window it receives; do not merge candidates.',
         '- Highlight must describe one selected process/action only, not the whole long-form source.',
         '- Do not mention multiple unrelated scenes, many workers, or a compilation of different jobs in Highlight metadata.',
         '- Highlight caption mode is long_bottom_explainer.',
@@ -3933,7 +4290,7 @@ function buildLongformVariantFinalPrompt({ variant, sourceUrl, filename, duratio
   }[variant];
 
   return [
-    'You are a Shorts/Midform video metadata and caption writer for the 3-minute Ottogi workflow.',
+    'You are a Shorts video metadata and caption writer for the 3-minute Ottogi workflow.',
     'Return JSON only. Do not include Markdown.',
     `Focused output variant: ${variantConfig.phaseName}`,
     `Use only this fixed window: ${variantConfig.windowName}. Do not choose new time windows.`,
@@ -3945,6 +4302,8 @@ function buildLongformVariantFinalPrompt({ variant, sourceUrl, filename, duratio
     '- No emoji or decorative symbols.',
     '- Titles must include exactly five English hashtags: #worker, #process, plus three relevant English hashtags.',
     '- Korean review titles must also use English hashtags only.',
+    '- Ground the subject in Source information below, especially Original YouTube Title and Description. If previous generated metadata conflicts with the source topic, ignore the previous metadata and follow the source topic.',
+    '- Do not invent unrelated topics such as food processing, toy manufacturing, or generic precision work unless the source information and visible window support them.',
     '',
     ...variantConfig.rules,
     '',
@@ -3962,7 +4321,8 @@ function buildLongformVariantFinalPrompt({ variant, sourceUrl, filename, duratio
     'Source information:',
     `- Source URL: ${sourceUrl || 'not provided'}`,
     `- Original Filename: ${filename || 'unknown'}`,
-    `- Duration Sec: ${durationSec || 'unknown'}`
+    `- Duration Sec: ${durationSec || 'unknown'}`,
+    ...sourceContextPromptLines(sourceContext)
   ].join('\n');
 }
 
@@ -4652,6 +5012,32 @@ function normalizeWindow(value = {}) {
 function windowDuration(value = {}) {
   const window = normalizeWindow(value);
   return window ? window.end_sec - window.start_sec : 0;
+}
+
+function isProcessSpanWindow(value = {}) {
+  const text = [
+    value?.purpose,
+    value?.process_coverage,
+    value?.visual_hook,
+    value?.story_flow,
+    value?.process_flow,
+    value?.selection_strategy,
+    value?.reason,
+    value?.window_type,
+    value?.type
+  ].map((item) => normalizeText(item || '').toLowerCase()).join(' ');
+  return /full[_\s-]?process|full[_\s-]?cycle|process[_\s-]?summary|summary|story|overall|entire|whole|전체|요약|스토리|工程全体|全体|まとめ/u.test(text);
+}
+
+function isUsableBestHighlightWindow(guide = {}, durationSec = 0) {
+  const rawWindow = guide.hook_clip_10s || guide.recommended_highlight_window;
+  const window = normalizeWindow(rawWindow);
+  if (!window || isProcessSpanWindow(rawWindow)) return false;
+  const hookDuration = windowDuration(window);
+  const sourceDuration = Number(durationSec || guide.duration_sec || guide.target_duration_sec || 0);
+  if (hookDuration < 3) return false;
+  if (sourceDuration > 15 && hookDuration > Math.min(12, sourceDuration * 0.5)) return false;
+  return true;
 }
 
 function normalizeVariantCompareText(value = '') {
@@ -6007,6 +6393,7 @@ function fallbackWindow({ start = 0, duration = 10, sourceDurationSec = 0 }) {
 
 function buildLongformCandidateGuideFromExisting(existingGuide = {}, durationSec = 0) {
   const safeExistingGuide = asPlainObject(existingGuide);
+  if (isLocalLongformCandidateGuide(safeExistingGuide)) return null;
   const directGuide = {
     source_time_basis: 'absolute_original_seconds',
     hook_candidates: Array.isArray(safeExistingGuide.hook_candidates) ? safeExistingGuide.hook_candidates : [],
@@ -6017,7 +6404,11 @@ function buildLongformCandidateGuideFromExisting(existingGuide = {}, durationSec
     || directGuide.story_candidates.length
     || directGuide.midform_candidates.length;
   if (hasDirectCandidates) {
-    return validateLongformCandidateGuide(directGuide, durationSec);
+    try {
+      return validateLongformCandidateGuide(directGuide, durationSec, { strictHighlightCandidates: true });
+    } catch {
+      return null;
+    }
   }
 
   const shortformWindows = Array.isArray(safeExistingGuide.shortform_candidate_windows)
@@ -6055,7 +6446,74 @@ function buildLongformCandidateGuideFromExisting(existingGuide = {}, durationSec
   const hasDerivedCandidates = guide.hook_candidates.length
     || guide.story_candidates.length
     || guide.midform_candidates.length;
-  return hasDerivedCandidates ? validateLongformCandidateGuide(guide, durationSec) : null;
+  if (!hasDerivedCandidates) return null;
+  try {
+    return validateLongformCandidateGuide(guide, durationSec, { strictHighlightCandidates: true });
+  } catch {
+    return null;
+  }
+}
+
+function longformCandidateMarkerText(candidate = {}) {
+  return [
+    candidate?.reason,
+    candidate?.visual_hook,
+    candidate?.why_this_clip,
+    candidate?.story_flow,
+    candidate?.process_flow,
+    candidate?.opening_type,
+    candidate?.selection_strategy,
+    candidate?.local_candidate_strategy?.type,
+    candidate?.adjustment_reason,
+    candidate?.source_basis
+  ].map((value) => String(value || '').toLowerCase()).join(' ');
+}
+
+function isLocalOrFallbackLongformCandidate(candidate = {}) {
+  if (!candidate || typeof candidate !== 'object') return false;
+  if (candidate.local_preprocessed === true || candidate.generated_fallback === true || candidate.local_candidate_strategy) return true;
+  return /local candidate|local segment|local story|local midform|local_segment_probe|duration_segmented_prepass|fallback_/u.test(longformCandidateMarkerText(candidate));
+}
+
+function isGenericLongformSceneEvidence(value = '') {
+  const text = normalizeText(value);
+  if (!text) return true;
+  return /^(工程の動き|作業の流れ|工程の変化|process movement|process flow|material process)$/iu.test(text)
+    || /工程の動き/u.test(text);
+}
+
+function longformCandidateEvidenceText(candidate = {}) {
+  return [
+    candidate.visual_hook,
+    candidate.why_this_clip,
+    candidate.first_second_hook,
+    candidate.edit_note,
+    candidate.reason,
+    candidate.scene_specific_explanation_ja,
+    candidate.distinct_action,
+    candidate.material_or_tool_focus,
+    candidate.visual_change
+  ].map((value) => normalizeText(value)).filter(Boolean).join(' ');
+}
+
+function hasConcreteLongformCandidateEvidence(candidate = {}) {
+  const evidence = longformCandidateEvidenceText(candidate);
+  if (evidence.length < 12) return false;
+  if (isGenericLongformSceneEvidence(evidence)) return false;
+  const selectedSceneIds = Array.isArray(candidate.selected_scene_ids) ? candidate.selected_scene_ids.filter(Boolean) : [];
+  return selectedSceneIds.length > 0 || /press|cut|pour|hammer|spark|bend|grind|assemble|transform|押|切|注|叩|火花|曲|削|組|変形|圧/u.test(evidence);
+}
+
+function isLocalLongformCandidateGuide(guide = {}) {
+  const safeGuide = asPlainObject(guide);
+  if (safeGuide.local_preprocessed === true || safeGuide.local_candidate_strategy) return true;
+  const candidateBuckets = [
+    safeGuide.hook_candidates,
+    safeGuide.story_candidates,
+    safeGuide.midform_candidates,
+    safeGuide.shortform_candidate_windows
+  ];
+  return candidateBuckets.some((bucket) => (Array.isArray(bucket) ? bucket : []).some(isLocalOrFallbackLongformCandidate));
 }
 
 function clampLongformHighlightWindow(window = {}, sourceDurationSec = 0, targetDurationSec = 15) {
@@ -6155,7 +6613,9 @@ function separatedFallbackWindow({ anchorWindow, sourceDurationSec = 0, duration
   return fallbackWindow({ start, duration, sourceDurationSec: sourceDuration });
 }
 
-function validateLongformCandidateGuide(candidateGuide = {}, durationSec = 0) {
+function validateLongformCandidateGuide(candidateGuide = {}, durationSec = 0, options = {}) {
+  const strictHighlightCandidates = options.strictHighlightCandidates === true;
+  const minHookCandidates = Math.max(1, Math.round(Number(options.minHookCandidates || LONGFORM_MIN_PRODUCTION_HOOK_CANDIDATES)));
   assertLongformBasis(candidateGuide, 'candidateGuide');
   const sourceDuration = Number(durationSec || 0);
   const hookCandidates = Array.isArray(candidateGuide.hook_candidates) ? candidateGuide.hook_candidates : [];
@@ -6164,6 +6624,8 @@ function validateLongformCandidateGuide(candidateGuide = {}, durationSec = 0) {
   const validHooks = hookCandidates
     .map((candidate) => {
       try {
+        if (strictHighlightCandidates && isLocalOrFallbackLongformCandidate(candidate)) return null;
+        if (strictHighlightCandidates && !hasConcreteLongformCandidateEvidence(candidate)) return null;
         return assertWindowDuration(candidate, { label: 'hook_candidate', min: 4, max: 24.5, sourceDurationSec: sourceDuration });
       } catch {
         return null;
@@ -6190,17 +6652,28 @@ function validateLongformCandidateGuide(candidateGuide = {}, durationSec = 0) {
     .filter(Boolean);
 
   const fallbacks = [];
-  if (!validHooks.length) {
+  if (strictHighlightCandidates && validHooks.length < minHookCandidates) {
+    throw createHttpError(500, 'OTTOGI_LONGFORM_HIGHLIGHT_CANDIDATES_REQUIRED', 'longform highlight analysis requires at least five Vision-backed hook candidates', {
+      reason: 'vision_backed_scene_specific_candidates_required',
+      hook_candidates_count: hookCandidates.length,
+      valid_hook_candidates_count: validHooks.length,
+      min_hook_candidates: minHookCandidates,
+      fallback_windows_applied: [],
+      schema_version: LONGFORM_VISION_CANDIDATE_SCHEMA_VERSION,
+      recommended_action: 'Run Gemini/Vision longform candidate scan with source video and scene-specific hook evidence before JP Highlight draft generation.'
+    });
+  }
+  if (!strictHighlightCandidates && !validHooks.length) {
     const fallback = buildFallbackCandidate({ type: 'hook', sourceDurationSec: sourceDuration, anchorWindow: normalizeWindow(hookCandidates[0]) });
     validHooks.push(fallback);
     fallbacks.push('hook');
   }
-  if (!validStories.length) {
+  if (!strictHighlightCandidates && !validStories.length) {
     const fallback = buildFallbackCandidate({ type: 'story', sourceDurationSec: sourceDuration, anchorWindow: validHooks[0], avoidWindow: validHooks[0] });
     validStories.push(fallback);
     fallbacks.push('story');
   }
-  if (!validMidforms.length && sourceDuration >= 125) {
+  if (!strictHighlightCandidates && !validMidforms.length && sourceDuration >= 125) {
     const fallback = buildFallbackCandidate({ type: 'midform', sourceDurationSec: sourceDuration, anchorWindow: validStories[0], avoidWindow: validStories[0] });
     validMidforms.push(fallback);
     fallbacks.push('midform');
@@ -6209,6 +6682,8 @@ function validateLongformCandidateGuide(candidateGuide = {}, durationSec = 0) {
   return {
     ...candidateGuide,
     source_time_basis: 'absolute_original_seconds',
+    longform_candidate_schema_version: LONGFORM_VISION_CANDIDATE_SCHEMA_VERSION,
+    vision_backed_candidates: strictHighlightCandidates ? true : candidateGuide.vision_backed_candidates === true,
     hook_candidates: validHooks,
     story_candidates: validStories,
     midform_candidates: validMidforms,
@@ -6383,11 +6858,11 @@ function isFullScriptActionChecklistLine(value = '', korean = false) {
 }
 
 function hasKoreanSentenceClosure(text = '') {
-  return /(?:[.!?！？。]|요|죠|예요|이에요|해요|돼요|합니다|됩니다|입니다|집니다|니다|까|네요|군요|어요|아요|다)$/u.test(normalizeText(text));
+  return /(?:[.!?！？。]|요|죠|예요|이에요|해요|돼요|합니다|됩니다|입니다|집니다|니다|까|네요|군요|어요|아요|다|고|니까|면서|면)$/u.test(normalizeText(text));
 }
 
 function hasKoreanSentencePredicateSignal(text = '') {
-  return /(?:요|죠|예요|이에요|해요|돼요|합니다|됩니다|입니다|집니다|니다|까|네요|군요|어요|아요|다|하고|되어|되고|맞추|세우|얹|쌓|만들|열|확인|결정|영향|중요|시작|완성|이어|잡|고정|지탱|버티|달라지|흔들리|맞물리)/u.test(normalizeText(text));
+  return /(?:요|죠|예요|이에요|해요|돼요|합니다|됩니다|입니다|집니다|니다|까|네요|군요|어요|아요|다|하고|되어|되고|맞추|세우|얹|쌓|만들|열|확인|결정|영향|중요|시작|완성|이어|잡|고정|지탱|버티|달라지|흔들리|맞물리|꺾|구부리|나누|넣|옮기|누르|자르|다듬|살리|보이|쌓이|쌓여|얻|달라져|틀어지|흐르|반복|움직|쥐|펴|접|말리|붙|떼|분리|통과|바뀌|변하)/u.test(normalizeText(text));
 }
 
 // Camera/editing vocabulary is banned from the Korean Full knowledge manuscript and from the
@@ -6877,7 +7352,7 @@ function collectJapaneseCaptionIssues(guide = {}, options = {}) {
     const sceneRoleRatioOk = isMidform
       ? sceneRoleCount >= 5 && sceneRoleRatio <= 0.7
       : korean
-        ? sceneRoleCount === 3
+        ? sceneRoleCount >= 1 && sceneRoleCount <= 3
         : sceneRoleCount >= 3 && sceneRoleCount <= 6;
     const missingArcCount = [hookOk, identityOk, technicalOk, closingOk, hasPurposeRole, hasEmotionRole, sceneRoleRatioOk].filter((ok) => !ok).length;
     if (!sceneRoleRatioOk) {
@@ -6888,9 +7363,9 @@ function collectJapaneseCaptionIssues(guide = {}, options = {}) {
         reason: isMidform
           ? 'Midform scene_observation captions must be spread through the process flow without turning every caption into a bare scene label'
           : korean
-            ? `Korean Full Draft must contain exactly 3 scene_observation captions (one per planned key moment); found ${sceneRoleCount}. Rewrite the extra/missing ones as knowledge narration.`
+            ? `Korean Full Draft must contain 1 to 3 scene_observation captions and never more than 3; found ${sceneRoleCount}. Rewrite extra scene descriptions as knowledge narration.`
             : 'Full Draft scene_observation must be limited to about 4-6 scene mentions in a 20-24 caption script; do not turn the whole script into scene-by-scene captions',
-        ...(korean && !isMidform ? { style_regeneration_required: true, issue_type: 'ko_full_scene_observation_not_3' } : {})
+        ...(korean && !isMidform ? { style_regeneration_required: true, issue_type: 'ko_full_scene_observation_out_of_range' } : {})
       });
     }
     // 2-pass knowledge-manuscript gates (Korean Full only): first=hook, last=closing, and no
@@ -7798,6 +8273,17 @@ function validateGuide(guide, options = {}) {
   if (!Array.isArray(guide?.scene_transitions)) {
     missing.push('scene_transitions_array');
   }
+  if (!skipFullValidation && Array.isArray(guide?.scene_transitions) && !isLongformGuide(guide)) {
+    const sourceDurationSec = Number(guide?.duration_sec || guide?.target_duration_sec || 0);
+    const span = sceneSpanWindow(guide.scene_transitions || []);
+    const spanDurationSec = windowDuration(span);
+    const minExpectedSpanSec = sourceDurationSec >= 20
+      ? Math.max(8, sourceDurationSec * 0.5)
+      : 0;
+    if (minExpectedSpanSec > 0 && spanDurationSec < minExpectedSpanSec) {
+      missing.push('shortform_scene_transitions_too_collapsed');
+    }
+  }
   if (!skipFullValidation && (!Array.isArray(guide?.recommended_titles_ko) || guide.recommended_titles_ko.length < 5)) {
     missing.push('recommended_titles_ko_min_5');
   }
@@ -7812,6 +8298,8 @@ function validateGuide(guide, options = {}) {
     if (!span || windowDuration(span) < 8) {
       missing.push('longform_scene_transitions_too_collapsed');
     }
+  } else if (!skipHighlightValidation && !isUsableBestHighlightWindow(guide, guide?.duration_sec || guide?.target_duration_sec || 0)) {
+    missing.push('missing_standard_shortform_best_hook_window');
   }
   const invalidJapaneseCaptions = collectJapaneseCaptionIssues(guide, {
     includeFull: !skipFullValidation,
@@ -7999,11 +8487,32 @@ function persistFullDraftStageArtifact({
   return { summaryPath, rawPath, validationIssues };
 }
 
+function persistFullDraftStoryOutlineArtifact({ fullDraftStagesDir = '', storyOutline = null, sceneTransitions = [] } = {}) {
+  const dir = String(fullDraftStagesDir || '').trim();
+  if (!dir || !storyOutline) return '';
+  fs.mkdirSync(dir, { recursive: true });
+  const artifactPath = path.join(dir, '00_story_outline.json');
+  const allowedSceneIds = [...sceneTransitionIdSet({ scene_transitions: sceneTransitions })];
+  const payload = {
+    stage: 'story_outline',
+    stage_number: 0,
+    generated_at: new Date().toISOString(),
+    validation: {
+      passed: true,
+      key_moment_count: Array.isArray(storyOutline.key_moments) ? storyOutline.key_moments.length : 0
+    },
+    story_outline: storyOutline,
+    allowed_scene_ids: allowedSceneIds
+  };
+  fs.writeFileSync(artifactPath, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
+  return artifactPath;
+}
+
 function safeStageFileName(value = '') {
   return String(value || '').trim().replace(/[^a-zA-Z0-9_-]/g, '_') || 'stage';
 }
 
-async function validateOrRepairJapaneseCaptions({ guide, generateRepairJson, sourceUrl, filename, durationSec, validationOptions = {}, assignedHookType = null, onProgress, fullDraftStagesDir = '', initialStageRawResponse = null }) {
+async function validateOrRepairJapaneseCaptions({ guide, generateRepairJson, sourceUrl, filename, durationSec, validationOptions = {}, assignedHookType = null, onProgress, fullDraftStagesDir = '', initialStageRawResponse = null, storyOutline = null }) {
   let current = guide;
   let koreanFullStyleRegenerationUsed = false;
   // The last gate-rejected Korean full-caption attempt is kept so that, when the item
@@ -8031,7 +8540,8 @@ async function validateOrRepairJapaneseCaptions({ guide, generateRepairJson, sou
       await new Promise((resolve) => setTimeout(resolve, FULL_DRAFT_REGENERATION_MIN_INTERVAL_MS));
     }
     try {
-      const normalizedCurrent = normalizeGuide(current, sourceUrl, durationSec);
+      const normalizedCurrent = enforcePublicMetadataLanguage(normalizeGuide(current, sourceUrl, durationSec));
+      current = normalizedCurrent;
       validateGuide(normalizedCurrent, validationOptions);
       return normalizedCurrent;
     } catch (error) {
@@ -8080,7 +8590,8 @@ async function validateOrRepairJapaneseCaptions({ guide, generateRepairJson, sou
               durationSec,
               guide: current,
               issues: koreanFullStyleRegenerationIssues,
-              assignedHookType
+              assignedHookType,
+              storyOutline
             }),
             OTTOGI_FULL_CAPTION_SCRIPT_REPAIR_SCHEMA,
             'full_caption_script_regeneration'
@@ -8162,7 +8673,8 @@ async function validateOrRepairJapaneseCaptions({ guide, generateRepairJson, sou
               durationSec,
               guide: current,
               issues: fullScriptRepairIssues,
-              assignedHookType
+              assignedHookType,
+              storyOutline
             }),
             OTTOGI_FULL_CAPTION_SCRIPT_REPAIR_SCHEMA,
             'full_caption_script_repair'
@@ -8360,6 +8872,12 @@ function isYouTubeUrl(value = '') {
 function normalizeMetadataVariantMode(value = 'all') {
   const mode = String(value || 'all').trim();
   return ['all', 'full_highlight_only', 'full_only', 'highlight_only', 'midform_only'].includes(mode) ? mode : 'all';
+}
+
+const ACTIVE_PHASE2_METADATA_VARIANT_MODE = 'highlight_only';
+
+function activePhase2MetadataVariantMode() {
+  return ACTIVE_PHASE2_METADATA_VARIANT_MODE;
 }
 
 function validationOptionsForMetadataVariantMode(mode = 'all') {
@@ -8659,6 +9177,14 @@ function normalizeMetadataVariantMode(value = 'all') {
 }
 
 function coerceStandardMetadataVariantModeForSource({ metadataVariantMode = 'all', durationSec = 0, sourceType = 'unknown', sourceWorkflowMode = 'unknown' } = {}) {
+  void metadataVariantMode;
+  void durationSec;
+  void sourceType;
+  void sourceWorkflowMode;
+  return activePhase2MetadataVariantMode();
+}
+
+function legacyCoerceStandardMetadataVariantModeForSource({ metadataVariantMode = 'all', durationSec = 0, sourceType = 'unknown', sourceWorkflowMode = 'unknown' } = {}) {
   const normalizedMode = normalizeMetadataVariantMode(metadataVariantMode);
   const isLongformSource = sourceWorkflowMode === 'longform_to_shorts' || sourceType === 'longform';
   const numericDurationSec = Number(durationSec || 0);
@@ -8677,6 +9203,18 @@ function validationOptionsForMetadataVariantMode(value = 'all') {
   };
 }
 
+function metadataSchemaForMetadataVariantMode(value = 'all') {
+  return normalizeMetadataVariantMode(value) === 'highlight_only'
+    ? OTTOGI_HIGHLIGHT_METADATA_ONLY_SCHEMA
+    : OTTOGI_METADATA_ONLY_SCHEMA;
+}
+
+function reviewSchemaForMetadataVariantMode(value = 'all') {
+  return normalizeMetadataVariantMode(value) === 'highlight_only'
+    ? OTTOGI_HIGHLIGHT_ONLY_REVIEW_SCHEMA
+    : OTTOGI_REVIEW_SCHEMA;
+}
+
 function requestedStandardVariants(value = 'all') {
   const mode = normalizeMetadataVariantMode(value);
   if (mode === 'full_only') return ['full'];
@@ -8690,11 +9228,15 @@ function allRequestedLongformVariantsFailed(guide = {}, variants = []) {
     && variants.every((variant) => guide?.[`${variant}_generation_status`] === 'failed');
 }
 
-async function runLongformGeminiPipeline({ generateJson, sourceUrl, filename, durationSec, sourceType, sourceWorkflowMode, metadataVariantMode = 'all', existingGuide = null, assignedHookType = null, onProgress, throwIfCancelled = null, fullDraftStagesDir = '', phaseRawResponses = null }) {
-  const normalizedMetadataVariantMode = normalizeMetadataVariantMode(metadataVariantMode);
-  const wantsFullFinal = ['all', 'full_highlight_only', 'full_only'].includes(normalizedMetadataVariantMode);
-  const wantsHighlightFinal = ['all', 'full_highlight_only', 'highlight_only'].includes(normalizedMetadataVariantMode);
-  const wantsMidformFinal = ['all', 'midform_only'].includes(normalizedMetadataVariantMode);
+async function runLongformGeminiPipeline({ generateJson, sourceUrl, filename, durationSec, sourceType, sourceWorkflowMode, sourceContext = {}, metadataVariantMode = 'all', existingGuide = null, assignedHookType = null, onProgress, throwIfCancelled = null, fullDraftStagesDir = '', phaseRawResponses = null }) {
+  void metadataVariantMode;
+  const normalizedMetadataVariantMode = activePhase2MetadataVariantMode();
+  const effectiveLongformVariantMode = normalizedMetadataVariantMode === 'midform_only'
+    ? 'full_highlight_only'
+    : normalizedMetadataVariantMode;
+  const wantsFullFinal = ['all', 'full_highlight_only', 'full_only'].includes(effectiveLongformVariantMode);
+  const wantsHighlightFinal = ['all', 'full_highlight_only', 'highlight_only'].includes(effectiveLongformVariantMode);
+  const wantsMidformFinal = false;
   const resolvedHookType = normalizeAssignedKoreanHookType(assignedHookType, {
     seed: `${sourceUrl || ''}:${filename || ''}:longform`,
     sourceUrl,
@@ -8705,10 +9247,6 @@ async function runLongformGeminiPipeline({ generateJson, sourceUrl, filename, du
     sourceText: JSON.stringify(existingGuide || {})
   });
   const sourceDuration = Number(durationSec || 0);
-  const analysisDurationSec = sourceDuration > ULTRA_LONGFORM_ANALYSIS_HORIZON_SEC
-    ? ULTRA_LONGFORM_ANALYSIS_HORIZON_SEC
-    : sourceDuration;
-
   let hookGuide = existingGuide?.hook_clip_10s ? { hook_clip_10s: existingGuide.hook_clip_10s } : {};
   let storyGuide = existingGuide?.story_clip_40s ? { story_clip_40s: existingGuide.story_clip_40s } : {};
   let midformGuide = existingGuide?.midform_clip_120s ? { midform_clip_120s: existingGuide.midform_clip_120s } : { midform_clip_120s: null };
@@ -8719,28 +9257,16 @@ async function runLongformGeminiPipeline({ generateJson, sourceUrl, filename, du
   let candidateGuideRaw = buildLongformCandidateGuideFromExisting(existingGuide, durationSec);
   let candidateGuideWasScanned = false;
 
-  if (!candidateGuideRaw && sourceDuration >= LOCAL_LONGFORM_CANDIDATE_MIN_DURATION_SEC && (wantsFullFinal || wantsHighlightFinal || wantsMidformFinal)) {
-    candidateGuideRaw = validateLongformCandidateGuide(
-      buildLocalLongformCandidateGuide({ durationSec: analysisDurationSec, sourceType, sourceWorkflowMode }),
-      analysisDurationSec
-    );
-    emitProgress(onProgress, `Gemini Longform 1/5 대체: 로컬 후보 전처리 ${candidateGuideRaw.hook_candidates?.length || 0}개 / story ${candidateGuideRaw.story_candidates?.length || 0}개${candidateGuideRaw.midform_candidates?.length ? ` / midform ${candidateGuideRaw.midform_candidates.length}개` : ''}${sourceDuration > analysisDurationSec ? ` / 분석 범위 ${analysisDurationSec}s로 제한` : ''}`, {
-      phase: 'longform_candidates',
-      local_preprocessed: true,
-      local_candidate_strategy: candidateGuideRaw.local_candidate_strategy || null
-    });
-  }
-
   if (!candidateGuideRaw && (wantsFullFinal || wantsHighlightFinal || wantsMidformFinal)) {
     try {
       checkCancellation(throwIfCancelled);
       emitProgress(onProgress, 'Gemini Longform 1/5: 후보 구간 탐색', { phase: 'longform_candidates' });
       candidateGuideRaw = await generateValidatedLongformStep({
         generateJson,
-        prompt: buildLongformCandidatePrompt({ sourceUrl, filename, durationSec, sourceType, sourceWorkflowMode }),
+        prompt: buildLongformCandidatePrompt({ sourceUrl, filename, durationSec, sourceType, sourceWorkflowMode, sourceContext }),
         schema: LONGFORM_CANDIDATE_SCHEMA,
         phase: 'longform_candidates',
-        validate: (result) => validateLongformCandidateGuide(result, durationSec),
+        validate: (result) => validateLongformCandidateGuide(result, durationSec, { strictHighlightCandidates: true }),
         onProgress,
         includeVideo: true,
         throwIfCancelled
@@ -8753,12 +9279,23 @@ async function runLongformGeminiPipeline({ generateJson, sourceUrl, filename, du
       });
     } catch (error) {
       const failureSummary = summarizeGeminiFailure(error);
-      emitProgress(onProgress, `Gemini Longform 후보 스캔 실패: ${failureSummary} / 포맷별 Vision 선택으로 계속 진행합니다.`, {
+      emitProgress(onProgress, `Gemini Longform 후보 스캔 실패: ${failureSummary} / JP Highlight 생성 전 재분석이 필요합니다.`, {
         phase: 'longform_candidates',
         code: error.code || error.name || '',
         details: error.details || null,
-        fallback_to_variant_window_calls: true
+        fallback_to_variant_window_calls: false,
+        retryable_analysis_error: true
       });
+      if (wantsHighlightFinal) {
+        throw createHttpError(500, error.code || 'OTTOGI_LONGFORM_HIGHLIGHT_CANDIDATES_REQUIRED', 'longform Vision-backed highlight candidate scan failed', {
+          phase: 'longform_candidates',
+          failure_summary: failureSummary,
+          original_code: error.code || error.name || '',
+          original_details: error.details || null,
+          retryable_analysis_error: true,
+          recommended_action: 'Retry Gemini/Vision longform candidate analysis before JP Highlight draft generation.'
+        });
+      }
       candidateGuideRaw = null;
     }
   } else if (candidateGuideRaw) {
@@ -8828,7 +9365,7 @@ async function runLongformGeminiPipeline({ generateJson, sourceUrl, filename, du
       checkCancellation(throwIfCancelled);
       emitProgress(onProgress, 'Gemini Highlight 3/5: create JP Highlight caption and metadata', { phase: 'longform_final_highlight' });
       highlightGuideRaw = await generateJson(
-        buildLongformVariantFinalPrompt({ variant: 'highlight', sourceUrl, filename, durationSec, candidateGuide: selectedCandidateGuide(), hookGuide, storyGuide, midformGuide }),
+        buildLongformVariantFinalPrompt({ variant: 'highlight', sourceUrl, filename, durationSec, candidateGuide: selectedCandidateGuide(), hookGuide, storyGuide, midformGuide, sourceContext }),
         buildLongformVariantFinalSchema('highlight'),
         'longform_final_highlight',
         {
@@ -8941,7 +9478,7 @@ async function runLongformGeminiPipeline({ generateJson, sourceUrl, filename, du
       emitProgress(onProgress, 'Gemini Full 5/5: create JP Full script and metadata', { phase: 'longform_final_full' });
       fullGuideRaw = await generateValidatedLongformStep({
         generateJson,
-        prompt: buildLongformVariantFinalPrompt({ variant: 'full', sourceUrl, filename, durationSec, candidateGuide: selectedCandidateGuide(), hookGuide, storyGuide, midformGuide, assignedHookType: resolvedHookType }),
+        prompt: buildLongformVariantFinalPrompt({ variant: 'full', sourceUrl, filename, durationSec, candidateGuide: selectedCandidateGuide(), hookGuide, storyGuide, midformGuide, assignedHookType: resolvedHookType, sourceContext }),
         schema: buildLongformVariantFinalSchema('full'),
         phase: 'longform_final_full',
         validate: (result) => validateLongformVariantFinalGuide('full', result, { durationSec }),
@@ -9228,14 +9765,14 @@ async function runLongformGeminiPipeline({ generateJson, sourceUrl, filename, du
     });
   }
 
-  emitProgress(onProgress, 'Gemini longform independent format analysis complete', {
+    emitProgress(onProgress, 'Gemini longform KR Full + JP Highlight analysis complete', {
     phase: 'longform_final',
     hook_clip_10s: guide.hook_clip_10s,
     story_clip_40s: guide.story_clip_40s,
     midform_clip_120s: guide.midform_clip_120s,
     full_generation_status: guide.full_generation_status || 'ready',
     highlight_generation_status: guide.highlight_generation_status || 'ready',
-    midform_generation_status: guide.midform_generation_status || 'ready'
+    midform_generation_status: guide.midform_generation_status || 'disabled'
   });
   return guide;
 }
@@ -9260,7 +9797,7 @@ async function runStandardGeminiPipeline({ generateJson, sourceUrl, filename, du
     && sourceWorkflowMode !== 'longform_to_shorts'
     && sourceType !== 'longform';
   emitProgress(onProgress, 'Gemini 1/3 장면 전환, 컷, 하이라이트 후보 분석', { phase: 'scene' });
-  const sceneGuide = normalizeGuide(
+  let sceneGuide = normalizeGuide(
     await generateJson(
       buildScenePrompt({ sourceUrl, filename, durationSec, sourceType, sourceWorkflowMode, metadataVariantMode: effectiveMetadataVariantMode }),
       OTTOGI_SCENE_SCHEMA,
@@ -9278,6 +9815,17 @@ async function runStandardGeminiPipeline({ generateJson, sourceUrl, filename, du
     phase: 'scene',
     scene_count: sceneGuide.scene_transitions.length
   });
+  sceneGuide = await ensureStandardShortformBestHook({
+    generateJson,
+    sceneGuide,
+    sourceUrl,
+    filename,
+    durationSec,
+    sourceType,
+    sourceWorkflowMode,
+    metadataVariantMode: effectiveMetadataVariantMode,
+    onProgress
+  });
 
   // Pass 1 (knowledge story outline) — text-only, Full path only. Best-effort: on failure we
   // degrade to the (already strengthened) Pass-2 rules rather than blocking the item.
@@ -9292,9 +9840,15 @@ async function runStandardGeminiPipeline({ generateJson, sourceUrl, filename, du
         { includeVideo: false, timeoutMs: GEMINI_REQUEST_TIMEOUT_MS }
       );
       storyOutline = validateFullStoryOutline(outlineRaw, sceneGuide.scene_transitions);
+      const storyOutlineArtifactPath = persistFullDraftStoryOutlineArtifact({
+        fullDraftStagesDir,
+        storyOutline,
+        sceneTransitions: sceneGuide.scene_transitions
+      });
       emitProgress(onProgress, `Gemini 2/3-0 완료: 지식 스토리 아웃라인 key_moments ${storyOutline.key_moments.length}개`, {
         phase: 'metadata_story_outline',
-        key_moment_count: storyOutline.key_moments.length
+        key_moment_count: storyOutline.key_moments.length,
+        story_outline_path: storyOutlineArtifactPath
       });
     } catch (error) {
       storyOutline = null;
@@ -9308,7 +9862,7 @@ async function runStandardGeminiPipeline({ generateJson, sourceUrl, filename, du
   emitProgress(onProgress, 'Gemini 2/3 시작: 제목/메타데이터 원고 생성', { phase: 'metadata' });
   let metadataGuide = await generateJson(
       buildMetadataPrompt({ sourceUrl, filename, durationSec, sceneGuide, sourceType, sourceWorkflowMode, assignedHookType: resolvedHookType, metadataVariantMode: effectiveMetadataVariantMode, storyOutline }),
-    OTTOGI_METADATA_ONLY_SCHEMA,
+    metadataSchemaForMetadataVariantMode(effectiveMetadataVariantMode),
     'metadata',
       {
         includeVideo: false,
@@ -9357,7 +9911,7 @@ async function runStandardGeminiPipeline({ generateJson, sourceUrl, filename, du
   try {
     reviewGuide = await generateJson(
       buildReviewPrompt({ sourceUrl, filename, durationSec, draftGuide, sourceType, sourceWorkflowMode, assignedHookType: resolvedHookType, metadataVariantMode: effectiveMetadataVariantMode }),
-      OTTOGI_REVIEW_SCHEMA,
+      reviewSchemaForMetadataVariantMode(effectiveMetadataVariantMode),
       'review',
       { includeVideo: false }
     );
@@ -9392,6 +9946,7 @@ async function runStandardGeminiPipeline({ generateJson, sourceUrl, filename, du
       assignedHookType: resolvedHookType,
       onProgress,
       fullDraftStagesDir,
+      storyOutline,
       initialStageRawResponse: phaseRawResponses?.get('metadata') || {
         sceneGuide,
         metadataGuide,
@@ -9426,17 +9981,16 @@ async function runStandardGeminiPipeline({ generateJson, sourceUrl, filename, du
       full_generation_status: 'skipped',
       full_generation_error: '',
       full_generation_details: {
-        reason: 'skip_full_draft_short_source',
+        reason: 'phase2_highlight_only_policy',
         requested_metadata_variant_mode: normalizedMetadataVariantMode,
         effective_metadata_variant_mode: effectiveMetadataVariantMode,
         duration_sec: Number(durationSec || 0),
-        short_source_full_skip_max_duration_sec: SHORTFORM_FULL_DRAFT_SKIP_MAX_DURATION_SEC,
         source_type: sourceType,
         source_workflow_mode: sourceWorkflowMode
       }
     };
-    emitProgress(onProgress, 'Gemini Full script skipped: short source is highlight-only by policy.', {
-      phase: 'full_skip',
+    emitProgress(onProgress, 'Gemini active policy: JP Highlight-only metadata flow completed.', {
+      phase: 'highlight_only_policy',
       requested_metadata_variant_mode: normalizedMetadataVariantMode,
       effective_metadata_variant_mode: effectiveMetadataVariantMode,
       durationSec,
@@ -9448,7 +10002,7 @@ async function runStandardGeminiPipeline({ generateJson, sourceUrl, filename, du
   return guide;
 }
 
-async function analyzeWithVertexAdc({ filePath, sourceUrl, durationSec, originalFilename, sourceType = 'unknown', sourceWorkflowMode = 'unknown', metadataVariantMode = 'all', existingGuide = null, assignedHookType = null, onProgress, throwIfCancelled = null, fullDraftStagesDir = '' }) {
+async function analyzeWithVertexAdc({ filePath, sourceUrl, durationSec, originalFilename, sourceType = 'unknown', sourceWorkflowMode = 'unknown', sourceContext = {}, metadataVariantMode = 'all', existingGuide = null, assignedHookType = null, onProgress, throwIfCancelled = null, fullDraftStagesDir = '' }) {
   const config = getVertexConfig();
   if (!config.project) {
     throw createHttpError(400, 'GOOGLE_CLOUD_PROJECT_REQUIRED', 'GOOGLE_CLOUD_PROJECT is required for Vertex ADC mode');
@@ -9592,12 +10146,12 @@ async function analyzeWithVertexAdc({ filePath, sourceUrl, durationSec, original
 
   const filename = originalFilename || (filePath ? path.basename(filePath) : 'youtube_url');
   if (sourceWorkflowMode === 'longform_to_shorts' || sourceType === 'longform') {
-    return runLongformGeminiPipeline({ generateJson, sourceUrl, filename, durationSec, sourceType, sourceWorkflowMode, metadataVariantMode, existingGuide, assignedHookType, onProgress, throwIfCancelled, fullDraftStagesDir, phaseRawResponses: latestPhaseRawResponses });
+    return runLongformGeminiPipeline({ generateJson, sourceUrl, filename, durationSec, sourceType, sourceWorkflowMode, sourceContext, metadataVariantMode, existingGuide, assignedHookType, onProgress, throwIfCancelled, fullDraftStagesDir, phaseRawResponses: latestPhaseRawResponses });
   }
   return runStandardGeminiPipeline({ generateJson, sourceUrl, filename, durationSec, sourceType, sourceWorkflowMode, metadataVariantMode, assignedHookType, onProgress, throwIfCancelled, fullDraftStagesDir, phaseRawResponses: latestPhaseRawResponses });
 }
 
-async function analyzeWithApiKey({ filePath, sourceUrl, apiKey, durationSec, originalFilename, sourceType = 'unknown', sourceWorkflowMode = 'unknown', metadataVariantMode = 'all', existingGuide = null, assignedHookType = null, onProgress, throwIfCancelled = null, fullDraftStagesDir = '' }) {
+async function analyzeWithApiKey({ filePath, sourceUrl, apiKey, durationSec, originalFilename, sourceType = 'unknown', sourceWorkflowMode = 'unknown', sourceContext = {}, metadataVariantMode = 'all', existingGuide = null, assignedHookType = null, onProgress, throwIfCancelled = null, fullDraftStagesDir = '' }) {
   if (!apiKey) {
     throw createHttpError(400, 'GEMINI_API_KEY_REQUIRED', 'GEMINI_API_KEY is required when GEMINI_AUTH_MODE is api_key');
   }
@@ -9688,25 +10242,274 @@ async function analyzeWithApiKey({ filePath, sourceUrl, apiKey, durationSec, ori
 
   const filename = originalFilename || (filePath ? path.basename(filePath) : 'youtube_url');
   if (sourceWorkflowMode === 'longform_to_shorts' || sourceType === 'longform') {
-    return runLongformGeminiPipeline({ generateJson, sourceUrl, filename, durationSec, sourceType, sourceWorkflowMode, metadataVariantMode, existingGuide, assignedHookType, onProgress, throwIfCancelled, fullDraftStagesDir, phaseRawResponses: latestPhaseRawResponses });
+    return runLongformGeminiPipeline({ generateJson, sourceUrl, filename, durationSec, sourceType, sourceWorkflowMode, sourceContext, metadataVariantMode, existingGuide, assignedHookType, onProgress, throwIfCancelled, fullDraftStagesDir, phaseRawResponses: latestPhaseRawResponses });
   }
   return runStandardGeminiPipeline({ generateJson, sourceUrl, filename, durationSec, sourceType, sourceWorkflowMode, metadataVariantMode, assignedHookType, onProgress, throwIfCancelled, fullDraftStagesDir, phaseRawResponses: latestPhaseRawResponses });
 }
 
-async function analyzeOttogiProcessMetadata({ filePath, sourceUrl = '', apiKey, durationSec = 0, originalFilename = '', sourceType = 'unknown', sourceWorkflowMode = 'unknown', metadataVariantMode = 'all', existingGuide = null, assignedHookType = null, onProgress, throwIfCancelled = null, fullDraftStagesDir = '' }) {
+async function analyzeOttogiProcessMetadata({ filePath, sourceUrl = '', apiKey, durationSec = 0, originalFilename = '', sourceType = 'unknown', sourceWorkflowMode = 'unknown', sourceContext = {}, metadataVariantMode = 'all', existingGuide = null, assignedHookType = null, onProgress, throwIfCancelled = null, fullDraftStagesDir = '' }) {
   if (!filePath && !isYouTubeUrl(sourceUrl)) {
     throw createHttpError(400, 'SOURCE_VIDEO_REQUIRED', 'source video file is required');
   }
 
   if (isVertexAdcMode()) {
-    return analyzeWithVertexAdc({ filePath, sourceUrl, durationSec, originalFilename, sourceType, sourceWorkflowMode, metadataVariantMode, existingGuide, assignedHookType, onProgress, throwIfCancelled, fullDraftStagesDir });
+    return analyzeWithVertexAdc({ filePath, sourceUrl, durationSec, originalFilename, sourceType, sourceWorkflowMode, sourceContext, metadataVariantMode, existingGuide, assignedHookType, onProgress, throwIfCancelled, fullDraftStagesDir });
   }
 
-  return analyzeWithApiKey({ filePath, sourceUrl, apiKey, durationSec, originalFilename, sourceType, sourceWorkflowMode, metadataVariantMode, existingGuide, assignedHookType, onProgress, throwIfCancelled, fullDraftStagesDir });
+  return analyzeWithApiKey({ filePath, sourceUrl, apiKey, durationSec, originalFilename, sourceType, sourceWorkflowMode, sourceContext, metadataVariantMode, existingGuide, assignedHookType, onProgress, throwIfCancelled, fullDraftStagesDir });
+}
+
+function buildAuxSceneAnalysisPrompt({ filename = '', durationSec = 0 } = {}) {
+  return [
+    'You are an auxiliary video scene analyzer for a Full Draft cross-edit workflow.',
+    'Return JSON only. Do not write a manuscript, title, metadata, hashtags, upload description, or captions.',
+    'Analyze only the visible process/action structure of this auxiliary video for matching against another process video.',
+    'Use a compact schema. Prefer 4 to 12 meaningful process/action scenes. If the video has few clear transitions, create practical 2-5 second action windows.',
+    'Each scene must include real source timestamps in seconds, visual_summary, focus_target, process_focus_priority, and short action_keywords.',
+    'process_focus_priority should be a concise action/stage label such as heating, feeding, pressing, cutting, bending, coiling, welding, pouring, cooling, inspection, result_reveal, repetitive_machine_motion, or human_hand_adjustment.',
+    'Do not infer facts beyond the visible frame. Do not mix this auxiliary analysis into any main Full Draft script.',
+    '',
+    `Filename: ${filename || 'source_aux.mp4'}`,
+    `Duration Sec: ${durationSec || 'unknown'}`
+  ].join('\n');
+}
+
+function compactSceneForAuxMatch(scene = {}, index = 0, prefix = 'scene') {
+  return {
+    scene_id: normalizeText(scene.scene_id || `${prefix}_${String(index + 1).padStart(2, '0')}`),
+    start_sec: Number(scene.start_sec || 0),
+    end_sec: Number(scene.end_sec || scene.transition_at_sec || scene.start_sec || 0),
+    visual_summary: normalizeText(scene.visual_summary || scene.caption_text_ko || scene.caption_text || ''),
+    focus_target: normalizeText(scene.focus_target || ''),
+    process_focus_priority: normalizeText(scene.process_focus_priority || scene.scene_role || ''),
+    action_keywords: Array.isArray(scene.action_keywords)
+      ? scene.action_keywords.map(normalizeText).filter(Boolean).slice(0, 8)
+      : []
+  };
+}
+
+function normalizeAuxSceneTransitions(raw = {}, sourceDurationSec = 0) {
+  const maxDuration = Number(sourceDurationSec || 0);
+  const scenes = (Array.isArray(raw.scene_transitions) ? raw.scene_transitions : [])
+    .map((scene, index) => compactSceneForAuxMatch(scene, index, 'aux_scene'))
+    .map((scene, index) => {
+      const startSec = clampNumber(scene.start_sec, 0, maxDuration > 0 ? maxDuration : Number.MAX_SAFE_INTEGER, 0);
+      const rawEnd = Number(scene.end_sec || 0);
+      const fallbackEnd = startSec + 2.4;
+      const endSec = clampNumber(rawEnd > startSec ? rawEnd : fallbackEnd, startSec + 0.2, maxDuration > 0 ? maxDuration : Number.MAX_SAFE_INTEGER, fallbackEnd);
+      return {
+        ...scene,
+        scene_id: scene.scene_id || `aux_scene_${String(index + 1).padStart(2, '0')}`,
+        start_sec: Number(startSec.toFixed(3)),
+        end_sec: Number(endSec.toFixed(3))
+      };
+    })
+    .filter((scene) => scene.end_sec > scene.start_sec && scene.visual_summary);
+
+  return {
+    generated_at: new Date().toISOString(),
+    source_duration_sec: maxDuration || null,
+    scene_transitions: scenes
+  };
+}
+
+function buildAuxSceneMatchPrompt({ mainScenes = [], auxScenes = [] } = {}) {
+  return [
+    'You are matching auxiliary process-video scenes to a main Full Draft process scene list.',
+    'Return JSON only. This is a text-only matching task; do not invent video details.',
+    'Goal: pair scenes only when they show the same process stage, machine action, material transformation, or hand/tool operation.',
+    'Hard rules:',
+    '- Do not force a match. If no auxiliary scene corresponds to a main scene, omit that main scene from matches.',
+    '- Match by semantic process/action, not by timeline position or desire to fill an aux quota.',
+    '- Do not match generic "factory/machine" similarity alone; require a concrete shared action such as coiling, feeding, heating, bending, cutting, pressing, pouring, welding, inspection, or result reveal.',
+    '- aux_start_sec and aux_end_sec must be copied from the matched aux scene time range.',
+    '- One aux scene may be reused only if it genuinely corresponds to multiple nearby main scenes.',
+    '',
+    'Main scenes:',
+    JSON.stringify(mainScenes, null, 2),
+    '',
+    'Aux scenes:',
+    JSON.stringify(auxScenes, null, 2)
+  ].join('\n');
+}
+
+function normalizeAuxSceneMatches(raw = {}, mainScenes = [], auxScenes = []) {
+  const mainById = new Map(mainScenes.map((scene) => [scene.scene_id, scene]));
+  const auxById = new Map(auxScenes.map((scene) => [scene.scene_id, scene]));
+  const matches = [];
+  for (const match of Array.isArray(raw.matches) ? raw.matches : []) {
+    const mainSceneId = normalizeText(match?.main_scene_id || '');
+    const auxSceneId = normalizeText(match?.aux_scene_id || '');
+    if (!mainSceneId || !auxSceneId || !mainById.has(mainSceneId) || !auxById.has(auxSceneId)) continue;
+    const auxScene = auxById.get(auxSceneId);
+    const auxStartSec = clampNumber(match.aux_start_sec, auxScene.start_sec, auxScene.end_sec, auxScene.start_sec);
+    const auxEndSec = clampNumber(match.aux_end_sec, auxStartSec + 0.2, auxScene.end_sec, auxScene.end_sec);
+    matches.push({
+      main_scene_id: mainSceneId,
+      aux_scene_id: auxSceneId,
+      aux_start_sec: Number(auxStartSec.toFixed(3)),
+      aux_end_sec: Number(auxEndSec.toFixed(3)),
+      match_reason: normalizeText(match.match_reason || ''),
+      confidence: normalizeText(match.confidence || '') || 'unknown'
+    });
+  }
+  return {
+    generated_at: new Date().toISOString(),
+    mode: 'semantic_match',
+    matches
+  };
+}
+
+async function generateAuxSemanticJson({ prompt, responseSchema, phase, includeVideo = false, filePath = '', sourceUrl = '', apiKey = '', onProgress, throwIfCancelled = null, timeoutMs = GEMINI_REQUEST_TIMEOUT_MS }) {
+  const maxAttempts = geminiMaxAttemptsForPhase(phase, { maxAttempts: 2 });
+  if (isVertexAdcMode()) {
+    const config = getVertexConfig();
+    if (!config.project) {
+      throw createHttpError(400, 'GOOGLE_CLOUD_PROJECT_REQUIRED', 'GOOGLE_CLOUD_PROJECT is required for Vertex ADC mode');
+    }
+    const token = await getVertexAccessToken();
+    const endpoint = buildVertexEndpoint(config);
+    const videoPart = includeVideo ? buildVertexVideoPart({ filePath, sourceUrl }) : null;
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      checkCancellation(throwIfCancelled);
+      await throttleGeminiCall();
+      try {
+        emitProgress(onProgress, `Gemini ${phase} 요청 시작 (${attempt}/${maxAttempts})`, { phase, attempt, includeVideo });
+        const response = await withGeminiHeartbeat({
+          onProgress,
+          phase,
+          label: `${phase} 요청 ${attempt}/${maxAttempts}`,
+          timeoutMs,
+          throwIfCancelled,
+          task: ({ signal }) => fetch(endpoint, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            signal,
+            body: JSON.stringify({
+              contents: [
+                {
+                  role: 'user',
+                  parts: includeVideo ? [videoPart, { text: prompt }] : [{ text: prompt }]
+                }
+              ],
+              generationConfig: buildMultimodalGenerationConfig({ responseSchema, includeVideo })
+            })
+          })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (response.ok) return extractJson(extractVertexResponseText(data), { phase, attempt, filename: path.basename(filePath || 'aux_semantic') });
+        if (attempt < maxAttempts && isRetryableGeminiStatus(response.status)) {
+          await cancellableSleep(retryDelayMs(attempt, phase, response.status), throwIfCancelled);
+          continue;
+        }
+        throw createHttpError(response.status, 'AUX_SEMANTIC_GEMINI_FAILED', `Gemini ${phase} failed`, { status: response.status, response: data });
+      } catch (error) {
+        if (attempt < maxAttempts && isRetryableGeminiError(error)) {
+          await cancellableSleep(retryDelayMs(attempt, phase, getGeminiErrorStatus(error)), throwIfCancelled);
+          continue;
+        }
+        throw error;
+      }
+    }
+  }
+
+  if (!apiKey) {
+    throw createHttpError(400, 'GEMINI_API_KEY_REQUIRED', 'GEMINI_API_KEY is required when GEMINI_AUTH_MODE is api_key');
+  }
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const videoPart = includeVideo ? await buildApiKeyVideoPart({ filePath, sourceUrl, apiKey, throwIfCancelled }) : null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    checkCancellation(throwIfCancelled);
+    await throttleGeminiCall();
+    try {
+      emitProgress(onProgress, `Gemini ${phase} 요청 시작 (${attempt}/${maxAttempts})`, { phase, attempt, includeVideo });
+      const model = genAI.getGenerativeModel({
+        model: GEMINI_MODEL,
+        generationConfig: buildMultimodalGenerationConfig({ responseSchema, includeVideo })
+      });
+      const result = await withGeminiHeartbeat({
+        onProgress,
+        phase,
+        label: `${phase} 요청 ${attempt}/${maxAttempts}`,
+        timeoutMs,
+        throwIfCancelled,
+        task: () => model.generateContent(includeVideo ? [videoPart, { text: prompt }] : [{ text: prompt }])
+      });
+      return extractJson(result?.response?.text?.() || '{}', { phase, attempt, filename: path.basename(filePath || 'aux_semantic') });
+    } catch (error) {
+      if (attempt < maxAttempts && isRetryableGeminiError(error)) {
+        await cancellableSleep(retryDelayMs(attempt, phase, getGeminiErrorStatus(error)), throwIfCancelled);
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  throw createHttpError(500, 'AUX_SEMANTIC_GEMINI_FAILED', `Gemini ${phase} failed`);
+}
+
+async function analyzeAuxSceneTransitions({ filePath, sourceUrl = '', apiKey = '', durationSec = 0, originalFilename = '', onProgress, throwIfCancelled = null } = {}) {
+  const prompt = buildAuxSceneAnalysisPrompt({ filename: originalFilename || path.basename(filePath || 'source_aux.mp4'), durationSec });
+  const raw = await generateAuxSemanticJson({
+    prompt,
+    responseSchema: AUX_SCENE_TRANSITIONS_SCHEMA,
+    phase: 'aux_scene_analysis',
+    includeVideo: true,
+    filePath,
+    sourceUrl,
+    apiKey,
+    onProgress,
+    throwIfCancelled,
+    timeoutMs: SHORTFORM_HIGHLIGHT_GEMINI_TIMEOUT_MS
+  });
+  return {
+    ...normalizeAuxSceneTransitions(raw, durationSec),
+    gemini_call_count: 1
+  };
+}
+
+async function matchAuxScenesToMain({ mainScenes = [], auxScenes = [], apiKey = '', onProgress, throwIfCancelled = null } = {}) {
+  const compactMainScenes = (Array.isArray(mainScenes) ? mainScenes : [])
+    .map((scene, index) => compactSceneForAuxMatch(scene, index, 'main_scene'))
+    .filter((scene) => scene.scene_id && scene.visual_summary);
+  const compactAuxScenes = (Array.isArray(auxScenes) ? auxScenes : [])
+    .map((scene, index) => compactSceneForAuxMatch(scene, index, 'aux_scene'))
+    .filter((scene) => scene.scene_id && scene.visual_summary && scene.end_sec > scene.start_sec);
+  if (!compactMainScenes.length || !compactAuxScenes.length) {
+    return {
+      generated_at: new Date().toISOString(),
+      mode: 'semantic_match',
+      matches: [],
+      gemini_call_count: 0,
+      skipped_reason: !compactMainScenes.length ? 'main scenes empty' : 'aux scenes empty'
+    };
+  }
+  const prompt = buildAuxSceneMatchPrompt({ mainScenes: compactMainScenes, auxScenes: compactAuxScenes });
+  const raw = await generateAuxSemanticJson({
+    prompt,
+    responseSchema: AUX_SCENE_MATCH_SCHEMA,
+    phase: 'aux_scene_match',
+    includeVideo: false,
+    apiKey,
+    onProgress,
+    throwIfCancelled,
+    timeoutMs: GEMINI_REQUEST_TIMEOUT_MS
+  });
+  return {
+    ...normalizeAuxSceneMatches(raw, compactMainScenes, compactAuxScenes),
+    main_scene_count: compactMainScenes.length,
+    aux_scene_count: compactAuxScenes.length,
+    gemini_call_count: 1
+  };
 }
 
 module.exports = {
   analyzeOttogiProcessMetadata,
+  analyzeAuxSceneTransitions,
+  matchAuxScenesToMain,
   assertOttogiGuideLanguage,
   getGeminiAuthMode,
   isVertexAdcMode,
@@ -9737,9 +10540,14 @@ module.exports = {
     enforcePublicMetadataLanguage,
     isKoreanFullScriptStyleRegenerationIssue,
     koreanFullDraftStyleViolations,
+    collectKoreanFullRepairGateIssues,
+    metadataSchemaForMetadataVariantMode,
+    reviewSchemaForMetadataVariantMode,
     selectKoreanFullHookType,
     normalizeGuide,
     validateOrRepairJapaneseCaptions,
+    validateGuide,
+    isUsableBestHighlightWindow,
     calculateKoreanFullSpeechBudget,
     countKoreanFullScriptVisibleChars,
     countKoreanVisibleCharsNoSpaces,
@@ -9748,7 +10556,16 @@ module.exports = {
     koreanFullSceneSpeechBudgetPromptLines,
     sceneTransitionIdSet,
     assertRepairNormalizationDidNotCollapse,
+    buildLongformCandidateGuideFromExisting,
+    validateLongformCandidateGuide,
+    isLocalLongformCandidateGuide,
+    isLocalOrFallbackLongformCandidate,
+    hasConcreteLongformCandidateEvidence,
     validateLongformVariantFinalGuide,
+    LONGFORM_VISION_CANDIDATE_SCHEMA_VERSION,
+    OTTOGI_HIGHLIGHT_METADATA_ONLY_SCHEMA,
+    OTTOGI_REVIEW_SCHEMA,
+    OTTOGI_HIGHLIGHT_ONLY_REVIEW_SCHEMA,
     OTTOGI_METADATA_FIELD_REPAIR_SCHEMA,
     OTTOGI_FULL_CAPTION_SCRIPT_REPAIR_SCHEMA
   }
