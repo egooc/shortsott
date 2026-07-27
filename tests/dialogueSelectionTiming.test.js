@@ -228,6 +228,70 @@ test('slot fill editorial guide preserves non-confrontation scene type without f
   assert.ok(guide.slot_rules.every((slot) => !slot.callback_relation));
 });
 
+test('validateEditPlanAgainstBeats allows hook teaser slots to carry only part of a beat anchor set', () => {
+  const editPlan = {
+    editorial_pattern: 'cold_open_callback',
+    timeline: [{
+      slot_id: 'slot_01',
+      beat_id: 'B004',
+      role: 'cold_open',
+      decision: 'KEEP_DIALOGUE',
+      editorial_role: 'hook_teaser',
+      dialogue_focus_quotes: ['I did not kill the ad, Steve']
+    }]
+  };
+  const beats = [{
+    beat_id: 'B004',
+    anchor_dialogue: ['I did not kill the ad, Steve', 'I was the only thing protecting it']
+  }];
+
+  assert.doesNotThrow(() => _test.validateEditPlanAgainstBeats(editPlan, beats));
+});
+
+test('finalizeEditPlan keeps hook teaser focused instead of expanding to every later anchor in the same beat', () => {
+  const transcript = [
+    { start_sec: 161.07, end_sec: 162.869, text: 'I did not kill the ad, Steve' },
+    { start_sec: 162.869, end_sec: 164.069, text: 'I was the only reason it aired' },
+    { start_sec: 194.98, end_sec: 198.659, text: 'I was the only thing protecting it' }
+  ];
+  const beats = [{
+    beat_id: 'B004',
+    start_sec: 161.07,
+    end_sec: 198.399,
+    summary: 'Sculley reverses the blame around the ad.',
+    key_dialogue: ['I did not kill the ad, Steve', 'I was the only reason it aired', 'I was the only thing protecting it'],
+    anchor_dialogue: ['I did not kill the ad, Steve', 'I was the only thing protecting it'],
+    dramatic_weight: 5,
+    dialogue_quality: 'high',
+    hook_potential: 5
+  }];
+  const editPlan = {
+    editorial_pattern: 'cold_open_callback',
+    cold_open_selection: { beat_id: 'B004' },
+    timeline: [
+      {
+        slot_id: 'slot_01',
+        beat_id: 'B004',
+        role: 'cold_open',
+        decision: 'KEEP_DIALOGUE',
+        editorial_role: 'hook_teaser',
+        dialogue_focus_quotes: ['I did not kill the ad, Steve', 'I was the only reason it aired'],
+        dialogue_focus_lines: ['I did not kill the ad, Steve', 'I was the only reason it aired'],
+        start_sec: 161.07,
+        end_sec: 198.399,
+        estimated_duration_sec: 37.329
+      }
+    ],
+    duration_budget: { target_sec: 90 }
+  };
+
+  const finalized = _test.finalizeEditPlan(editPlan, beats, transcript, 90);
+  const cold = finalized.timeline.find((slot) => slot.slot_id === 'slot_01');
+
+  assert.ok(cold.estimated_duration_sec <= 16);
+  assert.deepEqual(cold.dialogue_focus_lines, ['I did not kill the ad, Steve', 'I was the only reason it aired']);
+});
+
 test('finalizeEditPlan restructures late payoff into cold-open teaser and callback dialogue', () => {
   const transcript = [
     { start_sec: 20.0, end_sec: 22.1, text: 'why do people think I fired you' },

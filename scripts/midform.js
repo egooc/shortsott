@@ -13,6 +13,7 @@ const {
   refreshCompressionPlan
 } = require('../server/services/midformCompressionService');
 const { runBootstrapToPipeline } = require('../server/services/midformBootstrapAdapterService');
+const { runMidformTemplateWorkflow } = require('../server/services/midformRunTemplateService');
 
 const DEFAULT_CHANNEL_SHEET_PATH = path.join(PROJECT_ROOT, 'midform', 'materials', 'channels_sheet.csv');
 
@@ -45,6 +46,9 @@ function parseArgs(argv) {
     }
     const nextValue = inlineValue !== undefined ? inlineValue : argv[index + 1];
     if (inlineValue === undefined) index += 1;
+    if (flag === '--profile') options.profile = nextValue;
+    if (flag === '--template') options.template = nextValue;
+    if (flag === '--resume') options.resume = nextValue;
     if (flag === '--csv') options.csv = nextValue;
     if (flag === '--context-file') options.contextFile = nextValue;
     if (flag === '--out') options.out = nextValue;
@@ -71,9 +75,11 @@ function printUsage() {
     '  node scripts/midform.js channels --csv path/to/channels_sheet.csv',
     '  node scripts/midform.js channels export',
      '  node scripts/midform.js channels export --out path/to/channels_sheet.csv',
-      '  node scripts/midform.js compress --source https://youtu.be/ngYmFVO_bzM --target 160',
+     '  node scripts/midform.js compress --source https://youtu.be/ngYmFVO_bzM --target 160',
       '  node scripts/midform.js compress-refresh <runId>',
       '  node scripts/midform.js compress-apply <runId>',
+      '  node scripts/midform.js run --template midform/skills/midform-run/templates/base.md',
+      '  node scripts/midform.js run --template midform/skills/midform-run/templates/base.md --profile production',
       '',
     'Default sheet path:',
     `  ${path.relative(PROJECT_ROOT, DEFAULT_CHANNEL_SHEET_PATH).replace(/\\/g, '/')}`
@@ -115,6 +121,19 @@ async function main() {
       `heatmap_status: ${result.heatmapStatus}`,
       `pipeline_bootstrap_connected: ${result.pipelineBootstrapConnected}`
     ].join('\n') + '\n');
+    return;
+  }
+  if (command === 'run') {
+    const templatePath = options.template || subcommand;
+    if (!templatePath) throw new Error('run requires --template <path/to/template.md>');
+    const result = await runMidformTemplateWorkflow({
+      templatePath,
+      profile: options.profile,
+      source: options.source,
+      resume: options.resume,
+      target: options.target
+    });
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
     return;
   }
   if (command === 'compress-apply') {

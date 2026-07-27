@@ -2236,7 +2236,11 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec) {
         ? next.dialogue_focus_quotes.map((value) => String(value || '').trim()).filter(Boolean)
         : [];
       const requiredAnchors = Array.isArray(beat?.anchor_dialogue) ? beat.anchor_dialogue : [];
-      const preferredQuotes = plannedQuotes.length ? [...new Set([...requiredAnchors, ...plannedQuotes])] : requiredAnchors;
+      const hookTeaser = String(next?.editorial_role || '').trim() === 'hook_teaser'
+        || (String(next?.role || '').trim() === 'cold_open' && String(editPlan?.editorial_pattern || '').trim() === 'cold_open_callback');
+      const preferredQuotes = hookTeaser
+        ? (plannedQuotes.length ? plannedQuotes : requiredAnchors.slice(0, 1))
+        : (plannedQuotes.length ? [...new Set([...requiredAnchors, ...plannedQuotes])] : requiredAnchors);
       const rawFocus = collectDialogueFocus(beat, transcript, preferredQuotes.length ? { quotes: preferredQuotes } : {});
       if (rawFocus) {
         const enriched = enrichDialogueFocusForCoherence(beat, transcript, rawFocus);
@@ -2839,6 +2843,11 @@ function validateEditPlanAgainstBeats(editPlan, beats) {
     if (!beat) continue;
     const anchors = Array.isArray(beat.anchor_dialogue) ? beat.anchor_dialogue : [];
     const focusQuotes = new Set((Array.isArray(item.dialogue_focus_quotes) ? item.dialogue_focus_quotes : []).map((value) => String(value || '').trim()));
+    const hookTeaser = String(item?.editorial_role || '').trim() === 'hook_teaser'
+      || (String(item?.role || '').trim() === 'cold_open' && String(editPlan?.editorial_pattern || '').trim() === 'cold_open_callback');
+    if (hookTeaser) {
+      continue;
+    }
     for (const anchor of anchors) {
       if (!focusQuotes.has(anchor)) {
         throw new Error(`${item.slot_id} KEEP_DIALOGUE must include beat anchor: ${anchor}`);
@@ -3248,6 +3257,7 @@ module.exports = {
     buildSlotQcReport,
     buildSlotFillEditorialGuide,
     finalizeEditPlan,
+    validateEditPlanAgainstBeats,
     evaluateDialogueTimingQc,
     buildMicroExchangeCandidates,
     buildDialogueUnitMetadata,

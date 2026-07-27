@@ -1,0 +1,45 @@
+{
+  "name": "midform-run",
+  "version": 1,
+  "description": "Reusable CLI skill for running the full midform recap pipeline from a single markdown template contract.",
+  "entrypoint": {
+    "command": "midform run --template <path/to/template.md>",
+    "script": "scripts/midform.js",
+    "subcommand": "run"
+  },
+  "input_contract": {
+    "format": "markdown_with_yaml_front_matter",
+    "schema_path": "midform/schemas/midform_run_template_schema.json",
+    "required": [
+      "source.url",
+      "output.target_length_sec"
+    ]
+  },
+  "profiles": [
+    "fast",
+    "production",
+    "audit"
+  ],
+  "resume_stages": [
+    "ingest",
+    "analysis",
+    "slot_fill",
+    "bootstrap",
+    "draft"
+  ],
+  "artifacts": [
+    "normalized_request.json",
+    "narrative_beats.json",
+    "story_beatmap.json",
+    "edit_plan.json",
+    "slot_map.json",
+    "script.json",
+    "draft_input.json",
+    "edit_manifest.json",
+    "draft_content.json",
+    "acceptance_gates.json",
+    "human_qa_review.md",
+    "preview_frame_proof.json",
+    "run_summary.json"
+  ]
+}
