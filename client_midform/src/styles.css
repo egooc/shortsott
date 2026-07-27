@@ -44,7 +44,8 @@ a { color: inherit; }
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 
@@ -175,7 +176,8 @@ label {
 }
 
 input,
-select {
+select,
+textarea {
   width: 100%;
   border: 1px solid rgba(245, 237, 220, 0.16);
   border-radius: 0;
@@ -185,7 +187,14 @@ select {
   outline: none;
 }
 
-input:focus {
+textarea {
+  resize: vertical;
+  min-height: 180px;
+  line-height: 1.5;
+}
+
+input:focus,
+textarea:focus {
   border-color: var(--amber);
   box-shadow: 0 0 0 3px rgba(240, 182, 77, 0.1);
 }
@@ -211,6 +220,37 @@ select:focus {
   border-color: var(--green);
   background: rgba(110, 231, 168, 0.14);
   color: var(--green);
+}
+
+.approval-panel {
+  display: grid;
+  gap: 18px;
+}
+
+.approval-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.approval-actions button {
+  min-width: 126px;
+}
+
+.approval-stage-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px;
+}
+
+.stage-card {
+  border: 1px solid rgba(245, 237, 220, 0.14);
+  background: rgba(0, 0, 0, 0.2);
+  padding: 14px;
+}
+
+.stage-card h3 {
+  margin: 0 0 8px;
 }
 
 .or-rule {

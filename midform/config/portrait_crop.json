@@ -1,0 +1,6 @@
+{
+  "source_scale_multi": 1.5,
+  "source_scale_single": 1.5,
+  "scale_cap": 1.5,
+  "use_face_anchor": true
+}

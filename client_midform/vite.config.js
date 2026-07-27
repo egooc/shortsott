@@ -10,9 +10,10 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, repoRoot, '');
   const parsedUiPort = Number.parseInt(env.MIDFORM_UI_PORT || '5177', 10);
   const uiPort = Number.isInteger(parsedUiPort) ? parsedUiPort : 5177;
-  const apiTarget = env.VITE_MIDFORM_API_TARGET || `http://localhost:${env.PORT || '3016'}`;
+  const apiTarget = env.VITE_MIDFORM_API_TARGET || `http://localhost:${env.PORT || '3001'}`;
 
   return {
+    base: './',
     envDir: repoRoot,
     plugins: [react()],
     server: {

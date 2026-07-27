@@ -176,6 +176,7 @@ function StatusPill({ status }) {
 function TabBar({ activeTab, onChange }) {
   const tabs = [
     ['runner', '러너'],
+    ['approval', '승인 제작'],
     ['channels', '채널'],
     ['materials', '소재']
   ];
@@ -737,6 +738,96 @@ function ChannelsTab({ onPickChannel }) {
   );
 }
 
+function ApprovalTab({ onNotice }) {
+  const [sourceUrl, setSourceUrl] = useState('https://www.youtube.com/watch?v=Jgx4vgcMWb4&t=202s');
+  const [contextMarkdown, setContextMarkdown] = useState('# 영화 분석 템플릿\n\n- 비트표는 soft reference로 사용\n- 반드시 검토할 대사: "You brought a snack.", "The girl is with us.", "Get Bella out of here."');
+  const [runId, setRunId] = useState('');
+  const [state, setState] = useState(null);
+  const [busy, setBusy] = useState('');
+  const [error, setError] = useState(null);
+
+  const stages = [
+    ['analysis', '분석'],
+    ['story_options', '스토리 3안'],
+    ['story_selection', '스토리 승인'],
+    ['cutscene_plan', '컷씬 설명'],
+    ['dialogue_points', '대사 발화지점'],
+    ['script_variants', '원고 3안'],
+    ['script_approval', '원고 승인'],
+    ['edit_description', '씬 편집 설명'],
+    ['production_lock', '제작 잠금']
+  ];
+
+  async function refresh(id = runId) {
+    if (!id) return;
+    const data = await requestJson(`/api/midform/approval/runs/${encodeURIComponent(id)}`);
+    setState(data.state || data.approvalState || data);
+  }
+
+  async function runAction(label, path, body = {}) {
+    setBusy(label);
+    setError(null);
+    try {
+      const data = await requestJson(path, { method: 'POST', body: JSON.stringify(body) });
+      const nextState = data.state || data.approvalState;
+      if (data.runId) setRunId(data.runId);
+      if (nextState) setState(nextState);
+      if (data.runId && !nextState) await refresh(data.runId);
+      onNotice(`${label} 완료`);
+    } catch (requestError) {
+      setError(requestError);
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function createRun(event) {
+    event.preventDefault();
+    await runAction('승인 런 생성', '/api/midform/approval/runs', { sourceUrl, contextMarkdown, name: `ui_${Date.now()}` });
+  }
+
+  const disabled = !runId || Boolean(busy);
+  const canProduce = state?.stages?.production_lock?.status === 'approved';
+
+  return (
+    <section className="panel approval-panel">
+      <div className="section-kicker">승인 제작</div>
+      <h2>URL과 영화 분석 템플릿을 넣고, 단계별 승인 후 제작합니다.</h2>
+      <form onSubmit={createRun}>
+        <label>
+          영상 URL
+          <input value={sourceUrl} onChange={(event) => setSourceUrl(event.target.value)} placeholder="https://..." />
+        </label>
+        <label>
+          영화 분석 템플릿 / 컨텍스트
+          <textarea value={contextMarkdown} onChange={(event) => setContextMarkdown(event.target.value)} rows={8} />
+        </label>
+        <button disabled={Boolean(busy) || !sourceUrl.trim()}>{busy === '승인 런 생성' ? '생성 중…' : '승인 제작 런 생성'}</button>
+      </form>
+      {runId ? <p className="muted">현재 승인 런: <b>{runId}</b></p> : null}
+      {error ? <p className="error-box">{error.code}: {error.message}</p> : null}
+      <div className="approval-actions">
+        <button disabled={disabled} onClick={() => runAction('분석', `/api/midform/approval/runs/${encodeURIComponent(runId)}/analyze`)}>분석</button>
+        <button disabled={disabled} onClick={() => runAction('스토리 3안', `/api/midform/approval/runs/${encodeURIComponent(runId)}/story-options`)}>스토리 3안</button>
+        <button disabled={disabled} onClick={() => runAction('스토리 승인', `/api/midform/approval/runs/${encodeURIComponent(runId)}/approve-story`, { option: 1 })}>1안 승인</button>
+        <button disabled={disabled} onClick={() => runAction('컷씬 설명', `/api/midform/approval/runs/${encodeURIComponent(runId)}/cutscene-plan`)}>컷씬 설명</button>
+        <button disabled={disabled} onClick={() => runAction('컷씬 승인', `/api/midform/approval/runs/${encodeURIComponent(runId)}/approve-cutscene-plan`)}>컷씬 승인</button>
+        <button disabled={disabled} onClick={() => runAction('대사 지점', `/api/midform/approval/runs/${encodeURIComponent(runId)}/dialogue-points`)}>대사 지점</button>
+        <button disabled={disabled} onClick={() => runAction('대사 승인', `/api/midform/approval/runs/${encodeURIComponent(runId)}/approve-dialogue-points`)}>대사 승인</button>
+        <button disabled={disabled} onClick={() => runAction('원고 3안', `/api/midform/approval/runs/${encodeURIComponent(runId)}/script-variants`)}>원고 3안</button>
+        <button disabled={disabled} onClick={() => runAction('원고 승인', `/api/midform/approval/runs/${encodeURIComponent(runId)}/approve-script`, { variant: 1 })}>원고 1안 승인</button>
+        <button disabled={disabled} onClick={() => runAction('편집 설명', `/api/midform/approval/runs/${encodeURIComponent(runId)}/edit-description`)}>편집 설명</button>
+        <button disabled={disabled} onClick={() => runAction('편집 승인', `/api/midform/approval/runs/${encodeURIComponent(runId)}/approve-edit-description`)}>편집 승인</button>
+        <button disabled={disabled} onClick={() => runAction('제작 잠금', `/api/midform/approval/runs/${encodeURIComponent(runId)}/production-lock`)}>제작 가능 확인</button>
+      </div>
+      <div className="approval-stage-grid">
+        {stages.map(([id, label]) => <article key={id} className="stage-card"><h3>{label}</h3><StatusPill status={state?.stages?.[id]?.status || 'pending'} /><p>{state?.stages?.[id]?.artifact ? shortPath(state.stages[id].artifact) : '아직 산출물 없음'}</p></article>)}
+      </div>
+      <div className={canProduce ? 'notice compact' : 'error-box'}>{canProduce ? '모든 승인 완료: 제작 시작 가능' : '제작은 모든 승인 단계가 current/approved일 때만 가능합니다.'}</div>
+    </section>
+  );
+}
+
 function MaterialsTab({ focusHandle, onRunMaterial }) {
   const [materials, setMaterials] = useState([]);
   const [counts, setCounts] = useState(null);
@@ -880,6 +971,7 @@ function App() {
       <TabBar activeTab={activeTab} onChange={setActiveTab} />
       {notice ? <div className="notice">{notice}</div> : null}
       {activeTab === 'runner' ? <RunnerTab runs={runs} selectedRunId={selectedRunId} setSelectedRunId={setSelectedRunId} currentRun={currentRun} runDraft={runDraft} setRunDraft={setRunDraft} onRunStarted={handleRunStarted} onRunUpdated={handleRunUpdated} onNotice={setNotice} /> : null}
+      {activeTab === 'approval' ? <ApprovalTab onNotice={setNotice} /> : null}
       {activeTab === 'channels' ? <ChannelsTab onPickChannel={handlePickChannel} /> : null}
       {activeTab === 'materials' ? <MaterialsTab focusHandle={focusHandle} onRunMaterial={handleRunMaterial} /> : null}
     </main>
