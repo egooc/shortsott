@@ -32,6 +32,8 @@ const TTS_REUSE_LOG_FILE = 'tts_reuse_log.json';
 const TTS_DIR = 'tts';
 const PIPELINE_TIMEOUT_MS = Number(process.env.MIDFORM_PIPELINE_STEP_TIMEOUT_MS || 60 * 60 * 1000);
 const MIDFORM_FINAL_SLOT_TAIL_ALLOWANCE_SEC = Number(process.env.MIDFORM_FINAL_SLOT_TAIL_ALLOWANCE_SEC || 7);
+const MIDFORM_TTS_CONFIG_PATH = path.join(PROJECT_ROOT, 'midform', 'config', 'tts.json');
+const BASE_KOREAN_NARRATION_CHARS_PER_SEC = 4.8;
 
 let activeRunId = '';
 
@@ -257,8 +259,31 @@ function safeNumber(value, fallback = 0) {
   return Number.isFinite(number) ? number : fallback;
 }
 
+function readTtsConfig() {
+  if (!fs.existsSync(MIDFORM_TTS_CONFIG_PATH)) return {};
+  try {
+    const parsed = JSON.parse(fs.readFileSync(MIDFORM_TTS_CONFIG_PATH, 'utf8').replace(/^\uFEFF/, ''));
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function ttsSpeedMultiplier() {
+  const config = readTtsConfig();
+  const rawSpeed = Number(config?.voice_settings?.speed || 1);
+  return Number.isFinite(rawSpeed) && rawSpeed > 0 ? rawSpeed : 1;
+}
+
+function koreanNarrationCharsPerSec() {
+  const config = readTtsConfig();
+  const effective = Number(config?.effective_chars_per_sec);
+  if (Number.isFinite(effective) && effective > 0) return effective;
+  return BASE_KOREAN_NARRATION_CHARS_PER_SEC * ttsSpeedMultiplier();
+}
+
 function estimateSpeechSeconds(text) {
-  return Number((visibleLength(text) / 5.5).toFixed(2));
+  return Number((visibleLength(text) / koreanNarrationCharsPerSec()).toFixed(2));
 }
 
 function classifyEnding(sentence) {

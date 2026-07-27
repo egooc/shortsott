@@ -7,20 +7,52 @@ import hashlib
 import itertools
 import json
 import math
+import os
 import re
 import shutil
 import subprocess
+import sys
+import urllib.error
+import urllib.parse
+import urllib.request
 from pathlib import Path
 
 import edge_tts
 
+try:
+    reconfigure_stdout = getattr(sys.stdout, "reconfigure", None)
+    if callable(reconfigure_stdout):
+        reconfigure_stdout(encoding="utf-8", errors="replace")
+except Exception:
+    pass
 
-VOICE = "ko-KR-SunHiNeural"
-TTS_RATE = "+0%"
-TTS_VOLUME = "+0%"
-TTS_PITCH = "+0Hz"
-TTS_BOUNDARY = ""
-TTS_PROVIDER = "Microsoft Edge online TTS via edge-tts"
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+TTS_CONFIG_PATH = PROJECT_ROOT / "midform" / "config" / "tts.json"
+PROJECT_ENV_PATH = PROJECT_ROOT / ".env"
+DEFAULT_TTS_CONFIG = {
+    "provider": "edge",
+    "voice": "ko-KR-SunHiNeural",
+    "rate": "+0%",
+    "volume": "+0%",
+    "pitch": "+0Hz",
+    "boundary": "",
+    "base_chars_per_sec": 4.8,
+    "voice_id": "",
+    "model_id": "eleven_multilingual_v2",
+    "voice_settings": {
+        "stability": 0.5,
+        "similarity_boost": 0.75,
+        "style": 0.0,
+        "use_speaker_boost": True,
+        "speed": 1.0,
+    },
+    "output_format": "mp3_44100_128",
+    "api_base": "https://api.elevenlabs.io",
+}
+ACTIVE_TTS_CONFIG = dict(DEFAULT_TTS_CONFIG)
+
+
 CAPTION_MAX_CHARS = 11
 CAPTION_EXTENDED_CHARS = 14
 CAPTION_MIN_CHARS = 4
@@ -38,6 +70,112 @@ DEPENDENT_NOUN_STARTS = {"쪽으로", "때문에", "뿐만"}
 PROTECTED_NAME_PAIRS = set()
 
 
+def deep_merge(base, override):
+    merged = dict(base)
+    for key, value in (override or {}).items():
+        if isinstance(value, dict) and isinstance(merged.get(key), dict):
+            merged[key] = deep_merge(merged[key], value)
+        else:
+            merged[key] = value
+    return merged
+
+
+def load_tts_config():
+    config = dict(DEFAULT_TTS_CONFIG)
+    if TTS_CONFIG_PATH.exists():
+        raw = json.loads(TTS_CONFIG_PATH.read_text(encoding="utf-8-sig"))
+        if isinstance(raw, dict):
+            config = deep_merge(config, raw)
+    provider = normalize_text(config.get("provider") or "edge").lower()
+    config["provider"] = provider if provider in {"edge", "elevenlabs"} else "edge"
+    return config
+
+
+def read_env_file_value(key):
+    if not PROJECT_ENV_PATH.exists():
+        return ""
+    prefix = f"{key}="
+    for line in PROJECT_ENV_PATH.read_text(encoding="utf-8-sig").splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or not stripped.startswith(prefix):
+            continue
+        return stripped[len(prefix):].strip().strip('"').strip("'")
+    return ""
+
+
+def set_active_tts_config(config):
+    global ACTIVE_TTS_CONFIG
+    ACTIVE_TTS_CONFIG = config
+
+
+def tts_config():
+    return ACTIVE_TTS_CONFIG
+
+
+def edge_voice():
+    return normalize_text(tts_config().get("voice") or DEFAULT_TTS_CONFIG["voice"])
+
+
+def edge_rate():
+    return normalize_text(tts_config().get("rate") or DEFAULT_TTS_CONFIG["rate"])
+
+
+def edge_volume():
+    return normalize_text(tts_config().get("volume") or DEFAULT_TTS_CONFIG["volume"])
+
+
+def edge_pitch():
+    return normalize_text(tts_config().get("pitch") or DEFAULT_TTS_CONFIG["pitch"])
+
+
+def edge_boundary():
+    return normalize_text(tts_config().get("boundary") or DEFAULT_TTS_CONFIG["boundary"])
+
+
+def tts_speed():
+    settings = tts_config().get("voice_settings")
+    if not isinstance(settings, dict):
+        return 1.0
+    try:
+        return float(settings.get("speed") or 1.0)
+    except (TypeError, ValueError):
+        return 1.0
+
+
+def chars_per_second():
+    effective = tts_config().get("effective_chars_per_sec")
+    try:
+        effective_value = float(effective or 0)
+        if effective_value > 0:
+            return effective_value
+    except (TypeError, ValueError):
+        pass
+    try:
+        base = float(tts_config().get("base_chars_per_sec") or 4.8)
+    except (TypeError, ValueError):
+        base = 4.8
+    return max(0.1, base * max(0.1, tts_speed()))
+
+
+def tts_provider_label():
+    if tts_config().get("provider") == "elevenlabs":
+        return "ElevenLabs API"
+    return "Microsoft Edge online TTS via edge-tts"
+
+
+def tts_model_id_label():
+    if tts_config().get("provider") == "elevenlabs":
+        return str(tts_config().get("model_id") or DEFAULT_TTS_CONFIG["model_id"])
+    return f"edge-tts:{edge_voice()}"
+
+
+def estimated_narration_seconds(text):
+    char_count = len(re.sub(r"\s+", "", normalize_text(text)))
+    if char_count <= 0:
+        return 0.0
+    return round(char_count / chars_per_second(), 3)
+
+
 def load_json(path):
     return json.loads(Path(path).read_text(encoding="utf-8-sig"))
 
@@ -51,14 +189,42 @@ def normalize_text(value):
     return re.sub(r"\s+", " ", str(value or "")).strip()
 
 
+def sanitize_display_caption_text(value):
+    text = normalize_text(value)
+    text = re.sub(r"\s*(?:—|–|ㅡ)\s*", " ", text)
+    text = re.sub(r"(?:^|\s)>>\s*", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
+
+
+def split_display_caption_sources(value, segment_type=""):
+    text = sanitize_display_caption_text(value)
+    if not text:
+        return []
+    if str(segment_type or "") in {"dialogue_quote", "dialogue"}:
+        parts = [sanitize_display_caption_text(part) for part in re.split(r"\s*/\s*", text)]
+        return [part for part in parts if part]
+    return [text]
+
+
 def tts_param_payload():
+    config = tts_config()
+    if config.get("provider") == "elevenlabs":
+        return {
+            "provider": tts_provider_label(),
+            "voice_id": str(config.get("voice_id") or "").strip(),
+            "model_id": str(config.get("model_id") or DEFAULT_TTS_CONFIG["model_id"]).strip(),
+            "voice_settings": config.get("voice_settings") if isinstance(config.get("voice_settings"), dict) else {},
+            "output_format": str(config.get("output_format") or DEFAULT_TTS_CONFIG["output_format"]).strip(),
+            "api_base": str(config.get("api_base") or DEFAULT_TTS_CONFIG["api_base"]).strip(),
+        }
     return {
-        "voice": VOICE,
-        "rate": TTS_RATE,
-        "volume": TTS_VOLUME,
-        "pitch": TTS_PITCH,
-        "boundary": TTS_BOUNDARY,
-        "provider": TTS_PROVIDER,
+        "voice": edge_voice(),
+        "rate": edge_rate(),
+        "volume": edge_volume(),
+        "pitch": edge_pitch(),
+        "boundary": edge_boundary(),
+        "provider": tts_provider_label(),
     }
 
 
@@ -573,10 +739,12 @@ def build_timeline_units(segments):
                         "tts_enabled": True,
                         "order": sentence_order,
                         "text": sentence,
+                        "speaker": normalize_text(segment.get("speaker")),
                         "source_segment_order": segment_index,
                     }
                 )
-                chunks = merge_short_units(split_caption_text(sentence), segment=segment)
+                display_sentence = sanitize_display_caption_text(sentence)
+                chunks = merge_short_units(split_caption_text(display_sentence), segment=segment)
                 for display_order, chunk in enumerate(chunks, start=1):
                     caption_units.append(
                         {
@@ -587,12 +755,15 @@ def build_timeline_units(segments):
                             "segment_type": segment_type,
                             "tts_enabled": True,
                             "order": display_order,
-                            "text": chunk,
+                            "text": sanitize_display_caption_text(chunk),
+                            "speaker": normalize_text(segment.get("speaker")),
                             "source_segment_order": segment_index,
                         }
                     )
         else:
-            chunks = merge_short_units(split_caption_text(text), segment=segment)
+            chunks = []
+            for display_source in split_display_caption_sources(text, segment_type):
+                chunks.extend(merge_short_units(split_caption_text(display_source), segment=segment))
             for order, chunk in enumerate(chunks, start=1):
                 caption_id = f"{safe_filename_stem(segment_id, f's{segment_index:02d}')}_cap_{order:03d}"
                 caption_units.append(
@@ -602,7 +773,8 @@ def build_timeline_units(segments):
                         "segment_type": segment_type,
                         "tts_enabled": False,
                         "order": order,
-                        "text": chunk,
+                        "text": sanitize_display_caption_text(chunk),
+                        "speaker": normalize_text(segment.get("speaker")),
                         "source_segment_order": segment_index,
                     }
                 )
@@ -620,16 +792,77 @@ def ffprobe_duration(path):
 
 
 async def synthesize_unit(unit, output_dir):
+    if tts_config().get("provider") == "elevenlabs":
+        return await synthesize_unit_elevenlabs(unit, output_dir)
+    return await synthesize_unit_edge(unit, output_dir)
+
+
+async def synthesize_unit_edge(unit, output_dir):
     caption_id = safe_filename_stem(unit.get("caption_id"), "caption")
     output_path = contained_output_path(output_dir, f"{caption_id}.mp3")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     text_hash = unit.get("text_hash") or compute_text_hash(unit.get("text"))
-    await edge_tts.Communicate(unit["text"], VOICE, rate=TTS_RATE, volume=TTS_VOLUME, pitch=TTS_PITCH).save(str(output_path))
+    await edge_tts.Communicate(unit["text"], edge_voice(), rate=edge_rate(), volume=edge_volume(), pitch=edge_pitch()).save(str(output_path))
     return {
         "caption_id": caption_id,
         "segment_id": unit["segment_id"],
         "filename": output_path.name,
         "filepath": str(output_path),
         "duration_sec": round(ffprobe_duration(output_path), 3),
+        "text": unit["text"],
+        "text_hash": text_hash,
+        "tts_params": tts_param_payload(),
+        "reused": False,
+        "success": True,
+    }
+
+
+async def synthesize_unit_elevenlabs(unit, output_dir):
+    config = tts_config()
+    api_key = normalize_text(os.environ.get("ELEVENLABS_API_KEY") or read_env_file_value("ELEVENLABS_API_KEY"))
+    if not api_key:
+        raise RuntimeError("ELEVENLABS_API_KEY is not set")
+    voice_id = normalize_text(config.get("voice_id"))
+    if not voice_id:
+        raise RuntimeError("ElevenLabs voice_id is not configured")
+    model_id = normalize_text(config.get("model_id") or DEFAULT_TTS_CONFIG["model_id"])
+    output_format = normalize_text(config.get("output_format") or DEFAULT_TTS_CONFIG["output_format"])
+    api_base = normalize_text(config.get("api_base") or DEFAULT_TTS_CONFIG["api_base"]).rstrip("/")
+    voice_settings = config.get("voice_settings") if isinstance(config.get("voice_settings"), dict) else {}
+    payload = {
+        "text": unit["text"],
+        "model_id": model_id,
+        "voice_settings": voice_settings,
+    }
+    url = f"{api_base}/v1/text-to-speech/{urllib.parse.quote(voice_id)}?output_format={urllib.parse.quote(output_format)}"
+    request = urllib.request.Request(
+        url,
+        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+        headers={
+            "xi-api-key": api_key,
+            "Content-Type": "application/json",
+            "Accept": "audio/mpeg",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=180) as response:
+            audio_bytes = response.read()
+    except urllib.error.HTTPError as error:
+        body = error.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"ElevenLabs HTTP {error.code}: {body}") from error
+    caption_id = safe_filename_stem(unit.get("caption_id"), "caption")
+    output_path = contained_output_path(output_dir, f"{caption_id}.mp3")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_bytes(audio_bytes)
+    duration_sec = round(ffprobe_duration(output_path), 3)
+    text_hash = unit.get("text_hash") or compute_text_hash(unit.get("text"))
+    return {
+        "caption_id": caption_id,
+        "segment_id": unit["segment_id"],
+        "filename": output_path.name,
+        "filepath": str(output_path),
+        "duration_sec": duration_sec,
         "text": unit["text"],
         "text_hash": text_hash,
         "tts_params": tts_param_payload(),
@@ -754,8 +987,11 @@ async def main():
     parser.add_argument("--gemini-analysis")
     parser.add_argument("--reuse-tts-manifest")
     parser.add_argument("--preview-only", action="store_true")
+    parser.add_argument("--sample-segment-id")
+    parser.add_argument("--sample-output")
     args = parser.parse_args()
 
+    set_active_tts_config(load_tts_config())
     script = load_json(args.script)
     transcript = load_json(args.transcript)
     movie_research = load_json(args.movie_research) if args.movie_research else {}
@@ -781,11 +1017,42 @@ async def main():
             "movieResearch": movie_research,
             "movieIdentity": movie_identity,
             "geminiAnalysis": gemini_analysis,
-            "ttsProvider": TTS_PROVIDER,
+            "ttsProvider": tts_provider_label(),
             "ttsParams": tts_param_payload(),
         }
         write_json(args.output, preview_payload)
         print(json.dumps({"captionUnits": len(caption_units), "ttsUnits": len(tts_units), "previewOnly": True}, ensure_ascii=False))
+        return
+    if args.sample_segment_id:
+        sample_segment_id = normalize_text(args.sample_segment_id)
+        sample_output = str(Path(args.sample_output or (Path(args.tts_dir) / f"{safe_filename_stem(sample_segment_id, 'sample')}_sample.mp3")).resolve())
+        segment = next((segment for segment in segments if normalize_text(segment.get("segment_id")) == sample_segment_id), None)
+        if not segment:
+            raise ValueError(f"sample segment not found: {sample_segment_id}")
+        sample_text = normalize_text(segment.get("narration") or segment.get("caption_text"))
+        sample_unit = {
+            "caption_id": f"{safe_filename_stem(sample_segment_id, 'sample')}_sample",
+            "segment_id": sample_segment_id,
+            "text": sample_text,
+            "text_hash": compute_text_hash(sample_text),
+        }
+        sample_file = await synthesize_unit(sample_unit, str(Path(sample_output).resolve().parent))
+        actual_path = str(Path(sample_file["filepath"]).resolve())
+        target_path = str(Path(sample_output).resolve())
+        if actual_path != target_path:
+            shutil.move(actual_path, target_path)
+            sample_file["filepath"] = target_path
+            sample_file["filename"] = Path(target_path).name
+        print(json.dumps({
+            "segment_id": sample_segment_id,
+            "provider": tts_provider_label(),
+            "model_id": tts_model_id_label(),
+            "output_path": sample_file["filepath"],
+            "duration_sec": sample_file["duration_sec"],
+            "estimated_duration_sec": estimated_narration_seconds(sample_text),
+            "chars_per_sec": round(chars_per_second(), 3),
+            "text": sample_text,
+        }, ensure_ascii=False))
         return
     tts_files, reuse_summary = await synthesize_tts(tts_units, args.tts_dir, args.reuse_tts_manifest)
     draft_input = {
@@ -799,9 +1066,9 @@ async def main():
         "slotMap": script.get("slot_map", {}),
         "titleBlock": title_block,
         "movieResearch": movie_research,
-        "movieIdentity": movie_identity,
-        "geminiAnalysis": gemini_analysis,
-        "gemini_analysis_path": str(Path(args.gemini_analysis).resolve()) if args.gemini_analysis else "",
+            "movieIdentity": movie_identity,
+            "geminiAnalysis": gemini_analysis,
+            "gemini_analysis_path": str(Path(args.gemini_analysis).resolve()) if args.gemini_analysis else "",
         "script_path": str(Path(args.script).resolve()),
         "script_input_path": str(Path(args.script).resolve()),
         "source_video_path": str(Path(args.source_video).resolve()),
@@ -813,17 +1080,17 @@ async def main():
         "resolution": {"width": 1080, "height": 1920},
         "fps": 30,
         "slotMode": True,
-        "ttsProvider": TTS_PROVIDER,
-        "ttsParams": tts_param_payload(),
-        "ttsReuseSummary": reuse_summary,
-    }
+            "ttsProvider": tts_provider_label(),
+            "ttsParams": tts_param_payload(),
+            "ttsReuseSummary": reuse_summary,
+        }
     write_json(args.output, draft_input)
     write_json(
         contained_output_path(args.tts_dir, "gpt_midform_tts_manifest.json"),
         {
-            "model_id": f"edge-tts:{VOICE}",
-            "tts_provider": TTS_PROVIDER,
-            "tts_network_disclosure": "Narration text is sent to Microsoft's online Edge TTS service during synthesis.",
+            "model_id": tts_model_id_label(),
+            "tts_provider": tts_provider_label(),
+            "tts_network_disclosure": "Narration text is sent to the configured online TTS provider during synthesis.",
             "reused_from_manifest": str(Path(args.reuse_tts_manifest).resolve()) if args.reuse_tts_manifest else "",
             "caption_units": caption_units,
             "tts_units": tts_units,

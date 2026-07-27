@@ -9,8 +9,10 @@ const {
 } = require('../server/services/midformMaterialsService');
 const {
   runCompression,
-  runCompressionApply
+  runCompressionApply,
+  refreshCompressionPlan
 } = require('../server/services/midformCompressionService');
+const { runBootstrapToPipeline } = require('../server/services/midformBootstrapAdapterService');
 
 const DEFAULT_CHANNEL_SHEET_PATH = path.join(PROJECT_ROOT, 'midform', 'materials', 'channels_sheet.csv');
 
@@ -33,12 +35,25 @@ function parseArgs(argv) {
       options.help = true;
       continue;
     }
+    if (flag === '--preflight-only') {
+      options.preflightOnly = true;
+      continue;
+    }
+    if (flag === '--force-download') {
+      options.forceDownload = true;
+      continue;
+    }
     const nextValue = inlineValue !== undefined ? inlineValue : argv[index + 1];
     if (inlineValue === undefined) index += 1;
     if (flag === '--csv') options.csv = nextValue;
+    if (flag === '--context-file') options.contextFile = nextValue;
     if (flag === '--out') options.out = nextValue;
     if (flag === '--source') options.source = nextValue;
     if (flag === '--target') options.target = nextValue;
+    if (flag === '--name') options.name = nextValue;
+    if (flag === '--option') options.option = nextValue;
+    if (flag === '--variant') options.variant = nextValue;
+    if (flag === '--reason') options.reason = nextValue;
   }
   return { positionals, options };
 }
@@ -55,10 +70,11 @@ function printUsage() {
     '  node scripts/midform.js channels',
     '  node scripts/midform.js channels --csv path/to/channels_sheet.csv',
     '  node scripts/midform.js channels export',
-    '  node scripts/midform.js channels export --out path/to/channels_sheet.csv',
-    '  node scripts/midform.js compress --source https://youtu.be/ngYmFVO_bzM --target 180',
-    '  node scripts/midform.js compress-apply <runId>',
-    '',
+     '  node scripts/midform.js channels export --out path/to/channels_sheet.csv',
+      '  node scripts/midform.js compress --source https://youtu.be/ngYmFVO_bzM --target 160',
+      '  node scripts/midform.js compress-refresh <runId>',
+      '  node scripts/midform.js compress-apply <runId>',
+      '',
     'Default sheet path:',
     `  ${path.relative(PROJECT_ROOT, DEFAULT_CHANNEL_SHEET_PATH).replace(/\\/g, '/')}`
   ];
@@ -102,13 +118,62 @@ async function main() {
     return;
   }
   if (command === 'compress-apply') {
-    const result = await runCompressionApply(subcommand);
-    process.stdout.write([
+    const result = await runCompressionApply(subcommand, { contextFile: options.contextFile });
+    const lines = [
       `slot_fills_path: ${path.relative(PROJECT_ROOT, result.slotFillsPath).replace(/\\/g, '/')}`,
+      `upload_text_path: ${path.relative(PROJECT_ROOT, result.uploadTextPath).replace(/\\/g, '/')}`,
+      `edit_plan_path: ${path.relative(PROJECT_ROOT, result.editPlanPath).replace(/\\/g, '/')}`,
+      `slot_qc_report_path: ${path.relative(PROJECT_ROOT, result.slotQcReportPath).replace(/\\/g, '/')}`,
       `apply_state_path: ${path.relative(PROJECT_ROOT, path.join(result.runDir, 'compress_apply_state.json')).replace(/\\/g, '/')}`,
       `pipeline_bootstrap_connected: ${result.pipelineBootstrapConnected}`,
+      `context_provided: ${result.contextProvided === true}${result.contextFile ? ` (${path.relative(PROJECT_ROOT, result.contextFile).replace(/\\/g, '/')})` : ''}`,
       result.note
+    ];
+    if (Array.isArray(result.durationWarnings) && result.durationWarnings.length) {
+      lines.push('', 'DURATION WARNINGS (narration exceeds available teaser footage):');
+      for (const warning of result.durationWarnings) {
+        lines.push(`- ${warning.slot_id} (${warning.role}): ${warning.duration_check.suggested_action}`);
+      }
+    }
+    process.stdout.write(lines.join('\n') + '\n');
+    return;
+  }
+  if (command === 'compress-refresh') {
+    const result = await refreshCompressionPlan(subcommand);
+    process.stdout.write([
+      `edit_plan_path: ${path.relative(PROJECT_ROOT, result.editPlanPath).replace(/\\/g, '/')}`,
+      `narrative_beats_md: ${path.relative(PROJECT_ROOT, result.markdownPath).replace(/\\/g, '/')}`,
+      `teaser_visual_beat_id: ${result.coldOpenSelection?.teaser_visual_beat_id || ''}`,
+      `estimated_total_sec: ${result.durationBudget?.estimated_total_sec || ''}`
     ].join('\n') + '\n');
+    return;
+  }
+  if (command === 'bootstrap') {
+    const result = await runBootstrapToPipeline(subcommand, {
+      preflightOnly: options.preflightOnly === true,
+      forceDownload: options.forceDownload === true
+    });
+    const lines = [
+      `run_dir: ${path.relative(PROJECT_ROOT, result.runDir).replace(/\\/g, '/')}`,
+      `source_video_path: ${result.sourceVideoPath ? path.relative(PROJECT_ROOT, result.sourceVideoPath).replace(/\\/g, '/') : '(none)'}`,
+      `script_path: ${path.relative(PROJECT_ROOT, result.paths.outScriptPath).replace(/\\/g, '/')}`,
+      `preflight_ok: ${result.preflight.ok}`
+    ];
+    for (const check of result.preflight.checks) {
+      lines.push(`  [${check.ok ? 'PASS' : 'FAIL'}] ${check.name}${check.detail ? ` — ${check.detail}` : ''}`);
+    }
+    if (Array.isArray(result.warnings) && result.warnings.length) {
+      lines.push('', 'WARNINGS:');
+      for (const warning of result.warnings.slice(0, 25)) lines.push(`- ${warning}`);
+    }
+    if (result.rendered) {
+      lines.push('', `pipeline_run_id: ${result.pipelineRunId}`, `pipeline_run_dir: ${path.relative(PROJECT_ROOT, result.pipelineRunDir).replace(/\\/g, '/')}`);
+    } else if (result.ok) {
+      lines.push('', 'preflight-only: passed, startRun NOT invoked (drop --preflight-only to render)');
+    } else {
+      lines.push('', `BLOCKED: ${result.blocked}`);
+    }
+    process.stdout.write(lines.join('\n') + '\n');
     return;
   }
   if (command !== 'channels') {

@@ -15,6 +15,8 @@ from pathlib import Path
 
 MIN_UTTERANCES = 6
 MIN_SPEECH_RATIO = 0.15
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+DURATION_CONFIG_PATH = PROJECT_ROOT / "midform" / "config" / "duration.json"
 SCENE_CLUE_RE = re.compile(
     r"\b(scene|clip|moment|confronts?|confrontation|argument|dialogue|conversation|"
     r"monologue|speech|confession|interrogation|breakdown|fight|battle|attack|attacks|"
@@ -36,6 +38,22 @@ def load_json(path: Path):
 def write_json(path: Path, data):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def load_duration_config() -> dict:
+    defaults = {"min_duration_sec": 60.0, "max_duration_sec": 160.0}
+    if not DURATION_CONFIG_PATH.exists():
+        return defaults
+    try:
+        data = json.loads(DURATION_CONFIG_PATH.read_text(encoding="utf-8-sig"))
+    except Exception:
+        return defaults
+    if not isinstance(data, dict):
+        return defaults
+    return {
+        "min_duration_sec": safe_float(data.get("min_duration_sec"), defaults["min_duration_sec"]),
+        "max_duration_sec": safe_float(data.get("max_duration_sec"), defaults["max_duration_sec"]),
+    }
 
 
 def normalize_text(value) -> str:
@@ -78,6 +96,68 @@ def metadata_duration(source_info: dict, transcript: dict) -> float:
         or transcript.get("duration"),
         0.0,
     )
+
+
+def load_optional_json(path_value: str):
+    raw = normalize_text(path_value)
+    if not raw:
+        return None
+    path = Path(raw)
+    if not path.is_absolute():
+        path = PROJECT_ROOT / path
+    if not path.exists():
+        return None
+    try:
+        return load_json(path)
+    except Exception:
+        return None
+
+
+def estimate_duration_from_edit_plan(edit_plan) -> float:
+    if not isinstance(edit_plan, dict):
+        return 0.0
+    budget = edit_plan.get("duration_budget") if isinstance(edit_plan.get("duration_budget"), dict) else {}
+    estimated = safe_float(budget.get("estimated_total_sec"), 0.0)
+    if estimated > 0:
+        return estimated
+    timeline = edit_plan.get("timeline") if isinstance(edit_plan.get("timeline"), list) else []
+    return sum(safe_float(item.get("estimated_duration_sec"), 0.0) for item in timeline if isinstance(item, dict))
+
+
+def estimate_duration_from_tts_manifest(tts_manifest) -> float:
+    if not isinstance(tts_manifest, dict):
+        return 0.0
+    direct = safe_float(tts_manifest.get("total_duration_sec") or tts_manifest.get("totalDurationSec"), 0.0)
+    if direct > 0:
+        return direct
+    candidates = []
+    for key in ["files", "items", "results", "tts_results", "captions"]:
+        value = tts_manifest.get(key)
+        if isinstance(value, list):
+            candidates = value
+            break
+    return sum(safe_float(item.get("duration_sec"), 0.0) for item in candidates if isinstance(item, dict))
+
+
+def duration_guidance(estimated_sec: float, source: str, config: dict) -> dict:
+    min_sec = safe_float(config.get("min_duration_sec"), 60.0)
+    max_sec = safe_float(config.get("max_duration_sec"), 160.0)
+    status = "ok"
+    message = "duration within guide"
+    if estimated_sec > max_sec:
+        status = "warn"
+        message = f"추정 총 길이 {round(estimated_sec, 3)}초가 상한 {round(max_sec, 3)}초를 초과합니다."
+    elif 0 < estimated_sec < min_sec:
+        status = "warn"
+        message = f"추정 총 길이 {round(estimated_sec, 3)}초가 하한 {round(min_sec, 3)}초보다 짧습니다."
+    return {
+        "status": status,
+        "source": source,
+        "estimated_total_sec": round(estimated_sec, 3),
+        "min_duration_sec": min_sec,
+        "max_duration_sec": max_sec,
+        "message": message,
+    }
 
 
 def compact_movie_title(value: str) -> str:
@@ -132,11 +212,26 @@ def metadata_scene_signal(source_info: dict) -> dict:
     return {"passes": bool(match), "matched": match.group(0) if match else ""}
 
 
-def build_decision(source_info: dict, transcript: dict, manual_movie_title: str = "") -> dict:
+def build_decision(source_info: dict, transcript: dict, manual_movie_title: str = "", edit_plan=None, tts_manifest=None) -> dict:
     duration = metadata_duration(source_info, transcript)
     speech = transcript_metrics(transcript, duration)
     identity = infer_explicit_movie_title(source_info, manual_movie_title)
     scene_signal = metadata_scene_signal(source_info)
+    duration_config = load_duration_config()
+    duration_estimate = estimate_duration_from_tts_manifest(tts_manifest)
+    duration_source = "tts_manifest"
+    if duration_estimate <= 0:
+        duration_estimate = estimate_duration_from_edit_plan(edit_plan)
+        duration_source = "edit_plan"
+    duration_check = duration_guidance(duration_estimate, duration_source, duration_config) if duration_estimate > 0 else {
+        "status": "not_checked",
+        "source": "none",
+        "estimated_total_sec": 0.0,
+        "min_duration_sec": duration_config["min_duration_sec"],
+        "max_duration_sec": duration_config["max_duration_sec"],
+        "message": "edit_plan 또는 TTS manifest가 없어 draft 길이 추정 검사를 건너뜁니다.",
+    }
+    warnings = [duration_check["message"]] if duration_check.get("status") == "warn" else []
     failures = []
     if not speech["passes"]:
         failures.append({
@@ -169,6 +264,8 @@ def build_decision(source_info: dict, transcript: dict, manual_movie_title: str 
         "speech": speech,
         "movie_identity_pre_gemini": identity,
         "scene_metadata_signal": scene_signal,
+        "duration_guidance": duration_check,
+        "warnings": warnings,
         "failures": failures,
     }
 
@@ -179,11 +276,19 @@ def main() -> int:
     parser.add_argument("--transcript", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--movie-title", default="", help="Manual movie title override when metadata is explicit to the operator but not machine-readable.")
+    parser.add_argument("--edit-plan", default="", help="Optional edit_plan.json for non-blocking duration warning.")
+    parser.add_argument("--tts-manifest", default="", help="Optional TTS manifest/result JSON for measured duration warning.")
     args = parser.parse_args()
 
     source_info = load_json(args.source_info)
     transcript = load_json(args.transcript)
-    decision = build_decision(source_info, transcript, args.movie_title)
+    decision = build_decision(
+        source_info,
+        transcript,
+        args.movie_title,
+        load_optional_json(args.edit_plan),
+        load_optional_json(args.tts_manifest),
+    )
     write_json(args.output, decision)
     print(json.dumps({
         "status": decision["status"],

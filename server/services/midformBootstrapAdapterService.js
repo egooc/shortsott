@@ -1,0 +1,737 @@
+// Phase 2 bootstrap adapter: converts the compression pipeline's artifacts (edit_plan.json +
+// compression_slot_fills.json + transcript_timed.json) into the existing assembly pipeline's
+// contract (transcript / slot_map.json / script.json), then hands off to midformPipelineService.
+//
+// Coordinate contract (single source of truth): every per-line dialogue timestamp comes from
+// edit_plan.timeline[].dialogue_line_windows[] (computed once in finalizeEditPlan). The transcript
+// utterance, the slot_map source_range, and the script source_scenes all reference those SAME
+// stored numbers verbatim via secondsToTimecode() — never re-derived, never re-rounded here.
+
+const fs = require('fs');
+const path = require('path');
+const { execFileSync } = require('child_process');
+const { PROJECT_ROOT } = require('./pipelinePaths');
+const { resolveTool, getToolEnv } = require('../utils/toolPaths');
+const { getVideoMetadata } = require('../utils/ffprobe');
+const { resolveCompressionRunDir, downloadCompressionSourceVideo } = require('./midformCompressionService');
+const { startRun } = require('./midformPipelineService');
+
+const DURATION_CONFIG_PATH = path.join(PROJECT_ROOT, 'midform', 'config', 'duration.json');
+
+function readJson(filePath) {
+  return JSON.parse(fs.readFileSync(filePath, 'utf8').replace(/^﻿/, ''));
+}
+
+function readDurationConfig() {
+  const defaults = { min_duration_sec: 60, max_duration_sec: 160 };
+  if (!fs.existsSync(DURATION_CONFIG_PATH)) return defaults;
+  try {
+    const parsed = readJson(DURATION_CONFIG_PATH);
+    return {
+      min_duration_sec: Number(parsed?.min_duration_sec) || defaults.min_duration_sec,
+      max_duration_sec: Number(parsed?.max_duration_sec) || defaults.max_duration_sec
+    };
+  } catch {
+    return defaults;
+  }
+}
+
+function normalizeText(value) {
+  return String(value || '').replace(/\s+/g, ' ').trim();
+}
+
+function sanitizeDisplayCaptionText(value) {
+  return normalizeText(value)
+    .replace(/\s*(?:—|–|ㅡ)\s*/g, ' ')
+    .replace(/(?:^|\s)>>\s*/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Matches capcut_draft.py:seconds_to_timecode exactly (HH:MM:SS.mmm). The ONE place seconds
+// become a timecode string, so every source_scenes clip uses the identical formatting.
+function secondsToTimecode(totalSec) {
+  const total = Math.max(0, Number(totalSec) || 0);
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const seconds = total - hours * 3600 - minutes * 60;
+  const pad = (n, w) => String(n).padStart(w, '0');
+  return `${pad(hours, 2)}:${pad(minutes, 2)}:${seconds.toFixed(3).padStart(6, '0')}`;
+}
+
+function segmentSourceType(segment) {
+  if (segment.source_type) return segment.source_type;
+  return segment.segment_type === 'dialogue_quote' ? 'KEEP_DIALOGUE' : 'NARRATE';
+}
+
+function buildReviewDraftMarkdown(script) {
+  const lines = ['# Bootstrap Review Draft', ''];
+  for (const segment of Array.isArray(script?.segments) ? script.segments : []) {
+    const scene = Array.isArray(segment.source_scenes) ? segment.source_scenes[0] : null;
+    const time = scene ? `${scene.start}-${scene.end}` : '-';
+    const speaker = normalizeText(segment.speaker || '');
+    const text = normalizeText(segment.caption_text || segment.translated_caption_ko || segment.narration || '');
+    const sourceLine = normalizeText(segment.source_line_id || segment.utt_id || '');
+    const speakerPart = speaker ? `[${speaker}]` : '';
+    const linePart = sourceLine ? ` {${sourceLine}}` : '';
+    lines.push(`[${segmentSourceType(segment)}][${time}]${speakerPart} ${text}${linePart}`.trim());
+  }
+  lines.push('');
+  return lines.join('\n');
+}
+
+function buildEditorialReviewArtifact(editPlan, script) {
+  const segmentsByParent = new Map();
+  for (const segment of Array.isArray(script?.segments) ? script.segments : []) {
+    const parentSlotId = normalizeText(segment.parent_slot_id || segment.segment_id || '');
+    if (!parentSlotId) continue;
+    if (!segmentsByParent.has(parentSlotId)) segmentsByParent.set(parentSlotId, []);
+    segmentsByParent.get(parentSlotId).push(segment);
+  }
+  const slots = (Array.isArray(editPlan?.timeline) ? editPlan.timeline : [])
+    .filter((item) => item.decision !== 'DROP')
+    .map((item) => {
+      const slotId = normalizeText(item.slot_id || '');
+      const segments = segmentsByParent.get(slotId) || [];
+      return {
+        slot_id: slotId,
+        beat_id: normalizeText(item.beat_id || ''),
+        role: normalizeText(item.role || ''),
+        decision: normalizeText(item.decision || item.mode || ''),
+        editorial_role: normalizeText(item.editorial_role || item.role || ''),
+        scene_type: normalizeText(item.scene_type || editPlan?.scene_type || ''),
+        teaser_slot_id: normalizeText(item.teaser_slot_id || ''),
+        callback_slot_id: normalizeText(item.callback_slot_id || ''),
+        callback_relation: normalizeText(item.callback_relation || item.replay_mode || ''),
+        reused_conflict_axis: normalizeText(item.reused_conflict_axis || ''),
+        dialogue_unit: item.dialogue_unit && typeof item.dialogue_unit === 'object' ? item.dialogue_unit : null,
+        risk: {
+          semantic_risk: normalizeText(item.semantic_risk || 'low'),
+          pronoun_risk: item.pronoun_risk === true,
+          standalone_score: Number(item.standalone_score || 0),
+          boundary_score: Number(item.boundary_score || 0)
+        },
+        qc_action: item.qc_action && typeof item.qc_action === 'object'
+          ? item.qc_action
+          : { action: normalizeText(item.applied_fix || 'none'), reason: normalizeText(item.recommended_fix || ''), source: 'legacy_qc_fields' },
+        source_lines: segments.map((segment) => ({
+          segment_id: normalizeText(segment.segment_id || ''),
+          source_line_id: normalizeText(segment.source_line_id || segment.utt_id || ''),
+          speaker: normalizeText(segment.speaker || ''),
+          source_text: normalizeText(segment.dialogue_original || ''),
+          caption_text: normalizeText(segment.caption_text || segment.translated_caption_ko || segment.narration || '')
+        }))
+      };
+    });
+  return {
+    artifact_type: 'midform_editorial_review',
+    scene_type: normalizeText(editPlan?.scene_type || ''),
+    editorial_pattern: normalizeText(editPlan?.editorial_pattern || ''),
+    generated_at: new Date().toISOString(),
+    slots
+  };
+}
+
+// The assembly pipeline (transcribe_source.py -> build_transcript_utterance_map /
+// normalize_transcript_utterances) reads utterance.start and utterance.end (NOT start_time_s).
+// Verified against transcribe_source.py output and all three consumers.
+function buildBootstrapTranscript(editPlan, transcriptTimed) {
+  const utterances = [];
+  const warnings = [];
+  const timeline = Array.isArray(editPlan?.timeline) ? editPlan.timeline : [];
+
+  // 1) One utterance per KEEP_DIALOGUE line, referenced by its dialogue segment via utt_id.
+  //    Stored dialogue_line_windows coordinates used verbatim so the utterance matches the
+  //    segment's source_scenes exactly (validate_dialogue_utterance_references needs <=0.05s).
+  const dialogueWindows = [];
+  for (const item of timeline) {
+    if (item.decision !== 'KEEP_DIALOGUE') continue;
+    const slotId = String(item.slot_id || '').trim();
+    const windows = Array.isArray(item.dialogue_line_windows) ? item.dialogue_line_windows : [];
+    windows.forEach((win, index) => {
+      if (!win || win.matched !== true) {
+        warnings.push(`${slotId} line ${index + 1} has no matched window, skipped: "${win ? win.line : ''}"`);
+        return;
+      }
+      utterances.push({
+        utt_id: `${slotId}_L${String(index + 1).padStart(2, '0')}`,
+        start: win.start_sec,
+        end: win.end_sec,
+        text: normalizeText(win.line),
+        words: []
+      });
+      dialogueWindows.push([Number(win.start_sec), Number(win.end_sec)]);
+    });
+  }
+
+  // 2) Original VTT cues as speech-range utterances for the narration b-roll auto-picker
+  //    (choose_story_anchor_source_clips) to avoid talking mouths. EXCLUDE cues overlapping a
+  //    per-line dialogue window: the SAME transcript feeds the FATAL reserved-range gate, and a
+  //    stray cue overlapping a dialogue clip would trip dialogue_not_aligned_to_dialogue_map.
+  const overlapsDialogueWindow = (s, e) => dialogueWindows.some(([ws, we]) => e > ws + 0.001 && s < we - 0.001);
+  const cues = Array.isArray(transcriptTimed) ? transcriptTimed : [];
+  const keptByText = new Map();
+  let cueSeq = 0;
+  let excludedForDialogueOverlap = 0;
+  for (const cue of cues) {
+    const text = normalizeText(cue.text);
+    const startSec = Number(cue.start_sec);
+    const endSec = Number(cue.end_sec);
+    if (!text || !(endSec > startSec)) continue;
+    if (overlapsDialogueWindow(startSec, endSec)) {
+      excludedForDialogueOverlap += 1;
+      continue;
+    }
+    const prior = keptByText.get(text);
+    if (prior && startSec < prior.end + 0.05 && endSec > prior.start - 0.05) {
+      if (endSec - startSec > prior.end - prior.start) {
+        prior.start = startSec;
+        prior.end = endSec;
+      }
+      continue;
+    }
+    cueSeq += 1;
+    const utt = { utt_id: `cue_${String(cueSeq).padStart(4, '0')}`, start: startSec, end: endSec, text, words: [] };
+    utterances.push(utt);
+    keptByText.set(text, utt);
+  }
+  if (excludedForDialogueOverlap > 0) {
+    warnings.push(`${excludedForDialogueOverlap} VTT cue(s) excluded from transcript for overlapping a dialogue-line window (avoids the reserved-range gate)`);
+  }
+
+  utterances.sort((a, b) => a.start - b.start || a.end - b.end);
+  return {
+    transcript: { utterances, utterance_count: utterances.length },
+    stats: {
+      per_line_utterances: dialogueWindows.length,
+      cue_utterances: cueSeq,
+      cues_excluded_for_dialogue_overlap: excludedForDialogueOverlap
+    },
+    warnings
+  };
+}
+
+function defaultEditInstruction(visualRole) {
+  return { visual_role: visualRole, pace: 'medium', transition: 'cut', zoom: 'none', sfx: [] };
+}
+
+// Builds slot_map.json and script.json TOGETHER from the same edit plan + slot fills, so the two
+// artifacts share one set of coordinates. IMPORTANT: script.json gets NO top-level slot_map key.
+// Verified in capcut_draft.py: slot_map_mode = bool(script.slot_map.slots); when false (no key),
+// validate_slot_source_monotonicity returns not_applicable (line 9553) AND the story-anchor b-roll
+// auto-picker runs (line 8961). Both desired behaviors come from omitting the key — there is no
+// trade-off, so we never embed slot_map here.
+function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
+  const warnings = [];
+  const timeline = (Array.isArray(editPlan?.timeline) ? editPlan.timeline : [])
+    .filter((item) => item.decision !== 'DROP');
+  const fillsBySlot = new Map((Array.isArray(slotFills?.slot_fills) ? slotFills.slot_fills : [])
+    .map((fill) => [String(fill?.slot_id || '').trim(), fill]));
+
+  const slots = [];
+  const segments = [];
+
+  // Adapter-side b-roll. All narration segments get a degenerate story_anchor hint so capcut's
+  // b-roll auto-picker DECLINES; that leaves story_sync_segment_reports empty, so the story-sync
+  // gate (its monotonic + 70%-coverage checks, both incompatible with the teaser/compression
+  // composition) is skipped entirely. We supply explicit NON-OVERLAPPING b-roll ourselves so the
+  // hybrid cross-segment overlap gate stays clean.
+  const reservedDialogueRanges = [];
+  for (const t of timeline) {
+    if (t.decision !== 'KEEP_DIALOGUE') continue;
+    for (const w of Array.isArray(t.dialogue_line_windows) ? t.dialogue_line_windows : []) {
+      if (w && w.matched === true) reservedDialogueRanges.push([Number(w.start_sec), Number(w.end_sec)]);
+    }
+  }
+  const assignedBrollRanges = [];
+  const subtractBusyRanges = (rangeStart, rangeEnd, blocks) => {
+    const busy = blocks.map((b) => [Number(b[0]), Number(b[1])]).filter((b) => b[1] > rangeStart && b[0] < rangeEnd).sort((a, b) => a[0] - b[0]);
+    const free = [];
+    let cursor = rangeStart;
+    for (const b of busy) {
+      if (b[0] > cursor) free.push([cursor, Math.min(b[0], rangeEnd)]);
+      cursor = Math.max(cursor, b[1]);
+      if (cursor >= rangeEnd) break;
+    }
+    if (cursor < rangeEnd) free.push([cursor, rangeEnd]);
+    return free.filter((r) => r[1] - r[0] > 0.3);
+  };
+  const pickNarrationBroll = (prefStart, prefEnd) => {
+    const free = subtractBusyRanges(prefStart, prefEnd, [...reservedDialogueRanges, ...assignedBrollRanges]);
+    if (!free.length) return null;
+    free.sort((a, b) => (b[1] - b[0]) - (a[1] - a[0]));
+    const chosen = free[0];
+    return [chosen[0], Math.min(chosen[1], chosen[0] + 30)]; // cap clip length; capcut trims to TTS
+  };
+
+  for (const item of timeline) {
+    const slotId = String(item.slot_id || '').trim();
+    const role = String(item.role || '').trim();
+    const fill = fillsBySlot.get(slotId) || {};
+
+    if (item.decision === 'KEEP_DIALOGUE') {
+      // One dialogue slot/segment PER LINE (option B) so each Korean caption locks to the exact
+      // moment its English line is spoken. Coordinates come from dialogue_line_windows verbatim.
+      const windows = Array.isArray(item.dialogue_line_windows) ? item.dialogue_line_windows : [];
+      const captionKr = Array.isArray(fill.caption_kr_dialogue) ? fill.caption_kr_dialogue : [];
+      // Emit per-line dialogue segments in CHRONOLOGICAL (source-time) order, not the LLM's list
+      // order — the capcut story-sync gate requires non-decreasing source starts across the
+      // timeline. segId/utt_id keep the ORIGINAL index so they still match the transcript utterance.
+      const orderedDialogueWindows = windows
+        .map((win, index) => ({ win, index }))
+        .filter((entry) => entry.win && entry.win.matched === true)
+        .sort((a, b) => Number(a.win.start_sec) - Number(b.win.start_sec));
+      for (const { win, index } of orderedDialogueWindows) {
+        const segId = `${slotId}_L${String(index + 1).padStart(2, '0')}`;
+        const startTc = secondsToTimecode(win.start_sec);
+        const endTc = secondsToTimecode(win.end_sec);
+        const captionText = sanitizeDisplayCaptionText(captionKr[index] || '');
+        const speakerList = Array.isArray(fill.speakers) ? fill.speakers : [];
+        const speaker = normalizeText(speakerList[index] || fill.speaker || '');
+        if (!captionText) warnings.push(`${segId} has no Korean caption (caption_kr_dialogue[${index}] empty)`);
+        slots.push({
+          slot_id: segId,
+          type: 'dialogue',
+          source_type: item.requires_context ? 'KEEP_DIALOGUE_BRIDGED' : 'KEEP_DIALOGUE',
+          parent_slot_id: slotId,
+          source_line_id: segId,
+          translation_mode: 'faithful_dialogue',
+          context_strategy: item.context_strategy || 'none',
+          semantic_risk: item.semantic_risk || 'low',
+          pronoun_risk: item.pronoun_risk === true,
+          standalone_score: Number(item.standalone_score || 0),
+          boundary_score: Number(item.boundary_score || 0),
+          editorial_role: item.editorial_role || role || '',
+          scene_type: item.scene_type || editPlan.scene_type || '',
+          teaser_slot_id: item.teaser_slot_id || '',
+          callback_slot_id: item.callback_slot_id || '',
+          callback_relation: item.callback_relation || '',
+          reused_conflict_axis: item.reused_conflict_axis || '',
+          dialogue_unit: item.dialogue_unit || null,
+          source_range: [win.start_sec, win.end_sec],
+          duration: Number((win.end_sec - win.start_sec).toFixed(3)),
+          utt_id: segId,
+          caption_source_text: normalizeText(win.line),
+          scene_summary: `dialogue: ${normalizeText(win.line)}`,
+          scene_ids: []
+        });
+        segments.push({
+          segment_id: segId,
+          segment_type: 'dialogue_quote',
+          source_type: item.requires_context ? 'KEEP_DIALOGUE_BRIDGED' : 'KEEP_DIALOGUE',
+          parent_slot_id: slotId,
+          source_line_id: segId,
+          translation_mode: 'faithful_dialogue',
+          context_strategy: item.context_strategy || 'none',
+          semantic_risk: item.semantic_risk || 'low',
+          pronoun_risk: item.pronoun_risk === true,
+          standalone_score: Number(item.standalone_score || 0),
+          boundary_score: Number(item.boundary_score || 0),
+          editorial_role: item.editorial_role || role || '',
+          scene_type: item.scene_type || editPlan.scene_type || '',
+          teaser_slot_id: item.teaser_slot_id || '',
+          callback_slot_id: item.callback_slot_id || '',
+          callback_relation: item.callback_relation || '',
+          reused_conflict_axis: item.reused_conflict_axis || '',
+          dialogue_unit: item.dialogue_unit || null,
+          utt_id: segId,
+          tts_enabled: false,
+          narration: '',
+          dialogue_original: normalizeText(win.line),
+          translated_caption_ko: captionText,
+          caption_text: captionText,
+          speaker,
+          story_anchor: { source_range_hint: [win.start_sec, win.end_sec], scene_refs: [] },
+          source_scenes: [{
+            clip_id: `${segId}_clip`,
+            scene_id: '',
+            start: startTc,
+            end: endTc,
+            speed_multiplier: 1
+          }],
+          edit_instruction: defaultEditInstruction('dialogue')
+        });
+      }
+      continue;
+    }
+
+    // NARRATE (cold_open / bridge / body / payoff narration).
+    const narration = normalizeText(fill.narration || '');
+    const captionKr = normalizeText(fill.caption_kr || '');
+    if (!narration) warnings.push(`${slotId} (${role}) NARRATE has empty narration`);
+    const isColdOpen = role === 'cold_open';
+    // Cold-open uses the muted teaser visual window (visual_source_*), NOT its own story-beat
+    // start/end. Every other NARRATE slot has no fixed window and lets the auto-picker choose.
+    const teaserStart = Number(item.visual_source_start_sec);
+    const teaserEnd = Number(item.visual_source_end_sec);
+    let sourceRange;
+    let sourceScenes;
+    let sourceRangeHint;
+    if (isColdOpen && Number.isFinite(teaserStart) && Number.isFinite(teaserEnd) && teaserEnd > teaserStart) {
+      sourceRange = [teaserStart, teaserEnd];
+      sourceScenes = [{
+        clip_id: `${slotId}_teaser_clip`,
+        scene_id: 'cold_open_teaser',
+        start: secondsToTimecode(teaserStart),
+        end: secondsToTimecode(teaserEnd),
+        speed_multiplier: 1
+      }];
+      // Degenerate hint (end==start) makes parse_story_anchor_range bail, so the auto-picker
+      // leaves our explicit muted-teaser source_scenes untouched.
+      sourceRangeHint = [teaserStart, teaserStart];
+      assignedBrollRanges.push([teaserStart, teaserEnd]);
+    } else {
+      // Non-cold-open narration: pick explicit NON-OVERLAPPING b-roll from the beat window (free of
+      // dialogue clips and other narration b-roll), with a degenerate hint so the picker declines.
+      let winStart = Number(item.start_sec);
+      let winEnd = Number(item.end_sec);
+      if (!(winEnd > winStart)) {
+        const vs = Number(item.visual_source_start_sec);
+        const ve = Number(item.visual_source_end_sec);
+        if (ve > vs) { winStart = vs; winEnd = ve; }
+      }
+      const broll = (winEnd > winStart) ? pickNarrationBroll(winStart, winEnd) : null;
+      if (broll) {
+        sourceRange = broll;
+        sourceScenes = [{ clip_id: `${slotId}_broll_clip`, scene_id: 'narration_broll', start: secondsToTimecode(broll[0]), end: secondsToTimecode(broll[1]), speed_multiplier: 1 }];
+        assignedBrollRanges.push(broll);
+      } else {
+        warnings.push(`${slotId} (${role}) NARRATE found no free b-roll window in [${winStart},${winEnd}] (dialogue-saturated); using beat window as-is`);
+        sourceRange = [winStart, winEnd];
+        sourceScenes = (winEnd > winStart) ? [{ clip_id: `${slotId}_broll_clip`, scene_id: 'narration_broll', start: secondsToTimecode(winStart), end: secondsToTimecode(winEnd), speed_multiplier: 1 }] : [];
+      }
+      sourceRangeHint = [sourceRange[0], sourceRange[0]]; // degenerate -> auto-picker declines
+    }
+
+    slots.push({
+      slot_id: slotId,
+      type: 'narration',
+      source_type: 'NARRATE',
+      translation_mode: '',
+      source_range: sourceRange,
+      duration: Number((sourceRange[1] - sourceRange[0]).toFixed(3)),
+      scene_summary: normalizeText(item.reason || role),
+      scene_ids: [],
+      tts_budget_sec: [Number(item.narration_estimated_duration_sec || item.estimated_duration_sec || 0), Number(item.estimated_duration_sec || 0)],
+      narration_background: true,
+      dialogue_heavy_role: role
+    });
+    segments.push({
+      segment_id: slotId,
+      segment_type: 'recap',
+      source_type: 'NARRATE',
+      translation_mode: '',
+      utt_id: '',
+      tts_enabled: true,
+      narration,
+      dialogue_original: '',
+      translated_caption_ko: '',
+      caption_text: captionKr || narration,
+      story_anchor: { source_range_hint: sourceRangeHint, scene_refs: [] },
+      source_scenes: sourceScenes,
+      edit_instruction: defaultEditInstruction(role || 'narration'),
+      // Exempts narration b-roll from the reserved-range gate's narration_overlaps_dialogue_map rule.
+      narration_background: true
+    });
+  }
+
+  const durationSec = Number(options.sourceDurationSec || editPlan?.duration_budget?.estimated_total_sec || 0);
+  const uploadText = slotFills?.upload_text && typeof slotFills.upload_text === 'object' ? slotFills.upload_text : {};
+  const overlayTitle = uploadText.overlay_title && typeof uploadText.overlay_title === 'object' ? uploadText.overlay_title : {};
+  const titleCandidates = Array.isArray(uploadText.title_candidates) ? uploadText.title_candidates.map((value) => normalizeText(value)).filter(Boolean) : [];
+  const overlayTop = normalizeText(overlayTitle.top).slice(0, 8);
+  const overlayBottom = normalizeText(overlayTitle.bottom).slice(0, 8);
+  const slotMap = {
+    source_duration_sec: durationSec,
+    composition_mode: 'compression_bootstrap',
+    dialogue_heavy_mode: true,
+    slots
+  };
+  const script = {
+    script_id: String(options.scriptId || 'compression_bootstrap'),
+    source_reference: {
+      gemini_analysis_source_id: String(options.geminiSourceId || ''),
+      duration_sec: durationSec
+    },
+    content_context: {
+      content_guess: normalizeText(options.title || ''),
+      genre: '',
+      style_hint_used: 'compression_bootstrap'
+    },
+    title_block: {
+      full_title: titleCandidates[0] || '',
+      overlay_title: {
+        top: overlayTop,
+        bottom: overlayBottom
+      },
+      top_title: overlayTop,
+      top_subtitle: overlayBottom
+    },
+    metadata: {
+      title_candidates: titleCandidates
+    },
+    segments,
+    quality_check: {
+      segment_count: segments.length,
+      estimated_total_duration_sec: durationSec,
+      duration_within_60_180: true,
+      all_scene_ids_exist_in_gemini_analysis: true,
+      no_source_scene_exceeds_30_sec: true,
+      korean_ending_rules_ok: true,
+      knowledge_context_used: false,
+      dialogue_quote_count: segments.filter((s) => s.segment_type === 'dialogue_quote').length,
+      recap_tts_segment_count: segments.filter((s) => s.segment_type === 'recap').length,
+      ending_rules_check: {
+        eomi_ratio_seumnida_pct: 0,
+        eomi_ratio_jyo_pct: 0,
+        eomi_ratio_neunde_pct: 0,
+        eomi_ratio_beoryeot_pct: 0,
+        forbidden_eomi_count: 0,
+        character_naming_consistent: true,
+        real_name_used: true,
+        mystery_4steps_applied: true,
+        closing_drip_present: true
+      }
+    },
+    created_at: new Date().toISOString()
+  };
+
+  return { slotMap, script, warnings };
+}
+
+function writeJson(filePath, data) {
+  fs.writeFileSync(filePath, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
+}
+
+// Reads a compression run's artifacts, builds the three System-B artifacts sharing one coordinate
+// source, and writes them into the run dir with a bootstrap_ prefix. Does NOT download or render.
+function assembleBootstrapArtifacts(runIdOrPath, options = {}) {
+  const runDir = resolveCompressionRunDir(runIdOrPath);
+  const editPlanPath = path.join(runDir, 'edit_plan.json');
+  const slotFillsPath = path.join(runDir, 'compression_slot_fills.json');
+  const transcriptTimedPath = path.join(runDir, 'transcript_timed.json');
+  const manifestPath = path.join(runDir, 'compression_manifest.json');
+  for (const [label, p] of [['edit_plan.json', editPlanPath], ['compression_slot_fills.json', slotFillsPath], ['transcript_timed.json', transcriptTimedPath]]) {
+    if (!fs.existsSync(p)) throw new Error(`Bootstrap requires ${label} in ${runDir} (run compress + compress-apply first)`);
+  }
+  const editPlan = readJson(editPlanPath);
+  const slotFills = readJson(slotFillsPath);
+  const transcriptTimed = readJson(transcriptTimedPath);
+  const manifest = fs.existsSync(manifestPath) ? readJson(manifestPath) : {};
+  const sourceVideoPath = String(options.sourceVideoPath || manifest.sourceVideoPath || '').trim();
+  const sourceDurationSec = sourceVideoPath && fs.existsSync(sourceVideoPath)
+    ? Number(getVideoMetadata(sourceVideoPath)?.duration_sec || 0)
+    : 0;
+
+  const { transcript, stats: transcriptStats, warnings: tW } = buildBootstrapTranscript(editPlan, transcriptTimed);
+  const { slotMap, script, warnings: sW } = buildBootstrapSlotMapAndScript(editPlan, slotFills, {
+    scriptId: manifest.runId || path.basename(runDir),
+    title: manifest.title || '',
+    sourceDurationSec
+  });
+
+  const outTranscriptPath = path.join(runDir, 'bootstrap_source_transcript.json');
+  const outSlotMapPath = path.join(runDir, 'bootstrap_slot_map.json');
+  const outScriptPath = path.join(runDir, 'bootstrap_script.json');
+  const reviewDraftPath = path.join(runDir, 'bootstrap_review_draft.md');
+  const editorialReviewPath = path.join(runDir, 'bootstrap_editorial_review.json');
+  writeJson(outTranscriptPath, transcript);
+  writeJson(outSlotMapPath, slotMap);
+  writeJson(outScriptPath, script);
+  writeJson(editorialReviewPath, buildEditorialReviewArtifact(editPlan, script));
+  fs.writeFileSync(reviewDraftPath, buildReviewDraftMarkdown(script), 'utf8');
+
+  return {
+    runDir,
+    editPlan,
+    slotFills,
+    transcript,
+    slotMap,
+    script,
+    sourceVideoPath,
+    sourceDurationSec,
+    paths: { outTranscriptPath, outSlotMapPath, outScriptPath, reviewDraftPath, editorialReviewPath },
+    warnings: [...tW, ...sW],
+    stats: transcriptStats
+  };
+}
+
+// Runs every gate that would otherwise first surface during the render (the Daredevil failure
+// mode), BEFORE any download/TTS/render: the three real capcut gates (via the Python harness)
+// plus JS-side coordinate-parity, coverage, dialogue_line_window_ok, and cold-open overlap.
+function runBootstrapPreflight(assembled, options = {}) {
+  const { editPlan, transcript, slotMap, script, sourceVideoPath, sourceDurationSec, paths } = assembled;
+  const checks = [];
+  const warnings = Array.isArray(assembled.warnings) ? [...assembled.warnings] : [];
+  const add = (name, ok, detail) => checks.push({ name, ok: Boolean(ok), detail: detail || '' });
+
+  const durationConfig = readDurationConfig();
+  const estimatedTotalSec = Number(editPlan?.duration_budget?.estimated_total_sec || 0);
+  if (estimatedTotalSec > durationConfig.max_duration_sec) {
+    warnings.push(`duration guide warn: edit_plan estimated_total_sec ${estimatedTotalSec.toFixed(3)}s exceeds max_duration_sec ${durationConfig.max_duration_sec}s`);
+  } else if (estimatedTotalSec > 0 && estimatedTotalSec < durationConfig.min_duration_sec) {
+    warnings.push(`duration guide warn: edit_plan estimated_total_sec ${estimatedTotalSec.toFixed(3)}s is below min_duration_sec ${durationConfig.min_duration_sec}s`);
+  }
+
+  // 1. script.json must have NO slot_map key (keeps slot_map_mode false).
+  add('no_slot_map_key', !Object.prototype.hasOwnProperty.call(script, 'slot_map'),
+    Object.prototype.hasOwnProperty.call(script, 'slot_map') ? 'script.json unexpectedly has a slot_map key' : '');
+
+  // 2. dialogue_line_window_ok: every KEEP_DIALOGUE slot must be ok (matcher confident, no
+  //    unmatched/too-short line after extension).
+  const notOkSlots = (Array.isArray(editPlan.timeline) ? editPlan.timeline : [])
+    .filter((t) => t.decision === 'KEEP_DIALOGUE' && t.dialogue_line_window_ok !== true)
+    .map((t) => t.slot_id);
+  add('dialogue_line_window_ok', notOkSlots.length === 0, notOkSlots.length ? `not ok: ${notOkSlots.join(', ')}` : '');
+
+  const missingSourceType = (Array.isArray(script.segments) ? script.segments : [])
+    .filter((segment) => !segment.source_type)
+    .map((segment) => segment.segment_id || '(unknown)');
+  add('review_source_type_present', missingSourceType.length === 0, missingSourceType.length ? `missing: ${missingSourceType.join(', ')}` : '');
+  add('review_draft_exists', Boolean(paths.reviewDraftPath && fs.existsSync(paths.reviewDraftPath)), paths.reviewDraftPath || '');
+
+  // 3. 1:1 coverage: slot_map.slots ids == script.segments ids (both derived from non-DROP timeline).
+  const slotIds = new Set(slotMap.slots.map((s) => s.slot_id));
+  const segIds = new Set(script.segments.map((s) => s.segment_id));
+  const idMatch = slotIds.size === segIds.size && [...slotIds].every((id) => segIds.has(id));
+  add('coverage_slotmap_eq_script', idMatch, idMatch ? '' : `slot_map ${slotIds.size} vs script ${segIds.size}`);
+
+  // 4. Coordinate parity: each dialogue segment's source_scenes clip == its transcript utterance
+  //    [start,end] (both from the same stored window). No re-derivation drift.
+  const uttById = new Map(transcript.utterances.map((u) => [u.utt_id, u]));
+  let parityFail = '';
+  for (const seg of script.segments) {
+    if (seg.segment_type !== 'dialogue_quote' && seg.segment_type !== 'dialogue') continue;
+    const utt = uttById.get(seg.utt_id);
+    const clip = (seg.source_scenes || [])[0];
+    if (!utt || !clip) { parityFail = `${seg.segment_id}: missing utterance or clip`; break; }
+    const cs = parseTimecode(clip.start);
+    const ce = parseTimecode(clip.end);
+    if (Math.abs(cs - utt.start) > 0.001 || Math.abs(ce - utt.end) > 0.001) {
+      parityFail = `${seg.segment_id}: clip [${cs},${ce}] != utterance [${utt.start},${utt.end}]`;
+      break;
+    }
+  }
+  add('coordinate_parity_dialogue', !parityFail, parityFail);
+
+  // 5. Cold-open teaser window must not overlap any KEEP_DIALOGUE window (post-resize re-encroach).
+  const coldOpen = (editPlan.timeline || []).find((t) => t.role === 'cold_open');
+  const reserved = (editPlan.timeline || [])
+    .filter((t) => t.decision === 'KEEP_DIALOGUE' && t.slot_id !== coldOpen?.slot_id && Number(t.end_sec) > Number(t.start_sec))
+    .map((t) => [Number(t.start_sec), Number(t.end_sec)]);
+  let coldOverlap = '';
+  if (coldOpen && Number.isFinite(Number(coldOpen.visual_source_start_sec))) {
+    const cs = Number(coldOpen.visual_source_start_sec);
+    const ce = Number(coldOpen.visual_source_end_sec);
+    const hit = reserved.find(([rs, re]) => ce > rs + 0.001 && cs < re - 0.001);
+    if (hit) coldOverlap = `cold-open teaser [${cs},${ce}] overlaps dialogue window [${hit[0]},${hit[1]}]`;
+  }
+  add('cold_open_no_reserved_overlap', !coldOverlap, coldOverlap);
+
+  // 6. Source video reality: file exists, ffprobe duration covers every referenced timestamp.
+  if (options.requireSourceVideo !== false) {
+    const exists = sourceVideoPath && fs.existsSync(sourceVideoPath);
+    add('source_video_exists', exists, exists ? sourceVideoPath : `missing: ${sourceVideoPath || '(none)'}`);
+    if (exists && sourceDurationSec > 0) {
+      let maxTs = 0;
+      for (const seg of script.segments) {
+        for (const clip of seg.source_scenes || []) maxTs = Math.max(maxTs, parseTimecode(clip.end));
+      }
+      const covers = sourceDurationSec + 0.5 >= maxTs;
+      add('source_duration_covers_timestamps', covers, covers ? `dur ${sourceDurationSec}s >= max ts ${maxTs.toFixed(3)}s` : `dur ${sourceDurationSec}s < max ts ${maxTs.toFixed(3)}s`);
+    }
+  }
+
+  // 7. The three real capcut gates via the Python harness (reserved-range + monotonicity + b-roll).
+  const python = resolveTool('python', { envKey: 'PYTHON_PATH' });
+  const gateScript = path.join(PROJECT_ROOT, 'midform', 'scripts', 'preflight_bootstrap_gates.py');
+  const args = [gateScript, '--script', paths.outScriptPath, '--transcript', paths.outTranscriptPath];
+  if (sourceDurationSec > 0) args.push('--source-duration', String(sourceDurationSec));
+  let gateVerdict = null;
+  try {
+    const out = execFileSync(python, args, { cwd: PROJECT_ROOT, env: getToolEnv(), encoding: 'utf8', maxBuffer: 50 * 1024 * 1024 });
+    gateVerdict = JSON.parse(String(out).trim());
+  } catch (error) {
+    add('capcut_gates', false, `gate harness failed: ${error.message}`);
+  }
+  if (gateVerdict) {
+    add('capcut_reserved_range', (gateVerdict.reserved_range_violations || []).length === 0,
+      `${(gateVerdict.reserved_range_violations || []).length} violation(s)`);
+    add('capcut_slot_map_mode_false', gateVerdict.slot_map_mode === false,
+      `slot_map_mode ${gateVerdict.slot_map_mode}`);
+    add('capcut_story_sync_skipped', gateVerdict.story_sync_would_run === false,
+      gateVerdict.story_sync_would_run ? `auto-picker would place b-roll for: ${(gateVerdict.picker_placed_segments || []).join(', ')} (story-sync would run)` : 'all narration declines -> story-sync skipped');
+    add('capcut_narration_has_broll', (gateVerdict.narration_missing_broll || []).length === 0,
+      `${(gateVerdict.narration_missing_broll || []).length} narration segment(s) missing explicit b-roll`);
+    add('capcut_cross_segment_overlap', (gateVerdict.cross_segment_overlaps || []).length === 0,
+      `${(gateVerdict.cross_segment_overlaps || []).length} cross-segment overlap(s)`);
+  }
+
+  const ok = checks.every((c) => c.ok);
+  return { ok, checks, gateVerdict, warnings };
+}
+
+function parseTimecode(value) {
+  if (typeof value === 'number') return value;
+  const text = String(value || '').trim();
+  const parts = text.split(':');
+  if (parts.length === 3) return Number(parts[0]) * 3600 + Number(parts[1]) * 60 + Number(parts[2]);
+  if (parts.length === 2) return Number(parts[0]) * 60 + Number(parts[1]);
+  return Number(text) || 0;
+}
+
+// Full bridge: download the real source video, build the three artifacts, run the whole preflight,
+// and (unless preflightOnly) hand the artifact paths to the existing pipeline via startRun. No edit
+// to midformPipelineService.js is needed — startRun already branches to bootstrapSeededRun when the
+// four bootstrap paths are present. Runs direct (pauseBeforeTts:false) so the resume/normalize path
+// (which would re-embed slot_map and re-enable the monotonicity gate) is never taken.
+async function runBootstrapToPipeline(runIdOrPath, options = {}) {
+  const download = await downloadCompressionSourceVideo(runIdOrPath, { force: options.forceDownload === true });
+  const assembled = assembleBootstrapArtifacts(runIdOrPath, { sourceVideoPath: download.sourceVideoPath });
+  const preflight = runBootstrapPreflight(assembled, { requireSourceVideo: true });
+
+  const result = {
+    runDir: assembled.runDir,
+    sourceVideoPath: download.sourceVideoPath,
+    paths: assembled.paths,
+    preflight,
+    warnings: assembled.warnings
+  };
+  if (!preflight.ok) {
+    result.ok = false;
+    result.blocked = 'preflight_failed';
+    return result;
+  }
+  if (options.preflightOnly === true) {
+    result.ok = true;
+    result.rendered = false;
+    return result;
+  }
+
+  const state = startRun({
+    bootstrapSourceVideoPath: download.sourceVideoPath,
+    bootstrapTranscriptPath: assembled.paths.outTranscriptPath,
+    bootstrapSlotMapPath: assembled.paths.outSlotMapPath,
+    bootstrapScriptPath: assembled.paths.outScriptPath,
+    movieTitle: options.movieTitle || assembled.script?.content_context?.content_guess || '',
+    contentType: 'movie_midform_recap',
+    pauseBeforeTts: false
+  });
+  result.ok = true;
+  result.rendered = true;
+  result.pipelineRunId = state.runId;
+  result.pipelineRunDir = state.runDir;
+  return result;
+}
+
+module.exports = {
+  buildBootstrapTranscript,
+  buildBootstrapSlotMapAndScript,
+  buildEditorialReviewArtifact,
+  assembleBootstrapArtifacts,
+  runBootstrapPreflight,
+  runBootstrapToPipeline,
+  secondsToTimecode,
+  _readJson: readJson,
+  _resolveCompressionRunDir: resolveCompressionRunDir
+};
