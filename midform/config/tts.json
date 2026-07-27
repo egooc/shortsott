@@ -1,0 +1,14 @@
+{
+  "provider": "elevenlabs",
+  "effective_chars_per_sec": 6.03775,
+  "voice_id": "jB1Cifc2UQbq1gR3wnb0",
+  "model_id": "eleven_multilingual_v2",
+  "voice_settings": {
+    "stability": 1.0,
+    "similarity_boost": 1.0,
+    "style": 0.2,
+    "use_speaker_boost": true,
+    "speed": 1.1
+  },
+  "output_format": "mp3_44100_128"
+}

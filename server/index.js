@@ -36,8 +36,21 @@ logVertexEnvSummary();
 
 const app = express();
 const DEFAULT_PORT = process.env.PORT || 3001;
+const DEFAULT_HOST = process.env.HOST || process.env.MIDFORM_HOST || '127.0.0.1';
 
-app.use(cors());
+function isAllowedOrigin(origin) {
+  if (!origin) return true;
+  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin)) return true;
+  const configured = String(process.env.MIDFORM_ALLOWED_ORIGINS || '').split(',').map((item) => item.trim()).filter(Boolean);
+  return configured.includes(origin);
+}
+
+app.use(cors({
+  origin(origin, callback) {
+    if (isAllowedOrigin(origin)) return callback(null, true);
+    return callback(new Error(`CORS origin not allowed: ${origin}`));
+  }
+}));
 app.use(express.json({ limit: '10mb' }));
 app.use('/output', express.static(path.join(__dirname, 'output')));
 
@@ -76,13 +89,15 @@ app.use((err, _req, res, _next) => {
 
 function startServer(options = {}) {
   const port = options.port ?? DEFAULT_PORT;
+  const host = options.host ?? DEFAULT_HOST;
 
   return new Promise((resolve, reject) => {
-    const server = app.listen(port, () => {
+    const server = app.listen(port, host, () => {
       const address = server.address();
       const resolvedPort = typeof address === 'object' && address ? address.port : port;
-      console.log(`Server running on http://localhost:${resolvedPort}`);
-      resolve({ app, server, port: resolvedPort });
+      const resolvedHost = typeof address === 'object' && address ? address.address : host;
+      console.log(`Server running on http://${resolvedHost}:${resolvedPort}`);
+      resolve({ app, server, port: resolvedPort, host: resolvedHost });
     });
 
     server.on('error', reject);

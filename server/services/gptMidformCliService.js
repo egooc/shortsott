@@ -141,7 +141,9 @@ function safeOutputSchemaPath(outputSchemaPath) {
     MIDFORM_COMPRESSION_BEATS_SCHEMA_PATH,
     MIDFORM_COMPRESSION_EDIT_PLAN_SCHEMA_PATH
   ].map((item) => path.normalize(item)));
-  const resolved = path.normalize(String(outputSchemaPath || MIDFORM_SCHEMA_PATH));
+  const resolved = path.normalize(path.isAbsolute(String(outputSchemaPath || ''))
+    ? String(outputSchemaPath || MIDFORM_SCHEMA_PATH)
+    : path.resolve(PROJECT_ROOT, String(outputSchemaPath || MIDFORM_SCHEMA_PATH)));
   return allowed.has(resolved) ? resolved : MIDFORM_SCHEMA_PATH;
 }
 

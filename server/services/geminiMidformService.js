@@ -592,12 +592,69 @@ async function analyzeMidformVideo(videoPath, contentType = 'movie_midform_recap
   return analyzeMidformVideoSingle({ videoPath, contentType, options, token, endpoint });
 }
 
+// Converts a JSON Schema (as written for the Codex CLI --output-schema) to the OpenAPI subset
+// Vertex responseSchema accepts. Strips keywords Vertex rejects/ignores; keeps type/properties/
+// required/enum/items. Verified against the compress edit_plan schema in the migration probe.
+function toVertexResponseSchema(node) {
+  if (Array.isArray(node)) return node.map(toVertexResponseSchema);
+  if (node && typeof node === 'object') {
+    const out = {};
+    for (const [key, value] of Object.entries(node)) {
+      if (['additionalProperties', '$schema', '$id', '$ref', 'definitions'].includes(key)) continue;
+      out[key] = toVertexResponseSchema(value);
+    }
+    return out;
+  }
+  return node;
+}
+
+// Text-only structured-JSON generation via Vertex Gemini, mirroring runCodexCli's contract
+// (returns the raw model text for the caller to extractJson + validate). Reuses the same auth,
+// endpoint, and response-extraction path as scene analysis.
+async function generateVertexJson({ prompt, responseSchema, model, temperature = 0.1 }) {
+  const config = getVertexConfig();
+  if (!config.project) {
+    throw createError(400, 'GOOGLE_CLOUD_PROJECT_REQUIRED', 'GOOGLE_CLOUD_PROJECT is required for Vertex ADC mode');
+  }
+  const token = await getVertexAccessToken();
+  const endpoint = buildVertexEndpoint({ ...config, model: String(model || config.model).trim() });
+  const body = {
+    contents: [{ role: 'user', parts: [{ text: String(prompt || '') }] }],
+    generationConfig: {
+      responseMimeType: 'application/json',
+      responseSchema: toVertexResponseSchema(responseSchema),
+      temperature
+    }
+  };
+  let response;
+  try {
+    response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+  } catch (error) {
+    throw createError(500, 'VERTEX_COMPRESS_REQUEST_FAILED', error.message, { cause: error?.stack || String(error) });
+  }
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw createError(response.status, 'VERTEX_COMPRESS_GENERATION_FAILED', 'Vertex Gemini JSON generation failed', {
+      status: response.status,
+      endpoint,
+      response: JSON.stringify(data).slice(0, 1200)
+    });
+  }
+  return extractVertexResponseText(data);
+}
+
 module.exports = {
   analyzeMidformVideo,
   buildChunkPlan,
   loadMidformPrompt,
   loadMidformResponseSchema,
   getVertexConfig,
+  generateVertexJson,
+  toVertexResponseSchema,
   MIDFORM_SCHEMA_DIR,
   DEFAULT_MIDFORM_SCHEMA_FILE
 };
