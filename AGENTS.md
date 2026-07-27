@@ -134,3 +134,12 @@ Key gates:
 4. Startup recovery for archived process/highlight jobs.
 5. English fallback captions for Korean/Japanese draft generation.
 6. `TEMPLATE_PROCESS_TITLE` or `process_title` text track behavior.
+
+## Change History
+
+### 2026-07-27 — OpenCode model split pinned
+
+- Added project-local OpenCode config files under `.opencode/`.
+- Pinned the main default OpenCode model to `openai/gpt-5.5` in `.opencode/config.json`.
+- Pinned subagents `general`, `explore`, `librarian`, `oracle`, `metis`, `momus`, `multimodal-looker`, `prometheus`, and `Sisyphus-Junior` to `openai/gpt-5.4-mini`.
+- Added project memory guidance to preserve this main/subagent split in future edits unless a user explicitly requests a different model layout.
