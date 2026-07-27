@@ -5,6 +5,26 @@ function normalizeNarration(text) {
   return String(text || '').replace(/\s+/g, ' ').trim();
 }
 
+function sanitizeDisplayCaptionText(text) {
+  return normalizeNarration(text)
+    .replace(/\s*(?:—|–|ㅡ)\s*/g, ' ')
+    .replace(/(?:^|\s)>>\s*/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function splitDisplayCaptionSources(text, segmentType = '') {
+  const sanitized = sanitizeDisplayCaptionText(text);
+  if (!sanitized) return [];
+  if (['dialogue_quote', 'dialogue'].includes(String(segmentType || ''))) {
+    return sanitized
+      .split(/\s*\/\s*/)
+      .map((part) => sanitizeDisplayCaptionText(part))
+      .filter(Boolean);
+  }
+  return [sanitized];
+}
+
 function protectSensitiveNumericTokens(text) {
   const protectedTokens = [];
   let idx = 0;
@@ -204,9 +224,10 @@ function buildCaptionUnits(segments, options = {}) {
       return;
     }
 
-    const sentenceCandidates = splitBySentencePunctuation(narration)
+    const displaySources = splitDisplayCaptionSources(narration, segmentType);
+    const sentenceCandidates = displaySources.flatMap((displayNarration) => splitBySentencePunctuation(displayNarration))
       .flatMap((sentence) => splitByKoreanEndings(sentence))
-      .map((s) => normalizeNarration(s))
+      .map((s) => sanitizeDisplayCaptionText(s))
       .filter((s) => Boolean(s) && !/^[.!?,]+$/.test(s));
 
     const perSegmentTexts = [];
@@ -237,7 +258,7 @@ function buildCaptionUnits(segments, options = {}) {
         segment_type: segmentType,
         tts_enabled: ttsEnabled,
         order: idx + 1,
-        text,
+        text: sanitizeDisplayCaptionText(text),
         source_segment_order: sourceOrder
       };
       captionUnits.push(unit);
@@ -255,6 +276,8 @@ function buildCaptionUnits(segments, options = {}) {
 
 module.exports = {
   buildCaptionUnits,
+  sanitizeDisplayCaptionText,
+  splitDisplayCaptionSources,
   MAX_CAPTION_CHARS_DEFAULT,
   HARD_CAPTION_CHARS_DEFAULT
 };

@@ -21,6 +21,10 @@ FFMPEG_BIN = os.environ.get("FFMPEG_PATH") or "ffmpeg"
 FFPROBE_BIN = os.environ.get("FFPROBE_PATH") or "ffprobe"
 MIDFORM_HYBRID_DUCKED_SOURCE_VOLUME = 0.3
 MIDFORM_FINAL_SLOT_TAIL_ALLOWANCE_SEC = float(os.environ.get("MIDFORM_FINAL_SLOT_TAIL_ALLOWANCE_SEC") or 7.0)
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+CAPTION_COLORS_CONFIG_PATH = os.path.join(PROJECT_ROOT, "midform", "config", "caption_colors.json")
+DURATION_CONFIG_PATH = os.path.join(PROJECT_ROOT, "midform", "config", "duration.json")
+PORTRAIT_CROP_CONFIG_PATH = os.path.join(PROJECT_ROOT, "midform", "config", "portrait_crop.json")
 
 try:
     import cv2  # type: ignore
@@ -95,6 +99,154 @@ def parse_srt(srt_path):
         end_sec = srt_time_to_seconds(parts[1].strip())
         entries.append({"start_sec": start_sec, "end_sec": end_sec, "text": text})
     return entries
+
+
+def normalize_text_value(value):
+    return re.sub(r"\s+", " ", str(value or "")).strip()
+
+
+def load_caption_color_config():
+    if not os.path.exists(CAPTION_COLORS_CONFIG_PATH):
+        return {"roles": {}, "speakers": {}}
+    try:
+        with open(CAPTION_COLORS_CONFIG_PATH, "r", encoding="utf-8-sig") as file:
+            data = json.load(file)
+    except Exception:
+        return {"roles": {}, "speakers": {}}
+    return data if isinstance(data, dict) else {"roles": {}, "speakers": {}}
+
+
+def load_duration_config():
+    defaults = {"min_duration_sec": 60.0, "max_duration_sec": 160.0}
+    if not os.path.exists(DURATION_CONFIG_PATH):
+        return defaults
+    try:
+        with open(DURATION_CONFIG_PATH, "r", encoding="utf-8-sig") as file:
+            data = json.load(file)
+    except Exception:
+        return defaults
+    if not isinstance(data, dict):
+        return defaults
+    return {
+        "min_duration_sec": safe_float(data.get("min_duration_sec"), defaults["min_duration_sec"]),
+        "max_duration_sec": safe_float(data.get("max_duration_sec"), defaults["max_duration_sec"]),
+    }
+
+
+def build_duration_guide_report(total_duration_sec, source_label="tts_measured_total_sec"):
+    config = load_duration_config()
+    min_sec = safe_float(config.get("min_duration_sec"), 60.0)
+    max_sec = safe_float(config.get("max_duration_sec"), 160.0)
+    duration_sec = safe_float(total_duration_sec, 0.0)
+    status = "ok"
+    message = "final measured duration is within guide"
+    if duration_sec > max_sec:
+        status = "warn"
+        message = f"final measured duration {round(duration_sec, 3)}s exceeds max_duration_sec {round(max_sec, 3)}s"
+    elif 0 < duration_sec < min_sec:
+        status = "warn"
+        message = f"final measured duration {round(duration_sec, 3)}s is below min_duration_sec {round(min_sec, 3)}s"
+    return {
+        "status": status,
+        "source": source_label,
+        "total_duration_sec": round(duration_sec, 6),
+        "min_duration_sec": min_sec,
+        "max_duration_sec": max_sec,
+        "message": message,
+    }
+
+
+def caption_color_for_speaker(speaker, config):
+    speaker_key = normalize_text_value(speaker)
+    if not speaker_key or not isinstance(config, dict):
+        return ""
+    speakers = config.get("speakers") if isinstance(config.get("speakers"), dict) else {}
+    roles = config.get("roles") if isinstance(config.get("roles"), dict) else {}
+    mapped = normalize_text_value(speakers.get(speaker_key))
+    if mapped.startswith("#"):
+        return mapped
+    role_color = normalize_text_value(roles.get(mapped))
+    if role_color.startswith("#"):
+        return role_color
+    direct_role_color = normalize_text_value(roles.get(speaker_key))
+    if direct_role_color.startswith("#"):
+        return direct_role_color
+    return ""
+
+
+def hex_to_rgb_float_list(hex_color):
+    raw = normalize_text_value(hex_color)
+    if raw.startswith("#"):
+        raw = raw[1:]
+    if len(raw) == 8:
+        raw = raw[:6]
+    if len(raw) != 6:
+        return None
+    try:
+        return [int(raw[0:2], 16) / 255.0, int(raw[2:4], 16) / 255.0, int(raw[4:6], 16) / 255.0]
+    except Exception:
+        return None
+
+
+def apply_text_material_fill_color(material, hex_color):
+    rgb = hex_to_rgb_float_list(hex_color)
+    if not isinstance(material, dict) or rgb is None:
+        return False
+    content_json = parse_json_text_content(material.get("content"))
+    if not isinstance(content_json, dict):
+        return False
+    styles = content_json.get("styles")
+    if not isinstance(styles, list) or not styles:
+        styles = [{"range": [0, len(str(content_json.get("text") or ""))]}]
+        content_json["styles"] = styles
+    for style_item in styles:
+        if not isinstance(style_item, dict):
+            continue
+        style_item["useLetterColor"] = True
+        fill = style_item.setdefault("fill", {})
+        if not isinstance(fill, dict):
+            continue
+        fill["alpha"] = fill.get("alpha", 1.0)
+        content = fill.setdefault("content", {})
+        if not isinstance(content, dict):
+            continue
+        content["render_type"] = content.get("render_type") or "solid"
+        solid = content.setdefault("solid", {})
+        if not isinstance(solid, dict):
+            continue
+        solid["alpha"] = solid.get("alpha", 1.0)
+        solid["color"] = rgb
+    material["content"] = json.dumps(content_json, ensure_ascii=False)
+    material["text_color"] = f"#{normalize_text_value(hex_color).lstrip('#')[:6].upper()}"
+    material["use_effect_default_color"] = False
+    return True
+
+
+def remove_text_effect_layers_for_colored_caption(material, segment, draft_doc):
+    if isinstance(material, dict):
+        content_json = parse_json_text_content(material.get("content"))
+        if isinstance(content_json, dict):
+            for style_item in content_json.get("styles") or []:
+                if isinstance(style_item, dict):
+                    style_item.pop("effectStyle", None)
+            content_json.pop("effect", None)
+            material["content"] = json.dumps(content_json, ensure_ascii=False)
+    if not isinstance(segment, dict) or not isinstance(draft_doc, dict):
+        return 0
+    material_index = build_material_index_by_id(draft_doc)
+    kept_refs = []
+    removed_count = 0
+    for ref_id in segment.get("extra_material_refs") or []:
+        entry = material_index.get(ref_id)
+        category = entry[0] if entry else ""
+        ref_material = entry[1] if entry else {}
+        ref_type = str(ref_material.get("type") or "").strip().lower() if isinstance(ref_material, dict) else ""
+        if category == "effects" and ref_type in {"text_effect", "bloom"}:
+            removed_count += 1
+            continue
+        kept_refs.append(ref_id)
+    segment["extra_material_refs"] = kept_refs
+    return removed_count
 
 
 def srt_timestamp_from_us(value_us):
@@ -396,6 +548,7 @@ def detect_template_role_marker(text_material):
     joined = " ".join(candidates).upper()
     for marker in [
         "TEMPLATE_TITLE",
+        "TEMPLATE_TITLE_SUBLINE",
         "TEMPLATE_SUBTITLE",
         "TEMPLATE_EMPHASIS",
         "TEMPLATE_PRETITLE",
@@ -914,12 +1067,17 @@ def microseconds(seconds_float):
     return int(round(max(0.0, float(seconds_float or 0.0)) * 1_000_000))
 
 
+def new_capcut_id():
+    return uuid.uuid4().hex.upper()
+
+
 def detect_marker_from_text(text_value):
     if not isinstance(text_value, str):
         return ""
     upper = text_value.upper()
     for marker in [
         "TEMPLATE_PRETITLE",
+        "TEMPLATE_TITLE_SUBLINE",
         "TEMPLATE_TITLE",
         "TEMPLATE_SUBTITLE",
         "TEMPLATE_MOVIE_TITLE",
@@ -1429,6 +1587,181 @@ def apply_template_frame_overlay_layer(generated, template_doc, template_root, d
     return summary
 
 
+def is_template_passthrough_track(track):
+    if not isinstance(track, dict):
+        return False
+    track_type = str(track.get("type") or "").strip().lower()
+    if track_type not in {"video", "image", "sticker"}:
+        return False
+    track_name = str(track.get("name") or "").strip().lower()
+    if track_name in {"source_video", "video", "main_video"}:
+        return False
+    if "source_video" in track_name or "source footage" in track_name:
+        return False
+    return True
+
+
+def material_media_path(material):
+    if not isinstance(material, dict):
+        return ""
+    for key in ["path", "local_path", "file_path"]:
+        value = str(material.get(key) or "").strip()
+        if value:
+            return value
+    return ""
+
+
+def apply_template_overlay_passthrough(draft_content_path, template_doc, template_root, draft_path, total_duration_sec):
+    summary = {
+        "enabled": True,
+        "applied": False,
+        "track_count": 0,
+        "segments_count": 0,
+        "copied_paths": [],
+        "source_paths": [],
+        "missing_paths": [],
+        "skipped_tracks": [],
+        "track_names": [],
+        "reason": "template overlay tracks not found",
+    }
+    if not draft_content_path or not os.path.exists(draft_content_path):
+        summary["reason"] = "draft_content not found"
+        return summary
+    if not isinstance(template_doc, dict):
+        summary["reason"] = "template document not loaded"
+        return summary
+    try:
+        with open(draft_content_path, "r", encoding="utf-8-sig") as file:
+            generated = json.load(file)
+    except Exception as error:
+        summary["reason"] = f"draft_content load failed: {error}"
+        return summary
+
+    template_index = build_material_index_by_id(template_doc)
+    source_to_target_id_map = {}
+    copied_by_source_path = {}
+    overlay_dir = os.path.join(draft_path or os.path.dirname(draft_content_path), "overlay")
+    total_us = max(1, microseconds(total_duration_sec))
+    passthrough_tracks = []
+
+    def clone_media_material(category, material, track_number, segment_number):
+        old_material_id = material.get("id")
+        if isinstance(old_material_id, str) and old_material_id in source_to_target_id_map:
+            return source_to_target_id_map[old_material_id]
+
+        cloned_material = json.loads(json.dumps(material))
+        new_material_id = new_capcut_id()
+        cloned_material["id"] = new_material_id
+        raw_path = material_media_path(cloned_material)
+        if raw_path:
+            source_path = resolve_template_media_path(template_root, raw_path)
+            if not source_path:
+                summary["missing_paths"].append(raw_path)
+                return ""
+            os.makedirs(overlay_dir, exist_ok=True)
+            copied_path = copied_by_source_path.get(source_path)
+            if not copied_path:
+                base_name = os.path.basename(source_path)
+                copied_name = f"template_overlay_{track_number:02d}_{segment_number:02d}_{base_name}"
+                copied_path = os.path.abspath(os.path.join(overlay_dir, copied_name))
+                try:
+                    shutil.copy2(source_path, copied_path)
+                except Exception as error:
+                    summary["missing_paths"].append(f"{source_path} (copy failed: {error})")
+                    return ""
+                copied_by_source_path[source_path] = copied_path
+                summary["source_paths"].append(source_path)
+                summary["copied_paths"].append(copied_path)
+            for key in ["path", "local_path", "file_path"]:
+                if key in cloned_material:
+                    cloned_material[key] = copied_path
+            if "name" in cloned_material:
+                cloned_material["name"] = os.path.basename(copied_path)
+
+        ensure_material_category(generated, category).append(cloned_material)
+        if isinstance(old_material_id, str) and old_material_id:
+            source_to_target_id_map[old_material_id] = new_material_id
+        return new_material_id
+
+    for track_index, template_track in enumerate(template_doc.get("tracks") or []):
+        if not is_template_passthrough_track(template_track):
+            continue
+        cloned_segments = []
+        for segment_index, template_segment in enumerate(template_track.get("segments") or []):
+            if not isinstance(template_segment, dict):
+                continue
+            material_id = template_segment.get("material_id")
+            material_entry = template_index.get(material_id)
+            if material_entry is None:
+                continue
+            category, material = material_entry
+            if category not in {"images", "stickers", "videos"}:
+                continue
+            new_material_id = clone_media_material(category, material, track_index + 1, segment_index + 1)
+            if not new_material_id:
+                continue
+            cloned_segment = json.loads(json.dumps(template_segment))
+            cloned_segment["id"] = new_capcut_id()
+            cloned_segment["material_id"] = new_material_id
+            cloned_segment["visible"] = True
+            if not isinstance(cloned_segment.get("target_timerange"), dict):
+                cloned_segment["target_timerange"] = {"start": 0, "duration": total_us}
+            cloned_segment["extra_material_refs"] = clone_material_dependencies(
+                template_doc,
+                generated,
+                cloned_segment.get("extra_material_refs") or [],
+                source_to_target_id_map,
+            )
+            cloned_segments.append(cloned_segment)
+        if not cloned_segments:
+            summary["skipped_tracks"].append(str(template_track.get("name") or template_track.get("type") or f"track_{track_index}"))
+            continue
+        cloned_track = json.loads(json.dumps(template_track))
+        cloned_track["id"] = new_capcut_id()
+        source_track_name = str(template_track.get("name") or template_track.get("type") or f"track_{track_index}").strip()
+        cloned_track["name"] = f"template_passthrough_{source_track_name}"[:96]
+        cloned_track["is_default_name"] = False
+        cloned_track["visible"] = True
+        cloned_track["segments"] = cloned_segments
+        passthrough_tracks.append(cloned_track)
+        summary["track_names"].append(cloned_track["name"])
+
+    if not passthrough_tracks:
+        if summary["missing_paths"]:
+            summary["reason"] = "template overlay tracks found but media paths were missing or failed to copy"
+        return summary
+
+    tracks = generated.setdefault("tracks", [])
+    tracks[:] = [
+        track for track in tracks
+        if not (isinstance(track, dict) and str(track.get("name") or "").startswith("template_passthrough_"))
+    ]
+    insert_index = 0
+    for index, track in enumerate(tracks):
+        if isinstance(track, dict) and track.get("type") == "video" and track.get("name") == "source_video":
+            insert_index = index + 1
+            break
+    for offset, passthrough_track in enumerate(passthrough_tracks):
+        tracks.insert(insert_index + offset, passthrough_track)
+
+    try:
+        with open(draft_content_path, "w", encoding="utf-8") as file:
+            json.dump(generated, file, ensure_ascii=False, indent=4)
+    except Exception as error:
+        summary["reason"] = f"draft_content save failed: {error}"
+        return summary
+
+    summary.update(
+        {
+            "applied": True,
+            "track_count": len(passthrough_tracks),
+            "segments_count": sum(len(track.get("segments") or []) for track in passthrough_tracks),
+            "reason": "template overlay tracks cloned and media paths copied into draft overlay folder",
+        }
+    )
+    return summary
+
+
 def upsert_timerange(segment_obj, start_us, duration_us):
     trange = {"start": int(start_us), "duration": int(duration_us)}
     segment_obj["target_timerange"] = trange
@@ -1441,21 +1774,50 @@ def upsert_timerange(segment_obj, start_us, duration_us):
 MIDFORM_FIXED_TITLE_Y = 0.58
 MIDFORM_FIXED_SUBTITLE_Y = 0.43
 MIDFORM_CAPTION_Y = -0.26675079176563754
-MIDFORM_CROP_FINAL_SCALE_CAP = 1.8
-MIDFORM_NARRATION_FINAL_SCALE_MIN = 1.2
-MIDFORM_NARRATION_FINAL_SCALE_TARGET = 1.5
-MIDFORM_DIALOGUE_FINAL_SCALE_MIN = 1.4
-MIDFORM_DIALOGUE_FINAL_SCALE_TARGET = 1.8
-MIDFORM_DIALOGUE_SHOT_SCALE_BONUS = 0.1
+MIDFORM_CROP_FINAL_SCALE_CAP = 2.0
+MIDFORM_MULTI_PERSON_FINAL_SCALE_TARGET = 1.8
+MIDFORM_SINGLE_PERSON_FINAL_SCALE_TARGET = 2.0
+MIDFORM_NARRATION_FINAL_SCALE_MIN = 1.8
+MIDFORM_NARRATION_FINAL_SCALE_TARGET = 1.8
+MIDFORM_DIALOGUE_FINAL_SCALE_MIN = 1.8
+MIDFORM_DIALOGUE_FINAL_SCALE_TARGET = 2.0
+MIDFORM_DIALOGUE_SHOT_SCALE_BONUS = 0.0
 MIDFORM_SHOT_TYPE_SCALE_TARGETS = {
-    "wide_shot": 1.3,
-    "action_shot": 1.4,
-    "montage": 1.4,
-    "medium_shot": 1.5,
-    "close_up": 1.7,
-    "text_overlay": 1.3,
-    "unknown": 1.5,
+    "wide_shot": 1.8,
+    "action_shot": 1.8,
+    "montage": 1.8,
+    "medium_shot": 2.0,
+    "close_up": 2.0,
+    "text_overlay": 1.8,
+    "unknown": 1.8,
 }
+
+
+def load_portrait_crop_config():
+    defaults = {
+        "source_scale_multi": MIDFORM_MULTI_PERSON_FINAL_SCALE_TARGET,
+        "source_scale_single": MIDFORM_SINGLE_PERSON_FINAL_SCALE_TARGET,
+        "scale_cap": MIDFORM_CROP_FINAL_SCALE_CAP,
+        "use_face_anchor": True,
+    }
+    if not os.path.exists(PORTRAIT_CROP_CONFIG_PATH):
+        return defaults
+    try:
+        with open(PORTRAIT_CROP_CONFIG_PATH, "r", encoding="utf-8-sig") as file:
+            data = json.load(file)
+    except Exception:
+        return defaults
+    if not isinstance(data, dict):
+        return defaults
+    source_scale_multi = safe_float(data.get("source_scale_multi"), defaults["source_scale_multi"])
+    source_scale_single = safe_float(data.get("source_scale_single"), defaults["source_scale_single"])
+    scale_cap = safe_float(data.get("scale_cap"), defaults["scale_cap"])
+    return {
+        "source_scale_multi": max(1.0, source_scale_multi),
+        "source_scale_single": max(1.0, source_scale_single),
+        "scale_cap": max(1.0, scale_cap),
+        "use_face_anchor": coerce_bool(data.get("use_face_anchor"), defaults["use_face_anchor"]),
+    }
 MIDFORM_SHOT_TYPE_ALIASES = {
     "wide": "wide_shot",
     "wide_shot": "wide_shot",
@@ -1572,8 +1934,19 @@ def derive_overlay_texts(claude_script, srt_entries):
     title_text = ""
     subtitle_text = ""
     if isinstance(title_block, dict):
-        title_text = str(title_block.get("top_title") or "").strip()
-        subtitle_text = str(title_block.get("top_subtitle") or "").strip()
+        overlay_title = title_block.get("overlay_title") if isinstance(title_block.get("overlay_title"), dict) else {}
+        title_text = str(
+            overlay_title.get("top")
+            or title_block.get("overlay_top")
+            or title_block.get("top_title")
+            or ""
+        ).strip()
+        subtitle_text = str(
+            overlay_title.get("bottom")
+            or title_block.get("overlay_bottom")
+            or title_block.get("top_subtitle")
+            or ""
+        ).strip()
     story_title = story.get("title") if isinstance(story, dict) else ""
     if isinstance(story_title, str) and story_title.strip():
         title_text = title_text or story_title.strip()
@@ -1587,9 +1960,9 @@ def derive_overlay_texts(claude_script, srt_entries):
             elif isinstance(first, str):
                 title_text = first.strip()
     if title_text:
-        title_text = title_text[:11].strip()
+        title_text = title_text[:12].strip()
     if subtitle_text:
-        subtitle_text = subtitle_text[:14].strip()
+        subtitle_text = subtitle_text[:12].strip()
 
     pretitle_text = ""
     core_argument = story.get("core_argument") if isinstance(story, dict) else ""
@@ -1721,15 +2094,21 @@ def apply_template_clone_mode(
     def get_or_create_role_template_track(role_name, marker_entry):
         if role_name in role_overlay_tracks:
             return role_overlay_tracks[role_name]
+        role_track_names = {
+            "pretitle": "template_pretitle",
+            "title": "template_title",
+            "subtitle": "template_title_subline",
+            "movie_title": "template_movie_title",
+        }
         if marker_entry is None or not isinstance(marker_entry.get("track"), dict):
-            role_overlay_tracks[role_name] = get_or_create_text_track(f"overlay_{role_name}")
+            role_overlay_tracks[role_name] = get_or_create_text_track(role_track_names.get(role_name, f"overlay_{role_name}"))
             return role_overlay_tracks[role_name]
         source_track = marker_entry["track"]
         cloned_track = json.loads(json.dumps(source_track))
         cloned_track["id"] = new_capcut_id()
         cloned_track["segments"] = []
         cloned_track["visible"] = True
-        cloned_track["name"] = f"template_{role_name}_{source_track.get('name') or marker_entry.get('track_index', 'text')}"
+        cloned_track["name"] = role_track_names.get(role_name, f"template_{role_name}")
         cloned_track["is_default_name"] = False
         tracks.append(cloned_track)
         role_overlay_tracks[role_name] = cloned_track
@@ -1763,22 +2142,22 @@ def apply_template_clone_mode(
 
     overlay_texts = derive_overlay_texts(claude_script, srt_entries)
 
-    # Timed captions remain on the generated subtitle track. TEMPLATE_SUBTITLE is reserved
-    # for the fixed top subtitle line in the sealed midform layout.
+    # Timed captions remain on the generated subtitle track. TEMPLATE_SUBTITLE is the
+    # timed-caption style source; TEMPLATE_TITLE_SUBLINE is the fixed title second line.
     template_sources["subtitle"] = "generated_pycapcut_subtitle_track"
 
     # fixed overlays: full duration and overlapping
     fixed_overlay_specs = [
         ("pretitle", "TEMPLATE_PRETITLE", "", None),
-        ("title", "TEMPLATE_TITLE", overlay_texts.get("title") or "TITLE", MIDFORM_FIXED_TITLE_Y),
-        ("subtitle", "TEMPLATE_SUBTITLE", overlay_texts.get("subtitle") or "", MIDFORM_FIXED_SUBTITLE_Y),
+        ("title", "TEMPLATE_TITLE", overlay_texts.get("title") or "TITLE", None),
+        ("subtitle", "TEMPLATE_TITLE_SUBLINE", overlay_texts.get("subtitle") or "", None),
         ("movie_title", "TEMPLATE_MOVIE_TITLE", overlay_texts.get("movie_title") or "", None),
     ]
     fallback_chain = {
-        "TEMPLATE_PRETITLE": ["TEMPLATE_TITLE", "TEMPLATE_SUBTITLE", "TEMPLATE_MOVIE_TITLE"],
-        "TEMPLATE_TITLE": ["TEMPLATE_SUBTITLE", "TEMPLATE_PRETITLE", "TEMPLATE_MOVIE_TITLE"],
-        "TEMPLATE_SUBTITLE": ["TEMPLATE_TITLE", "TEMPLATE_PRETITLE", "TEMPLATE_MOVIE_TITLE"],
-        "TEMPLATE_MOVIE_TITLE": ["TEMPLATE_TITLE", "TEMPLATE_SUBTITLE", "TEMPLATE_PRETITLE"],
+        "TEMPLATE_PRETITLE": ["TEMPLATE_TITLE", "TEMPLATE_TITLE_SUBLINE", "TEMPLATE_SUBTITLE", "TEMPLATE_MOVIE_TITLE"],
+        "TEMPLATE_TITLE": [],
+        "TEMPLATE_TITLE_SUBLINE": [],
+        "TEMPLATE_MOVIE_TITLE": ["TEMPLATE_TITLE", "TEMPLATE_TITLE_SUBLINE", "TEMPLATE_SUBTITLE", "TEMPLATE_PRETITLE"],
     }
 
     for role_name, marker_name, text_value, fixed_y in fixed_overlay_specs:
@@ -1871,6 +2250,120 @@ def get_video_dimensions_ffprobe(video_path):
         return 0, 0
 
 
+def clamp_float(value, min_value, max_value):
+    return max(min_value, min(max_value, float(value)))
+
+
+def load_opencv_face_cascades():
+    if cv2 is None:
+        return []
+    cascades = []
+    try:
+        base = getattr(cv2, "data", None)
+        cascade_root = getattr(base, "haarcascades", "") if base is not None else ""
+        for name in ["haarcascade_frontalface_default.xml", "haarcascade_profileface.xml"]:
+            path_value = os.path.join(cascade_root, name) if cascade_root else name
+            classifier = cv2.CascadeClassifier(path_value)
+            if not classifier.empty():
+                cascades.append((name, classifier))
+    except Exception:
+        return []
+    return cascades
+
+
+def sample_video_frame(video_path, time_sec):
+    if cv2 is None or not video_path or not os.path.exists(video_path):
+        return None
+    capture = None
+    try:
+        capture = cv2.VideoCapture(video_path)
+        if not capture.isOpened():
+            return None
+        capture.set(cv2.CAP_PROP_POS_MSEC, max(0.0, float(time_sec or 0.0)) * 1000)
+        ok, frame = capture.read()
+        return frame if ok else None
+    except Exception:
+        return None
+    finally:
+        if capture is not None:
+            capture.release()
+
+
+def detect_primary_face_anchor(video_path, time_sec, cascades):
+    result = {
+        "detected": False,
+        "anchor_x": 0.5,
+        "anchor_y": 0.42,
+        "sample_time_sec": round(max(0.0, safe_float(time_sec, 0.0)), 3),
+        "faces_count": 0,
+        "source": "opencv_haar_face",
+        "reason": "not attempted",
+    }
+    if cv2 is None:
+        result["reason"] = "opencv unavailable"
+        return result
+    if not cascades:
+        result["reason"] = "opencv haar cascades unavailable"
+        return result
+    frame = sample_video_frame(video_path, time_sec)
+    if frame is None:
+        result["reason"] = "frame sample failed"
+        return result
+    try:
+        height, width = frame.shape[:2]
+        if width <= 0 or height <= 0:
+            result["reason"] = "invalid sampled frame"
+            return result
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        gray = cv2.equalizeHist(gray)
+        candidates = []
+        for cascade_name, classifier in cascades:
+            detections = classifier.detectMultiScale(gray, scaleFactor=1.08, minNeighbors=4, minSize=(36, 36))
+            for x, y, w, h in detections:
+                candidates.append((int(x), int(y), int(w), int(h), cascade_name, False))
+            if "profile" in cascade_name:
+                flipped = cv2.flip(gray, 1)
+                flipped_detections = classifier.detectMultiScale(flipped, scaleFactor=1.08, minNeighbors=4, minSize=(36, 36))
+                for x, y, w, h in flipped_detections:
+                    candidates.append((int(width - x - w), int(y), int(w), int(h), cascade_name, True))
+        result["faces_count"] = len(candidates)
+        if not candidates:
+            result["reason"] = "no face detected"
+            return result
+        center_x = width / 2.0
+        center_y = height * 0.42
+
+        def candidate_score(item):
+            x, y, w, h, _name, _flipped = item
+            area = w * h
+            face_x = x + w / 2.0
+            face_y = y + h / 2.0
+            distance = ((face_x - center_x) / max(1.0, width)) ** 2 + ((face_y - center_y) / max(1.0, height)) ** 2
+            return area - distance * width * height * 0.15
+
+        best = max(candidates, key=candidate_score)
+        x, y, w, h, cascade_name, flipped = best
+        face_center_x = (x + w / 2.0) / width
+        # Keep a little chest/headroom below the face center so the speaker reads as a person,
+        # not only a cropped face. Clamp prevents wild pans on edge detections.
+        face_center_y = (y + h * 0.72) / height
+        result.update(
+            {
+                "detected": True,
+                "anchor_x": round(clamp_float(face_center_x, 0.18, 0.82), 6),
+                "anchor_y": round(clamp_float(face_center_y, 0.22, 0.72), 6),
+                "bbox": {"x": x, "y": y, "w": w, "h": h},
+                "cascade": cascade_name,
+                "flipped_profile": bool(flipped),
+                "reason": "face detected",
+            }
+        )
+        return result
+    except Exception as error:
+        result["reason"] = f"face detection failed: {error}"
+        return result
+
+
 def is_black_transition_scene(scene):
     text = " ".join(
         str(scene.get(key) or "")
@@ -1940,15 +2433,37 @@ def build_final_slot_tail_plan(slot_map_input, gemini_analysis, source_duration_
 
 
 def apply_midform_portrait_crops_to_draft(draft_content_path, video_cut_placements, segment_type_map, canvas_width, canvas_height, source_video_path="", gemini_analysis=None):
+    crop_config = load_portrait_crop_config()
+    source_scale_multi = safe_float(crop_config.get("source_scale_multi"), MIDFORM_MULTI_PERSON_FINAL_SCALE_TARGET)
+    source_scale_single = safe_float(crop_config.get("source_scale_single"), MIDFORM_SINGLE_PERSON_FINAL_SCALE_TARGET)
+    scale_cap = safe_float(crop_config.get("scale_cap"), MIDFORM_CROP_FINAL_SCALE_CAP)
+    use_face_anchor = coerce_bool(crop_config.get("use_face_anchor"), True)
     scene_ranges = build_midform_shot_scene_ranges(gemini_analysis if isinstance(gemini_analysis, dict) else {})
+    face_cascades = load_opencv_face_cascades() if use_face_anchor else []
     summary = {
         "enabled": True,
-        "method": "portrait_fill_shot_type_overlap_scale_capped",
-        "face_detection": {"attempted": False, "available": False, "reason": "opencv face sampling not enabled in sealed layout pass"},
+        "method": "portrait_configurable_scale_uniform_vertical_face_anchor",
+        "config": {
+            "path": PORTRAIT_CROP_CONFIG_PATH,
+            "source_scale_multi": source_scale_multi,
+            "source_scale_single": source_scale_single,
+            "scale_cap": scale_cap,
+            "use_face_anchor": use_face_anchor,
+        },
+        "face_detection": {
+            "attempted": bool(use_face_anchor and cv2 is not None and source_video_path),
+            "available": bool(cv2 is not None and face_cascades),
+            "detected_segments": 0,
+            "reason": "opencv face anchor enabled" if cv2 is not None and face_cascades else ("face anchor disabled by config" if not use_face_anchor else ("opencv unavailable" if cv2 is None else "opencv haar cascades unavailable")),
+        },
         "source_dimensions": {"width": 0, "height": 0},
         "canvas_dimensions": {"width": int(canvas_width or 0), "height": int(canvas_height or 0)},
         "shot_scene_count": len(scene_ranges),
         "shot_type_scale_targets": MIDFORM_SHOT_TYPE_SCALE_TARGETS,
+        "person_scale_targets": {
+            "multi_person": source_scale_multi,
+            "single_person": source_scale_single,
+        },
         "dialogue_bonus": MIDFORM_DIALOGUE_SHOT_SCALE_BONUS,
         "records": [],
         "applied": False,
@@ -2009,16 +2524,34 @@ def apply_midform_portrait_crops_to_draft(draft_content_path, video_cut_placemen
             scale_source = "segment_type_fallback"
         minimum_final_scale = MIDFORM_DIALOGUE_FINAL_SCALE_MIN if is_dialogue else MIDFORM_NARRATION_FINAL_SCALE_MIN
         uncapped_final_scale = portrait_fill_scale * (1.35 if is_dialogue else 1.15)
-        capped_final_scale = min(MIDFORM_CROP_FINAL_SCALE_CAP, max(minimum_final_scale, target_final_scale))
-        logical_zoom = capped_final_scale / max(0.001, portrait_fill_scale)
+        if is_dialogue:
+            target_final_scale = max(target_final_scale, MIDFORM_DIALOGUE_FINAL_SCALE_TARGET)
+        else:
+            target_final_scale = max(target_final_scale, MIDFORM_NARRATION_FINAL_SCALE_TARGET)
+        capped_final_scale = min(scale_cap, max(minimum_final_scale, target_final_scale))
         applied_scale = round(capped_final_scale, 6)
         anchor_x = 0.5
-        if normalized_shot_type in {"wide_shot", "action_shot", "text_overlay"}:
-            anchor_y = 0.5
-            anchor_source = f"{normalized_shot_type}_center"
-        else:
-            anchor_y = 0.37 if is_dialogue else 0.42
-            anchor_source = "shot_type_top_third" if matched_scene else "default_top_third"
+        face_anchor = {"detected": False, "reason": "not attempted"}
+        anchor_y = 0.42
+        anchor_source = "uniform_vertical_anchor"
+        source_mid_sec = None
+        if source_match_start is not None and source_match_end is not None and source_match_end > source_match_start:
+            source_mid_sec = (source_match_start + source_match_end) / 2.0
+        elif isinstance(segment.get("source_timerange"), dict):
+            source_timerange = segment.get("source_timerange")
+            source_start_us = safe_float(source_timerange.get("start"), 0.0)
+            source_duration_us = safe_float(source_timerange.get("duration"), 0.0)
+            source_mid_sec = (source_start_us + source_duration_us / 2.0) / 1_000_000
+        if use_face_anchor and source_mid_sec is not None:
+            face_anchor = detect_primary_face_anchor(source_video_path, source_mid_sec, face_cascades)
+            if face_anchor.get("detected"):
+                anchor_x = float(face_anchor.get("anchor_x") or anchor_x)
+                faces_count = int(safe_float(face_anchor.get("faces_count"), 0.0) or 0)
+                capped_final_scale = min(scale_cap, source_scale_multi if faces_count > 1 else source_scale_single)
+                applied_scale = round(capped_final_scale, 6)
+                anchor_source = "opencv_face_anchor"
+                summary["face_detection"]["detected_segments"] += 1
+        logical_zoom = capped_final_scale / max(0.001, portrait_fill_scale)
         transform_x = round((0.5 - anchor_x) * 0.35, 6)
         transform_y = round((0.5 - anchor_y) * 0.35, 6)
         clip = segment.setdefault("clip", {})
@@ -2049,12 +2582,12 @@ def apply_midform_portrait_crops_to_draft(draft_content_path, video_cut_placemen
             "scale_source": scale_source,
             "target_final_scale": round(target_final_scale, 6),
             "minimum_final_scale": round(minimum_final_scale, 6),
-            "max_final_scale_cap": MIDFORM_CROP_FINAL_SCALE_CAP,
+            "max_final_scale_cap": scale_cap,
             "final_effective_scale": applied_scale,
-            "cap_applied": target_final_scale > MIDFORM_CROP_FINAL_SCALE_CAP,
+            "cap_applied": target_final_scale > scale_cap,
             "applied_capcut_scale": applied_scale,
             "transform": {"x": transform_x, "y": transform_y},
-            "face_detection": "fallback_default_anchor",
+            "face_detection": face_anchor,
         }
         placement["crop"] = record
         summary["records"].append(record)
@@ -2113,7 +2646,7 @@ def normalize_midform_caption_text_track(draft_content_path, caption_y=MIDFORM_C
 
 
 def rebuild_midform_caption_track_from_template(draft_content_path, template_doc, srt_entries, caption_y=MIDFORM_CAPTION_Y):
-    summary = {"applied": False, "track_found": False, "segments": 0, "caption_y": caption_y, "source_marker": "TEMPLATE_SUBTITLE"}
+    summary = {"applied": False, "track_found": False, "segments": 0, "caption_y": caption_y, "source_marker": "TEMPLATE_SUBTITLE", "colored_segments": 0, "removed_effect_refs": 0}
     if not draft_content_path or not os.path.exists(draft_content_path):
         summary["reason"] = "draft_content not found"
         return summary
@@ -2167,6 +2700,10 @@ def rebuild_midform_caption_track_from_template(draft_content_path, template_doc
         new_material_id = new_capcut_id()
         cloned_material["id"] = new_material_id
         set_material_text_value(cloned_material, text_value)
+        caption_color = str(entry.get("caption_color") or "").strip()
+        color_applied = bool(caption_color and apply_text_material_fill_color(cloned_material, caption_color))
+        if color_applied:
+            summary["colored_segments"] += 1
         ensure_material_category(draft_content, "texts").append(cloned_material)
         if isinstance(old_material_id, str) and old_material_id:
             source_to_target_id_map[old_material_id] = new_material_id
@@ -2185,6 +2722,8 @@ def rebuild_midform_caption_track_from_template(draft_content_path, template_doc
             cloned_segment.get("extra_material_refs") or [],
             source_to_target_id_map,
         )
+        if color_applied:
+            summary["removed_effect_refs"] += remove_text_effect_layers_for_colored_caption(cloned_material, cloned_segment, draft_content)
         subtitle_track["segments"].append(cloned_segment)
 
     try:
@@ -8865,6 +9404,7 @@ def create_draft(input_json_path):
     slot_map_mode = bool(slot_map_input.get("slots"))
     transcript_utterance_map = build_transcript_utterance_map(source_transcript)
     tts_files = data.get("ttsFiles", [])
+    caption_color_config = load_caption_color_config()
     tts_duration_by_segment = {}
     for tts_item in tts_files if isinstance(tts_files, list) else []:
         if not isinstance(tts_item, dict):
@@ -9215,6 +9755,8 @@ def create_draft(input_json_path):
         segment_info = segment_map.get(segment_id, {})
         narration = (caption_unit.get("text") if caption_unit else None) or (tts.get("text") if tts else None) or segment_info.get("narration", "")
         segment_type = str((caption_unit or {}).get("segment_type") or (caption_unit or {}).get("segmentType") or segment_type_map.get(segment_id) or "").strip()
+        speaker = str((caption_unit or {}).get("speaker") or segment_info.get("speaker") or "").strip()
+        caption_color = caption_color_for_speaker(speaker, caption_color_config) if segment_type in {"dialogue_quote", "dialogue"} else ""
         source_clips = get_segment_source_clips(segment_info)
         combined_segment_ids = caption_unit.get("combined_segment_ids") if isinstance(caption_unit, dict) and isinstance(caption_unit.get("combined_segment_ids"), list) else []
         if combined_segment_ids:
@@ -9246,6 +9788,8 @@ def create_draft(input_json_path):
                     "timeline_end_us": timeline_end_us,
                     "tts_duration_us": 0,
                     "text": narration,
+                    "speaker": speaker,
+                    "caption_color": caption_color,
                     "mp3_path": "",
                     "combined_segment_ids": combined_segment_ids,
                 }
@@ -9258,6 +9802,8 @@ def create_draft(input_json_path):
                     "segment_type": segment_type,
                     "tts_enabled": False,
                     "text": narration,
+                    "speaker": speaker,
+                    "caption_color": caption_color,
                     "start_sec": round(timeline_start_us / 1_000_000, 6),
                     "end_sec": round(timeline_end_us / 1_000_000, 6),
                     "duration_sec": round(duration_us / 1_000_000, 6),
@@ -9272,6 +9818,8 @@ def create_draft(input_json_path):
                     "segment_type": segment_type,
                     "tts_enabled": False,
                     "narration": narration,
+                    "speaker": speaker,
+                    "caption_color": caption_color,
                     "tts_source_path": "",
                     "tts_draft_path": "",
                     "tts_draft_relative_path": "",
@@ -9304,6 +9852,8 @@ def create_draft(input_json_path):
                     "segment_type": segment_type,
                     "tts_enabled": True,
                     "narration": narration,
+                    "speaker": speaker,
+                    "caption_color": caption_color,
                     "tts_source_path": tts_path,
                     "tts_draft_path": draft_path_value,
                     "tts_draft_relative_path": draft_relative_path,
@@ -9393,16 +9943,20 @@ def create_draft(input_json_path):
                 "timeline_start_us": timeline_start_us,
                 "timeline_end_us": timeline_end_us,
                 "tts_duration_us": duration_us,
-                "text": narration,
-                "mp3_path": draft_audio_path,
+                    "text": narration,
+                    "speaker": speaker,
+                    "caption_color": caption_color,
+                    "mp3_path": draft_audio_path,
                 "combined_segment_ids": combined_segment_ids,
             }
         )
         tts_timeline_by_caption_id[caption_id] = {
             "caption_id": caption_id,
             "segment_id": segment_id,
-            "segment_type": segment_type,
-            "timeline_start_us": timeline_start_us,
+                "segment_type": segment_type,
+                "speaker": speaker,
+                "caption_color": caption_color,
+                "timeline_start_us": timeline_start_us,
             "timeline_end_us": timeline_end_us,
             "duration_us": duration_us,
             "mp3_path": draft_audio_path,
@@ -9417,6 +9971,8 @@ def create_draft(input_json_path):
                 "segment_type": segment_type,
                 "tts_enabled": True,
                 "text": narration,
+                "speaker": speaker,
+                "caption_color": caption_color,
                 "start_sec": round(timeline_start_us / 1_000_000, 6),
                 "end_sec": round(timeline_end_us / 1_000_000, 6),
                 "duration_sec": round(duration_us / 1_000_000, 6),
@@ -9471,6 +10027,8 @@ def create_draft(input_json_path):
                     or ""
                 )
                 text_value = str(unit.get("text") or "")
+                speaker_value = str(unit.get("speaker") or "").strip()
+                caption_color_value = caption_color_for_speaker(speaker_value, caption_color_config) if segment_type_value in {"dialogue_quote", "dialogue"} else ""
                 combined_segment_ids = unit.get("combined_segment_ids") if isinstance(unit.get("combined_segment_ids"), list) else sentence_timeline.get("combined_segment_ids") or []
                 display_caption_timeline_entries.append(
                     {
@@ -9484,6 +10042,8 @@ def create_draft(input_json_path):
                         "timeline_end_us": unit_end_us,
                         "tts_duration_us": unit_duration_us,
                         "text": text_value,
+                        "speaker": speaker_value,
+                        "caption_color": caption_color_value,
                         "mp3_path": sentence_timeline.get("mp3_path") or "",
                         "combined_segment_ids": combined_segment_ids,
                         "timing_source": "proportional_sentence_tts",
@@ -9498,6 +10058,8 @@ def create_draft(input_json_path):
                         "segment_type": segment_type_value,
                         "tts_enabled": True,
                         "text": text_value,
+                        "speaker": speaker_value,
+                        "caption_color": caption_color_value,
                         "start_sec": round(unit_start_us / 1_000_000, 6),
                         "end_sec": round(unit_end_us / 1_000_000, 6),
                         "duration_sec": round(unit_duration_us / 1_000_000, 6),
@@ -10034,6 +10596,9 @@ def create_draft(input_json_path):
     total_tts_duration_sec = round(current_time_us / 1_000_000, 6)
     total_video_duration_sec = round(total_video_timeline_end_us / 1_000_000, 6)
     timeline_duration_diff_sec = round(total_tts_duration_sec - total_video_duration_sec, 6)
+    duration_guide_summary = build_duration_guide_report(total_tts_duration_sec)
+    if duration_guide_summary.get("status") == "warn":
+        warnings.append(f"duration guide: {duration_guide_summary.get('message')}")
     video_timeline_aligned_to_tts = abs(timeline_duration_diff_sec) <= 0.2
 
     story_sync_summary = {
@@ -10159,6 +10724,14 @@ def create_draft(input_json_path):
         copied_srt_path = os.path.abspath(os.path.join(subtitle_dir, "subtitles.srt"))
         write_srt_entries(copied_srt_path, caption_timeline_entries)
         srt_entries = parse_srt(copied_srt_path)
+        for index, entry in enumerate(srt_entries):
+            source_entry = caption_timeline_entries[index] if index < len(caption_timeline_entries) else {}
+            if isinstance(source_entry, dict):
+                entry["caption_id"] = source_entry.get("caption_id")
+                entry["segment_id"] = source_entry.get("segment_id")
+                entry["segment_type"] = source_entry.get("segment_type")
+                entry["speaker"] = source_entry.get("speaker")
+                entry["caption_color"] = source_entry.get("caption_color")
         subtitle_style = subtitle_components["style"]
         subtitle_clip = subtitle_components["clip_settings"]
         subtitle_font = subtitle_components["font"]
@@ -10238,6 +10811,7 @@ def create_draft(input_json_path):
             segment_type_map,
         )
 
+    template_overlay_passthrough_summary = {"enabled": bool(use_capcut_template), "applied": False, "reason": "template not loaded"}
     template_clone_summary = {
         "template_clone_mode": False,
         "template_markers_found": [],
@@ -10264,6 +10838,21 @@ def create_draft(input_json_path):
         except Exception as clone_error:
             warnings.append(f"template clone mode failed, fallback to pycapcut style mapping: {clone_error}")
             template_clone_summary["used_fallback_subtitle"] = True
+        try:
+            template_overlay_passthrough_summary = apply_template_overlay_passthrough(
+                generated_draft_content_path,
+                template_draft_content,
+                template_info.get("template_root", "") if template_info else "",
+                draft_path,
+                total_tts_duration_sec,
+            )
+        except Exception as passthrough_error:
+            template_overlay_passthrough_summary = {
+                "enabled": True,
+                "applied": False,
+                "reason": f"template overlay passthrough failed: {passthrough_error}",
+            }
+            warnings.append(template_overlay_passthrough_summary["reason"])
 
     portrait_crop_summary = apply_midform_portrait_crops_to_draft(
         generated_draft_content_path,
@@ -10300,6 +10889,7 @@ def create_draft(input_json_path):
         "subtitle_segments_count": template_clone_summary.get("subtitle_segments_count", subtitle_track_count),
         "movie_title_generated": template_clone_summary.get("movie_title_generated", False),
         "movie_title_fallback_text_used": template_clone_summary.get("movie_title_fallback_text_used", False),
+        "template_overlay_passthrough": template_overlay_passthrough_summary,
         "caption_units_count": len(caption_manifest_entries),
         "caption_units": caption_manifest_entries,
         "segment_to_caption_map": segment_to_caption_map,
@@ -10327,6 +10917,7 @@ def create_draft(input_json_path):
         "total_tts_duration_sec": total_tts_duration_sec,
         "total_video_duration_sec": total_video_duration_sec,
         "duration_diff_sec": timeline_duration_diff_sec,
+        "duration_guide": duration_guide_summary,
         "video_timeline_aligned_to_tts": video_timeline_aligned_to_tts,
         "pad_strategy": pad_strategy_summary,
         "final_slot_tail": final_slot_tail,
@@ -10371,6 +10962,7 @@ def create_draft(input_json_path):
         f"- PRETITLE/TITLE/MOVIE_TITLE Fixed Overlay: {str(bool(template_clone_summary.get('template_clone_mode', False))).lower()}",
         f"- MOVIE_TITLE Generated: {str(bool(template_clone_summary.get('movie_title_generated', False))).lower()}",
         f"- MOVIE_TITLE Fallback Text Used: {str(bool(template_clone_summary.get('movie_title_fallback_text_used', False))).lower()}",
+        f"- Template Overlay Passthrough: {json.dumps(template_overlay_passthrough_summary, ensure_ascii=False)}",
         f"- Overlay Duration Sec: {template_clone_summary.get('total_tts_duration_sec', total_tts_duration_sec)}",
         f"- Applied Template Name: {os.path.basename(template_info['template_root']) if template_info else 'none'}",
         f"- Template Base Path: {template_info['template_base'] if template_info else 'not found'}",
@@ -10392,6 +10984,7 @@ def create_draft(input_json_path):
         f"- Total Segments: {len(segments)}",
         f"- Total TTS Duration Sec: {total_tts_duration_sec}",
         f"- Total Video Duration Sec: {total_video_duration_sec}",
+        f"- Duration Guide: {json.dumps(duration_guide_summary, ensure_ascii=False)}",
         f"- Duration Diff Sec (TTS-Video): {timeline_duration_diff_sec}",
         f"- Video Timeline Aligned To TTS: {str(video_timeline_aligned_to_tts).lower()}",
         f"- Pad Strategy: {pad_strategy_summary}",

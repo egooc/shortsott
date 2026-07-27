@@ -1,0 +1,74 @@
+const assert = require('node:assert/strict');
+const test = require('node:test');
+
+const {
+  readJson,
+  extractSubtitleTextMaterials,
+  validateManifestMaterialColors,
+  rgbFloatMatchesHex
+} = require('./artifactQaHelpers');
+
+function textMaterial({ id = 'mat_1', text, hex = '#37FF3D', rgb = [0.2156862745, 1, 0.2392156863], useLetterColor = true, useEffectDefaultColor = false }) {
+  return {
+    id,
+    type: 'subtitle',
+    name: text,
+    recognize_text: text,
+    base_content: text,
+    text_color: hex,
+    use_effect_default_color: useEffectDefaultColor,
+    content: JSON.stringify({
+      text,
+      styles: [{
+        fill: {
+          content: {
+            render_type: 'solid',
+            solid: { color: rgb, alpha: 1 }
+          },
+          alpha: 1
+        },
+        useLetterColor
+      }]
+    })
+  };
+}
+
+test('material color helper parses CapCut subtitle text fill state', () => {
+  const draftContent = { materials: { texts: [textMaterial({ text: '테스트 자막' })] } };
+  const materials = extractSubtitleTextMaterials(draftContent);
+
+  assert.equal(materials.length, 1);
+  assert.equal(materials[0].text, '테스트 자막');
+  assert.equal(materials[0].useLetterColor, true);
+  assert.equal(materials[0].use_effect_default_color, false);
+  assert.equal(rgbFloatMatchesHex(materials[0].fill_rgb, '#37FF3D'), true);
+});
+
+test('material color validator catches manifest color without matching material fill', () => {
+  const manifest = {
+    caption_units: [{
+      caption_id: 'cap_001',
+      segment_id: 'slot_01_L01',
+      segment_type: 'dialogue_quote',
+      speaker: 'Scully',
+      text: '틀린 색상',
+      caption_color: '#37FF3D'
+    }]
+  };
+  const draftContent = { materials: { texts: [textMaterial({ text: '틀린 색상', hex: '#FFFFFF', rgb: [1, 1, 1] })] } };
+  const validation = validateManifestMaterialColors(manifest, draftContent);
+
+  assert.equal(validation.checked, 1);
+  assert.equal(validation.passed, 0);
+  assert.equal(validation.failed[0].caption_id, 'cap_001');
+  assert.equal(validation.failed[0].fill_matches, false);
+});
+
+test('latest Steve Jobs draft has material-level colors matching dialogue manifest colors', () => {
+  const manifest = readJson('server/output/drafts/pipeline_1785150227/edit_manifest.json');
+  const draftContent = readJson('server/output/drafts/pipeline_1785150227/draft_content.json');
+  const validation = validateManifestMaterialColors(manifest, draftContent);
+
+  assert.ok(validation.checked > 0);
+  assert.deepEqual(validation.failed, []);
+});
