@@ -2,10 +2,11 @@
 // compression_slot_fills.json + transcript_timed.json) into the existing assembly pipeline's
 // contract (transcript / slot_map.json / script.json), then hands off to midformPipelineService.
 //
-// Coordinate contract (single source of truth): every per-line dialogue timestamp comes from
+// Coordinate contract (single source of truth): every per-line dialogue speech timestamp comes from
 // edit_plan.timeline[].dialogue_line_windows[] (computed once in finalizeEditPlan). The transcript
-// utterance, the slot_map source_range, and the script source_scenes all reference those SAME
-// stored numbers verbatim via secondsToTimecode() — never re-derived, never re-rounded here.
+// utterance keeps those speech numbers verbatim. Dialogue source_scenes may be padded for visual
+// pre-roll/post-roll, but each segment carries dialogue_speech_range_sec + caption offset metadata
+// so subtitles stay tied to speech timing while allowing a small display-start delay.
 
 const fs = require('fs');
 const path = require('path');
@@ -17,6 +18,8 @@ const { resolveCompressionRunDir, downloadCompressionSourceVideo } = require('./
 const { startRun } = require('./midformPipelineService');
 
 const DURATION_CONFIG_PATH = path.join(PROJECT_ROOT, 'midform', 'config', 'duration.json');
+const DIALOGUE_CAPTION_START_DELAY_SEC = 0.08;
+const MIN_DIALOGUE_CAPTION_DURATION_SEC = 0.3;
 
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8').replace(/^﻿/, ''));
@@ -46,6 +49,18 @@ function sanitizeDisplayCaptionText(value) {
     .replace(/(?:^|\s)>>\s*/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function compressDialogueCaptionText(value) {
+  let text = sanitizeDisplayCaptionText(value).replace(/^[-•]\s*/, '').trim();
+  const quoted = text.match(/["“‘']([^"”’']{2,40})["”’']/);
+  if (quoted) text = sanitizeDisplayCaptionText(quoted[1]);
+  text = text.replace(/^["'“”‘’]+|["'“”‘’]+$/g, '').trim();
+  text = text
+    .replace(/\s*(?:라고|이라고)\s*(?:말(?:했|합니다|했다|해요|한다)?|묻(?:습니다|는다|었다|었어요)?|답(?:합니다|했다|해요)?|외(?:칩니다|쳤다|쳐요)?|소리(?:칩니다|쳤다|쳐요)?|경고(?:합니다|했다|해요)?|반박(?:합니다|했다|해요)?)[.!?…]*$/u, '')
+    .replace(/\s*(?:하며|하면서)\s*(?:말|묻|답|외치|소리치|경고|반박).*$/u, '')
+    .trim();
+  return sanitizeDisplayCaptionText(text);
 }
 
 // Matches capcut_draft.py:seconds_to_timecode exactly (HH:MM:SS.mmm). The ONE place seconds
@@ -215,6 +230,68 @@ function defaultEditInstruction(visualRole) {
   return { visual_role: visualRole, pace: 'medium', transition: 'cut', zoom: 'none', sfx: [] };
 }
 
+function dialoguePaddingRule(item, win) {
+  const relation = normalizeText(item?.dialogue_unit?.relation_type || item?.callback_relation || item?.scene_type || '').toLowerCase();
+  const line = normalizeText(win?.line || '').toLowerCase();
+  const wordCount = line ? line.split(/\s+/).length : 0;
+  if (/question|answer|rebuttal|accusation|confront/.test(relation) || /\?$/.test(line) || /^(why|what|how|who|where|when)\b/.test(line)) {
+    return { dialogue_type: 'question_rebuttal', pre_roll_sec: 0.7, post_roll_sec: 0.15 };
+  }
+  if (/confession|emotional|pause|hesitation/.test(relation) || /\.\.\.|—|–/.test(String(win?.line || ''))) {
+    return { dialogue_type: 'emotional_pause', pre_roll_sec: 0.5, post_roll_sec: 0.25 };
+  }
+  if (wordCount > 0 && wordCount <= 4) {
+    return { dialogue_type: 'short_command_reaction', pre_roll_sec: 0.45, post_roll_sec: 0.1 };
+  }
+  return { dialogue_type: 'default_dialogue', pre_roll_sec: 0.5, post_roll_sec: 0.15 };
+}
+
+function buildDialogueTimingAdjustment(item, win, orderedWindows, orderedIndex, sourceDurationSec) {
+  const speechStart = Number(win.start_sec);
+  const speechEnd = Number(win.end_sec);
+  const rule = dialoguePaddingRule(item, win);
+  const minGapSec = 0.02;
+  const prev = orderedWindows[orderedIndex - 1]?.win;
+  const next = orderedWindows[orderedIndex + 1]?.win;
+  let visualStart = Math.max(0, speechStart - rule.pre_roll_sec);
+  let visualEnd = speechEnd + rule.post_roll_sec;
+  if (prev && Number(prev.end_sec) <= speechStart) {
+    visualStart = Math.max(visualStart, Math.min(speechStart, Number(prev.end_sec) + minGapSec));
+  }
+  if (next && Number(next.start_sec) >= speechEnd) {
+    visualEnd = Math.min(visualEnd, Math.max(speechEnd, Number(next.start_sec) - minGapSec));
+  }
+  if (Number.isFinite(sourceDurationSec) && sourceDurationSec > 0) {
+    visualEnd = Math.min(visualEnd, sourceDurationSec);
+  }
+  visualEnd = Math.max(visualEnd, speechEnd);
+  visualStart = Math.min(visualStart, speechStart);
+  const round3 = (value) => Number(Number(value).toFixed(3));
+  const roundedVisualStart = round3(visualStart);
+  const roundedVisualEnd = round3(visualEnd);
+  const roundedSpeechStart = round3(speechStart);
+  const roundedSpeechEnd = round3(speechEnd);
+  const speechDuration = Math.max(0, roundedSpeechEnd - roundedSpeechStart);
+  const captionStartDelaySec = speechDuration > MIN_DIALOGUE_CAPTION_DURATION_SEC + 0.05
+    ? Math.min(DIALOGUE_CAPTION_START_DELAY_SEC, speechDuration - MIN_DIALOGUE_CAPTION_DURATION_SEC)
+    : 0;
+  return {
+    dialogue_type: rule.dialogue_type,
+    speech_range_sec: [roundedSpeechStart, roundedSpeechEnd],
+    visual_range_sec: [roundedVisualStart, roundedVisualEnd],
+    requested_pre_roll_sec: rule.pre_roll_sec,
+    requested_post_roll_sec: rule.post_roll_sec,
+    applied_pre_roll_sec: round3(roundedSpeechStart - roundedVisualStart),
+    applied_post_roll_sec: round3(roundedVisualEnd - roundedSpeechEnd),
+    caption_timeline_offset_sec: round3(roundedSpeechStart - roundedVisualStart + captionStartDelaySec),
+    caption_start_delay_sec: round3(captionStartDelaySec),
+    caption_duration_sec: round3(speechDuration - captionStartDelaySec),
+    visual_duration_sec: round3(roundedVisualEnd - roundedVisualStart),
+    source: 'bootstrap_dialogue_visual_padding_v1',
+    fallback_used: false
+  };
+}
+
 // Builds slot_map.json and script.json TOGETHER from the same edit plan + slot fills, so the two
 // artifacts share one set of coordinates. IMPORTANT: script.json gets NO top-level slot_map key.
 // Verified in capcut_draft.py: slot_map_mode = bool(script.slot_map.slots); when false (no key),
@@ -223,6 +300,7 @@ function defaultEditInstruction(visualRole) {
 // trade-off, so we never embed slot_map here.
 function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
   const warnings = [];
+  const durationSec = Number(options.sourceDurationSec || editPlan?.duration_budget?.estimated_total_sec || 0);
   const timeline = (Array.isArray(editPlan?.timeline) ? editPlan.timeline : [])
     .filter((item) => item.decision !== 'DROP');
   const fillsBySlot = new Map((Array.isArray(slotFills?.slot_fills) ? slotFills.slot_fills : [])
@@ -239,8 +317,14 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
   const reservedDialogueRanges = [];
   for (const t of timeline) {
     if (t.decision !== 'KEEP_DIALOGUE') continue;
-    for (const w of Array.isArray(t.dialogue_line_windows) ? t.dialogue_line_windows : []) {
-      if (w && w.matched === true) reservedDialogueRanges.push([Number(w.start_sec), Number(w.end_sec)]);
+    const orderedDialogueWindows = (Array.isArray(t.dialogue_line_windows) ? t.dialogue_line_windows : [])
+      .map((win, index) => ({ win, index }))
+      .filter((entry) => entry.win && entry.win.matched === true)
+      .sort((a, b) => Number(a.win.start_sec) - Number(b.win.start_sec));
+    for (let orderedIndex = 0; orderedIndex < orderedDialogueWindows.length; orderedIndex += 1) {
+      const entry = orderedDialogueWindows[orderedIndex];
+      const timing = buildDialogueTimingAdjustment(t, entry.win, orderedDialogueWindows, orderedIndex, durationSec);
+      reservedDialogueRanges.push(timing.visual_range_sec);
     }
   }
   const assignedBrollRanges = [];
@@ -282,10 +366,12 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
         .filter((entry) => entry.win && entry.win.matched === true)
         .sort((a, b) => Number(a.win.start_sec) - Number(b.win.start_sec));
       for (const { win, index } of orderedDialogueWindows) {
+        const orderedIndex = orderedDialogueWindows.findIndex((entry) => entry.win === win && entry.index === index);
+        const timing = buildDialogueTimingAdjustment(item, win, orderedDialogueWindows, orderedIndex, durationSec);
         const segId = `${slotId}_L${String(index + 1).padStart(2, '0')}`;
-        const startTc = secondsToTimecode(win.start_sec);
-        const endTc = secondsToTimecode(win.end_sec);
-        const captionText = sanitizeDisplayCaptionText(captionKr[index] || '');
+        const startTc = secondsToTimecode(timing.visual_range_sec[0]);
+        const endTc = secondsToTimecode(timing.visual_range_sec[1]);
+        const captionText = compressDialogueCaptionText(captionKr[index] || '');
         const speakerList = Array.isArray(fill.speakers) ? fill.speakers : [];
         const speaker = normalizeText(speakerList[index] || fill.speaker || '');
         if (!captionText) warnings.push(`${segId} has no Korean caption (caption_kr_dialogue[${index}] empty)`);
@@ -308,8 +394,12 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
           callback_relation: item.callback_relation || '',
           reused_conflict_axis: item.reused_conflict_axis || '',
           dialogue_unit: item.dialogue_unit || null,
-          source_range: [win.start_sec, win.end_sec],
-          duration: Number((win.end_sec - win.start_sec).toFixed(3)),
+          source_range: timing.visual_range_sec,
+          dialogue_speech_range_sec: timing.speech_range_sec,
+          dialogue_timing_adjustment: timing,
+          caption_timeline_offset_sec: timing.caption_timeline_offset_sec,
+          duration_override_sec: timing.caption_duration_sec,
+          duration: timing.visual_duration_sec,
           utt_id: segId,
           caption_source_text: normalizeText(win.line),
           scene_summary: `dialogue: ${normalizeText(win.line)}`,
@@ -341,7 +431,11 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
           translated_caption_ko: captionText,
           caption_text: captionText,
           speaker,
-          story_anchor: { source_range_hint: [win.start_sec, win.end_sec], scene_refs: [] },
+          story_anchor: { source_range_hint: timing.speech_range_sec, scene_refs: [] },
+          dialogue_speech_range_sec: timing.speech_range_sec,
+          dialogue_timing_adjustment: timing,
+          caption_timeline_offset_sec: timing.caption_timeline_offset_sec,
+          duration_override_sec: timing.caption_duration_sec,
           source_scenes: [{
             clip_id: `${segId}_clip`,
             scene_id: '',
@@ -435,7 +529,6 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
     });
   }
 
-  const durationSec = Number(options.sourceDurationSec || editPlan?.duration_budget?.estimated_total_sec || 0);
   const uploadText = slotFills?.upload_text && typeof slotFills.upload_text === 'object' ? slotFills.upload_text : {};
   const overlayTitle = uploadText.overlay_title && typeof uploadText.overlay_title === 'object' ? uploadText.overlay_title : {};
   const titleCandidates = Array.isArray(uploadText.title_candidates) ? uploadText.title_candidates.map((value) => normalizeText(value)).filter(Boolean) : [];
@@ -596,8 +689,8 @@ function runBootstrapPreflight(assembled, options = {}) {
   const idMatch = slotIds.size === segIds.size && [...slotIds].every((id) => segIds.has(id));
   add('coverage_slotmap_eq_script', idMatch, idMatch ? '' : `slot_map ${slotIds.size} vs script ${segIds.size}`);
 
-  // 4. Coordinate parity: each dialogue segment's source_scenes clip == its transcript utterance
-  //    [start,end] (both from the same stored window). No re-derivation drift.
+  // 4. Speech coordinate parity: each dialogue segment keeps the transcript utterance as its
+  //    dialogue_speech_range_sec while source_scenes may include visual pre-roll/post-roll.
   const uttById = new Map(transcript.utterances.map((u) => [u.utt_id, u]));
   let parityFail = '';
   for (const seg of script.segments) {
@@ -605,10 +698,17 @@ function runBootstrapPreflight(assembled, options = {}) {
     const utt = uttById.get(seg.utt_id);
     const clip = (seg.source_scenes || [])[0];
     if (!utt || !clip) { parityFail = `${seg.segment_id}: missing utterance or clip`; break; }
+    const speechRange = Array.isArray(seg.dialogue_speech_range_sec) ? seg.dialogue_speech_range_sec : [];
+    const ss = Number(speechRange[0]);
+    const se = Number(speechRange[1]);
     const cs = parseTimecode(clip.start);
     const ce = parseTimecode(clip.end);
-    if (Math.abs(cs - utt.start) > 0.001 || Math.abs(ce - utt.end) > 0.001) {
-      parityFail = `${seg.segment_id}: clip [${cs},${ce}] != utterance [${utt.start},${utt.end}]`;
+    if (Math.abs(ss - utt.start) > 0.001 || Math.abs(se - utt.end) > 0.001) {
+      parityFail = `${seg.segment_id}: speech [${ss},${se}] != utterance [${utt.start},${utt.end}]`;
+      break;
+    }
+    if (cs > utt.start + 0.001 || ce < utt.end - 0.001) {
+      parityFail = `${seg.segment_id}: visual clip [${cs},${ce}] does not contain utterance [${utt.start},${utt.end}]`;
       break;
     }
   }
