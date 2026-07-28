@@ -8,13 +8,20 @@ const Ajv = require('ajv');
 const { PROJECT_ROOT } = require('./pipelinePaths');
 const { runCompression, runCompressionApply, refreshCompressionPlan } = require('./midformCompressionService');
 const { runBootstrapToPipeline } = require('./midformBootstrapAdapterService');
-const { getRun } = require('./midformPipelineService');
+const { getRun, startRun } = require('./midformPipelineService');
 const { collectRunArtifacts, copyIfExists, ensureDir, rel, writeJson, writeText } = require('./midformRunArtifactsService');
 
 const SCHEMA_PATH = path.join(PROJECT_ROOT, 'midform', 'schemas', 'midform_run_template_schema.json');
 const WORKSPACE_ROOT = path.join(PROJECT_ROOT, 'midform', 'test_runs', 'template_runs');
+const COMPRESS_RUNS_DIR = path.join(PROJECT_ROOT, 'midform', 'test_runs');
 const TERMINAL_PIPELINE_STATES = new Set(['completed', 'completed_with_warnings', 'failed', 'paused_review', 'blocked_preflight']);
 const RESUME_STAGES = ['ingest', 'analysis', 'slot_fill', 'bootstrap', 'draft'];
+const ANALYSIS_MODES = new Set(['compression', 'auto', 'multimodal']);
+const MULTIMODAL_ESCALATION_GATE_REASONS = {
+  high_context_teaser_recovery: 'high_context',
+  callback_strength: 'weak_callback_recovery',
+  first_30_conflict_clarity: 'weak_clarity'
+};
 const PROFILE_DEFAULTS = {
   fast: {
     preview_frame_proof: false,
@@ -62,6 +69,12 @@ function safeSlug(value, fallback = 'midform_run') {
 
 function stableHash(value) {
   return crypto.createHash('sha1').update(JSON.stringify(value)).digest('hex').slice(0, 10);
+}
+
+function normalizeSourceUrl(source) {
+  const text = String(source || '').trim();
+  const match = text.match(/(?:v=|youtu\.be\/|\/shorts\/)([A-Za-z0-9_-]{11})/) || text.match(/^([A-Za-z0-9_-]{11})$/);
+  return match ? `https://www.youtube.com/watch?v=${match[1]}` : text;
 }
 
 function nowStamp() {
@@ -112,6 +125,11 @@ function normalizeProfile(profile) {
   return PROFILE_DEFAULTS[value] ? value : 'production';
 }
 
+function normalizeAnalysisMode(mode) {
+  const value = normalizeText(mode || 'auto').toLowerCase();
+  return ANALYSIS_MODES.has(value) ? value : 'auto';
+}
+
 function normalizeResumeStage(stage) {
   const value = normalizeText(stage).toLowerCase();
   if (!value) return '';
@@ -122,6 +140,7 @@ function normalizeResumeStage(stage) {
 function buildNormalizedRequest(parsedTemplate, cliOptions = {}) {
   const data = parsedTemplate.frontmatter || {};
   const profile = normalizeProfile(cliOptions.profile || data.profile || 'production');
+  const analysisMode = normalizeAnalysisMode(cliOptions.analysisMode || cliOptions.analysis_mode || data.analysis_mode || 'auto');
   const sourceUrl = normalizeText(cliOptions.source || data?.source?.url || '');
   const targetLengthSec = Number(cliOptions.target || data?.output?.target_length_sec || 0);
   if (!sourceUrl) throw new Error('Template requires source.url or --source override');
@@ -133,6 +152,9 @@ function buildNormalizedRequest(parsedTemplate, cliOptions = {}) {
       relative_path: rel(parsedTemplate.templatePath)
     },
     profile,
+    analysis: {
+      mode: analysisMode
+    },
     source: {
       url: sourceUrl
     },
@@ -171,6 +193,7 @@ function buildWorkspacePaths(normalizedRequest) {
   const templateStem = path.basename(normalizedRequest.template.path, path.extname(normalizedRequest.template.path));
   const requestHash = stableHash({
     profile: normalizedRequest.profile,
+    analysis: normalizedRequest.analysis,
     source: normalizedRequest.source,
     output: normalizedRequest.output,
     editorial: normalizedRequest.editorial,
@@ -212,6 +235,7 @@ function buildGeneratedContextMarkdown(normalizedRequest) {
     `- source.url: ${normalizedRequest.source.url}`,
     `- output.target_length_sec: ${normalizedRequest.output.target_length_sec}`,
     `- profile: ${normalizedRequest.profile}`,
+    `- analysis.mode: ${normalizedRequest.analysis?.mode || 'auto'}`,
     '',
     '## Explicit overrides',
     '',
@@ -281,6 +305,35 @@ async function waitForPipelineRun(runId, timeoutMs = 60 * 60 * 1000) {
   throw new Error(`Timed out waiting for pipeline run ${runId}`);
 }
 
+function listReusableCompressionRunsByUrl(sourceUrl, excludeRunId = '') {
+  const normalized = normalizeSourceUrl(sourceUrl);
+  if (!fs.existsSync(COMPRESS_RUNS_DIR)) return [];
+  return fs.readdirSync(COMPRESS_RUNS_DIR, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && entry.name.startsWith('compress_') && entry.name !== excludeRunId)
+    .map((entry) => path.join(COMPRESS_RUNS_DIR, entry.name))
+    .map((runDir) => {
+      const manifest = readJsonIfExists(path.join(runDir, 'compression_manifest.json'));
+      if (!manifest) return null;
+      return { runId: manifest.runId, runDir, manifest };
+    })
+    .filter(Boolean)
+    .filter((item) => normalizeSourceUrl(item.manifest.sourceUrl || '') === normalized)
+    .sort((left, right) => fs.statSync(right.runDir).mtimeMs - fs.statSync(left.runDir).mtimeMs);
+}
+
+async function findBootstrapableCompressionFallback(sourceUrl, excludeRunId) {
+  const candidates = listReusableCompressionRunsByUrl(sourceUrl, excludeRunId);
+  for (const candidate of candidates) {
+    try {
+      const result = await runBootstrapToPipeline(candidate.runId, { preflightOnly: true, forceDownload: false });
+      if (result?.preflight?.ok === true) return candidate;
+    } catch {
+      // keep scanning
+    }
+  }
+  return null;
+}
+
 function buildFailureSummary(summary, error, stage) {
   return {
     ...summary,
@@ -299,6 +352,110 @@ function relIfPresent(filePath) {
   return filePath ? rel(filePath) : '';
 }
 
+function readEditorialContextForQa(workspaceDir, normalizedRequest) {
+  const editPlan = readJsonIfExists(path.join(workspaceDir, 'edit_plan.json')) || {};
+  return {
+    sceneType: normalizeText(editPlan.scene_type || normalizedRequest.advanced?.scene_type_hint || ''),
+    editorialPattern: normalizeText(editPlan.editorial_pattern || (normalizedRequest.editorial?.callback_required ? 'cold_open_callback' : ''))
+  };
+}
+
+function buildAutoEscalationDecision({ gateResults, pipelineState }) {
+  const failed = Array.isArray(gateResults?.failed) ? gateResults.failed : [];
+  const warnings = Array.isArray(gateResults?.warnings) ? gateResults.warnings : [];
+  const relevantFailures = failed
+    .filter((id) => Object.prototype.hasOwnProperty.call(MULTIMODAL_ESCALATION_GATE_REASONS, id))
+    .map((id) => ({ gate_id: id, reason: MULTIMODAL_ESCALATION_GATE_REASONS[id] }));
+  const qualityWarnings = Array.isArray(pipelineState?.qualityWarnings) ? pipelineState.qualityWarnings : [];
+  const relevantQualityWarnings = qualityWarnings
+    .map((warning) => normalizeText(typeof warning === 'string' ? warning : warning?.message || warning?.code || JSON.stringify(warning)))
+    .filter((warning) => /(context|clarity|callback|ground|transcript|source)/i.test(warning))
+    .map((warning) => ({ warning, reason: /ground|transcript|source/i.test(warning) ? 'poor_transcript_grounding' : (/callback/i.test(warning) ? 'weak_callback_recovery' : (/clarity/i.test(warning) ? 'weak_clarity' : 'high_context')) }));
+  const reasonCodes = [
+    ...relevantFailures.map((item) => `gate:${item.gate_id}:${item.reason}`),
+    ...relevantQualityWarnings.map((item, index) => `quality_warning:${index + 1}:${item.reason}`)
+  ];
+  return {
+    should_escalate: reasonCodes.length > 0,
+    escalated: reasonCodes.length > 0,
+    reason_codes: reasonCodes,
+    gate_failures: failed,
+    gate_warnings: warnings,
+    relevant_gate_failures: relevantFailures,
+    relevant_quality_warnings: relevantQualityWarnings,
+    explanation: reasonCodes.length
+      ? 'Compression-first draft showed context/clarity/callback/grounding signals that justify a multimodal Vertex pass.'
+      : 'Compression-first draft did not show multimodal-worthy failure signals.'
+  };
+}
+
+async function runMultimodalPipelineFromTemplate(normalizedRequest) {
+  const state = startRun({
+    sourceUrl: normalizedRequest.source.url,
+    contentType: normalizedRequest.advanced?.content_type || 'movie_midform_recap',
+    pauseBeforeTts: false,
+    interactiveMode: false
+  });
+  return waitForPipelineRun(state.runId);
+}
+
+function buildPipelineFailureSummary(summary, finalPipelineState, stage) {
+  return {
+    ...summary,
+    status: 'failed',
+    output_paths: summary.output_paths,
+    gate_results: null,
+    warnings: finalPipelineState?.qualityWarnings || [],
+    failure_reason: {
+      stage,
+      code: finalPipelineState?.error?.code || 'MIDFORM_DRAFT_FAILED',
+      message: finalPipelineState?.error?.message || `Pipeline ended with status ${finalPipelineState?.status || 'unknown'}`,
+      details: finalPipelineState?.error?.details || {}
+    }
+  };
+}
+
+function finalSummaryFromQa(summary, qa, finalPipelineState, analysisRun) {
+  return {
+    ...summary,
+    status: qa.gateResults.status === 'failed' ? 'failed' : qa.gateResults.status,
+    output_paths: {
+      ...qa.outputPaths,
+      draft_zip: relIfPresent(finalPipelineState.artifacts?.draftZipPath || finalPipelineState.artifacts?.draft?.zipPath || '')
+    },
+    gate_results: qa.gateResults,
+    warnings: qa.gateResults.warnings,
+    analysis_run: analysisRun,
+    failure_reason: qa.gateResults.status === 'failed'
+      ? {
+          stage: 'acceptance_gates',
+          code: 'MIDFORM_ACCEPTANCE_FAILED',
+          message: 'Acceptance gates failed',
+          details: { failed: qa.gateResults.failed }
+        }
+      : null
+  };
+}
+
+function collectQaForPipeline({ workspace, normalizedRequest, pipelineState }) {
+  const pipelineRunDir = pipelineState.runDir;
+  const draftRoot = pipelineState.artifacts?.draft?.draftPath || pipelineState.artifacts?.draft?.draft_root || '';
+  if (!pipelineRunDir || !draftRoot) throw new Error('Final pipeline artifacts are missing draft paths');
+  const editorialContext = readEditorialContextForQa(workspace.workspaceDir, normalizedRequest);
+  return collectRunArtifacts({
+    workspaceDir: workspace.workspaceDir,
+    normalizedRequest,
+    profile: normalizedRequest.profile,
+    pipelineRunDir,
+    draftRoot,
+    enablePreviewFrameProof: normalizedRequest.render.preview_frame_proof,
+    readability: normalizedRequest.editorial.subtitle_limits,
+    sceneType: editorialContext.sceneType,
+    editorialPattern: editorialContext.editorialPattern,
+    previewLimit: normalizedRequest.render.preview_limit
+  });
+}
+
 async function runMidformTemplateWorkflow(options = {}) {
   const parsedTemplate = parseTemplateFile(options.templatePath);
   const normalizedRequest = buildNormalizedRequest(parsedTemplate, options);
@@ -312,18 +469,59 @@ async function runMidformTemplateWorkflow(options = {}) {
   const summary = {
     status: 'running',
     profile: normalizedRequest.profile,
+    analysis_mode: normalizedRequest.analysis.mode,
     run_id: buildRunId(workspace.workspaceName),
     template_path: rel(parsedTemplate.templatePath),
     resume_from: resumeStage || '',
     workspace_dir: rel(workspace.workspaceDir),
     output_paths: previousSummary.output_paths || {},
     gate_results: previousSummary.gate_results || null,
+    analysis_run: previousSummary.analysis_run || {
+      requested_mode: normalizedRequest.analysis.mode,
+      initial_path: normalizedRequest.analysis.mode === 'multimodal' ? 'multimodal' : 'compression',
+      auto_escalation: {
+        triggered: false,
+        escalated: false,
+        reason_codes: [],
+        explanation: ''
+      }
+    },
     warnings: [],
     internal: previousSummary.internal || {}
   };
   writeJson(workspace.summaryPath, summary);
 
   try {
+    if (normalizedRequest.analysis.mode === 'multimodal') {
+      const multimodalState = await runMultimodalPipelineFromTemplate(normalizedRequest);
+      summary.internal.multimodal_pipeline_run_id = multimodalState.runId;
+      summary.internal.multimodal_pipeline_run_dir = multimodalState.runDir;
+      summary.analysis_run = {
+        ...summary.analysis_run,
+        requested_mode: 'multimodal',
+        initial_path: 'multimodal',
+        final_path: 'multimodal',
+        auto_escalation: {
+          triggered: false,
+          escalated: false,
+          reason_codes: [],
+          explanation: 'Explicit multimodal mode starts with the full Vertex analysis path.'
+        },
+        multimodal_pipeline_run_id: multimodalState.runId,
+        multimodal_pipeline_status: multimodalState.status
+      };
+      writeJson(workspace.summaryPath, summary);
+      if (!multimodalState || !String(multimodalState.status || '').startsWith('completed')) {
+        const failedSummary = buildPipelineFailureSummary(summary, multimodalState, 'multimodal_draft');
+        writeJson(workspace.summaryPath, failedSummary);
+        return failedSummary;
+      }
+      const qa = collectQaForPipeline({ workspace, normalizedRequest, pipelineState: multimodalState });
+      const finalSummary = finalSummaryFromQa(summary, qa, multimodalState, summary.analysis_run);
+      writeJson(workspace.summaryPath, finalSummary);
+      return finalSummary;
+    }
+
     let compressionRunId = summary.internal.compression_run_id || '';
     let compressionRunDir = summary.internal.compression_run_dir || '';
     if (shouldRunStage(resumeStage, 'ingest') || !compressionRunId) {
@@ -359,7 +557,19 @@ async function runMidformTemplateWorkflow(options = {}) {
     }
 
     if (shouldRunStage(resumeStage, 'bootstrap') || !fs.existsSync(path.join(workspace.workspaceDir, 'slot_map.json'))) {
-      const preflight = await runBootstrapToPipeline(compressionRunId, { preflightOnly: true, forceDownload: false });
+      let bootstrapSourceRunId = compressionRunId;
+      let bootstrapSourceRunDir = compressionRunDir;
+      let preflight = await runBootstrapToPipeline(bootstrapSourceRunId, { preflightOnly: true, forceDownload: false });
+      if (preflight.preflight?.ok !== true) {
+        const fallback = await findBootstrapableCompressionFallback(normalizedRequest.source.url, compressionRunId);
+        if (fallback) {
+          bootstrapSourceRunId = fallback.runId;
+          bootstrapSourceRunDir = fallback.runDir;
+          preflight = await runBootstrapToPipeline(bootstrapSourceRunId, { preflightOnly: true, forceDownload: false });
+          summary.internal.bootstrap_fallback_run_id = bootstrapSourceRunId;
+          summary.internal.bootstrap_fallback_run_dir = bootstrapSourceRunDir;
+        }
+      }
       summary.internal.bootstrap_preflight = preflight;
       writeJson(workspace.summaryPath, summary);
       if (!preflight.preflight?.ok) {
@@ -378,13 +588,17 @@ async function runMidformTemplateWorkflow(options = {}) {
         writeJson(workspace.summaryPath, failedSummary);
         return failedSummary;
       }
-      copyIfExists(path.join(compressionRunDir, 'bootstrap_slot_map.json'), path.join(workspace.workspaceDir, 'slot_map.json'));
-      copyIfExists(path.join(compressionRunDir, 'bootstrap_script.json'), path.join(workspace.workspaceDir, 'script.json'));
+      summary.internal.bootstrap_source_run_id = bootstrapSourceRunId;
+      summary.internal.bootstrap_source_run_dir = bootstrapSourceRunDir;
+      writeJson(workspace.summaryPath, summary);
+      copyIfExists(path.join(bootstrapSourceRunDir, 'bootstrap_slot_map.json'), path.join(workspace.workspaceDir, 'slot_map.json'));
+      copyIfExists(path.join(bootstrapSourceRunDir, 'bootstrap_script.json'), path.join(workspace.workspaceDir, 'script.json'));
     }
 
     let finalPipelineState = null;
     if (shouldRunStage(resumeStage, 'draft') || !fs.existsSync(path.join(workspace.workspaceDir, 'edit_manifest.json'))) {
-      const bootstrapRun = await runBootstrapToPipeline(compressionRunId, { preflightOnly: false, forceDownload: false });
+      const bootstrapRunId = summary.internal.bootstrap_source_run_id || compressionRunId;
+      const bootstrapRun = await runBootstrapToPipeline(bootstrapRunId, { preflightOnly: false, forceDownload: false });
       summary.internal.pipeline_run_id = bootstrapRun.pipelineRunId;
       summary.internal.pipeline_run_dir = bootstrapRun.pipelineRunDir;
       writeJson(workspace.summaryPath, summary);
@@ -395,58 +609,71 @@ async function runMidformTemplateWorkflow(options = {}) {
     }
 
     if (!finalPipelineState || !String(finalPipelineState.status || '').startsWith('completed')) {
-      const failedSummary = {
-        ...summary,
-        status: 'failed',
-        output_paths: summary.output_paths,
-        gate_results: null,
-        warnings: finalPipelineState?.qualityWarnings || [],
-        failure_reason: {
-          stage: 'draft',
-          code: finalPipelineState?.error?.code || 'MIDFORM_DRAFT_FAILED',
-          message: finalPipelineState?.error?.message || `Pipeline ended with status ${finalPipelineState?.status || 'unknown'}`,
-          details: finalPipelineState?.error?.details || {}
-        }
-      };
+      const failedSummary = buildPipelineFailureSummary(summary, finalPipelineState, 'draft');
       writeJson(workspace.summaryPath, failedSummary);
       return failedSummary;
     }
 
-    const pipelineRunDir = summary.internal.pipeline_run_dir;
-    const draftRoot = finalPipelineState.artifacts?.draft?.draftPath || finalPipelineState.artifacts?.draft?.draft_root || '';
-    if (!pipelineRunDir || !draftRoot) throw new Error('Final pipeline artifacts are missing draft paths');
-
-    const qa = collectRunArtifacts({
-      workspaceDir: workspace.workspaceDir,
-      normalizedRequest,
-      profile: normalizedRequest.profile,
-      pipelineRunDir,
-      draftRoot,
-      enablePreviewFrameProof: normalizedRequest.render.preview_frame_proof,
-      readability: normalizedRequest.editorial.subtitle_limits,
-      sceneType: readJson(path.join(workspace.workspaceDir, 'edit_plan.json')).scene_type,
-      editorialPattern: readJson(path.join(workspace.workspaceDir, 'edit_plan.json')).editorial_pattern,
-      previewLimit: normalizedRequest.render.preview_limit
-    });
-
-    const finalSummary = {
-      ...summary,
-      status: qa.gateResults.status === 'failed' ? 'failed' : qa.gateResults.status,
-      output_paths: {
-        ...qa.outputPaths,
-        draft_zip: relIfPresent(finalPipelineState.artifacts?.draftZipPath || finalPipelineState.artifacts?.draft?.zipPath || '')
-      },
-      gate_results: qa.gateResults,
-      warnings: qa.gateResults.warnings,
-      failure_reason: qa.gateResults.status === 'failed'
-        ? {
-            stage: 'acceptance_gates',
-            code: 'MIDFORM_ACCEPTANCE_FAILED',
-            message: 'Acceptance gates failed',
-            details: { failed: qa.gateResults.failed }
-          }
-        : null
+    const qa = collectQaForPipeline({ workspace, normalizedRequest, pipelineState: finalPipelineState });
+    const autoDecision = normalizedRequest.analysis.mode === 'auto'
+      ? buildAutoEscalationDecision({ gateResults: qa.gateResults, pipelineState: finalPipelineState })
+      : {
+          should_escalate: false,
+          reason_codes: [],
+          gate_failures: qa.gateResults.failed || [],
+          gate_warnings: qa.gateResults.warnings || [],
+          relevant_gate_failures: [],
+          relevant_quality_warnings: [],
+          explanation: 'Compression mode never auto-escalates.'
+        };
+    summary.analysis_run = {
+      ...summary.analysis_run,
+      requested_mode: normalizedRequest.analysis.mode,
+      initial_path: 'compression',
+      final_path: 'compression',
+      compression_pipeline_run_id: finalPipelineState.runId,
+      compression_pipeline_status: finalPipelineState.status,
+      auto_escalation: {
+        triggered: false,
+        escalated: false,
+        reason_codes: autoDecision.reason_codes,
+        gate_failures: autoDecision.gate_failures,
+        gate_warnings: autoDecision.gate_warnings,
+        relevant_gate_failures: autoDecision.relevant_gate_failures,
+        relevant_quality_warnings: autoDecision.relevant_quality_warnings,
+        explanation: autoDecision.explanation
+      }
     };
+
+    if (autoDecision.should_escalate) {
+      summary.analysis_run.auto_escalation.triggered = true;
+      summary.analysis_run.auto_escalation.escalated = true;
+      summary.analysis_run.auto_escalation.first_pass_status = qa.gateResults.status;
+      summary.analysis_run.auto_escalation.first_pass_gate_results = qa.gateResults;
+      writeJson(workspace.summaryPath, summary);
+      const multimodalState = await runMultimodalPipelineFromTemplate(normalizedRequest);
+      summary.internal.multimodal_pipeline_run_id = multimodalState.runId;
+      summary.internal.multimodal_pipeline_run_dir = multimodalState.runDir;
+      summary.analysis_run = {
+        ...summary.analysis_run,
+        final_path: 'multimodal',
+        multimodal_pipeline_run_id: multimodalState.runId,
+        multimodal_pipeline_status: multimodalState.status
+      };
+      writeJson(workspace.summaryPath, summary);
+      if (!multimodalState || !String(multimodalState.status || '').startsWith('completed')) {
+        const failedSummary = buildPipelineFailureSummary(summary, multimodalState, 'multimodal_escalation');
+        writeJson(workspace.summaryPath, failedSummary);
+        return failedSummary;
+      }
+      const multimodalQa = collectQaForPipeline({ workspace, normalizedRequest, pipelineState: multimodalState });
+      summary.analysis_run.auto_escalation.final_pass_status = multimodalQa.gateResults.status;
+      const escalatedSummary = finalSummaryFromQa(summary, multimodalQa, multimodalState, summary.analysis_run);
+      writeJson(workspace.summaryPath, escalatedSummary);
+      return escalatedSummary;
+    }
+
+    const finalSummary = finalSummaryFromQa(summary, qa, finalPipelineState, summary.analysis_run);
     writeJson(workspace.summaryPath, finalSummary);
     return finalSummary;
   } catch (error) {
@@ -462,6 +689,8 @@ module.exports = {
   buildGeneratedContextMarkdown,
   buildNormalizedRequest,
   buildStoryBeatmap,
+  buildAutoEscalationDecision,
+  normalizeAnalysisMode,
   normalizeResumeStage,
   parseTemplateFile,
   runMidformTemplateWorkflow

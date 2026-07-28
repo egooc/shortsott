@@ -5,9 +5,11 @@ const path = require('node:path');
 const test = require('node:test');
 
 const {
+  buildAutoEscalationDecision,
   buildGeneratedContextMarkdown,
   buildNormalizedRequest,
   buildStoryBeatmap,
+  normalizeAnalysisMode,
   normalizeResumeStage,
   parseTemplateFile
 } = require('../server/services/midformRunTemplateService');
@@ -55,9 +57,64 @@ test('buildNormalizedRequest applies overrides and profile defaults', () => {
 
   assert.equal(normalized.source.url, 'https://youtu.be/from-cli');
   assert.equal(normalized.profile, 'audit');
+  assert.equal(normalized.analysis.mode, 'auto');
   assert.equal(normalized.editorial.subtitle_limits.max_chars, 22);
   assert.equal(normalized.editorial.subtitle_limits.max_units_per_segment, 6);
   assert.equal(normalized.render.preview_frame_proof, true);
+});
+
+test('buildNormalizedRequest accepts explicit analysis mode from CLI or template', () => {
+  const parsedTemplate = {
+    templatePath: 'C:/project/template.md',
+    frontmatter: {
+      analysis_mode: 'compression',
+      source: { url: 'https://youtu.be/from-template' },
+      output: { target_length_sec: 150 }
+    },
+    body: ''
+  };
+
+  assert.equal(buildNormalizedRequest(parsedTemplate).analysis.mode, 'compression');
+  assert.equal(buildNormalizedRequest(parsedTemplate, { analysisMode: 'multimodal' }).analysis.mode, 'multimodal');
+  assert.equal(normalizeAnalysisMode('unsupported'), 'auto');
+});
+
+test('buildAutoEscalationDecision escalates only multimodal-worthy quality failures', () => {
+  const escalated = buildAutoEscalationDecision({
+    gateResults: {
+      failed: ['high_context_teaser_recovery', 'rendered_speaker_color_match'],
+      warnings: ['subtitle_readability']
+    },
+    pipelineState: { qualityWarnings: [] }
+  });
+  assert.equal(escalated.should_escalate, true);
+  assert.equal(escalated.escalated, true);
+  assert.deepEqual(escalated.relevant_gate_failures, [{ gate_id: 'high_context_teaser_recovery', reason: 'high_context' }]);
+
+  const notEscalated = buildAutoEscalationDecision({
+    gateResults: {
+      failed: ['rendered_speaker_color_match'],
+      warnings: ['subtitle_readability']
+    },
+    pipelineState: { qualityWarnings: [] }
+  });
+  assert.equal(notEscalated.should_escalate, false);
+
+  const diagnosticOnly = buildAutoEscalationDecision({
+    gateResults: {
+      failed: ['rebuttal_only_opener', 'dramatic_engagement_timing'],
+      warnings: []
+    },
+    pipelineState: { qualityWarnings: [] }
+  });
+  assert.equal(diagnosticOnly.should_escalate, false);
+  assert.deepEqual(diagnosticOnly.relevant_gate_failures, []);
+
+  const warningEscalated = buildAutoEscalationDecision({
+    gateResults: { failed: [], warnings: [] },
+    pipelineState: { qualityWarnings: [{ code: 'TRANSCRIPT_GROUNDING_WEAK' }] }
+  });
+  assert.equal(warningEscalated.should_escalate, true);
 });
 
 test('normalizeResumeStage validates supported stages', () => {

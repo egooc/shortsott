@@ -47,6 +47,7 @@ function parseArgs(argv) {
     const nextValue = inlineValue !== undefined ? inlineValue : argv[index + 1];
     if (inlineValue === undefined) index += 1;
     if (flag === '--profile') options.profile = nextValue;
+    if (flag === '--analysis-mode') options.analysisMode = nextValue;
     if (flag === '--template') options.template = nextValue;
     if (flag === '--resume') options.resume = nextValue;
     if (flag === '--csv') options.csv = nextValue;
@@ -80,6 +81,7 @@ function printUsage() {
       '  node scripts/midform.js compress-apply <runId>',
       '  node scripts/midform.js run --template midform/skills/midform-run/templates/base.md',
       '  node scripts/midform.js run --template midform/skills/midform-run/templates/base.md --profile production',
+      '  node scripts/midform.js run --template midform/skills/midform-run/templates/base.md --analysis-mode auto',
       '',
     'Default sheet path:',
     `  ${path.relative(PROJECT_ROOT, DEFAULT_CHANNEL_SHEET_PATH).replace(/\\/g, '/')}`
@@ -129,6 +131,7 @@ async function main() {
     const result = await runMidformTemplateWorkflow({
       templatePath,
       profile: options.profile,
+      analysisMode: options.analysisMode,
       source: options.source,
       resume: options.resume,
       target: options.target

@@ -9,6 +9,10 @@
       "type": "string",
       "enum": ["fast", "production", "audit"]
     },
+    "analysis_mode": {
+      "type": "string",
+      "enum": ["compression", "auto", "multimodal"]
+    },
     "source": {
       "type": "object",
       "required": ["url"],
