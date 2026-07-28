@@ -1,4 +1,6 @@
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const test = require('node:test');
 
 const {
@@ -7,6 +9,8 @@ const {
   validateManifestMaterialColors,
   rgbFloatMatchesHex
 } = require('./artifactQaHelpers');
+
+const CAPCUT_DRAFT_SCRIPT = path.join(__dirname, '..', 'scripts', 'capcut_draft.py');
 
 function textMaterial({ id = 'mat_1', text, hex = '#37FF3D', rgb = [0.2156862745, 1, 0.2392156863], useLetterColor = true, useEffectDefaultColor = false }) {
   return {
@@ -71,4 +75,15 @@ test('latest Steve Jobs draft has material-level colors matching dialogue manife
 
   assert.ok(validation.checked > 0);
   assert.deepEqual(validation.failed, []);
+});
+
+test('CapCut reusable midform preset keeps 9:16 layout and dialogue glow inheritance', () => {
+  const source = fs.readFileSync(CAPCUT_DRAFT_SCRIPT, 'utf8');
+
+  assert.match(source, /MIDFORM_FIXED_TITLE_Y = 0\.7004421221864953/);
+  assert.match(source, /MIDFORM_FIXED_SUBTITLE_Y = 0\.5416639871382638/);
+  assert.match(source, /MIDFORM_CAPTION_Y = -0\.35/);
+  assert.match(source, /preserve_glow_effect_layers_for_colored_caption/);
+  assert.doesNotMatch(source, /ref_type in \{"text_effect", "bloom"\}/);
+  assert.match(source, /material\["use_effect_default_color"\] = False/);
 });

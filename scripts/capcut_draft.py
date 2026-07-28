@@ -222,7 +222,14 @@ def apply_text_material_fill_color(material, hex_color):
     return True
 
 
-def remove_text_effect_layers_for_colored_caption(material, segment, draft_doc):
+def preserve_glow_effect_layers_for_colored_caption(material, segment, draft_doc):
+    """Keep template glow/effect refs while letting speaker fill color drive dialogue text.
+
+    Narration captions already inherit TEMPLATE_SUBTITLE's readability glow. Dialogue
+    captions use the same template material chain, then override the fill color per
+    speaker. Do not remove text_effect/bloom refs here; `use_effect_default_color =
+    False` keeps speaker color distinct while the cloned glow remains for readability.
+    """
     if isinstance(material, dict):
         content_json = parse_json_text_content(material.get("content"))
         if isinstance(content_json, dict):
@@ -231,22 +238,7 @@ def remove_text_effect_layers_for_colored_caption(material, segment, draft_doc):
                     style_item.pop("effectStyle", None)
             content_json.pop("effect", None)
             material["content"] = json.dumps(content_json, ensure_ascii=False)
-    if not isinstance(segment, dict) or not isinstance(draft_doc, dict):
-        return 0
-    material_index = build_material_index_by_id(draft_doc)
-    kept_refs = []
-    removed_count = 0
-    for ref_id in segment.get("extra_material_refs") or []:
-        entry = material_index.get(ref_id)
-        category = entry[0] if entry else ""
-        ref_material = entry[1] if entry else {}
-        ref_type = str(ref_material.get("type") or "").strip().lower() if isinstance(ref_material, dict) else ""
-        if category == "effects" and ref_type in {"text_effect", "bloom"}:
-            removed_count += 1
-            continue
-        kept_refs.append(ref_id)
-    segment["extra_material_refs"] = kept_refs
-    return removed_count
+    return 0
 
 
 def srt_timestamp_from_us(value_us):
@@ -1771,9 +1763,9 @@ def upsert_timerange(segment_obj, start_us, duration_us):
         segment_obj["render_timerange"] = {"start": int(start_us), "duration": int(duration_us)}
 
 
-MIDFORM_FIXED_TITLE_Y = 0.58
-MIDFORM_FIXED_SUBTITLE_Y = 0.43
-MIDFORM_CAPTION_Y = -0.26675079176563754
+MIDFORM_FIXED_TITLE_Y = 0.7004421221864953
+MIDFORM_FIXED_SUBTITLE_Y = 0.5416639871382638
+MIDFORM_CAPTION_Y = -0.35
 MIDFORM_CROP_FINAL_SCALE_CAP = 2.0
 MIDFORM_MULTI_PERSON_FINAL_SCALE_TARGET = 1.8
 MIDFORM_SINGLE_PERSON_FINAL_SCALE_TARGET = 2.0
@@ -2149,8 +2141,8 @@ def apply_template_clone_mode(
     # fixed overlays: full duration and overlapping
     fixed_overlay_specs = [
         ("pretitle", "TEMPLATE_PRETITLE", "", None),
-        ("title", "TEMPLATE_TITLE", overlay_texts.get("title") or "TITLE", None),
-        ("subtitle", "TEMPLATE_TITLE_SUBLINE", overlay_texts.get("subtitle") or "", None),
+        ("title", "TEMPLATE_TITLE", overlay_texts.get("title") or "TITLE", MIDFORM_FIXED_TITLE_Y),
+        ("subtitle", "TEMPLATE_TITLE_SUBLINE", overlay_texts.get("subtitle") or "", MIDFORM_FIXED_SUBTITLE_Y),
         ("movie_title", "TEMPLATE_MOVIE_TITLE", overlay_texts.get("movie_title") or "", None),
     ]
     fallback_chain = {
@@ -2723,7 +2715,7 @@ def rebuild_midform_caption_track_from_template(draft_content_path, template_doc
             source_to_target_id_map,
         )
         if color_applied:
-            summary["removed_effect_refs"] += remove_text_effect_layers_for_colored_caption(cloned_material, cloned_segment, draft_content)
+            summary["removed_effect_refs"] += preserve_glow_effect_layers_for_colored_caption(cloned_material, cloned_segment, draft_content)
         subtitle_track["segments"].append(cloned_segment)
 
     try:
