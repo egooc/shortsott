@@ -271,7 +271,7 @@ function copyCompressionArtifacts(compressionRunDir, workspaceDir) {
   copyIfExists(path.join(compressionRunDir, 'upload_text.md'), path.join(workspaceDir, 'upload_text.md'));
 }
 
-function writeLocaleBranchArtifacts(workspaceDir, normalizedRequest, compressionRunDir) {
+function writeLocaleBranchArtifacts(workspaceDir, normalizedRequest, compressionRunDir, supplementalEvidence = {}) {
   const beatsObject = readJsonIfExists(path.join(compressionRunDir, 'narrative_beats.json')) || {};
   const editPlan = readJsonIfExists(path.join(compressionRunDir, 'edit_plan.json')) || {};
   const transcript = readJsonIfExists(path.join(compressionRunDir, 'transcript_timed.json')) || [];
@@ -281,7 +281,8 @@ function writeLocaleBranchArtifacts(workspaceDir, normalizedRequest, compression
     beatsObject,
     editPlan,
     transcript,
-    compressionManifest
+    compressionManifest,
+    supplementalEvidence
   });
   const paths = {
     evidence_pack: path.join(workspaceDir, 'evidence_pack.json'),
@@ -306,6 +307,25 @@ function writeLocaleBranchArtifacts(workspaceDir, normalizedRequest, compression
   writeJson(paths.acceptance_gates_ko, artifacts.acceptanceGates.ko);
   writeJson(paths.acceptance_gates_ja, artifacts.acceptanceGates.ja);
   return Object.fromEntries(Object.entries(paths).map(([key, value]) => [key, rel(value)]));
+}
+
+function writeGeneratedTemplateBodies(workspaceDir, generatedTemplateBodies = {}) {
+  const outputPaths = {};
+  for (const locale of ['ko', 'ja']) {
+    const body = String(generatedTemplateBodies?.[locale] || '').trim();
+    if (!body) continue;
+    const bodyPath = path.join(workspaceDir, `template_body.${locale}.md`);
+    writeText(bodyPath, `${body}\n`);
+    outputPaths[`template_body_${locale}`] = rel(bodyPath);
+  }
+  return outputPaths;
+}
+
+function writeSupplementalEvidence(workspaceDir, supplementalEvidence = {}) {
+  if (!supplementalEvidence || typeof supplementalEvidence !== 'object' || !Object.keys(supplementalEvidence).length) return {};
+  const filePath = path.join(workspaceDir, 'supplemental_evidence.json');
+  writeJson(filePath, supplementalEvidence);
+  return { supplemental_evidence: rel(filePath) };
 }
 
 function buildStoryBeatmap(normalizedRequest, beatsObject, editPlan) {
@@ -537,6 +557,8 @@ async function runMidformTemplateWorkflow(options = {}) {
   const summary = {
     status: 'running',
     profile: normalizedRequest.profile,
+    mode: options.fullAutoMode || 'template_workflow',
+    full_auto: Boolean(options.fullAutoMode),
     analysis_mode: normalizedRequest.analysis.mode,
     run_id: buildRunId(workspace.workspaceName),
     template_path: rel(parsedTemplate.templatePath),
@@ -557,6 +579,16 @@ async function runMidformTemplateWorkflow(options = {}) {
     warnings: [],
     internal: previousSummary.internal || {}
   };
+  const generatedTemplateBodyPaths = writeGeneratedTemplateBodies(workspace.workspaceDir, options.generatedTemplateBodies || {});
+  const supplementalEvidencePaths = writeSupplementalEvidence(workspace.workspaceDir, options.supplementalEvidence || {});
+  summary.output_paths = {
+    ...summary.output_paths,
+    ...generatedTemplateBodyPaths,
+    ...supplementalEvidencePaths
+  };
+  if (options.supplementalEvidence?.evidence_coverage) {
+    summary.evidence_coverage = options.supplementalEvidence.evidence_coverage;
+  }
   writeJson(workspace.summaryPath, summary);
 
   try {
@@ -624,8 +656,10 @@ async function runMidformTemplateWorkflow(options = {}) {
       writeJson(workspace.beatmapPath, buildStoryBeatmap(normalizedRequest, beatsObject, editPlan));
     }
 
-    const localeBranchOutputPaths = writeLocaleBranchArtifacts(workspace.workspaceDir, normalizedRequest, compressionRunDir);
+    const localeBranchOutputPaths = writeLocaleBranchArtifacts(workspace.workspaceDir, normalizedRequest, compressionRunDir, options.supplementalEvidence || {});
     summary.internal.locale_branch_artifacts = localeBranchOutputPaths;
+    const branchEvidence = readJsonIfExists(path.join(workspace.workspaceDir, 'evidence_pack.json')) || null;
+    if (branchEvidence?.evidence_coverage) summary.evidence_coverage = branchEvidence.evidence_coverage;
     summary.output_paths = {
       ...summary.output_paths,
       ...localeBranchOutputPaths

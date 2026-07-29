@@ -11,11 +11,17 @@ const {
   artifactPathFor,
   zipRunDirectory
 } = require('../services/midformPipelineService');
+const { runMidformFullAutoWorkflow } = require('../services/midformFullAutoService');
 
 const router = express.Router();
 
-router.post('/run', (req, res, next) => {
+router.post('/run', async (req, res, next) => {
   try {
+    const mode = String(req.body?.mode || '').trim().toLowerCase();
+    if (mode === 'full_auto' || mode === 'template_only' || mode === 'drafts_only') {
+      const summary = await runMidformFullAutoWorkflow(req.body || {});
+      return res.status(200).json(summary);
+    }
     const state = startRun(req.body || {});
     return res.status(202).json(state);
   } catch (error) {

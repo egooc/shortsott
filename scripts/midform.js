@@ -14,6 +14,7 @@ const {
 } = require('../server/services/midformCompressionService');
 const { runBootstrapToPipeline } = require('../server/services/midformBootstrapAdapterService');
 const { runMidformTemplateWorkflow } = require('../server/services/midformRunTemplateService');
+const { runMidformFullAutoWorkflow } = require('../server/services/midformFullAutoService');
 
 const DEFAULT_CHANNEL_SHEET_PATH = path.join(PROJECT_ROOT, 'midform', 'materials', 'channels_sheet.csv');
 
@@ -55,6 +56,7 @@ function parseArgs(argv) {
     if (flag === '--out') options.out = nextValue;
     if (flag === '--source') options.source = nextValue;
     if (flag === '--target') options.target = nextValue;
+    if (flag === '--mode') options.mode = nextValue;
     if (flag === '--name') options.name = nextValue;
     if (flag === '--option') options.option = nextValue;
     if (flag === '--variant') options.variant = nextValue;
@@ -79,6 +81,8 @@ function printUsage() {
      '  node scripts/midform.js compress --source https://youtu.be/ngYmFVO_bzM --target 160',
       '  node scripts/midform.js compress-refresh <runId>',
       '  node scripts/midform.js compress-apply <runId>',
+      '  node scripts/midform.js run --source https://youtu.be/xxxx',
+      '  node scripts/midform.js run --source https://youtu.be/xxxx --mode full_auto',
       '  node scripts/midform.js run --template midform/skills/midform-run/templates/base.md',
       '  node scripts/midform.js run --template midform/skills/midform-run/templates/base.md --profile production',
       '  node scripts/midform.js run --template midform/skills/midform-run/templates/base.md --analysis-mode auto',
@@ -127,7 +131,18 @@ async function main() {
   }
   if (command === 'run') {
     const templatePath = options.template || subcommand;
-    if (!templatePath) throw new Error('run requires --template <path/to/template.md>');
+    if (!templatePath && options.source) {
+      const result = await runMidformFullAutoWorkflow({
+        source: options.source,
+        target: options.target,
+        profile: options.profile,
+        analysisMode: options.analysisMode,
+        mode: options.mode || 'full_auto'
+      });
+      process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+      return;
+    }
+    if (!templatePath) throw new Error('run requires --template <path/to/template.md> or --source <YOUTUBE_URL>');
     const result = await runMidformTemplateWorkflow({
       templatePath,
       profile: options.profile,
