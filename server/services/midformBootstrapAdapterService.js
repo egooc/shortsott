@@ -14,6 +14,7 @@ const { execFileSync } = require('child_process');
 const { PROJECT_ROOT } = require('./pipelinePaths');
 const { resolveTool, getToolEnv } = require('../utils/toolPaths');
 const { getVideoMetadata } = require('../utils/ffprobe');
+const { buildSpeakerMetadata, resolveCaptionColor } = require('../utils/captionColorConfig');
 const { resolveCompressionRunDir, downloadCompressionSourceVideo } = require('./midformCompressionService');
 const { startRun } = require('./midformPipelineService');
 
@@ -374,6 +375,16 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
         const captionText = compressDialogueCaptionText(captionKr[index] || '');
         const speakerList = Array.isArray(fill.speakers) ? fill.speakers : [];
         const speaker = normalizeText(speakerList[index] || fill.speaker || '');
+        const speakerMetadata = buildSpeakerMetadata({
+          speaker,
+          segment_type: 'dialogue_quote',
+          utt_id: segId,
+          source_line_id: segId
+        });
+        const captionColor = resolveCaptionColor({
+          speakerAlias: speakerMetadata.speaker_alias || speaker,
+          speakerColorKey: speakerMetadata.speaker_color_key
+        });
         if (!captionText) warnings.push(`${segId} has no Korean caption (caption_kr_dialogue[${index}] empty)`);
         slots.push({
           slot_id: segId,
@@ -394,6 +405,10 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
           callback_relation: item.callback_relation || '',
           reused_conflict_axis: item.reused_conflict_axis || '',
           dialogue_unit: item.dialogue_unit || null,
+          ...speakerMetadata,
+          caption_kind: 'dialogue',
+          speaker,
+          caption_color: captionColor,
           source_range: timing.visual_range_sec,
           dialogue_speech_range_sec: timing.speech_range_sec,
           dialogue_timing_adjustment: timing,
@@ -424,6 +439,8 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
           callback_relation: item.callback_relation || '',
           reused_conflict_axis: item.reused_conflict_axis || '',
           dialogue_unit: item.dialogue_unit || null,
+          ...speakerMetadata,
+          caption_kind: 'dialogue',
           utt_id: segId,
           tts_enabled: false,
           narration: '',
@@ -431,6 +448,7 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
           translated_caption_ko: captionText,
           caption_text: captionText,
           speaker,
+          caption_color: captionColor,
           story_anchor: { source_range_hint: timing.speech_range_sec, scene_refs: [] },
           dialogue_speech_range_sec: timing.speech_range_sec,
           dialogue_timing_adjustment: timing,

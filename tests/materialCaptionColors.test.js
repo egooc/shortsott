@@ -68,6 +68,32 @@ test('material color validator catches manifest color without matching material 
   assert.equal(validation.failed[0].fill_matches, false);
 });
 
+test('material color validator ignores orphan materials and consumes duplicate text matches once', () => {
+  const manifest = {
+    caption_units: [
+      { caption_id: 'cap_001', segment_id: 'slot_01_L01', segment_type: 'dialogue_quote', speaker: 'Jobs', text: '같은 말', caption_color: '#00A9F7' },
+      { caption_id: 'cap_002', segment_id: 'slot_01_L02', segment_type: 'dialogue_quote', speaker: 'Sculley', text: '같은 말', caption_color: '#37FF3D' }
+    ]
+  };
+  const draftContent = {
+    tracks: [{ type: 'text', name: 'subtitle', segments: [{ material_id: 'active_blue' }] }],
+    materials: {
+      texts: [
+        textMaterial({ id: 'active_blue', text: '같은 말', hex: '#00A9F7', rgb: [0, 0.662745098, 0.968627451] }),
+        textMaterial({ id: 'orphan_green', text: '같은 말', hex: '#37FF3D', rgb: [0.2156862745, 1, 0.2392156863] })
+      ]
+    }
+  };
+
+  const validation = validateManifestMaterialColors(manifest, draftContent);
+
+  assert.equal(validation.checked, 2);
+  assert.equal(validation.passed, 1);
+  assert.equal(validation.failed.length, 1);
+  assert.equal(validation.failed[0].caption_id, 'cap_002');
+  assert.equal(validation.failed[0].material_id, '');
+});
+
 test('latest Steve Jobs draft has material-level colors matching dialogue manifest colors', () => {
   const manifest = readJson('server/output/drafts/pipeline_1785150227/edit_manifest.json');
   const draftContent = readJson('server/output/drafts/pipeline_1785150227/draft_content.json');

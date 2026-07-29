@@ -1,6 +1,8 @@
 const MAX_CAPTION_CHARS_DEFAULT = 34;
 const HARD_CAPTION_CHARS_DEFAULT = 38;
 
+const { buildSpeakerMetadata, resolveCaptionColor } = require('./captionColorConfig');
+
 function normalizeNarration(text) {
   return String(text || '').replace(/\s+/g, ' ').trim();
 }
@@ -212,6 +214,7 @@ function buildCaptionUnits(segments, options = {}) {
     const segmentId = String(segment?.segment_id || segment?.segmentId || `seg_${String(segmentIndex + 1).padStart(3, '0')}`);
     const sourceOrder = Number(segment?.order || segmentIndex + 1);
     const segmentType = String(segment?.segment_type || segment?.segmentType || 'recap');
+    const isDialogue = segmentType === 'dialogue_quote' || segmentType === 'dialogue';
     const ttsEnabled = segment?.tts_enabled !== false && segment?.ttsEnabled !== false && segmentType !== 'dialogue_quote';
     const narration = normalizeNarration(
       segmentType === 'dialogue_quote'
@@ -224,29 +227,33 @@ function buildCaptionUnits(segments, options = {}) {
       return;
     }
 
-    const displaySources = splitDisplayCaptionSources(narration, segmentType);
-    const sentenceCandidates = displaySources.flatMap((displayNarration) => splitBySentencePunctuation(displayNarration))
-      .flatMap((sentence) => splitByKoreanEndings(sentence))
-      .map((s) => sanitizeDisplayCaptionText(s))
-      .filter((s) => Boolean(s) && !/^[.!?,]+$/.test(s));
-
     const perSegmentTexts = [];
-    sentenceCandidates.forEach((sentence) => {
-      if (sentence.length <= hardChars) {
-        perSegmentTexts.push(sentence);
-        return;
-      }
+    if (isDialogue) {
+      perSegmentTexts.push(sanitizeDisplayCaptionText(narration));
+    } else {
+      const displaySources = splitDisplayCaptionSources(narration, segmentType);
+      const sentenceCandidates = displaySources.flatMap((displayNarration) => splitBySentencePunctuation(displayNarration))
+        .flatMap((sentence) => splitByKoreanEndings(sentence))
+        .map((s) => sanitizeDisplayCaptionText(s))
+        .filter((s) => Boolean(s) && !/^[.!?,]+$/.test(s));
 
-      const { chunks, warnings: chunkWarnings } = splitLongCaption(sentence, maxChars, hardChars);
-      perSegmentTexts.push(...chunks);
-      if (chunkWarnings.length) {
-        warnings.push({
-          segment_id: segmentId,
-          reason: 'long_sentence_split',
-          message: chunkWarnings.join('; ')
-        });
-      }
-    });
+      sentenceCandidates.forEach((sentence) => {
+        if (sentence.length <= hardChars) {
+          perSegmentTexts.push(sentence);
+          return;
+        }
+
+        const { chunks, warnings: chunkWarnings } = splitLongCaption(sentence, maxChars, hardChars);
+        perSegmentTexts.push(...chunks);
+        if (chunkWarnings.length) {
+          warnings.push({
+            segment_id: segmentId,
+            reason: 'long_sentence_split',
+            message: chunkWarnings.join('; ')
+          });
+        }
+      });
+    }
 
     perSegmentTexts
       .filter((text) => !/^[.!?,]+$/.test(text))
@@ -256,11 +263,31 @@ function buildCaptionUnits(segments, options = {}) {
         caption_id: captionId,
         segment_id: segmentId,
         segment_type: segmentType,
+        caption_kind: isDialogue ? 'dialogue' : 'narration',
         tts_enabled: ttsEnabled,
         order: idx + 1,
         text: sanitizeDisplayCaptionText(text),
         source_segment_order: sourceOrder
       };
+      if (isDialogue) {
+        const speakerMetadata = buildSpeakerMetadata(segment, { segment_type: segmentType, utt_id: segment?.utt_id || segmentId });
+        Object.assign(unit, speakerMetadata);
+        if (speakerMetadata.speaker_alias) unit.speaker = speakerMetadata.speaker_alias;
+        const captionColor = resolveCaptionColor({ speakerAlias: unit.speaker_alias || unit.speaker, speakerColorKey: unit.speaker_color_key });
+        if (captionColor) unit.caption_color = captionColor;
+        if (Number.isFinite(Number(segment?.caption_timeline_offset_sec))) {
+          unit.caption_timeline_offset_sec = Number(segment.caption_timeline_offset_sec);
+        }
+        if (Number.isFinite(Number(segment?.duration_override_sec)) && Number(segment.duration_override_sec) > 0) {
+          unit.duration_override_sec = Number(segment.duration_override_sec);
+        }
+        if (Array.isArray(segment?.dialogue_speech_range_sec)) {
+          unit.dialogue_speech_range_sec = segment.dialogue_speech_range_sec;
+        }
+        if (segment?.dialogue_timing_adjustment && typeof segment.dialogue_timing_adjustment === 'object') {
+          unit.dialogue_timing_adjustment = segment.dialogue_timing_adjustment;
+        }
+      }
       captionUnits.push(unit);
       segmentToCaptionMap[segmentId].push(captionId);
       });

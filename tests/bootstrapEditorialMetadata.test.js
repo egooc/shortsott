@@ -105,6 +105,45 @@ test('bootstrap pads KEEP_DIALOGUE video while preserving speech-aligned caption
   assert.equal(firstCaption.caption_timeline_offset_sec, 0.78);
   assert.equal(firstCaption.duration_override_sec, 1.42);
   assert.deepEqual(firstCaption.dialogue_speech_range_sec, [10, 11.5]);
+  assert.equal(firstCaption.caption_kind, 'dialogue');
+  assert.equal(firstCaption.speaker_id, 'a');
+  assert.equal(firstCaption.speaker_alias, 'A');
+  assert.equal(firstCaption.source_utterance_id, 'slot_01_L01');
+});
+
+test('dialogue cleanup preserves stable speaker metadata and color keys', () => {
+  const editPlan = {
+    scene_type: 'dialogue_confrontation',
+    timeline: [{
+      slot_id: 'slot_01',
+      role: 'cold_open',
+      decision: 'KEEP_DIALOGUE',
+      dialogue_line_windows: [
+        { matched: true, start_sec: 10, end_sec: 11.5, line: 'You tried to kill it.' },
+        { matched: true, start_sec: 11.7, end_sec: 14, line: "I didn't kill it." }
+      ]
+    }]
+  };
+  const slotFills = {
+    slot_fills: [{
+      slot_id: 'slot_01',
+      caption_kr_dialogue: ['“당신이 죽이려 했잖아”라고 말합니다.', '난 죽인 게 아니야.'],
+      speakers: ['Jobs', 'Sculley']
+    }]
+  };
+
+  const { script } = buildBootstrapSlotMapAndScript(editPlan, slotFills, { sourceDurationSec: 120 });
+  const captionData = buildCaptionUnits(script.segments);
+
+  assert.equal(script.segments[0].caption_text, '당신이 죽이려 했잖아');
+  assert.equal(script.segments[0].speaker_id, 'jobs');
+  assert.equal(script.segments[0].speaker_color_key, '남주');
+  assert.equal(script.segments[0].caption_color, '#00A9F7');
+  assert.equal(script.segments[1].speaker_id, 'sculley');
+  assert.equal(script.segments[1].speaker_color_key, '남조연');
+  assert.equal(script.segments[1].caption_color, '#37FF3D');
+  assert.equal(captionData.captionUnits[0].speaker_id, 'jobs');
+  assert.equal(captionData.captionUnits[1].speaker_color_key, '남조연');
 });
 
 test('finalizeEditPlan generates dialogue_unit metadata before bootstrap when source plan lacks it', () => {

@@ -1,7 +1,8 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 
-const { readJson, colorEvidenceBySpeaker } = require('./artifactQaHelpers');
+const { readJson, colorEvidenceBySpeaker, validateSpeakerColorMetadata } = require('./artifactQaHelpers');
+const { evaluateEditorialAcceptance } = require('../server/services/midformEditorialAcceptanceService');
 
 test('caption color config maps Jobs and Sculley to distinct visible colors', () => {
   const config = readJson('midform/config/caption_colors.json');
@@ -71,6 +72,44 @@ test('speaker color artifact helper requires dialogue color evidence, not just s
     Jobs: ['#00A9F7'],
     Sculley: ['#FFC137']
   });
+});
+
+test('speaker color metadata gate rejects missing and collapsed dialogue colors', () => {
+  const manifest = {
+    segments: [
+      { segment_id: 'scene_01_L01', segment_type: 'dialogue_quote', speaker_id: 'jobs', speaker_alias: 'Jobs', speaker_color_key: '남주', source_utterance_id: 'utt_001', caption_color: '#00A9F7', timeline_start_sec: 0, timeline_end_sec: 2, narration: '왜 그랬어?' },
+      { segment_id: 'scene_01_L02', segment_type: 'dialogue_quote', speaker_id: 'sculley', speaker_alias: 'Sculley', speaker_color_key: '남조연', source_utterance_id: 'utt_002', caption_color: '#00A9F7', timeline_start_sec: 2, timeline_end_sec: 4, narration: '아니야.' },
+      { segment_id: 'scene_02_L01', segment_type: 'dialogue_quote', speaker_id: '', speaker_alias: '', speaker_color_key: '', source_utterance_id: '', caption_color: '', timeline_start_sec: 5, timeline_end_sec: 6, narration: '누구지?' }
+    ]
+  };
+
+  const validation = validateSpeakerColorMetadata(manifest);
+  const gates = evaluateEditorialAcceptance({
+    segments: manifest.segments,
+    speaker_color_validation: validation,
+    material_validation: { checked: 1, passed: 1, failed: [] }
+  });
+
+  assert.equal(validation.status, 'failed');
+  assert.ok(validation.failed.includes('dialogue_speaker_metadata_present'));
+  assert.ok(validation.failed.includes('distinct_speakers_not_collapsed'));
+  assert.ok(gates.failed.includes('dialogue_speaker_metadata_present'));
+  assert.ok(gates.failed.includes('distinct_speakers_not_collapsed'));
+});
+
+test('speaker color metadata gate passes separated narration and dialogue colors', () => {
+  const manifest = {
+    segments: [
+      { segment_id: 'scene_01_L01', segment_type: 'dialogue_quote', speaker_id: 'jobs', speaker_alias: 'Jobs', speaker_color_key: '남주', source_utterance_id: 'utt_001', caption_color: '#00A9F7', timeline_start_sec: 0, timeline_end_sec: 2, narration: '왜 그랬어?' },
+      { segment_id: 'scene_01_L02', segment_type: 'dialogue_quote', speaker_id: 'sculley', speaker_alias: 'Sculley', speaker_color_key: '남조연', source_utterance_id: 'utt_002', caption_color: '#37FF3D', timeline_start_sec: 2, timeline_end_sec: 4, narration: '아니야.' },
+      { segment_id: 'narration_01', segment_type: 'recap', caption_color: '', timeline_start_sec: 4, timeline_end_sec: 7, narration: '두 사람은 충돌했습니다.' }
+    ]
+  };
+
+  const validation = validateSpeakerColorMetadata(manifest);
+
+  assert.equal(validation.status, 'passed');
+  assert.deepEqual(validation.failed, []);
 });
 
 test('current Steve Jobs render has speaker metadata but no speaker color evidence', () => {

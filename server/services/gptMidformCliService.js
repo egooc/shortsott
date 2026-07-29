@@ -2121,6 +2121,7 @@ function buildSlotFillPrompt(geminiAnalysis, slotMap, options = {}) {
     '- Each caption unit should be at most 22 Korean characters excluding spaces when possible, and each split piece should have at least 2 eojeol unless the whole sentence is shorter.',
     '- Do not produce chunks that split a subject from its predicate or split one action phrase across captions.',
     '- For dialogue slots, caption_units should contain only the translated subtitle pieces and caption_kr should be their joined text.',
+    '- Do not infer or rewrite speaker identity. For dialogue slots, preserve source_utterance_id/utt_id linkage only; the pipeline owns speaker_id, speaker_alias, speaker_color_key, and caption_kind metadata.',
     '',
     '## Dialogue translation style',
     '- Dialogue happens during a tense combat standoff. Translate as urgent spoken Korean, mostly 반말/짧은 구어체, not report-style 존댓말.',

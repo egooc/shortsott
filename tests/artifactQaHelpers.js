@@ -14,7 +14,12 @@ function activeSegmentsFromManifest(manifest) {
     .map((segment) => ({
       segment_id: String(segment.segment_id || ''),
       segment_type: String(segment.segment_type || ''),
+      caption_kind: String(segment.caption_kind || ''),
       speaker: String(segment.speaker || ''),
+      speaker_id: String(segment.speaker_id || ''),
+      speaker_alias: String(segment.speaker_alias || segment.speaker || ''),
+      speaker_color_key: String(segment.speaker_color_key || ''),
+      source_utterance_id: String(segment.source_utterance_id || ''),
       caption_color: String(segment.caption_color || ''),
       text: String(segment.narration || segment.text || ''),
       timeline_start_sec: Number(segment.timeline_start_sec || 0),
@@ -65,11 +70,78 @@ function colorEvidenceBySpeaker(manifest) {
   const evidence = {};
   for (const segment of activeSegmentsFromManifest(manifest)) {
     if (segmentKind(segment) !== 'dialogue') continue;
-    if (!segment.speaker) continue;
-    if (!evidence[segment.speaker]) evidence[segment.speaker] = new Set();
-    if (segment.caption_color) evidence[segment.speaker].add(segment.caption_color);
+    const speakerKey = segment.speaker_id || segment.speaker;
+    if (!speakerKey) continue;
+    if (!evidence[speakerKey]) evidence[speakerKey] = new Set();
+    if (segment.caption_color) evidence[speakerKey].add(segment.caption_color);
   }
   return Object.fromEntries(Object.entries(evidence).map(([speaker, colors]) => [speaker, [...colors].sort()]));
+}
+
+function validateSpeakerColorMetadata(manifest) {
+  const active = activeSegmentsFromManifest(manifest);
+  const dialogueSegments = active.filter((segment) => segmentKind(segment) === 'dialogue');
+  const narrationColors = new Set(active.filter((segment) => segmentKind(segment) !== 'dialogue').map((segment) => segment.caption_color).filter(Boolean));
+  const missing = [];
+  const colorsBySpeaker = new Map();
+  const keysBySpeaker = new Map();
+  const sceneBuckets = new Map();
+
+  for (const segment of dialogueSegments) {
+    if (!segment.speaker_id || !segment.speaker_alias || !segment.speaker_color_key || !segment.source_utterance_id || !segment.caption_color) {
+      missing.push({
+        segment_id: segment.segment_id,
+        speaker_id: segment.speaker_id,
+        speaker_alias: segment.speaker_alias,
+        speaker_color_key: segment.speaker_color_key,
+        source_utterance_id: segment.source_utterance_id,
+        caption_color: segment.caption_color
+      });
+    }
+    if (segment.speaker_id) {
+      if (!colorsBySpeaker.has(segment.speaker_id)) colorsBySpeaker.set(segment.speaker_id, new Set());
+      if (!keysBySpeaker.has(segment.speaker_id)) keysBySpeaker.set(segment.speaker_id, new Set());
+      if (segment.caption_color) colorsBySpeaker.get(segment.speaker_id).add(segment.caption_color.toLowerCase());
+      if (segment.speaker_color_key) keysBySpeaker.get(segment.speaker_id).add(segment.speaker_color_key);
+    }
+    const sceneKey = String(segment.segment_id || '').replace(/_L\d+.*$/, '');
+    if (!sceneBuckets.has(sceneKey)) sceneBuckets.set(sceneKey, []);
+    sceneBuckets.get(sceneKey).push(segment);
+  }
+
+  const inconsistentSpeakers = [...colorsBySpeaker.entries()]
+    .filter(([, colors]) => colors.size > 1)
+    .map(([speaker_id, colors]) => ({ speaker_id, colors: [...colors].sort() }));
+  const inconsistentColorKeys = [...keysBySpeaker.entries()]
+    .filter(([, keys]) => keys.size > 1)
+    .map(([speaker_id, keys]) => ({ speaker_id, speaker_color_keys: [...keys].sort() }));
+  const collapsedScenes = [...sceneBuckets.entries()]
+    .map(([scene_id, segments]) => {
+      const speakerIds = new Set(segments.map((segment) => segment.speaker_id).filter(Boolean));
+      const colors = new Set(segments.map((segment) => segment.caption_color.toLowerCase()).filter(Boolean));
+      return { scene_id, speaker_count: speakerIds.size, color_count: colors.size, speakers: [...speakerIds].sort(), colors: [...colors].sort() };
+    })
+    .filter((scene) => scene.speaker_count >= 2 && scene.color_count <= 1);
+  const narrationColorCollisions = [...narrationColors]
+    .map((color) => color.toLowerCase())
+    .filter((color) => [...colorsBySpeaker.values()].some((colors) => colors.has(color)));
+
+  const failed = [];
+  if (missing.length) failed.push('dialogue_speaker_metadata_present');
+  if (inconsistentSpeakers.length || inconsistentColorKeys.length) failed.push('same_speaker_same_color');
+  if (collapsedScenes.length) failed.push('distinct_speakers_not_collapsed');
+  if (narrationColorCollisions.length) failed.push('narration_dialogue_color_separation');
+
+  return {
+    checked: dialogueSegments.length,
+    status: failed.length ? 'failed' : 'passed',
+    failed,
+    missing,
+    inconsistent_speakers: inconsistentSpeakers,
+    inconsistent_color_keys: inconsistentColorKeys,
+    collapsed_scenes: collapsedScenes,
+    narration_dialogue_color_collisions: [...new Set(narrationColorCollisions)].sort()
+  };
 }
 
 function hexToRgbFloat(hex) {
@@ -105,6 +177,14 @@ function textFromMaterial(material, parsedContent) {
 }
 
 function extractSubtitleTextMaterials(draftContent) {
+  const activeMaterialIds = new Set();
+  for (const track of Array.isArray(draftContent?.tracks) ? draftContent.tracks : []) {
+    if (!track || track.type !== 'text' || (track.name && track.name !== 'subtitle')) continue;
+    for (const segment of Array.isArray(track.segments) ? track.segments : []) {
+      const materialId = String(segment?.material_id || segment?.materialId || '').trim();
+      if (materialId) activeMaterialIds.add(materialId);
+    }
+  }
   const materials = Array.isArray(draftContent?.materials?.texts) ? draftContent.materials.texts : [];
   return materials
     .map((material) => {
@@ -123,7 +203,8 @@ function extractSubtitleTextMaterials(draftContent) {
         parsed: Boolean(parsedContent)
       };
     })
-    .filter((material) => material.type === 'subtitle' && material.text);
+    .filter((material) => material.type === 'subtitle' && material.text)
+    .filter((material) => activeMaterialIds.size === 0 || activeMaterialIds.has(material.id));
 }
 
 function validateManifestMaterialColors(manifest, draftContent) {
@@ -131,11 +212,13 @@ function validateManifestMaterialColors(manifest, draftContent) {
   const coloredCaptions = (Array.isArray(manifest?.caption_units) ? manifest.caption_units : [])
     .filter((caption) => ['dialogue_quote', 'dialogue'].includes(String(caption?.segment_type || '')))
     .filter((caption) => String(caption?.caption_color || '').trim());
+  const usedMaterialIds = new Set();
   const results = coloredCaptions.map((caption) => {
     const text = String(caption?.text || '').trim();
     const expected = String(caption?.caption_color || '').trim();
-    const matches = materials.filter((material) => material.text === text);
+    const matches = materials.filter((material) => material.text === text && !usedMaterialIds.has(material.id));
     const material = matches.find((candidate) => rgbFloatMatchesHex(candidate.fill_rgb, expected)) || matches[0] || null;
+    if (material?.id) usedMaterialIds.add(material.id);
     const fillMatches = material ? rgbFloatMatchesHex(material.fill_rgb, expected) : false;
     const textColorMatches = material ? String(material.text_color || '').toLowerCase() === expected.toLowerCase() : false;
     const letterColorEnabled = material?.useLetterColor === true;
@@ -178,6 +261,7 @@ module.exports = {
   colorEvidenceBySpeaker,
   extractSubtitleTextMaterials,
   validateManifestMaterialColors,
+  validateSpeakerColorMetadata,
   rgbFloatMatchesHex,
   assertCleanViewerSubtitleText
 };

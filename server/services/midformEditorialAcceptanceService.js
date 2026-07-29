@@ -94,6 +94,7 @@ function evaluateEditorialAcceptance(input = {}, options = {}) {
   const segments = activeTimeline(input);
   const captionUnits = Array.isArray(input.caption_units) ? input.caption_units : [];
   const materialValidation = input.material_validation && typeof input.material_validation === 'object' ? input.material_validation : null;
+  const speakerColorValidation = input.speaker_color_validation && typeof input.speaker_color_validation === 'object' ? input.speaker_color_validation : null;
   const results = [];
   const add = (id, status, detail = {}) => results.push({ id, status, ...detail });
 
@@ -139,6 +140,20 @@ function evaluateEditorialAcceptance(input = {}, options = {}) {
     });
   } else {
     add('rendered_speaker_color_match', 'human_review_required', { reason: 'rendered/material color proof not supplied' });
+  }
+
+  if (speakerColorValidation) {
+    const checks = [
+      ['dialogue_speaker_metadata_present', !(speakerColorValidation.failed || []).includes('dialogue_speaker_metadata_present')],
+      ['same_speaker_same_color', !(speakerColorValidation.failed || []).includes('same_speaker_same_color')],
+      ['distinct_speakers_not_collapsed', !(speakerColorValidation.failed || []).includes('distinct_speakers_not_collapsed')],
+      ['narration_dialogue_color_separation', !(speakerColorValidation.failed || []).includes('narration_dialogue_color_separation')]
+    ];
+    for (const [id, ok] of checks) {
+      add(id, ok ? 'pass' : 'fail', { speaker_color_validation: speakerColorValidation });
+    }
+  } else {
+    add('dialogue_speaker_metadata_present', 'not_applicable', { reason: 'speaker color validation not supplied' });
   }
 
   if (sceneType === 'dialogue_confrontation') {

@@ -11,7 +11,8 @@ const {
   firstDialogueStartSec,
   callbackDialogueStartSec,
   maxContinuousNarrationRunSec,
-  validateManifestMaterialColors
+  validateManifestMaterialColors,
+  validateSpeakerColorMetadata
 } = require('../../tests/artifactQaHelpers');
 
 function ensureDir(dirPath) {
@@ -44,6 +45,12 @@ function buildAcceptanceSegments(editManifest) {
     segment_id: segment.segment_id,
     parent_slot_id: String(segment.segment_id || '').replace(/_L\d+.*$/, ''),
     segment_type: segment.segment_type,
+    caption_kind: segment.caption_kind,
+    speaker_id: segment.speaker_id,
+    speaker_alias: segment.speaker_alias,
+    speaker_color_key: segment.speaker_color_key,
+    source_utterance_id: segment.source_utterance_id,
+    caption_color: segment.caption_color,
     caption_text: segment.text,
     narration: segment.text,
     timeline_start_sec: segment.timeline_start_sec,
@@ -176,6 +183,7 @@ function collectRunArtifacts({
   const editManifest = readJson(path.join(workspaceDir, 'edit_manifest.json'));
   const draftContent = readJson(path.join(workspaceDir, 'draft_content.json'));
   const materialValidation = validateManifestMaterialColors(editManifest, draftContent);
+  const speakerColorValidation = validateSpeakerColorMetadata(editManifest);
   const timing = buildTimingSummary(editManifest);
   const colorEvidence = colorEvidenceBySpeaker(editManifest);
   const gateResults = evaluateEditorialAcceptance({
@@ -183,7 +191,8 @@ function collectRunArtifacts({
     editorial_pattern: editorialPattern,
     segments: buildAcceptanceSegments(editManifest),
     caption_units: editManifest.caption_units || [],
-    material_validation: materialValidation
+    material_validation: materialValidation,
+    speaker_color_validation: speakerColorValidation
   }, {
     readability: readability || {}
   });
@@ -221,6 +230,7 @@ function collectRunArtifacts({
     timing,
     colorEvidence,
     materialValidation,
+    speakerColorValidation,
     outputPaths
   };
 }

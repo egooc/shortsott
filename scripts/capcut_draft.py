@@ -174,6 +174,21 @@ def caption_color_for_speaker(speaker, config):
     return ""
 
 
+def caption_color_for_key(speaker_color_key, config):
+    key = normalize_text_value(speaker_color_key)
+    if not key or not isinstance(config, dict):
+        return ""
+    if key.startswith("#"):
+        return key
+    roles = config.get("roles") if isinstance(config.get("roles"), dict) else {}
+    role_color = normalize_text_value(roles.get(key))
+    return role_color if role_color.startswith("#") else ""
+
+
+def resolve_caption_color_for_dialogue(speaker, speaker_color_key, config):
+    return caption_color_for_key(speaker_color_key, config) or caption_color_for_speaker(speaker, config)
+
+
 def hex_to_rgb_float_list(hex_color):
     raw = normalize_text_value(hex_color)
     if raw.startswith("#"):
@@ -9747,8 +9762,22 @@ def create_draft(input_json_path):
         segment_info = segment_map.get(segment_id, {})
         narration = (caption_unit.get("text") if caption_unit else None) or (tts.get("text") if tts else None) or segment_info.get("narration", "")
         segment_type = str((caption_unit or {}).get("segment_type") or (caption_unit or {}).get("segmentType") or segment_type_map.get(segment_id) or "").strip()
-        speaker = str((caption_unit or {}).get("speaker") or segment_info.get("speaker") or "").strip()
-        caption_color = caption_color_for_speaker(speaker, caption_color_config) if segment_type in {"dialogue_quote", "dialogue"} else ""
+        is_dialogue_caption = segment_type in {"dialogue_quote", "dialogue"}
+        caption_kind = str((caption_unit or {}).get("caption_kind") or segment_info.get("caption_kind") or ("dialogue" if is_dialogue_caption else "narration")).strip()
+        speaker = str((caption_unit or {}).get("speaker") or (caption_unit or {}).get("speaker_alias") or segment_info.get("speaker") or segment_info.get("speaker_alias") or "").strip()
+        speaker_id = str((caption_unit or {}).get("speaker_id") or segment_info.get("speaker_id") or "").strip()
+        speaker_alias = str((caption_unit or {}).get("speaker_alias") or segment_info.get("speaker_alias") or speaker or "").strip()
+        speaker_color_key = str((caption_unit or {}).get("speaker_color_key") or segment_info.get("speaker_color_key") or "").strip()
+        source_utterance_id = str((caption_unit or {}).get("source_utterance_id") or segment_info.get("source_utterance_id") or segment_info.get("utt_id") or "").strip()
+        caption_color = str((caption_unit or {}).get("caption_color") or segment_info.get("caption_color") or "").strip()
+        if is_dialogue_caption:
+            caption_color = caption_color or resolve_caption_color_for_dialogue(speaker_alias or speaker, speaker_color_key, caption_color_config)
+            if not speaker_id or not speaker_alias or not speaker_color_key or not source_utterance_id:
+                warnings.append(f"{caption_id}: dialogue caption is missing speaker metadata")
+            if not caption_color:
+                warnings.append(f"{caption_id}: dialogue caption has no resolved speaker color")
+        else:
+            caption_color = ""
         source_clips = get_segment_source_clips(segment_info)
         combined_segment_ids = caption_unit.get("combined_segment_ids") if isinstance(caption_unit, dict) and isinstance(caption_unit.get("combined_segment_ids"), list) else []
         if combined_segment_ids:
@@ -9763,24 +9792,39 @@ def create_draft(input_json_path):
         segment_warnings = []
 
         if tts is None:
-            duration_us = estimate_non_tts_caption_duration_us(segment_info, segment_id, segment_type)
+            visual_duration_us = estimate_non_tts_caption_duration_us(segment_info, segment_id, segment_type)
+            duration_us = visual_duration_us
             duration_override_sec = safe_float(caption_unit.get("duration_override_sec") if caption_unit else 0, 0.0)
             if duration_override_sec > 0:
                 duration_us = int(round(duration_override_sec * 1_000_000))
-            timeline_end_us = current_time_us + duration_us
-            current_time_us += duration_us
+            caption_offset_sec = safe_float(caption_unit.get("caption_timeline_offset_sec") if caption_unit else 0, 0.0)
+            caption_offset_us = max(0, int(round(caption_offset_sec * 1_000_000)))
+            video_timeline_start_us = current_time_us
+            video_timeline_end_us = current_time_us + visual_duration_us
+            timeline_start_us = min(video_timeline_end_us - 1, current_time_us + caption_offset_us) if visual_duration_us > 1 else current_time_us
+            timeline_end_us = min(video_timeline_end_us, timeline_start_us + duration_us)
+            duration_us = max(1, timeline_end_us - timeline_start_us)
+            current_time_us = video_timeline_end_us
 
             caption_timeline_entries.append(
                 {
                     "caption_id": caption_id,
                     "segment_id": segment_id,
                     "segment_type": segment_type,
+                    "caption_kind": caption_kind,
                     "tts_enabled": False,
                     "timeline_start_us": timeline_start_us,
                     "timeline_end_us": timeline_end_us,
-                    "tts_duration_us": 0,
+                    "tts_duration_us": visual_duration_us,
+                    "video_timeline_start_us": video_timeline_start_us,
+                    "video_timeline_end_us": video_timeline_end_us,
+                    "caption_timeline_offset_sec": round(caption_offset_us / 1_000_000, 6),
                     "text": narration,
                     "speaker": speaker,
+                    "speaker_id": speaker_id,
+                    "speaker_alias": speaker_alias,
+                    "speaker_color_key": speaker_color_key,
+                    "source_utterance_id": source_utterance_id,
                     "caption_color": caption_color,
                     "mp3_path": "",
                     "combined_segment_ids": combined_segment_ids,
@@ -9792,13 +9836,22 @@ def create_draft(input_json_path):
                     "caption_id": caption_id,
                     "segment_id": segment_id,
                     "segment_type": segment_type,
+                    "caption_kind": caption_kind,
                     "tts_enabled": False,
                     "text": narration,
                     "speaker": speaker,
+                    "speaker_id": speaker_id,
+                    "speaker_alias": speaker_alias,
+                    "speaker_color_key": speaker_color_key,
+                    "source_utterance_id": source_utterance_id,
                     "caption_color": caption_color,
                     "start_sec": round(timeline_start_us / 1_000_000, 6),
                     "end_sec": round(timeline_end_us / 1_000_000, 6),
                     "duration_sec": round(duration_us / 1_000_000, 6),
+                    "video_start_sec": round(video_timeline_start_us / 1_000_000, 6),
+                    "video_end_sec": round(video_timeline_end_us / 1_000_000, 6),
+                    "video_duration_sec": round(visual_duration_us / 1_000_000, 6),
+                    "caption_timeline_offset_sec": round(caption_offset_us / 1_000_000, 6),
                     "mp3_path": "",
                     "combined_segment_ids": combined_segment_ids,
                 }
@@ -9808,9 +9861,14 @@ def create_draft(input_json_path):
                     "caption_id": caption_id,
                     "segment_id": segment_id,
                     "segment_type": segment_type,
+                    "caption_kind": caption_kind,
                     "tts_enabled": False,
                     "narration": narration,
                     "speaker": speaker,
+                    "speaker_id": speaker_id,
+                    "speaker_alias": speaker_alias,
+                    "speaker_color_key": speaker_color_key,
+                    "source_utterance_id": source_utterance_id,
                     "caption_color": caption_color,
                     "tts_source_path": "",
                     "tts_draft_path": "",
@@ -9818,6 +9876,10 @@ def create_draft(input_json_path):
                     "duration_sec": round(duration_us / 1_000_000, 6),
                     "timeline_start_sec": round(timeline_start_us / 1_000_000, 6),
                     "timeline_end_sec": round(timeline_end_us / 1_000_000, 6),
+                    "video_timeline_start_sec": round(video_timeline_start_us / 1_000_000, 6),
+                    "video_timeline_end_sec": round(video_timeline_end_us / 1_000_000, 6),
+                    "video_duration_sec": round(visual_duration_us / 1_000_000, 6),
+                    "caption_timeline_offset_sec": round(caption_offset_us / 1_000_000, 6),
                     "source_clips": source_clips,
                     "combined_segment_ids": combined_segment_ids,
                     "warnings": ["subtitle-only original-dialogue caption; no TTS audio generated"],
@@ -9842,9 +9904,14 @@ def create_draft(input_json_path):
                     "caption_id": caption_id,
                     "segment_id": segment_id,
                     "segment_type": segment_type,
+                    "caption_kind": caption_kind,
                     "tts_enabled": True,
                     "narration": narration,
                     "speaker": speaker,
+                    "speaker_id": speaker_id,
+                    "speaker_alias": speaker_alias,
+                    "speaker_color_key": speaker_color_key,
+                    "source_utterance_id": source_utterance_id,
                     "caption_color": caption_color,
                     "tts_source_path": tts_path,
                     "tts_draft_path": draft_path_value,
@@ -9931,24 +9998,34 @@ def create_draft(input_json_path):
                 "caption_id": caption_id,
                 "segment_id": segment_id,
                 "segment_type": segment_type,
+                "caption_kind": caption_kind,
                 "tts_enabled": True,
                 "timeline_start_us": timeline_start_us,
                 "timeline_end_us": timeline_end_us,
                 "tts_duration_us": duration_us,
-                    "text": narration,
-                    "speaker": speaker,
-                    "caption_color": caption_color,
-                    "mp3_path": draft_audio_path,
+                "text": narration,
+                "speaker": speaker,
+                "speaker_id": speaker_id,
+                "speaker_alias": speaker_alias,
+                "speaker_color_key": speaker_color_key,
+                "source_utterance_id": source_utterance_id,
+                "caption_color": caption_color,
+                "mp3_path": draft_audio_path,
                 "combined_segment_ids": combined_segment_ids,
             }
         )
         tts_timeline_by_caption_id[caption_id] = {
             "caption_id": caption_id,
             "segment_id": segment_id,
-                "segment_type": segment_type,
-                "speaker": speaker,
-                "caption_color": caption_color,
-                "timeline_start_us": timeline_start_us,
+            "segment_type": segment_type,
+            "caption_kind": caption_kind,
+            "speaker": speaker,
+            "speaker_id": speaker_id,
+            "speaker_alias": speaker_alias,
+            "speaker_color_key": speaker_color_key,
+            "source_utterance_id": source_utterance_id,
+            "caption_color": caption_color,
+            "timeline_start_us": timeline_start_us,
             "timeline_end_us": timeline_end_us,
             "duration_us": duration_us,
             "mp3_path": draft_audio_path,
@@ -9961,9 +10038,14 @@ def create_draft(input_json_path):
                 "caption_id": caption_id,
                 "segment_id": segment_id,
                 "segment_type": segment_type,
+                "caption_kind": caption_kind,
                 "tts_enabled": True,
                 "text": narration,
                 "speaker": speaker,
+                "speaker_id": speaker_id,
+                "speaker_alias": speaker_alias,
+                "speaker_color_key": speaker_color_key,
+                "source_utterance_id": source_utterance_id,
                 "caption_color": caption_color,
                 "start_sec": round(timeline_start_us / 1_000_000, 6),
                 "end_sec": round(timeline_end_us / 1_000_000, 6),
@@ -10019,8 +10101,15 @@ def create_draft(input_json_path):
                     or ""
                 )
                 text_value = str(unit.get("text") or "")
-                speaker_value = str(unit.get("speaker") or "").strip()
-                caption_color_value = caption_color_for_speaker(speaker_value, caption_color_config) if segment_type_value in {"dialogue_quote", "dialogue"} else ""
+                caption_kind_value = str(unit.get("caption_kind") or sentence_timeline.get("caption_kind") or ("dialogue" if segment_type_value in {"dialogue_quote", "dialogue"} else "narration")).strip()
+                speaker_value = str(unit.get("speaker") or unit.get("speaker_alias") or sentence_timeline.get("speaker") or "").strip()
+                speaker_id_value = str(unit.get("speaker_id") or sentence_timeline.get("speaker_id") or "").strip()
+                speaker_alias_value = str(unit.get("speaker_alias") or sentence_timeline.get("speaker_alias") or speaker_value or "").strip()
+                speaker_color_key_value = str(unit.get("speaker_color_key") or sentence_timeline.get("speaker_color_key") or "").strip()
+                source_utterance_id_value = str(unit.get("source_utterance_id") or sentence_timeline.get("source_utterance_id") or "").strip()
+                caption_color_value = str(unit.get("caption_color") or sentence_timeline.get("caption_color") or "").strip()
+                if segment_type_value in {"dialogue_quote", "dialogue"}:
+                    caption_color_value = caption_color_value or resolve_caption_color_for_dialogue(speaker_alias_value or speaker_value, speaker_color_key_value, caption_color_config)
                 combined_segment_ids = unit.get("combined_segment_ids") if isinstance(unit.get("combined_segment_ids"), list) else sentence_timeline.get("combined_segment_ids") or []
                 display_caption_timeline_entries.append(
                     {
@@ -10029,12 +10118,17 @@ def create_draft(input_json_path):
                         "tts_caption_id": tts_caption_id,
                         "segment_id": segment_id_value,
                         "segment_type": segment_type_value,
+                        "caption_kind": caption_kind_value,
                         "tts_enabled": True,
                         "timeline_start_us": unit_start_us,
                         "timeline_end_us": unit_end_us,
                         "tts_duration_us": unit_duration_us,
                         "text": text_value,
                         "speaker": speaker_value,
+                        "speaker_id": speaker_id_value,
+                        "speaker_alias": speaker_alias_value,
+                        "speaker_color_key": speaker_color_key_value,
+                        "source_utterance_id": source_utterance_id_value,
                         "caption_color": caption_color_value,
                         "mp3_path": sentence_timeline.get("mp3_path") or "",
                         "combined_segment_ids": combined_segment_ids,
@@ -10048,9 +10142,14 @@ def create_draft(input_json_path):
                         "tts_caption_id": tts_caption_id,
                         "segment_id": segment_id_value,
                         "segment_type": segment_type_value,
+                        "caption_kind": caption_kind_value,
                         "tts_enabled": True,
                         "text": text_value,
                         "speaker": speaker_value,
+                        "speaker_id": speaker_id_value,
+                        "speaker_alias": speaker_alias_value,
+                        "speaker_color_key": speaker_color_key_value,
+                        "source_utterance_id": source_utterance_id_value,
                         "caption_color": caption_color_value,
                         "start_sec": round(unit_start_us / 1_000_000, 6),
                         "end_sec": round(unit_end_us / 1_000_000, 6),
@@ -10075,8 +10174,8 @@ def create_draft(input_json_path):
     for item_index, caption_entry in enumerate(caption_timeline_entries):
         segment_id = caption_entry["segment_id"]
         combined_segment_ids = caption_entry.get("combined_segment_ids") if isinstance(caption_entry.get("combined_segment_ids"), list) else []
-        start_us = int(caption_entry["timeline_start_us"])
-        end_us = int(caption_entry["timeline_end_us"])
+        start_us = int(caption_entry.get("video_timeline_start_us") if caption_entry.get("video_timeline_start_us") is not None else caption_entry["timeline_start_us"])
+        end_us = int(caption_entry.get("video_timeline_end_us") if caption_entry.get("video_timeline_end_us") is not None else caption_entry["timeline_end_us"])
         if segment_id not in segment_timeline_map:
             segment_timeline_map[segment_id] = {
                 "segment_id": segment_id,
@@ -10722,7 +10821,12 @@ def create_draft(input_json_path):
                 entry["caption_id"] = source_entry.get("caption_id")
                 entry["segment_id"] = source_entry.get("segment_id")
                 entry["segment_type"] = source_entry.get("segment_type")
+                entry["caption_kind"] = source_entry.get("caption_kind")
                 entry["speaker"] = source_entry.get("speaker")
+                entry["speaker_id"] = source_entry.get("speaker_id")
+                entry["speaker_alias"] = source_entry.get("speaker_alias")
+                entry["speaker_color_key"] = source_entry.get("speaker_color_key")
+                entry["source_utterance_id"] = source_entry.get("source_utterance_id")
                 entry["caption_color"] = source_entry.get("caption_color")
         subtitle_style = subtitle_components["style"]
         subtitle_clip = subtitle_components["clip_settings"]
