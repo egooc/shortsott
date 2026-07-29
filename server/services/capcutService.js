@@ -18,6 +18,14 @@ const DRAFTS_OUTPUT_DIR = path.join(OUTPUT_DIR, 'drafts');
 const TEMPLATE_BASE_DIR = path.resolve(__dirname, '../../templates/capcut/channel_default');
 const CAPCUT_DRAFT_TIMEOUT_MS = Number(process.env.CAPCUT_DRAFT_TIMEOUT_MS || 20 * 60 * 1000);
 
+function normalizeDraftOutputMode(value, packageZipValue) {
+  const mode = String(value || '').trim().toLowerCase();
+  if (['folder_and_zip', 'zip', 'both'].includes(mode)) return 'folder_and_zip';
+  if (['folder_only', 'folder', 'draft_folder'].includes(mode)) return 'folder_only';
+  if (packageZipValue === true || packageZipValue === 'true' || packageZipValue === '1') return 'folder_and_zip';
+  return 'folder_only';
+}
+
 function buildDraftPayloadOverrides(extraPayload = {}) {
   const payload = extraPayload && typeof extraPayload === 'object' ? { ...extraPayload } : {};
   const explicitSourceVideoPath = String(
@@ -47,6 +55,10 @@ function buildDraftPayloadOverrides(extraPayload = {}) {
 
   payload.output_base_path = explicitOutputBasePath;
   payload.outputBasePath = explicitOutputBasePath;
+  payload.draft_output_mode = normalizeDraftOutputMode(payload.draft_output_mode || payload.draftOutputMode || payload.output_mode || payload.outputMode, payload.package_zip ?? payload.packageZip);
+  payload.draftOutputMode = payload.draft_output_mode;
+  payload.package_zip = payload.draft_output_mode === 'folder_and_zip';
+  payload.packageZip = payload.package_zip;
   processConfig.output_base_path = explicitOutputBasePath;
   processConfig.outputBasePath = explicitOutputBasePath;
   payload.processConfig = processConfig;
@@ -260,7 +272,7 @@ function runCapcutScript(payload, inputFilename = 'draft_input.json') {
   });
 }
 
-function generateProcessDraft({ config, videoTransformPreset, bgmPreset, createZip = true }) {
+function generateProcessDraft({ config, videoTransformPreset, bgmPreset, createZip = false }) {
   const resolvedBgmPreset = {
     ...(bgmPreset || {}),
     process_config: config || {},
@@ -280,4 +292,13 @@ function generateProcessDraft({ config, videoTransformPreset, bgmPreset, createZ
   return runCapcutScript(payload, 'process_draft_input.json');
 }
 
-module.exports = { generateDraft, generateProcessDraft, getCapcutTemplateStatus, DRAFTS_OUTPUT_DIR };
+module.exports = {
+  generateDraft,
+  generateProcessDraft,
+  getCapcutTemplateStatus,
+  DRAFTS_OUTPUT_DIR,
+  _test: {
+    buildDraftPayloadOverrides,
+    normalizeDraftOutputMode
+  }
+};

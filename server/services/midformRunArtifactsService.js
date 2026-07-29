@@ -213,6 +213,7 @@ function collectRunArtifacts({
     slot_map: rel(path.join(workspaceDir, 'slot_map.json')),
     script: rel(path.join(workspaceDir, 'script.json')),
     draft_input: rel(path.join(workspaceDir, 'draft_input.json')),
+    draft_folder: rel(draftRoot),
     edit_manifest: rel(path.join(workspaceDir, 'edit_manifest.json')),
     draft_content: rel(path.join(workspaceDir, 'draft_content.json')),
     acceptance_gates: rel(acceptancePath),

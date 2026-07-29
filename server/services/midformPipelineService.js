@@ -1084,6 +1084,8 @@ async function runCapcutDraft(state) {
       sourceTranscriptPath: state.artifacts.transcriptPath,
       source_transcript_path: state.artifacts.transcriptPath,
       source_video_path: state.artifacts.sourceVideoPath,
+      draft_output_mode: state.input.draft_output_mode || state.input.draftOutputMode || 'folder_only',
+      package_zip: state.input.package_zip === true || state.input.packageZip === true,
       movieResearch: draftInput.movieResearch || {},
       geminiAnalysis: draftInput.geminiAnalysis || {}
     }
@@ -1092,7 +1094,7 @@ async function runCapcutDraft(state) {
   state.artifacts.srtPath = result.draftSubtitlePath || '';
   state.artifacts.draftZipPath = result.zipPath || '';
   saveState(state);
-  return { summary: result.recommendedZip || result.zipFile || 'draft generated', artifacts: { draft: result, srtPath: state.artifacts.srtPath, draftZipPath: state.artifacts.draftZipPath } };
+  return { summary: result.draftPath || 'draft generated', artifacts: { draft: result, srtPath: state.artifacts.srtPath, draftPath: result.draftPath || '', draftZipPath: state.artifacts.draftZipPath } };
 }
 
 async function runPipelineAfterPreflight(state) {
@@ -1362,7 +1364,9 @@ function listRuns() {
 
 function artifactPathFor(runId, kind) {
   const state = getRun(runId);
-  const filePath = kind === 'srt' ? state.artifacts.srtPath : state.artifacts.draftZipPath;
+  const filePath = kind === 'srt'
+    ? state.artifacts.srtPath
+    : (kind === 'draft_folder' ? state.artifacts.draft?.draftPath : state.artifacts.draftZipPath);
   if (!filePath || !fs.existsSync(filePath)) {
     throw createHttpError(404, `MIDFORM_${kind.toUpperCase()}_NOT_FOUND`, `${kind} artifact not found`, { runId, filePath });
   }

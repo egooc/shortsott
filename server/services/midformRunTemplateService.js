@@ -420,8 +420,12 @@ function finalSummaryFromQa(summary, qa, finalPipelineState, analysisRun) {
     ...summary,
     status: qa.gateResults.status === 'failed' ? 'failed' : qa.gateResults.status,
     output_paths: {
+      ...summary.output_paths,
       ...qa.outputPaths,
-      draft_zip: relIfPresent(finalPipelineState.artifacts?.draftZipPath || finalPipelineState.artifacts?.draft?.zipPath || '')
+      draft_folder: relIfPresent(finalPipelineState.artifacts?.draft?.draftPath || ''),
+      ...(finalPipelineState.artifacts?.draftZipPath || finalPipelineState.artifacts?.draft?.zipPath
+        ? { draft_zip: relIfPresent(finalPipelineState.artifacts?.draftZipPath || finalPipelineState.artifacts?.draft?.zipPath || '') }
+        : {})
     },
     gate_results: qa.gateResults,
     warnings: qa.gateResults.warnings,

@@ -95,7 +95,7 @@ function midformOptions(payload) {
   for (const key of ['promptPath', 'prompt_path', 'outputMessagePath', 'output_message_path', 'outputSchemaPath', 'output_schema_path']) {
     delete options[key];
   }
-  for (const key of ['transcript', 'sourceTranscript', 'source_transcript', 'transcriptPath', 'transcript_path', 'sourceTranscriptPath', 'slotMap', 'slot_map', 'slotMapPath', 'slot_map_path', 'storyOutline', 'story_outline', 'movieKnowledge', 'movie_knowledge', 'movieIdentity', 'movie_identity', 'movieResearch', 'movie_research', 'contentType', 'content_type', 'disableMovieResearch', 'disable_movie_research', 'sourceVideoPath', 'source_video_path', 'outputBasePath', 'output_base_path']) {
+  for (const key of ['transcript', 'sourceTranscript', 'source_transcript', 'transcriptPath', 'transcript_path', 'sourceTranscriptPath', 'slotMap', 'slot_map', 'slotMapPath', 'slot_map_path', 'storyOutline', 'story_outline', 'movieKnowledge', 'movie_knowledge', 'movieIdentity', 'movie_identity', 'movieResearch', 'movie_research', 'contentType', 'content_type', 'disableMovieResearch', 'disable_movie_research', 'sourceVideoPath', 'source_video_path', 'outputBasePath', 'output_base_path', 'draftOutputMode', 'draft_output_mode', 'packageZip', 'package_zip']) {
     if (payload[key] !== undefined && options[key] === undefined) options[key] = payload[key];
   }
   return options;

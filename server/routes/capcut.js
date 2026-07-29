@@ -26,7 +26,11 @@ router.post('/generate-draft', async (req, res, next) => {
       sourceVideoPath,
       source_video_path,
       outputBasePath,
-      output_base_path
+      output_base_path,
+      draftOutputMode,
+      draft_output_mode,
+      packageZip,
+      package_zip
     } = req.body || {};
     const result = await generateDraft(
       segments || [],
@@ -50,7 +54,11 @@ router.post('/generate-draft', async (req, res, next) => {
         ...(sourceVideoPath ? { sourceVideoPath } : {}),
         ...(source_video_path ? { source_video_path } : {}),
         ...(outputBasePath ? { outputBasePath } : {}),
-        ...(output_base_path ? { output_base_path } : {})
+        ...(output_base_path ? { output_base_path } : {}),
+        ...(draftOutputMode ? { draftOutputMode } : {}),
+        ...(draft_output_mode ? { draft_output_mode } : {}),
+        ...(packageZip !== undefined ? { packageZip } : {}),
+        ...(package_zip !== undefined ? { package_zip } : {})
       }
     );
     res.json(result);

@@ -509,6 +509,25 @@ def coerce_bool(value, default_value=False):
     return default_value
 
 
+def resolve_draft_output_policy(config=None):
+    data = config if isinstance(config, dict) else {}
+    mode = normalize_text_value(data.get("draft_output_mode") or data.get("draftOutputMode") or data.get("output_mode") or data.get("outputMode")).lower()
+    package_zip = data.get("package_zip") if "package_zip" in data else data.get("packageZip")
+    if mode in {"folder_and_zip", "zip", "both"}:
+        create_zip = True
+        mode = "folder_and_zip"
+    elif mode in {"folder_only", "folder", "draft_folder"}:
+        create_zip = False
+        mode = "folder_only"
+    elif package_zip is not None:
+        create_zip = coerce_bool(package_zip, False)
+        mode = "folder_and_zip" if create_zip else "folder_only"
+    else:
+        create_zip = False
+        mode = "folder_only"
+    return {"mode": mode, "create_zip": create_zip}
+
+
 def parse_json_text_content(raw_text):
     if not isinstance(raw_text, str):
         return None
@@ -9432,6 +9451,8 @@ def create_draft(input_json_path):
     if video_placement_mode not in {"source_clips", "full_source"}:
         video_placement_mode = "source_clips"
     use_capcut_template = coerce_bool(data.get("useCapcutTemplate", True), True)
+    draft_output_policy = resolve_draft_output_policy(data)
+    create_zip = draft_output_policy["create_zip"]
     final_slot_tail_allowance_sec = max(0.0, safe_float(data.get("finalSlotTailAllowanceSec") or data.get("tailAllowanceSec"), MIDFORM_FINAL_SLOT_TAIL_ALLOWANCE_SEC))
 
     draft_name = f"pipeline_{int(time.time())}"
@@ -11130,7 +11151,7 @@ def create_draft(input_json_path):
     checklist_lines = [
         "# CapCut Import Checklist",
         "",
-        "1. Extract zip into CapCut draft directory (do not rename internal draft folder).",
+        "1. Copy or keep the draft folder in the CapCut draft directory (do not rename internal files).",
         "2. Open CapCut and locate the new draft by folder name.",
         "3. Verify audio waveform appears for all segments.",
         "4. Play from start and confirm subtitle timing matches narration timing.",
@@ -11143,9 +11164,10 @@ def create_draft(input_json_path):
     checklist_path = os.path.join(draft_path, "capcut_import_checklist.md")
     write_notes_file(checklist_path, checklist_lines)
 
-    absolute_zip_filename = f"{draft_name}.zip"
-    absolute_zip_path = os.path.join(output_base, absolute_zip_filename)
-    zip_folder(draft_path, absolute_zip_path, output_base)
+    absolute_zip_filename = f"{draft_name}.zip" if create_zip else ""
+    absolute_zip_path = os.path.join(output_base, absolute_zip_filename) if create_zip else ""
+    if create_zip:
+        zip_folder(draft_path, absolute_zip_path, output_base)
 
     relative_draft_name = ""
     relative_draft_path = ""
@@ -11162,9 +11184,10 @@ def create_draft(input_json_path):
         relative_checklist_path = os.path.join(relative_draft_path, "capcut_import_checklist.md")
         write_notes_file(relative_checklist_path, checklist_lines)
 
-        relative_zip_filename = f"{relative_draft_name}.zip"
-        relative_zip_path = os.path.join(output_base, relative_zip_filename)
-        zip_folder(relative_draft_path, relative_zip_path, output_base)
+        relative_zip_filename = f"{relative_draft_name}.zip" if create_zip else ""
+        relative_zip_path = os.path.join(output_base, relative_zip_filename) if create_zip else ""
+        if create_zip:
+            zip_folder(relative_draft_path, relative_zip_path, output_base)
 
     primary_draft_path = draft_path
     primary_zip_file = absolute_zip_filename
@@ -11186,8 +11209,10 @@ def create_draft(input_json_path):
 
     return {
         "draftPath": primary_draft_path,
+        "draftOutputMode": draft_output_policy["mode"],
+        "packageZip": create_zip,
         "zipFile": primary_zip_file,
-        "recommendedZip": absolute_zip_filename,
+        "recommendedZip": primary_zip_file,
         "zipPath": primary_zip_path,
         "totalDurationUs": current_time_us,
         "totalDurationSec": current_time_us / 1_000_000,
