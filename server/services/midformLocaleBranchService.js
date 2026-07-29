@@ -1,0 +1,476 @@
+const LOCALES = ['ko', 'ja'];
+
+const OVERLAP_THRESHOLDS = {
+  pairwise_overlap_score: 0.65,
+  opening_similarity_score: 0.45,
+  chain_similarity_score: 0.55,
+  shared_contiguous_block_max_sec: 6.0
+};
+
+function round3(value) {
+  return Number(Number(value || 0).toFixed(3));
+}
+
+function normalizeText(value) {
+  return String(value || '').replace(/\s+/g, ' ').trim();
+}
+
+function rangeForSlot(slot) {
+  if (Array.isArray(slot?.source_range) && slot.source_range.length >= 2) {
+    return [round3(slot.source_range[0]), round3(slot.source_range[1])];
+  }
+  if (Array.isArray(slot?.dialogue_line_windows) && slot.dialogue_line_windows.length) {
+    const starts = slot.dialogue_line_windows.map((win) => Number(win?.start_sec)).filter(Number.isFinite);
+    const ends = slot.dialogue_line_windows.map((win) => Number(win?.end_sec)).filter(Number.isFinite);
+    if (starts.length && ends.length) return [round3(Math.min(...starts)), round3(Math.max(...ends))];
+  }
+  const start = Number(slot?.start_sec);
+  const end = Number(slot?.end_sec);
+  if (Number.isFinite(start) && Number.isFinite(end) && end > start) return [round3(start), round3(end)];
+  const visualStart = Number(slot?.visual_source_start_sec);
+  const visualEnd = Number(slot?.visual_source_end_sec);
+  if (Number.isFinite(visualStart) && Number.isFinite(visualEnd) && visualEnd > visualStart) return [round3(visualStart), round3(visualEnd)];
+  return [0, 0];
+}
+
+function rangeDuration(range) {
+  return Math.max(0, Number(range?.[1] || 0) - Number(range?.[0] || 0));
+}
+
+function rangeOverlap(a, b) {
+  return Math.max(0, Math.min(Number(a?.[1] || 0), Number(b?.[1] || 0)) - Math.max(Number(a?.[0] || 0), Number(b?.[0] || 0)));
+}
+
+function slotDuration(slot) {
+  return round3(Number(slot?.narration_estimated_duration_sec || slot?.estimated_duration_sec || slot?.duration || rangeDuration(rangeForSlot(slot)) || 0));
+}
+
+function activeTimeline(editPlan) {
+  return (Array.isArray(editPlan?.timeline) ? editPlan.timeline : [])
+    .filter((slot) => slot && slot.decision !== 'DROP');
+}
+
+function compactTranscriptSegments(transcript) {
+  return (Array.isArray(transcript) ? transcript : [])
+    .slice(0, 500)
+    .map((item, index) => ({
+      index,
+      start_sec: round3(item.start_sec ?? item.start ?? 0),
+      end_sec: round3(item.end_sec ?? item.end ?? 0),
+      text: normalizeText(item.text)
+    }))
+    .filter((item) => item.text && item.end_sec > item.start_sec);
+}
+
+function buildEvidencePack({ normalizedRequest = {}, beatsObject = {}, editPlan = {}, transcript = [], compressionManifest = {} }) {
+  const beats = Array.isArray(beatsObject?.beats) ? beatsObject.beats : [];
+  const timeline = activeTimeline(editPlan);
+  const dialogueCandidates = timeline
+    .filter((slot) => slot.decision === 'KEEP_DIALOGUE')
+    .map((slot) => ({
+      slot_id: normalizeText(slot.slot_id),
+      beat_id: normalizeText(slot.beat_id),
+      role: normalizeText(slot.role),
+      source_range: rangeForSlot(slot),
+      dialogue_lines: Array.isArray(slot.dialogue_focus_lines) ? slot.dialogue_focus_lines.map(normalizeText).filter(Boolean) : [],
+      semantic_risk: normalizeText(slot.semantic_risk || 'low'),
+      standalone_score: Number(slot.standalone_score || 0)
+    }));
+  const visualCandidates = timeline.map((slot) => ({
+    slot_id: normalizeText(slot.slot_id),
+    beat_id: normalizeText(slot.beat_id),
+    role: normalizeText(slot.role),
+    decision: normalizeText(slot.decision),
+    source_range: rangeForSlot(slot),
+    duration_sec: slotDuration(slot),
+    scene_summary: normalizeText(slot.reason || slot.reused_conflict_axis || '')
+  }));
+  return {
+    artifact_type: 'midform_locale_evidence_pack',
+    video_id: normalizeText(compressionManifest.videoId || compressionManifest.video_id || ''),
+    source_url: normalizeText(normalizedRequest.source?.url || compressionManifest.sourceUrl || compressionManifest.source_url || ''),
+    duration_sec: round3(compressionManifest.durationSec || compressionManifest.duration_sec || editPlan.source_duration_sec || 0),
+    transcript_segments: compactTranscriptSegments(transcript),
+    scene_candidates: beats.map((beat) => ({
+      beat_id: normalizeText(beat.beat_id),
+      start_sec: round3(beat.start_sec),
+      end_sec: round3(beat.end_sec),
+      summary: normalizeText(beat.summary),
+      dramatic_weight: Number(beat.dramatic_weight || 0),
+      hook_potential: Number(beat.hook_potential || 0),
+      dialogue_quality: normalizeText(beat.dialogue_quality)
+    })),
+    must_keep_dialogue_candidates: dialogueCandidates,
+    must_keep_visual_candidates: visualCandidates,
+    retention_signals: {
+      intro: editPlan.cold_open_selection || {},
+      top_moments: beats
+        .slice()
+        .sort((left, right) => Number(right.dramatic_weight || 0) - Number(left.dramatic_weight || 0))
+        .slice(0, 5)
+        .map((beat) => ({ beat_id: normalizeText(beat.beat_id), score: Number(beat.dramatic_weight || 0), range: [round3(beat.start_sec), round3(beat.end_sec)] })),
+      spikes: [],
+      dips: []
+    },
+    comment_reaction_summary: {
+      repeated_keywords: [],
+      repeated_emotions: [],
+      misunderstandings: [],
+      scene_mentions: [],
+      title_thumbnail_phrases: []
+    },
+    verified_facts: {},
+    ambiguities: []
+  };
+}
+
+function buildLocaleEditorialStrategy(locale, evidencePack) {
+  const base = {
+    artifact_type: 'midform_locale_editorial_strategy',
+    locale,
+    evidence_pack_source: evidencePack.artifact_type,
+    strategy_version: 'locale_divergence_v1'
+  };
+  if (locale === 'ja') {
+    return {
+      ...base,
+      opening_priority: 'tension_build_first',
+      pace_profile: 'measured_escalation',
+      dialogue_vs_reaction_bias: 'reaction_support_heavy',
+      payoff_timing_preference: 'mid_late',
+      reaction_shot_policy: 'retain_micro_pauses',
+      build_up_style: 'pressure_accumulation',
+      cut_variation_bias: 'expression_then_release',
+      source_range_shift_sec: 4.0
+    };
+  }
+  return {
+    ...base,
+    opening_priority: 'conflict_first',
+    pace_profile: 'fast_compressed',
+    dialogue_vs_reaction_bias: 'dialogue_heavy',
+    payoff_timing_preference: 'early_mid',
+    reaction_shot_policy: 'minimal',
+    build_up_style: 'direct_escalation',
+    cut_variation_bias: 'incident_first',
+    source_range_shift_sec: -0.18
+  };
+}
+
+function shiftedRange(range, shiftSec, sourceDurationSec) {
+  const duration = rangeDuration(range);
+  if (!(duration > 0)) return [0, 0];
+  const maxStart = sourceDurationSec > 0 ? Math.max(0, sourceDurationSec - duration) : Math.max(0, Number(range[0]) + shiftSec);
+  const start = Math.min(maxStart, Math.max(0, Number(range[0]) + shiftSec));
+  return [round3(start), round3(start + duration)];
+}
+
+function applyRangeToSlot(slot, range) {
+  const next = { ...slot };
+  next.start_sec = range[0];
+  next.end_sec = range[1];
+  next.estimated_duration_sec = round3(rangeDuration(range));
+  if (next.visual_source_start_sec !== undefined || next.visual_source_end_sec !== undefined) {
+    next.visual_source_start_sec = range[0];
+    next.visual_source_end_sec = range[1];
+  }
+  next.source_range = range;
+  return next;
+}
+
+function rolePriority(locale, slot) {
+  const role = normalizeText(slot.role);
+  const decision = normalizeText(slot.decision);
+  if (locale === 'ja') {
+    if (role === 'bridge') return 1;
+    if (decision === 'NARRATE') return 2;
+    if (role === 'cold_open') return 3;
+    if (role === 'body') return 4;
+    if (role === 'body_peak') return 5;
+    if (role === 'payoff') return 6;
+    if (role === 'closing') return 7;
+    return 8;
+  }
+  if (role === 'cold_open') return 1;
+  if (role === 'bridge') return 2;
+  if (role === 'body_peak') return 3;
+  if (role === 'body') return 4;
+  if (role === 'payoff') return 5;
+  if (role === 'closing') return 6;
+  return 7;
+}
+
+function buildClipChain(locale, timeline) {
+  let cursor = 0;
+  return timeline.map((slot, index) => {
+    const range = rangeForSlot(slot);
+    const duration = slotDuration(slot) || rangeDuration(range);
+    const clip = {
+      clip_id: `${locale}_${slot.slot_id || `slot_${index + 1}`}`,
+      slot_id: normalizeText(slot.slot_id),
+      beat_id: normalizeText(slot.beat_id),
+      role: normalizeText(slot.role),
+      decision: normalizeText(slot.decision),
+      source_range: range,
+      timeline_range: [round3(cursor), round3(cursor + duration)],
+      duration_sec: round3(duration)
+    };
+    cursor = round3(cursor + duration);
+    return clip;
+  });
+}
+
+function topHighlightOrder(timeline, evidencePack) {
+  const scoreByBeat = new Map((evidencePack.scene_candidates || []).map((beat) => [beat.beat_id, Number(beat.dramatic_weight || 0) + Number(beat.hook_potential || 0)]));
+  const topBeatIds = new Set(timeline
+    .map((slot, index) => ({ beat_id: normalizeText(slot.beat_id), slot_id: normalizeText(slot.slot_id), score: scoreByBeat.get(normalizeText(slot.beat_id)) || 0, index }))
+    .filter((item) => item.beat_id)
+    .sort((left, right) => right.score - left.score || left.index - right.index)
+    .slice(0, 3)
+    .map((item) => item.beat_id || item.slot_id));
+  return timeline
+    .map((slot) => normalizeText(slot.beat_id || slot.slot_id))
+    .filter((id, index, list) => id && topBeatIds.has(id) && list.indexOf(id) === index)
+    .slice(0, 3);
+}
+
+function buildLocaleEditPlan(baseEditPlan, strategy, evidencePack, attempt = 0) {
+  const locale = strategy.locale;
+  const sourceDurationSec = Number(evidencePack.duration_sec || 0);
+  const active = activeTimeline(baseEditPlan).map((slot) => ({ ...slot }));
+  const reordered = active
+    .slice()
+    .sort((left, right) => rolePriority(locale, left) - rolePriority(locale, right));
+  const shiftBase = Number(strategy.source_range_shift_sec || 0) + (locale === 'ja' ? attempt * 4.0 : attempt * -0.08);
+  const timeline = reordered.map((slot, index) => {
+    const range = rangeForSlot(slot);
+    const role = normalizeText(slot.role);
+    const decision = normalizeText(slot.decision);
+    let shift = shiftBase;
+    if (locale === 'ja' && decision === 'NARRATE') shift += 3.0 + index * 0.45;
+    if (locale === 'ja' && role === 'cold_open') shift += 3.5;
+    if (locale === 'ko' && role === 'body_peak') shift -= 0.12;
+    const nextRange = shiftedRange(range, shift, sourceDurationSec);
+    return {
+      ...applyRangeToSlot(slot, nextRange),
+      locale,
+      locale_strategy_applied: strategy.strategy_version,
+      locale_variation_note: locale === 'ja'
+        ? 'reaction/tension branch shifts source windows later and reorders buildup before direct payoff'
+        : 'conflict-first branch keeps direct hook/payoff order with tighter source windows'
+    };
+  });
+  const clipChain = buildClipChain(locale, timeline);
+  const openingWindow = clipChain.filter((clip) => clip.timeline_range[0] < 15);
+  return {
+    artifact_type: 'midform_locale_edit_plan',
+    locale,
+    source_edit_plan_id: normalizeText(baseEditPlan.edit_plan_id || baseEditPlan.plan_id || ''),
+    strategy,
+    beats: evidencePack.scene_candidates || [],
+    selected_source_ranges: clipChain.map((clip) => ({ clip_id: clip.clip_id, slot_id: clip.slot_id, source_range: clip.source_range })),
+    clip_chain: clipChain,
+    dialogue_anchors: timeline.filter((slot) => slot.decision === 'KEEP_DIALOGUE').map((slot) => ({ slot_id: slot.slot_id, source_range: rangeForSlot(slot), lines: slot.dialogue_focus_lines || [] })),
+    reaction_support_ranges: timeline.filter((slot) => slot.decision === 'NARRATE').map((slot) => ({ slot_id: slot.slot_id, source_range: rangeForSlot(slot), policy: strategy.reaction_shot_policy })),
+    opening_window: openingWindow,
+    highlight_order: topHighlightOrder(timeline, evidencePack),
+    timing_profile: {
+      pace_profile: strategy.pace_profile,
+      total_estimated_sec: round3(clipChain.reduce((sum, clip) => sum + clip.duration_sec, 0)),
+      opening_sec: round3(openingWindow.reduce((sum, clip) => sum + clip.duration_sec, 0))
+    },
+    difference_constraints_applied: [
+      'opening_source_chain_must_differ',
+      'no_three_contiguous_same_shots',
+      'top_three_highlight_order_must_not_match',
+      'pairwise_overlap_thresholds'
+    ],
+    timeline
+  };
+}
+
+function signatureForClip(clip) {
+  const range = clip.source_range || [0, 0];
+  return `${clip.beat_id || clip.slot_id}:${Math.round(Number(range[0] || 0))}:${Math.round(Number(range[1] || 0))}`;
+}
+
+function lcsSimilarity(left, right) {
+  if (!left.length || !right.length) return 0;
+  const dp = Array.from({ length: left.length + 1 }, () => Array(right.length + 1).fill(0));
+  for (let i = 1; i <= left.length; i += 1) {
+    for (let j = 1; j <= right.length; j += 1) {
+      dp[i][j] = left[i - 1] === right[j - 1]
+        ? dp[i - 1][j - 1] + 1
+        : Math.max(dp[i - 1][j], dp[i][j - 1]);
+    }
+  }
+  return round3(dp[left.length][right.length] / Math.max(left.length, right.length));
+}
+
+function sourceRangeOverlapRatio(leftChain, rightChain) {
+  const leftDuration = leftChain.reduce((sum, clip) => sum + rangeDuration(clip.source_range), 0);
+  const rightDuration = rightChain.reduce((sum, clip) => sum + rangeDuration(clip.source_range), 0);
+  let overlap = 0;
+  for (const left of leftChain) {
+    for (const right of rightChain) {
+      overlap += rangeOverlap(left.source_range, right.source_range);
+    }
+  }
+  const union = Math.max(0.001, leftDuration + rightDuration - overlap);
+  return round3(overlap / union);
+}
+
+function sharedContiguousBlocks(leftChain, rightChain) {
+  const blocks = [];
+  for (let i = 0; i < leftChain.length; i += 1) {
+    for (let j = 0; j < rightChain.length; j += 1) {
+      let k = 0;
+      let duration = 0;
+      const members = [];
+      while (leftChain[i + k] && rightChain[j + k]) {
+        const overlap = rangeOverlap(leftChain[i + k].source_range, rightChain[j + k].source_range);
+        const sameShot = normalizeText(leftChain[i + k].slot_id || leftChain[i + k].beat_id) === normalizeText(rightChain[j + k].slot_id || rightChain[j + k].beat_id);
+        if (!sameShot || overlap < 0.25) break;
+        duration += overlap;
+        members.push({ ko_clip_id: leftChain[i + k].clip_id, ja_clip_id: rightChain[j + k].clip_id, overlap_sec: round3(overlap) });
+        k += 1;
+      }
+      if (members.length) blocks.push({ ko_start_index: i, ja_start_index: j, length: members.length, duration_sec: round3(duration), clips: members });
+    }
+  }
+  return blocks.sort((left, right) => right.duration_sec - left.duration_sec || right.length - left.length);
+}
+
+function compareLocaleEditPlans(koPlan, jaPlan, thresholds = OVERLAP_THRESHOLDS, regenerationAttempts = 0) {
+  const koChain = Array.isArray(koPlan?.clip_chain) ? koPlan.clip_chain : [];
+  const jaChain = Array.isArray(jaPlan?.clip_chain) ? jaPlan.clip_chain : [];
+  const openingKo = koChain.filter((clip) => Number(clip.timeline_range?.[0] || 0) < 15);
+  const openingJa = jaChain.filter((clip) => Number(clip.timeline_range?.[0] || 0) < 15);
+  const chainSimilarity = lcsSimilarity(koChain.map(signatureForClip), jaChain.map(signatureForClip));
+  const openingSimilarity = lcsSimilarity(openingKo.map(signatureForClip), openingJa.map(signatureForClip));
+  const overlapRatio = sourceRangeOverlapRatio(koChain, jaChain);
+  const highlightSimilarity = JSON.stringify((koPlan.highlight_order || []).slice(0, 3)) === JSON.stringify((jaPlan.highlight_order || []).slice(0, 3)) ? 1 : 0;
+  const blocks = sharedContiguousBlocks(koChain, jaChain);
+  const maxBlockSec = blocks[0]?.duration_sec || 0;
+  const pairwiseScore = round3((overlapRatio * 0.35) + (chainSimilarity * 0.25) + (openingSimilarity * 0.25) + (highlightSimilarity * 0.15));
+  const failures = [];
+  if (openingSimilarity > thresholds.opening_similarity_score) failures.push('opening_similarity_threshold');
+  if (chainSimilarity > thresholds.chain_similarity_score) failures.push('chain_similarity_threshold');
+  if (pairwiseScore > thresholds.pairwise_overlap_score) failures.push('pairwise_overlap_threshold');
+  if (maxBlockSec > thresholds.shared_contiguous_block_max_sec) failures.push('shared_contiguous_block_threshold');
+  if (blocks.some((block) => block.length >= 3)) failures.push('three_shot_chain_threshold');
+  if (highlightSimilarity === 1) failures.push('top_three_highlight_order_identical');
+  return {
+    pair: 'ko_vs_ja',
+    pairwise_overlap_score: pairwiseScore,
+    opening_similarity_score: openingSimilarity,
+    chain_similarity_score: chainSimilarity,
+    source_range_overlap_ratio: overlapRatio,
+    major_highlight_ordering_similarity: highlightSimilarity,
+    shared_contiguous_blocks: blocks,
+    thresholds,
+    failed_gates: failures,
+    regeneration_attempts: regenerationAttempts,
+    final_status: failures.length ? 'fail' : 'pass'
+  };
+}
+
+function buildDraftSpec(localePlan) {
+  return {
+    artifact_type: 'midform_locale_draft_spec',
+    locale: localePlan.locale,
+    source_edit_plan_artifact: `edit_plan.${localePlan.locale}.json`,
+    clip_placement: localePlan.clip_chain.map((clip) => ({
+      clip_id: clip.clip_id,
+      source_range: clip.source_range,
+      timeline_range: clip.timeline_range,
+      visual_role: clip.role,
+      transition: clip.role === 'closing' ? 'soft_cut' : 'cut'
+    })),
+    shot_duration: localePlan.clip_chain.map((clip) => ({ clip_id: clip.clip_id, duration_sec: clip.duration_sec })),
+    reaction_insert: localePlan.reaction_support_ranges,
+    visual_pacing: localePlan.strategy.pace_profile,
+    optional_preset_image_timing: localePlan.locale === 'ja' ? 'after_opening_pause' : 'opening_hook_hold',
+    title_layer_timing: localePlan.locale === 'ja' ? [0.6, 5.2] : [0, 4.2],
+    subtitle_layout: localePlan.locale === 'ja' ? 'measured_two_line_bottom_safe' : 'fast_compact_center_bottom',
+    tts_voice_timing: localePlan.locale === 'ja' ? 'measured_pause_forward' : 'fast_direct'
+  };
+}
+
+function buildAcceptanceGate(localePlan, overlapReport) {
+  const failures = [];
+  if (!Array.isArray(localePlan.clip_chain) || localePlan.clip_chain.length === 0) failures.push('clip_chain_empty');
+  if (!Array.isArray(localePlan.opening_window) || localePlan.opening_window.length === 0) failures.push('opening_window_empty');
+  if (!Array.isArray(localePlan.highlight_order) || localePlan.highlight_order.length === 0) failures.push('highlight_order_empty');
+  if (overlapReport.final_status !== 'pass') failures.push(...overlapReport.failed_gates.map((gate) => `pairwise_${gate}`));
+  return {
+    artifact_type: 'midform_locale_acceptance_gates',
+    locale: localePlan.locale,
+    status: failures.length ? 'failed' : 'passed',
+    failed: [...new Set(failures)],
+    warnings: [],
+    checks: {
+      has_clip_chain: localePlan.clip_chain.length > 0,
+      has_opening_window: localePlan.opening_window.length > 0,
+      has_highlight_order: localePlan.highlight_order.length > 0,
+      pairwise_overlap_passed: overlapReport.final_status === 'pass'
+    }
+  };
+}
+
+function buildLocaleBranchArtifacts({ normalizedRequest, beatsObject, editPlan, transcript, compressionManifest }) {
+  const evidencePack = buildEvidencePack({ normalizedRequest, beatsObject, editPlan, transcript, compressionManifest });
+  const strategies = Object.fromEntries(LOCALES.map((locale) => [locale, buildLocaleEditorialStrategy(locale, evidencePack)]));
+  const koPlan = buildLocaleEditPlan(editPlan, strategies.ko, evidencePack, 0);
+  let jaPlan = buildLocaleEditPlan(editPlan, strategies.ja, evidencePack, 0);
+  let overlapReport = compareLocaleEditPlans(koPlan, jaPlan, OVERLAP_THRESHOLDS, 0);
+  let attempts = 0;
+  while (overlapReport.final_status !== 'pass' && attempts < 4) {
+    attempts += 1;
+    jaPlan = buildLocaleEditPlan(editPlan, strategies.ja, evidencePack, attempts);
+    overlapReport = compareLocaleEditPlans(koPlan, jaPlan, OVERLAP_THRESHOLDS, attempts);
+  }
+  const draftSpecs = { ko: buildDraftSpec(koPlan), ja: buildDraftSpec(jaPlan) };
+  const acceptanceGates = {
+    ko: buildAcceptanceGate(koPlan, overlapReport),
+    ja: buildAcceptanceGate(jaPlan, overlapReport)
+  };
+  return {
+    evidencePack,
+    editorialStrategies: strategies,
+    editPlans: { ko: koPlan, ja: jaPlan },
+    draftSpecs,
+    overlapReport,
+    acceptanceGates,
+    outputPaths: {
+      evidence_pack: 'evidence_pack.json',
+      editorial_strategy_ko: 'editorial_strategy.ko.json',
+      editorial_strategy_ja: 'editorial_strategy.ja.json',
+      edit_plan_ko: 'edit_plan.ko.json',
+      edit_plan_ja: 'edit_plan.ja.json',
+      draft_spec_ko: 'draft_spec.ko.json',
+      draft_spec_ja: 'draft_spec.ja.json',
+      overlap_report_ko_vs_ja: 'overlap_report.ko_vs_ja.json',
+      acceptance_gates_ko: 'acceptance_gates.ko.json',
+      acceptance_gates_ja: 'acceptance_gates.ja.json'
+    }
+  };
+}
+
+module.exports = {
+  OVERLAP_THRESHOLDS,
+  buildAcceptanceGate,
+  buildDraftSpec,
+  buildEvidencePack,
+  buildLocaleBranchArtifacts,
+  buildLocaleEditPlan,
+  buildLocaleEditorialStrategy,
+  compareLocaleEditPlans,
+  _test: {
+    activeTimeline,
+    rangeForSlot,
+    sourceRangeOverlapRatio,
+    sharedContiguousBlocks,
+    signatureForClip
+  }
+};

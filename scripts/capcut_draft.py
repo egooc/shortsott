@@ -2811,6 +2811,15 @@ def select_output_base_path(config=None):
     return default_output_base
 
 
+def sanitize_draft_name(value):
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    safe = re.sub(r"[^A-Za-z0-9가-힣_.-]+", "_", text)
+    safe = safe.strip("._ ")[:80]
+    return safe or ""
+
+
 def get_source_preprocess_config(process_config=None):
     raw = process_config.get("source_preprocess") if isinstance(process_config, dict) else {}
     if not isinstance(raw, dict):
@@ -9455,7 +9464,7 @@ def create_draft(input_json_path):
     create_zip = draft_output_policy["create_zip"]
     final_slot_tail_allowance_sec = max(0.0, safe_float(data.get("finalSlotTailAllowanceSec") or data.get("tailAllowanceSec"), MIDFORM_FINAL_SLOT_TAIL_ALLOWANCE_SEC))
 
-    draft_name = f"pipeline_{int(time.time())}"
+    draft_name = sanitize_draft_name(data.get("draftName") or data.get("draft_name")) or f"pipeline_{int(time.time())}"
     output_base = select_output_base_path(data)
     os.makedirs(output_base, exist_ok=True)
     draft_path = os.path.abspath(os.path.join(output_base, draft_name))

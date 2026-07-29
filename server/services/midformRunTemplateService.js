@@ -10,6 +10,8 @@ const { runCompression, runCompressionApply, refreshCompressionPlan } = require(
 const { runBootstrapToPipeline } = require('./midformBootstrapAdapterService');
 const { getRun, startRun } = require('./midformPipelineService');
 const { collectRunArtifacts, copyIfExists, ensureDir, rel, writeJson, writeText } = require('./midformRunArtifactsService');
+const { generateLocaleDraftArtifacts } = require('./midformLocaleDraftService');
+const { buildLocaleBranchArtifacts } = require('./midformLocaleBranchService');
 
 const SCHEMA_PATH = path.join(PROJECT_ROOT, 'midform', 'schemas', 'midform_run_template_schema.json');
 const WORKSPACE_ROOT = path.join(PROJECT_ROOT, 'midform', 'test_runs', 'template_runs');
@@ -269,6 +271,43 @@ function copyCompressionArtifacts(compressionRunDir, workspaceDir) {
   copyIfExists(path.join(compressionRunDir, 'upload_text.md'), path.join(workspaceDir, 'upload_text.md'));
 }
 
+function writeLocaleBranchArtifacts(workspaceDir, normalizedRequest, compressionRunDir) {
+  const beatsObject = readJsonIfExists(path.join(compressionRunDir, 'narrative_beats.json')) || {};
+  const editPlan = readJsonIfExists(path.join(compressionRunDir, 'edit_plan.json')) || {};
+  const transcript = readJsonIfExists(path.join(compressionRunDir, 'transcript_timed.json')) || [];
+  const compressionManifest = readJsonIfExists(path.join(compressionRunDir, 'compression_manifest.json')) || {};
+  const artifacts = buildLocaleBranchArtifacts({
+    normalizedRequest,
+    beatsObject,
+    editPlan,
+    transcript,
+    compressionManifest
+  });
+  const paths = {
+    evidence_pack: path.join(workspaceDir, 'evidence_pack.json'),
+    editorial_strategy_ko: path.join(workspaceDir, 'editorial_strategy.ko.json'),
+    editorial_strategy_ja: path.join(workspaceDir, 'editorial_strategy.ja.json'),
+    edit_plan_ko: path.join(workspaceDir, 'edit_plan.ko.json'),
+    edit_plan_ja: path.join(workspaceDir, 'edit_plan.ja.json'),
+    draft_spec_ko: path.join(workspaceDir, 'draft_spec.ko.json'),
+    draft_spec_ja: path.join(workspaceDir, 'draft_spec.ja.json'),
+    overlap_report_ko_vs_ja: path.join(workspaceDir, 'overlap_report.ko_vs_ja.json'),
+    acceptance_gates_ko: path.join(workspaceDir, 'acceptance_gates.ko.json'),
+    acceptance_gates_ja: path.join(workspaceDir, 'acceptance_gates.ja.json')
+  };
+  writeJson(paths.evidence_pack, artifacts.evidencePack);
+  writeJson(paths.editorial_strategy_ko, artifacts.editorialStrategies.ko);
+  writeJson(paths.editorial_strategy_ja, artifacts.editorialStrategies.ja);
+  writeJson(paths.edit_plan_ko, artifacts.editPlans.ko);
+  writeJson(paths.edit_plan_ja, artifacts.editPlans.ja);
+  writeJson(paths.draft_spec_ko, artifacts.draftSpecs.ko);
+  writeJson(paths.draft_spec_ja, artifacts.draftSpecs.ja);
+  writeJson(paths.overlap_report_ko_vs_ja, artifacts.overlapReport);
+  writeJson(paths.acceptance_gates_ko, artifacts.acceptanceGates.ko);
+  writeJson(paths.acceptance_gates_ja, artifacts.acceptanceGates.ja);
+  return Object.fromEntries(Object.entries(paths).map(([key, value]) => [key, rel(value)]));
+}
+
 function buildStoryBeatmap(normalizedRequest, beatsObject, editPlan) {
   return {
     artifact_type: 'midform_story_beatmap',
@@ -441,6 +480,31 @@ function finalSummaryFromQa(summary, qa, finalPipelineState, analysisRun) {
   };
 }
 
+function updateLocaleAcceptanceGatesWithFinalDraft(workspaceDir, finalOverlapReport) {
+  const outputPaths = {};
+  for (const locale of ['ko', 'ja']) {
+    const gatePath = path.join(workspaceDir, `acceptance_gates.${locale}.json`);
+    const existing = readJsonIfExists(gatePath) || { artifact_type: 'midform_locale_acceptance_gates', locale, failed: [], warnings: [], checks: {} };
+    const failed = new Set(Array.isArray(existing.failed) ? existing.failed : []);
+    if (finalOverlapReport.final_status !== 'pass') {
+      for (const gate of finalOverlapReport.failed_gates || []) failed.add(`final_draft_${gate}`);
+    }
+    const next = {
+      ...existing,
+      status: failed.size ? 'failed' : 'passed',
+      failed: [...failed],
+      checks: {
+        ...(existing.checks || {}),
+        final_draft_video_track_overlap_passed: finalOverlapReport.final_status === 'pass'
+      },
+      final_draft_overlap: finalOverlapReport
+    };
+    writeJson(gatePath, next);
+    outputPaths[`acceptance_gates_${locale}`] = rel(gatePath);
+  }
+  return outputPaths;
+}
+
 function collectQaForPipeline({ workspace, normalizedRequest, pipelineState }) {
   const pipelineRunDir = pipelineState.runDir;
   const draftRoot = pipelineState.artifacts?.draft?.draftPath || pipelineState.artifacts?.draft?.draft_root || '';
@@ -560,6 +624,14 @@ async function runMidformTemplateWorkflow(options = {}) {
       writeJson(workspace.beatmapPath, buildStoryBeatmap(normalizedRequest, beatsObject, editPlan));
     }
 
+    const localeBranchOutputPaths = writeLocaleBranchArtifacts(workspace.workspaceDir, normalizedRequest, compressionRunDir);
+    summary.internal.locale_branch_artifacts = localeBranchOutputPaths;
+    summary.output_paths = {
+      ...summary.output_paths,
+      ...localeBranchOutputPaths
+    };
+    writeJson(workspace.summaryPath, summary);
+
     if (shouldRunStage(resumeStage, 'bootstrap') || !fs.existsSync(path.join(workspace.workspaceDir, 'slot_map.json'))) {
       let bootstrapSourceRunId = compressionRunId;
       let bootstrapSourceRunDir = compressionRunDir;
@@ -617,6 +689,22 @@ async function runMidformTemplateWorkflow(options = {}) {
       writeJson(workspace.summaryPath, failedSummary);
       return failedSummary;
     }
+
+    const localeDrafts = await generateLocaleDraftArtifacts({
+      workspaceDir: workspace.workspaceDir,
+      baseDraftInputPath: path.join(finalPipelineState.runDir, 'draft_input.json'),
+      sourceVideoPath: finalPipelineState.artifacts?.sourceVideoPath || '',
+      transcriptPath: finalPipelineState.artifacts?.transcriptPath || ''
+    });
+    const localeAcceptancePaths = updateLocaleAcceptanceGatesWithFinalDraft(workspace.workspaceDir, localeDrafts.finalOverlapReport);
+    summary.internal.locale_draft_artifacts = localeDrafts.outputPaths;
+    summary.internal.final_draft_overlap = localeDrafts.finalOverlapReport;
+    summary.output_paths = {
+      ...summary.output_paths,
+      ...localeDrafts.outputPaths,
+      ...localeAcceptancePaths
+    };
+    writeJson(workspace.summaryPath, summary);
 
     const qa = collectQaForPipeline({ workspace, normalizedRequest, pipelineState: finalPipelineState });
     const autoDecision = normalizedRequest.analysis.mode === 'auto'
@@ -677,7 +765,19 @@ async function runMidformTemplateWorkflow(options = {}) {
       return escalatedSummary;
     }
 
-    const finalSummary = finalSummaryFromQa(summary, qa, finalPipelineState, summary.analysis_run);
+    let finalSummary = finalSummaryFromQa(summary, qa, finalPipelineState, summary.analysis_run);
+    if (localeDrafts.finalOverlapReport.final_status !== 'pass') {
+      finalSummary = {
+        ...finalSummary,
+        status: 'failed',
+        failure_reason: {
+          stage: 'final_draft_overlap',
+          code: 'MIDFORM_LOCALE_DRAFT_OVERLAP_FAILED',
+          message: 'KO/JA final draft video-track overlap gates failed',
+          details: localeDrafts.finalOverlapReport
+        }
+      };
+    }
     writeJson(workspace.summaryPath, finalSummary);
     return finalSummary;
   } catch (error) {
