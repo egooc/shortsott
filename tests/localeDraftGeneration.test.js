@@ -7,6 +7,7 @@ const test = require('node:test');
 const {
   buildLocaleDraftInput,
   generateLocaleDraftArtifacts,
+  normalizeDraftSpecSourceRanges,
   placementBySlot,
   replanJaDraftSpecForFinalOverlap,
   secondsToTimecode
@@ -112,7 +113,38 @@ test('buildLocaleDraftInput rewrites video source_scenes from draft_spec without
   assert.equal(localeInput.segments[1].source_scenes[0].start, '01:20.000');
   assert.equal(localeInput.segments[1].source_scenes[0].end, '01:30.000');
   assert.equal(localeInput.segments[1].source_clips[0].end, '01:30.000');
+  assert.equal(localeInput.segments[1].narration_background, true);
+  assert.equal(localeInput.segments[1].source_audio_ducking, 0);
   assert.equal(localeInput.segments[0].locale_source_override, true);
+});
+
+test('buildLocaleDraftInput reorders physical segment chain from draft_spec placement order', () => {
+  const baseDraftInput = {
+    segments: [
+      { segment_id: 'slot_01', caption_text: '첫 번째', source_scenes: [{ start: '00:01.000', end: '00:03.000' }] },
+      { segment_id: 'slot_02', caption_text: '두 번째', source_scenes: [{ start: '00:05.000', end: '00:07.000' }] },
+      { segment_id: 'slot_03', caption_text: '세 번째', source_scenes: [{ start: '00:09.000', end: '00:11.000' }] }
+    ],
+    captionUnits: [
+      { caption_id: 'cap_01', segment_id: 'slot_01', text: '첫 번째' },
+      { caption_id: 'cap_02', segment_id: 'slot_02', text: '두 번째' },
+      { caption_id: 'cap_03', segment_id: 'slot_03', text: '세 번째' }
+    ]
+  };
+  const draftSpec = {
+    locale: 'ja',
+    clip_placement: [
+      { clip_id: 'ja_slot_03', source_range: [90, 92], visual_role: 'cold_open' },
+      { clip_id: 'ja_slot_01', source_range: [10, 12], visual_role: 'bridge' },
+      { clip_id: 'ja_slot_02', source_range: [40, 42], visual_role: 'payoff' }
+    ]
+  };
+
+  const localeInput = buildLocaleDraftInput(baseDraftInput, draftSpec, 'ja');
+
+  assert.deepEqual(localeInput.segments.map((segment) => segment.segment_id), ['slot_03', 'slot_01', 'slot_02']);
+  assert.deepEqual(localeInput.captionUnits.map((unit) => unit.segment_id), ['slot_03', 'slot_01', 'slot_02']);
+  assert.deepEqual(localeInput.segments[0].story_anchor.source_range_hint, [90, 92]);
 });
 
 test('generateLocaleDraftArtifacts creates separate folder-only KO/JA draft artifacts and final overlap report', async () => {
@@ -209,4 +241,47 @@ test('replanJaDraftSpecForFinalOverlap changes JA video source ranges instead of
   assert.notDeepEqual(replanned.clip_placement.map((clip) => clip.source_range), draftSpec.clip_placement.map((clip) => clip.source_range));
   assert.equal(replanned.final_draft_replan.strategy, 'ja_video_chain_reselection');
   assert.equal(replanned.clip_placement.every((clip) => clip.final_draft_replan_attempt === 1), true);
+});
+
+test('normalizeDraftSpecSourceRanges removes intra-locale source overlaps before physical render', () => {
+  const normalized = normalizeDraftSpecSourceRanges({
+    locale: 'ja',
+    clip_placement: [
+      { clip_id: 'ja_slot_01', source_range: [10, 14], visual_role: 'cold_open' },
+      { clip_id: 'ja_slot_02', source_range: [12, 16], visual_role: 'dialogue_anchor' },
+      { clip_id: 'ja_slot_03', source_range: [17, 20], visual_role: 'payoff' }
+    ]
+  }, { sourceDurationSec: 120 });
+
+  assert.deepEqual(normalized.clip_placement[0].source_range, [10, 14]);
+  assert.ok(normalized.clip_placement[1].source_range[0] > normalized.clip_placement[0].source_range[1]);
+  assert.equal(normalized.clip_placement[1].source_range_normalized_for_physical_draft, true);
+  assert.equal(normalized.shot_duration.length, 3);
+});
+
+test('normalizeDraftSpecSourceRanges preserves monotonic order near source tail', () => {
+  const normalized = normalizeDraftSpecSourceRanges({
+    locale: 'ja',
+    clip_placement: [
+      { clip_id: 'ja_slot_08', source_range: [120.72, 124.3], visual_role: 'payoff' },
+      { clip_id: 'ja_slot_09', source_range: [122.04, 140.04], visual_role: 'payoff' }
+    ]
+  }, { sourceDurationSec: 125 });
+
+  assert.ok(normalized.clip_placement[1].source_range[0] > normalized.clip_placement[0].source_range[1]);
+  assert.ok(normalized.clip_placement[1].source_range[1] <= 125);
+  assert.equal(normalized.clip_placement[1].source_range_normalized_for_physical_draft, true);
+});
+
+test('normalizeDraftSpecSourceRanges caps long source windows for physical edit clips', () => {
+  const normalized = normalizeDraftSpecSourceRanges({
+    locale: 'ja',
+    clip_placement: [
+      { clip_id: 'ja_slot_01', source_range: [10, 70], visual_role: 'bridge' },
+      { clip_id: 'ja_slot_02', source_range: [71, 90], visual_role: 'payoff' }
+    ]
+  }, { sourceDurationSec: 140 });
+
+  assert.ok(normalized.clip_placement[0].source_range[1] - normalized.clip_placement[0].source_range[0] <= 8);
+  assert.ok(normalized.clip_placement[1].source_range[0] > normalized.clip_placement[0].source_range[1]);
 });

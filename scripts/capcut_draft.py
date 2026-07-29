@@ -9599,6 +9599,18 @@ def create_draft(input_json_path):
                 clip = explicit_clips[0]
                 clip_start = parse_timecode_to_sec(clip.get("start"))
                 clip_end = parse_timecode_to_sec(clip.get("end"))
+                if str(clip.get("source") or "") == "locale_draft_spec" and clip_start is not None and clip_end is not None and clip_end > clip_start:
+                    return [
+                        {
+                            "clip_id": str(clip.get("clip_id") or f"locale_{utt_id}"),
+                            "scene_id": str(clip.get("scene_id") or ""),
+                            "utt_id": utt_id,
+                            "start": seconds_to_timecode(clip_start),
+                            "end": seconds_to_timecode(clip_end),
+                            "speed_multiplier": safe_float(clip.get("speed_multiplier"), 1.0) or 1.0,
+                            "source": "locale_draft_spec",
+                        }
+                    ]
                 if clip_start is not None and clip_end is not None and clip_start >= utterance["start"] - 0.05 and clip_end <= utterance["end"] + 0.05 and clip_end > clip_start:
                     return [
                         {

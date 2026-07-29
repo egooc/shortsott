@@ -8,6 +8,8 @@ const { buildSpeakerMetadata, resolveCaptionColor } = require('../utils/captionC
 
 const LOCALES = ['ko', 'ja'];
 const MAX_FINAL_DRAFT_REPLAN_ATTEMPTS = 4;
+const MAX_PHYSICAL_SOURCE_CLIP_SEC = 8;
+const PHYSICAL_SOURCE_GAP_SEC = 0.3;
 
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8').replace(/^\uFEFF/, ''));
@@ -36,6 +38,14 @@ function secondsToTimecode(value) {
     : `${String(minutes).padStart(2, '0')}:${secText}`;
 }
 
+function secondsFromTimecode(value) {
+  if (typeof value === 'number') return value;
+  const parts = String(value || '').split(':').map(Number);
+  if (parts.length === 3) return (parts[0] * 3600) + (parts[1] * 60) + parts[2];
+  if (parts.length === 2) return (parts[0] * 60) + parts[1];
+  return Number(value || 0);
+}
+
 function cloneJson(value) {
   return JSON.parse(JSON.stringify(value || null));
 }
@@ -54,6 +64,10 @@ function shiftedSourceRange(range, shiftSec, sourceDurationSec = 0) {
 }
 
 function inferSourceDurationSec(baseDraftInput, draftSpec) {
+  const baseClipEnds = (Array.isArray(baseDraftInput?.segments) ? baseDraftInput.segments : [])
+    .flatMap((segment) => [...(Array.isArray(segment?.source_scenes) ? segment.source_scenes : []), ...(Array.isArray(segment?.source_clips) ? segment.source_clips : [])])
+    .map((clip) => secondsFromTimecode(clip?.end ?? clip?.end_sec ?? clip?.end_time))
+    .filter(Number.isFinite);
   const candidates = [
     baseDraftInput?.sourceDurationSec,
     baseDraftInput?.source_duration_sec,
@@ -62,7 +76,7 @@ function inferSourceDurationSec(baseDraftInput, draftSpec) {
     baseDraftInput?.gptScript?.source_reference?.duration_sec,
     baseDraftInput?.claudeScript?.source_reference?.duration_sec,
     baseDraftInput?.movieResearch?.source_reference?.duration_sec,
-    ...(Array.isArray(draftSpec?.clip_placement) ? draftSpec.clip_placement.flatMap((placement) => placement?.source_range || []) : [])
+    ...baseClipEnds
   ].map(Number).filter(Number.isFinite);
   return Math.max(0, ...candidates);
 }
@@ -115,6 +129,54 @@ function replanJaDraftSpecForFinalOverlap(draftSpec, finalOverlapReport, attempt
   return next;
 }
 
+function normalizeDraftSpecSourceRanges(draftSpec, baseDraftInput = {}) {
+  const next = cloneJson(draftSpec);
+  const placements = Array.isArray(next?.clip_placement) ? next.clip_placement : [];
+  const sourceDurationSec = inferSourceDurationSec(baseDraftInput, next);
+  const cappedDurations = placements.map((placement) => {
+    const sourceRange = Array.isArray(placement?.source_range) ? placement.source_range.map(Number) : [];
+    return Number(sourceRange[1]) > Number(sourceRange[0]) ? Math.min(rangeDuration(sourceRange), MAX_PHYSICAL_SOURCE_CLIP_SEC) : 0;
+  });
+  const remainingPackedDuration = (index) => cappedDurations
+    .slice(index + 1)
+    .filter((duration) => duration > 0)
+    .reduce((sum, duration, remainingIndex) => sum + duration + (remainingIndex >= 0 ? PHYSICAL_SOURCE_GAP_SEC : 0), 0);
+  let lastEnd = 0;
+  next.clip_placement = placements.map((placement, index) => {
+    const sourceRange = Array.isArray(placement?.source_range) ? placement.source_range.map(Number) : [];
+    if (!(Number(sourceRange[1]) > Number(sourceRange[0]))) return placement;
+    const originalDuration = rangeDuration(sourceRange);
+    const duration = cappedDurations[index];
+    const minStart = lastEnd > 0 ? lastEnd + PHYSICAL_SOURCE_GAP_SEC : 0;
+    let start = Math.max(Number(sourceRange[0]), minStart);
+    if (sourceDurationSec > 0) {
+      const latestStartToFitRest = sourceDurationSec - duration - remainingPackedDuration(index);
+      if (start > latestStartToFitRest) start = Math.max(minStart, latestStartToFitRest);
+    }
+    let end = start + duration;
+    let adjusted = start !== Number(sourceRange[0]) || duration !== originalDuration;
+    if (sourceDurationSec > 0 && end > sourceDurationSec) {
+      end = sourceDurationSec;
+      if (end <= start) end = Math.min(sourceDurationSec, start + 0.5);
+      adjusted = true;
+    }
+    const normalized = [Number(start.toFixed(3)), Number(end.toFixed(3))];
+    lastEnd = Math.max(lastEnd, normalized[1]);
+    return adjusted
+      ? {
+          ...placement,
+          source_range: normalized,
+          source_range_normalized_for_physical_draft: true
+        }
+      : placement;
+  });
+  next.shot_duration = next.clip_placement.map((placement) => ({
+    clip_id: placement.clip_id,
+    duration_sec: Number(rangeDuration(placement.source_range).toFixed(3))
+  }));
+  return next;
+}
+
 function placementBySlot(draftSpec) {
   const map = new Map();
   const placements = Array.isArray(draftSpec?.clip_placement) ? draftSpec.clip_placement : [];
@@ -127,8 +189,26 @@ function placementBySlot(draftSpec) {
   return map;
 }
 
+function placementOrderBySlot(draftSpec) {
+  const map = new Map();
+  const placements = Array.isArray(draftSpec?.clip_placement) ? draftSpec.clip_placement : [];
+  placements.forEach((placement, index) => {
+    const slotId = String(placement?.clip_id || '').replace(/^(ko|ja)_/, '') || String(placement?.slot_id || '');
+    if (slotId && !map.has(slotId)) map.set(slotId, index);
+  });
+  return map;
+}
+
+function slotKeyForSegment(segment) {
+  const segmentId = String(segment?.segment_id || '').trim();
+  const parentSlotId = String(segment?.parent_slot_id || '').trim();
+  return parentSlotId || segmentId;
+}
+
 function applyDraftSpecToSegment(segment, placement) {
   const sourceRange = placement.source_range;
+  const segmentType = String(segment?.segment_type || '').trim();
+  const isDialogue = ['dialogue_quote', 'dialogue'].includes(segmentType);
   const sourceScene = {
     clip_id: `${placement.clip_id || segment.segment_id}_locale_clip`,
     scene_id: `${placement.visual_role || 'locale'}_${placement.clip_id || segment.segment_id}`,
@@ -140,6 +220,7 @@ function applyDraftSpecToSegment(segment, placement) {
     ...segment,
     locale_source_override: true,
     locale_clip_id: placement.clip_id || '',
+    ...(isDialogue ? {} : { narration_background: true, source_audio_ducking: 0 }),
     source_scenes: [sourceScene],
     source_clips: [
       {
@@ -156,24 +237,30 @@ function applyDraftSpecToSegment(segment, placement) {
 
 function buildLocaleDraftInput(baseDraftInput, draftSpec, locale) {
   const bySlot = placementBySlot(draftSpec);
-  const segments = (Array.isArray(baseDraftInput?.segments) ? baseDraftInput.segments : []).map((segment) => {
+  const orderBySlot = placementOrderBySlot(draftSpec);
+  const segments = (Array.isArray(baseDraftInput?.segments) ? baseDraftInput.segments : []).map((segment, originalIndex) => {
     const segmentId = String(segment?.segment_id || '');
     const parentSlotId = String(segment?.parent_slot_id || '').trim();
     const placement = bySlot.get(segmentId) || (parentSlotId ? bySlot.get(parentSlotId) : null);
-    return placement ? applyDraftSpecToSegment(segment, placement) : { ...segment };
-  });
+    return {
+      ...(placement ? applyDraftSpecToSegment(segment, placement) : { ...segment }),
+      locale_original_order: originalIndex,
+      locale_draft_order: orderBySlot.has(slotKeyForSegment(segment)) ? orderBySlot.get(slotKeyForSegment(segment)) : originalIndex + 10_000
+    };
+  }).sort((left, right) => Number(left.locale_draft_order || 0) - Number(right.locale_draft_order || 0) || Number(left.locale_original_order || 0) - Number(right.locale_original_order || 0));
   const segmentById = new Map(segments.map((segment) => [String(segment?.segment_id || ''), segment]));
-  const captionUnits = (Array.isArray(baseDraftInput?.captionUnits) ? baseDraftInput.captionUnits : []).map((unit) => {
+  const segmentOrder = new Map(segments.map((segment, index) => [String(segment?.segment_id || ''), index]));
+  const captionUnits = (Array.isArray(baseDraftInput?.captionUnits) ? baseDraftInput.captionUnits : []).map((unit, originalIndex) => {
     const segment = segmentById.get(String(unit?.segment_id || '')) || {};
     const metadata = buildSpeakerMetadata(unit, segment);
-    const next = { ...unit, ...metadata };
+    const next = { ...unit, ...metadata, locale_original_order: originalIndex, locale_draft_order: segmentOrder.get(String(unit?.segment_id || '')) ?? originalIndex + 10_000 };
     if (metadata.caption_kind === 'dialogue') {
       if (metadata.speaker_alias) next.speaker = metadata.speaker_alias;
       const color = resolveCaptionColor({ speakerAlias: next.speaker_alias || next.speaker, speakerColorKey: next.speaker_color_key });
       if (color) next.caption_color = color;
     }
     return next;
-  });
+  }).sort((left, right) => Number(left.locale_draft_order || 0) - Number(right.locale_draft_order || 0) || Number(left.locale_original_order || 0) - Number(right.locale_original_order || 0));
   return {
     ...baseDraftInput,
     locale,
@@ -249,7 +336,10 @@ async function generateLocaleDraftArtifacts({ workspaceDir, baseDraftInputPath, 
   const outputPaths = {};
   const draftSpecs = Object.fromEntries(LOCALES.map((locale) => [locale, readJson(path.join(workspaceDir, `draft_spec.${locale}.json`))]));
   const renderLocale = async (locale, draftSpec, attempt = 0) => {
-    const localeDraftInput = buildLocaleDraftInput(baseDraftInput, draftSpec, locale);
+    const normalizedDraftSpec = normalizeDraftSpecSourceRanges(draftSpec, baseDraftInput);
+    draftSpecs[locale] = normalizedDraftSpec;
+    writeJson(path.join(workspaceDir, `draft_spec.${locale}.json`), normalizedDraftSpec);
+    const localeDraftInput = buildLocaleDraftInput(baseDraftInput, normalizedDraftSpec, locale);
     localeDraftInput.finalDraftReplanAttempt = attempt;
     const draftInputPath = path.join(workspaceDir, `draft_input.${locale}.json`);
     writeJson(draftInputPath, localeDraftInput);
@@ -292,11 +382,14 @@ module.exports = {
   buildLocaleDraftInput,
   generateLocaleDraftFromInput,
   generateLocaleDraftArtifacts,
+  normalizeDraftSpecSourceRanges,
   placementBySlot,
+  placementOrderBySlot,
   replanJaDraftSpecForFinalOverlap,
   secondsToTimecode,
   _test: {
     cloneJson,
+    normalizeDraftSpecSourceRanges,
     shiftedSourceRange
   }
 };
