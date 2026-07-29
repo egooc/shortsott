@@ -2,6 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const dotenv = require('dotenv');
 const { PROJECT_ROOT } = require('../server/services/pipelinePaths');
 const {
   exportChannelSheetCsv,
@@ -17,6 +18,8 @@ const { runMidformTemplateWorkflow } = require('../server/services/midformRunTem
 const { runMidformFullAutoWorkflow } = require('../server/services/midformFullAutoService');
 
 const DEFAULT_CHANNEL_SHEET_PATH = path.join(PROJECT_ROOT, 'midform', 'materials', 'channels_sheet.csv');
+
+dotenv.config({ path: path.join(PROJECT_ROOT, '.env') });
 
 function encodeCsvValue(value) {
   const text = String(value ?? '');
