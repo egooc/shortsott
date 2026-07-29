@@ -80,7 +80,7 @@ test('locale evidence pack merges full-auto supplemental reaction and coverage s
     supplementalEvidence: {
       comment_reaction_summary: { repeated_keywords: [{ keyword: 'reveal', count: 3 }], repeated_emotions: [], misunderstandings: ['viewer confusion'], scene_mentions: ['ending scene'], title_thumbnail_phrases: [] },
       retention_signals: { intro: { elapsedVideoTimeRatio: 0.01 }, top_moments: [{ elapsedVideoTimeRatio: 0.4 }], spikes: [], dips: [], rewatch_zones: [] },
-      heatmap_signals: { source: 'internal_adapter', peaks: [{ start_sec: 120, end_sec: 126, score: 0.9 }], high_replay_windows: [{ start_sec: 120, end_sec: 126, score: 0.9 }] },
+      heatmap_signals: { source: 'youtube_public_most_replayed', coverage: true, peaks: [{ start_sec: 120, end_sec: 126, score: 0.9 }], high_replay_windows: [{ start_sec: 120, end_sec: 126, score: 0.9 }] },
       evidence_coverage: { comments: true, retention: true, heatmap: true },
       coverage_notes: { retention: '' }
     }
@@ -89,7 +89,30 @@ test('locale evidence pack merges full-auto supplemental reaction and coverage s
   assert.equal(artifacts.evidencePack.comment_reaction_summary.repeated_keywords[0].keyword, 'reveal');
   assert.equal(artifacts.evidencePack.retention_signals.intro.elapsedVideoTimeRatio, 0.01);
   assert.equal(artifacts.evidencePack.heatmap_signals.high_replay_windows.length, 1);
+  assert.equal(artifacts.evidencePack.heatmap_priority_ranges[0].start_sec, 120);
+  assert.ok(artifacts.evidencePack.scene_candidates.find((beat) => beat.beat_id === 'beat_03').heatmap_overlap_score > 0);
   assert.deepEqual(artifacts.evidencePack.evidence_coverage, { comments: true, retention: true, heatmap: true, transcript: true });
+});
+
+test('public heatmap windows influence locale edit plan metadata and highlight priority', () => {
+  const inputs = sampleInputs();
+  const artifacts = buildLocaleBranchArtifacts({
+    ...inputs,
+    supplementalEvidence: {
+      heatmap_signals: {
+        source: 'youtube_public_most_replayed',
+        coverage: true,
+        high_replay_windows: [{ start_sec: 170, end_sec: 195, peak_score: 0.98 }],
+        peaks: [{ start_sec: 180, end_sec: 184, score: 0.98 }]
+      },
+      evidence_coverage: { heatmap: true }
+    }
+  });
+
+  const payoffClip = artifacts.editPlans.ko.clip_chain.find((clip) => clip.slot_id === 'slot_05');
+  assert.ok(payoffClip.heatmap_overlap_score > 0);
+  assert.equal(artifacts.editPlans.ko.heatmap_priority_ranges[0].start_sec, 170);
+  assert.ok(artifacts.editPlans.ko.highlight_order.includes('beat_04'));
 });
 
 test('locale edit plans produce different opening chains and pass overlap guard', () => {

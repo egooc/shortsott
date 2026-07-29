@@ -27,6 +27,7 @@ function buildTemplateBody(locale, evidencePack = {}) {
   const misunderstandings = Array.isArray(reaction.misunderstandings) ? reaction.misunderstandings.slice(0, 8) : [];
   const topMoments = Array.isArray(retention.top_moments) ? retention.top_moments.slice(0, 6).map((item) => JSON.stringify(item)) : [];
   const replayWindows = Array.isArray(heatmap.high_replay_windows) ? heatmap.high_replay_windows.slice(0, 6).map((item) => JSON.stringify(item)) : [];
+  const heatmapSource = normalizeText(heatmap.source || 'youtube_public_most_replayed');
   const verifiedCharacters = Array.isArray(evidencePack.verified_facts?.characters) ? evidencePack.verified_facts.characters : [];
   const verifiedEvents = Array.isArray(evidencePack.verified_facts?.events) ? evidencePack.verified_facts.events : [];
   return [
@@ -63,6 +64,10 @@ function buildTemplateBody(locale, evidencePack = {}) {
     '',
     '## Retention / heatmap influence',
     bulletList([...topMoments, ...replayWindows], 'retention/heatmap unavailable; prioritize transcript, scene candidates, and dialogue evidence'),
+    `- Heatmap source: ${heatmapSource}`,
+    isJa
+      ? '- Use public Most Replayed windows as tension/payoff anchors, but reveal them after a measured buildup instead of copying the KO opening.'
+      : '- Use public Most Replayed windows for the opening hook, must-keep visual callbacks, and fastest payoff setup when they overlap verified scene candidates.',
     '',
     '## Prohibitions',
     '- Do not invent facts not present in evidence_pack.json.',

@@ -2,7 +2,7 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 
 const { buildReactionSummary } = require('../server/services/youtubeCommentsAdapterService');
-const { buildRetentionSignals } = require('../server/services/youtubeRetentionAdapterService');
+const { buildRetentionSignals, collectYouTubeRetention } = require('../server/services/youtubeRetentionAdapterService');
 const { buildTemplateBody } = require('../server/services/midformTemplateWriterService');
 const {
   buildAutoTemplateMarkdown,
@@ -47,14 +47,25 @@ test('full-auto supplemental evidence records adapter coverage without blocking 
   const evidence = buildSupplementalEvidence({
     sourceUrl: 'https://www.youtube.com/watch?v=abcdefghijk',
     comments: { evidence_coverage: true, top_comments: [{ text: 'great scene' }], recent_comments: [], reaction_summary: { repeated_keywords: [{ keyword: 'scene', count: 1 }] } },
-    retention: { evidence_coverage: false, unavailable_reason: 'youtube_analytics_token_missing', retention_signals: { intro: {}, top_moments: [], spikes: [], dips: [], rewatch_zones: [] } },
-    heatmap: { evidence_coverage: false, unavailable_reason: 'heatmap_adapter_not_configured', heatmap_signals: { source: 'internal_adapter', peaks: [], high_replay_windows: [] } }
+    retention: { status: 'skipped', evidence_coverage: false, unavailable_reason: 'owner_analytics_not_requested', retention_signals: { status: 'skipped', coverage: false, source: 'youtube_owner_analytics', intro: {}, top_moments: [], spikes: [], dips: [], rewatch_zones: [] } },
+    heatmap: { status: 'unavailable', evidence_coverage: false, unavailable_reason: 'public_heatmap_unavailable', heatmap_signals: { status: 'unavailable', coverage: false, source: 'youtube_public_most_replayed', peaks: [], high_replay_windows: [] } }
   });
 
   assert.equal(evidence.video_id, 'abcdefghijk');
   assert.equal(evidence.evidence_coverage.comments, true);
   assert.equal(evidence.evidence_coverage.retention, false);
-  assert.equal(evidence.coverage_notes.retention, 'youtube_analytics_token_missing');
+  assert.equal(evidence.coverage_notes.retention, 'owner_analytics_not_requested');
+  assert.equal(evidence.retention_signals.source, 'youtube_owner_analytics');
+  assert.equal(evidence.heatmap_signals.source, 'youtube_public_most_replayed');
+});
+
+test('owner analytics retention is skipped by default for external public videos', async () => {
+  const result = await collectYouTubeRetention('https://www.youtube.com/watch?v=abcdefghijk');
+
+  assert.equal(result.status, 'skipped');
+  assert.equal(result.evidence_coverage, false);
+  assert.equal(result.unavailable_reason, 'owner_analytics_not_requested');
+  assert.equal(result.retention_signals.source, 'youtube_owner_analytics');
 });
 
 test('auto template body and markdown include production instructions without touching front matter later', () => {
@@ -70,6 +81,7 @@ test('auto template body and markdown include production instructions without to
   assert.match(body, /JA Auto Template Body/);
   assert.match(body, /Do you remember me\?/);
   assert.match(body, /caption-only duplicate/);
+  assert.match(body, /Most Replayed windows/);
   assert.match(markdown, /source:/);
   assert.match(markdown, /target_length_sec: 160/);
   assert.match(markdown, /JA Auto Template Body/);

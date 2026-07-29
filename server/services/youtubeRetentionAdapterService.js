@@ -14,6 +14,20 @@ function unavailable(reason, details = {}) {
   };
 }
 
+function skipped(reason, details = {}) {
+  return {
+    status: 'skipped',
+    retention_signals: { status: 'skipped', coverage: false, source: 'youtube_owner_analytics', reason, intro: {}, top_moments: [], spikes: [], dips: [], rewatch_zones: [] },
+    evidence_coverage: false,
+    unavailable_reason: reason,
+    details
+  };
+}
+
+function shouldIncludeOwnerAnalytics(options = {}) {
+  return options.include_owner_analytics === true || options.includeOwnerAnalytics === true;
+}
+
 function accessTokenFromOptions(options = {}) {
   return normalizeText(options.accessToken || process.env.YOUTUBE_ANALYTICS_ACCESS_TOKEN || process.env.YOUTUBE_OAUTH_ACCESS_TOKEN);
 }
@@ -52,10 +66,11 @@ function buildRetentionSignals(rows) {
 }
 
 async function collectYouTubeRetention(sourceUrl, options = {}) {
+  if (!shouldIncludeOwnerAnalytics(options)) return skipped('owner_analytics_not_requested');
   const videoId = extractYouTubeVideoId(sourceUrl);
   if (!videoId) return unavailable('video_id_unavailable', { sourceUrl });
   const accessToken = accessTokenFromOptions(options);
-  if (!accessToken) return unavailable('youtube_analytics_token_missing');
+  if (!accessToken) return skipped('owner_analytics_token_missing');
   const range = dateRange(options);
   const params = new URLSearchParams({
     ids: options.ids || 'channel==MINE',
@@ -80,7 +95,7 @@ async function collectYouTubeRetention(sourceUrl, options = {}) {
     return {
       status: 'available',
       video_id: videoId,
-      retention_signals: buildRetentionSignals(rows),
+      retention_signals: { status: 'available', coverage: true, source: 'youtube_owner_analytics', ...buildRetentionSignals(rows) },
       evidence_coverage: true,
       unavailable_reason: '',
       date_range: range
@@ -92,5 +107,6 @@ async function collectYouTubeRetention(sourceUrl, options = {}) {
 
 module.exports = {
   buildRetentionSignals,
-  collectYouTubeRetention
+  collectYouTubeRetention,
+  shouldIncludeOwnerAnalytics
 };

@@ -46,8 +46,8 @@ function stableHash(value) {
 
 function buildSupplementalEvidence({ sourceUrl, comments, retention, heatmap }) {
   const videoId = extractYouTubeVideoId(sourceUrl);
-  const retentionSignals = retention?.retention_signals || { intro: {}, top_moments: [], spikes: [], dips: [], rewatch_zones: [] };
-  const heatmapSignals = heatmap?.heatmap_signals || { source: 'internal_adapter', peaks: [], high_replay_windows: [] };
+  const retentionSignals = retention?.retention_signals || { status: 'skipped', coverage: false, source: 'youtube_owner_analytics', reason: 'owner_analytics_not_requested', intro: {}, top_moments: [], spikes: [], dips: [], rewatch_zones: [] };
+  const heatmapSignals = heatmap?.heatmap_signals || { status: 'unavailable', coverage: false, source: 'youtube_public_most_replayed', reason: 'public_heatmap_unavailable', raw_point_count: 0, peaks: [], high_replay_windows: [] };
   return {
     artifact_type: 'midform_full_auto_supplemental_evidence',
     video_id: videoId,
@@ -73,10 +73,13 @@ function buildSupplementalEvidence({ sourceUrl, comments, retention, heatmap }) 
 }
 
 async function collectSupplementalEvidence(sourceUrl, options = {}) {
+  const commentsOptions = options.comments ? { ...options, ...options.comments } : options;
+  const retentionOptions = options.retention ? { ...options, ...options.retention } : options;
+  const heatmapOptions = options.heatmap ? { ...options, ...options.heatmap } : options;
   const [comments, retention, heatmap] = await Promise.all([
-    collectYouTubeComments(sourceUrl, options.comments || options),
-    collectYouTubeRetention(sourceUrl, options.retention || options),
-    collectYouTubeHeatmap(sourceUrl, options.heatmap || options)
+    collectYouTubeComments(sourceUrl, commentsOptions),
+    collectYouTubeRetention(sourceUrl, retentionOptions),
+    collectYouTubeHeatmap(sourceUrl, heatmapOptions)
   ]);
   return {
     comments,

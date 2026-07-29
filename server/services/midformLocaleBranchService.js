@@ -41,6 +41,28 @@ function rangeOverlap(a, b) {
   return Math.max(0, Math.min(Number(a?.[1] || 0), Number(b?.[1] || 0)) - Math.max(Number(a?.[0] || 0), Number(b?.[0] || 0)));
 }
 
+function normalizeHeatmapWindows(heatmapSignals = {}) {
+  const windows = Array.isArray(heatmapSignals.high_replay_windows) ? heatmapSignals.high_replay_windows : [];
+  return windows
+    .map((window) => {
+      const start = Number(window.start_sec ?? window.start ?? 0);
+      const end = Number(window.end_sec ?? window.end ?? 0);
+      const score = Number(window.peak_score ?? window.score ?? window.average_score ?? 0);
+      if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return null;
+      return { start_sec: round3(start), end_sec: round3(end), score: Number.isFinite(score) ? round3(score) : 0 };
+    })
+    .filter(Boolean)
+    .sort((left, right) => right.score - left.score || left.start_sec - right.start_sec);
+}
+
+function rangeHeatmapScore(range, heatmapWindows = []) {
+  const duration = Math.max(0.001, rangeDuration(range));
+  return round3(heatmapWindows.reduce((best, window) => {
+    const overlapRatio = rangeOverlap(range, [window.start_sec, window.end_sec]) / duration;
+    return Math.max(best, overlapRatio * Number(window.score || 0));
+  }, 0));
+}
+
 function slotDuration(slot) {
   return round3(Number(slot?.narration_estimated_duration_sec || slot?.estimated_duration_sec || slot?.duration || rangeDuration(rangeForSlot(slot)) || 0));
 }
@@ -111,7 +133,8 @@ function buildEvidencePack({ normalizedRequest = {}, beatsObject = {}, editPlan 
   }));
   const supplementalCoverage = supplementalEvidence?.evidence_coverage || {};
   const retentionSignals = supplementalEvidence?.retention_signals || emptyRetentionSignals(editPlan, beats);
-  const heatmapSignals = supplementalEvidence?.heatmap_signals || { source: 'compression_or_unavailable', peaks: [], high_replay_windows: [] };
+  const heatmapSignals = supplementalEvidence?.heatmap_signals || { status: 'unavailable', coverage: false, source: 'youtube_public_most_replayed', peaks: [], high_replay_windows: [] };
+  const heatmapWindows = normalizeHeatmapWindows(heatmapSignals);
   const commentReactionSummary = supplementalEvidence?.comment_reaction_summary || emptyReactionSummary();
   return {
     artifact_type: 'midform_locale_evidence_pack',
@@ -124,20 +147,25 @@ function buildEvidencePack({ normalizedRequest = {}, beatsObject = {}, editPlan 
     },
     duration_sec: round3(compressionManifest.durationSec || compressionManifest.duration_sec || editPlan.source_duration_sec || 0),
     transcript_segments: compactTranscriptSegments(transcript),
-    scene_candidates: beats.map((beat) => ({
+    scene_candidates: beats.map((beat) => {
+      const range = [round3(beat.start_sec), round3(beat.end_sec)];
+      return {
       beat_id: normalizeText(beat.beat_id),
-      start_sec: round3(beat.start_sec),
-      end_sec: round3(beat.end_sec),
+      start_sec: range[0],
+      end_sec: range[1],
       summary: normalizeText(beat.summary),
       dramatic_weight: Number(beat.dramatic_weight || 0),
       hook_potential: Number(beat.hook_potential || 0),
-      dialogue_quality: normalizeText(beat.dialogue_quality)
-    })),
+      dialogue_quality: normalizeText(beat.dialogue_quality),
+      heatmap_overlap_score: rangeHeatmapScore(range, heatmapWindows)
+      };
+    }),
     must_keep_dialogue_candidates: dialogueCandidates,
     must_keep_visual_candidates: visualCandidates,
     comment_reaction_summary: commentReactionSummary,
     retention_signals: retentionSignals,
     heatmap_signals: heatmapSignals,
+    heatmap_priority_ranges: heatmapWindows.slice(0, 8),
     verified_facts: {},
     ambiguities: [],
     evidence_coverage: {
@@ -226,7 +254,8 @@ function rolePriority(locale, slot) {
   return 7;
 }
 
-function buildClipChain(locale, timeline) {
+function buildClipChain(locale, timeline, evidencePack = {}) {
+  const heatmapWindows = normalizeHeatmapWindows(evidencePack.heatmap_signals || {});
   let cursor = 0;
   return timeline.map((slot, index) => {
     const range = rangeForSlot(slot);
@@ -239,7 +268,8 @@ function buildClipChain(locale, timeline) {
       decision: normalizeText(slot.decision),
       source_range: range,
       timeline_range: [round3(cursor), round3(cursor + duration)],
-      duration_sec: round3(duration)
+      duration_sec: round3(duration),
+      heatmap_overlap_score: rangeHeatmapScore(range, heatmapWindows)
     };
     cursor = round3(cursor + duration);
     return clip;
@@ -247,9 +277,14 @@ function buildClipChain(locale, timeline) {
 }
 
 function topHighlightOrder(timeline, evidencePack) {
-  const scoreByBeat = new Map((evidencePack.scene_candidates || []).map((beat) => [beat.beat_id, Number(beat.dramatic_weight || 0) + Number(beat.hook_potential || 0)]));
+  const heatmapWindows = normalizeHeatmapWindows(evidencePack.heatmap_signals || {});
+  const scoreByBeat = new Map((evidencePack.scene_candidates || []).map((beat) => [beat.beat_id, Number(beat.dramatic_weight || 0) + Number(beat.hook_potential || 0) + Number(beat.heatmap_overlap_score || 0) * 4]));
   const topBeatIds = new Set(timeline
-    .map((slot, index) => ({ beat_id: normalizeText(slot.beat_id), slot_id: normalizeText(slot.slot_id), score: scoreByBeat.get(normalizeText(slot.beat_id)) || 0, index }))
+    .map((slot, index) => {
+      const range = rangeForSlot(slot);
+      const heatmapScore = rangeHeatmapScore(range, heatmapWindows);
+      return { beat_id: normalizeText(slot.beat_id), slot_id: normalizeText(slot.slot_id), score: (scoreByBeat.get(normalizeText(slot.beat_id)) || 0) + heatmapScore * 6, index };
+    })
     .filter((item) => item.beat_id)
     .sort((left, right) => right.score - left.score || left.index - right.index)
     .slice(0, 3)
@@ -286,7 +321,7 @@ function buildLocaleEditPlan(baseEditPlan, strategy, evidencePack, attempt = 0) 
         : 'conflict-first branch keeps direct hook/payoff order with tighter source windows'
     };
   });
-  const clipChain = buildClipChain(locale, timeline);
+  const clipChain = buildClipChain(locale, timeline, evidencePack);
   const openingWindow = clipChain.filter((clip) => clip.timeline_range[0] < 15);
   return {
     artifact_type: 'midform_locale_edit_plan',
@@ -300,6 +335,7 @@ function buildLocaleEditPlan(baseEditPlan, strategy, evidencePack, attempt = 0) 
     reaction_support_ranges: timeline.filter((slot) => slot.decision === 'NARRATE').map((slot) => ({ slot_id: slot.slot_id, source_range: rangeForSlot(slot), policy: strategy.reaction_shot_policy })),
     opening_window: openingWindow,
     highlight_order: topHighlightOrder(timeline, evidencePack),
+    heatmap_priority_ranges: (evidencePack.heatmap_priority_ranges || []).slice(0, 8),
     timing_profile: {
       pace_profile: strategy.pace_profile,
       total_estimated_sec: round3(clipChain.reduce((sum, clip) => sum + clip.duration_sec, 0)),
