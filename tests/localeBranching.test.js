@@ -73,6 +73,25 @@ test('locale strategies encode different editorial decisions from common evidenc
   assert.notEqual(artifacts.editorialStrategies.ko.pace_profile, artifacts.editorialStrategies.ja.pace_profile);
 });
 
+test('locale evidence pack merges full-auto supplemental reaction and coverage signals', () => {
+  const inputs = sampleInputs();
+  const artifacts = buildLocaleBranchArtifacts({
+    ...inputs,
+    supplementalEvidence: {
+      comment_reaction_summary: { repeated_keywords: [{ keyword: 'reveal', count: 3 }], repeated_emotions: [], misunderstandings: ['viewer confusion'], scene_mentions: ['ending scene'], title_thumbnail_phrases: [] },
+      retention_signals: { intro: { elapsedVideoTimeRatio: 0.01 }, top_moments: [{ elapsedVideoTimeRatio: 0.4 }], spikes: [], dips: [], rewatch_zones: [] },
+      heatmap_signals: { source: 'internal_adapter', peaks: [{ start_sec: 120, end_sec: 126, score: 0.9 }], high_replay_windows: [{ start_sec: 120, end_sec: 126, score: 0.9 }] },
+      evidence_coverage: { comments: true, retention: true, heatmap: true },
+      coverage_notes: { retention: '' }
+    }
+  });
+
+  assert.equal(artifacts.evidencePack.comment_reaction_summary.repeated_keywords[0].keyword, 'reveal');
+  assert.equal(artifacts.evidencePack.retention_signals.intro.elapsedVideoTimeRatio, 0.01);
+  assert.equal(artifacts.evidencePack.heatmap_signals.high_replay_windows.length, 1);
+  assert.deepEqual(artifacts.evidencePack.evidence_coverage, { comments: true, retention: true, heatmap: true, transcript: true });
+});
+
 test('locale edit plans produce different opening chains and pass overlap guard', () => {
   const inputs = sampleInputs();
   const artifacts = buildLocaleBranchArtifacts(inputs);

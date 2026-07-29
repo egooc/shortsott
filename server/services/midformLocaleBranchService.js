@@ -62,7 +62,31 @@ function compactTranscriptSegments(transcript) {
     .filter((item) => item.text && item.end_sec > item.start_sec);
 }
 
-function buildEvidencePack({ normalizedRequest = {}, beatsObject = {}, editPlan = {}, transcript = [], compressionManifest = {} }) {
+function emptyReactionSummary() {
+  return {
+    repeated_keywords: [],
+    repeated_emotions: [],
+    misunderstandings: [],
+    scene_mentions: [],
+    title_thumbnail_phrases: []
+  };
+}
+
+function emptyRetentionSignals(editPlan = {}, beats = []) {
+  return {
+    intro: editPlan.cold_open_selection || {},
+    top_moments: beats
+      .slice()
+      .sort((left, right) => Number(right.dramatic_weight || 0) - Number(left.dramatic_weight || 0))
+      .slice(0, 5)
+      .map((beat) => ({ beat_id: normalizeText(beat.beat_id), score: Number(beat.dramatic_weight || 0), range: [round3(beat.start_sec), round3(beat.end_sec)] })),
+    spikes: [],
+    dips: [],
+    rewatch_zones: []
+  };
+}
+
+function buildEvidencePack({ normalizedRequest = {}, beatsObject = {}, editPlan = {}, transcript = [], compressionManifest = {}, supplementalEvidence = {} }) {
   const beats = Array.isArray(beatsObject?.beats) ? beatsObject.beats : [];
   const timeline = activeTimeline(editPlan);
   const dialogueCandidates = timeline
@@ -85,10 +109,19 @@ function buildEvidencePack({ normalizedRequest = {}, beatsObject = {}, editPlan 
     duration_sec: slotDuration(slot),
     scene_summary: normalizeText(slot.reason || slot.reused_conflict_axis || '')
   }));
+  const supplementalCoverage = supplementalEvidence?.evidence_coverage || {};
+  const retentionSignals = supplementalEvidence?.retention_signals || emptyRetentionSignals(editPlan, beats);
+  const heatmapSignals = supplementalEvidence?.heatmap_signals || { source: 'compression_or_unavailable', peaks: [], high_replay_windows: [] };
+  const commentReactionSummary = supplementalEvidence?.comment_reaction_summary || emptyReactionSummary();
   return {
     artifact_type: 'midform_locale_evidence_pack',
     video_id: normalizeText(compressionManifest.videoId || compressionManifest.video_id || ''),
     source_url: normalizeText(normalizedRequest.source?.url || compressionManifest.sourceUrl || compressionManifest.source_url || ''),
+    metadata: {
+      title: normalizeText(compressionManifest.title || ''),
+      run_id: normalizeText(compressionManifest.runId || compressionManifest.run_id || ''),
+      target_sec: Number(compressionManifest.targetSec || compressionManifest.target_sec || normalizedRequest.output?.target_length_sec || 0) || 0
+    },
     duration_sec: round3(compressionManifest.durationSec || compressionManifest.duration_sec || editPlan.source_duration_sec || 0),
     transcript_segments: compactTranscriptSegments(transcript),
     scene_candidates: beats.map((beat) => ({
@@ -102,25 +135,18 @@ function buildEvidencePack({ normalizedRequest = {}, beatsObject = {}, editPlan 
     })),
     must_keep_dialogue_candidates: dialogueCandidates,
     must_keep_visual_candidates: visualCandidates,
-    retention_signals: {
-      intro: editPlan.cold_open_selection || {},
-      top_moments: beats
-        .slice()
-        .sort((left, right) => Number(right.dramatic_weight || 0) - Number(left.dramatic_weight || 0))
-        .slice(0, 5)
-        .map((beat) => ({ beat_id: normalizeText(beat.beat_id), score: Number(beat.dramatic_weight || 0), range: [round3(beat.start_sec), round3(beat.end_sec)] })),
-      spikes: [],
-      dips: []
-    },
-    comment_reaction_summary: {
-      repeated_keywords: [],
-      repeated_emotions: [],
-      misunderstandings: [],
-      scene_mentions: [],
-      title_thumbnail_phrases: []
-    },
+    comment_reaction_summary: commentReactionSummary,
+    retention_signals: retentionSignals,
+    heatmap_signals: heatmapSignals,
     verified_facts: {},
-    ambiguities: []
+    ambiguities: [],
+    evidence_coverage: {
+      comments: supplementalCoverage.comments === true,
+      retention: supplementalCoverage.retention === true,
+      heatmap: supplementalCoverage.heatmap === true || Array.isArray(heatmapSignals.high_replay_windows) && heatmapSignals.high_replay_windows.length > 0,
+      transcript: compactTranscriptSegments(transcript).length > 0
+    },
+    coverage_notes: supplementalEvidence?.coverage_notes || {}
   };
 }
 
@@ -418,8 +444,8 @@ function buildAcceptanceGate(localePlan, overlapReport) {
   };
 }
 
-function buildLocaleBranchArtifacts({ normalizedRequest, beatsObject, editPlan, transcript, compressionManifest }) {
-  const evidencePack = buildEvidencePack({ normalizedRequest, beatsObject, editPlan, transcript, compressionManifest });
+function buildLocaleBranchArtifacts({ normalizedRequest, beatsObject, editPlan, transcript, compressionManifest, supplementalEvidence }) {
+  const evidencePack = buildEvidencePack({ normalizedRequest, beatsObject, editPlan, transcript, compressionManifest, supplementalEvidence });
   const strategies = Object.fromEntries(LOCALES.map((locale) => [locale, buildLocaleEditorialStrategy(locale, evidencePack)]));
   const koPlan = buildLocaleEditPlan(editPlan, strategies.ko, evidencePack, 0);
   let jaPlan = buildLocaleEditPlan(editPlan, strategies.ja, evidencePack, 0);
