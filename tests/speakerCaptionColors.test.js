@@ -3,6 +3,7 @@ const test = require('node:test');
 
 const { readJson, colorEvidenceBySpeaker, validateSpeakerColorMetadata } = require('./artifactQaHelpers');
 const { evaluateEditorialAcceptance } = require('../server/services/midformEditorialAcceptanceService');
+const { buildSpeakerMetadata, resolveCaptionColor } = require('../server/utils/captionColorConfig');
 
 test('caption color config maps Jobs and Sculley to distinct visible colors', () => {
   const config = readJson('midform/config/caption_colors.json');
@@ -43,6 +44,23 @@ test('caption color config resolves English and Korean Jobs/Scully aliases consi
   }
 });
 
+test('caption color config resolves Korean family-role aliases for dialogue-heavy movie scenes', () => {
+  const config = readJson('midform/config/caption_colors.json');
+  const speakers = config.speakers || {};
+  const roles = config.roles || {};
+  const resolveColor = (speaker) => {
+    const mapped = speakers[speaker];
+    if (typeof mapped === 'string' && mapped.startsWith('#')) return mapped;
+    if (typeof mapped === 'string' && roles[mapped]) return roles[mapped];
+    return roles[speaker] || '';
+  };
+
+  assert.equal(resolveColor('아버지'), '#00A9F7');
+  assert.equal(resolveColor('아빠'), '#00A9F7');
+  assert.equal(resolveColor('아들'), '#37FF3D');
+  assert.notEqual(resolveColor('아버지'), resolveColor('아들'));
+});
+
 test('unknown speaker color behavior is stable and does not affect known speakers', () => {
   const config = readJson('midform/config/caption_colors.json');
   const speakers = config.speakers || {};
@@ -54,9 +72,27 @@ test('unknown speaker color behavior is stable and does not affect known speaker
     return roles[speaker] || '';
   };
 
-  assert.equal(resolveColor('Unknown Speaker'), '');
   assert.equal(resolveColor('Jobs'), '#00A9F7');
   assert.equal(resolveColor('Scully'), '#37FF3D');
+  const unknown = buildSpeakerMetadata({ speaker: 'Unknown Speaker', speaker_id: 'unknown_speaker', segment_type: 'dialogue_quote', utt_id: 'utt_unknown' }, {}, config);
+  const unknownAgain = buildSpeakerMetadata({ speaker: 'Unknown Speaker', speaker_id: 'unknown_speaker', segment_type: 'dialogue_quote', utt_id: 'utt_unknown_2' }, {}, config);
+  assert.ok(unknown.speaker_color_key);
+  assert.equal(unknown.speaker_color_key, unknownAgain.speaker_color_key);
+  assert.match(resolveCaptionColor({ speakerAlias: unknown.speaker_alias, speakerColorKey: unknown.speaker_color_key }, config), /^#[0-9A-Fa-f]{6}$/);
+});
+
+test('fresh unregistered Zodiac/Shutter-style speakers get deterministic non-collapsed colors across locales', () => {
+  const config = readJson('midform/config/caption_colors.json');
+  const teddyKo = buildSpeakerMetadata({ speaker: 'Teddy', speaker_id: 'teddy', segment_type: 'dialogue_quote', utt_id: 'utt_001' }, {}, config);
+  const teddyJa = buildSpeakerMetadata({ speaker: 'テディ', speaker_id: 'teddy', segment_type: 'dialogue_quote', utt_id: 'utt_ja_001' }, {}, config);
+  const chuck = buildSpeakerMetadata({ speaker: 'Chuck', speaker_id: 'chuck', segment_type: 'dialogue_quote', utt_id: 'utt_002' }, {}, config);
+  const lee = buildSpeakerMetadata({ speaker: '리', speaker_id: 'lee', segment_type: 'dialogue_quote', utt_id: 'utt_003' }, {}, config);
+
+  assert.equal(teddyKo.speaker_color_key, teddyJa.speaker_color_key);
+  assert.notEqual(teddyKo.speaker_color_key, chuck.speaker_color_key);
+  assert.notEqual(chuck.speaker_color_key, lee.speaker_color_key);
+  assert.notEqual(resolveCaptionColor({ speakerColorKey: teddyKo.speaker_color_key }, config), resolveCaptionColor({ speakerColorKey: chuck.speaker_color_key }, config));
+  assert.match(resolveCaptionColor({ speakerColorKey: lee.speaker_color_key }, config), /^#[0-9A-Fa-f]{6}$/);
 });
 
 test('speaker color artifact helper requires dialogue color evidence, not just speaker names', () => {

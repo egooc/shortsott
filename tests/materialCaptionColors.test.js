@@ -94,6 +94,65 @@ test('material color validator ignores orphan materials and consumes duplicate t
   assert.equal(validation.failed[0].material_id, '');
 });
 
+test('material color validator uses segment and utterance association before duplicate text fallback', () => {
+  const manifest = {
+    caption_units: [
+      { caption_id: 'cap_001', segment_id: 'slot_01_L01', source_utterance_id: 'utt_a', segment_type: 'dialogue_quote', speaker: 'Teddy', text: '같은 말', caption_color: '#00A9F7' },
+      { caption_id: 'cap_002', segment_id: 'slot_01_L02', source_utterance_id: 'utt_b', segment_type: 'dialogue_quote', speaker: 'Chuck', text: '같은 말', caption_color: '#37FF3D' }
+    ]
+  };
+  const draftContent = {
+    tracks: [{
+      type: 'text',
+      name: 'subtitle',
+      segments: [
+        { material_id: 'green_material', segment_id: 'slot_01_L02', source_utterance_id: 'utt_b' },
+        { material_id: 'blue_material', segment_id: 'slot_01_L01', source_utterance_id: 'utt_a' }
+      ]
+    }],
+    materials: {
+      texts: [
+        textMaterial({ id: 'green_material', text: '같은 말', hex: '#37FF3D', rgb: [0.2156862745, 1, 0.2392156863] }),
+        textMaterial({ id: 'blue_material', text: '같은 말', hex: '#00A9F7', rgb: [0, 0.662745098, 0.968627451] })
+      ]
+    }
+  };
+
+  const validation = validateManifestMaterialColors(manifest, draftContent);
+
+  assert.equal(validation.checked, 2);
+  assert.equal(validation.passed, 2);
+  assert.deepEqual(validation.failed, []);
+  assert.equal(validation.results[0].material_id, 'blue_material');
+  assert.equal(validation.results[1].material_id, 'green_material');
+});
+
+test('material color validator uses global caption order when narration captions precede dialogue', () => {
+  const manifest = {
+    caption_units: [
+      { caption_id: 'narr_001', segment_id: 'slot_01', segment_type: 'recap', text: '먼저 나오는 나레이션', caption_color: '' },
+      { caption_id: 'cap_001', segment_id: 'slot_02_L01', segment_type: 'dialogue_quote', speaker: 'Teddy', text: '대사입니다', caption_color: '#00A9F7' }
+    ]
+  };
+  const draftContent = {
+    tracks: [{ type: 'text', name: 'subtitle', segments: [{ material_id: 'white_narration' }, { material_id: 'blue_dialogue' }] }],
+    materials: {
+      texts: [
+        textMaterial({ id: 'white_narration', text: '먼저 나오는 나레이션', hex: '#FFFFFF', rgb: [1, 1, 1], useLetterColor: false, useEffectDefaultColor: true }),
+        textMaterial({ id: 'blue_dialogue', text: '대사입니다', hex: '#00A9F7', rgb: [0, 0.662745098, 0.968627451] })
+      ]
+    }
+  };
+
+  const validation = validateManifestMaterialColors(manifest, draftContent);
+
+  assert.equal(validation.checked, 1);
+  assert.equal(validation.passed, 1);
+  assert.equal(validation.results[0].material_id, 'blue_dialogue');
+  assert.equal(validation.results[0].caption_subtitle_order, 1);
+  assert.equal(validation.results[0].material_subtitle_order, 1);
+});
+
 test('latest Steve Jobs draft has material-level colors matching dialogue manifest colors', () => {
   const manifest = readJson('tests/fixtures/midform/drafts/material_color_baseline/edit_manifest.json');
   const draftContent = readJson('tests/fixtures/midform/drafts/material_color_baseline/draft_content.json');

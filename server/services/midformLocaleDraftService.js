@@ -331,6 +331,21 @@ function isDialogueSegment(segment) {
   return ['dialogue_quote', 'dialogue'].includes(String(segment?.segment_type || '').trim());
 }
 
+function dialogueSpeakerProvenance(segment) {
+  const metadata = buildSpeakerMetadata(segment, {
+    segment_type: segment?.segment_type || 'dialogue_quote',
+    utt_id: segment?.utt_id || segment?.source_utterance_id || segment?.segment_id || ''
+  });
+  const speakerAlias = String(metadata.speaker_alias || segment?.speaker_alias || segment?.speaker || '').trim();
+  const speakerColorKey = String(metadata.speaker_color_key || segment?.speaker_color_key || '').trim();
+  const captionColor = String(segment?.caption_color || resolveCaptionColor({ speakerAlias, speakerColorKey }) || '').trim();
+  return {
+    ...metadata,
+    ...(speakerAlias ? { speaker: speakerAlias } : {}),
+    ...(captionColor ? { caption_color: captionColor } : {})
+  };
+}
+
 function firstSourceRange(segment) {
   const clip = Array.isArray(segment?.source_clips) && segment.source_clips[0]
     ? segment.source_clips[0]
@@ -353,17 +368,23 @@ function buildDialogueParentAtomMap(baseSegments) {
   for (const [slotId, segments] of groups.entries()) {
     const atoms = segments.map((segment, index) => {
       const sourceRange = firstSourceRange(segment);
-      const speakerId = String(segment?.speaker_id || segment?.speaker_alias || segment?.speaker || '').trim();
-      const utteranceId = String(segment?.utt_id || segment?.source_utterance_id || segment?.segment_id || '').trim();
+      const provenance = dialogueSpeakerProvenance(segment);
+      const speakerId = String(provenance.speaker_id || segment?.speaker_id || segment?.speaker_alias || segment?.speaker || '').trim();
+      const utteranceId = String(provenance.source_utterance_id || segment?.utt_id || segment?.source_utterance_id || segment?.segment_id || '').trim();
       const required = index === 0 || index === segments.length - 1 || segments.length <= 2;
       return {
         atomic_id: `${slotId}_atom_${String(index + 1).padStart(2, '0')}`,
         slot_id: slotId,
         segment_id: String(segment?.segment_id || ''),
+        caption_kind: provenance.caption_kind || 'dialogue',
         source_range: sourceRange,
         duration_sec: Number((dialogueSourceDurationRequirement(segment) || rangeDuration(sourceRange)).toFixed(3)),
         utterance_ids: utteranceId ? [utteranceId] : [],
         speaker_id: speakerId,
+        speaker_alias: provenance.speaker_alias || '',
+        speaker_color_key: provenance.speaker_color_key || '',
+        source_utterance_id: utteranceId,
+        caption_color: provenance.caption_color || '',
         visual_role: 'speaker_delivery',
         dialogue_role: required ? (index === 0 ? 'lead_required_dialogue' : 'required_dialogue_anchor') : 'optional_dialogue_bridge',
         is_required: required,
@@ -561,6 +582,7 @@ function applyDraftSpecToSegment(segment, placement, occurrence = {}) {
     : splitSourceRangeForOccurrence(placement.source_range, occurrence.index || 0, occurrence.count || 1);
   const segmentType = String(segment?.segment_type || '').trim();
   const isDialogue = ['dialogue_quote', 'dialogue'].includes(segmentType);
+  const dialogueProvenance = isDialogue ? dialogueSpeakerProvenance(segment) : {};
   const uniqueClipId = `${placement.clip_id || segment.segment_id}_${segment.segment_id || 'segment'}_locale_clip`;
   const sourceScene = {
     clip_id: uniqueClipId,
@@ -571,6 +593,7 @@ function applyDraftSpecToSegment(segment, placement, occurrence = {}) {
   };
   return {
     ...segment,
+    ...(isDialogue ? dialogueProvenance : {}),
     locale_source_override: true,
     locale_clip_id: placement.clip_id || '',
     locale_source_subrange_index: Number(occurrence.index || 0),

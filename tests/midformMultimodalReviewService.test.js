@@ -46,10 +46,20 @@ test('passed required gates do not call any multimodal provider', () => {
   assert.equal(shouldReview, false);
 });
 
-test('failed required gates trigger provider review even without old escalation reason codes', () => {
+test('deterministic speaker/color gate failures do not trigger provider review', () => {
   const shouldReview = shouldRunMultimodalReview({
     provider: 'vertex',
-    qa: { gateResults: { status: 'failed', failed: ['rendered_speaker_color_match'], warnings: [] } },
+    qa: { gateResults: { status: 'failed', failed: ['rendered_speaker_color_match', 'dialogue_speaker_metadata_present', 'distinct_speakers_not_collapsed'], warnings: [] } },
+    localeDrafts: { finalOverlapReport: { final_status: 'pass' } },
+    autoDecision: { relevant_gate_failures: [], relevant_quality_warnings: [] }
+  });
+  assert.equal(shouldReview, false);
+});
+
+test('semantic required gate failures still trigger provider review', () => {
+  const shouldReview = shouldRunMultimodalReview({
+    provider: 'vertex',
+    qa: { gateResults: { status: 'failed', failed: ['first_30_conflict_clarity'], warnings: [] } },
     localeDrafts: { finalOverlapReport: { final_status: 'pass' } },
     autoDecision: { relevant_gate_failures: [], relevant_quality_warnings: [] }
   });

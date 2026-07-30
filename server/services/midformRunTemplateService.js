@@ -534,6 +534,12 @@ function finalSummaryFromQa(summary, qa, finalPipelineState, analysisRun) {
   };
 }
 
+function removeMultimodalReviewOutputPaths(outputPaths = {}) {
+  return Object.fromEntries(
+    Object.entries(outputPaths || {}).filter(([key]) => !String(key || '').startsWith('multimodal_review'))
+  );
+}
+
 function updateLocaleAcceptanceGatesWithFinalDraft(workspaceDir, finalOverlapReport) {
   const outputPaths = {};
   for (const locale of ['ko', 'ja']) {
@@ -588,6 +594,17 @@ async function runMidformTemplateWorkflow(options = {}) {
   writeText(workspace.contextPath, buildGeneratedContextMarkdown(normalizedRequest));
 
   const previousSummary = readJsonIfExists(workspace.summaryPath) || {};
+  const carryPreviousSummary = Boolean(resumeStage);
+  const freshAnalysisRun = {
+    requested_mode: normalizedRequest.analysis.mode,
+    initial_path: normalizedRequest.analysis.mode === 'multimodal' ? 'multimodal' : 'compression',
+    auto_escalation: {
+      triggered: false,
+      escalated: false,
+      reason_codes: [],
+      explanation: ''
+    }
+  };
   const summary = {
     status: 'running',
     profile: normalizedRequest.profile,
@@ -598,20 +615,11 @@ async function runMidformTemplateWorkflow(options = {}) {
     template_path: rel(parsedTemplate.templatePath),
     resume_from: resumeStage || '',
     workspace_dir: rel(workspace.workspaceDir),
-    output_paths: previousSummary.output_paths || {},
-    gate_results: previousSummary.gate_results || null,
-    analysis_run: previousSummary.analysis_run || {
-      requested_mode: normalizedRequest.analysis.mode,
-      initial_path: normalizedRequest.analysis.mode === 'multimodal' ? 'multimodal' : 'compression',
-      auto_escalation: {
-        triggered: false,
-        escalated: false,
-        reason_codes: [],
-        explanation: ''
-      }
-    },
+    output_paths: carryPreviousSummary ? (previousSummary.output_paths || {}) : {},
+    gate_results: carryPreviousSummary ? (previousSummary.gate_results || null) : null,
+    analysis_run: carryPreviousSummary ? (previousSummary.analysis_run || freshAnalysisRun) : freshAnalysisRun,
     warnings: [],
-    internal: previousSummary.internal || {}
+    internal: carryPreviousSummary ? (previousSummary.internal || {}) : {}
   };
   const generatedTemplateBodyPaths = writeGeneratedTemplateBodies(workspace.workspaceDir, options.generatedTemplateBodies || {});
   const supplementalEvidencePaths = writeSupplementalEvidence(workspace.workspaceDir, options.supplementalEvidence || {});
@@ -789,8 +797,10 @@ async function runMidformTemplateWorkflow(options = {}) {
     const provider = normalizeMultimodalProvider();
     const reviewRequired = qa.gateResults.status === 'failed' || localeDrafts.finalOverlapReport.final_status !== 'pass';
     const shouldReview = normalizedRequest.analysis.mode === 'auto' && shouldRunMultimodalReview({ provider, qa, localeDrafts, autoDecision });
+    if (!shouldReview) {
+      summary.output_paths = removeMultimodalReviewOutputPaths(summary.output_paths);
+    }
     summary.analysis_run = {
-      ...summary.analysis_run,
       requested_mode: normalizedRequest.analysis.mode,
       initial_path: 'compression',
       final_path: 'compression',
@@ -906,5 +916,8 @@ module.exports = {
   normalizeAnalysisMode,
   normalizeResumeStage,
   parseTemplateFile,
-  runMidformTemplateWorkflow
+  runMidformTemplateWorkflow,
+  _test: {
+    removeMultimodalReviewOutputPaths
+  }
 };

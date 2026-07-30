@@ -171,14 +171,18 @@ test('buildLocaleDraftInput preserves dialogue child duration when splitting par
 
 test('dialogue-heavy parent atomization marks utterance boundaries, speakers, required and optional atoms', () => {
   const atoms = _test.buildDialogueParentAtomMap([
-    { segment_id: 'slot_03_L01', parent_slot_id: 'slot_03', segment_type: 'dialogue_quote', utt_id: 'utt_1', speaker_id: 'A', duration_override_sec: 2, source_scenes: [{ start: '00:10.000', end: '00:12.000' }] },
-    { segment_id: 'slot_03_L02', parent_slot_id: 'slot_03', segment_type: 'dialogue_quote', utt_id: 'utt_2', speaker_id: 'B', duration_override_sec: 1, source_scenes: [{ start: '00:12.500', end: '00:13.500' }] },
-    { segment_id: 'slot_03_L03', parent_slot_id: 'slot_03', segment_type: 'dialogue_quote', utt_id: 'utt_3', speaker_id: 'A', duration_override_sec: 3, source_scenes: [{ start: '00:14.000', end: '00:17.000' }] }
+    { segment_id: 'slot_03_L01', parent_slot_id: 'slot_03', segment_type: 'dialogue_quote', utt_id: 'utt_1', speaker_id: 'jobs', speaker_alias: 'Jobs', speaker_color_key: '남주', caption_color: '#00A9F7', duration_override_sec: 2, source_scenes: [{ start: '00:10.000', end: '00:12.000' }] },
+    { segment_id: 'slot_03_L02', parent_slot_id: 'slot_03', segment_type: 'dialogue_quote', utt_id: 'utt_2', speaker_id: 'sculley', speaker_alias: 'Sculley', speaker_color_key: '남조연', caption_color: '#37FF3D', duration_override_sec: 1, source_scenes: [{ start: '00:12.500', end: '00:13.500' }] },
+    { segment_id: 'slot_03_L03', parent_slot_id: 'slot_03', segment_type: 'dialogue_quote', utt_id: 'utt_3', speaker_id: 'jobs', speaker_alias: 'Jobs', speaker_color_key: '남주', caption_color: '#00A9F7', duration_override_sec: 3, source_scenes: [{ start: '00:14.000', end: '00:17.000' }] }
   ]).get('slot_03');
 
   assert.equal(atoms.length, 3);
   assert.deepEqual(atoms.map((atom) => atom.utterance_ids[0]), ['utt_1', 'utt_2', 'utt_3']);
-  assert.deepEqual(atoms.map((atom) => atom.speaker_id), ['A', 'B', 'A']);
+  assert.deepEqual(atoms.map((atom) => atom.speaker_id), ['jobs', 'sculley', 'jobs']);
+  assert.deepEqual(atoms.map((atom) => atom.speaker_alias), ['Jobs', 'Sculley', 'Jobs']);
+  assert.deepEqual(atoms.map((atom) => atom.speaker_color_key), ['남주', '남조연', '남주']);
+  assert.deepEqual(atoms.map((atom) => atom.caption_color), ['#00A9F7', '#37FF3D', '#00A9F7']);
+  assert.deepEqual(atoms.map((atom) => atom.caption_kind), ['dialogue', 'dialogue', 'dialogue']);
   assert.deepEqual(atoms.map((atom) => atom.is_required), [true, false, true]);
   assert.equal(atoms[1].dependencies[0].hard, true);
 });
@@ -186,14 +190,14 @@ test('dialogue-heavy parent atomization marks utterance boundaries, speakers, re
 test('buildLocaleDraftInput recomposes JA dialogue parent by pruning optional atom while preserving required order', () => {
   const baseDraftInput = {
     segments: [
-      { segment_id: 'slot_03_L01', parent_slot_id: 'slot_03', segment_type: 'dialogue_quote', duration_override_sec: 2, source_scenes: [{ start: '00:10.000', end: '00:12.000' }] },
-      { segment_id: 'slot_03_L02', parent_slot_id: 'slot_03', segment_type: 'dialogue_quote', duration_override_sec: 1, source_scenes: [{ start: '00:12.500', end: '00:13.500' }] },
-      { segment_id: 'slot_03_L03', parent_slot_id: 'slot_03', segment_type: 'dialogue_quote', duration_override_sec: 3, source_scenes: [{ start: '00:14.000', end: '00:17.000' }] }
+      { segment_id: 'slot_03_L01', parent_slot_id: 'slot_03', segment_type: 'dialogue_quote', duration_override_sec: 2, speaker_id: 'teddy', speaker_alias: 'Teddy', source_utterance_id: 'utt_teddy_1', source_scenes: [{ start: '00:10.000', end: '00:12.000' }] },
+      { segment_id: 'slot_03_L02', parent_slot_id: 'slot_03', segment_type: 'dialogue_quote', duration_override_sec: 1, speaker_id: 'middle', speaker_alias: 'Middle', source_utterance_id: 'utt_middle', source_scenes: [{ start: '00:12.500', end: '00:13.500' }] },
+      { segment_id: 'slot_03_L03', parent_slot_id: 'slot_03', segment_type: 'dialogue_quote', duration_override_sec: 3, speaker_id: 'chuck', speaker_alias: 'Chuck', source_utterance_id: 'utt_chuck_1', source_scenes: [{ start: '00:14.000', end: '00:17.000' }] }
     ],
     captionUnits: [
-      { caption_id: 'cap_1', segment_id: 'slot_03_L01', segment_type: 'dialogue_quote', text: 'required one' },
-      { caption_id: 'cap_2', segment_id: 'slot_03_L02', segment_type: 'dialogue_quote', text: 'optional' },
-      { caption_id: 'cap_3', segment_id: 'slot_03_L03', segment_type: 'dialogue_quote', text: 'required two' }
+      { caption_id: 'cap_1', segment_id: 'slot_03_L01', segment_type: 'dialogue_quote', text: 'required one', speaker_id: 'teddy', speaker_alias: 'Teddy', source_utterance_id: 'utt_teddy_1' },
+      { caption_id: 'cap_2', segment_id: 'slot_03_L02', segment_type: 'dialogue_quote', text: 'optional', speaker_id: 'middle', speaker_alias: 'Middle', source_utterance_id: 'utt_middle' },
+      { caption_id: 'cap_3', segment_id: 'slot_03_L03', segment_type: 'dialogue_quote', text: 'required two', speaker_id: 'chuck', speaker_alias: 'Chuck', source_utterance_id: 'utt_chuck_1' }
     ]
   };
   const draftSpec = { locale: 'ja', clip_placement: [{ clip_id: 'ja_slot_03', source_range: [80, 90], visual_role: 'body' }] };
@@ -206,6 +210,35 @@ test('buildLocaleDraftInput recomposes JA dialogue parent by pruning optional at
   assert.equal(localeInput.segments[1].source_scenes[0].start, '00:14.000');
   assert.equal(localeInput.segments[0].dialogue_parent_recomposition.strategy, 'reaction_led_optional_dialogue_pruned');
   assert.deepEqual(localeInput.segments.map((segment) => segment.dialogue_parent_atom.is_required), [true, true]);
+  assert.deepEqual(localeInput.segments.map((segment) => segment.source_utterance_id), ['utt_teddy_1', 'utt_chuck_1']);
+  assert.deepEqual(localeInput.captionUnits.map((unit) => unit.source_utterance_id), ['utt_teddy_1', 'utt_chuck_1']);
+  assert.ok(localeInput.captionUnits.every((unit) => unit.speaker_color_key && unit.caption_color));
+  assert.notEqual(localeInput.captionUnits[0].caption_color, localeInput.captionUnits[1].caption_color);
+});
+
+test('single-child dialogue parent keeps metadata and padded visual clip range', () => {
+  const baseDraftInput = {
+    segments: [
+      { segment_id: 'slot_09_L01', parent_slot_id: 'slot_09', segment_type: 'dialogue_quote', duration_override_sec: 1.8, speaker_id: 'lee', speaker_alias: '리', source_utterance_id: 'utt_lee_1', caption_kind: 'dialogue', source_scenes: [{ start: '00:30.200', end: '00:33.900' }] }
+    ],
+    captionUnits: [
+      { caption_id: 'cap_lee_1', segment_id: 'slot_09_L01', segment_type: 'dialogue_quote', text: '같은 말', speaker_id: 'lee', speaker_alias: '리', source_utterance_id: 'utt_lee_1' }
+    ]
+  };
+  const draftSpec = { locale: 'ko', clip_placement: [{ clip_id: 'ko_slot_09', source_range: [30.2, 33.9], visual_role: 'dialogue_anchor' }] };
+
+  const localeInput = buildLocaleDraftInput(baseDraftInput, draftSpec, 'ko');
+  const segment = localeInput.segments[0];
+  const unit = localeInput.captionUnits[0];
+
+  assert.equal(segment.dialogue_parent_atom.source_utterance_id, 'utt_lee_1');
+  assert.equal(segment.dialogue_parent_atom.speaker_id, 'lee');
+  assert.equal(segment.source_scenes[0].start, '00:30.200');
+  assert.equal(segment.source_scenes[0].end, '00:32.000');
+  assert.equal(unit.speaker_id, 'lee');
+  assert.equal(unit.source_utterance_id, 'utt_lee_1');
+  assert.ok(unit.speaker_color_key);
+  assert.ok(unit.caption_color);
 });
 
 test('buildLocaleDraftInput moves narration locale range away from protected dialogue atoms', () => {

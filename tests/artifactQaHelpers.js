@@ -176,15 +176,29 @@ function textFromMaterial(material, parsedContent) {
   ).trim();
 }
 
+function normalizeMatchText(value) {
+  return String(value || '').replace(/\s+/g, ' ').trim();
+}
+
 function extractSubtitleTextMaterials(draftContent) {
-  const activeMaterialIds = new Set();
+  const activeMaterialIds = [];
+  const trackMetadataByMaterialId = new Map();
   for (const track of Array.isArray(draftContent?.tracks) ? draftContent.tracks : []) {
     if (!track || track.type !== 'text' || (track.name && track.name !== 'subtitle')) continue;
-    for (const segment of Array.isArray(track.segments) ? track.segments : []) {
+    for (const [index, segment] of (Array.isArray(track.segments) ? track.segments : []).entries()) {
       const materialId = String(segment?.material_id || segment?.materialId || '').trim();
-      if (materialId) activeMaterialIds.add(materialId);
+      if (materialId) {
+        activeMaterialIds.push(materialId);
+        trackMetadataByMaterialId.set(materialId, {
+          subtitle_order: index,
+          caption_id: String(segment?.caption_id || segment?.captionId || ''),
+          segment_id: String(segment?.segment_id || segment?.segmentId || ''),
+          source_utterance_id: String(segment?.source_utterance_id || segment?.utt_id || '')
+        });
+      }
     }
   }
+  const activeMaterialIdSet = new Set(activeMaterialIds);
   const materials = Array.isArray(draftContent?.materials?.texts) ? draftContent.materials.texts : [];
   return materials
     .map((material) => {
@@ -192,10 +206,16 @@ function extractSubtitleTextMaterials(draftContent) {
       const styles = Array.isArray(parsedContent?.styles) ? parsedContent.styles : [];
       const style = styles[0] || {};
       const fillColor = style?.fill?.content?.solid?.color || null;
+      const id = String(material?.id || '');
+      const trackMetadata = trackMetadataByMaterialId.get(id) || {};
       return {
-        id: String(material?.id || ''),
+        id,
         type: String(material?.type || ''),
         text: textFromMaterial(material, parsedContent),
+        caption_id: String(material?.caption_id || material?.captionId || parsedContent?.caption_id || trackMetadata.caption_id || ''),
+        segment_id: String(material?.segment_id || material?.segmentId || parsedContent?.segment_id || trackMetadata.segment_id || ''),
+        source_utterance_id: String(material?.source_utterance_id || material?.utt_id || parsedContent?.source_utterance_id || trackMetadata.source_utterance_id || ''),
+        subtitle_order: Number.isInteger(trackMetadata.subtitle_order) ? trackMetadata.subtitle_order : -1,
         text_color: String(material?.text_color || ''),
         use_effect_default_color: material?.use_effect_default_color,
         useLetterColor: style?.useLetterColor,
@@ -204,20 +224,48 @@ function extractSubtitleTextMaterials(draftContent) {
       };
     })
     .filter((material) => material.type === 'subtitle' && material.text)
-    .filter((material) => activeMaterialIds.size === 0 || activeMaterialIds.has(material.id));
+    .filter((material) => activeMaterialIdSet.size === 0 || activeMaterialIdSet.has(material.id))
+    .sort((left, right) => {
+      const leftOrder = left.subtitle_order >= 0 ? left.subtitle_order : Number.MAX_SAFE_INTEGER;
+      const rightOrder = right.subtitle_order >= 0 ? right.subtitle_order : Number.MAX_SAFE_INTEGER;
+      return leftOrder - rightOrder || left.id.localeCompare(right.id);
+    });
+}
+
+function findMaterialForCaption(caption, materials, usedMaterialIds) {
+  const unused = materials.filter((material) => !usedMaterialIds.has(material.id));
+  const captionId = String(caption?.caption_id || '').trim();
+  const segmentId = String(caption?.segment_id || '').trim();
+  const sourceUtteranceId = String(caption?.source_utterance_id || '').trim();
+  const subtitleOrder = Number(caption?._subtitle_order);
+  const text = normalizeMatchText(caption?.text || '');
+  const tiers = [
+    captionId ? unused.filter((material) => material.caption_id === captionId) : [],
+    segmentId ? unused.filter((material) => material.segment_id === segmentId) : [],
+    sourceUtteranceId ? unused.filter((material) => material.source_utterance_id === sourceUtteranceId) : [],
+    Number.isInteger(subtitleOrder) && subtitleOrder >= 0 ? unused.filter((material) => material.subtitle_order === subtitleOrder) : [],
+    text ? unused.filter((material) => normalizeMatchText(material.text) === text) : []
+  ];
+  const expected = String(caption?.caption_color || '').trim();
+  for (const candidates of tiers) {
+    if (!candidates.length) continue;
+    return candidates.find((candidate) => rgbFloatMatchesHex(candidate.fill_rgb, expected)) || candidates[0];
+  }
+  return null;
 }
 
 function validateManifestMaterialColors(manifest, draftContent) {
   const materials = extractSubtitleTextMaterials(draftContent);
-  const coloredCaptions = (Array.isArray(manifest?.caption_units) ? manifest.caption_units : [])
+  const allCaptions = Array.isArray(manifest?.caption_units) ? manifest.caption_units : [];
+  const coloredCaptions = allCaptions
+    .map((caption, subtitleOrder) => ({ ...caption, _subtitle_order: subtitleOrder }))
     .filter((caption) => ['dialogue_quote', 'dialogue'].includes(String(caption?.segment_type || '')))
     .filter((caption) => String(caption?.caption_color || '').trim());
   const usedMaterialIds = new Set();
   const results = coloredCaptions.map((caption) => {
     const text = String(caption?.text || '').trim();
     const expected = String(caption?.caption_color || '').trim();
-    const matches = materials.filter((material) => material.text === text && !usedMaterialIds.has(material.id));
-    const material = matches.find((candidate) => rgbFloatMatchesHex(candidate.fill_rgb, expected)) || matches[0] || null;
+    const material = findMaterialForCaption(caption, materials, usedMaterialIds);
     if (material?.id) usedMaterialIds.add(material.id);
     const fillMatches = material ? rgbFloatMatchesHex(material.fill_rgb, expected) : false;
     const textColorMatches = material ? String(material.text_color || '').toLowerCase() === expected.toLowerCase() : false;
@@ -227,9 +275,15 @@ function validateManifestMaterialColors(manifest, draftContent) {
       caption_id: String(caption?.caption_id || ''),
       segment_id: String(caption?.segment_id || ''),
       speaker: String(caption?.speaker || ''),
+      source_utterance_id: String(caption?.source_utterance_id || ''),
       text,
       expected_color: expected,
       material_id: material?.id || '',
+      material_caption_id: material?.caption_id || '',
+      material_segment_id: material?.segment_id || '',
+      material_source_utterance_id: material?.source_utterance_id || '',
+      material_subtitle_order: material?.subtitle_order ?? -1,
+      caption_subtitle_order: Number.isInteger(caption._subtitle_order) ? caption._subtitle_order : -1,
       fill_rgb: material?.fill_rgb || null,
       fill_matches: fillMatches,
       text_color_matches: textColorMatches,

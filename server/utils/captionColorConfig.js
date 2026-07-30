@@ -4,6 +4,7 @@ const path = require('path');
 const { PROJECT_ROOT } = require('../services/pipelinePaths');
 
 const CAPTION_COLORS_CONFIG_PATH = path.join(PROJECT_ROOT, 'midform', 'config', 'caption_colors.json');
+const DEFAULT_DIALOGUE_ROLE_KEYS = ['남주', '여주', '남조연', '여조연'];
 
 function normalizeText(value) {
   return String(value || '').replace(/\s+/g, ' ').trim();
@@ -15,6 +16,30 @@ function normalizeSpeakerId(value) {
     .replace(/[^a-z0-9가-힣]+/g, '_')
     .replace(/^_+|_+$/g, '');
   return normalized || '';
+}
+
+function stableHash(value) {
+  const text = normalizeText(value);
+  let hash = 5381;
+  for (let i = 0; i < text.length; i += 1) {
+    hash = ((hash << 5) + hash) ^ text.charCodeAt(i);
+    hash >>>= 0;
+  }
+  return hash >>> 0;
+}
+
+function dialogueRoleKeys(config = readCaptionColorConfig()) {
+  const roles = config && typeof config === 'object' && config.roles && typeof config.roles === 'object' ? config.roles : {};
+  const configured = DEFAULT_DIALOGUE_ROLE_KEYS.filter((key) => String(roles[key] || '').startsWith('#'));
+  if (configured.length) return configured;
+  return Object.keys(roles).filter((key) => String(roles[key] || '').startsWith('#')).sort();
+}
+
+function resolveDynamicSpeakerColorKey(speakerIdOrAlias, config = readCaptionColorConfig()) {
+  const speakerKey = normalizeText(speakerIdOrAlias);
+  const roles = dialogueRoleKeys(config);
+  if (!speakerKey || roles.length === 0) return '';
+  return roles[stableHash(speakerKey) % roles.length] || '';
 }
 
 function readCaptionColorConfig() {
@@ -53,7 +78,7 @@ function resolveCaptionColor({ speakerAlias = '', speakerColorKey = '' } = {}, c
   return '';
 }
 
-function buildSpeakerMetadata(source = {}, fallback = {}) {
+function buildSpeakerMetadata(source = {}, fallback = {}, config = readCaptionColorConfig()) {
   const captionKind = normalizeText(source.caption_kind || fallback.caption_kind || (
     ['dialogue_quote', 'dialogue'].includes(String(source.segment_type || source.segmentType || fallback.segment_type || fallback.segmentType || ''))
       ? 'dialogue'
@@ -61,7 +86,9 @@ function buildSpeakerMetadata(source = {}, fallback = {}) {
   ));
   const speakerAlias = normalizeText(source.speaker_alias || source.speaker || fallback.speaker_alias || fallback.speaker || '');
   const speakerId = normalizeText(source.speaker_id || fallback.speaker_id || normalizeSpeakerId(speakerAlias));
-  const speakerColorKey = normalizeText(source.speaker_color_key || fallback.speaker_color_key || resolveSpeakerColorKey(speakerAlias));
+  const isDialogue = captionKind === 'dialogue' || ['dialogue_quote', 'dialogue'].includes(String(source.segment_type || source.segmentType || fallback.segment_type || fallback.segmentType || ''));
+  const configuredColorKey = resolveSpeakerColorKey(speakerAlias, config);
+  const speakerColorKey = normalizeText(source.speaker_color_key || fallback.speaker_color_key || configuredColorKey || (isDialogue ? resolveDynamicSpeakerColorKey(speakerId || speakerAlias, config) : ''));
   const sourceUtteranceId = normalizeText(source.source_utterance_id || source.utt_id || source.source_line_id || fallback.source_utterance_id || fallback.utt_id || fallback.source_line_id || '');
   const metadata = { caption_kind: captionKind || 'narration' };
   if (speakerId) metadata.speaker_id = speakerId;
@@ -73,9 +100,12 @@ function buildSpeakerMetadata(source = {}, fallback = {}) {
 
 module.exports = {
   CAPTION_COLORS_CONFIG_PATH,
+  DEFAULT_DIALOGUE_ROLE_KEYS,
   buildSpeakerMetadata,
+  dialogueRoleKeys,
   normalizeSpeakerId,
   readCaptionColorConfig,
   resolveCaptionColor,
+  resolveDynamicSpeakerColorKey,
   resolveSpeakerColorKey
 };

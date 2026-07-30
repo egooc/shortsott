@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 
-const { buildBootstrapSlotMapAndScript } = require('../server/services/midformBootstrapAdapterService');
+const { buildBootstrapSlotMapAndScript, buildBootstrapTranscript } = require('../server/services/midformBootstrapAdapterService');
 const { _test } = require('../server/services/midformCompressionService');
 const { buildCaptionUnits } = require('../server/utils/captionUnits');
 
@@ -144,6 +144,115 @@ test('dialogue cleanup preserves stable speaker metadata and color keys', () => 
   assert.equal(script.segments[1].caption_color, '#37FF3D');
   assert.equal(captionData.captionUnits[0].speaker_id, 'jobs');
   assert.equal(captionData.captionUnits[1].speaker_color_key, '남조연');
+});
+
+test('bootstrap assigns deterministic colors to fresh unregistered dialogue speakers', () => {
+  const editPlan = {
+    scene_type: 'dialogue_confrontation',
+    timeline: [{
+      slot_id: 'slot_01',
+      role: 'cold_open',
+      decision: 'KEEP_DIALOGUE',
+      dialogue_line_windows: [
+        { matched: true, start_sec: 10, end_sec: 11.5, line: 'Same words.' },
+        { matched: true, start_sec: 11.7, end_sec: 14, line: 'Same words.' }
+      ]
+    }]
+  };
+  const slotFills = {
+    slot_fills: [{
+      slot_id: 'slot_01',
+      caption_kr_dialogue: ['같은 말', '같은 말'],
+      speakers: ['Teddy', 'Chuck']
+    }]
+  };
+
+  const { script } = buildBootstrapSlotMapAndScript(editPlan, slotFills, { sourceDurationSec: 120 });
+  const captionData = buildCaptionUnits(script.segments);
+
+  assert.equal(script.segments[0].speaker_id, 'teddy');
+  assert.equal(script.segments[1].speaker_id, 'chuck');
+  assert.ok(script.segments[0].speaker_color_key);
+  assert.ok(script.segments[1].speaker_color_key);
+  assert.notEqual(script.segments[0].caption_color, script.segments[1].caption_color);
+  assert.equal(captionData.captionUnits[0].speaker_color_key, script.segments[0].speaker_color_key);
+  assert.equal(captionData.captionUnits[1].caption_color, script.segments[1].caption_color);
+});
+
+test('bootstrap transcript excludes cues overlapping dialogue visual padding', () => {
+  const editPlan = {
+    timeline: [{
+      slot_id: 'slot_01',
+      role: 'cold_open',
+      decision: 'KEEP_DIALOGUE',
+      dialogue_line_windows: [
+        { matched: true, start_sec: 10, end_sec: 11.5, line: 'Why did you do it?' }
+      ]
+    }]
+  };
+  const transcriptTimed = [
+    { start_sec: 9.6, end_sec: 10.05, text: 'previous cue tail' },
+    { start_sec: 20, end_sec: 21, text: 'safe cue' }
+  ];
+
+  const { transcript, stats, warnings } = buildBootstrapTranscript(editPlan, transcriptTimed);
+
+  assert.equal(stats.cues_excluded_for_dialogue_overlap, 1);
+  assert.ok(warnings.some((warning) => warning.includes('dialogue visual window')));
+  assert.ok(transcript.utterances.some((utterance) => utterance.utt_id === 'slot_01_L01'));
+  assert.ok(transcript.utterances.some((utterance) => utterance.text === 'safe cue'));
+  assert.ok(!transcript.utterances.some((utterance) => utterance.text === 'previous cue tail'));
+});
+
+test('bootstrap uses global non-dialogue b-roll fallback for dialogue-saturated narration windows', () => {
+  const editPlan = {
+    scene_type: 'dialogue_confrontation',
+    timeline: [
+      {
+        slot_id: 'slot_01',
+        role: 'body',
+        decision: 'NARRATE',
+        start_sec: 0,
+        end_sec: 8,
+        estimated_duration_sec: 4
+      },
+      {
+        slot_id: 'slot_02',
+        role: 'body',
+        decision: 'KEEP_DIALOGUE',
+        dialogue_line_windows: [
+          { matched: true, start_sec: 12, end_sec: 20, line: 'Always be the smartest guy in the room.' }
+        ]
+      },
+      {
+        slot_id: 'slot_closing',
+        role: 'closing',
+        decision: 'NARRATE',
+        start_sec: 12,
+        end_sec: 20,
+        estimated_duration_sec: 4
+      }
+    ]
+  };
+  const slotFills = {
+    slot_fills: [
+      { slot_id: 'slot_01', narration: '처음 설명입니다.', caption_kr: '처음 설명입니다.' },
+      { slot_id: 'slot_02', caption_kr_dialogue: ['가장 똑똑한 사람이 되어라.'] },
+      { slot_id: 'slot_closing', narration: '마지막 설명입니다.', caption_kr: '마지막 설명입니다.' }
+    ]
+  };
+
+  const { script, warnings } = buildBootstrapSlotMapAndScript(editPlan, slotFills, { sourceDurationSec: 40 });
+  const dialogue = script.segments.find((segment) => segment.segment_id === 'slot_02_L01');
+  const closing = script.segments.find((segment) => segment.segment_id === 'slot_closing');
+  const closingClip = closing.source_scenes[0];
+
+  assert.ok(warnings.some((warning) => warning.includes('fallback non-dialogue b-roll')));
+  assert.equal(closingClip.scene_id, 'narration_broll_fallback');
+  assert.notEqual(closingClip.start, '00:00:12.000');
+  assert.notEqual(closingClip.end, '00:00:20.000');
+  assert.ok(closing.source_scenes.length > 0);
+  assert.ok(dialogue.source_scenes[0].start <= '00:00:12.000');
 });
 
 test('finalizeEditPlan generates dialogue_unit metadata before bootstrap when source plan lacks it', () => {

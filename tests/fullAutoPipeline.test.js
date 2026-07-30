@@ -9,6 +9,7 @@ const {
   buildSupplementalEvidence,
   normalizeMode
 } = require('../server/services/midformFullAutoService');
+const { _test: runTemplateTest } = require('../server/services/midformRunTemplateService');
 
 test('normalizeMode defaults unsupported full-auto values to full_auto', () => {
   assert.equal(normalizeMode('template_only'), 'template_only');
@@ -85,4 +86,18 @@ test('auto template body and markdown include production instructions without to
   assert.match(markdown, /source:/);
   assert.match(markdown, /target_length_sec: 160/);
   assert.match(markdown, /JA Auto Template Body/);
+});
+
+test('compression-only pass removes stale multimodal review output paths from reused workspace summaries', () => {
+  const cleaned = runTemplateTest.removeMultimodalReviewOutputPaths({
+    draft_input: 'midform/test_runs/template_runs/run/draft_input.json',
+    multimodal_review_input: 'midform/test_runs/template_runs/run/multimodal_review_input.json',
+    multimodal_review_report: 'midform/test_runs/template_runs/run/multimodal_review_report.json',
+    acceptance_gates: 'midform/test_runs/template_runs/run/acceptance_gates.json'
+  });
+
+  assert.equal(cleaned.draft_input, 'midform/test_runs/template_runs/run/draft_input.json');
+  assert.equal(cleaned.acceptance_gates, 'midform/test_runs/template_runs/run/acceptance_gates.json');
+  assert.equal(Object.hasOwn(cleaned, 'multimodal_review_input'), false);
+  assert.equal(Object.hasOwn(cleaned, 'multimodal_review_report'), false);
 });

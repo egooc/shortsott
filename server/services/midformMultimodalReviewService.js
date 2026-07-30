@@ -18,6 +18,24 @@ const REVIEW_SCHEMA = {
   required: ['status', 'findings', 'required_repairs', 'confidence']
 };
 
+const DETERMINISTIC_DATA_INTEGRITY_GATES = new Set([
+  'rendered_speaker_color_match',
+  'dialogue_speaker_metadata_present',
+  'distinct_speakers_not_collapsed'
+]);
+
+const SEMANTIC_MULTIMODAL_GATES = new Set([
+  'visual_story_coherence',
+  'semantic_recap_accuracy',
+  'ambiguous_scene_interpretation',
+  'manual_visual_quality_review',
+  'first_30_conflict_clarity',
+  'dramatic_engagement_timing',
+  'callback_strength',
+  'high_context_teaser_recovery',
+  'rebuttal_only_opener'
+]);
+
 function normalizeMultimodalProvider(value = process.env.MIDFORM_MULTIMODAL_PROVIDER) {
   const provider = String(value || 'vertex').trim().toLowerCase();
   return ['vertex', 'gpt_cli', 'disabled'].includes(provider) ? provider : 'vertex';
@@ -175,7 +193,9 @@ function writeReviewArtifacts(workspaceDir, { provider, input, outcome, error, s
 
 function shouldRunMultimodalReview({ provider, qa, localeDrafts, autoDecision }) {
   if (normalizeMultimodalProvider(provider) === 'disabled') return false;
-  const acceptanceFailed = qa?.gateResults?.status === 'failed';
+  const failedGates = Array.isArray(qa?.gateResults?.failed) ? qa.gateResults.failed.map((gate) => String(gate || '').trim()).filter(Boolean) : [];
+  const providerAllowedFailures = failedGates.filter((gate) => !DETERMINISTIC_DATA_INTEGRITY_GATES.has(gate));
+  const acceptanceFailed = qa?.gateResults?.status === 'failed' && providerAllowedFailures.some((gate) => SEMANTIC_MULTIMODAL_GATES.has(gate));
   const overlapFailed = localeDrafts?.finalOverlapReport?.final_status && localeDrafts.finalOverlapReport.final_status !== 'pass';
   if (!acceptanceFailed && !overlapFailed) return false;
   return true;
@@ -203,6 +223,8 @@ async function runMidformMultimodalReview({ workspaceDir, normalizedRequest, qa,
 
 module.exports = {
   REVIEW_SCHEMA,
+  DETERMINISTIC_DATA_INTEGRITY_GATES,
+  SEMANTIC_MULTIMODAL_GATES,
   normalizeMultimodalProvider,
   shouldRunMultimodalReview,
   runMidformMultimodalReview,
