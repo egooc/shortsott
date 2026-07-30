@@ -178,7 +178,7 @@ function shouldRunMultimodalReview({ provider, qa, localeDrafts, autoDecision })
   const acceptanceFailed = qa?.gateResults?.status === 'failed';
   const overlapFailed = localeDrafts?.finalOverlapReport?.final_status && localeDrafts.finalOverlapReport.final_status !== 'pass';
   if (!acceptanceFailed && !overlapFailed) return false;
-  return Array.isArray(autoDecision?.relevant_gate_failures) && autoDecision.relevant_gate_failures.length > 0 || overlapFailed;
+  return true;
 }
 
 async function runMidformMultimodalReview({ workspaceDir, normalizedRequest, qa, finalPipelineState, localeDrafts, autoDecision, provider = normalizeMultimodalProvider(), required = false, options = {} }) {

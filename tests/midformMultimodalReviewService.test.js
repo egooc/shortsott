@@ -46,6 +46,16 @@ test('passed required gates do not call any multimodal provider', () => {
   assert.equal(shouldReview, false);
 });
 
+test('failed required gates trigger provider review even without old escalation reason codes', () => {
+  const shouldReview = shouldRunMultimodalReview({
+    provider: 'vertex',
+    qa: { gateResults: { status: 'failed', failed: ['rendered_speaker_color_match'], warnings: [] } },
+    localeDrafts: { finalOverlapReport: { final_status: 'pass' } },
+    autoDecision: { relevant_gate_failures: [], relevant_quality_warnings: [] }
+  });
+  assert.equal(shouldReview, true);
+});
+
 test('provider=vertex records structured successful review without GPT CLI', async () => {
   const workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'midform-review-vertex-'));
   fs.writeFileSync(path.join(workspaceDir, 'evidence_pack.json'), '{"coverage":true}\n', 'utf8');
