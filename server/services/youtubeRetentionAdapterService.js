@@ -1,5 +1,7 @@
 const { extractYouTubeVideoId } = require('./youtubeUrlUtils');
 
+const DEFAULT_RETENTION_TIMEOUT_MS = 20_000;
+
 function normalizeText(value) {
   return String(value || '').replace(/\s+/g, ' ').trim();
 }
@@ -81,9 +83,13 @@ async function collectYouTubeRetention(sourceUrl, options = {}) {
     filters: `video==${videoId}`,
     sort: 'elapsedVideoTimeRatio'
   });
+  const controller = new AbortController();
+  const timeoutMs = Number(options.timeoutMs || options.retentionTimeoutMs || DEFAULT_RETENTION_TIMEOUT_MS) || DEFAULT_RETENTION_TIMEOUT_MS;
+  const timeout = setTimeout(() => controller.abort(), Math.max(1, timeoutMs));
   try {
     const response = await fetch(`https://youtubeanalytics.googleapis.com/v2/reports?${params.toString()}`, {
-      headers: { Authorization: `Bearer ${accessToken}` }
+      headers: { Authorization: `Bearer ${accessToken}` },
+      signal: controller.signal
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
@@ -101,7 +107,10 @@ async function collectYouTubeRetention(sourceUrl, options = {}) {
       date_range: range
     };
   } catch (error) {
+    if (error?.name === 'AbortError') return unavailable('retention_request_timeout', { timeoutMs });
     return unavailable('retention_request_failed', { message: error.message });
+  } finally {
+    clearTimeout(timeout);
   }
 }
 

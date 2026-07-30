@@ -1,6 +1,7 @@
 const { extractYouTubeVideoId } = require('./youtubeUrlUtils');
 
 const COMMENT_PAGE_SIZE = 50;
+const DEFAULT_COMMENT_TIMEOUT_MS = 20_000;
 
 function normalizeText(value) {
   return String(value || '').replace(/\s+/g, ' ').trim();
@@ -43,17 +44,31 @@ async function fetchCommentOrder(videoId, order, apiKey, options = {}) {
     textFormat: 'plainText',
     key: apiKey
   });
-  const response = await fetch(`https://www.googleapis.com/youtube/v3/commentThreads?${params.toString()}`);
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const reason = data?.error?.errors?.[0]?.reason || data?.error?.status || `http_${response.status}`;
-    const error = new Error(`YouTube comments ${order} request failed: ${reason}`);
-    error.status = response.status;
-    error.reason = reason;
-    error.details = data;
+  const controller = new AbortController();
+  const timeoutMs = Number(options.timeoutMs || options.commentsTimeoutMs || DEFAULT_COMMENT_TIMEOUT_MS) || DEFAULT_COMMENT_TIMEOUT_MS;
+  const timeout = setTimeout(() => controller.abort(), Math.max(1, timeoutMs));
+  try {
+    const response = await fetch(`https://www.googleapis.com/youtube/v3/commentThreads?${params.toString()}`, { signal: controller.signal });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const reason = data?.error?.errors?.[0]?.reason || data?.error?.status || `http_${response.status}`;
+      const error = new Error(`YouTube comments ${order} request failed: ${reason}`);
+      error.status = response.status;
+      error.reason = reason;
+      error.details = data;
+      throw error;
+    }
+    return (Array.isArray(data.items) ? data.items : []).map(normalizeComment).filter((comment) => comment.text);
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      const timeoutError = new Error(`YouTube comments ${order} request timed out after ${timeoutMs}ms`);
+      timeoutError.reason = 'comments_request_timeout';
+      throw timeoutError;
+    }
     throw error;
+  } finally {
+    clearTimeout(timeout);
   }
-  return (Array.isArray(data.items) ? data.items : []).map(normalizeComment).filter((comment) => comment.text);
 }
 
 function tokenCounts(comments) {
