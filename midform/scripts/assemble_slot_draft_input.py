@@ -80,6 +80,13 @@ def deep_merge(base, override):
     return merged
 
 
+def safe_float(value, default=None):
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def load_tts_config():
     config = dict(DEFAULT_TTS_CONFIG)
     if TTS_CONFIG_PATH.exists():
@@ -457,6 +464,14 @@ def validate_dialogue_utterance_references(segments, transcript):
         end = parse_timecode_to_sec(clip.get("end"))
         if start is None or end is None:
             continue
+        speech_range = segment.get("dialogue_speech_range_sec") if isinstance(segment.get("dialogue_speech_range_sec"), list) else []
+        speech_start = safe_float(speech_range[0], None) if len(speech_range) >= 2 else None
+        speech_end = safe_float(speech_range[1], None) if len(speech_range) >= 2 else None
+        if speech_start is not None and speech_end is not None and speech_end > speech_start:
+            exact_utterance = abs(speech_start - utterance["start"]) <= 0.05 and abs(speech_end - utterance["end"]) <= 0.05
+            clip_contains_speech = start <= speech_start + 0.05 and end >= speech_end - 0.05 and end > start
+            if exact_utterance and clip_contains_speech:
+                continue
         within_utterance = start >= utterance["start"] - 0.05 and end <= utterance["end"] + 0.05 and end > start
         exact_utterance = abs(start - utterance["start"]) <= 0.05 and abs(end - utterance["end"]) <= 0.05
         if not (exact_utterance or within_utterance):
