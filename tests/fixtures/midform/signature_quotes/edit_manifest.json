@@ -1,0 +1,65 @@
+{
+  "slot_map_mode": true,
+  "slot_order": ["s01", "s02", "s03", "s04", "s05", "s06", "s07", "s08", "s09"],
+  "warnings": [],
+  "split_warnings": [],
+  "dialogue_reserved_range_violations": [],
+  "segments": [
+    {
+      "segment_id": "s01",
+      "segment_type": "recap",
+      "source_clips": [{ "start": 0.0, "end": 7.0, "speed_multiplier": 1.0 }]
+    },
+    {
+      "segment_id": "s02",
+      "segment_type": "dialogue_quote",
+      "source_clips": [{ "start": 7.0, "end": 8.42, "speed_multiplier": 1.0 }]
+    },
+    {
+      "segment_id": "s03",
+      "segment_type": "recap",
+      "source_clips": [{ "start": 8.42, "end": 68.98, "speed_multiplier": 1.0 }]
+    },
+    {
+      "segment_id": "s04",
+      "segment_type": "dialogue_quote",
+      "source_clips": [{ "start": 68.98, "end": 70.46, "speed_multiplier": 1.0 }]
+    },
+    {
+      "segment_id": "s05",
+      "segment_type": "recap",
+      "source_clips": [{ "start": 70.46, "end": 89.68, "speed_multiplier": 1.0 }]
+    },
+    {
+      "segment_id": "s06",
+      "segment_type": "dialogue_quote",
+      "source_clips": [{ "start": 89.68, "end": 91.04, "speed_multiplier": 1.0 }]
+    },
+    {
+      "segment_id": "s07",
+      "segment_type": "recap",
+      "source_clips": [{ "start": 91.04, "end": 106.92, "speed_multiplier": 1.0 }]
+    },
+    {
+      "segment_id": "s08",
+      "segment_type": "dialogue_quote",
+      "source_clips": [{ "start": 106.92, "end": 110.5, "speed_multiplier": 1.0 }]
+    },
+    {
+      "segment_id": "s09",
+      "segment_type": "recap",
+      "source_clips": [{ "start": 110.5, "end": 128.5, "speed_multiplier": 1.0 }]
+    }
+  ],
+  "caption_units": [
+    { "caption_id": "s01_cap_001", "segment_id": "s01", "segment_type": "recap", "text": "아들이 원하는 건" },
+    { "caption_id": "s02_cap_001", "segment_id": "s02", "segment_type": "dialogue_quote", "text": "아빠는 왜 날" },
+    { "caption_id": "s03_cap_001", "segment_id": "s03", "segment_type": "recap", "text": "트로이는 그 질문을" },
+    { "caption_id": "s04_cap_001", "segment_id": "s04", "segment_type": "dialogue_quote", "text": "그건 내 책임이야" },
+    { "caption_id": "s05_cap_001", "segment_id": "s05", "segment_type": "recap", "text": "아버지는 사랑보다" },
+    { "caption_id": "s06_cap_001", "segment_id": "s06", "segment_type": "dialogue_quote", "text": "널 좋아할 의무는 없어" },
+    { "caption_id": "s07_cap_001", "segment_id": "s07", "segment_type": "recap", "text": "말은 더 차가워지고" },
+    { "caption_id": "s08_cap_001", "segment_id": "s08", "segment_type": "dialogue_quote", "text": "누가 널 좋아하는지만 보지 마" },
+    { "caption_id": "s09_cap_001", "segment_id": "s09", "segment_type": "recap", "text": "결국 상처만 남습니다" }
+  ]
+}

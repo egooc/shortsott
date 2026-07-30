@@ -1,0 +1,16 @@
+{
+  "materials": {
+    "texts": [
+      {
+        "id": "mat_001",
+        "type": "subtitle",
+        "name": "광고는 내가 살린 겁니다.",
+        "recognize_text": "광고는 내가 살린 겁니다.",
+        "base_content": "광고는 내가 살린 겁니다.",
+        "text_color": "#37FF3D",
+        "use_effect_default_color": false,
+        "content": "{\"text\":\"광고는 내가 살린 겁니다.\",\"styles\":[{\"fill\":{\"content\":{\"render_type\":\"solid\",\"solid\":{\"color\":[0.2156862745,1,0.2392156863],\"alpha\":1}},\"alpha\":1},\"useLetterColor\":true}]}"
+      }
+    ]
+  }
+}

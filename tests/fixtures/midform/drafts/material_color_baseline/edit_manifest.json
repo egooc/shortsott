@@ -1,0 +1,23 @@
+{
+  "segments": [
+    {
+      "segment_id": "slot_01_L01",
+      "segment_type": "dialogue_quote",
+      "speaker": "Sculley",
+      "caption_color": "#37FF3D",
+      "narration": "광고는 내가 살린 겁니다.",
+      "timeline_start_sec": 0,
+      "timeline_end_sec": 3
+    }
+  ],
+  "caption_units": [
+    {
+      "caption_id": "cap_001",
+      "segment_id": "slot_01_L01",
+      "segment_type": "dialogue_quote",
+      "speaker": "Sculley",
+      "caption_color": "#37FF3D",
+      "text": "광고는 내가 살린 겁니다."
+    }
+  ]
+}

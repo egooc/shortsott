@@ -1,0 +1,37 @@
+{
+  "segments": [
+    {
+      "segment_id": "slot_01",
+      "segment_type": "recap",
+      "narration": "setup narration",
+      "timeline_start_sec": 0,
+      "timeline_end_sec": 30
+    },
+    {
+      "segment_id": "slot_02",
+      "segment_type": "recap",
+      "narration": "more setup",
+      "timeline_start_sec": 30,
+      "timeline_end_sec": 45
+    },
+    {
+      "segment_id": "slot_03",
+      "segment_type": "dialogue_quote",
+      "speaker": "Jobs",
+      "caption_color": "",
+      "narration": "Why do people think I fired you?",
+      "timeline_start_sec": 45,
+      "timeline_end_sec": 48
+    },
+    {
+      "segment_id": "slot_04",
+      "segment_type": "dialogue_quote",
+      "speaker": "Sculley",
+      "caption_color": "",
+      "narration": "You tried to kill it.",
+      "timeline_start_sec": 60,
+      "timeline_end_sec": 63
+    }
+  ],
+  "caption_units": []
+}

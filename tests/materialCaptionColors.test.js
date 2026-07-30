@@ -95,8 +95,8 @@ test('material color validator ignores orphan materials and consumes duplicate t
 });
 
 test('latest Steve Jobs draft has material-level colors matching dialogue manifest colors', () => {
-  const manifest = readJson('server/output/drafts/pipeline_1785150227/edit_manifest.json');
-  const draftContent = readJson('server/output/drafts/pipeline_1785150227/draft_content.json');
+  const manifest = readJson('tests/fixtures/midform/drafts/material_color_baseline/edit_manifest.json');
+  const draftContent = readJson('tests/fixtures/midform/drafts/material_color_baseline/draft_content.json');
   const validation = validateManifestMaterialColors(manifest, draftContent);
 
   assert.ok(validation.checked > 0);

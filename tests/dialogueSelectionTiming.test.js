@@ -11,7 +11,7 @@ const {
 } = require('./artifactQaHelpers');
 
 test('artifact helper detects the current Steve Jobs render enters KEEP_DIALOGUE too late', () => {
-  const manifest = readJson('server/output/drafts/pipeline_1785135546/edit_manifest.json');
+  const manifest = readJson('tests/fixtures/midform/drafts/late_dialogue_baseline/edit_manifest.json');
   const segments = activeSegmentsFromManifest(manifest);
 
   assert.ok(segments.length > 0);

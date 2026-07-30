@@ -113,7 +113,7 @@ test('speaker color metadata gate passes separated narration and dialogue colors
 });
 
 test('current Steve Jobs render has speaker metadata but no speaker color evidence', () => {
-  const manifest = readJson('server/output/drafts/pipeline_1785135546/edit_manifest.json');
+  const manifest = readJson('tests/fixtures/midform/drafts/late_dialogue_baseline/edit_manifest.json');
   const evidence = colorEvidenceBySpeaker(manifest);
 
   assert.deepEqual(evidence.Jobs || [], []);
