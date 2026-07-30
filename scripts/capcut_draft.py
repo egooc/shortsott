@@ -9539,6 +9539,8 @@ def create_draft(input_json_path):
         for segment in segments if isinstance(segments, list) else []:
             if not isinstance(segment, dict):
                 continue
+            if segment.get("locale_source_override") is True:
+                continue
             segment_type = str(segment.get("segment_type") or "").strip()
             if segment_type in {"dialogue_quote", "dialogue"}:
                 continue
@@ -10620,7 +10622,8 @@ def create_draft(input_json_path):
                         )
                     fill_ref = last_segment_clip_ref or last_valid_clip_ref
                     if fill_ref:
-                        if is_final_tail_segment:
+                        locale_override_freeze_padding = bool(midform_hybrid_mode and segment_info.get("locale_source_override") is True)
+                        if is_final_tail_segment or locale_override_freeze_padding:
                             fps_value = max(1.0, safe_float(data.get("fps"), 30.0))
                             frame_duration_us = max(1, int(round(1_000_000 / fps_value)))
                             freeze_source_end_us = effective_visual_end_us if effective_visual_end_us > 0 else (fill_ref["source_start_us"] + fill_ref["source_duration_us"])
@@ -10629,11 +10632,12 @@ def create_draft(input_json_path):
                             if freeze_duration_us > 0:
                                 pad_mode = "freeze_last_frame"
                                 segment_pad_modes.add(pad_mode)
-                                final_slot_tail["applied"] = True
-                                final_slot_tail["freeze_applied"] = True
-                                final_slot_tail["freeze_duration_sec"] = round(freeze_duration_us / 1_000_000, 6)
-                                final_slot_tail["tail_overrun_sec"] = round(freeze_duration_us / 1_000_000, 6)
-                                final_slot_tail["freeze_within_allowance"] = freeze_duration_us <= int(round(final_slot_tail_allowance_sec * 1_000_000)) + 1_000
+                                if is_final_tail_segment:
+                                    final_slot_tail["applied"] = True
+                                    final_slot_tail["freeze_applied"] = True
+                                    final_slot_tail["freeze_duration_sec"] = round(freeze_duration_us / 1_000_000, 6)
+                                    final_slot_tail["tail_overrun_sec"] = round(freeze_duration_us / 1_000_000, 6)
+                                    final_slot_tail["freeze_within_allowance"] = freeze_duration_us <= int(round(final_slot_tail_allowance_sec * 1_000_000)) + 1_000
                                 repeat_end_us = add_video_segment_with_manifest(
                                     segment_id=segment_id,
                                     clip_id=f"{fill_ref['clip_id']}_freeze",
@@ -10645,8 +10649,8 @@ def create_draft(input_json_path):
                                     timeline_start_us=timeline_cursor_us,
                                     tts_duration_us=tts_duration_us,
                                     placement_warnings=[
-                                        f"final slot padded by freezing last frame for {round(freeze_duration_us / 1_000_000, 3)}s",
-                                        "tail allowance exceeded" if not final_slot_tail["freeze_within_allowance"] else "tail allowance respected",
+                                        f"segment padded by freezing last frame for {round(freeze_duration_us / 1_000_000, 3)}s",
+                                        "tail allowance exceeded" if is_final_tail_segment and not final_slot_tail["freeze_within_allowance"] else "source overlap avoided for locale override",
                                     ],
                                 )
                                 timeline_cursor_us = repeat_end_us
