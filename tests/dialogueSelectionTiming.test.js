@@ -117,6 +117,84 @@ test('finalizeEditPlan builds cold_open_callback metadata with hook teaser and c
   assert.equal(finalized.dialogue_timing_qc.status, 'passed');
 });
 
+
+test('finalizeEditPlan trims dialogue cold open to teaser cap after readable-window expansion', () => {
+  const transcript = [
+    { start_sec: 120.069, end_sec: 121.67, text: "aren't angry about being fired from" },
+    { start_sec: 121.67, end_sec: 132.47, text: 'valley springs for touching your students' },
+    { start_sec: 135.11, end_sec: 137.51, text: "i'm not the zodiac" },
+    { start_sec: 137.51, end_sec: 140.15, text: "and if i was i certainly wouldn't tell you" },
+    { start_sec: 167.67, end_sec: 174.96, text: 'later payoff reaction' }
+  ];
+  const beats = [
+    {
+      beat_id: 'B004',
+      start_sec: 119.07,
+      end_sec: 145.8,
+      summary: 'The suspect turns the accusation back with a memorable denial.',
+      key_dialogue: [
+        "aren't angry about being fired from",
+        'valley springs for touching your students',
+        "i'm not the zodiac",
+        "and if i was i certainly wouldn't tell you"
+      ],
+      anchor_dialogue: ["i'm not the zodiac", "and if i was i certainly wouldn't tell you"],
+      dramatic_weight: 5,
+      dialogue_quality: 'high',
+      hook_potential: 5
+    },
+    {
+      beat_id: 'B005',
+      start_sec: 167.67,
+      end_sec: 174.96,
+      summary: 'The room reacts to the denial.',
+      key_dialogue: ['later payoff reaction'],
+      anchor_dialogue: ['later payoff reaction'],
+      dramatic_weight: 4,
+      dialogue_quality: 'mid',
+      hook_potential: 4
+    }
+  ];
+  const editPlan = {
+    editorial_pattern: 'cold_open_callback',
+    cold_open_selection: { beat_id: 'B004' },
+    timeline: [
+      {
+        slot_id: 'slot_01',
+        beat_id: 'B004',
+        role: 'cold_open',
+        decision: 'KEEP_DIALOGUE',
+        start_sec: 120.069,
+        end_sec: 140.15,
+        estimated_duration_sec: 20.081,
+        dialogue_focus_quotes: [
+          "aren't angry about being fired from",
+          'valley springs for touching your students',
+          "i'm not the zodiac",
+          "and if i was i certainly wouldn't tell you"
+        ],
+        dialogue_focus_lines: [
+          "aren't angry about being fired from",
+          'valley springs for touching your students',
+          "i'm not the zodiac",
+          "and if i was i certainly wouldn't tell you"
+        ]
+      },
+      { slot_id: 'slot_02', beat_id: 'B005', role: 'bridge', decision: 'NARRATE', start_sec: 167.67, end_sec: 174.96, estimated_duration_sec: 8 }
+    ],
+    duration_budget: { target_sec: 120 }
+  };
+
+  const finalized = _test.finalizeEditPlan(editPlan, beats, transcript, 120);
+  const cold = finalized.timeline.find((item) => item.role === 'cold_open');
+
+  assert.equal(cold.decision, 'KEEP_DIALOGUE');
+  assert.ok(cold.estimated_duration_sec <= 16, `cold_open duration ${cold.estimated_duration_sec}s should stay teaser-short`);
+  assert.deepEqual(cold.dialogue_focus_lines, ["i'm not the zodiac", "and if i was i certainly wouldn't tell you"]);
+  assert.equal(cold.visual_source_start_sec, cold.start_sec);
+  assert.equal(cold.visual_source_end_sec, cold.end_sec);
+});
+
 test('finalizeEditPlan aligns hook qc_action with selector support action after coherence repair', () => {
   const transcript = [
     { start_sec: 161.05, end_sec: 162.7, text: "what to do with a can of soda I didn't" },

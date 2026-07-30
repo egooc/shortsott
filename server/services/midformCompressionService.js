@@ -1430,9 +1430,22 @@ function enforceEarlyDialogueAnchor(timeline, editPlan, beats, transcript) {
 }
 
 function resolveReadableDialogueWindows(transcript, focus, beatEndSec, nextBeatStart, requiredLines = []) {
+  const withResolvedBounds = (nextFocus, nextLines, nextResolution) => {
+    const matched = (Array.isArray(nextResolution?.windows) ? nextResolution.windows : [])
+      .filter((win) => win && win.matched === true && Number(win.end_sec) > Number(win.start_sec));
+    if (!matched.length) return { ...nextFocus, lines: nextLines, matched_quotes: nextLines, quotes: nextLines };
+    return {
+      ...nextFocus,
+      start_sec: roundSec(Math.min(...matched.map((win) => Number(win.start_sec)))),
+      end_sec: roundSec(Math.max(...matched.map((win) => Number(win.end_sec)))),
+      lines: nextLines,
+      matched_quotes: nextLines,
+      quotes: nextLines
+    };
+  };
   let lines = Array.isArray(focus?.lines) ? focus.lines : [];
   let resolution = resolveDialogueLineWindows(transcript, focus.start_sec, focus.end_sec, lines, beatEndSec, nextBeatStart);
-  if (resolution.ok) return { focus: { ...focus, lines }, resolution };
+  if (resolution.ok) return { focus: withResolvedBounds(focus, lines, resolution), resolution };
   const required = new Set((Array.isArray(requiredLines) ? requiredLines : []).map(normalizeComparableText).filter(Boolean));
   const tooShortNonRequired = new Set(resolution.windows
     .filter((win) => win && win.too_short === true && !required.has(normalizeComparableText(win.line)))
@@ -1441,17 +1454,39 @@ function resolveReadableDialogueWindows(transcript, focus, beatEndSec, nextBeatS
     lines = lines.filter((line) => !tooShortNonRequired.has(normalizeComparableText(line)));
     const nextFocus = { ...focus, lines, matched_quotes: lines, quotes: lines };
     resolution = resolveDialogueLineWindows(transcript, nextFocus.start_sec, nextFocus.end_sec, lines, beatEndSec, nextBeatStart);
-    if (resolution.ok || !lines.length) return { focus: nextFocus, resolution };
+    if (resolution.ok || !lines.length) return { focus: withResolvedBounds(nextFocus, lines, resolution), resolution };
   }
   const crowdedLowScore = new Set(resolution.windows
     .filter((win) => win && win.matched && Number(win.score || 0) < 75)
     .map((win) => normalizeComparableText(win.line)));
-  if (!crowdedLowScore.size) return { focus: { ...focus, lines }, resolution };
+  if (!crowdedLowScore.size) return { focus: withResolvedBounds(focus, lines, resolution), resolution };
   lines = lines.filter((line) => !crowdedLowScore.has(normalizeComparableText(line)));
-  if (!lines.length || lines.length === focus.lines.length) return { focus: { ...focus, lines }, resolution };
+  if (!lines.length || lines.length === focus.lines.length) return { focus: withResolvedBounds(focus, lines, resolution), resolution };
   const nextFocus = { ...focus, lines, matched_quotes: lines, quotes: lines };
   resolution = resolveDialogueLineWindows(transcript, nextFocus.start_sec, nextFocus.end_sec, lines, beatEndSec, nextBeatStart);
-  return { focus: nextFocus, resolution };
+  return { focus: withResolvedBounds(nextFocus, lines, resolution), resolution };
+}
+
+function resolveCappedColdOpenReadableFocus(beat, transcript, focus, beatEndSec, nextBeatStart, maxDurationSec) {
+  const lines = Array.isArray(focus?.lines) ? focus.lines.map((line) => String(line || '').trim()).filter(Boolean) : [];
+  if (!beat || lines.length <= 1) return null;
+  for (let startIndex = 1; startIndex < lines.length; startIndex += 1) {
+    const candidateLines = lines.slice(startIndex);
+    const rawFocus = collectDialogueFocus(beat, transcript, { quotes: candidateLines });
+    if (!rawFocus) continue;
+    const readable = resolveReadableDialogueWindows(transcript, { ...rawFocus, lines: candidateLines }, beatEndSec, nextBeatStart, candidateLines);
+    const durationSec = roundSec(Number(readable.focus.end_sec) - Number(readable.focus.start_sec));
+    if (readable.resolution.ok && durationSec > 0 && durationSec <= maxDurationSec) return readable;
+  }
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    const candidateLines = [lines[index]];
+    const rawFocus = collectDialogueFocus(beat, transcript, { quotes: candidateLines });
+    if (!rawFocus) continue;
+    const readable = resolveReadableDialogueWindows(transcript, { ...rawFocus, lines: candidateLines }, beatEndSec, nextBeatStart, candidateLines);
+    const durationSec = roundSec(Number(readable.focus.end_sec) - Number(readable.focus.start_sec));
+    if (readable.resolution.ok && durationSec > 0 && durationSec <= maxDurationSec) return readable;
+  }
+  return null;
 }
 
 function hasPronounRisk(text) {
@@ -2256,6 +2291,9 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec) {
         const nextBeatStart = sortedBeatStarts.find((startSec) => startSec > Number(beat.end_sec) + 0.001);
         const readable = resolveReadableDialogueWindows(transcript, focus, beat.end_sec, nextBeatStart, requiredAnchors);
         const lineResolution = readable.resolution;
+        next.start_sec = readable.focus.start_sec;
+        next.end_sec = readable.focus.end_sec;
+        next.estimated_duration_sec = roundSec(Number(readable.focus.end_sec) - Number(readable.focus.start_sec));
         next.dialogue_focus_quotes = readable.focus.matched_quotes || readable.focus.lines;
         next.dialogue_focus_lines = readable.focus.lines;
         next.dialogue_line_windows = lineResolution.windows;
@@ -2308,8 +2346,18 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec) {
           ...coldOpenCallbackScores(coldBeat, focus.lines)
         };
         const nextBeatStart = sortedBeatStarts.find((startSec) => startSec > Number(coldBeat.end_sec) + 0.001);
-        const readable = resolveReadableDialogueWindows(transcript, focus, coldBeat.end_sec, nextBeatStart, preferredQuotes);
+        let readable = resolveReadableDialogueWindows(transcript, focus, coldBeat.end_sec, nextBeatStart, preferredQuotes);
+        if (roundSec(Number(readable.focus.end_sec) - Number(readable.focus.start_sec)) > COLD_OPEN_DIALOGUE_MAX_SEC) {
+          const cappedReadable = resolveCappedColdOpenReadableFocus(coldBeat, transcript, readable.focus, coldBeat.end_sec, nextBeatStart, COLD_OPEN_DIALOGUE_MAX_SEC);
+          if (cappedReadable) {
+            readable = cappedReadable;
+            cold.reason = `${cold.reason || ''} Cold-open dialogue was trimmed to stay under the ${COLD_OPEN_DIALOGUE_MAX_SEC}s teaser cap.`.trim();
+          }
+        }
         const lineResolution = readable.resolution;
+        cold.start_sec = readable.focus.start_sec;
+        cold.end_sec = readable.focus.end_sec;
+        cold.estimated_duration_sec = roundSec(Number(readable.focus.end_sec) - Number(readable.focus.start_sec));
         cold.dialogue_focus_quotes = readable.focus.matched_quotes || readable.focus.lines;
         cold.dialogue_focus_lines = readable.focus.lines;
         cold.dialogue_line_windows = lineResolution.windows;
@@ -2384,6 +2432,9 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec) {
           replay.dialogue_focus_lines = remainingFocus.lines;
           const nextBeatStart = sortedBeatStarts.find((startSec) => startSec > Number(replayBeatEnd) + 0.001);
           const readable = resolveReadableDialogueWindows(transcript, remainingFocus, replayBeatEnd, nextBeatStart, replayBeat?.anchor_dialogue || []);
+          replay.start_sec = readable.focus.start_sec;
+          replay.end_sec = readable.focus.end_sec;
+          replay.estimated_duration_sec = roundSec(Number(readable.focus.end_sec) - Number(readable.focus.start_sec));
           replay.dialogue_focus_quotes = readable.focus.quotes || readable.focus.matched_quotes || readable.focus.lines;
           replay.dialogue_focus_lines = readable.focus.lines;
           const lineResolution = readable.resolution;
