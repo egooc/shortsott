@@ -12,6 +12,7 @@ const { getRun, startRun } = require('./midformPipelineService');
 const { collectRunArtifacts, copyIfExists, ensureDir, rel, writeJson, writeText } = require('./midformRunArtifactsService');
 const { generateLocaleDraftArtifacts } = require('./midformLocaleDraftService');
 const { buildLocaleBranchArtifacts } = require('./midformLocaleBranchService');
+const { normalizeMultimodalProvider, runMidformMultimodalReview, shouldRunMultimodalReview } = require('./midformMultimodalReviewService');
 
 const SCHEMA_PATH = path.join(PROJECT_ROOT, 'midform', 'schemas', 'midform_run_template_schema.json');
 const WORKSPACE_ROOT = path.join(PROJECT_ROOT, 'midform', 'test_runs', 'template_runs');
@@ -474,6 +475,39 @@ function buildPipelineFailureSummary(summary, finalPipelineState, stage) {
   };
 }
 
+function coreDraftGatesPassed(qa, localeDrafts) {
+  return qa?.gateResults?.status !== 'failed' && localeDrafts?.finalOverlapReport?.final_status === 'pass';
+}
+
+function requiredReviewFailureSummary({ summary, qa, localeDrafts, analysisRun, review }) {
+  const providerError = review?.error || null;
+  const reviewResult = review?.result || null;
+  const repairFailure = providerError?.code || (reviewResult?.status === 'needs_repair' ? 'MULTIMODAL_REVIEW_REQUIRES_REPAIR' : 'MIDFORM_REQUIRED_GATES_FAILED');
+  return {
+    ...summary,
+    status: 'failed',
+    output_paths: { ...summary.output_paths, ...(review?.outputPaths || {}) },
+    gate_results: qa?.gateResults || null,
+    warnings: qa?.gateResults?.warnings || summary.warnings || [],
+    analysis_run: analysisRun,
+    failure_reason: {
+      stage: 'multimodal_review',
+      code: repairFailure,
+      message: providerError?.message || 'Required midform gates failed after multimodal review',
+      primary_failure: qa?.gateResults?.status === 'failed' ? 'editorial_acceptance_failed' : 'final_draft_overlap_failed',
+      repair_failure: repairFailure,
+      details: {
+        failed_gates: qa?.gateResults?.failed || [],
+        final_draft_overlap: localeDrafts?.finalOverlapReport || null,
+        provider: review?.provider || '',
+        provider_error: providerError ? { code: providerError.code, message: providerError.message, details: providerError.details || {} } : null,
+        review_result: reviewResult,
+        multimodal_review_report: review?.report || null
+      }
+    }
+  };
+}
+
 function finalSummaryFromQa(summary, qa, finalPipelineState, analysisRun) {
   return {
     ...summary,
@@ -752,6 +786,9 @@ async function runMidformTemplateWorkflow(options = {}) {
           relevant_quality_warnings: [],
           explanation: 'Compression mode never auto-escalates.'
         };
+    const provider = normalizeMultimodalProvider();
+    const reviewRequired = qa.gateResults.status === 'failed' || localeDrafts.finalOverlapReport.final_status !== 'pass';
+    const shouldReview = normalizedRequest.analysis.mode === 'auto' && shouldRunMultimodalReview({ provider, qa, localeDrafts, autoDecision });
     summary.analysis_run = {
       ...summary.analysis_run,
       requested_mode: normalizedRequest.analysis.mode,
@@ -762,6 +799,8 @@ async function runMidformTemplateWorkflow(options = {}) {
       auto_escalation: {
         triggered: false,
         escalated: false,
+        provider,
+        required: reviewRequired,
         reason_codes: autoDecision.reason_codes,
         gate_failures: autoDecision.gate_failures,
         gate_warnings: autoDecision.gate_warnings,
@@ -771,32 +810,68 @@ async function runMidformTemplateWorkflow(options = {}) {
       }
     };
 
-    if (autoDecision.should_escalate) {
+    if (coreDraftGatesPassed(qa, localeDrafts)) {
+      const finalSummary = finalSummaryFromQa(summary, qa, finalPipelineState, summary.analysis_run);
+      writeJson(workspace.summaryPath, finalSummary);
+      return finalSummary;
+    }
+
+    if (shouldReview) {
       summary.analysis_run.auto_escalation.triggered = true;
       summary.analysis_run.auto_escalation.escalated = true;
+      summary.analysis_run.auto_escalation.provider = provider;
+      summary.analysis_run.auto_escalation.required = reviewRequired;
       summary.analysis_run.auto_escalation.first_pass_status = qa.gateResults.status;
       summary.analysis_run.auto_escalation.first_pass_gate_results = qa.gateResults;
       writeJson(workspace.summaryPath, summary);
-      const multimodalState = await runMultimodalPipelineFromTemplate(normalizedRequest);
-      summary.internal.multimodal_pipeline_run_id = multimodalState.runId;
-      summary.internal.multimodal_pipeline_run_dir = multimodalState.runDir;
+      const review = await runMidformMultimodalReview({
+        workspaceDir: workspace.workspaceDir,
+        normalizedRequest,
+        qa,
+        finalPipelineState,
+        localeDrafts,
+        autoDecision,
+        provider,
+        required: reviewRequired
+      });
       summary.analysis_run = {
         ...summary.analysis_run,
-        final_path: 'multimodal',
-        multimodal_pipeline_run_id: multimodalState.runId,
-        multimodal_pipeline_status: multimodalState.status
+        final_path: 'compression',
+        multimodal_review: {
+          provider,
+          required: reviewRequired,
+          status: review.status,
+          reason: review.error?.code || '',
+          report_path: review.outputPaths?.multimodal_review_report || '',
+          result: review.result || null
+        }
       };
+      summary.output_paths = { ...summary.output_paths, ...(review.outputPaths || {}) };
       writeJson(workspace.summaryPath, summary);
-      if (!multimodalState || !String(multimodalState.status || '').startsWith('completed')) {
-        const failedSummary = buildPipelineFailureSummary(summary, multimodalState, 'multimodal_escalation');
+      if (review.status === 'failed') {
+        if (!reviewRequired) {
+          const degraded = {
+            ...finalSummaryFromQa(summary, qa, finalPipelineState, summary.analysis_run),
+            status: 'degraded_pass',
+            failure_reason: null,
+            degraded_reason: 'optional_multimodal_review_failed',
+            warnings: [...new Set([...(qa.gateResults.warnings || []), 'optional_multimodal_review_failed'])]
+          };
+          writeJson(workspace.summaryPath, degraded);
+          return degraded;
+        }
+        const failedSummary = requiredReviewFailureSummary({ summary, qa, localeDrafts, analysisRun: summary.analysis_run, review });
         writeJson(workspace.summaryPath, failedSummary);
         return failedSummary;
       }
-      const multimodalQa = collectQaForPipeline({ workspace, normalizedRequest, pipelineState: multimodalState });
-      summary.analysis_run.auto_escalation.final_pass_status = multimodalQa.gateResults.status;
-      const escalatedSummary = finalSummaryFromQa(summary, multimodalQa, multimodalState, summary.analysis_run);
-      writeJson(workspace.summaryPath, escalatedSummary);
-      return escalatedSummary;
+      if (reviewRequired || review.result?.status === 'needs_repair') {
+        const failedSummary = requiredReviewFailureSummary({ summary, qa, localeDrafts, analysisRun: summary.analysis_run, review });
+        writeJson(workspace.summaryPath, failedSummary);
+        return failedSummary;
+      }
+      const reviewedSummary = finalSummaryFromQa(summary, qa, finalPipelineState, summary.analysis_run);
+      writeJson(workspace.summaryPath, reviewedSummary);
+      return reviewedSummary;
     }
 
     let finalSummary = finalSummaryFromQa(summary, qa, finalPipelineState, summary.analysis_run);

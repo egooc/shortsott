@@ -13,8 +13,10 @@ const MIDFORM_NATURALIZATION_VALIDATION_SCHEMA_PATH = path.join(PROJECT_ROOT, 'm
 const MIDFORM_CLOSING_DRIP_VALIDATION_SCHEMA_PATH = path.join(PROJECT_ROOT, 'midform', 'schemas', 'closing_drip_validation_schema.json');
 const MIDFORM_COMPRESSION_BEATS_SCHEMA_PATH = path.join(PROJECT_ROOT, 'midform', 'schemas', 'midform_compression_beats_schema.json');
 const MIDFORM_COMPRESSION_EDIT_PLAN_SCHEMA_PATH = path.join(PROJECT_ROOT, 'midform', 'schemas', 'midform_compression_edit_plan_schema.json');
+const MIDFORM_MULTIMODAL_REVIEW_SCHEMA_PATH = path.join(PROJECT_ROOT, 'midform', 'schemas', 'midform_multimodal_review_schema.json');
 const GPT_WORK_DIR = path.join(PROJECT_ROOT, 'midform', 'work', 'gpt_cli');
 const DEFAULT_MODEL = '';
+const DEFAULT_CLI_TIMEOUT_MS = 20 * 60 * 1000;
 const CAMERA_TERMS = ['클로즈업', '컷', '프레임', '화면', '샷', '앵글', '자막', '와이드샷', '구독', '인트로', '아웃트로'];
 const CAMERA_META_PATTERNS = [
   { pattern: /장면(?:은|이|을|의|에서|으로|에는)?/, label: '장면' },
@@ -113,6 +115,37 @@ function resolveCodexBaseCommand() {
   return { command: 'codex', argsPrefix: [] };
 }
 
+function assertCodexLoginStatus(options = {}) {
+  const base = options.baseCommand || resolveCodexBaseCommand();
+  const args = [...base.argsPrefix, 'login', 'status'];
+  try {
+    const stdout = execFileSync(base.command, args, {
+      cwd: PROJECT_ROOT,
+      encoding: 'utf8',
+      env: options.env || process.env,
+      timeout: Number(options.timeoutMs || 15000)
+    });
+    return {
+      ok: true,
+      command: base.command,
+      args,
+      stdout: summarizeCliText(stdout, 2000),
+      stderr: ''
+    };
+  } catch (error) {
+    const stdout = summarizeCliText(error?.stdout || '', 2000);
+    const stderr = summarizeCliText(error?.stderr || error?.message || '', 2000);
+    throw createHttpError(401, 'GPT_CLI_AUTH_FAILED', 'Codex GPT CLI is not authenticated. Supported auth: `codex login`, `codex login --device-auth`, or `printenv OPENAI_API_KEY | codex login --with-api-key`.', {
+      command: base.command,
+      args,
+      exitCode: Number.isFinite(error?.status) ? error.status : null,
+      stdout,
+      stderr,
+      supported_auth: ['codex login', 'codex login --device-auth', 'printenv OPENAI_API_KEY | codex login --with-api-key']
+    });
+  }
+}
+
 function buildCodexArgs({ outputPath, model, outputSchemaPath = MIDFORM_SCHEMA_PATH }) {
   const effectiveModel = String(model || process.env.GPT_MIDFORM_MODEL || DEFAULT_MODEL).trim();
   const baseArgs = [
@@ -139,7 +172,8 @@ function safeOutputSchemaPath(outputSchemaPath) {
     MIDFORM_NATURALIZATION_VALIDATION_SCHEMA_PATH,
     MIDFORM_CLOSING_DRIP_VALIDATION_SCHEMA_PATH,
     MIDFORM_COMPRESSION_BEATS_SCHEMA_PATH,
-    MIDFORM_COMPRESSION_EDIT_PLAN_SCHEMA_PATH
+    MIDFORM_COMPRESSION_EDIT_PLAN_SCHEMA_PATH,
+    MIDFORM_MULTIMODAL_REVIEW_SCHEMA_PATH
   ].map((item) => path.normalize(item)));
   const resolved = path.normalize(path.isAbsolute(String(outputSchemaPath || ''))
     ? String(outputSchemaPath || MIDFORM_SCHEMA_PATH)
@@ -147,8 +181,98 @@ function safeOutputSchemaPath(outputSchemaPath) {
   return allowed.has(resolved) ? resolved : MIDFORM_SCHEMA_PATH;
 }
 
+function redactSensitiveText(value) {
+  return String(value || '')
+    .replace(/(Authorization\s*:\s*)[^\r\n]+/gi, '$1[redacted]')
+    .replace(/(Cookie\s*:\s*)[^\r\n]+/gi, '$1[redacted]')
+    .replace(/(SAPISIDHASH|Authorization|Cookie|X-Goog-Api-Key|api[_-]?key|token|password|secret)(\s*[:=]\s*)[^\r\n\s]+/gi, '$1$2[redacted]')
+    .replace(/Bearer\s+[A-Za-z0-9._~+\-/]+=*/gi, 'Bearer [redacted]')
+    .replace(/sk-[A-Za-z0-9_-]{12,}/g, 'sk-[redacted]');
+}
+
+function summarizeCliText(value, limit = 4000) {
+  const text = redactSensitiveText(value);
+  if (text.length <= limit) return text;
+  return text.slice(-limit);
+}
+
+function classifyGptCliFailure({ error, stderr = '', stdout = '', exitCode = null, signal = null, timedOut = false, outputText = '' } = {}) {
+  const combined = `${error?.message || ''}\n${stderr}\n${stdout}\n${outputText}`;
+  const text = combined.toLowerCase();
+  if (timedOut) return 'GPT_CLI_TIMEOUT';
+  if (signal) return 'GPT_CLI_SIGNAL_TERMINATED';
+  if (error?.code === 'ENOENT' || /not recognized as an internal or external command|command not found|no such file or directory/.test(text)) return 'GPT_CLI_BINARY_NOT_FOUND';
+  if (/invalid_json_schema|invalid schema for response_format|text\.format\.schema|schema validation|schema/.test(text)) return 'GPT_CLI_SCHEMA_FAILED';
+  if (/authrequired|authentication|unauthorized|not logged in|login required|invalid api key|invalid_api_key|401/.test(text)) return 'GPT_CLI_AUTH_FAILED';
+  if (/model_not_found|model unavailable|unsupported model|does not exist|not available for/.test(text)) return 'GPT_CLI_MODEL_UNAVAILABLE';
+  if (/unknown option|unexpected argument|invalid argument|invalid value|unrecognized option/.test(text)) return 'GPT_CLI_INVALID_ARGUMENT';
+  if (/context_length_exceeded|maximum context|context too large|input too large|token limit/.test(text)) return 'GPT_CLI_INPUT_TOO_LARGE';
+  if (/rate limit|temporarily unavailable|timeout|timed out|econnreset|etimedout|enotfound|network|provider|5\d\d/.test(text)) return 'GPT_CLI_PROVIDER_FAILED';
+  if (!String(outputText || stdout || '').trim() && exitCode === 0) return 'GPT_CLI_EMPTY_OUTPUT';
+  if (exitCode !== null && exitCode !== 0) return 'GPT_CLI_NONZERO_EXIT';
+  return 'GPT_CLI_FAILED';
+}
+
+function isRetryableGptCliFailure(code) {
+  return new Set(['GPT_CLI_TIMEOUT', 'GPT_CLI_PROVIDER_FAILED', 'GPT_CLI_EMPTY_OUTPUT']).has(code);
+}
+
+function buildGptCliFailureDetails({ command, args, promptPath, outputPath, stdout, stderr, exitCode = null, signal = null, timedOut = false, outputText = '', error = null, startedAt = Date.now() }) {
+  const outputExists = outputPath ? fs.existsSync(outputPath) : false;
+  const promptExists = promptPath ? fs.existsSync(promptPath) : false;
+  const code = classifyGptCliFailure({ error, stderr, stdout, exitCode, signal, timedOut, outputText });
+  const modelArgIndex = Array.isArray(args) ? args.indexOf('--model') : -1;
+  const binary = Array.isArray(args) && String(command || '').toLowerCase().endsWith('cmd.exe')
+    ? String(args[3] || args[2] || '')
+    : String(command || '');
+  return {
+    code,
+    report: {
+      stage: 'gpt_cli',
+      command: String(command || ''),
+      binary,
+      model: modelArgIndex >= 0 ? String(args[modelArgIndex + 1] || '') : String(process.env.GPT_MIDFORM_MODEL || DEFAULT_MODEL || ''),
+      working_directory: PROJECT_ROOT,
+      exit_code: exitCode,
+      signal: signal || null,
+      timed_out: timedOut === true,
+      stdout_length: String(stdout || '').length,
+      stderr_summary: summarizeCliText(stderr, 2000),
+      input_artifact_paths: [promptPath].filter(Boolean),
+      input_size_bytes: promptExists ? fs.statSync(promptPath).size : 0,
+      output_path: outputPath || '',
+      output_exists: outputExists,
+      output_size_bytes: outputExists ? fs.statSync(outputPath).size : 0,
+      duration_ms: Date.now() - startedAt,
+      status: 'failed',
+      reason: code
+    },
+    details: {
+      command,
+      args,
+      exitCode,
+      signal: signal || null,
+      timedOut: timedOut === true,
+      stdout: summarizeCliText(stdout, 4000),
+      stderr: summarizeCliText(stderr, 4000),
+      stdoutLength: String(stdout || '').length,
+      stderrLength: String(stderr || '').length,
+      promptPath,
+      outputPath,
+      inputSizeBytes: promptExists ? fs.statSync(promptPath).size : 0,
+      outputSizeBytes: outputExists ? fs.statSync(outputPath).size : 0,
+      reason: code,
+      report: null
+    }
+  };
+}
+
 function runCodexCli(prompt, options = {}) {
-  return new Promise((resolve, reject) => {
+  const maxAttempts = Math.max(1, Math.min(2, Number(options.maxAttempts || options.attempts || 1)));
+  const timeoutMs = Math.max(1, Number(options.timeoutMs || process.env.GPT_MIDFORM_CLI_TIMEOUT_MS || DEFAULT_CLI_TIMEOUT_MS) || DEFAULT_CLI_TIMEOUT_MS);
+
+  function runAttempt(attempt) {
+    return new Promise((resolve, reject) => {
     ensureDir(GPT_WORK_DIR);
     const outputPath = path.join(GPT_WORK_DIR, `codex_midform_output_${timestamp()}_${crypto.randomUUID()}.txt`);
     const promptPath = path.join(GPT_WORK_DIR, `codex_midform_prompt_${timestamp()}_${crypto.randomUUID()}.md`);
@@ -167,6 +291,21 @@ function runCodexCli(prompt, options = {}) {
     };
 
     let child;
+    const startedAt = Date.now();
+    let settled = false;
+    let timedOut = false;
+    let timeout = null;
+    const rejectWithCliError = (message, fields) => {
+      const failure = buildGptCliFailureDetails({ command, args, promptPath, outputPath, startedAt, ...fields });
+      const error = createHttpError(500, failure.code, message, {
+        ...failure.details,
+        attempt,
+        attempts: maxAttempts,
+        retryable: isRetryableGptCliFailure(failure.code)
+      });
+      error.details.report = failure.report;
+      reject(error);
+    };
     try {
       child = spawn(command, args, {
         cwd: PROJECT_ROOT,
@@ -175,11 +314,7 @@ function runCodexCli(prompt, options = {}) {
         stdio: ['pipe', 'pipe', 'pipe']
       });
     } catch (error) {
-      reject(createHttpError(500, 'GPT_CLI_SPAWN_FAILED', `Failed to start GPT CLI: ${error.message}`, {
-        command,
-        args,
-        promptPath
-      }));
+      rejectWithCliError(`Failed to start GPT CLI: ${error.message}`, { error, stderr: error.message });
       return;
     }
 
@@ -191,34 +326,41 @@ function runCodexCli(prompt, options = {}) {
     child.stdout.on('data', (chunk) => { stdout += chunk; });
     child.stderr.on('data', (chunk) => { stderr += chunk; });
     child.on('error', (error) => {
-      reject(createHttpError(500, 'GPT_CLI_SPAWN_FAILED', `GPT CLI error: ${error.message}`, {
-        command,
-        args,
-        stdout,
-        stderr,
-        promptPath,
-        outputPath
-      }));
+      if (settled) return;
+      settled = true;
+      if (timeout) clearTimeout(timeout);
+      rejectWithCliError(`GPT CLI error: ${error.message}`, { error, stdout, stderr });
     });
-    child.on('close', (exitCode) => {
+    timeout = setTimeout(() => {
+      if (settled) return;
+      timedOut = true;
+      child.kill('SIGTERM');
+    }, timeoutMs);
+    child.on('close', (exitCode, signal) => {
+      if (settled) return;
+      settled = true;
+      if (timeout) clearTimeout(timeout);
       const outputText = fs.existsSync(outputPath) ? fs.readFileSync(outputPath, 'utf8') : '';
       if (exitCode !== 0) {
-        reject(createHttpError(500, 'GPT_CLI_FAILED', `GPT CLI exited with code ${exitCode}`, {
-          command,
-          args,
-          exitCode,
-          stdout: stdout.slice(0, 4000),
-          stderr: stderr.slice(0, 4000),
-          promptPath,
-          outputPath
-        }));
+        rejectWithCliError(timedOut ? `GPT CLI timed out after ${timeoutMs}ms` : `GPT CLI exited with code ${exitCode}`, { stdout, stderr, exitCode, signal, timedOut, outputText });
         return;
       }
-      resolve({ stdout, stderr, outputText, outputPath, promptPath, command, args });
+      if (!String(outputText || stdout || '').trim()) {
+        rejectWithCliError('GPT CLI completed without output', { stdout, stderr, exitCode, signal, outputText });
+        return;
+      }
+      resolve({ stdout, stderr, outputText, outputPath, promptPath, command, args, attempt, attempts: maxAttempts });
     });
 
     child.stdin.write(prompt);
     child.stdin.end();
+    });
+  }
+
+  return runAttempt(1).catch((error) => {
+    const code = error?.code || error?.details?.reason || 'GPT_CLI_FAILED';
+    if (maxAttempts > 1 && isRetryableGptCliFailure(code)) return runAttempt(2);
+    throw error;
   });
 }
 
@@ -233,13 +375,16 @@ function stripCodeFence(text) {
 
 function extractJson(text) {
   const cleaned = stripCodeFence(text);
+  if (!cleaned) {
+    throw createHttpError(500, 'GPT_CLI_EMPTY_OUTPUT', 'GPT CLI output was empty', { snippet: '' });
+  }
   try {
     return JSON.parse(cleaned);
   } catch {
     const start = cleaned.indexOf('{');
     const end = cleaned.lastIndexOf('}');
     if (start < 0 || end <= start) {
-      throw createHttpError(500, 'GPT_CLI_JSON_PARSE_ERROR', 'GPT CLI output did not include a JSON object', {
+      throw createHttpError(500, 'GPT_CLI_INVALID_JSON', 'GPT CLI output did not include a JSON object', {
         snippet: cleaned.slice(0, 1000)
       });
     }
@@ -2403,6 +2548,7 @@ module.exports = {
   MIDFORM_STORY_OUTLINE_SCHEMA_PATH,
   MIDFORM_COMPRESSION_BEATS_SCHEMA_PATH,
   MIDFORM_COMPRESSION_EDIT_PLAN_SCHEMA_PATH,
+  MIDFORM_MULTIMODAL_REVIEW_SCHEMA_PATH,
   buildGptMidformPrompt,
   buildStoryOutlinePrompt,
   buildSlotFillPrompt,
@@ -2413,6 +2559,13 @@ module.exports = {
   knowledgeContextUsageAnalysis,
   savePromptPackage,
   generateMidformScriptWithGptCli,
+  assertCodexLoginStatus,
   runCodexCli,
-  extractJson
+  extractJson,
+  _test: {
+    buildGptCliFailureDetails,
+    classifyGptCliFailure,
+    isRetryableGptCliFailure,
+    summarizeCliText
+  }
 };
