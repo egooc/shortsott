@@ -89,6 +89,7 @@ function classifyVertexError(error) {
   const status = Number(error?.status || error?.details?.status || 0);
   const code = String(error?.code || '').toUpperCase();
   const text = `${error?.message || ''}\n${error?.details?.response || ''}`.toLowerCase();
+  if (/enotfound|getaddrinfo|dns|eai_again/.test(text)) return 'VERTEX_DNS_FAILED';
   if (code === 'VERTEX_SCHEMA_FAILED') return 'VERTEX_SCHEMA_FAILED';
   if (/abort|timeout|timed out/.test(text)) return 'VERTEX_TIMEOUT';
   if ([401, 403].includes(status) || /credential|auth|permission|unauthorized|forbidden/.test(text)) return 'VERTEX_AUTH_FAILED';

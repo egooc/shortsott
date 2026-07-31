@@ -152,6 +152,7 @@ test('provider=gpt_cli authentication preflight reports explicit auth failure', 
 
 test('Vertex error classifier and review JSON parser expose expected failure codes', () => {
   assert.equal(classifyVertexError({ status: 401, message: 'unauthorized' }), 'VERTEX_AUTH_FAILED');
+  assert.equal(classifyVertexError({ message: 'request failed: getaddrinfo ENOTFOUND oauth2.googleapis.com' }), 'VERTEX_DNS_FAILED');
   assert.equal(classifyVertexError({ status: 404, message: 'model not found' }), 'VERTEX_MODEL_UNAVAILABLE');
   assert.equal(classifyVertexError({ status: 408, message: 'timeout' }), 'VERTEX_TIMEOUT');
   assert.throws(() => parseReviewJson('{"status":"pass"}', 'vertex'), (error) => error.code === 'VERTEX_SCHEMA_FAILED');

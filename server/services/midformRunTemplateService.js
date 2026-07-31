@@ -12,7 +12,7 @@ const { getRun, startRun } = require('./midformPipelineService');
 const { collectRunArtifacts, copyIfExists, ensureDir, rel, writeJson, writeText } = require('./midformRunArtifactsService');
 const { generateLocaleDraftArtifacts } = require('./midformLocaleDraftService');
 const { buildLocaleBranchArtifacts } = require('./midformLocaleBranchService');
-const { normalizeMultimodalProvider, runMidformMultimodalReview, shouldRunMultimodalReview } = require('./midformMultimodalReviewService');
+const { DETERMINISTIC_DATA_INTEGRITY_GATES, normalizeMultimodalProvider, runMidformMultimodalReview, shouldRunMultimodalReview } = require('./midformMultimodalReviewService');
 
 const SCHEMA_PATH = path.join(PROJECT_ROOT, 'midform', 'schemas', 'midform_run_template_schema.json');
 const WORKSPACE_ROOT = path.join(PROJECT_ROOT, 'midform', 'test_runs', 'template_runs');
@@ -479,6 +479,116 @@ function coreDraftGatesPassed(qa, localeDrafts) {
   return qa?.gateResults?.status !== 'failed' && localeDrafts?.finalOverlapReport?.final_status === 'pass';
 }
 
+function deterministicIntegrityFailures(gateResults = {}) {
+  return (Array.isArray(gateResults.failed) ? gateResults.failed : [])
+    .map((gate) => String(gate || '').trim())
+    .filter((gate) => DETERMINISTIC_DATA_INTEGRITY_GATES.has(gate));
+}
+
+function hasLocaleDraftFolders(summary = {}) {
+  const outputPaths = summary.output_paths || {};
+  return Boolean(outputPaths.draft_folder_ko && outputPaths.draft_folder_ja);
+}
+
+function manualReviewTimeHints(qa = {}) {
+  const results = Array.isArray(qa?.gateResults?.results) ? qa.gateResults.results : [];
+  const hints = [];
+  const firstThirty = results.find((item) => item.id === 'first_30_conflict_clarity');
+  if (firstThirty?.first_30_sec_text) hints.push('0.000s-30.000s: review opening conflict clarity');
+  const highContext = results.find((item) => item.id === 'high_context_teaser_recovery');
+  if (highContext?.first_20_sec_text) hints.push('0.000s-20.000s: review high-context teaser recovery');
+  const callback = results.find((item) => item.id === 'callback_strength');
+  if (callback?.callback_dialogue_start_sec != null) hints.push(`${Number(callback.callback_dialogue_start_sec).toFixed(3)}s: review callback dialogue timing`);
+  return hints;
+}
+
+function buildManualReviewMarkdown({ summary, qa, localeDrafts, review, reasonCode, reasonMessage }) {
+  const failedGates = qa?.gateResults?.failed || [];
+  const warnings = qa?.gateResults?.warnings || [];
+  const providerError = review?.error || null;
+  const providerCode = providerError?.code || reasonCode || '';
+  const localeOverlap = localeDrafts?.finalOverlapReport || null;
+  const timeHints = manualReviewTimeHints(qa);
+  return [
+    '# Midform Manual Review',
+    '',
+    'status: manual_review_required',
+    `run_id: ${summary.run_id || ''}`,
+    `workspace_dir: ${summary.workspace_dir || ''}`,
+    '',
+    '## Provider / review status',
+    `- provider_failure_code: ${providerCode || 'none'}`,
+    `- provider_failure_message: ${providerError?.message || reasonMessage || ''}`,
+    `- original_review_gates: ${failedGates.length ? failedGates.join(', ') : 'none'}`,
+    `- warnings: ${warnings.length ? warnings.join(', ') : 'none'}`,
+    '',
+    '## Draft paths',
+    `- draft_ko: ${summary.output_paths?.draft_folder_ko || ''}`,
+    `- draft_ja: ${summary.output_paths?.draft_folder_ja || ''}`,
+    `- template_body_ko: ${summary.output_paths?.template_body_ko || ''}`,
+    `- template_body_ja: ${summary.output_paths?.template_body_ja || ''}`,
+    `- evidence_pack: ${summary.output_paths?.evidence_pack || ''}`,
+    '',
+    '## Locales / timecodes to inspect',
+    '- locale: ko and ja physical drafts; prioritize any failed acceptance gate context in the root KO review plus KO/JA overlap report.',
+    ...(timeHints.length ? timeHints.map((hint) => `- ${hint}`) : ['- no specific timecode available; inspect opening, callback, and any failed gate contexts from acceptance_gates.json.']),
+    '',
+    '## Recommended manual edits',
+    '- Keep generated draft_ko/ and draft_ja; do not regenerate solely because the provider review failed.',
+    '- Manually inspect failed semantic gates and overlap report before upload.',
+    '- If only provider review failed and deterministic integrity passed, use the draft as an editable review package.',
+    '',
+    '## Overlap / acceptance',
+    `- acceptance_status: ${qa?.gateResults?.status || 'missing'}`,
+    `- failed_gates: ${failedGates.length ? failedGates.join(', ') : 'none'}`,
+    `- final_draft_overlap: ${localeOverlap?.final_status || 'missing'}`
+  ].join('\n') + '\n';
+}
+
+function writeManualReviewArtifact(summary, payload) {
+  const workspaceDir = path.isAbsolute(summary.workspace_dir || '') ? summary.workspace_dir : path.join(PROJECT_ROOT, summary.workspace_dir || '');
+  const manualReviewPath = path.join(workspaceDir, 'manual_review.md');
+  writeText(manualReviewPath, buildManualReviewMarkdown({ summary, ...payload }));
+  return rel(manualReviewPath);
+}
+
+function manualReviewRequiredSummary({ summary, qa, localeDrafts, finalPipelineState, analysisRun, review = null, reasonCode = 'MIDFORM_MANUAL_REVIEW_REQUIRED', reasonMessage = 'Draft generated but manual review is required' }) {
+  const integrityFailures = deterministicIntegrityFailures(qa?.gateResults || {});
+  if (integrityFailures.length) {
+    return {
+      ...finalSummaryFromQa(summary, qa, finalPipelineState, analysisRun),
+      status: 'failed',
+      failure_reason: {
+        stage: 'deterministic_integrity',
+        code: 'MIDFORM_DETERMINISTIC_INTEGRITY_FAILED',
+        message: 'Deterministic draft integrity gates failed',
+        details: { failed_gates: integrityFailures }
+      }
+    };
+  }
+  const base = finalSummaryFromQa(summary, qa, finalPipelineState, analysisRun);
+  const outputPaths = { ...base.output_paths, ...(review?.outputPaths || {}) };
+  const manualReviewSummary = {
+    ...base,
+    status: 'manual_review_required',
+    output_paths: outputPaths,
+    gate_results: qa?.gateResults || null,
+    warnings: [...new Set([...(qa?.gateResults?.warnings || []), reasonCode])],
+    analysis_run: analysisRun,
+    failure_reason: null,
+    manual_review: {
+      reason: reasonCode,
+      message: review?.error?.message || reasonMessage,
+      failed_gates: qa?.gateResults?.failed || [],
+      provider_error: review?.error ? { code: review.error.code, message: review.error.message, details: review.error.details || {} } : null,
+      final_draft_overlap: localeDrafts?.finalOverlapReport || null
+    }
+  };
+  const manualReviewPath = writeManualReviewArtifact(manualReviewSummary, { qa, localeDrafts, review, reasonCode, reasonMessage });
+  manualReviewSummary.output_paths = { ...manualReviewSummary.output_paths, manual_review: manualReviewPath };
+  return manualReviewSummary;
+}
+
 function requiredReviewFailureSummary({ summary, qa, localeDrafts, analysisRun, review }) {
   const providerError = review?.error || null;
   const reviewResult = review?.result || null;
@@ -859,25 +969,32 @@ async function runMidformTemplateWorkflow(options = {}) {
       summary.output_paths = { ...summary.output_paths, ...(review.outputPaths || {}) };
       writeJson(workspace.summaryPath, summary);
       if (review.status === 'failed') {
-        if (!reviewRequired) {
-          const degraded = {
-            ...finalSummaryFromQa(summary, qa, finalPipelineState, summary.analysis_run),
-            status: 'degraded_pass',
-            failure_reason: null,
-            degraded_reason: 'optional_multimodal_review_failed',
-            warnings: [...new Set([...(qa.gateResults.warnings || []), 'optional_multimodal_review_failed'])]
-          };
-          writeJson(workspace.summaryPath, degraded);
-          return degraded;
-        }
-        const failedSummary = requiredReviewFailureSummary({ summary, qa, localeDrafts, analysisRun: summary.analysis_run, review });
-        writeJson(workspace.summaryPath, failedSummary);
-        return failedSummary;
+        const manualSummary = manualReviewRequiredSummary({
+          summary,
+          qa,
+          localeDrafts,
+          finalPipelineState,
+          analysisRun: summary.analysis_run,
+          review,
+          reasonCode: reviewRequired ? (review.error?.code || 'PROVIDER_REVIEW_FAILED') : 'optional_multimodal_review_failed',
+          reasonMessage: reviewRequired ? 'Required provider review failed; deterministic drafts are preserved for manual review' : 'Optional provider review failed; deterministic drafts are preserved'
+        });
+        writeJson(workspace.summaryPath, manualSummary);
+        return manualSummary;
       }
       if (reviewRequired || review.result?.status === 'needs_repair') {
-        const failedSummary = requiredReviewFailureSummary({ summary, qa, localeDrafts, analysisRun: summary.analysis_run, review });
-        writeJson(workspace.summaryPath, failedSummary);
-        return failedSummary;
+        const manualSummary = manualReviewRequiredSummary({
+          summary,
+          qa,
+          localeDrafts,
+          finalPipelineState,
+          analysisRun: summary.analysis_run,
+          review,
+          reasonCode: review.result?.status === 'needs_repair' ? 'MULTIMODAL_REVIEW_REQUIRES_REPAIR' : 'MIDFORM_REQUIRED_GATES_FAILED',
+          reasonMessage: 'Provider review requested manual repair; deterministic drafts are preserved'
+        });
+        writeJson(workspace.summaryPath, manualSummary);
+        return manualSummary;
       }
       const reviewedSummary = finalSummaryFromQa(summary, qa, finalPipelineState, summary.analysis_run);
       writeJson(workspace.summaryPath, reviewedSummary);
@@ -885,16 +1002,31 @@ async function runMidformTemplateWorkflow(options = {}) {
     }
 
     let finalSummary = finalSummaryFromQa(summary, qa, finalPipelineState, summary.analysis_run);
+    if (qa.gateResults.status === 'failed' && hasLocaleDraftFolders(finalSummary)) {
+      finalSummary = manualReviewRequiredSummary({
+        summary,
+        qa,
+        localeDrafts,
+        finalPipelineState,
+        analysisRun: summary.analysis_run,
+        reasonCode: normalizeMultimodalProvider() === 'disabled' ? 'provider_disabled_manual_review' : 'semantic_gate_manual_review',
+        reasonMessage: 'Draft generated with semantic gate failures; manual review required'
+      });
+      writeJson(workspace.summaryPath, finalSummary);
+      return finalSummary;
+    }
     if (localeDrafts.finalOverlapReport.final_status !== 'pass') {
       finalSummary = {
         ...finalSummary,
-        status: 'failed',
-        failure_reason: {
-          stage: 'final_draft_overlap',
-          code: 'MIDFORM_LOCALE_DRAFT_OVERLAP_FAILED',
-          message: 'KO/JA final draft video-track overlap gates failed',
-          details: localeDrafts.finalOverlapReport
-        }
+        ...manualReviewRequiredSummary({
+          summary,
+          qa,
+          localeDrafts,
+          finalPipelineState,
+          analysisRun: summary.analysis_run,
+          reasonCode: 'MIDFORM_LOCALE_DRAFT_OVERLAP_REVIEW_REQUIRED',
+          reasonMessage: 'KO/JA final draft video-track overlap needs manual review'
+        })
       };
     }
     writeJson(workspace.summaryPath, finalSummary);
@@ -904,6 +1036,28 @@ async function runMidformTemplateWorkflow(options = {}) {
     writeJson(workspace.summaryPath, failedSummary);
     return failedSummary;
   }
+}
+
+async function runMidformTemplateBatch({ urls = [], templatePath, runner = runMidformTemplateWorkflow, ...options } = {}) {
+  const results = [];
+  for (const url of urls) {
+    try {
+      const result = await runner({ ...options, templatePath, source: url });
+      results.push(result);
+    } catch (error) {
+      results.push({
+        status: 'failed',
+        source_url: url,
+        failure_reason: {
+          stage: 'batch_item',
+          code: error.code || 'MIDFORM_BATCH_ITEM_FAILED',
+          message: error.message || 'Batch item failed',
+          details: error.details || {}
+        }
+      });
+    }
+  }
+  return { status: 'completed', total: urls.length, results };
 }
 
 module.exports = {
@@ -916,8 +1070,12 @@ module.exports = {
   normalizeAnalysisMode,
   normalizeResumeStage,
   parseTemplateFile,
+  runMidformTemplateBatch,
   runMidformTemplateWorkflow,
   _test: {
+    buildManualReviewMarkdown,
+    deterministicIntegrityFailures,
+    manualReviewRequiredSummary,
     removeMultimodalReviewOutputPaths
   }
 };

@@ -11,7 +11,9 @@ const {
   buildStoryBeatmap,
   normalizeAnalysisMode,
   normalizeResumeStage,
-  parseTemplateFile
+  parseTemplateFile,
+  runMidformTemplateBatch,
+  _test: { manualReviewRequiredSummary }
 } = require('../server/services/midformRunTemplateService');
 
 function writeTempTemplate(text) {
@@ -19,6 +21,35 @@ function writeTempTemplate(text) {
   const filePath = path.join(dir, 'request.md');
   fs.writeFileSync(filePath, text, 'utf8');
   return filePath;
+}
+
+function baseManualReviewPayload(workspaceDir, gateResults = { status: 'failed', failed: ['first_30_conflict_clarity'], warnings: [], results: [] }) {
+  fs.mkdirSync(path.join(workspaceDir, 'draft_ko'), { recursive: true });
+  fs.mkdirSync(path.join(workspaceDir, 'draft_ja'), { recursive: true });
+  return {
+    summary: {
+      run_id: 'run-manual-review',
+      workspace_dir: workspaceDir,
+      output_paths: {
+        draft_folder_ko: path.join(workspaceDir, 'draft_ko'),
+        draft_folder_ja: path.join(workspaceDir, 'draft_ja'),
+        template_body_ko: path.join(workspaceDir, 'template_body.ko.md'),
+        template_body_ja: path.join(workspaceDir, 'template_body.ja.md'),
+        evidence_pack: path.join(workspaceDir, 'evidence_pack.json')
+      },
+      warnings: []
+    },
+    qa: {
+      gateResults,
+      outputPaths: {
+        acceptance_gates: path.join(workspaceDir, 'acceptance_gates.json'),
+        edit_manifest: path.join(workspaceDir, 'edit_manifest.json')
+      }
+    },
+    localeDrafts: { finalOverlapReport: { final_status: 'pass' } },
+    finalPipelineState: { artifacts: { draft: { draftPath: path.join(workspaceDir, 'draft_root') } } },
+    analysisRun: { auto_escalation: { provider: 'vertex' } }
+  };
 }
 
 test('parseTemplateFile accepts a minimal YAML-front-matter template', () => {
@@ -115,6 +146,88 @@ test('buildAutoEscalationDecision escalates only multimodal-worthy quality failu
     pipelineState: { qualityWarnings: [{ code: 'TRANSCRIPT_GROUNDING_WEAK' }] }
   });
   assert.equal(warningEscalated.should_escalate, true);
+});
+
+test('provider failure with deterministic drafts becomes manual_review_required and preserves review artifacts', () => {
+  const workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'midform-manual-provider-'));
+  const payload = baseManualReviewPayload(workspaceDir, {
+    status: 'failed',
+    failed: ['first_30_conflict_clarity'],
+    warnings: [],
+    results: [{ id: 'first_30_conflict_clarity', status: 'fail', first_30_sec_text: 'opening needs review' }]
+  });
+  const summary = manualReviewRequiredSummary({
+    ...payload,
+    review: {
+      provider: 'vertex',
+      status: 'failed',
+      error: { code: 'VERTEX_DNS_FAILED', message: 'getaddrinfo ENOTFOUND oauth2.googleapis.com', details: {} },
+      outputPaths: { multimodal_review_report: path.join(workspaceDir, 'multimodal_review_report.json') }
+    },
+    reasonCode: 'VERTEX_DNS_FAILED'
+  });
+
+  assert.equal(summary.status, 'manual_review_required');
+  assert.equal(summary.failure_reason, null);
+  assert.equal(summary.manual_review.provider_error.code, 'VERTEX_DNS_FAILED');
+  assert.ok(summary.output_paths.draft_folder_ko.endsWith('draft_ko'));
+  assert.ok(summary.output_paths.draft_folder_ja.endsWith('draft_ja'));
+  assert.equal(fs.existsSync(path.join(workspaceDir, 'manual_review.md')), true);
+  assert.match(fs.readFileSync(path.join(workspaceDir, 'manual_review.md'), 'utf8'), /provider_failure_code: VERTEX_DNS_FAILED/);
+});
+
+test('provider disabled keeps core draft as manual review instead of deleting artifacts', () => {
+  const workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'midform-provider-disabled-'));
+  const payload = baseManualReviewPayload(workspaceDir);
+  const summary = manualReviewRequiredSummary({
+    ...payload,
+    reasonCode: 'provider_disabled_manual_review',
+    reasonMessage: 'Draft generated with provider disabled'
+  });
+
+  assert.equal(summary.status, 'manual_review_required');
+  assert.equal(summary.manual_review.reason, 'provider_disabled_manual_review');
+  assert.equal(fs.existsSync(path.join(workspaceDir, 'draft_ko')), true);
+  assert.equal(fs.existsSync(path.join(workspaceDir, 'draft_ja')), true);
+});
+
+test('deterministic integrity failure remains a hard fail', () => {
+  const workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'midform-integrity-fail-'));
+  const payload = baseManualReviewPayload(workspaceDir, {
+    status: 'failed',
+    failed: ['dialogue_speaker_metadata_present'],
+    warnings: [],
+    results: []
+  });
+  const summary = manualReviewRequiredSummary({
+    ...payload,
+    reasonCode: 'VERTEX_PROVIDER_ERROR'
+  });
+
+  assert.equal(summary.status, 'failed');
+  assert.equal(summary.failure_reason.code, 'MIDFORM_DETERMINISTIC_INTEGRITY_FAILED');
+});
+
+test('batch runner continues after one provider failure item', async () => {
+  const calls = [];
+  const batch = await runMidformTemplateBatch({
+    templatePath: 'template.md',
+    urls: ['https://youtu.be/fail1111111', 'https://youtu.be/pass2222222'],
+    runner: async ({ source }) => {
+      calls.push(source);
+      if (/fail/.test(source)) {
+        const error = new Error('provider failed');
+        error.code = 'VERTEX_PROVIDER_ERROR';
+        throw error;
+      }
+      return { status: 'passed', source_url: source };
+    }
+  });
+
+  assert.deepEqual(calls, ['https://youtu.be/fail1111111', 'https://youtu.be/pass2222222']);
+  assert.equal(batch.status, 'completed');
+  assert.equal(batch.results[0].status, 'failed');
+  assert.equal(batch.results[1].status, 'passed');
 });
 
 test('normalizeResumeStage validates supported stages', () => {
