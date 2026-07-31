@@ -57,7 +57,7 @@ function maxNarrationRunBeforeDialogue(segments) {
 }
 
 function hasConflictCue(text) {
-  return /(왜|아니|죽|끝|책임|미끼|인질|사냥|위험|표적|좋아|의무|해고|광고|빼내|뒤집|진실|상처|사라|쫓|보호|스낵|간식)/.test(text);
+  return /(왜|아니|죽|끝|책임|미끼|인질|사냥|위험|표적|좋아|의무|해고|광고|빼내|뒤집|진실|상처|사라|쫓|보호|스낵|간식|연쇄살인마|용의자|형사|알리바이|추궁|피\s*묻|칼|살인|범인|수사|의심|증거)/.test(text);
 }
 
 function isRebuttalOnlyOpener(openingText) {
