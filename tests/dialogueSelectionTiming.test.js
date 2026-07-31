@@ -117,6 +117,155 @@ test('finalizeEditPlan builds cold_open_callback metadata with hook teaser and c
   assert.equal(finalized.dialogue_timing_qc.status, 'passed');
 });
 
+test('finalizeEditPlan inserts context bridge when dialogue cold open starts on first beat', () => {
+  const transcript = [
+    { start_sec: 7.5, end_sec: 12.4, text: 'how come you never liked me' },
+    { start_sec: 14.1, end_sec: 18.5, text: 'what law is there say I got to like you' },
+    { start_sec: 22.3, end_sec: 25.1, text: 'talk about liking somebody call me boy when I talk to you' },
+    { start_sec: 60.0, end_sec: 62.0, text: 'you do what I say' }
+  ];
+  const beats = [
+    {
+      beat_id: 'beat_01',
+      start_sec: 7.0,
+      end_sec: 30.0,
+      summary: 'A father and son argue over respect and affection.',
+      key_dialogue: ['how come you never liked me', 'what law is there say I got to like you', 'talk about liking somebody call me boy when I talk to you'],
+      anchor_dialogue: ['how come you never liked me', 'what law is there say I got to like you'],
+      dramatic_weight: 5,
+      dialogue_quality: 'high',
+      hook_potential: 5
+    },
+    {
+      beat_id: 'beat_02',
+      start_sec: 55.0,
+      end_sec: 70.0,
+      summary: 'The argument hardens into authority.',
+      key_dialogue: ['you do what I say'],
+      anchor_dialogue: ['you do what I say'],
+      dramatic_weight: 3,
+      dialogue_quality: 'high',
+      hook_potential: 3
+    }
+  ];
+  const editPlan = {
+    dialogue_driven_scene: true,
+    confrontation_scene: true,
+    cold_open_selection: { beat_id: 'beat_01' },
+    timeline: [
+      { slot_id: 'slot_01', beat_id: 'beat_01', role: 'cold_open', decision: 'KEEP_DIALOGUE', start_sec: 7.25, end_sec: 19.06, estimated_duration_sec: 11.81, dialogue_focus_quotes: ['how come you never liked me', 'what law is there say I got to like you'], dialogue_focus_lines: ['how come you never liked me', 'what law is there say I got to like you'] },
+      { slot_id: 'slot_02', beat_id: 'beat_01', role: 'body_peak', decision: 'KEEP_DIALOGUE', start_sec: 22.0, end_sec: 25.2, estimated_duration_sec: 3.2, dialogue_focus_quotes: ['talk about liking somebody call me boy when I talk to you'], dialogue_focus_lines: ['talk about liking somebody call me boy when I talk to you'] },
+      { slot_id: 'slot_03', beat_id: 'beat_02', role: 'payoff', decision: 'KEEP_DIALOGUE', start_sec: 60, end_sec: 62, estimated_duration_sec: 2, dialogue_focus_quotes: ['you do what I say'], dialogue_focus_lines: ['you do what I say'] },
+      { slot_id: 'slot_closing', beat_id: 'beat_02', role: 'closing', decision: 'NARRATE', start_sec: 62, end_sec: 70, estimated_duration_sec: 8 }
+    ],
+    duration_budget: { target_sec: 120 }
+  };
+
+  const finalized = _test.finalizeEditPlan(editPlan, beats, transcript, 120);
+  const activeRoles = finalized.timeline.filter((item) => item.decision !== 'DROP').map((item) => item.role);
+
+  assert.ok(activeRoles.includes('bridge'));
+  assert.ok(activeRoles.includes('closing'));
+  assert.equal(finalized.timeline[1].role, 'bridge');
+  assert.equal(finalized.timeline[1].decision, 'NARRATE');
+  assert.equal(finalized.context_reset.enabled, true);
+});
+
+test('finalizeEditPlan inserts context bridge before early callback dialogue when local fallback omitted bridge role', () => {
+  const transcript = [
+    { start_sec: 30.95, end_sec: 32.91, text: 'please a hubing' },
+    { start_sec: 32.91, end_sec: 36.559, text: 'is here to see so this must be a mistake there is no' },
+    { start_sec: 79.55, end_sec: 82.109, text: 'you can they do this sir the decree is' },
+    { start_sec: 82.109, end_sec: 86.4, text: 'the decree is signed by the 12 members of the table giving the Marquee the power of Em emperator' },
+    { start_sec: 88.92, end_sec: 93.71, text: 'which means he is now our judge jewry' },
+    { start_sec: 116.31, end_sec: 118.7, text: 'this will not be pleasant' }
+  ];
+  const beats = [
+    {
+      beat_id: 'B001',
+      start_sec: 30.95,
+      end_sec: 93.71,
+      summary: 'The Marquis arrives with High Table authority over the Continental.',
+      key_dialogue: [
+        'please a hubing',
+        'is here to see so this must be a mistake there is no',
+        'you can they do this sir the decree is',
+        'the decree is signed by the 12 members of the table giving the Marquee the power of Em emperator',
+        'which means he is now our judge jewry'
+      ],
+      anchor_dialogue: [
+        'the decree is signed by the 12 members of the table giving the Marquee the power of Em emperator',
+        'which means he is now our judge jewry'
+      ],
+      dramatic_weight: 4,
+      dialogue_quality: 'mid',
+      hook_potential: 3
+    },
+    {
+      beat_id: 'B002',
+      start_sec: 116.31,
+      end_sec: 170.99,
+      summary: 'The Marquis makes the threat explicit.',
+      key_dialogue: ['this will not be pleasant'],
+      anchor_dialogue: ['this will not be pleasant'],
+      dramatic_weight: 3,
+      dialogue_quality: 'high',
+      hook_potential: 3
+    },
+    {
+      beat_id: 'B003',
+      start_sec: 173.19,
+      end_sec: 253.27,
+      summary: 'The argument broadens into the rules of the table.',
+      key_dialogue: ['how you do anything is how you do everything'],
+      anchor_dialogue: ['how you do anything is how you do everything'],
+      dramatic_weight: 3,
+      dialogue_quality: 'mid',
+      hook_potential: 2
+    }
+  ];
+  const editPlan = {
+    dialogue_driven_scene: false,
+    confrontation_scene: false,
+    cold_open_selection: { beat_id: 'B001' },
+    timeline: [
+      {
+        slot_id: 'slot_01',
+        beat_id: 'B001',
+        role: 'cold_open',
+        decision: 'KEEP_DIALOGUE',
+        start_sec: 30.95,
+        end_sec: 37.059,
+        estimated_duration_sec: 6.109,
+        dialogue_focus_quotes: ['please a hubing', 'is here to see so this must be a mistake there is no'],
+        dialogue_focus_lines: ['please a hubing', 'is here to see so this must be a mistake there is no']
+      },
+      {
+        slot_id: 'slot_02',
+        beat_id: 'B002',
+        role: 'body_peak',
+        decision: 'KEEP_DIALOGUE',
+        start_sec: 116.31,
+        end_sec: 118.7,
+        estimated_duration_sec: 2.39,
+        dialogue_focus_quotes: ['this will not be pleasant'],
+        dialogue_focus_lines: ['this will not be pleasant']
+      },
+      { slot_id: 'slot_03', beat_id: 'B003', role: 'body', decision: 'NARRATE', start_sec: 173.19, end_sec: 253.27, estimated_duration_sec: 15 }
+    ],
+    duration_budget: { target_sec: 150 }
+  };
+
+  const finalized = _test.finalizeEditPlan(editPlan, beats, transcript, 150);
+  const active = finalized.timeline.filter((item) => item.decision !== 'DROP');
+  const bridgeIndex = active.findIndex((item) => item.role === 'bridge');
+  const callbackIndex = active.findIndex((item) => item.slot_id === 'slot_02');
+
+  assert.equal(active[1].role, 'bridge');
+  assert.equal(active[1].decision, 'NARRATE');
+  assert.ok(bridgeIndex > 0 && bridgeIndex < callbackIndex);
+  assert.equal(finalized.context_reset.enabled, true);
+});
 
 test('finalizeEditPlan trims dialogue cold open to teaser cap after readable-window expansion', () => {
   const transcript = [
@@ -287,6 +436,15 @@ test('slot fill prompt exposes editorial metadata for hook, context reset, and c
   assert.match(prompt, /context reset/);
   assert.match(prompt, /merge_adjacent_lines/);
   assert.match(prompt, /same_conflict_axis/);
+});
+
+test('slot fill prompt and title gate reject flat declarative upload titles', () => {
+  const prompt = require('../server/services/midformCompressionService').buildSlotFillsPrompt([], { timeline: [] }, 'Fences', '');
+
+  assert.match(prompt, /question-shaped curiosity hook ending with a question mark/);
+  assert.match(prompt, /가족 부양은 의무일 뿐/);
+  assert.equal(_test.isCuriosityTitle('왜 아버지는 사랑이 의무가 아니라고 했을까?'), true);
+  assert.equal(_test.isCuriosityTitle('가족 부양은 의무일 뿐, 사랑이 아니라는 아버지의 충격적인 진심'), false);
 });
 
 test('slot fill editorial guide preserves non-confrontation scene type without forcing callback metadata', () => {

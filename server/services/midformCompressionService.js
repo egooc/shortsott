@@ -1930,6 +1930,84 @@ function recalculateDurationBudget(timeline, targetSec) {
   };
 }
 
+function nextSyntheticSlotId(timeline, prefix) {
+  const existing = new Set((Array.isArray(timeline) ? timeline : [])
+    .map((item) => String(item?.slot_id || '').trim())
+    .filter(Boolean));
+  if (!existing.has(prefix)) return prefix;
+  let index = 2;
+  while (existing.has(`${prefix}_${index}`)) index += 1;
+  return `${prefix}_${index}`;
+}
+
+function buildSyntheticBridgeSlot(cold, timeline, beatMap) {
+  const coldBeat = beatMap.get(String(cold?.beat_id || '').trim()) || null;
+  const nextActive = (Array.isArray(timeline) ? timeline : [])
+    .find((item) => item && item.decision !== 'DROP' && item.slot_id !== cold?.slot_id && Number(item.end_sec) > Number(item.start_sec));
+  const sourceBeat = coldBeat || beatMap.get(String(nextActive?.beat_id || '').trim()) || null;
+  const startSec = roundSec(Math.max(
+    Number(cold?.end_sec || 0),
+    Number(sourceBeat?.start_sec || cold?.start_sec || 0)
+  ));
+  const sourceEnd = roundSec(Number(sourceBeat?.end_sec || nextActive?.end_sec || startSec + 8));
+  const endSec = sourceEnd > startSec + 1 ? sourceEnd : roundSec(startSec + 8);
+  return annotateNarrationSlotForQc({
+    slot_id: nextSyntheticSlotId(timeline, 'slot_bridge'),
+    beat_id: String(sourceBeat?.beat_id || cold?.beat_id || ''),
+    role: 'bridge',
+    decision: 'NARRATE',
+    start_sec: startSec,
+    end_sec: endSec,
+    estimated_duration_sec: roundSec(Math.max(8, Math.min(18, endSec - startSec || 8))),
+    reason: 'Synthetic context bridge inserted after a dialogue cold open so the template runner has an explicit context-reset narration slot before callback/dialogue continuation.',
+    spoiler_policy: 'Provide setup/context only; do not answer the cold-open teaser before the callback.',
+    repeat_policy: 'Context reset; no source dialogue repeat.',
+    visual_source_mode: '',
+    visual_source_beat_id: '',
+    dialogue_focus_source: 'none',
+    dialogue_focus_lines: [],
+    dialogue_focus_quotes: [],
+    replay_of_slot_id: '',
+    replay_mode: '',
+    editorial_role: 'context_reset',
+    scene_type: 'dialogue_confrontation',
+    teaser_slot_id: String(cold?.slot_id || ''),
+    callback_slot_id: String(nextActive?.slot_id || ''),
+    callback_relation: 'same_conflict_axis',
+    reused_conflict_axis: String(sourceBeat?.summary || '').slice(0, 120)
+  });
+}
+
+function ensureBridgeRole(timeline, beatMap) {
+  const working = (Array.isArray(timeline) ? timeline : []).map((item) => ({ ...item }));
+  if (working.some((item) => item?.role === 'bridge' && item?.decision !== 'DROP')) return working;
+  const coldIndex = working.findIndex((item) => item?.role === 'cold_open' && item?.decision !== 'DROP');
+  if (coldIndex >= 0) {
+    const callbackIndex = working.findIndex((item, index) => index > coldIndex && item?.decision === 'KEEP_DIALOGUE');
+    const hasContextBeforeCallback = callbackIndex > coldIndex
+      && working.slice(coldIndex + 1, callbackIndex).some((item) => item?.decision === 'NARRATE' && item?.decision !== 'DROP');
+    if (callbackIndex > coldIndex && !hasContextBeforeCallback) {
+      const bridge = buildSyntheticBridgeSlot(working[coldIndex], working, beatMap);
+      working.splice(coldIndex + 1, 0, bridge);
+      return working;
+    }
+  }
+  const promotableIndex = working.findIndex((item) => item?.decision === 'NARRATE' && !['cold_open', 'closing', 'payoff'].includes(String(item?.role || '')));
+  if (promotableIndex >= 0) {
+    working[promotableIndex] = annotateNarrationSlotForQc({
+      ...working[promotableIndex],
+      role: 'bridge',
+      editorial_role: working[promotableIndex].editorial_role || 'context_reset',
+      reason: `${working[promotableIndex].reason || ''} Reclassified as bridge because every template-run edit plan needs one explicit context-reset narration slot.`.trim()
+    });
+    return working;
+  }
+  if (coldIndex < 0) return working;
+  const bridge = buildSyntheticBridgeSlot(working[coldIndex], working, beatMap);
+  working.splice(coldIndex + 1, 0, bridge);
+  return working;
+}
+
 function estimateKoreanNarrationSeconds(text) {
   const charCount = String(text || '').replace(/\s+/g, '').length;
   if (!charCount) return 0;
@@ -2559,6 +2637,7 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec) {
     if (item.decision === 'KEEP_DIALOGUE') return annotateDialogueSlotForQc(item, { windows: item.dialogue_line_windows || [] }, item);
     return annotateNarrationSlotForQc(item);
   });
+  finalizedTimeline = ensureBridgeRole(finalizedTimeline, beatMap);
   finalizedTimeline = applyColdOpenVisualOverlapSafety(finalizedTimeline, beatMap);
   const callbackMetadata = buildColdOpenCallbackMetadata(finalizedTimeline, editPlan, beats);
   const dialogueTimingQc = evaluateDialogueTimingQc(finalizedTimeline, {
@@ -2782,7 +2861,9 @@ function buildSlotFillsPrompt(beats, editPlan, movieTitle, recapContextMarkdown)
     '- body_peak should let original dialogue carry the answer when decision is KEEP_DIALOGUE.',
     '- The closing should NOT fully summarize the story. Keep it to 2 or 3 very short beats at most. Leave one unresolved threat or dangling consequence and end on that. Good style: "경고는 현실이 됐습니다. 그 혼란을 틈타, 제드는 아들과 함께 사라졌죠. 아들은 아직, 저들 손에 있습니다."',
     '- caption_kr should be a concise Korean caption line for the narration; empty for dialogue-only slots.',
-    '- upload_text.title_candidates must contain exactly 3 Korean title options. Every title must read as a curiosity-driven hook sentence, preferably question-shaped. Use endings like "~일까?", "왜 ~했을까?", "어쩌다 ~됐을까?" rather than a flat declarative summary. Do not use the movie title itself as the hook.',
+    '- upload_text.title_candidates must contain exactly 3 Korean title options. Every title MUST be a question-shaped curiosity hook ending with a question mark. Use patterns like "왜 그렇게 말했을까" or "어쩌다 이런 일이 됐을까", then add the final question mark.',
+    '- Flat declarative summaries are invalid even if they sound dramatic. Bad title: "가족 부양은 의무일 뿐, 사랑이 아니라는 아버지의 충격적인 진심". Good title: "왜 아버지는 사랑이 의무가 아니라고 했을까?".',
+    '- Do not use the movie title itself as the hook, and do not reveal the full answer in the title.',
     '- upload_text.overlay_title is required and must be separate from YouTube title_candidates. It must be an object with top and bottom strings, each 8 Korean characters or fewer excluding spaces where possible. This is for the on-screen CapCut title overlay, so it can be shorter than the YouTube title.',
     '- upload_text.overlay_title must preserve curiosity but fit two compact lines. Example: {"top":"쫓던 보안관이","bottom":"미끼가 된 날"}.',
     '- Avoid overclaiming causation or hidden plans in upload_text.title_candidates. If the provided facts do not explicitly say someone orchestrated the trap, do not write titles like "계략" or "자작극" or other mastermind wording.',
@@ -2820,7 +2901,7 @@ function validateSlotFillsDialogueCaptions(slotFills, editPlan) {
   }
   for (const title of uploadText.title_candidates) {
     if (!isCuriosityTitle(title)) {
-      throw new Error(`upload_text.title_candidates must be curiosity-driven question/suspense lines, got: ${title}`);
+      throw new Error(`upload_text.title_candidates must be question-shaped curiosity hooks ending with "?" or a recognized suspense-question ending; rewrite flat declarative summaries. Bad: "가족 부양은 의무일 뿐, 사랑이 아니라는 아버지의 충격적인 진심". Good: "왜 아버지는 사랑이 의무가 아니라고 했을까?". Got: ${title}`);
     }
   }
   if (!uploadText.description) throw new Error('upload_text.description is required');
@@ -3307,6 +3388,7 @@ module.exports = {
   _test: {
     buildSlotQcReport,
     buildSlotFillEditorialGuide,
+    isCuriosityTitle,
     finalizeEditPlan,
     validateEditPlanAgainstBeats,
     evaluateDialogueTimingQc,
