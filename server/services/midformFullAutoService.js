@@ -44,6 +44,14 @@ function stableHash(value) {
   return crypto.createHash('sha1').update(JSON.stringify(value)).digest('hex').slice(0, 12);
 }
 
+function mergeVerifiedFacts(...sources) {
+  const values = sources.filter((value) => value && typeof value === 'object');
+  return {
+    characters: [...new Set(values.flatMap((value) => Array.isArray(value.characters) ? value.characters.map(normalizeText).filter(Boolean) : []))],
+    events: [...new Set(values.flatMap((value) => Array.isArray(value.events) ? value.events.map(normalizeText).filter(Boolean) : []))]
+  };
+}
+
 function buildSupplementalEvidence({ sourceUrl, comments, retention, heatmap }) {
   const videoId = extractYouTubeVideoId(sourceUrl);
   const retentionSignals = retention?.retention_signals || { status: 'skipped', coverage: false, source: 'youtube_owner_analytics', reason: 'owner_analytics_not_requested', intro: {}, top_moments: [], spikes: [], dips: [], rewatch_zones: [] };
@@ -57,6 +65,7 @@ function buildSupplementalEvidence({ sourceUrl, comments, retention, heatmap }) 
     recent_comments: comments?.recent_comments || [],
     retention_signals: retentionSignals,
     heatmap_signals: heatmapSignals,
+    verified_facts: mergeVerifiedFacts(comments?.verified_facts, retention?.verified_facts, heatmap?.verified_facts),
     evidence_coverage: {
       comments: comments?.evidence_coverage === true,
       retention: retention?.evidence_coverage === true,
@@ -193,7 +202,8 @@ async function runMidformFullAutoWorkflow(options = {}) {
 module.exports = {
   buildAutoTemplateMarkdown,
   buildFullAutoInputPaths,
-  buildSupplementalEvidence,
+    buildSupplementalEvidence,
+    mergeVerifiedFacts,
   collectSupplementalEvidence,
   normalizeMode,
   runMidformFullAutoWorkflow

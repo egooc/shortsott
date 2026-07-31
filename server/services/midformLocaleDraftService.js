@@ -491,6 +491,167 @@ function avoidProtectedSourceRanges(range, protectedRanges = [], sourceDurationS
   return [Number(next[0].toFixed(3)), Number(next[1].toFixed(3))];
 }
 
+function bestNonOverlappingGap(durationSec, protectedRanges = [], sourceDurationSec = 0, preferredStart = 0) {
+  const duration = Math.max(0, Number(durationSec || 0));
+  const sourceDuration = Math.max(0, Number(sourceDurationSec || 0));
+  if (!(duration > 0) || !(sourceDuration > 0)) return null;
+  const merged = [];
+  for (const protectedRange of protectedRanges
+    .map((range) => Array.isArray(range) ? range.map(Number) : [])
+    .filter((range) => rangeDuration(range) > 0)
+    .sort((left, right) => left[0] - right[0])) {
+    const start = Math.max(0, protectedRange[0]);
+    const end = Math.min(sourceDuration, protectedRange[1]);
+    const previous = merged[merged.length - 1];
+    if (previous && start <= previous[1] + PHYSICAL_SOURCE_GAP_SEC) previous[1] = Math.max(previous[1], end);
+    else merged.push([start, end]);
+  }
+  const gaps = [];
+  let cursor = 0;
+  for (const range of merged) {
+    const gapEnd = Math.max(0, range[0] - PHYSICAL_SOURCE_GAP_SEC);
+    if (gapEnd > cursor) gaps.push([cursor, gapEnd]);
+    cursor = Math.max(cursor, range[1] + PHYSICAL_SOURCE_GAP_SEC);
+  }
+  if (sourceDuration > cursor) gaps.push([cursor, sourceDuration]);
+  const preferred = Number(preferredStart || 0);
+  return gaps
+    .map((gap) => {
+      const capacity = rangeDuration(gap);
+      const playableDuration = Math.min(duration, capacity);
+      if (!(playableDuration > 0)) return null;
+      const start = Math.min(Math.max(preferred, gap[0]), Math.max(gap[0], gap[1] - playableDuration));
+      return {
+        range: [Number(start.toFixed(3)), Number((start + playableDuration).toFixed(3))],
+        playableDuration,
+        freezePaddingSec: Number(Math.max(0, duration - playableDuration).toFixed(3)),
+        fullFit: playableDuration >= duration - 0.001,
+        distance: Math.abs(start - preferred)
+      };
+    })
+    .filter(Boolean)
+    .sort((left, right) => Number(right.fullFit) - Number(left.fullFit) || left.distance - right.distance || right.playableDuration - left.playableDuration)[0] || null;
+}
+
+function failureRange(failure, key = 'rendered_source_range') {
+  const value = failure?.[key];
+  if (Array.isArray(value)) return value.map(Number);
+  if (value && typeof value === 'object') return [Number(value.start_sec), Number(value.end_sec)];
+  return [0, 0];
+}
+
+function failureCounterpartRange(failure) {
+  const value = failure?.overlapping_counterpart_range || failure?.overlapping_counterpart?.rendered_source_range;
+  if (Array.isArray(value)) return value.map(Number);
+  if (value && typeof value === 'object') return [Number(value.start_sec), Number(value.end_sec)];
+  return failureRange(failure?.overlapping_counterpart || {});
+}
+
+function idsForFailureSide(failure, side = 'primary') {
+  const source = side === 'counterpart' ? (failure?.overlapping_counterpart || {}) : failure;
+  const rawIds = side === 'counterpart'
+    ? [failure?.overlapping_counterpart_id, source.physical_segment_id, source.slot_id]
+    : [failure?.physical_segment_id, failure?.slot_id];
+  return new Set(rawIds
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)
+    .flatMap((value) => [value, value.replace(/^(ko|ja)_/, ''), value.replace(/_L\d+.*$/, '')]));
+}
+
+function placementMatchesIds(placement, ids) {
+  const placementIds = [placement?.clip_id, placement?.slot_id]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)
+    .flatMap((value) => [value, value.replace(/^(ko|ja)_/, ''), value.replace(/_L\d+.*$/, '')]);
+  return placementIds.some((id) => ids.has(id));
+}
+
+function repairDraftSpecForHybridSourceValidation(draftSpec, hybridReport = {}, baseDraftInput = {}) {
+  const next = cloneJson(draftSpec);
+  const placements = Array.isArray(next?.clip_placement) ? next.clip_placement : [];
+  const failures = Array.isArray(hybridReport?.failures)
+    ? hybridReport.failures
+    : [...(hybridReport?.rendered_failures || []), ...(hybridReport?.planned_failures || [])];
+  const sourceDurationSec = inferSourceDurationSec(baseDraftInput, next);
+  const protectedDialogueRanges = failures.flatMap((failure) => {
+    const ranges = [];
+    const primaryIsDialogue = ['dialogue', 'dialogue_quote'].includes(String(failure?.dialogue_or_narration || failure?.segment_kind || ''));
+    const counterpart = failure?.overlapping_counterpart || {};
+    const counterpartIsDialogue = ['dialogue', 'dialogue_quote'].includes(String(counterpart?.dialogue_or_narration || counterpart?.segment_kind || failure?.overlapping_counterpart_kind || ''));
+    if (primaryIsDialogue) ranges.push(failureRange(failure));
+    if (counterpartIsDialogue) ranges.push(failureCounterpartRange(failure));
+    return ranges.filter((range) => rangeDuration(range) > 0);
+  });
+  const repairNotes = [];
+  for (const failure of failures) {
+    const primaryIds = idsForFailureSide(failure, 'primary');
+    const counterpartIds = idsForFailureSide(failure, 'counterpart');
+    const primaryIsNarration = String(failure?.dialogue_or_narration || '') === 'narration' || !['dialogue', 'dialogue_quote'].includes(String(failure?.segment_kind || ''));
+    const counterpartKind = String(failure?.overlapping_counterpart?.dialogue_or_narration || failure?.overlapping_counterpart_kind || '');
+    const counterpartIsDialogue = ['dialogue', 'dialogue_quote'].includes(counterpartKind);
+    const primaryIndex = placements.findIndex((placement) => placementMatchesIds(placement, primaryIds));
+    const counterpartIndex = placements.findIndex((placement) => placementMatchesIds(placement, counterpartIds));
+    if (primaryIsNarration && counterpartIsDialogue && primaryIndex >= 0) {
+      const placement = placements[primaryIndex];
+      const sourceRange = Array.isArray(placement?.source_range) ? placement.source_range.map(Number) : failureRange(failure, 'planned_source_range');
+      const duration = rangeDuration(sourceRange);
+      const candidate = bestNonOverlappingGap(duration, protectedDialogueRanges, sourceDurationSec, sourceRange[0]);
+      const repairedRange = candidate?.range || avoidProtectedSourceRanges(sourceRange, protectedDialogueRanges, sourceDurationSec);
+      placements[primaryIndex] = {
+        ...placement,
+        source_range: repairedRange,
+        hybrid_source_repair_reason: 'dialogue_protected_range_collision',
+        hybrid_source_repair_strategy: candidate?.fullFit ? 'alternate_narration_gap' : 'alternate_gap_plus_freeze_frame',
+        ...(candidate && candidate.freezePaddingSec > 0 ? { hybrid_source_repair_padding: { mode: 'freeze_frame', duration_sec: candidate.freezePaddingSec, source_advances: false } } : {})
+      };
+      repairNotes.push({ failure: failure.reason_code || 'HYBRID_DIALOGUE_PROTECTED_RANGE_COLLISION', target: placement.clip_id, strategy: placements[primaryIndex].hybrid_source_repair_strategy });
+      continue;
+    }
+    if (primaryIndex >= 0 && counterpartIndex >= 0 && primaryIndex !== counterpartIndex) {
+      const leftIndex = Math.min(primaryIndex, counterpartIndex);
+      const rightIndex = Math.max(primaryIndex, counterpartIndex);
+      const left = placements[leftIndex];
+      const right = placements[rightIndex];
+      const leftRange = Array.isArray(left?.source_range) ? left.source_range.map(Number) : [];
+      const rightRange = Array.isArray(right?.source_range) ? right.source_range.map(Number) : [];
+      const overlap = rangeOverlap(leftRange, rightRange);
+      if (overlap > 0.001) {
+        const nextEnd = Number((rightRange[0] - PHYSICAL_SOURCE_GAP_SEC).toFixed(3));
+        if (nextEnd > leftRange[0] + 0.25) {
+          const removed = Number((leftRange[1] - nextEnd).toFixed(3));
+          placements[leftIndex] = {
+            ...left,
+            source_range: [Number(leftRange[0].toFixed(3)), nextEnd],
+            hybrid_source_repair_reason: 'adjacent_source_overlap_trim_previous',
+            hybrid_source_repair_padding: removed > 0 ? { mode: 'freeze_frame', duration_sec: removed, source_advances: false } : undefined
+          };
+          repairNotes.push({ failure: failure.reason_code || 'HYBRID_ACTUAL_SOURCE_OVERLAP', target: left.clip_id, strategy: 'trim_previous_and_freeze_padding' });
+        }
+      }
+    }
+  }
+  next.clip_placement = placements;
+  next.shot_duration = placements.map((placement) => ({
+    clip_id: placement.clip_id,
+    duration_sec: Number(rangeDuration(placement.source_range).toFixed(3))
+  }));
+  next.hybrid_source_repair = {
+    applied: repairNotes.length > 0,
+    notes: repairNotes
+  };
+  return next;
+}
+
+function isHybridSourceValidationError(error) {
+  return String(error?.message || error || '').includes('MIDFORM_HYBRID_SOURCE_VALIDATION_FAILED');
+}
+
+function readHybridSourceFailureReport(workspaceDir, locale) {
+  const reportPath = path.join(workspaceDir, `draft_${locale}`, 'hybrid_source_validation_failed.json');
+  if (!fs.existsSync(reportPath)) return null;
+  return { reportPath, report: readJson(reportPath) };
+}
+
 function effectiveDialogueProtectedRanges(baseSegments, bySlot, fallbackBySlot, occurrenceCounts, occurrenceDurations, dialogueParentAtoms, locale) {
   const ranges = [];
   const occurrenceIndexes = new Map();
@@ -809,7 +970,7 @@ async function generateLocaleDraftArtifacts({ workspaceDir, baseDraftInputPath, 
   const localeDraftInputs = {};
   const outputPaths = {};
   const draftSpecs = Object.fromEntries(LOCALES.map((locale) => [locale, readJson(path.join(workspaceDir, `draft_spec.${locale}.json`))]));
-  const renderLocale = async (locale, draftSpec, attempt = 0) => {
+  const renderLocale = async (locale, draftSpec, attempt = 0, options = {}) => {
     const normalizedDraftSpec = normalizeDraftSpecSourceRanges(draftSpec, baseDraftInput);
     draftSpecs[locale] = normalizedDraftSpec;
     writeJson(path.join(workspaceDir, `draft_spec.${locale}.json`), normalizedDraftSpec);
@@ -818,7 +979,18 @@ async function generateLocaleDraftArtifacts({ workspaceDir, baseDraftInputPath, 
     localeDraftInputs[locale] = localeDraftInput;
     const draftInputPath = path.join(workspaceDir, `draft_input.${locale}.json`);
     writeJson(draftInputPath, localeDraftInput);
-    const generated = await draftGenerator(locale, localeDraftInput, workspaceDir, sourceVideoPath, transcriptPath);
+    let generated;
+    try {
+      generated = await draftGenerator(locale, localeDraftInput, workspaceDir, sourceVideoPath, transcriptPath);
+    } catch (error) {
+      const failure = readHybridSourceFailureReport(workspaceDir, locale);
+      if (options.hybridSourceRepairAttempt || !isHybridSourceValidationError(error) || !failure?.report) throw error;
+      const repairedDraftSpec = repairDraftSpecForHybridSourceValidation(normalizedDraftSpec, failure.report, baseDraftInput);
+      if (!repairedDraftSpec?.hybrid_source_repair?.applied) throw error;
+      outputPaths[`hybrid_source_validation_failed_${locale}`] = rel(failure.reportPath);
+      outputPaths[`hybrid_source_repair_${locale}`] = 'applied';
+      return renderLocale(locale, repairedDraftSpec, attempt, { hybridSourceRepairAttempt: true });
+    }
     localeResults[locale] = generated;
     outputPaths[`draft_input_${locale}`] = rel(draftInputPath);
     outputPaths[`draft_content_${locale}`] = rel(generated.draft_content_path);
@@ -829,7 +1001,7 @@ async function generateLocaleDraftArtifacts({ workspaceDir, baseDraftInputPath, 
   await renderLocale('ja', draftSpecs.ja, 0);
   let finalOverlapReport = compareFinalDraftFiles(localeResults.ko.draft_content_path, localeResults.ja.draft_content_path);
   let replanAttempts = 0;
-  while (finalOverlapReport.final_status !== 'pass' && replanAttempts < MAX_FINAL_DRAFT_REPLAN_ATTEMPTS) {
+  while (finalOverlapReport.final_status === 'failed' && replanAttempts < MAX_FINAL_DRAFT_REPLAN_ATTEMPTS) {
     replanAttempts += 1;
     draftSpecs.ja = replanJaDraftSpecForFinalOverlap(draftSpecs.ja, finalOverlapReport, replanAttempts, baseDraftInput);
     writeJson(path.join(workspaceDir, 'draft_spec.ja.json'), draftSpecs.ja);
@@ -862,12 +1034,14 @@ module.exports = {
   normalizeDraftSpecSourceRanges,
   placementBySlot,
   placementOrderBySlot,
+  repairDraftSpecForHybridSourceValidation,
   replanJaDraftSpecForFinalOverlap,
   secondsToTimecode,
   _test: {
     buildDialogueParentAtomMap,
     cloneJson,
     composeDialogueParentAtoms,
+    repairDraftSpecForHybridSourceValidation,
     normalizeDraftSpecSourceRanges,
     shiftedSourceRange,
     splitSourceRangeForOccurrence

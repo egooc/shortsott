@@ -197,7 +197,7 @@ function shouldRunMultimodalReview({ provider, qa, localeDrafts, autoDecision })
   const failedGates = Array.isArray(qa?.gateResults?.failed) ? qa.gateResults.failed.map((gate) => String(gate || '').trim()).filter(Boolean) : [];
   const providerAllowedFailures = failedGates.filter((gate) => !DETERMINISTIC_DATA_INTEGRITY_GATES.has(gate));
   const acceptanceFailed = qa?.gateResults?.status === 'failed' && providerAllowedFailures.some((gate) => SEMANTIC_MULTIMODAL_GATES.has(gate));
-  const overlapFailed = localeDrafts?.finalOverlapReport?.final_status && localeDrafts.finalOverlapReport.final_status !== 'pass';
+  const overlapFailed = localeDrafts?.finalOverlapReport?.final_status === 'failed';
   if (!acceptanceFailed && !overlapFailed) return false;
   return true;
 }

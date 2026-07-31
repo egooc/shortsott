@@ -81,6 +81,7 @@ test('locale evidence pack merges full-auto supplemental reaction and coverage s
       comment_reaction_summary: { repeated_keywords: [{ keyword: 'reveal', count: 3 }], repeated_emotions: [], misunderstandings: ['viewer confusion'], scene_mentions: ['ending scene'], title_thumbnail_phrases: [] },
       retention_signals: { intro: { elapsedVideoTimeRatio: 0.01 }, top_moments: [{ elapsedVideoTimeRatio: 0.4 }], spikes: [], dips: [], rewatch_zones: [] },
       heatmap_signals: { source: 'youtube_public_most_replayed', coverage: true, peaks: [{ start_sec: 120, end_sec: 126, score: 0.9 }], high_replay_windows: [{ start_sec: 120, end_sec: 126, score: 0.9 }] },
+      verified_facts: { characters: ['current-url-character'], events: ['current-url-event'] },
       evidence_coverage: { comments: true, retention: true, heatmap: true },
       coverage_notes: { retention: '' }
     }
@@ -90,6 +91,7 @@ test('locale evidence pack merges full-auto supplemental reaction and coverage s
   assert.equal(artifacts.evidencePack.retention_signals.intro.elapsedVideoTimeRatio, 0.01);
   assert.equal(artifacts.evidencePack.heatmap_signals.high_replay_windows.length, 1);
   assert.equal(artifacts.evidencePack.heatmap_priority_ranges[0].start_sec, 120);
+  assert.deepEqual(artifacts.evidencePack.verified_facts, { characters: ['current-url-character'], events: ['current-url-event'] });
   assert.ok(artifacts.evidencePack.scene_candidates.find((beat) => beat.beat_id === 'beat_03').heatmap_overlap_score > 0);
   assert.deepEqual(artifacts.evidencePack.evidence_coverage, { comments: true, retention: true, heatmap: true, transcript: true });
 });
@@ -115,6 +117,53 @@ test('public heatmap windows influence locale edit plan metadata and highlight p
   assert.ok(artifacts.editPlans.ko.highlight_order.includes('beat_04'));
 });
 
+test('shared highest heatmap peak is split into locale-specific roles instead of identical source chains', () => {
+  const inputs = sampleInputs();
+  const artifacts = buildLocaleBranchArtifacts({
+    ...inputs,
+    supplementalEvidence: {
+      heatmap_signals: {
+        source: 'youtube_public_most_replayed',
+        coverage: true,
+        high_replay_windows: [{ start_sec: 118, end_sec: 146, peak_score: 1 }],
+        peaks: [{ start_sec: 130, end_sec: 136, score: 1 }]
+      },
+      evidence_coverage: { heatmap: true }
+    }
+  });
+
+  const koHeatmapClip = artifacts.editPlans.ko.clip_chain.find((clip) => clip.heatmap_window_id === 'hm_001');
+  const jaHeatmapClip = artifacts.editPlans.ja.clip_chain.find((clip) => clip.heatmap_window_id === 'hm_001');
+
+  assert.equal(artifacts.evidencePack.heatmap_role_windows[0].heatmap_window_id, 'hm_001');
+  assert.equal(koHeatmapClip.heatmap_role, 'peak_core');
+  assert.notEqual(jaHeatmapClip.heatmap_role, 'peak_core');
+  assert.notDeepEqual(koHeatmapClip.source_range, jaHeatmapClip.source_range);
+  assert.notEqual(artifacts.overlapReport.final_status, 'failed');
+  assert.equal(artifacts.acceptanceGates.ko.status, 'passed');
+  assert.equal(artifacts.acceptanceGates.ja.status, 'passed');
+});
+
+test('identical top highlight order is repaired before locale artifacts are accepted', () => {
+  const inputs = sampleInputs();
+  const artifacts = buildLocaleBranchArtifacts({
+    ...inputs,
+    supplementalEvidence: {
+      heatmap_signals: {
+        source: 'youtube_public_most_replayed',
+        coverage: true,
+        high_replay_windows: [{ start_sec: 100, end_sec: 160, peak_score: 1 }],
+        peaks: [{ start_sec: 124, end_sec: 132, score: 1 }]
+      },
+      evidence_coverage: { heatmap: true }
+    }
+  });
+
+  assert.notDeepEqual(artifacts.editPlans.ko.highlight_order, artifacts.editPlans.ja.highlight_order);
+  assert.equal(artifacts.overlapReport.major_highlight_ordering_similarity, 0);
+  assert.notEqual(artifacts.overlapReport.final_status, 'failed');
+});
+
 test('locale edit plans produce different opening chains and pass overlap guard', () => {
   const inputs = sampleInputs();
   const artifacts = buildLocaleBranchArtifacts(inputs);
@@ -123,7 +172,7 @@ test('locale edit plans produce different opening chains and pass overlap guard'
 
   assert.notDeepEqual(koOpening, jaOpening);
   assert.notDeepEqual(artifacts.editPlans.ko.highlight_order, artifacts.editPlans.ja.highlight_order);
-  assert.equal(artifacts.overlapReport.final_status, 'pass');
+  assert.notEqual(artifacts.overlapReport.final_status, 'failed');
   assert.ok(artifacts.overlapReport.opening_similarity_score <= artifacts.overlapReport.thresholds.opening_similarity_score);
   assert.equal(artifacts.acceptanceGates.ko.status, 'passed');
   assert.equal(artifacts.acceptanceGates.ja.status, 'passed');
@@ -145,8 +194,25 @@ test('overlap guard fails identical locale clip chains', () => {
   };
   const report = compareLocaleEditPlans(artifacts.editPlans.ko, cloned);
 
-  assert.equal(report.final_status, 'fail');
-  assert.ok(report.failed_gates.includes('top_three_highlight_order_identical'));
-  assert.ok(report.failed_gates.includes('three_shot_chain_threshold'));
+  assert.equal(report.final_status, 'failed');
+  assert.ok(report.failed_gates.includes('exact_physical_timeline_clone'));
   assert.ok(report.pairwise_overlap_score > report.thresholds.pairwise_overlap_score);
+});
+
+test('locale translation or narration difference passes even with identical clips', () => {
+  const inputs = sampleInputs();
+  const artifacts = buildLocaleBranchArtifacts(inputs);
+  const cloned = {
+    ...artifacts.editPlans.ko,
+    locale: 'ja',
+    strategy: { ...artifacts.editPlans.ko.strategy, locale: 'ja' },
+    clip_chain: artifacts.editPlans.ko.clip_chain.map((clip) => ({ ...clip, clip_id: clip.clip_id.replace(/^ko_/, 'ja_') })),
+    opening_window: artifacts.editPlans.ko.opening_window.map((clip) => ({ ...clip, clip_id: clip.clip_id.replace(/^ko_/, 'ja_') })),
+    highlight_order: [...artifacts.editPlans.ko.highlight_order],
+    timeline: artifacts.editPlans.ko.timeline.map((slot, index) => index === 0 ? { ...slot, narration: '번역이 다른 나레이션' } : { ...slot })
+  };
+  const report = compareLocaleEditPlans(artifacts.editPlans.ko, cloned);
+
+  assert.notEqual(report.final_status, 'failed');
+  assert.equal(report.clone_signals.identical_narration_dialogue_subtitle_content, false);
 });

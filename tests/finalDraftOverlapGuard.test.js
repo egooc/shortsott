@@ -1,5 +1,8 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 
 const {
   compareFinalDraftClipChains,
@@ -45,10 +48,67 @@ test('final draft overlap guard fails identical video source chains', () => {
 
   const report = compareFinalDraftClipChains(ko, ja);
 
-  assert.equal(report.final_status, 'fail');
+  assert.equal(report.final_status, 'failed');
   assert.equal(report.three_shot_identical_chain_detected, true);
-  assert.ok(report.failed_gates.includes('three_shot_identical_chain'));
+  assert.ok(report.failed_gates.includes('exact_physical_timeline_clone'));
   assert.ok(report.pairwise_overlap_score > report.thresholds.pairwise_overlap_score);
+});
+
+test('first frame difference passes despite otherwise identical source reuse', () => {
+  const ko = extractVideoClipChainFromDraftContent(draftContent([
+    videoSegment('ko_a', 10, 3, 0),
+    videoSegment('ko_b', 20, 3, 3),
+    videoSegment('ko_c', 30, 3, 6)
+  ]));
+  const ja = extractVideoClipChainFromDraftContent(draftContent([
+    videoSegment('ja_a', 11, 3, 0),
+    videoSegment('ja_b', 20, 3, 3),
+    videoSegment('ja_c', 30, 3, 6)
+  ]));
+
+  const report = compareFinalDraftClipChains(ko, ja);
+
+  assert.equal(report.final_status, 'passed_with_warnings');
+  assert.deepEqual(report.failed_gates, []);
+});
+
+test('first clip in-point difference passes', () => {
+  const ko = extractVideoClipChainFromDraftContent(draftContent([videoSegment('ko_a', 10, 3, 0)]));
+  const ja = extractVideoClipChainFromDraftContent(draftContent([videoSegment('ja_a', 10.1, 3, 0)]));
+  const report = compareFinalDraftClipChains(ko, ja);
+
+  assert.notEqual(report.final_status, 'failed');
+});
+
+test('one scene or clip difference passes', () => {
+  const ko = extractVideoClipChainFromDraftContent(draftContent([
+    videoSegment('ko_a', 10, 3, 0),
+    videoSegment('ko_b', 20, 3, 3),
+    videoSegment('ko_c', 30, 3, 6)
+  ]));
+  const ja = extractVideoClipChainFromDraftContent(draftContent([
+    videoSegment('ja_a', 10, 3, 0),
+    videoSegment('ja_b', 20, 3, 3),
+    videoSegment('ja_c', 31, 3, 6)
+  ]));
+  const report = compareFinalDraftClipChains(ko, ja);
+
+  assert.notEqual(report.final_status, 'failed');
+});
+
+test('final draft file comparison fails only when physical and textual tracks are identical', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'midform-final-overlap-'));
+  const koPath = path.join(directory, 'ko.json');
+  const jaPath = path.join(directory, 'ja.json');
+  const segments = [videoSegment('clip', 10, 3, 0)];
+  fs.writeFileSync(koPath, JSON.stringify({ tracks: [{ type: 'video', name: 'source_video', segments }, { type: 'text', segments: [{ text: '같은 자막', target_timerange: { start: 0, duration: 3000000 } }] }] }), 'utf8');
+  fs.writeFileSync(jaPath, JSON.stringify({ tracks: [{ type: 'video', name: 'source_video', segments: segments.map((segment) => ({ ...segment, id: 'ja_clip' })) }, { type: 'text', segments: [{ text: '다른 자막', target_timerange: { start: 0, duration: 3000000 } }] }] }), 'utf8');
+
+  const { compareFinalDraftFiles } = require('../server/services/midformFinalDraftOverlapService');
+  const report = compareFinalDraftFiles(koPath, jaPath);
+
+  assert.notEqual(report.final_status, 'failed');
+  assert.equal(report.clone_signals.identical_narration_dialogue_subtitle_content, false);
 });
 
 test('final draft overlap guard passes divergent source chains', () => {
@@ -65,7 +125,7 @@ test('final draft overlap guard passes divergent source chains', () => {
 
   const report = compareFinalDraftClipChains(ko, ja);
 
-  assert.equal(report.final_status, 'pass');
+  assert.equal(report.final_status, 'passed');
   assert.equal(report.three_shot_identical_chain_detected, false);
   assert.equal(report.source_range_overlap_ratio, 0);
 });
@@ -77,6 +137,6 @@ test('final draft overlap guard fails missing video clip chains', () => {
 
   const report = compareFinalDraftClipChains([], ja);
 
-  assert.equal(report.final_status, 'fail');
+  assert.equal(report.final_status, 'failed');
   assert.deepEqual(report.failed_gates, ['missing_video_clip_chain']);
 });

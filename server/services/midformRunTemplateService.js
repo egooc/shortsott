@@ -296,6 +296,12 @@ function buildGeneratedContextMarkdown(normalizedRequest) {
 }
 
 function buildSupplementalEvidenceForTemplate({ sourceUrl, comments, retention, heatmap }) {
+  const verifiedFacts = {
+    characters: [...new Set([comments?.verified_facts?.characters, retention?.verified_facts?.characters, heatmap?.verified_facts?.characters]
+      .flatMap((items) => Array.isArray(items) ? items.map(normalizeText).filter(Boolean) : []))],
+    events: [...new Set([comments?.verified_facts?.events, retention?.verified_facts?.events, heatmap?.verified_facts?.events]
+      .flatMap((items) => Array.isArray(items) ? items.map(normalizeText).filter(Boolean) : []))]
+  };
   return {
     artifact_type: 'midform_batch_auto_evidence_pack',
     source_url: sourceUrl,
@@ -304,6 +310,7 @@ function buildSupplementalEvidenceForTemplate({ sourceUrl, comments, retention, 
     recent_comments: comments?.recent_comments || [],
     retention_signals: retention?.retention_signals || { status: 'skipped', coverage: false, source: 'youtube_owner_analytics', reason: 'owner_analytics_not_requested', intro: {}, top_moments: [], spikes: [], dips: [], rewatch_zones: [] },
     heatmap_signals: heatmap?.heatmap_signals || { status: 'unavailable', coverage: false, source: 'youtube_public_most_replayed', reason: 'public_heatmap_unavailable', raw_point_count: 0, peaks: [], high_replay_windows: [] },
+    verified_facts: verifiedFacts,
     evidence_coverage: {
       comments: comments?.evidence_coverage === true,
       retention: retention?.evidence_coverage === true,
@@ -600,7 +607,7 @@ function buildPipelineFailureSummary(summary, finalPipelineState, stage) {
 }
 
 function coreDraftGatesPassed(qa, localeDrafts) {
-  return qa?.gateResults?.status !== 'failed' && localeDrafts?.finalOverlapReport?.final_status === 'pass';
+  return qa?.gateResults?.status !== 'failed' && ['passed', 'passed_with_warnings'].includes(localeDrafts?.finalOverlapReport?.final_status);
 }
 
 function deterministicIntegrityFailures(gateResults = {}) {
@@ -861,9 +868,15 @@ function requiredReviewFailureSummary({ summary, qa, localeDrafts, analysisRun, 
 }
 
 function finalSummaryFromQa(summary, qa, finalPipelineState, analysisRun) {
+  const finalOverlap = summary.internal?.final_draft_overlap || null;
+  const overlapWarnings = finalOverlap?.warning_gates || [];
+  const qaWarnings = qa.gateResults.warnings || [];
+  const status = qa.gateResults.status === 'failed'
+    ? 'failed'
+    : (finalOverlap?.final_status === 'passed_with_warnings' || qa.gateResults.status === 'passed_with_warnings' ? 'passed_with_warnings' : qa.gateResults.status);
   return {
     ...summary,
-    status: qa.gateResults.status === 'failed' ? 'failed' : qa.gateResults.status,
+    status,
     output_paths: {
       ...summary.output_paths,
       ...qa.outputPaths,
@@ -873,7 +886,7 @@ function finalSummaryFromQa(summary, qa, finalPipelineState, analysisRun) {
         : {})
     },
     gate_results: qa.gateResults,
-    warnings: qa.gateResults.warnings,
+    warnings: [...new Set([...qaWarnings, ...overlapWarnings])],
     analysis_run: analysisRun,
     failure_reason: qa.gateResults.status === 'failed'
       ? {
@@ -898,16 +911,17 @@ function updateLocaleAcceptanceGatesWithFinalDraft(workspaceDir, finalOverlapRep
     const gatePath = path.join(workspaceDir, `acceptance_gates.${locale}.json`);
     const existing = readJsonIfExists(gatePath) || { artifact_type: 'midform_locale_acceptance_gates', locale, failed: [], warnings: [], checks: {} };
     const failed = new Set(Array.isArray(existing.failed) ? existing.failed : []);
-    if (finalOverlapReport.final_status !== 'pass') {
+    if (finalOverlapReport.final_status === 'failed') {
       for (const gate of finalOverlapReport.failed_gates || []) failed.add(`final_draft_${gate}`);
     }
     const next = {
       ...existing,
-      status: failed.size ? 'failed' : 'passed',
+      status: failed.size ? 'failed' : (finalOverlapReport.final_status === 'passed_with_warnings' ? 'passed_with_warnings' : 'passed'),
       failed: [...failed],
+      warnings: [...new Set([...(existing.warnings || []), ...(finalOverlapReport.warning_gates || []).map((gate) => `pairwise_${gate}`)])],
       checks: {
         ...(existing.checks || {}),
-        final_draft_video_track_overlap_passed: finalOverlapReport.final_status === 'pass'
+        final_draft_video_track_overlap_passed: finalOverlapReport.final_status !== 'failed'
       },
       final_draft_overlap: finalOverlapReport
     };
@@ -1148,7 +1162,7 @@ async function runMidformTemplateWorkflow(options = {}) {
           explanation: 'Compression mode never auto-escalates.'
         };
     const provider = normalizeMultimodalProvider();
-    const reviewRequired = qa.gateResults.status === 'failed' || localeDrafts.finalOverlapReport.final_status !== 'pass';
+    const reviewRequired = qa.gateResults.status === 'failed' || localeDrafts.finalOverlapReport.final_status === 'failed';
     const shouldReview = normalizedRequest.analysis.mode === 'auto' && shouldRunMultimodalReview({ provider, qa, localeDrafts, autoDecision });
     if (!shouldReview) {
       summary.output_paths = removeMultimodalReviewOutputPaths(summary.output_paths);
@@ -1258,7 +1272,7 @@ async function runMidformTemplateWorkflow(options = {}) {
       writeJson(workspace.summaryPath, finalSummary);
       return finalSummary;
     }
-    if (localeDrafts.finalOverlapReport.final_status !== 'pass') {
+    if (localeDrafts.finalOverlapReport.final_status === 'failed') {
       finalSummary = {
         ...finalSummary,
         ...manualReviewRequiredSummary({
@@ -1447,9 +1461,11 @@ module.exports = {
     buildManualReviewMarkdown,
     buildSelectedAttemptManifest,
     deterministicIntegrityFailures,
+    finalSummaryFromQa,
     hasPhysicalDrafts,
     isRetryableBeforeDraftFailure,
     manualReviewRequiredSummary,
+    updateLocaleAcceptanceGatesWithFinalDraft,
     removeMultimodalReviewOutputPaths,
     selectBestAttempt
   }

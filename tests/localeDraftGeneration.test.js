@@ -10,6 +10,7 @@ const {
   generateLocaleDraftArtifacts,
   normalizeDraftSpecSourceRanges,
   placementBySlot,
+  repairDraftSpecForHybridSourceValidation,
   replanJaDraftSpecForFinalOverlap,
   secondsToTimecode,
   _test
@@ -470,12 +471,85 @@ test('generateLocaleDraftArtifacts creates separate folder-only KO/JA draft arti
   assert.equal(fs.existsSync(path.join(workspaceDir, 'draft_ko')), true);
   assert.equal(fs.existsSync(path.join(workspaceDir, 'draft_ja')), true);
   assert.equal(fs.existsSync(path.join(workspaceDir, 'overlap_report_final_draft.ko_vs_ja.json')), true);
-  assert.equal(result.finalOverlapReport.final_status, 'pass');
+  assert.notEqual(result.finalOverlapReport.final_status, 'failed');
   assert.equal(result.finalOverlapReport.source_range_overlap_ratio, 0);
   assert.equal(result.finalOverlapReport.top_highlight_cluster_ordering.identical, false);
   assert.equal(Object.keys(result.outputPaths).some((key) => key.includes('zip')), false);
   assert.match(result.outputPaths.draft_folder_ko, /draft_ko$/);
   assert.match(result.outputPaths.draft_folder_ja, /draft_ja$/);
+});
+
+test('generateLocaleDraftArtifacts retries locale render after hybrid source validation repair', async () => {
+  const workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'midform-locale-hybrid-repair-'));
+  const baseDraftInputPath = path.join(workspaceDir, 'draft_input.json');
+  writeJson(baseDraftInputPath, {
+    segments: [
+      { segment_id: 'seg_06', caption_text: '나레이션', source_scenes: [{ start: '01:10.000', end: '01:18.000' }] },
+      { segment_id: 'seg_07_L01', parent_slot_id: 'seg_07', segment_type: 'dialogue_quote', duration_override_sec: 8, source_scenes: [{ start: '01:14.000', end: '01:22.000' }] }
+    ],
+    captionUnits: [],
+    ttsFiles: [],
+    sourceDurationSec: 140
+  });
+  writeJson(path.join(workspaceDir, 'draft_spec.ko.json'), {
+    locale: 'ko',
+    clip_placement: [
+      { clip_id: 'ko_seg_06', slot_id: 'seg_06', source_range: [70, 78], visual_role: 'bridge' },
+      { clip_id: 'ko_seg_07', slot_id: 'seg_07', source_range: [74, 82], visual_role: 'dialogue_anchor' }
+    ]
+  });
+  writeJson(path.join(workspaceDir, 'draft_spec.ja.json'), {
+    locale: 'ja',
+    clip_placement: [
+      { clip_id: 'ja_seg_06', slot_id: 'seg_06', source_range: [20, 28], visual_role: 'bridge' },
+      { clip_id: 'ja_seg_07', slot_id: 'seg_07', source_range: [40, 48], visual_role: 'dialogue_anchor' }
+    ]
+  });
+
+  const rendered = [];
+  const koSpecs = [];
+  const result = await generateLocaleDraftArtifacts({
+    workspaceDir,
+    baseDraftInputPath,
+    draftGenerator: async (locale, localeDraftInput, draftWorkspaceDir) => {
+      rendered.push(locale);
+      if (locale === 'ko') koSpecs.push(localeDraftInput.gptScript.locale_draft_spec);
+      const draftFolder = path.join(draftWorkspaceDir, `draft_${locale}`);
+      fs.mkdirSync(draftFolder, { recursive: true });
+      if (locale === 'ko' && koSpecs.length === 1) {
+        writeJson(path.join(draftFolder, 'hybrid_source_validation_failed.json'), {
+          status: 'failed',
+          failures: [{
+            reason_code: 'HYBRID_DIALOGUE_PROTECTED_RANGE_COLLISION',
+            physical_segment_id: 'seg_06',
+            dialogue_or_narration: 'narration',
+            rendered_source_range: [70, 78],
+            overlapping_counterpart_id: 'seg_07',
+            overlapping_counterpart_kind: 'dialogue',
+            overlapping_counterpart_range: [74, 82]
+          }]
+        });
+        throw new Error('MIDFORM_HYBRID_SOURCE_VALIDATION_FAILED: seg_06 overlaps seg_07');
+      }
+      const draftContentPath = path.join(draftFolder, 'draft_content.json');
+      writeJson(draftContentPath, {
+        tracks: [{ type: 'video', name: 'source_video', segments: localeDraftInput.segments.map(videoSegmentFromSourceScene) }]
+      });
+      return {
+        locale,
+        result: { draftPath: draftFolder, draftOutputMode: 'folder_only', packageZip: false, zipPath: '' },
+        draft_folder_path: draftFolder,
+        draft_content_path: draftContentPath,
+        source_draft_content_path: draftContentPath,
+        replan_attempt: 0
+      };
+    }
+  });
+
+  assert.deepEqual(rendered, ['ko', 'ko', 'ja']);
+  assert.equal(koSpecs[1].hybrid_source_repair.applied, true);
+  assert.notDeepEqual(koSpecs[1].clip_placement[0].source_range, [70, 78]);
+  assert.match(result.outputPaths.hybrid_source_validation_failed_ko, /hybrid_source_validation_failed\.json$/);
 });
 
 test('replanJaDraftSpecForFinalOverlap changes JA video source ranges instead of caption-only retrying', () => {
@@ -549,6 +623,65 @@ test('normalizeDraftSpecSourceRanges removes intra-locale source overlaps before
   assert.ok(normalized.clip_placement[1].source_range[0] > normalized.clip_placement[0].source_range[1]);
   assert.equal(normalized.clip_placement[1].source_range_normalized_for_physical_draft, true);
   assert.equal(normalized.shot_duration.length, 3);
+});
+
+test('repairDraftSpecForHybridSourceValidation moves narration away from reported dialogue collision', () => {
+  const repaired = repairDraftSpecForHybridSourceValidation({
+    locale: 'ko',
+    clip_placement: [
+      { clip_id: 'ko_seg_06', slot_id: 'seg_06', source_range: [70, 78], visual_role: 'bridge' },
+      { clip_id: 'ko_seg_07', slot_id: 'seg_07', source_range: [74, 82], visual_role: 'dialogue_anchor' }
+    ]
+  }, {
+    failures: [{
+      reason_code: 'HYBRID_DIALOGUE_PROTECTED_RANGE_COLLISION',
+      physical_segment_id: 'seg_06',
+      dialogue_or_narration: 'narration',
+      rendered_source_range: [70, 78],
+      overlapping_counterpart_id: 'seg_07',
+      overlapping_counterpart_kind: 'dialogue',
+      overlapping_counterpart_range: [74, 82]
+    }]
+  }, { sourceDurationSec: 140 });
+
+  const narration = repaired.clip_placement.find((placement) => placement.slot_id === 'seg_06');
+  const dialogue = repaired.clip_placement.find((placement) => placement.slot_id === 'seg_07');
+
+  assert.equal(narration.hybrid_source_repair_reason, 'dialogue_protected_range_collision');
+  assert.equal(narration.hybrid_source_repair_strategy, 'alternate_narration_gap');
+  assert.equal(narration.source_range[1] <= dialogue.source_range[0] - 0.3 || narration.source_range[0] >= dialogue.source_range[1] + 0.3, true);
+  assert.deepEqual(dialogue.source_range, [74, 82]);
+  assert.equal(repaired.hybrid_source_repair.applied, true);
+});
+
+test('repairDraftSpecForHybridSourceValidation trims actual adjacent source overlap with freeze padding', () => {
+  const repaired = repairDraftSpecForHybridSourceValidation({
+    locale: 'ko',
+    clip_placement: [
+      { clip_id: 'ko_seg_02', slot_id: 'seg_02', source_range: [20, 28.504], visual_role: 'body' },
+      { clip_id: 'ko_seg_03', slot_id: 'seg_03', source_range: [24, 32], visual_role: 'body_peak' }
+    ]
+  }, {
+    failures: [{
+      reason_code: 'HYBRID_ACTUAL_SOURCE_OVERLAP',
+      physical_segment_id: 'seg_02',
+      dialogue_or_narration: 'narration',
+      rendered_source_range: [20, 28.504],
+      overlapping_counterpart_id: 'seg_03',
+      overlapping_counterpart_kind: 'narration',
+      overlapping_counterpart_range: [24, 32]
+    }]
+  }, { sourceDurationSec: 140 });
+
+  const previous = repaired.clip_placement[0];
+  const next = repaired.clip_placement[1];
+
+  assert.equal(previous.hybrid_source_repair_reason, 'adjacent_source_overlap_trim_previous');
+  assert.equal(previous.source_range[1], 23.7);
+  assert.equal(previous.hybrid_source_repair_padding.mode, 'freeze_frame');
+  assert.equal(previous.hybrid_source_repair_padding.source_advances, false);
+  assert.equal(previous.source_range[1] <= next.source_range[0] - 0.3, true);
+  assert.equal(repaired.shot_duration[0].duration_sec, 3.7);
 });
 
 test('normalizeDraftSpecSourceRanges preserves monotonic order near source tail', () => {

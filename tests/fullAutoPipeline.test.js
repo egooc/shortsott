@@ -58,6 +58,21 @@ test('full-auto supplemental evidence records adapter coverage without blocking 
   assert.equal(evidence.coverage_notes.retention, 'owner_analytics_not_requested');
   assert.equal(evidence.retention_signals.source, 'youtube_owner_analytics');
   assert.equal(evidence.heatmap_signals.source, 'youtube_public_most_replayed');
+  assert.deepEqual(evidence.verified_facts, { characters: [], events: [] });
+});
+
+test('full-auto supplemental evidence keeps URL-local verified facts from adapters', () => {
+  const evidence = buildSupplementalEvidence({
+    sourceUrl: 'https://www.youtube.com/watch?v=abcdefghijk',
+    comments: { verified_facts: { characters: ['Dylan'], events: ['interrogation'] } },
+    retention: { verified_facts: { characters: ['Dylan'], events: ['payoff'] } },
+    heatmap: { verified_facts: { characters: ['Charon'], events: ['subway'] } }
+  });
+
+  assert.deepEqual(evidence.verified_facts, {
+    characters: ['Dylan', 'Charon'],
+    events: ['interrogation', 'payoff', 'subway']
+  });
 });
 
 test('owner analytics retention is skipped by default for external public videos', async () => {

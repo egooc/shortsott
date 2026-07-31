@@ -17,7 +17,7 @@ const {
   runMidformTemplateAttemptBatch,
   runMidformTemplateAttempts,
   runMidformTemplateBatch,
-  _test: { isRetryableBeforeDraftFailure, manualReviewRequiredSummary, selectBestAttempt }
+  _test: { finalSummaryFromQa, isRetryableBeforeDraftFailure, manualReviewRequiredSummary, selectBestAttempt, updateLocaleAcceptanceGatesWithFinalDraft }
 } = require('../server/services/midformRunTemplateService');
 
 function writeTempTemplate(text) {
@@ -210,6 +210,40 @@ test('deterministic integrity failure remains a hard fail', () => {
 
   assert.equal(summary.status, 'failed');
   assert.equal(summary.failure_reason.code, 'MIDFORM_DETERMINISTIC_INTEGRITY_FAILED');
+});
+
+test('passed_with_warnings preserves final overlap warnings in locale acceptance artifacts', () => {
+  const workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'midform-overlap-warning-'));
+  const output = updateLocaleAcceptanceGatesWithFinalDraft(workspaceDir, {
+    final_status: 'passed_with_warnings',
+    failed_gates: [],
+    warning_gates: ['source_reuse_high']
+  });
+
+  assert.ok(output.acceptance_gates_ko);
+  const gates = JSON.parse(fs.readFileSync(path.join(workspaceDir, 'acceptance_gates.ko.json'), 'utf8'));
+  assert.equal(gates.status, 'passed_with_warnings');
+  assert.deepEqual(gates.failed, []);
+  assert.deepEqual(gates.warnings, ['pairwise_source_reuse_high']);
+});
+
+test('passed_with_warnings from final overlap reaches the top-level run summary', () => {
+  const summary = {
+    status: 'running',
+    internal: {
+      final_draft_overlap: { final_status: 'passed_with_warnings', warning_gates: ['source_reuse_high'] }
+    },
+    output_paths: {}
+  };
+  const result = finalSummaryFromQa(
+    summary,
+    { gateResults: { status: 'passed', warnings: [] }, outputPaths: {} },
+    { artifacts: { draft: { draftPath: '' } } },
+    {}
+  );
+
+  assert.equal(result.status, 'passed_with_warnings');
+  assert.deepEqual(result.warnings, ['source_reuse_high']);
 });
 
 test('batch runner continues after one provider failure item', async () => {
