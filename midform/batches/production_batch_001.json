@@ -1,0 +1,13 @@
+{
+  "urls": [
+    "https://www.youtube.com/watch?v=OUfXQIaycPE",
+    "https://www.youtube.com/watch?v=sVfmACBWnIY",
+    "https://www.youtube.com/watch?v=EauDkPyyz8I",
+    "https://www.youtube.com/watch?v=lqT20npvohw",
+    "https://www.youtube.com/watch?v=t1eBKE0kavg"
+  ],
+  "max_attempts_per_url": 2,
+  "continue_on_failure": true,
+  "preserve_all_attempts": true,
+  "copy_selected_to_delivery_package": true
+}

@@ -6,6 +6,7 @@ const test = require('node:test');
 
 const {
   buildAutoEscalationDecision,
+  buildAutoTemplateMarkdown,
   buildGeneratedContextMarkdown,
   buildNormalizedRequest,
   buildStoryBeatmap,
@@ -386,6 +387,151 @@ test('attempt batch manifest continues after one URL failure and does not invent
   assert.equal(result.status, 'completed');
   assert.equal(result.results[0].status, 'failed');
   assert.equal(result.results[1].status, 'passed');
+});
+
+test('attempt batch without template builds isolated auto template input per URL', async () => {
+  const calls = [];
+  const autoInputs = [];
+  const result = await runMidformTemplateAttemptBatch({
+    manifest: {
+      urls: ['https://youtu.be/urlAAAAAAA1', 'https://youtu.be/urlBBBBBBB2'],
+      max_attempts_per_url: 2,
+      target: 160
+    },
+    autoTemplateBuilder: async (source, options) => {
+      const isFirst = /AAAA/.test(source);
+      const input = {
+        templatePath: path.join(os.tmpdir(), isFirst ? 'auto-a.md' : 'auto-b.md'),
+        generatedTemplateBodies: {
+          ko: isFirst ? 'Now You See Me Dylan FBI 소다 캔' : 'Other movie Charon subway farewell',
+          ja: isFirst ? 'Daniel interrogation payoff' : '別の映画の別テンプレート'
+        },
+        supplementalEvidence: {
+          source_url: source,
+          verified_facts: {
+            characters: isFirst ? ['Dylan'] : ['Charon'],
+            events: isFirst ? ['FBI interrogation'] : ['subway farewell']
+          },
+          evidence_coverage: { comments: false, retention: false, heatmap: false, transcript: false }
+        },
+        outputPaths: {
+          auto_template: isFirst ? 'runs/a/auto_template.md' : 'runs/b/auto_template.md',
+          template_body_ko: isFirst ? 'runs/a/template_body.ko.md' : 'runs/b/template_body.ko.md',
+          template_body_ja: isFirst ? 'runs/a/template_body.ja.md' : 'runs/b/template_body.ja.md',
+          evidence_pack: isFirst ? 'runs/a/evidence_pack.json' : 'runs/b/evidence_pack.json'
+        }
+      };
+      autoInputs.push({ source, options, input });
+      return input;
+    },
+    runner: async (args) => {
+      calls.push(args);
+      return {
+        status: 'passed',
+        source_url: args.source,
+        templatePath: args.templatePath,
+        generatedTemplateBodies: args.generatedTemplateBodies,
+        supplementalEvidence: args.supplementalEvidence,
+        autoTemplateOutputPaths: args.autoTemplateOutputPaths
+      };
+    }
+  });
+
+  assert.equal(result.status, 'completed');
+  assert.equal(calls.length, 2);
+  assert.equal(autoInputs.length, 2);
+  assert.equal(calls[0].templatePath.endsWith('auto-a.md'), true);
+  assert.equal(calls[1].templatePath.endsWith('auto-b.md'), true);
+  assert.match(calls[0].generatedTemplateBodies.ko, /Dylan/);
+  assert.doesNotMatch(calls[1].generatedTemplateBodies.ko, /Now You See Me|Dylan|Daniel|FBI|소다 캔/);
+  assert.equal(calls[0].supplementalEvidence.source_url, 'https://youtu.be/urlAAAAAAA1');
+  assert.equal(calls[1].supplementalEvidence.source_url, 'https://youtu.be/urlBBBBBBB2');
+  assert.notDeepEqual(calls[0].autoTemplateOutputPaths, calls[1].autoTemplateOutputPaths);
+});
+
+test('attempt batch uses explicit template only when provided', async () => {
+  const calls = [];
+  const result = await runMidformTemplateAttemptBatch({
+    manifest: {
+      urls: ['https://youtu.be/urlCCCCCCC3'],
+      template_path: 'manifest-template.md'
+    },
+    templatePath: 'explicit-template.md',
+    autoTemplateBuilder: async () => {
+      throw new Error('auto template builder should not run for explicit templates');
+    },
+    runner: async (args) => {
+      calls.push(args);
+      return { status: 'passed', source_url: args.source, templatePath: args.templatePath };
+    }
+  });
+
+  assert.equal(result.status, 'completed');
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].templatePath, 'explicit-template.md');
+  assert.equal(calls[0].generatedTemplateBodies, undefined);
+  assert.equal(calls[0].supplementalEvidence, undefined);
+});
+
+test('attempt runner preserves one URL auto evidence across retries without cross URL facts', async () => {
+  const templatePath = writeTempTemplate([
+    '---',
+    'source:',
+    '  url: https://youtu.be/from-template',
+    'output:',
+    '  target_length_sec: 150',
+    '---',
+    'neutral body'
+  ].join('\n'));
+  const runSetDir = fs.mkdtempSync(path.join(os.tmpdir(), 'midform-auto-attempt-set-'));
+  fs.rmSync(runSetDir, { recursive: true, force: true });
+  const calls = [];
+  const generatedTemplateBodies = {
+    ko: 'Only Charon subway farewell',
+    ja: 'Only Charon JA body'
+  };
+  const supplementalEvidence = { source_url: 'https://youtu.be/currentURL01', verified_facts: { characters: ['Charon'], events: ['subway farewell'] } };
+
+  await runMidformTemplateAttempts({
+    templatePath,
+    source: 'https://youtu.be/currentURL01',
+    runSetDirOverride: runSetDir,
+    generatedTemplateBodies,
+    supplementalEvidence,
+    runner: async (args) => {
+      calls.push(args);
+      fs.mkdirSync(args.workspaceDirOverride, { recursive: true });
+      const summary = {
+        status: 'failed',
+        workspace_dir: args.workspaceDirOverride,
+        failure_reason: { code: 'MIDFORM_TEMPLATE_VALIDATION_FAILED', message: 'force second attempt' },
+        output_paths: {}
+      };
+      fs.writeFileSync(path.join(args.workspaceDirOverride, 'run_summary.json'), `${JSON.stringify(summary, null, 2)}\n`, 'utf8');
+      return summary;
+    }
+  });
+
+  assert.equal(calls.length, 2);
+  assert.deepEqual(calls[0].generatedTemplateBodies, generatedTemplateBodies);
+  assert.deepEqual(calls[1].generatedTemplateBodies, generatedTemplateBodies);
+  assert.equal(calls[0].supplementalEvidence.source_url, 'https://youtu.be/currentURL01');
+  assert.equal(calls[1].supplementalEvidence.source_url, 'https://youtu.be/currentURL01');
+  assert.doesNotMatch(calls[1].generatedTemplateBodies.ko, /Now You See Me|Dylan|Daniel|FBI|소다 캔/);
+});
+
+test('auto template markdown stays URL-specific and neutral aside from generated body', () => {
+  const markdown = buildAutoTemplateMarkdown({
+    sourceUrl: 'https://youtu.be/urlDDDDDDD4',
+    targetLengthSec: 160,
+    profile: 'production',
+    analysisMode: 'auto',
+    body: 'Verified body for this URL only'
+  });
+
+  assert.match(markdown, /source:\n  url: https:\/\/youtu\.be\/urlDDDDDDD4/);
+  assert.match(markdown, /Verified body for this URL only/);
+  assert.doesNotMatch(markdown, /Now You See Me|Dylan|Daniel|FBI|소다 캔/);
 });
 
 test('retry policy only retries transient pre-draft failures', () => {

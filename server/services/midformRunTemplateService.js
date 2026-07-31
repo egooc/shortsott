@@ -13,9 +13,14 @@ const { collectRunArtifacts, copyIfExists, ensureDir, rel, writeJson, writeText 
 const { generateLocaleDraftArtifacts } = require('./midformLocaleDraftService');
 const { buildLocaleBranchArtifacts } = require('./midformLocaleBranchService');
 const { DETERMINISTIC_DATA_INTEGRITY_GATES, normalizeMultimodalProvider, runMidformMultimodalReview, shouldRunMultimodalReview } = require('./midformMultimodalReviewService');
+const { buildTemplateBody } = require('./midformTemplateWriterService');
+const { collectYouTubeComments } = require('./youtubeCommentsAdapterService');
+const { collectYouTubeRetention } = require('./youtubeRetentionAdapterService');
+const { collectYouTubeHeatmap } = require('./youtubeHeatmapAdapterService');
 
 const SCHEMA_PATH = path.join(PROJECT_ROOT, 'midform', 'schemas', 'midform_run_template_schema.json');
 const WORKSPACE_ROOT = path.join(PROJECT_ROOT, 'midform', 'test_runs', 'template_runs');
+const AUTO_INPUT_ROOT = path.join(WORKSPACE_ROOT, 'batch_auto_inputs');
 const COMPRESS_RUNS_DIR = path.join(PROJECT_ROOT, 'midform', 'test_runs');
 const TERMINAL_PIPELINE_STATES = new Set(['completed', 'completed_with_warnings', 'failed', 'paused_review', 'blocked_preflight']);
 const RESUME_STAGES = ['ingest', 'analysis', 'slot_fill', 'bootstrap', 'draft'];
@@ -290,6 +295,97 @@ function buildGeneratedContextMarkdown(normalizedRequest) {
   ].join('\n');
 }
 
+function buildSupplementalEvidenceForTemplate({ sourceUrl, comments, retention, heatmap }) {
+  return {
+    artifact_type: 'midform_batch_auto_evidence_pack',
+    source_url: sourceUrl,
+    comment_reaction_summary: comments?.reaction_summary || { repeated_keywords: [], repeated_emotions: [], scene_mentions: [], misunderstandings: [], title_thumbnail_phrases: [] },
+    top_comments: comments?.top_comments || [],
+    recent_comments: comments?.recent_comments || [],
+    retention_signals: retention?.retention_signals || { status: 'skipped', coverage: false, source: 'youtube_owner_analytics', reason: 'owner_analytics_not_requested', intro: {}, top_moments: [], spikes: [], dips: [], rewatch_zones: [] },
+    heatmap_signals: heatmap?.heatmap_signals || { status: 'unavailable', coverage: false, source: 'youtube_public_most_replayed', reason: 'public_heatmap_unavailable', raw_point_count: 0, peaks: [], high_replay_windows: [] },
+    evidence_coverage: {
+      comments: comments?.evidence_coverage === true,
+      retention: retention?.evidence_coverage === true,
+      heatmap: heatmap?.evidence_coverage === true,
+      transcript: false
+    },
+    coverage_notes: {
+      comments: comments?.unavailable_reason || '',
+      retention: retention?.unavailable_reason || '',
+      heatmap: heatmap?.unavailable_reason || ''
+    },
+    collected_at: new Date().toISOString()
+  };
+}
+
+function buildAutoTemplateMarkdown({ sourceUrl, targetLengthSec, profile, analysisMode, body }) {
+  return [
+    '---',
+    `profile: ${profile}`,
+    `analysis_mode: ${analysisMode}`,
+    'source:',
+    `  url: ${sourceUrl}`,
+    '  content_type: movie_midform_recap',
+    'output:',
+    `  target_length_sec: ${targetLengthSec}`,
+    'tone: evidence-led, cinematic, grounded',
+    'callback_required: true',
+    'prohibitions:',
+    '  - Do not invent facts outside this URL-specific evidence pack.',
+    '  - Do not reuse a video-specific template from another source URL.',
+    '  - Do not make JA a caption-only duplicate of KO.',
+    'render:',
+    '  use_capcut_template: true',
+    '  audio_path_mode: absolute',
+    '  video_placement_mode: source_clips',
+    '---',
+    '',
+    body,
+    ''
+  ].join('\n');
+}
+
+async function collectAutoTemplateInput(source, options = {}) {
+  const sourceUrl = normalizeSourceUrl(source);
+  if (!sourceUrl) throw new Error('auto template input requires source URL');
+  const targetLengthSec = Number(options.target || options.targetLengthSec || options.target_length_sec || 160) || 160;
+  const profile = normalizeProfile(options.profile || 'production');
+  const analysisMode = normalizeAnalysisMode(options.analysisMode || options.analysis_mode || 'auto');
+  const hash = stableHash({ sourceUrl, targetLengthSec, profile, analysisMode });
+  const dir = path.join(AUTO_INPUT_ROOT, `${safeSlug(sourceUrl.replace(/^https?:\/\//, ''), 'source')}_${hash}`);
+  ensureDir(dir);
+  const [comments, retention, heatmap] = await Promise.all([
+    collectYouTubeComments(sourceUrl, options),
+    collectYouTubeRetention(sourceUrl, options),
+    collectYouTubeHeatmap(sourceUrl, options)
+  ]);
+  const supplementalEvidence = buildSupplementalEvidenceForTemplate({ sourceUrl, comments, retention, heatmap });
+  const generatedTemplateBodies = {
+    ko: buildTemplateBody('ko', supplementalEvidence),
+    ja: buildTemplateBody('ja', supplementalEvidence)
+  };
+  const templatePath = path.join(dir, 'auto_template.md');
+  const templateBodyKoPath = path.join(dir, 'template_body.ko.md');
+  const templateBodyJaPath = path.join(dir, 'template_body.ja.md');
+  const evidencePath = path.join(dir, 'evidence_pack.json');
+  writeText(templateBodyKoPath, `${generatedTemplateBodies.ko}\n`);
+  writeText(templateBodyJaPath, `${generatedTemplateBodies.ja}\n`);
+  writeJson(evidencePath, supplementalEvidence);
+  writeText(templatePath, buildAutoTemplateMarkdown({ sourceUrl, targetLengthSec, profile, analysisMode, body: generatedTemplateBodies.ko }));
+  return {
+    templatePath,
+    generatedTemplateBodies,
+    supplementalEvidence,
+    outputPaths: {
+      auto_template: rel(templatePath),
+      template_body_ko: rel(templateBodyKoPath),
+      template_body_ja: rel(templateBodyJaPath),
+      evidence_pack: rel(evidencePath)
+    }
+  };
+}
+
 function copyCompressionArtifacts(compressionRunDir, workspaceDir) {
   copyIfExists(path.join(compressionRunDir, 'narrative_beats.json'), path.join(workspaceDir, 'narrative_beats.json'));
   copyIfExists(path.join(compressionRunDir, 'edit_plan.json'), path.join(workspaceDir, 'edit_plan.json'));
@@ -352,7 +448,9 @@ function writeSupplementalEvidence(workspaceDir, supplementalEvidence = {}) {
   if (!supplementalEvidence || typeof supplementalEvidence !== 'object' || !Object.keys(supplementalEvidence).length) return {};
   const filePath = path.join(workspaceDir, 'supplemental_evidence.json');
   writeJson(filePath, supplementalEvidence);
-  return { supplemental_evidence: rel(filePath) };
+  const evidencePath = path.join(workspaceDir, 'evidence_pack.json');
+  writeJson(evidencePath, supplementalEvidence);
+  return { supplemental_evidence: rel(filePath), evidence_pack: rel(evidencePath) };
 }
 
 function buildStoryBeatmap(normalizedRequest, beatsObject, editPlan) {
@@ -879,6 +977,7 @@ async function runMidformTemplateWorkflow(options = {}) {
   const supplementalEvidencePaths = writeSupplementalEvidence(workspace.workspaceDir, options.supplementalEvidence || {});
   summary.output_paths = {
     ...summary.output_paths,
+    ...(options.autoTemplateOutputPaths || {}),
     ...generatedTemplateBodyPaths,
     ...supplementalEvidencePaths
   };
@@ -1284,18 +1383,29 @@ async function runMidformTemplateAttemptBatch({ manifest, manifestPath = '', tem
   const parsedManifest = manifest || (manifestPath ? readJson(path.isAbsolute(manifestPath) ? manifestPath : path.join(PROJECT_ROOT, manifestPath)) : {});
   const normalized = normalizeBatchManifest(parsedManifest);
   const selectedTemplatePath = templatePath || normalized.template_path;
-  if (!selectedTemplatePath) throw new Error('Batch manifest requires template_path or --template');
+  const autoTemplateBuilder = options.autoTemplateBuilder || collectAutoTemplateInput;
+  const runnerOptions = { ...options };
+  delete runnerOptions.autoTemplateBuilder;
   const results = [];
   for (const url of normalized.urls) {
     try {
+      const autoInput = selectedTemplatePath ? null : await autoTemplateBuilder(url, {
+        ...runnerOptions,
+        profile: runnerOptions.profile || normalized.profile || undefined,
+        analysisMode: runnerOptions.analysisMode || normalized.analysis_mode || undefined,
+        target: runnerOptions.target || normalized.target || undefined
+      });
       const result = await runner({
-        ...options,
-        templatePath: selectedTemplatePath,
+        ...runnerOptions,
+        templatePath: selectedTemplatePath || autoInput.templatePath,
         source: url,
         maxAttempts: normalized.max_attempts_per_url,
-        profile: options.profile || normalized.profile || undefined,
-        analysisMode: options.analysisMode || normalized.analysis_mode || undefined,
-        target: options.target || normalized.target || undefined
+        profile: runnerOptions.profile || normalized.profile || undefined,
+        analysisMode: runnerOptions.analysisMode || normalized.analysis_mode || undefined,
+        target: runnerOptions.target || normalized.target || undefined,
+        generatedTemplateBodies: autoInput?.generatedTemplateBodies,
+        supplementalEvidence: autoInput?.supplementalEvidence,
+        autoTemplateOutputPaths: autoInput?.outputPaths
       });
       results.push(result);
     } catch (error) {
@@ -1319,6 +1429,8 @@ module.exports = {
   PROFILE_DEFAULTS,
   RESUME_STAGES,
   buildGeneratedContextMarkdown,
+  buildAutoTemplateMarkdown,
+  collectAutoTemplateInput,
   buildNormalizedRequest,
   buildStoryBeatmap,
   buildAutoEscalationDecision,
