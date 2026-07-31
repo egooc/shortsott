@@ -25,6 +25,11 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 CAPTION_COLORS_CONFIG_PATH = os.path.join(PROJECT_ROOT, "midform", "config", "caption_colors.json")
 DURATION_CONFIG_PATH = os.path.join(PROJECT_ROOT, "midform", "config", "duration.json")
 PORTRAIT_CROP_CONFIG_PATH = os.path.join(PROJECT_ROOT, "midform", "config", "portrait_crop.json")
+MIDFORM_RUN_ASSETS_DIR = os.path.join(PROJECT_ROOT, "midform", "skills", "midform-run", "assets")
+MIDFORM_PRESET_IMAGE_TRACK_NAME = "midform_preset_images"
+MIDFORM_PRESET_IMAGE_WIDTH_RATIO = 0.42
+MIDFORM_PRESET_IMAGE_MAX_HEIGHT_RATIO = 0.12
+MIDFORM_PRESET_IMAGE_SAFE_MARGIN_RATIO = 0.025
 
 try:
     import cv2  # type: ignore
@@ -308,6 +313,114 @@ def parse_timecode_to_sec(value):
     except (TypeError, ValueError):
         return None
     return None
+
+
+def source_range_from_placement(placement):
+    if not isinstance(placement, dict):
+        return None
+    start_sec = parse_timecode_to_sec(placement.get("source_start"))
+    end_sec = parse_timecode_to_sec(placement.get("source_end"))
+    if start_sec is None or end_sec is None or end_sec <= start_sec:
+        return None
+    return {"start_sec": round(start_sec, 6), "end_sec": round(end_sec, 6)}
+
+
+def hybrid_source_usage_from_placement(placement, segment_type_map=None):
+    if not isinstance(placement, dict):
+        return None
+    segment_id = str(placement.get("segment_id") or "")
+    segment_type_map = segment_type_map or {}
+    segment_type = str(segment_type_map.get(segment_id) or placement.get("segment_type") or "recap")
+    source_start = str(placement.get("source_start") or "")
+    source_end = str(placement.get("source_end") or "")
+    padding_mode = str(placement.get("padding", {}).get("mode") if isinstance(placement.get("padding"), dict) else "")
+    if not padding_mode:
+        if source_start == "freeze_last_frame" or source_end == "freeze_last_frame":
+            padding_mode = "freeze_frame"
+        elif source_start == "repeat_last" or source_end == "repeat_last" or str(placement.get("clip_id") or "").endswith("_repeat"):
+            padding_mode = "repeat_last"
+        elif str(placement.get("clip_id") or "") == "placeholder_repeat" or source_end == "placeholder":
+            padding_mode = "placeholder"
+        else:
+            padding_mode = "none"
+    source_advances = padding_mode not in {"freeze_frame", "placeholder"}
+    rendered_range = source_range_from_placement(placement)
+    duration_sec = max(0.0, float(placement.get("video_duration_sec") or 0.0))
+    return {
+        "locale": str(placement.get("locale") or ""),
+        "slot_id": str(placement.get("slot_id") or placement.get("parent_slot_id") or segment_id).split("_L", 1)[0],
+        "physical_segment_id": segment_id,
+        "segment_kind": segment_type,
+        "dialogue_or_narration": "dialogue" if segment_type in {"dialogue_quote", "dialogue"} else "narration",
+        "planned_source_range": rendered_range,
+        "rendered_source_range": rendered_range,
+        "locale_source_override": bool(placement.get("locale_source_override")),
+        "dialogue_speech_range_sec": placement.get("dialogue_speech_range_sec"),
+        "padding": {
+            "mode": padding_mode,
+            "duration_sec": duration_sec if padding_mode != "none" else 0.0,
+            "source_advances": source_advances,
+        },
+        "source_file": str(placement.get("source_file") or ""),
+        "clip_id": str(placement.get("clip_id") or ""),
+        "source_advances": source_advances,
+    }
+
+
+def analyze_hybrid_source_usages(usages, epsilon_sec=0.001):
+    source_backed = [
+        usage for usage in usages or []
+        if isinstance(usage, dict)
+        and usage.get("source_advances") is True
+        and isinstance(usage.get("rendered_source_range"), dict)
+    ]
+    source_backed.sort(key=lambda item: (
+        float(item["rendered_source_range"].get("start_sec") or 0.0),
+        float(item["rendered_source_range"].get("end_sec") or 0.0),
+        str(item.get("physical_segment_id") or ""),
+    ))
+    failures = []
+    for index, current in enumerate(source_backed):
+        current_range = current["rendered_source_range"]
+        current_start = float(current_range.get("start_sec") or 0.0)
+        current_end = float(current_range.get("end_sec") or 0.0)
+        for other in source_backed[index + 1:]:
+            other_range = other["rendered_source_range"]
+            other_start = float(other_range.get("start_sec") or 0.0)
+            other_end = float(other_range.get("end_sec") or 0.0)
+            if other_start >= current_end - epsilon_sec:
+                break
+            overlap_sec = min(current_end, other_end) - max(current_start, other_start)
+            if overlap_sec <= epsilon_sec:
+                continue
+            if current.get("physical_segment_id") == other.get("physical_segment_id") and current.get("segment_kind") not in {"dialogue_quote", "dialogue"}:
+                continue
+            failures.append({
+                "reason_code": "HYBRID_ACTUAL_SOURCE_OVERLAP",
+                "locale": current.get("locale") or other.get("locale") or "",
+                "slot_id": current.get("slot_id") or "",
+                "physical_segment_id": current.get("physical_segment_id") or "",
+                "segment_kind": current.get("segment_kind") or "",
+                "dialogue_or_narration": current.get("dialogue_or_narration") or "",
+                "planned_source_range": current.get("planned_source_range"),
+                "rendered_source_range": current.get("rendered_source_range"),
+                "locale_source_override": bool(current.get("locale_source_override")),
+                "dialogue_speech_range_sec": current.get("dialogue_speech_range_sec"),
+                "padding": current.get("padding"),
+                "source_file": current.get("source_file") or "",
+                "clip_id": current.get("clip_id") or "",
+                "overlapping_counterpart_id": other.get("physical_segment_id") or "",
+                "overlapping_counterpart": other,
+                "overlap_duration_sec": round(overlap_sec, 6),
+                "failure_reason": "same source frames are replayed by two source-advancing placements",
+            })
+    return {
+        "status": "failed" if failures else "passed",
+        "source_advancing_usage_count": len(source_backed),
+        "ignored_non_advancing_usage_count": len([usage for usage in usages or [] if isinstance(usage, dict) and usage.get("source_advances") is False]),
+        "usages": usages or [],
+        "failures": failures,
+    }
 
 
 def zip_folder(folder_path, zip_path, zip_root_base):
@@ -1143,6 +1256,224 @@ def ensure_material_category(draft_doc, category):
     if not isinstance(materials.get(category), list):
         materials[category] = []
     return materials[category]
+
+
+def read_png_dimensions(file_path):
+    try:
+        with open(file_path, "rb") as file:
+            header = file.read(24)
+    except Exception:
+        return None
+    if len(header) < 24 or header[:8] != b"\x89PNG\r\n\x1a\n" or header[12:16] != b"IHDR":
+        return None
+    width = int.from_bytes(header[16:20], "big")
+    height = int.from_bytes(header[20:24], "big")
+    if width <= 0 or height <= 0:
+        return None
+    return width, height
+
+
+def midform_preset_image_slots(assets_dir=None):
+    root = os.path.abspath(assets_dir or MIDFORM_RUN_ASSETS_DIR)
+    return [
+        {
+            "slot": "top",
+            "file_name": "top_image.png",
+            "anchor": "top-center",
+            "source_path": os.path.join(root, "top_image.png"),
+        },
+        {
+            "slot": "bottom",
+            "file_name": "bottom_image.png",
+            "anchor": "bottom-center",
+            "source_path": os.path.join(root, "bottom_image.png"),
+        },
+    ]
+
+
+def build_midform_preset_image_layout(slot_name, image_width, image_height, canvas_width, canvas_height):
+    canvas_width = max(1.0, safe_float(canvas_width, 1080.0))
+    canvas_height = max(1.0, safe_float(canvas_height, 1920.0))
+    image_width = max(1.0, safe_float(image_width, canvas_width))
+    image_height = max(1.0, safe_float(image_height, canvas_height * MIDFORM_PRESET_IMAGE_MAX_HEIGHT_RATIO))
+    max_width_px = canvas_width * MIDFORM_PRESET_IMAGE_WIDTH_RATIO
+    max_height_px = canvas_height * MIDFORM_PRESET_IMAGE_MAX_HEIGHT_RATIO
+    scale = min(max_width_px / image_width, max_height_px / image_height)
+    scale = max(0.01, min(4.0, scale))
+    rendered_width_px = image_width * scale
+    rendered_height_px = image_height * scale
+    margin_px = canvas_height * MIDFORM_PRESET_IMAGE_SAFE_MARGIN_RATIO
+    transform_x = 0.0
+    if slot_name == "top":
+        center_y_px = margin_px + rendered_height_px / 2.0
+        anchor = "top-center"
+    else:
+        center_y_px = canvas_height - margin_px - rendered_height_px / 2.0
+        anchor = "bottom-center"
+    # CapCut overlay transforms use center-origin normalized canvas coordinates:
+    # x=0 is center, y=1 is top edge, y=-1 is bottom edge.
+    transform_y = 1.0 - (2.0 * center_y_px / canvas_height)
+    return {
+        "anchor": anchor,
+        "transform_x": round(transform_x, 6),
+        "transform_y": round(transform_y, 6),
+        "scale": round(scale, 6),
+        "safe_margin_px": round(margin_px, 3),
+        "width_ratio": MIDFORM_PRESET_IMAGE_WIDTH_RATIO,
+        "max_height_ratio": MIDFORM_PRESET_IMAGE_MAX_HEIGHT_RATIO,
+        "safe_margin_ratio": MIDFORM_PRESET_IMAGE_SAFE_MARGIN_RATIO,
+        "rendered_width_px": round(rendered_width_px, 3),
+        "rendered_height_px": round(rendered_height_px, 3),
+    }
+
+
+def apply_midform_run_preset_image_overlays(draft_content_path, draft_path, total_duration_sec, canvas_width, canvas_height, warnings, assets_dir=None):
+    summary = {
+        "enabled": True,
+        "applied": False,
+        "track_name": MIDFORM_PRESET_IMAGE_TRACK_NAME,
+        "assets_dir": os.path.abspath(assets_dir or MIDFORM_RUN_ASSETS_DIR),
+        "slots": [],
+        "segments_count": 0,
+        "duration_sec": round(max(0.0, safe_float(total_duration_sec, 0.0)), 6),
+        "reason": "no preset image assets found",
+    }
+    if not draft_content_path or not os.path.exists(draft_content_path):
+        summary["reason"] = "draft_content.json not found"
+        return summary
+    total_us = max(1, microseconds(total_duration_sec))
+    try:
+        with open(draft_content_path, "r", encoding="utf-8-sig") as file:
+            draft_content = json.load(file)
+    except Exception as error:
+        summary["reason"] = f"draft_content load failed: {error}"
+        return summary
+
+    overlay_dir = os.path.join(draft_path or os.path.dirname(draft_content_path), "overlay")
+    tracks = draft_content.setdefault("tracks", [])
+    tracks[:] = [
+        track for track in tracks
+        if not (isinstance(track, dict) and track.get("name") == MIDFORM_PRESET_IMAGE_TRACK_NAME)
+    ]
+    images = ensure_material_category(draft_content, "images")
+    images[:] = [
+        material for material in images
+        if not str((material or {}).get("name") or "").startswith("midform_preset_")
+    ]
+
+    segments = []
+    for index, slot in enumerate(midform_preset_image_slots(assets_dir), start=1):
+        source_path = slot["source_path"]
+        slot_summary = {
+            "slot": slot["slot"],
+            "anchor": slot["anchor"],
+            "source_path": source_path,
+            "draft_path": "",
+            "exists": os.path.exists(source_path),
+            "applied": False,
+            "reason": "skipped_missing_asset",
+        }
+        if not slot_summary["exists"]:
+            summary["slots"].append(slot_summary)
+            continue
+        dimensions = read_png_dimensions(source_path)
+        if dimensions is None:
+            slot_summary["reason"] = "skipped_invalid_png_dimensions"
+            summary["slots"].append(slot_summary)
+            continue
+        image_width, image_height = dimensions
+        os.makedirs(overlay_dir, exist_ok=True)
+        copied_name = f"midform_preset_{slot['slot']}_image.png"
+        copied_path = os.path.abspath(os.path.join(overlay_dir, copied_name))
+        try:
+            shutil.copy2(source_path, copied_path)
+        except Exception as error:
+            slot_summary["reason"] = f"copy_failed: {error}"
+            if isinstance(warnings, list):
+                warnings.append(f"midform preset image {slot['slot']} copy failed: {error}")
+            summary["slots"].append(slot_summary)
+            continue
+
+        layout = build_midform_preset_image_layout(slot["slot"], image_width, image_height, canvas_width, canvas_height)
+        material_id = new_capcut_id()
+        images.append(
+            {
+                "id": material_id,
+                "type": "image",
+                "name": f"midform_preset_{slot['slot']}_image",
+                "path": copied_path,
+                "local_path": copied_path,
+                "file_path": copied_path,
+                "duration": total_us,
+                "width": image_width,
+                "height": image_height,
+            }
+        )
+        segment = {
+            "id": new_capcut_id(),
+            "material_id": material_id,
+            "visible": True,
+            "target_timerange": {"start": 0, "duration": total_us},
+            "source_timerange": {"start": 0, "duration": total_us},
+            "render_timerange": {"start": 0, "duration": total_us},
+            "clip": {
+                "alpha": 1.0,
+                "scale": {"x": layout["scale"], "y": layout["scale"]},
+                "transform": {"x": layout["transform_x"], "y": layout["transform_y"]},
+                "flip": {"horizontal": False, "vertical": False},
+                "rotation": 0.0,
+            },
+            "uniform_scale": {"on": True, "value": layout["scale"]},
+            "render_index": 12000 + index,
+            "track_render_index": index - 1,
+            "extra_material_refs": [],
+        }
+        segments.append(segment)
+        slot_summary.update(
+            {
+                "draft_path": copied_path,
+                "applied": True,
+                "reason": "applied",
+                "image_size_px": [image_width, image_height],
+                "layout": layout,
+            }
+        )
+        summary["slots"].append(slot_summary)
+
+    if segments:
+        image_track = {
+            "id": new_capcut_id(),
+            "type": "image",
+            "segments": segments,
+            "flag": 1,
+            "attribute": 0,
+            "name": MIDFORM_PRESET_IMAGE_TRACK_NAME,
+            "is_default_name": False,
+            "visible": True,
+        }
+        insert_index = 0
+        for track_index, track in enumerate(tracks):
+            if isinstance(track, dict) and track.get("type") == "video" and track.get("name") == "source_video":
+                insert_index = track_index + 1
+                break
+        tracks.insert(insert_index, image_track)
+
+    try:
+        with open(draft_content_path, "w", encoding="utf-8") as file:
+            json.dump(draft_content, file, ensure_ascii=False, indent=4)
+    except Exception as error:
+        summary["reason"] = f"draft_content save failed: {error}"
+        return summary
+
+    applied_count = sum(1 for slot in summary["slots"] if slot.get("applied"))
+    summary.update(
+        {
+            "applied": applied_count > 0,
+            "segments_count": applied_count,
+            "reason": "preset image overlays applied" if applied_count else "no preset image assets found",
+        }
+    )
+    return summary
 
 
 def find_template_text_marker_assets(template_doc, allowed_markers=None):
@@ -9613,6 +9944,20 @@ def create_draft(input_json_path):
                             "source": "locale_draft_spec",
                         }
                     ]
+                timing_adjustment = segment_info.get("dialogue_timing_adjustment") if isinstance(segment_info.get("dialogue_timing_adjustment"), dict) else {}
+                if timing_adjustment and clip_start is not None and clip_end is not None and clip_start <= utterance["start"] + 0.05 and clip_end >= utterance["end"] - 0.05 and clip_end > clip_start:
+                    return [
+                        {
+                            "clip_id": str(clip.get("clip_id") or f"transcript_{utt_id}"),
+                            "scene_id": str(clip.get("scene_id") or ""),
+                            "utt_id": utt_id,
+                            "start": seconds_to_timecode(clip_start),
+                            "end": seconds_to_timecode(clip_end),
+                            "speed_multiplier": 1.0,
+                            "source": "dialogue_visual_padding",
+                            "dialogue_timing_adjustment": timing_adjustment,
+                        }
+                    ]
                 if clip_start is not None and clip_end is not None and clip_start >= utterance["start"] - 0.05 and clip_end <= utterance["end"] + 0.05 and clip_end > clip_start:
                     return [
                         {
@@ -10350,9 +10695,25 @@ def create_draft(input_json_path):
                         {
                             "segment_id": segment_id,
                             "segment_type": segment_type,
+                            "slot_id": str(segment_info.get("parent_slot_id") or segment_id).split("_L", 1)[0],
+                            "locale": str(data.get("locale") or ""),
+                            "locale_source_override": bool(segment_info.get("locale_source_override") is True),
+                            "segment_type": segment_type,
                             "clip_id": clip_id,
                             "start_us": clip_start_us,
                             "end_us": clip_start_us + consume_source_us,
+                            "planned_source_range": {
+                                "start_sec": round(clip_start_us / 1_000_000, 6),
+                                "end_sec": round((clip_start_us + consume_source_us) / 1_000_000, 6),
+                            },
+                            "rendered_source_range": {
+                                "start_sec": round(clip_start_us / 1_000_000, 6),
+                                "end_sec": round((clip_start_us + consume_source_us) / 1_000_000, 6),
+                            },
+                            "padding": {"mode": "none", "duration_sec": 0.0, "source_advances": True},
+                            "source_file": draft_video_path,
+                            "source_advances": True,
+                            "dialogue_speech_range_sec": segment_info.get("dialogue_speech_range_sec") or segment_info.get("dialogue_range") or None,
                         }
                     )
                     remaining_us -= consume_timeline_us
@@ -10367,25 +10728,30 @@ def create_draft(input_json_path):
             if remaining_us > 1_000 and segment_type in {"dialogue_quote", "dialogue"}:
                 validation_errors.append(f"{segment_id}: source_clips are shorter than required timeline by {remaining_us}us")
 
-        planned_sorted = sorted(planned, key=lambda row: (row["start_us"], row["end_us"], row["segment_id"]))
-        for index, current in enumerate(planned_sorted):
-            for other in planned_sorted[index + 1:]:
-                if other["start_us"] >= current["end_us"] - 1_000:
-                    break
-                overlap_us = min(current["end_us"], other["end_us"]) - max(current["start_us"], other["start_us"])
-                if overlap_us > 1_000:
-                    if current["segment_id"] == other["segment_id"] and current["segment_type"] not in {"dialogue_quote", "dialogue"}:
-                        continue
-                    validation_errors.append(
-                        f"{current['segment_id']}/{current['clip_id']} overlaps "
-                        f"{other['segment_id']}/{other['clip_id']} by {round(overlap_us / 1_000_000, 3)}s"
-                    )
-        return validation_errors
+        report = analyze_hybrid_source_usages(planned)
+        for failure in report.get("failures", []):
+            validation_errors.append(
+                f"{failure.get('reason_code')}: {failure.get('physical_segment_id')}/{failure.get('clip_id', '')} overlaps "
+                f"{failure.get('overlapping_counterpart_id')} by {failure.get('overlap_duration_sec')}s"
+            )
+        report["validation_errors"] = validation_errors
+        report["status"] = "failed" if validation_errors else "passed"
+        return report
 
+    hybrid_source_validation_report = {"enabled": False, "status": "not_applicable", "failures": [], "validation_errors": []}
     if midform_hybrid_mode and video_placement_mode == "source_clips":
-        hybrid_validation_errors = planned_source_ranges_for_hybrid_validation()
+        hybrid_source_validation_report = planned_source_ranges_for_hybrid_validation()
+        hybrid_validation_errors = hybrid_source_validation_report.get("validation_errors", [])
         if hybrid_validation_errors:
+            hybrid_source_validation_report["enabled"] = True
+            failure_report_path = os.path.join(draft_path, "hybrid_source_validation_failed.json")
+            try:
+                with open(failure_report_path, "w", encoding="utf-8") as file:
+                    json.dump(hybrid_source_validation_report, file, ensure_ascii=False, indent=2)
+            except Exception as error:
+                warnings.append(f"hybrid source validation report write failed: {error}")
             raise ValueError("MIDFORM_HYBRID_SOURCE_VALIDATION_FAILED: " + "; ".join(hybrid_validation_errors))
+        hybrid_source_validation_report["enabled"] = True
 
     segment_timeline_alignment = []
     total_video_timeline_end_us = 0
@@ -10449,15 +10815,27 @@ def create_draft(input_json_path):
                 video_cut_placements.append(
                     {
                         "segment_id": segment_id,
+                        "segment_type": segment_type_map.get(segment_id, "recap"),
+                        "slot_id": str(segment_map.get(segment_id, {}).get("parent_slot_id") or segment_id).split("_L", 1)[0],
+                        "locale": str(data.get("locale") or ""),
+                        "locale_source_override": bool(segment_map.get(segment_id, {}).get("locale_source_override") is True),
                         "clip_id": clip_id,
                         "source_start": source_start_tc,
                         "source_end": source_end_tc,
+                        "source_file": draft_video_path,
                         "timeline_start_sec": round(timeline_start_us / 1_000_000, 6),
                         "timeline_end_sec": round(timeline_end_us / 1_000_000, 6),
                         "tts_duration_sec": round(tts_duration_us / 1_000_000, 6),
                         "video_duration_sec": round(place_duration_us / 1_000_000, 6),
                         "source_duration_sec": round(source_duration_for_segment_us / 1_000_000, 6),
                         "speed_multiplier": round(speed_multiplier, 6),
+                        "source_advances": source_start_tc not in {"freeze_last_frame", "placeholder"} and source_end_tc not in {"freeze_last_frame", "placeholder"},
+                        "padding": {
+                            "mode": "freeze_frame" if source_start_tc == "freeze_last_frame" or source_end_tc == "freeze_last_frame" else ("repeat_last" if source_start_tc == "repeat_last" or source_end_tc == "repeat_last" or str(clip_id).endswith("_repeat") else ("placeholder" if source_end_tc == "placeholder" or str(clip_id) == "placeholder_repeat" else "none")),
+                            "duration_sec": round(place_duration_us / 1_000_000, 6) if source_start_tc in {"freeze_last_frame", "repeat_last"} or source_end_tc in {"freeze_last_frame", "repeat_last", "placeholder"} or str(clip_id).endswith("_repeat") or str(clip_id) == "placeholder_repeat" else 0.0,
+                            "source_advances": source_start_tc not in {"freeze_last_frame", "placeholder"} and source_end_tc not in {"freeze_last_frame", "placeholder"},
+                        },
+                        "dialogue_speech_range_sec": segment_map.get(segment_id, {}).get("dialogue_speech_range_sec") or segment_map.get(segment_id, {}).get("dialogue_range") or None,
                         "duration_diff_sec": round((tts_duration_us - place_duration_us) / 1_000_000, 6),
                         "warnings": placement_warnings,
                     }
@@ -10730,6 +11108,31 @@ def create_draft(input_json_path):
             else:
                 pad_strategy_summary = "none"
 
+            if midform_hybrid_mode and video_placement_mode == "source_clips":
+                rendered_usages = [hybrid_source_usage_from_placement(placement, segment_type_map) for placement in video_cut_placements]
+                rendered_usages = [usage for usage in rendered_usages if usage]
+                rendered_report = analyze_hybrid_source_usages(rendered_usages)
+                hybrid_source_validation_report = {
+                    **hybrid_source_validation_report,
+                    "enabled": True,
+                    "rendered_status": rendered_report.get("status"),
+                    "rendered_usages": rendered_report.get("usages", []),
+                    "rendered_failures": rendered_report.get("failures", []),
+                    "ignored_non_advancing_usage_count": rendered_report.get("ignored_non_advancing_usage_count", 0),
+                }
+                if rendered_report.get("failures"):
+                    failure_report_path = os.path.join(draft_path, "hybrid_source_validation_failed.json")
+                    try:
+                        with open(failure_report_path, "w", encoding="utf-8") as file:
+                            json.dump(hybrid_source_validation_report, file, ensure_ascii=False, indent=2)
+                    except Exception as error:
+                        warnings.append(f"hybrid source validation report write failed: {error}")
+                    preview = "; ".join(
+                        f"{failure.get('reason_code')}: {failure.get('physical_segment_id')} overlaps {failure.get('overlapping_counterpart_id')} by {failure.get('overlap_duration_sec')}s"
+                        for failure in rendered_report.get("failures", [])[:8]
+                    )
+                    raise ValueError("MIDFORM_HYBRID_SOURCE_VALIDATION_FAILED: " + preview)
+
     total_tts_duration_sec = round(current_time_us / 1_000_000, 6)
     total_video_duration_sec = round(total_video_timeline_end_us / 1_000_000, 6)
     timeline_duration_diff_sec = round(total_tts_duration_sec - total_video_duration_sec, 6)
@@ -10996,6 +11399,16 @@ def create_draft(input_json_path):
             }
             warnings.append(template_overlay_passthrough_summary["reason"])
 
+    preset_image_overlay_duration_sec = max(total_video_duration_sec, total_tts_duration_sec)
+    midform_preset_image_overlays_summary = apply_midform_run_preset_image_overlays(
+        generated_draft_content_path,
+        draft_path,
+        preset_image_overlay_duration_sec,
+        width,
+        height,
+        warnings,
+    )
+
     portrait_crop_summary = apply_midform_portrait_crops_to_draft(
         generated_draft_content_path,
         video_cut_placements,
@@ -11032,6 +11445,7 @@ def create_draft(input_json_path):
         "movie_title_generated": template_clone_summary.get("movie_title_generated", False),
         "movie_title_fallback_text_used": template_clone_summary.get("movie_title_fallback_text_used", False),
         "template_overlay_passthrough": template_overlay_passthrough_summary,
+        "midform_preset_image_overlays": midform_preset_image_overlays_summary,
         "caption_units_count": len(caption_manifest_entries),
         "caption_units": caption_manifest_entries,
         "segment_to_caption_map": segment_to_caption_map,
@@ -11070,6 +11484,7 @@ def create_draft(input_json_path):
         "dialogue_reserved_range_violations": dialogue_reserved_range_violations,
         "dialogue_vad_reports": dialogue_vad_reports,
         "slot_source_monotonicity": slot_source_monotonicity,
+        "hybrid_source_validation": hybrid_source_validation_report,
         "story_sync": story_sync_summary,
         "portrait_crop": portrait_crop_summary,
         "segment_timeline_alignment": segment_timeline_alignment,
@@ -11105,6 +11520,7 @@ def create_draft(input_json_path):
         f"- MOVIE_TITLE Generated: {str(bool(template_clone_summary.get('movie_title_generated', False))).lower()}",
         f"- MOVIE_TITLE Fallback Text Used: {str(bool(template_clone_summary.get('movie_title_fallback_text_used', False))).lower()}",
         f"- Template Overlay Passthrough: {json.dumps(template_overlay_passthrough_summary, ensure_ascii=False)}",
+        f"- Midform Preset Image Overlays: {json.dumps(midform_preset_image_overlays_summary, ensure_ascii=False)}",
         f"- Overlay Duration Sec: {template_clone_summary.get('total_tts_duration_sec', total_tts_duration_sec)}",
         f"- Applied Template Name: {os.path.basename(template_info['template_root']) if template_info else 'none'}",
         f"- Template Base Path: {template_info['template_base'] if template_info else 'not found'}",
