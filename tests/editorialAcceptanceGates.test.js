@@ -20,6 +20,150 @@ test('editorial acceptance rejects rebuttal-only confrontation opener and missin
   assert.ok(result.failed.includes('callback_strength'));
 });
 
+test('editorial acceptance allows Zodiac denial when investigation context immediately supports it', () => {
+  const result = evaluateEditorialAcceptance({
+    scene_type: 'dialogue_confrontation',
+    editorial_pattern: 'cold_open_callback',
+    segments: [
+      { segment_id: 'slot_01_L01', parent_slot_id: 'slot_01', segment_type: 'dialogue_quote', caption_text: '전 조디악이 아니에요.', timeline_start_sec: 0.53, timeline_end_sec: 3.1 },
+      { segment_id: 'slot_02', segment_type: 'recap', narration: '형사들은 그의 알리바이를 다시 추궁하기 시작합니다.', timeline_start_sec: 4, timeline_end_sec: 8 },
+      { segment_id: 'slot_03_L01', parent_slot_id: 'slot_03', segment_type: 'dialogue_quote', caption_text: '제 차에 있던 피 묻은 칼들은 닭의 피였습니다.', timeline_start_sec: 20, timeline_end_sec: 25 }
+    ],
+    caption_units: [
+      { caption_id: 'c1', segment_id: 'slot_01_L01', text: '전 조디악이 아니에요.' },
+      { caption_id: 'c2', segment_id: 'slot_03_L01', text: '제 차에 있던 피 묻은 칼들은 닭의 피였습니다.' }
+    ],
+    material_validation: { checked: 2, passed: 2, failed: [] }
+  });
+
+  const gate = result.results.find((item) => item.id === 'rebuttal_only_opener');
+  assert.equal(gate.status, 'pass');
+  assert.equal(gate.reason, 'named_denial_with_immediate_investigation_context');
+  assert.equal(gate.matched_target, '조디악');
+  assert.ok(gate.supporting_cues.includes('형사'));
+  assert.ok(gate.supporting_cues.includes('알리바이'));
+  assert.ok(gate.supporting_cues.includes('추궁'));
+  assert.deepEqual(result.failed, []);
+});
+
+test('editorial acceptance allows homicide denial when evidence appears immediately nearby', () => {
+  const result = evaluateEditorialAcceptance({
+    scene_type: 'dialogue_confrontation',
+    editorial_pattern: 'cold_open_callback',
+    segments: [
+      { segment_id: 'slot_01_L01', parent_slot_id: 'slot_01', segment_type: 'dialogue_quote', caption_text: '난 그 사람을 죽이지 않았어.', timeline_start_sec: 0, timeline_end_sec: 3 },
+      { segment_id: 'slot_02', segment_type: 'recap', narration: '하지만 그의 차에서는 피 묻은 칼이 발견됐죠.', timeline_start_sec: 4, timeline_end_sec: 9 },
+      { segment_id: 'slot_03_L01', parent_slot_id: 'slot_03', segment_type: 'dialogue_quote', caption_text: '그 증거는 설명할 수 있습니다.', timeline_start_sec: 21, timeline_end_sec: 24 }
+    ],
+    caption_units: [
+      { caption_id: 'c1', segment_id: 'slot_01_L01', text: '난 그 사람을 죽이지 않았어.' },
+      { caption_id: 'c2', segment_id: 'slot_03_L01', text: '그 증거는 설명할 수 있습니다.' }
+    ],
+    material_validation: { checked: 2, passed: 2, failed: [] }
+  });
+
+  const gate = result.results.find((item) => item.id === 'rebuttal_only_opener');
+  assert.equal(gate.status, 'pass');
+  assert.equal(gate.reason, 'named_denial_with_immediate_investigation_context');
+  assert.equal(gate.matched_target, '그 사람');
+  assert.ok(gate.supporting_cues.includes('피 묻은 칼'));
+  assert.deepEqual(result.failed, []);
+});
+
+test('editorial acceptance rejects generic denial without a named accusation target', () => {
+  const result = evaluateEditorialAcceptance({
+    scene_type: 'dialogue_confrontation',
+    editorial_pattern: 'cold_open_callback',
+    segments: [
+      { segment_id: 'slot_01_L01', parent_slot_id: 'slot_01', segment_type: 'dialogue_quote', caption_text: '아니에요.', timeline_start_sec: 0, timeline_end_sec: 2 },
+      { segment_id: 'slot_02', segment_type: 'recap', narration: '형사들이 방 안으로 들어옵니다.', timeline_start_sec: 3, timeline_end_sec: 7 },
+      { segment_id: 'slot_03_L01', parent_slot_id: 'slot_03', segment_type: 'dialogue_quote', caption_text: '계속 말해 보세요.', timeline_start_sec: 20, timeline_end_sec: 23 }
+    ],
+    caption_units: [
+      { caption_id: 'c1', segment_id: 'slot_01_L01', text: '아니에요.' },
+      { caption_id: 'c2', segment_id: 'slot_03_L01', text: '계속 말해 보세요.' }
+    ],
+    material_validation: { checked: 2, passed: 2, failed: [] }
+  });
+
+  const gate = result.results.find((item) => item.id === 'rebuttal_only_opener');
+  assert.equal(gate.status, 'fail');
+  assert.equal(gate.reason, 'unsupported_rebuttal_only_opener');
+  assert.equal(gate.matched_target, '');
+  assert.ok(result.failed.includes('rebuttal_only_opener'));
+});
+
+test('editorial acceptance rejects named denial followed by unrelated narration', () => {
+  const result = evaluateEditorialAcceptance({
+    scene_type: 'dialogue_confrontation',
+    editorial_pattern: 'cold_open_callback',
+    segments: [
+      { segment_id: 'slot_01_L01', parent_slot_id: 'slot_01', segment_type: 'dialogue_quote', caption_text: '전 범인이 아니에요.', timeline_start_sec: 0, timeline_end_sec: 3 },
+      { segment_id: 'slot_02', segment_type: 'recap', narration: '그리고 그는 집으로 돌아갑니다.', timeline_start_sec: 4, timeline_end_sec: 8 },
+      { segment_id: 'slot_03_L01', parent_slot_id: 'slot_03', segment_type: 'dialogue_quote', caption_text: '다음 날 다시 만납니다.', timeline_start_sec: 20, timeline_end_sec: 23 }
+    ],
+    caption_units: [
+      { caption_id: 'c1', segment_id: 'slot_01_L01', text: '전 범인이 아니에요.' },
+      { caption_id: 'c2', segment_id: 'slot_03_L01', text: '다음 날 다시 만납니다.' }
+    ],
+    material_validation: { checked: 2, passed: 2, failed: [] }
+  });
+
+  const gate = result.results.find((item) => item.id === 'rebuttal_only_opener');
+  assert.equal(gate.status, 'fail');
+  assert.equal(gate.matched_target, '범인');
+  assert.deepEqual(gate.supporting_cues, []);
+  assert.ok(result.failed.includes('rebuttal_only_opener'));
+});
+
+test('editorial acceptance rejects vague rebuttal when conflict support is too late', () => {
+  const result = evaluateEditorialAcceptance({
+    scene_type: 'dialogue_confrontation',
+    editorial_pattern: 'cold_open_callback',
+    segments: [
+      { segment_id: 'slot_01_L01', parent_slot_id: 'slot_01', segment_type: 'dialogue_quote', caption_text: '그런 뜻이 아니었어요.', timeline_start_sec: 0, timeline_end_sec: 3 },
+      { segment_id: 'slot_02', segment_type: 'recap', narration: '아무튼 이야기는 계속됩니다.', timeline_start_sec: 4, timeline_end_sec: 8 },
+      { segment_id: 'slot_03_L01', parent_slot_id: 'slot_03', segment_type: 'dialogue_quote', caption_text: '피 묻은 칼이 발견됐습니다.', timeline_start_sec: 20, timeline_end_sec: 23 }
+    ],
+    caption_units: [
+      { caption_id: 'c1', segment_id: 'slot_01_L01', text: '그런 뜻이 아니었어요.' },
+      { caption_id: 'c2', segment_id: 'slot_03_L01', text: '피 묻은 칼이 발견됐습니다.' }
+    ],
+    material_validation: { checked: 2, passed: 2, failed: [] }
+  });
+
+  const gate = result.results.find((item) => item.id === 'rebuttal_only_opener');
+  assert.equal(gate.status, 'fail');
+  assert.equal(gate.reason, 'unsupported_rebuttal_only_opener');
+  assert.equal(result.results.find((item) => item.id === 'first_30_conflict_clarity').status, 'pass');
+  assert.ok(result.failed.includes('rebuttal_only_opener'));
+});
+
+test('editorial acceptance allows Japanese Zodiac denial with immediate investigation context', () => {
+  const result = evaluateEditorialAcceptance({
+    scene_type: 'dialogue_confrontation',
+    editorial_pattern: 'cold_open_callback',
+    segments: [
+      { segment_id: 'slot_01_L01', parent_slot_id: 'slot_01', segment_type: 'dialogue_quote', caption_text: '私はゾディアックではありません。', timeline_start_sec: 0, timeline_end_sec: 3 },
+      { segment_id: 'slot_02', segment_type: 'recap', narration: '刑事たちは彼のアリバイを追及し始めます。', timeline_start_sec: 4, timeline_end_sec: 9 },
+      { segment_id: 'slot_03_L01', parent_slot_id: 'slot_03', segment_type: 'dialogue_quote', caption_text: '車の血のついたナイフは鶏の血でした。', timeline_start_sec: 20, timeline_end_sec: 24 }
+    ],
+    caption_units: [
+      { caption_id: 'c1', segment_id: 'slot_01_L01', text: '私はゾディアックではありません。' },
+      { caption_id: 'c2', segment_id: 'slot_03_L01', text: '車の血のついたナイフは鶏の血でした。' }
+    ],
+    material_validation: { checked: 2, passed: 2, failed: [] }
+  });
+
+  const gate = result.results.find((item) => item.id === 'rebuttal_only_opener');
+  assert.equal(gate.status, 'pass');
+  assert.equal(gate.matched_target, 'ゾディアック');
+  assert.ok(gate.supporting_cues.includes('刑事'));
+  assert.ok(gate.supporting_cues.includes('アリバイ'));
+  assert.ok(gate.supporting_cues.includes('追及'));
+  assert.deepEqual(result.failed, []);
+});
+
 test('editorial acceptance passes a clear cold-open callback confrontation with color proof', () => {
   const result = evaluateEditorialAcceptance({
     scene_type: 'dialogue_confrontation',

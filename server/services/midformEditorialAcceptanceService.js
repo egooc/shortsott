@@ -57,15 +57,97 @@ function maxNarrationRunBeforeDialogue(segments) {
 }
 
 function hasConflictCue(text) {
-  return /(왜|아니|죽|끝|책임|미끼|인질|사냥|위험|표적|좋아|의무|해고|광고|빼내|뒤집|진실|상처|사라|쫓|보호|스낵|간식|연쇄살인마|용의자|형사|알리바이|추궁|피\s*묻|칼|살인|범인|수사|의심|증거)/.test(text);
+  return /(왜|아니|죽|끝|책임|미끼|인질|사냥|위험|표적|좋아|의무|해고|광고|빼내|뒤집|진실|상처|사라|쫓|보호|스낵|간식|연쇄살인마|용의자|형사|알리바이|추궁|피\s*묻|칼|살인|범인|수사|의심|증거|刑事|容疑者|アリバイ|追及|尋問|証拠|血|ナイフ|殺人|犯人|捜査|疑い)/.test(text);
 }
 
 function isRebuttalOnlyOpener(openingText) {
   const text = normalizeText(openingText);
   if (!text) return false;
-  const rebuttalCue = /(아니|않았|안 했|그게 아니라|죽이지|내가 아니|때문이야|책임이야)/.test(text);
+  const rebuttalCue = /(아니|않았|안 했|그게 아니라|죽이지|내가 아니|때문이야|책임이야|ではない|ではありませ|じゃない|殺していない|殺し|違う)/.test(text);
   const contextCue = /(왜|누가|무엇|어쩌다|아버지|아들|잡스|스컬리|보안관|벨라|인간|광고|해고|사랑|책임)/.test(text);
   return rebuttalCue && !contextCue;
+}
+
+function openingContextUnits(segments, maxSeconds = 12, maxUnits = 3) {
+  const firstStart = segments[0] ? segments[0].start : 0;
+  return segments
+    .filter((segment) => segment.start < firstStart + maxSeconds)
+    .slice(0, maxUnits)
+    .map((segment) => ({ text: segment.text, start: segment.start, end: segment.end, id: segment.segment_id || '' }));
+}
+
+function hasNamedAccusationTarget(text) {
+  const normalized = normalizeText(text);
+  const direct = normalized.match(/(조디악|연쇄살인마|살인마|살인범|범인|용의자|Zodiac|ゾディアック|連続殺人犯|殺人犯|犯人|容疑者)/i);
+  if (direct) return { matched: true, target: direct[1] };
+  const victimObject = normalized.match(/([가-힣]{1,8}|그 사람|그녀|피해자|あの人|彼|彼女|被害者)(?:을|를|を)\s*죽이(?:지|진)?\s*(?:않|안|못|なかった|ていない)/);
+  if (victimObject) return { matched: true, target: victimObject[1] };
+  return { matched: false, target: '' };
+}
+
+function supportingInvestigationCues(text) {
+  const cues = [];
+  const patterns = [
+    ['형사', /형사/],
+    ['알리바이', /알리바이/],
+    ['추궁', /추궁/],
+    ['취조', /취조/],
+    ['수사', /수사/],
+    ['용의자', /용의자/],
+    ['혐의', /혐의/],
+    ['증거', /증거/],
+    ['피 묻은 칼', /피\s*묻은?\s*칼/],
+    ['칼', /칼/],
+    ['연쇄살인', /연쇄살인/],
+    ['범인', /범인/],
+    ['刑事', /刑事/],
+    ['アリバイ', /アリバイ/],
+    ['追及', /追及/],
+    ['尋問', /尋問/],
+    ['捜査', /捜査/],
+    ['容疑者', /容疑者/],
+    ['証拠', /証拠/],
+    ['血', /血/],
+    ['ナイフ', /ナイフ/],
+    ['犯人', /犯人/]
+  ];
+  for (const [label, pattern] of patterns) {
+    if (pattern.test(text) && !cues.includes(label)) cues.push(label);
+  }
+  return cues;
+}
+
+function hasNearbyInvestigationOrEvidenceCue(openingUnits) {
+  const supportingText = openingUnits.slice(1).map((unit) => unit.text).join(' ');
+  const cues = supportingInvestigationCues(supportingText);
+  return { matched: cues.length > 0, cues };
+}
+
+function analyzeRebuttalOpener(segments, firstThirtyHasConflict) {
+  const firstText = segments[0] ? segments[0].text : '';
+  const openingUnits = openingContextUnits(segments);
+  const detail = {
+    first_text: firstText,
+    opening_context_text: openingUnits.map((unit) => unit.text).join(' ').slice(0, 260)
+  };
+  if (!isRebuttalOnlyOpener(firstText)) {
+    return { is_rebuttal: false, supported: true, detail: { ...detail, reason: 'not_rebuttal_opener' } };
+  }
+
+  const target = hasNamedAccusationTarget(firstText);
+  const nearby = hasNearbyInvestigationOrEvidenceCue(openingUnits);
+  const supported = target.matched && nearby.matched && firstThirtyHasConflict;
+  return {
+    is_rebuttal: true,
+    supported,
+    detail: {
+      ...detail,
+      reason: supported ? 'named_denial_with_immediate_investigation_context' : 'unsupported_rebuttal_only_opener',
+      matched_target: target.target,
+      supporting_cues: nearby.cues,
+      first_30_conflict_clarity_passed: firstThirtyHasConflict
+    }
+  };
 }
 
 function captionReadabilityIssues(captionUnits = [], limits = {}) {
@@ -103,11 +185,13 @@ function evaluateEditorialAcceptance(input = {}, options = {}) {
   const firstText = segments[0] ? segments[0].text : '';
   const firstTwenty = segments.filter((segment) => segment.start < 20).map((segment) => segment.text).join(' ');
   const firstThirty = segments.filter((segment) => segment.start < 30).map((segment) => segment.text).join(' ');
+  const firstThirtyHasConflict = hasConflictCue(firstThirty);
 
-  if (sceneType === 'dialogue_confrontation' && isRebuttalOnlyOpener(firstText)) {
-    add('rebuttal_only_opener', 'fail', { first_text: firstText });
+  const rebuttalOpener = analyzeRebuttalOpener(segments, firstThirtyHasConflict);
+  if (sceneType === 'dialogue_confrontation' && rebuttalOpener.is_rebuttal && !rebuttalOpener.supported) {
+    add('rebuttal_only_opener', 'fail', rebuttalOpener.detail);
   } else {
-    add('rebuttal_only_opener', 'pass', { first_text: firstText });
+    add('rebuttal_only_opener', 'pass', rebuttalOpener.detail);
   }
 
   if (editorialPattern === 'cold_open_callback') {
@@ -157,9 +241,9 @@ function evaluateEditorialAcceptance(input = {}, options = {}) {
   }
 
   if (sceneType === 'dialogue_confrontation') {
-    add('first_30_conflict_clarity', hasConflictCue(firstThirty) ? 'pass' : 'fail', { first_30_sec_text: firstThirty.slice(0, 260) });
+    add('first_30_conflict_clarity', firstThirtyHasConflict ? 'pass' : 'fail', { first_30_sec_text: firstThirty.slice(0, 260) });
   } else {
-    add('first_30_conflict_clarity', hasConflictCue(firstThirty) ? 'pass' : 'warning', { first_30_sec_text: firstThirty.slice(0, 260) });
+    add('first_30_conflict_clarity', firstThirtyHasConflict ? 'pass' : 'warning', { first_30_sec_text: firstThirty.slice(0, 260) });
   }
 
   const failed = results.filter((result) => result.status === 'fail');
@@ -178,6 +262,9 @@ module.exports = {
   evaluateEditorialAcceptance,
   _test: {
     isRebuttalOnlyOpener,
+    hasNamedAccusationTarget,
+    hasNearbyInvestigationOrEvidenceCue,
+    analyzeRebuttalOpener,
     captionReadabilityIssues,
     activeTimeline,
     callbackDialogueStart
