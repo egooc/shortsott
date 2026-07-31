@@ -125,6 +125,7 @@ function makeUploadCard(item = {}, patch = {}) {
     finalMp4Path: filePath,
     originalName: item.originalName || path.basename(filePath),
     variant: normalizeUploadVariant(item.variant || detectUploadVariant(item.originalName || filePath)),
+    target_locale: item.target_locale || item.targetLocale || (normalizeUploadVariant(item.variant || detectUploadVariant(item.originalName || filePath)) === 'ko_highlight' ? 'ko-KR' : 'ja-JP'),
     metadataTextPath: item.metadataTextPath || '',
     metadataOriginalName: item.metadataOriginalName || '',
     review: item.review || null,
@@ -142,7 +143,8 @@ function makeUploadCard(item = {}, patch = {}) {
     updatedAt: now,
     ...patch,
     description,
-    variant: normalizeUploadVariant(patch.variant || item.variant || detectUploadVariant(item.originalName || filePath))
+    variant: normalizeUploadVariant(patch.variant || item.variant || detectUploadVariant(item.originalName || filePath)),
+    target_locale: patch.target_locale || patch.targetLocale || item.target_locale || item.targetLocale || (normalizeUploadVariant(patch.variant || item.variant || detectUploadVariant(item.originalName || filePath)) === 'ko_highlight' ? 'ko-KR' : 'ja-JP')
   };
 }
 
@@ -985,6 +987,7 @@ function normalizeDraftUploadCandidate(draftDir) {
   const variant = detectVariant(folderName, manifest);
   const parsedPackage = packageText ? parseMetadataText(packageText, folderName.replace(/^\d{8}_\d{6}-\d{3}-[FH]-/i, ''), variant) : null;
   const manifestTitle = manifest.upload_title || manifest.metadata?.upload_title || manifest.title || '';
+  const targetLocale = manifest.target_locale || manifest.targetLocale || (variant === 'ko_highlight' ? 'ko-KR' : 'ja-JP');
   const uploadTitle = cleanTitle(parsedPackage?.title || manifestTitle, folderName.replace(/^\d{8}_\d{6}-\d{3}-[FH]-/i, ''));
   const hashtags = normalizeTags(parsedPackage?.tags || manifest.upload_hashtags || manifest.metadata?.upload_hashtags || ['worker', 'process']);
   const description = sanitizePublicUploadDescription(parsedPackage?.description || manifest.upload_description || manifest.metadata?.upload_description || packageText || '');
@@ -995,6 +998,7 @@ function normalizeDraftUploadCandidate(draftDir) {
     finalMp4Path,
     folderName,
     variant,
+    target_locale: targetLocale,
     title: uploadTitle,
     description,
     tags: hashtags,
@@ -1009,6 +1013,7 @@ function normalizeDraftUploadCandidate(draftDir) {
     manifestSummary: {
       itemId: manifest.item_id || manifest.itemId || '',
       sourceVideo: manifest.source_video_path || manifest.sourceVideo || '',
+      targetLocale,
       totalDurationSec: manifest.total_duration_sec || manifest.totalDurationSec || null
     }
   };
@@ -1167,9 +1172,9 @@ function detectUploadVariant(name = '', manifest = {}) {
   const value = raw.toLowerCase();
   const koreanSuffix = /_ko(?:\.[^.]+)?$/i.test(raw);
   const koreanText = containsHangul(raw);
-  if (/-m-/i.test(raw) || /(^|[_\s-])m($|[_\s-])/i.test(raw) || /midform|middle|2min|120/.test(value)) return 'midform';
   if (/-kh-/i.test(raw) || /(^|[_\s-])kh($|[_\s-])/i.test(raw) || /ko[_\s-]*highlight|kr[_\s-]*highlight|korean[_\s-]*highlight/.test(value)) return 'ko_highlight';
   if (/-kf-/i.test(raw) || /(^|[_\s-])kf($|[_\s-])/i.test(raw) || /ko[_\s-]*full|kr[_\s-]*full|korean[_\s-]*full/.test(value)) return 'ko_full';
+  if (/-m-/i.test(raw) || /(^|[_\s-])m($|[_\s-])/i.test(raw) || /midform|middle|2min|(?:^|[_\s-])120(?:$|[_\s-])/.test(value)) return 'midform';
   if (koreanSuffix && (/-h-/i.test(raw) || /-hl-/i.test(raw) || /(^|[_\s-])h($|[_\s-])/i.test(raw) || /(^|[_\s-])hl($|[_\s-])/i.test(raw))) return 'ko_highlight';
   if (koreanSuffix && (/-f-/i.test(raw) || /(^|[_\s-])f($|[_\s-])/i.test(raw))) return 'ko_full';
   if (koreanText && (/-h-/i.test(raw) || /-hl-/i.test(raw) || /(^|[_\s-])h($|[_\s-])/i.test(raw) || /(^|[_\s-])hl($|[_\s-])/i.test(raw))) return 'ko_highlight';
@@ -1485,6 +1490,7 @@ function importUploadFiles({ videoFiles = [], metadataFiles = [] }) {
       finalMp4Path: targetPath,
       folderName: originalName,
       variant,
+      target_locale: variant === 'ko_highlight' ? 'ko-KR' : 'ja-JP',
       title: parsed.title,
       description: sanitizePublicUploadDescription(parsed.description || ''),
       tags: parsed.tags,
@@ -1744,6 +1750,7 @@ function makeHistoryRecord(job, item, result = {}) {
     filePath: item.finalMp4Path || item.filePath || '',
     originalName: item.originalName || '',
     variant: normalizeUploadVariant(item.variant || detectUploadVariant(item.originalName || item.finalMp4Path || item.filePath || '')),
+    target_locale: item.target_locale || item.targetLocale || (normalizeUploadVariant(item.variant || detectUploadVariant(item.originalName || item.finalMp4Path || item.filePath || '')) === 'ko_highlight' ? 'ko-KR' : 'ja-JP'),
     metadataTextPath: item.metadataTextPath || '',
     metadataOriginalName: item.metadataOriginalName || '',
     review: item.review || null,
@@ -1773,6 +1780,7 @@ function makePendingRecord(job, item, reason = {}) {
     finalMp4Path: item.finalMp4Path || item.filePath || '',
     originalName: item.originalName || '',
     variant: normalizeUploadVariant(item.variant || detectUploadVariant(item.originalName || item.finalMp4Path || item.filePath || '')),
+    target_locale: item.target_locale || item.targetLocale || (normalizeUploadVariant(item.variant || detectUploadVariant(item.originalName || item.finalMp4Path || item.filePath || '')) === 'ko_highlight' ? 'ko-KR' : 'ja-JP'),
     metadataTextPath: item.metadataTextPath || '',
     metadataOriginalName: item.metadataOriginalName || '',
     review: item.review || null,
@@ -2312,5 +2320,12 @@ module.exports = {
   loadJob,
   createUploadJob,
   startUploadJob,
-  requestCancelUploadJob
+  requestCancelUploadJob,
+  __test: {
+    assertUploadItemsMatchProfiles,
+    detectUploadVariant,
+    extractVariantMetadataSection,
+    normalizeUploadVariant,
+    parseMetadataText
+  }
 };

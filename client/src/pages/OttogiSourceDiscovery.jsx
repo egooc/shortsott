@@ -40,6 +40,14 @@ const SOURCE_MODES = [
 
 const FAVORITES_KEY = 'ottogi.youtubeScoutFavorites.v1';
 const SCOUT_SESSION_KEY = 'ottogi.youtubeScoutSession.v1';
+const LOCALE_OPTIONS = [
+  { value: 'ja-JP', label: '일본어' },
+  { value: 'ko-KR', label: '한국어' }
+];
+
+function normalizeTargetLocale(value) {
+  return value === 'ko-KR' ? 'ko-KR' : 'ja-JP';
+}
 
 function readJsonStorage(key, fallback) {
   try {
@@ -98,6 +106,19 @@ function getVideoUrl(video) {
   return '';
 }
 
+function extractYouTubeId(value = '') {
+  const text = String(value || '').trim();
+  const direct = text.match(/^[a-zA-Z0-9_-]{11}$/);
+  if (direct) return direct[0];
+  const match = text.match(/(?:v=|shorts\/|youtu\.be\/|embed\/)([a-zA-Z0-9_-]{11})/);
+  return match ? match[1] : '';
+}
+
+function canonicalSourceKey(value = '') {
+  const id = extractYouTubeId(value);
+  return id ? `youtube:${id}` : String(value || '').trim().toLowerCase();
+}
+
 function viewLevel(views) {
   const n = safeNum(views);
   if (n >= 100000000) return { label: '1억+', className: 'border-rose-400/70 bg-rose-500/15 text-rose-100' };
@@ -146,6 +167,14 @@ export default function OttogiSourceDiscovery() {
   const activeTab = useMemo(() => tabs.find((item) => item.id === activeTabId) || null, [tabs, activeTabId]);
   const visibleVideos = activeTab?.videos || videos;
   const sortedVideos = useMemo(() => [...visibleVideos].sort((a, b) => safeNum(b.views) - safeNum(a.views)), [visibleVideos]);
+  const basketCounts = useMemo(() => {
+    const counts = { ja: 0, ko: 0, total: pendingSourceVideos.length };
+    pendingSourceVideos.forEach((item) => {
+      if (normalizeTargetLocale(item.target_locale || item.targetLocale) === 'ko-KR') counts.ko += 1;
+      else counts.ja += 1;
+    });
+    return counts;
+  }, [pendingSourceVideos]);
 
   const summary = useMemo(() => {
     const totalViews = visibleVideos.reduce((sum, item) => sum + safeNum(item.views), 0);
@@ -265,9 +294,41 @@ export default function OttogiSourceDiscovery() {
       sourceTypeGuess: video.sourceTypeGuess || video.source_type || 'unknown',
       sourceWorkflowMode: video.sourceWorkflowMode || video.source_workflow_mode || 'unknown',
       sourceClassification: video.sourceClassification || video.source_classification || null,
+      target_locale: normalizeTargetLocale(video.target_locale || video.targetLocale),
       addedAt: video.addedAt || video.added_at || new Date().toISOString()
     };
   }
+
+  async function updateQueuedLocale(url, targetLocale) {
+    const normalized = normalizeTargetLocale(targetLocale);
+    const nextVideos = pendingSourceVideos.map((item) => (
+      safeText(item.url) === safeText(url) ? { ...item, target_locale: normalized } : item
+    ));
+    setPhase5({ pendingSourceVideos: nextVideos });
+    const video = nextVideos.find((item) => safeText(item.url) === safeText(url));
+    if (video) {
+      try {
+        await api.post('/youtube/source-basket', { video });
+      } catch {
+        // Local basket state remains usable even if persistence fails.
+      }
+    }
+  }
+
+  function validateLocaleBatchSelection() {
+    const keys = new Set();
+    for (const item of pendingSourceVideos) {
+      const key = canonicalSourceKey(item.url || getVideoUrl(item));
+      if (key && keys.has(key)) return '동일한 YouTube 영상이 중복 선택되어 있습니다.';
+      if (key) keys.add(key);
+    }
+    if (pendingSourceVideos.length !== 12 || basketCounts.ja !== 6 || basketCounts.ko !== 6) {
+      return '일본어와 한국어 소스를 각각 6개씩 선택해 주세요.';
+    }
+    return '';
+  }
+
+  const basketLocaleIssue = pendingSourceVideos.length ? validateLocaleBatchSelection() : '';
 
   useEffect(() => {
     let cancelled = false;
@@ -386,11 +447,17 @@ export default function OttogiSourceDiscovery() {
     setError('');
     setNotice('');
     try {
-      const videos = pendingSourceVideos.map((video) => ({
+      const validationMessage = validateLocaleBatchSelection();
+      if (validationMessage) {
+        setError(validationMessage);
+        return;
+      }
+      const items = pendingSourceVideos.map((video) => ({
         ...video,
-        url: getVideoUrl(video)
+        url: getVideoUrl(video),
+        target_locale: normalizeTargetLocale(video.target_locale || video.targetLocale)
       }));
-      const res = await api.post('/process-queue/import-source-urls', { videos });
+      const res = await api.post('/process-queue/import-source-urls', { items, batch_mode: 'locale_6_6' });
       const importedCount = Number(res.data?.importedCount || 0);
       const skippedCount = Number(res.data?.skippedCount || 0);
       const failedCount = Number(res.data?.failedCount || 0);
@@ -536,9 +603,11 @@ export default function OttogiSourceDiscovery() {
           <div className="rounded-3xl border border-[#c8ff00]/20 bg-[#c8ff00]/10 p-4">
             <div className="text-xs font-bold text-[#dfff58]">URL 바구니</div>
             <div className="mt-2 text-lg font-black text-white">{pendingSourceVideos.length}개</div>
-            <button type="button" onClick={goToBatchDraft} disabled={!pendingSourceVideos.length || sendingToBatch} className="mt-3 rounded-2xl bg-[#c8ff00] px-3 py-2 text-xs font-black text-black disabled:opacity-35">
+            <div className="mt-1 text-[11px] font-bold text-[#eaff9a]">일본어 {basketCounts.ja} / 6 · 한국어 {basketCounts.ko} / 6 · 전체 {basketCounts.total} / 12</div>
+            <button type="button" onClick={goToBatchDraft} disabled={!pendingSourceVideos.length || sendingToBatch || !!basketLocaleIssue} className="mt-3 rounded-2xl bg-[#c8ff00] px-3 py-2 text-xs font-black text-black disabled:opacity-35">
               {sendingToBatch ? '보내는 중...' : 'Phase2로 이동'}
             </button>
+            {basketLocaleIssue ? <div className="mt-2 text-[11px] font-bold text-amber-100">{basketLocaleIssue}</div> : null}
           </div>
         </div>
       </section>
@@ -556,7 +625,7 @@ export default function OttogiSourceDiscovery() {
             <button type="button" onClick={clearQueuedUrls} disabled={!pendingSourceVideos.length} className="rounded-2xl border border-white/12 bg-white/[0.06] px-4 py-3 text-sm font-bold text-slate-100 disabled:opacity-35">
               바구니 비우기
             </button>
-            <button type="button" onClick={goToBatchDraft} disabled={!pendingSourceVideos.length || sendingToBatch} className="ottogi-primary rounded-2xl px-5 py-3 text-sm font-black disabled:opacity-35">
+            <button type="button" onClick={goToBatchDraft} disabled={!pendingSourceVideos.length || sendingToBatch || !!basketLocaleIssue} className="ottogi-primary rounded-2xl px-5 py-3 text-sm font-black disabled:opacity-35">
               {sendingToBatch ? 'Phase2로 보내는 중...' : 'Phase2로 보내기'}
             </button>
           </div>
@@ -577,14 +646,28 @@ export default function OttogiSourceDiscovery() {
         </div>
 
         {pendingSourceVideos.length ? (
-          <div className="mt-4 flex flex-wrap gap-2">
+          <div className="mt-4 space-y-3">
+            <div className="grid gap-2 rounded-2xl border border-[#c8ff00]/20 bg-[#c8ff00]/10 p-3 text-xs font-black text-[#eaff9a] md:grid-cols-3">
+              <div>일본어 소스 {basketCounts.ja} / 6</div>
+              <div>한국어 소스 {basketCounts.ko} / 6</div>
+              <div>전체 소스 {basketCounts.total} / 12</div>
+            </div>
+            <div className="flex flex-wrap gap-2">
             {pendingSourceVideos.slice(0, 20).map((item) => (
               <span key={item.url} className="inline-flex max-w-full items-center overflow-hidden rounded-full border border-white/10 bg-white/[0.06] text-xs text-slate-100">
                 <span className="max-w-[260px] truncate px-3 py-2">{item.title || item.url}</span>
+                <select
+                  value={normalizeTargetLocale(item.target_locale || item.targetLocale)}
+                  onChange={(event) => updateQueuedLocale(item.url, event.target.value)}
+                  className="border-l border-white/10 bg-black/30 px-2 py-2 text-xs font-black text-[#c8ff00]"
+                >
+                  {LOCALE_OPTIONS.map((locale) => <option key={locale.value} value={locale.value}>{locale.label}</option>)}
+                </select>
                 <button type="button" onClick={() => removeQueuedUrl(item.url)} className="border-l border-white/10 px-2 py-2 text-slate-400 hover:text-white">×</button>
               </span>
             ))}
             {pendingSourceVideos.length > 20 ? <span className="rounded-full bg-[#c8ff00]/15 px-3 py-2 text-xs font-bold text-[#dfff58]">+{pendingSourceVideos.length - 20}</span> : null}
+            </div>
           </div>
         ) : null}
       </section>

@@ -9,7 +9,8 @@ const {
   downloadQueueItemSourceFromUrl,
   applyOttogiGuideToItem,
   generateQueue,
-  createKoreanFullDraftScriptReview
+  createKoreanFullDraftScriptReview,
+  validateLocale66QueueItems
 } = require('./processQueueService');
 const {
   analyzeOttogiProcessMetadata,
@@ -34,6 +35,7 @@ const TERMINAL_JOB_STATUSES = new Set(['success', 'completed_with_warnings', 'pa
 const ACTIVE_JOB_STATUSES = new Set(['queued', 'running']);
 const VALID_JOB_STATUSES = new Set([...ACTIVE_JOB_STATUSES, ...TERMINAL_JOB_STATUSES]);
 const DEFAULT_PROCESS_JOB_CHUNK_SIZE = 5;
+const LOCALE_6_6_BATCH_MODE = 'locale_6_6';
 const APPEND_LOG_ROOT_PATCH_KEYS = new Set([
   'status',
   'stage',
@@ -1223,6 +1225,56 @@ async function runDraftStage(jobId, items, options = {}) {
   let lastResponse = null;
   const baseBatchName = String(options.batch_name || 'process_batch_001');
 
+  if (options.batch_mode === LOCALE_6_6_BATCH_MODE) {
+    items.forEach((item) => updateItemStatus(jobId, item.item_id, { stage: 'draft', draft_status: 'running' }));
+    const result = await generateQueue({
+      batch_name: `${baseBatchName}_${LOCALE_6_6_BATCH_MODE}`,
+      item_ids: items.map((item) => item.item_id),
+      stop_on_error: false,
+      draft_variant_mode: options.draft_variant_mode || 'all',
+      batch_mode: options.batch_mode
+    });
+    lastResponse = result;
+    batchReports.push({
+      item_id: '',
+      batchId: result.batchId,
+      reportPath: result.reportPath,
+      notesPath: result.notesPath
+    });
+    for (const row of result.report?.items || []) {
+      aggregateItems.push(row);
+      if (row.status === 'success') {
+        success += 1;
+        updateItemStatus(jobId, row.item_id, {
+          stage: 'draft',
+          draft_status: 'success',
+          output_folder: row.output_folder || '',
+          output_mode: row.output_mode || '',
+          highlight_status: row.highlight_status || 'disabled',
+          highlight_output_folder: row.highlight_output_folder || '',
+          highlight_error: row.highlight_error || '',
+          target_locale: row.target_locale || '',
+          output_language: row.output_language || '',
+          variant: row.variant || ''
+        });
+      } else if (row.status === 'held') {
+        held += 1;
+        updateItemStatus(jobId, row.item_id, { stage: 'draft', draft_status: 'held', highlight_status: row.highlight_status || 'disabled' });
+      } else {
+        failed += 1;
+        updateItemStatus(jobId, row.item_id, {
+          stage: 'draft',
+          draft_status: 'failed',
+          error: row.error || row.highlight_error || 'unknown error',
+          highlight_status: row.highlight_status || 'disabled',
+          highlight_error: row.highlight_error || ''
+        });
+      }
+    }
+    appendJobLog(jobId, `locale_6_6 드래프트 생성 종료: 성공 ${success}개, 실패 ${failed}개`, failed ? 'warning' : 'success', '', { result });
+    return { success, failed, held, result };
+  }
+
   for (let index = 0; index < items.length; index += 1) {
     assertNotCancelled(jobId);
     const item = getItemsForJob([items[index].item_id])[0] || items[index];
@@ -1242,7 +1294,8 @@ async function runDraftStage(jobId, items, options = {}) {
         batch_name: `${baseBatchName}_${item.item_id}`,
         item_ids: [item.item_id],
         stop_on_error: false,
-        draft_variant_mode: options.draft_variant_mode || 'all'
+        draft_variant_mode: options.draft_variant_mode || 'all',
+        batch_mode: options.batch_mode || ''
       });
       let row = (result.report?.items || [])[0] || { item_id: item.item_id, status: 'unknown' };
       if (row.status !== 'success' && isInvalidOttogiMetadataRow(row)) {
@@ -1259,7 +1312,8 @@ async function runDraftStage(jobId, items, options = {}) {
             batch_name: `${baseBatchName}_${item.item_id}_retry`,
             item_ids: [item.item_id],
             stop_on_error: false,
-            draft_variant_mode: options.draft_variant_mode || 'all'
+            draft_variant_mode: options.draft_variant_mode || 'all',
+            batch_mode: options.batch_mode || ''
           });
           row = (result.report?.items || [])[0] || { item_id: item.item_id, status: 'unknown' };
           row.metadata_reanalyzed_after_invalid = true;
@@ -1469,7 +1523,8 @@ async function runJob(jobId) {
           );
           totals.draft = await runDraftStage(jobId, draftItems, {
             batch_name: job.batch_name,
-            draft_variant_mode: effectiveDraftVariantMode
+            draft_variant_mode: effectiveDraftVariantMode,
+            batch_mode: job.batch_mode || ''
           });
         } else {
           appendJobLog(
@@ -1495,7 +1550,8 @@ async function runJob(jobId) {
       if (draftItems.length) {
         totals.draft = await runDraftStage(jobId, draftItems, {
           batch_name: job.batch_name,
-          draft_variant_mode: job.draft_variant_mode || 'all'
+          draft_variant_mode: job.draft_variant_mode || 'all',
+          batch_mode: job.batch_mode || ''
         });
       } else {
         totals.draft = {
@@ -1555,6 +1611,7 @@ function createProcessJobRecord({
   forceMetadata,
   normalizedDraftVariantMode,
   normalizedMetadataVariantMode,
+  batchMode,
   continueToDraftAfterMetadata,
   lane,
   deferred = false,
@@ -1578,6 +1635,7 @@ function createProcessJobRecord({
     force_metadata: forceMetadata === true,
     draft_variant_mode: normalizedDraftVariantMode,
     metadata_variant_mode: normalizedMetadataVariantMode,
+    batch_mode: batchMode || '',
     continue_to_draft_after_metadata: continueToDraftAfterMetadata === true,
     lane: lane || getJobLaneFromStages(selectedStages),
     deferred: deferred === true,
@@ -1622,6 +1680,7 @@ function startProcessJob({
   force_metadata = false,
   draft_variant_mode = 'all',
   metadata_variant_mode = '',
+  batch_mode = '',
   continue_to_draft_after_metadata = false,
   enqueue_if_active = false,
   enqueue_batches = false,
@@ -1640,14 +1699,20 @@ function startProcessJob({
   const requestedIds = Array.isArray(item_ids) && item_ids.length
     ? item_ids.map((id) => safeId(id)).filter(Boolean)
     : queue.queueItems.map((item) => item.item_id);
+  const normalizedBatchMode = String(batch_mode || '').trim();
+  if (normalizedBatchMode === LOCALE_6_6_BATCH_MODE) {
+    validateLocale66QueueItems(queue.queueItems, requestedIds);
+  }
   const stageNames = stageSetForJob(selectedStages);
-  const safeChunkPlan = buildSafeJobChunks({
-    requestedIds,
-    queue,
-    stages: selectedStages,
-    enqueueBatches: enqueue_batches === true,
-    chunkSize: chunk_size
-  });
+  const safeChunkPlan = normalizedBatchMode === LOCALE_6_6_BATCH_MODE
+    ? { chunks: [requestedIds], split: splitRequestedIdsByLongform(requestedIds, queue) }
+    : buildSafeJobChunks({
+      requestedIds,
+      queue,
+      stages: selectedStages,
+      enqueueBatches: enqueue_batches === true,
+      chunkSize: chunk_size
+    });
   const chunks = safeChunkPlan.chunks;
   const containsLongformMetadata = stageNames.has('metadata') && safeChunkPlan.split.hasLongform;
   const shouldForceQueueBehindActive = active && containsLongformMetadata;
@@ -1679,6 +1744,7 @@ function startProcessJob({
         forceMetadata: force_metadata,
         normalizedDraftVariantMode,
         normalizedMetadataVariantMode,
+        batchMode: normalizedBatchMode,
         continueToDraftAfterMetadata: continue_to_draft_after_metadata,
         lane,
         deferred: true,
@@ -1712,6 +1778,7 @@ function startProcessJob({
     forceMetadata: force_metadata,
     normalizedDraftVariantMode,
     normalizedMetadataVariantMode,
+    batchMode: normalizedBatchMode,
     continueToDraftAfterMetadata: continue_to_draft_after_metadata,
     lane,
     deferred: index > 0,
@@ -1847,6 +1914,7 @@ function retryFailedJob(jobId, options = {}) {
     force_metadata: forceMetadata,
     draft_variant_mode: normalizeDraftVariantMode(options.draft_variant_mode || job.draft_variant_mode || 'all'),
     metadata_variant_mode: normalizeDraftVariantMode(options.metadata_variant_mode || job.metadata_variant_mode || options.draft_variant_mode || job.draft_variant_mode || 'all'),
+    batch_mode: options.batch_mode || job.batch_mode || '',
     continue_to_draft_after_metadata: options.continue_to_draft_after_metadata === true
   });
 }

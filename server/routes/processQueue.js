@@ -101,6 +101,7 @@ function compactJob(job = {}) {
     lane: job.lane || 'metadata',
     draft_variant_mode: job.draft_variant_mode || 'all',
     metadata_variant_mode: job.metadata_variant_mode || 'all',
+    batch_mode: job.batch_mode || '',
     continue_to_draft_after_metadata: job.continue_to_draft_after_metadata === true,
     deferred: job.deferred === true,
     queued_position: Number(job.queued_position || 0),
@@ -151,6 +152,23 @@ function getAnalysisSourceInfo(itemId, itemConfig = {}) {
   }
 }
 
+function buildAnalysisSourceContext(itemConfig = {}) {
+  const discovery = itemConfig.source_discovery && typeof itemConfig.source_discovery === 'object'
+    ? itemConfig.source_discovery
+    : {};
+  return {
+    title: String(discovery.title || itemConfig.source_file_original_name || itemConfig.upload_title || '').trim(),
+    description: String(discovery.description || itemConfig.source_description || itemConfig.upload_description || '').trim(),
+    creator: String(discovery.creator || itemConfig.source_creator || '').trim(),
+    handle: String(discovery.handle || itemConfig.source_handle || '').trim(),
+    views: discovery.views || itemConfig.source_views || 0,
+    publishedAt: String(discovery.publishedAt || itemConfig.source_published_at || '').trim(),
+    thumbnail: String(discovery.thumbnail || itemConfig.source_thumbnail || '').trim(),
+    sourceMode: String(discovery.sourceMode || itemConfig.source_mode || '').trim(),
+    sourceTypeGuess: String(discovery.sourceTypeGuess || itemConfig.source_type || '').trim()
+  };
+}
+
 async function analyzeMissingMetadataForItems(items = [], apiKey, options = {}) {
   const force = options.force === true;
   const metadataVariantMode = options.metadata_variant_mode || options.draft_variant_mode || 'all';
@@ -185,6 +203,7 @@ async function analyzeMissingMetadataForItems(items = [], apiKey, options = {}) 
         originalFilename: sourceInfo.filename,
         sourceType: itemConfig.source_type || 'unknown',
         sourceWorkflowMode: itemConfig.source_workflow_mode || 'unknown',
+        sourceContext: buildAnalysisSourceContext(itemConfig),
         assignedHookType: selectKoreanFullHookType({
           seed: `route:${item.item_id}:${sourceUrl || sourceInfo.filename || ''}`,
           itemId: item.item_id,
@@ -290,9 +309,11 @@ router.post('/import-youtube', async (req, res, next) => {
 router.post('/import-source-urls', (req, res, next) => {
   try {
     res.json(importYoutubeSourceQueueItems({
+      items: req.body?.items,
       videos: req.body?.videos,
       urls: req.body?.urls,
-      text: req.body?.text
+      text: req.body?.text,
+      batch_mode: req.body?.batch_mode
     }));
   } catch (error) {
     next(error);
@@ -313,7 +334,9 @@ router.post('/item/:itemId/source', upload.single('file'), (req, res, next) => {
 router.post('/item/:itemId/youtube-source', async (req, res, next) => {
   try {
     const url = String(req.body?.url || req.body?.sourceUrl || req.body?.source_url || '').trim();
-    res.json(await downloadQueueItemSourceFromUrl(req.params.itemId, url));
+    res.json(await downloadQueueItemSourceFromUrl(req.params.itemId, url, {
+      sourceRole: req.body?.sourceRole || req.body?.source_role || req.body?.role || ''
+    }));
   } catch (error) {
     next(error);
   }
@@ -398,6 +421,7 @@ router.post('/item/:itemId/gemini-metadata', async (req, res, next) => {
       originalFilename: sourceInfo.filename,
       sourceType: itemConfig.source_type || 'unknown',
       sourceWorkflowMode: itemConfig.source_workflow_mode || 'unknown',
+      sourceContext: buildAnalysisSourceContext(itemConfig),
       fullDraftStagesDir: path.join(QUEUE_ROOT, req.params.itemId, 'full_draft_stages')
     });
     const applied = applyOttogiGuideToItem(req.params.itemId, guide, sourceUrl);
@@ -599,6 +623,7 @@ router.post('/jobs/start', async (req, res, next) => {
       force_metadata: req.body?.force_metadata === true,
       draft_variant_mode: req.body?.draft_variant_mode,
       metadata_variant_mode: req.body?.metadata_variant_mode,
+      batch_mode: req.body?.batch_mode,
       continue_to_draft_after_metadata: req.body?.continue_to_draft_after_metadata === true,
       enqueue_if_active: req.body?.enqueue_if_active === true,
       enqueue_batches: req.body?.enqueue_batches === true,
@@ -650,6 +675,7 @@ router.get('/jobs/:jobId/progress', (req, res, next) => {
         lane: job.lane || 'metadata',
         draft_variant_mode: job.draft_variant_mode || 'all',
         metadata_variant_mode: job.metadata_variant_mode || 'all',
+        batch_mode: job.batch_mode || '',
         continue_to_draft_after_metadata: job.continue_to_draft_after_metadata === true,
         deferred: job.deferred === true,
         queued_position: Number(job.queued_position || 0),

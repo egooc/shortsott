@@ -12,6 +12,11 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+function normalizeTargetLocale(value = 'ja-JP') {
+  const locale = String(value || '').trim();
+  return locale === 'ko-KR' ? 'ko-KR' : 'ja-JP';
+}
+
 function ensureDataDir() {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
@@ -138,6 +143,7 @@ function normalizeBasketVideo(video = {}) {
     sourceTypeGuess: String(video.sourceTypeGuess || video.source_type || 'unknown').trim(),
     sourceWorkflowMode: String(video.sourceWorkflowMode || video.source_workflow_mode || 'unknown').trim(),
     sourceClassification: video.sourceClassification || video.source_classification || null,
+    target_locale: normalizeTargetLocale(video.target_locale || video.targetLocale),
     addedAt: String(video.addedAt || video.added_at || nowIso()).trim()
   };
 }
@@ -370,6 +376,7 @@ module.exports = {
   extractYouTubeId,
   getSourceState,
   markSourceProduced,
+  normalizeTargetLocale,
   readLibrary,
   readSourceBasket,
   removeSourceBasketVideo,

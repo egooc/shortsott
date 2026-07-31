@@ -71,6 +71,28 @@ const PROCESS_VARIANT_MODES = {
   midform: 'midform_only'
 };
 const STANDARD_BATCH_VARIANT_MODE = 'full_highlight_only';
+const LOCALE_6_6_BATCH_MODE = 'locale_6_6';
+const LOCALE_OPTIONS = [
+  { value: 'ja-JP', label: '일본어', shortLabel: 'JP' },
+  { value: 'ko-KR', label: '한국어', shortLabel: 'KO' }
+];
+
+function normalizeTargetLocale(value) {
+  return value === 'ko-KR' ? 'ko-KR' : 'ja-JP';
+}
+
+function extractYouTubeId(value = '') {
+  const text = String(value || '').trim();
+  const direct = text.match(/^[a-zA-Z0-9_-]{11}$/);
+  if (direct) return direct[0];
+  const match = text.match(/(?:v=|shorts\/|youtu\.be\/|embed\/)([a-zA-Z0-9_-]{11})/);
+  return match ? match[1] : '';
+}
+
+function canonicalSourceKey(value = '') {
+  const id = extractYouTubeId(value);
+  return id ? `youtube:${id}` : String(value || '').trim().toLowerCase();
+}
 
 function isVariantAnalysisFailed(item = {}, variant = '') {
   const failedVariants = Array.isArray(item.failed_variants) ? item.failed_variants : [];
@@ -930,6 +952,15 @@ export default function Phase5Draft() {
   const startServerQueueJob = async (itemIds = null, stages = ['download', 'metadata', 'draft'], options = {}) => {
     const normalizedStages = Array.isArray(stages) ? stages : [];
     const continueToDraftAfterMetadata = options.continueToDraftAfterMetadata === true;
+    const batchMode = options.batchMode || '';
+    if (batchMode === LOCALE_6_6_BATCH_MODE) {
+      const localeIssue = validateLocale66QueueSelection(getTargetItemsForAction(itemIds));
+      if (localeIssue) {
+        updateQueueErrorState(localeIssue);
+        addQueueProgress(`locale_6_6 실행 차단: ${localeIssue}`, 'error');
+        return;
+      }
+    }
     const action = options.validationAction || (continueToDraftAfterMetadata
       ? 'server:all'
       : normalizedStages.length === 1
@@ -954,10 +985,11 @@ export default function Phase5Draft() {
         force_metadata: options.forceMetadata === true,
         draft_variant_mode: options.draftVariantMode || STANDARD_BATCH_VARIANT_MODE,
         metadata_variant_mode: options.metadataVariantMode || options.draftVariantMode || STANDARD_BATCH_VARIANT_MODE,
+        batch_mode: batchMode,
         continue_to_draft_after_metadata: continueToDraftAfterMetadata,
         enqueue_if_active: true,
-        enqueue_batches: true,
-        chunk_size: 5
+        enqueue_batches: batchMode === LOCALE_6_6_BATCH_MODE ? false : true,
+        chunk_size: batchMode === LOCALE_6_6_BATCH_MODE ? 12 : 5
       };
       const res = await api.post('/process-queue/jobs/start', payload);
       const visibleJob = res.data.activeJob || res.data.job;
@@ -1128,6 +1160,16 @@ export default function Phase5Draft() {
       updateQueueStatusState('failed');
       addQueueProgress(`자동 분류 실행 시작 실패: ${message}`, 'error');
     }
+  };
+
+  const runLocale66Workflow = async () => {
+    await startServerQueueJob(selectedOrAllItemIds, ['download', 'metadata'], {
+      metadataVariantMode: PROCESS_VARIANT_MODES.highlight,
+      draftVariantMode: PROCESS_VARIANT_MODES.highlight,
+      continueToDraftAfterMetadata: true,
+      validationAction: 'server:highlight:pipeline',
+      batchMode: LOCALE_6_6_BATCH_MODE
+    });
   };
 
   const runFailedVariantMetadataAndDraftForVariant = async (variant) => {
@@ -1323,6 +1365,7 @@ export default function Phase5Draft() {
             item_config: {
               item_id: itemId,
               source_url: url,
+              target_locale: normalizeTargetLocale(video.target_locale || video.targetLocale),
               source_video: 'source_clean.mp4',
               source_file_original_name: video.title || video.id || 'youtube_source',
               upload_title: video.title || '유튜브 소재',
@@ -1381,9 +1424,10 @@ export default function Phase5Draft() {
       const itemId = `item_${String(nextNumber).padStart(3, '0')}`;
       await api.post('/process-queue/item', {
         item_id: itemId,
-        item_config: {
-          item_id: itemId,
-          source_video: 'source_clean.mp4',
+          item_config: {
+            item_id: itemId,
+            target_locale: 'ja-JP',
+            source_video: 'source_clean.mp4',
           upload_title: '',
           upload_description: '',
           upload_hashtags: [],
@@ -1421,6 +1465,28 @@ export default function Phase5Draft() {
       updateQueueStatusState('failed');
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const downloadQueueAuxSource = async (itemId, auxUrl) => {
+    const url = String(auxUrl || '').trim();
+    if (!itemId || !url) return;
+    updateQueueStatusState('downloading_youtube');
+    updateQueueErrorState('');
+    try {
+      await persistQueueSnapshot();
+      const res = await api.post(`/process-queue/item/${itemId}/youtube-source`, {
+        url,
+        sourceRole: 'aux'
+      });
+      updateProcessQueueState(res.data.queue);
+      addQueueProgress(`${itemId} Full aux 소스 다운로드 완료`, 'success', itemId);
+      updateQueueStatusState('youtube_downloaded');
+    } catch (err) {
+      const message = err.response?.data?.message || err.message;
+      updateQueueErrorState(message);
+      addQueueProgress(`${itemId} Full aux 소스 다운로드 실패: ${message}`, 'error', itemId);
+      updateQueueStatusState('failed');
     }
   };
 
@@ -2173,6 +2239,29 @@ export default function Phase5Draft() {
   const selectedOrAllQueueItems = selectedQueueItemIds.length
     ? queueItems.filter((item) => selectedQueueItemIds.includes(item.item_id))
     : queueItems;
+  const localeBatchCounts = selectedOrAllQueueItems.reduce((counts, item) => {
+    const locale = normalizeTargetLocale(item.item_config?.target_locale || item.target_locale);
+    if (locale === 'ko-KR') counts.ko += 1;
+    else counts.ja += 1;
+    counts.total += 1;
+    return counts;
+  }, { ja: 0, ko: 0, total: 0 });
+  const validateLocale66QueueSelection = (items = selectedOrAllQueueItems) => {
+    const counts = { ja: 0, ko: 0, total: items.length };
+    const seen = new Set();
+    for (const item of items) {
+      const itemConfig = item.item_config || {};
+      const locale = normalizeTargetLocale(itemConfig.target_locale || item.target_locale);
+      if (locale === 'ko-KR') counts.ko += 1;
+      else counts.ja += 1;
+      const key = canonicalSourceKey(itemConfig.source_url || item.source_url || itemConfig.source_discovery?.url || item.item_id);
+      if (key && seen.has(key)) return '동일한 YouTube 영상이 중복 선택되어 있습니다.';
+      if (key) seen.add(key);
+    }
+    if (counts.total !== 12 || counts.ja !== 6 || counts.ko !== 6) return '일본어와 한국어 소스를 각각 6개씩 선택해 주세요.';
+    return '';
+  };
+  const localeBatchIssue = validateLocale66QueueSelection();
   const isLongformQueueItem = (item = {}) => {
     const itemConfig = item.item_config || {};
     return item.source_type === 'longform'
@@ -2603,6 +2692,9 @@ const renderWorkflowGuide = () => (
             <div className="rounded-full bg-[#c8ff00]/15 px-3 py-1 text-xs font-black text-[#c8ff00]">
               전체 {queueItems.length}개 · 선택 {selectedQueueItemIds.length}개
             </div>
+            <div className={localeBatchIssue ? 'rounded-full border border-amber-300/30 bg-amber-300/10 px-3 py-1 text-xs font-black text-amber-100' : 'rounded-full border border-emerald-300/30 bg-emerald-300/10 px-3 py-1 text-xs font-black text-emerald-100'}>
+              JP {localeBatchCounts.ja}/6 · KO {localeBatchCounts.ko}/6 · 총 {localeBatchCounts.total}/12
+            </div>
           </div>
         </div>
 
@@ -2644,6 +2736,16 @@ const renderWorkflowGuide = () => (
                   <div className="mt-1 text-xs text-[#eaff9a]">선택 항목에서 이미 Gemini가 끝난 건 드래프트 라인으로, 아직 분석이 필요한 건 Gemini 분석 라인으로 자동 분류합니다.</div>
                 </div>
                 <button title="선택 목록을 검사해 이미 분석된 항목은 드래프트만, 미분석 항목은 다운로드+Gemini 분석 후 드래프트 생성으로 자동 분류합니다. 숏폼이 섞여 있으면 숏폼 Gemini 분석이 먼저 처리됩니다." className="rounded-2xl bg-[#c8ff00] px-4 py-3 text-sm font-black text-black disabled:opacity-50" disabled={serverQueueBusy || requiredSettingIssues.serverAll.length > 0} onClick={runSmartSelectedWorkflow}>선택 목록 자동 실행</button>
+              </div>
+            </div>
+            <div className="mb-3 rounded-2xl border border-fuchsia-300/30 bg-fuchsia-300/10 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-black text-fuchsia-100">JP 6 + KO 6 하이라이트 일괄 실행</div>
+                  <div className="mt-1 text-xs text-fuchsia-100/80">선택 항목이 없으면 전체 큐를 기준으로 검사합니다. 동일 YouTube 소스 중복 없이 일본어 6개, 한국어 6개일 때만 Highlight-only 배치를 시작합니다.</div>
+                  <div className={localeBatchIssue ? 'mt-2 text-xs font-bold text-amber-100' : 'mt-2 text-xs font-bold text-emerald-100'}>{localeBatchIssue || 'locale_6_6 실행 가능'}</div>
+                </div>
+                <button title="12개 소스를 하나의 locale_6_6 서버 작업으로 실행합니다. Full/Midform은 생성하지 않습니다." className="rounded-2xl bg-fuchsia-300 px-4 py-3 text-sm font-black text-black disabled:opacity-50" disabled={serverQueueBusy || !!localeBatchIssue || requiredSettingIssues.highlightPipeline.length > 0} onClick={runLocale66Workflow}>12개 JP/KO HL 생성</button>
               </div>
             </div>
             <div className="grid gap-3 md:grid-cols-3">
@@ -2786,6 +2888,7 @@ const renderWorkflowGuide = () => (
                 const result = getQueueItemResult(item.item_id);
                 const metadata = item.metadata || itemConfig.source_metadata || {};
                 const originalUrl = String(itemConfig.source_url || item.source_url || '').trim();
+                const auxSourceUrl = String(itemConfig.aux_source_url || '').trim();
                 const highlightCandidates = Array.isArray(item.highlight_candidate_windows) ? item.highlight_candidate_windows : [];
                 const visibleHighlightCandidates = highlightCandidates.slice(0, 8);
                 const sortedHighlightCandidates = [...visibleHighlightCandidates].sort((a, b) => Number(b.hook_score || b.score || 0) - Number(a.hook_score || a.score || 0));
@@ -2794,6 +2897,10 @@ const renderWorkflowGuide = () => (
                   || item.source_workflow_mode === 'longform_to_shorts'
                   || itemConfig.source_type === 'longform'
                   || itemConfig.source_workflow_mode === 'longform_to_shorts';
+                const localeLocked = serverQueueBusy
+                  || ['success', 'done', 'draft_success', 'running', 'queued'].includes(String(item.status || result.status || '').toLowerCase())
+                  || ['success', 'running', 'queued'].includes(String(item.draft_status || result.draft_status || '').toLowerCase())
+                  || ['success', 'running', 'queued'].includes(String(item.highlight_status || result.highlight_status || '').toLowerCase());
                 return (
                   <tr key={item.item_id} className="align-top text-slate-200">
                     <td className="px-3 py-4"><input type="checkbox" checked={selectedQueueItemIds.includes(item.item_id)} onChange={() => toggleQueueItemSelection(item.item_id)} /></td>
@@ -2824,6 +2931,18 @@ const renderWorkflowGuide = () => (
                           </button>
                           <div className={item.source_exists ? 'mt-1 text-xs font-bold text-emerald-300' : 'mt-1 text-xs font-bold text-red-300'}>{item.source_exists ? '\uC18C\uC2A4 \uC788\uC74C' : '\uC18C\uC2A4 \uC5C6\uC74C'}</div>
                           <div className="text-xs text-slate-500">{formatDuration(metadata.duration_sec || itemConfig.target_duration_sec)}</div>
+                          <label className="mt-2 block max-w-[170px] text-[11px] font-black text-slate-300">
+                            출력 언어
+                            <select
+                              className="mt-1 w-full rounded-xl border border-white/10 bg-black/35 px-2 py-1.5 text-xs font-black text-[#c8ff00]"
+                              value={normalizeTargetLocale(itemConfig.target_locale || item.target_locale)}
+                              disabled={localeLocked}
+                              onChange={(event) => updateQueueItem(index, { target_locale: normalizeTargetLocale(event.target.value) })}
+                            >
+                              {LOCALE_OPTIONS.map((locale) => <option key={locale.value} value={locale.value}>{locale.shortLabel} · {locale.label}</option>)}
+                            </select>
+                            {localeLocked ? <span className="mt-1 block text-[10px] font-bold text-slate-500">작업 중/완료 항목은 잠금</span> : null}
+                          </label>
                           {(() => {
                             const badge = getSourceTypeBadge(item, itemConfig);
                             const reason = item.source_classification?.reason || itemConfig.source_classification?.reason || '';
@@ -2874,6 +2993,24 @@ const renderWorkflowGuide = () => (
                             </div>
                           ) : null}
                           {!isLongformSource ? <div className="mt-2 max-w-[190px] rounded-2xl border border-emerald-300/15 bg-emerald-300/10 px-2 py-2 text-[11px] leading-4 text-emerald-100/75">숏폼 소스는 후보 선택 없이 자동으로 하이라이트 1개를 추출합니다.</div> : null}
+                          <div className="mt-3 max-w-[220px] rounded-2xl border border-lime-300/20 bg-lime-300/10 p-2">
+                            <div className="text-[11px] font-black text-lime-100">Full aux 소스</div>
+                            <input
+                              className="mt-2 w-full rounded-xl border border-white/10 bg-black/25 px-2 py-1 text-[11px] text-white placeholder:text-slate-500"
+                              value={auxSourceUrl}
+                              onChange={(event) => updateQueueItem(index, { aux_source_url: event.target.value, aux_source_video: 'source_aux.mp4' })}
+                              placeholder="Full 교차편집용 YouTube URL"
+                            />
+                            <div className="mt-1 text-[10px] leading-4 text-lime-100/70">저장 후 Full Draft에만 사용됩니다. Highlight는 기존 소스를 유지합니다.</div>
+                            <button
+                              type="button"
+                              disabled={!auxSourceUrl || serverQueueBusy}
+                              onClick={() => downloadQueueAuxSource(item.item_id, auxSourceUrl)}
+                              className="mt-2 rounded-lg border border-lime-300/35 bg-lime-300/10 px-2 py-1 text-[11px] font-black text-lime-100 disabled:border-white/10 disabled:bg-white/5 disabled:text-slate-500"
+                            >
+                              aux 다운로드
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </td>

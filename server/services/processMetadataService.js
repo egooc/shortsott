@@ -1012,9 +1012,9 @@ const DEFAULT_VARIANT_STRATEGY = {
   ko_review: {
     cut_plan_source: 'none',
     caption_goal: 'Korean review text only for local checking',
-    metadata_goal: 'review-only Korean summary that must not be uploaded'
+    metadata_goal: 'Korean Highlight counterpart text for ko-KR outputs and local review text for JP outputs'
   },
-  phase2_note: 'Phase 2 creates JP Highlight-only drafts. Full and Midform generation are policy-disabled; Korean text is review-only inside TXT packages and must not become upload metadata or a draft variant.'
+    phase2_note: 'Phase 2 creates Highlight-only drafts. Full and Midform generation are policy-disabled; Korean Highlight text is public only for ko-KR target_locale outputs and review-only for JP outputs.'
 };
 
 function cloneJson(value) {
@@ -1923,7 +1923,7 @@ function buildMetadataPrompt({ sourceUrl, filename, durationSec, sceneGuide, sou
       `Highlight draft production language: ${OUTPUT_CONFIG.highlight.lang.toUpperCase()} (${OUTPUT_CONFIG.highlight.label}).`,
       '',
       `- Write ${OUTPUT_CONFIG.highlight.metadataKey} for the natural-action highlight draft: Japanese upload metadata focused on visual hook, rhythm, repetition, curiosity, and satisfying motion.`,
-      '- Write highlight_metadata_ko as Korean review text for the Japanese highlight draft. This is not upload metadata.',
+        '- Write highlight_metadata_ko as the Korean Highlight counterpart. It becomes public upload metadata only when the source target_locale is ko-KR; for JP Highlight outputs it remains local review text.',
       '- Highlight metadata must use variant_type="highlight", caption_mode="long_bottom_explainer", and onscreen_caption_block as one long lower-third explainer paragraph.',
       '- Highlight versions must never use an onscreen_subtitles array.',
       '- Each metadata object must include short_description, summary_caption, variant_type, caption_mode, exactly five recommended_titles, report_description, upload_title, and hashtags.',
@@ -1954,7 +1954,7 @@ function buildMetadataPrompt({ sourceUrl, filename, durationSec, sceneGuide, sou
     'Use the scene analysis below to write:',
     `- ${OUTPUT_CONFIG.full_draft.metadataKey} for the full process draft: Korean upload metadata for a shortened technical/process explanation video.`,
     `- ${OUTPUT_CONFIG.highlight.metadataKey} for the natural-action highlight draft: Japanese upload metadata focused on visual hook, rhythm, repetition, curiosity, and satisfying mechanical motion.`,
-    '- highlight_metadata_ko as Korean review text for the Japanese natural-action highlight draft. This is not upload metadata.',
+    '- highlight_metadata_ko as the Korean natural-action Highlight counterpart. It becomes public upload metadata only when the source target_locale is ko-KR; for JP Highlight outputs it remains local review text.',
     '- midform_metadata for the Japanese 120-second midform draft when the source is long enough.',
     '- midform_metadata_ko as Korean review text for the Japanese midform draft. This is not upload metadata.',
     '- Each metadata object must include short_description, summary_caption, variant_type, caption_mode, exactly five recommended_titles, report_description, upload_title, and hashtags.',
@@ -2107,7 +2107,7 @@ function buildReviewPrompt({ sourceUrl, filename, durationSec, draftGuide, sourc
       'Return one complete JSON object only. Do not include Markdown.',
       '',
       '- Ensure highlight_metadata uses caption_mode="long_bottom_explainer" and contains a Japanese onscreen_caption_block string.',
-      '- Ensure highlight_metadata_ko is a Korean review-only long explainer block, not upload metadata.',
+        '- Ensure highlight_metadata_ko is a Korean long explainer block suitable for ko-KR Highlight public metadata and JP local review.',
       '- Ensure scene_transitions is not empty.',
       '- Preserve factual grounding. Do not invent hidden details.',
       '',
@@ -2157,7 +2157,7 @@ function buildReviewPrompt({ sourceUrl, filename, durationSec, draftGuide, sourc
     '- The first 1 to 3 Full script captions must answer what the process is making. A hook question without an early answer is invalid.',
     '- The final 1 to 2 Full script captions must close with precision, craftsmanship, repetition, transformation, quality, or completion.',
     '- Ensure highlight_metadata uses caption_mode="long_bottom_explainer" and contains a Japanese onscreen_caption_block string.',
-    '- Ensure highlight_metadata_ko is a Korean review-only long explainer block, not upload metadata.',
+      '- Ensure highlight_metadata_ko is a Korean long explainer block suitable for ko-KR Highlight public metadata and JP local review.',
     '- Highlight metadata must not contain short onscreen_subtitles arrays. Full metadata must not contain long onscreen_caption_block text.',
     '- Reject or rewrite Full onscreen_subtitles if any item reads like a summary paragraph, has multiple sentences, says ご覧ください, or starts like a long process description.',
     '- Reject or rewrite Highlight onscreen_caption_block if it is missing, too short, too long, keyword-like, or not a natural lower-bottom explainer paragraph.',
@@ -7223,12 +7223,9 @@ function collectJapaneseCaptionIssues(guide = {}, options = {}) {
   const validateHighlightCaptionBlock = (section, metadata, korean = false, minLength = 120) => {
     const block = normalizeText(metadata.onscreen_caption_block || '');
     if (korean) {
-      // highlight_metadata_ko is REVIEW-ONLY: the Japanese highlight_metadata block is what gets
-      // burned into the video and uploaded; this Korean block is shown read-only in the Phase 3
-      // upload-matching UI as free text (whitespace-pre-wrap) and is stripped from the published
-      // description (stripReviewOnlySections). So it only needs to be non-empty Korean the reviewer
-      // can read — the published-caption structure (long_bottom_explainer mode + 120-340 chars) must
-      // NOT gate a review field. Published JA caption block below keeps the strict structural guard.
+      // highlight_metadata_ko is the Korean Highlight counterpart: ko-KR outputs may publish it,
+      // while JP outputs use it only for local review. Keep this guard focused on readable Korean;
+      // the JP caption block below keeps the strict Japanese structural guard.
       if (!block || !isValidKoreanCaption(block)) {
         issues.push({
           scene_id: 'metadata',
@@ -7704,7 +7701,7 @@ function collectJapaneseCaptionIssues(guide = {}, options = {}) {
   if (includeKorean && includeHighlight) ['highlight_metadata_ko'].forEach((section) => {
     const metadata = guide?.[section] || {};
     if (strictHighlightMetadata) {
-      // highlight_metadata_ko is review-only (see validateHighlightCaptionBlock korean branch).
+      // highlight_metadata_ko is public for ko-KR Highlight outputs and review-only for JP outputs.
       // Foreign technique names ("lost wax casting") are acceptable in these review fields, so the
       // English guard is relaxed here (allowEmbeddedLatin) exactly like report_description; the
       // isValidKoreanCaption check inside requireKoreanField still requires readable Korean content.

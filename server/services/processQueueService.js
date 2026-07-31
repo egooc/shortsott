@@ -33,7 +33,7 @@ const {
   getUploadOriginalName,
   normalizePossiblyMojibakeFilename
 } = require('../utils/uploadFilename');
-const { markSourceProduced } = require('./sourceDiscoveryLibrary');
+const { canonicalSourceKey, markSourceProduced, normalizeTargetLocale } = require('./sourceDiscoveryLibrary');
 const {
   SHORTFORM_FULL_DRAFT_SKIP_MAX_DURATION_SEC
 } = require('../utils/fullDraftRules');
@@ -87,6 +87,7 @@ const FULL_CAPTION_SAFE_MAX_CHARS = {
   ja: 10,
   ko: 12
 };
+const LOCALE_6_6_BATCH_MODE = 'locale_6_6';
 const OCR_FAST_SCAN = {
   fullIntervalSec: 3,
   fullMaxFrames: 6,
@@ -2279,6 +2280,7 @@ function normalizeQueueConfig(config = {}) {
 function defaultItemConfig(itemId) {
   return {
     item_id: itemId,
+    target_locale: 'ja-JP',
     source_video: 'source_clean.mp4',
     aux_source_url: '',
     aux_source_video: 'source_aux.mp4',
@@ -2897,6 +2899,7 @@ function normalizeItemConfig(itemConfig, itemId) {
     : (sourceType === 'shortform' ? 'shortform_direct' : sourceType === 'longform' ? 'longform_to_shorts' : 'unknown');
   return {
     ...base,
+    target_locale: normalizeTargetLocale(base.target_locale || base.targetLocale),
     source_type: sourceType,
     source_type_origin: base.source_type_origin || 'default',
     source_workflow_mode: sourceWorkflowMode,
@@ -3114,6 +3117,79 @@ function getSourceDurationSec(itemConfig = {}) {
     || 0
   );
   return Number.isFinite(duration) && duration > 0 ? duration : 0;
+}
+
+function localeLabel(locale = 'ja-JP') {
+  return normalizeTargetLocale(locale) === 'ko-KR' ? 'Korean' : 'Japanese';
+}
+
+function isKoreanTargetLocale(itemConfig = {}) {
+  return normalizeTargetLocale(itemConfig.target_locale || itemConfig.targetLocale) === 'ko-KR';
+}
+
+function getCanonicalKeyForQueueConfig(itemConfig = {}) {
+  return canonicalSourceKey(itemConfig.source_url || itemConfig.sourceUrl || itemConfig.source_discovery?.url || itemConfig.source_discovery?.id || itemConfig.item_id || '');
+}
+
+function validateLocale66Rows(rows = [], options = {}) {
+  const items = Array.isArray(rows) ? rows : [];
+  const counts = { 'ja-JP': 0, 'ko-KR': 0 };
+  const seen = new Map();
+  const duplicates = [];
+  const invalidLocales = [];
+
+  items.forEach((row, index) => {
+    const rawLocale = row?.target_locale || row?.targetLocale || '';
+    const locale = normalizeTargetLocale(rawLocale);
+    if (rawLocale && !['ja-JP', 'ko-KR'].includes(String(rawLocale).trim())) {
+      invalidLocales.push({ index, target_locale: rawLocale });
+    }
+    counts[locale] += 1;
+    const key = row?.canonical_source_key || getCanonicalKeyForQueueConfig(row?.item_config || row || {});
+    if (!key) return;
+    if (seen.has(key)) {
+      duplicates.push({ key, firstIndex: seen.get(key), duplicateIndex: index });
+    } else {
+      seen.set(key, index);
+    }
+  });
+
+  const errors = [];
+  if (invalidLocales.length) errors.push('허용 locale은 ja-JP 또는 ko-KR만 가능합니다.');
+  if (items.length !== 12) errors.push('총 12개 source item을 선택해 주세요.');
+  if (counts['ja-JP'] !== 6 || counts['ko-KR'] !== 6) errors.push('일본어와 한국어 소스를 각각 6개씩 선택해 주세요.');
+  if (duplicates.length) errors.push('동일한 YouTube 영상이 중복 선택되어 있습니다.');
+
+  if (errors.length) {
+    const error = new Error(errors[0]);
+    error.status = 400;
+    error.code = 'LOCALE_6_6_BATCH_INVALID';
+    error.details = {
+      mode: LOCALE_6_6_BATCH_MODE,
+      total: items.length,
+      counts,
+      duplicates,
+      invalidLocales,
+      errors,
+      stage: options.stage || 'validation'
+    };
+    throw error;
+  }
+
+  return {
+    mode: LOCALE_6_6_BATCH_MODE,
+    total: items.length,
+    counts,
+    distinct_source_count: seen.size
+  };
+}
+
+function validateLocale66QueueItems(queueItems = [], itemIds = []) {
+  const idSet = Array.isArray(itemIds) && itemIds.length ? new Set(itemIds.map(String)) : null;
+  const rows = (Array.isArray(queueItems) ? queueItems : [])
+    .filter((item) => !idSet || idSet.has(String(item.item_id)))
+    .map((item) => ({ ...(item.item_config || {}), item_id: item.item_id }));
+  return validateLocale66Rows(rows, { stage: 'queue_execution' });
 }
 
 function decideSourceLaneForItem(itemConfig = {}) {
@@ -5371,6 +5447,9 @@ function copyOttogiMetadataFiles(itemId, targetDir, targetBaseName = '', variant
   const generatedTexts = guide && typeof guide === 'object'
     ? formatMetadataVariantSection(guide, normalizedVariant)
     : null;
+  const generatedKoreanPublicText = language === 'ko' && guide && typeof guide === 'object'
+    ? formatKoreanPublicMetadataText(guide, normalizedVariant)
+    : '';
   const candidates = fs.existsSync(sourceDir)
     ? fs.readdirSync(sourceDir)
       .filter((name) => /\.txt$/i.test(name) && name !== 'item_config.json')
@@ -5394,7 +5473,7 @@ function copyOttogiMetadataFiles(itemId, targetDir, targetBaseName = '', variant
     : (sourcePath ? path.basename(sourcePath) : metadataPackageFileNameFromTitle(itemId, itemId));
   const targetPath = path.join(targetDir, preferredName);
   const primaryText = language === 'ko'
-    ? (texts.ko || texts.ja || sourceText)
+    ? (generatedKoreanPublicText || texts.ko || texts.ja || sourceText)
     : (texts.ja || sourceText);
   if (!primaryText) return copied;
   fs.writeFileSync(targetPath, `${primaryText}`.trim() + '\n', 'utf8');
@@ -5819,6 +5898,7 @@ function summarizeItem(itemConfig) {
     upload_title: item.upload_title || '',
     upload_description: item.upload_description || '',
     upload_hashtags: item.upload_hashtags || [],
+    target_locale: item.target_locale || 'ja-JP',
     source_file_original_name: item.source_file_original_name || '',
     video_metadata: item.video_metadata || null,
     source_type: item.source_type || 'unknown',
@@ -6171,11 +6251,15 @@ function getYoutubeUrlFromSourceCandidate(candidate = {}) {
   return '';
 }
 
-function importYoutubeSourceQueueItems({ videos, urls, text } = {}) {
+function normalizeSourceImportRows({ items, videos, urls, text } = {}) {
+  if (Array.isArray(items) && items.length) return items;
+  if (Array.isArray(videos) && videos.length) return videos;
+  return parseYoutubeUrls(Array.isArray(urls) && urls.length ? urls : text).map((url) => ({ url }));
+}
+
+function importYoutubeSourceQueueItems({ items, videos, urls, text, batch_mode } = {}) {
   ensureQueueFolders();
-  const sourceRows = Array.isArray(videos) && videos.length
-    ? videos
-    : parseYoutubeUrls(Array.isArray(urls) && urls.length ? urls : text).map((url) => ({ url }));
+  const sourceRows = normalizeSourceImportRows({ items, videos, urls, text });
 
   if (!sourceRows.length) {
     const error = new Error('YouTube URL is required');
@@ -6187,20 +6271,29 @@ function importYoutubeSourceQueueItems({ videos, urls, text } = {}) {
     error.status = 400;
     throw error;
   }
+  const normalizedRows = sourceRows.map((row) => ({
+    ...(row || {}),
+    url: getYoutubeUrlFromSourceCandidate(row),
+    target_locale: normalizeTargetLocale(row?.target_locale || row?.targetLocale)
+  }));
+  if (batch_mode === LOCALE_6_6_BATCH_MODE) {
+    validateLocale66Rows(normalizedRows, { stage: 'source_import' });
+  }
 
   const queue = listQueue();
   const existingIds = new Set(queue.queueItems.map((item) => item.item_id));
-  const existingUrls = new Set(
+  const existingSourceKeys = new Set(
     queue.queueItems
-      .map((item) => String(item.item_config?.source_url || '').trim())
+      .map((item) => getCanonicalKeyForQueueConfig(item.item_config || {}))
       .filter(Boolean)
   );
   const imported = [];
   const skipped = [];
   const failed = [];
 
-  for (const row of sourceRows) {
-    const url = getYoutubeUrlFromSourceCandidate(row);
+  for (const row of normalizedRows) {
+    const url = row.url;
+    const sourceKey = canonicalSourceKey(url);
     if (!url) {
       failed.push({
         status: 'failed',
@@ -6209,18 +6302,20 @@ function importYoutubeSourceQueueItems({ videos, urls, text } = {}) {
       });
       continue;
     }
-    if (existingUrls.has(url)) {
+    if (sourceKey && existingSourceKeys.has(sourceKey)) {
       skipped.push({
         url,
         status: 'skipped',
-        reason: 'already_exists'
+        reason: 'already_exists',
+        canonical_source_key: sourceKey,
+        target_locale: row.target_locale
       });
       continue;
     }
 
     const itemId = nextItemId([...existingIds]);
     existingIds.add(itemId);
-    existingUrls.add(url);
+    if (sourceKey) existingSourceKeys.add(sourceKey);
     const title = String(row?.title || row?.description || row?.source_file_original_name || titleFromUrl(url) || itemId).trim();
     const hashtags = normalizeHashtags(Array.isArray(row?.hashtags) && row.hashtags.length ? row.hashtags : ['#shorts']);
     const requestedMode = row?.sourceMode || row?.source_mode || row?.sourceTypeGuess || row?.source_type || 'auto';
@@ -6235,6 +6330,8 @@ function importYoutubeSourceQueueItems({ videos, urls, text } = {}) {
       item_id: itemId,
       source_video: 'source_clean.mp4',
       source_url: url,
+      canonical_source_key: sourceKey,
+      target_locale: row.target_locale,
       target_duration_sec: 30,
       upload_title: title,
       upload_description: String(row?.description || ''),
@@ -6251,6 +6348,8 @@ function importYoutubeSourceQueueItems({ videos, urls, text } = {}) {
       source_discovery: {
         id: row?.id || '',
         url,
+        canonical_source_key: sourceKey,
+        target_locale: row.target_locale,
         title,
         creator: row?.creator || '',
         handle: row?.handle || '',
@@ -6281,6 +6380,8 @@ function importYoutubeSourceQueueItems({ videos, urls, text } = {}) {
     imported.push({
       item_id: itemId,
       url,
+      canonical_source_key: sourceKey,
+      target_locale: itemConfig.target_locale,
       status: 'queued',
       title,
       source_type: itemConfig.source_type,
@@ -7443,6 +7544,40 @@ function pickHighlightWindow(itemConfig = {}, maxDurationSec = 10) {
     single_process_only: true,
     cut_selection_tier: ['T1', 'T2', 'T3'][bestSceneTierRank]
   };
+}
+
+function formatKoreanPublicMetadataText(guide = {}, variant = 'highlight') {
+  const normalizedVariant = variant === 'highlight' ? 'ko_highlight' : `ko_${variant}`;
+  const metadata = getVariantReviewMetadata(guide, variant);
+  const titles = Array.isArray(metadata.recommended_titles) ? metadata.recommended_titles : [];
+  const shortDescription = sanitizeKoreanProductionText(metadata.short_description || metadata.summary_caption || '');
+  const summaryCaption = sanitizeKoreanProductionText(metadata.summary_caption || shortDescription);
+  const onscreenCaption = sanitizeKoreanProductionText(metadata.onscreen_caption_block || shortDescription || summaryCaption);
+  const reportDescription = formatMetadataReportDescription(metadata.report_description || shortDescription, true);
+  const titleLines = titles.map(formatTitleLine);
+  const heading = variant === 'highlight' ? 'KOREAN_HIGHLIGHT_METADATA' : 'KOREAN_FULL_DRAFT_METADATA';
+  return [
+    '# OTTOGI_METADATA_PACKAGE',
+    '',
+    '<!-- METADATA_VARIANT: ' + normalizedVariant + ' -->',
+    '<!-- METADATA_LANGUAGE: ko -->',
+    '## ' + heading,
+    '',
+    '### SCREEN_CAPTION',
+    onscreenCaption,
+    '',
+    '### SCREEN_CAPTION_BLOCK',
+    onscreenCaption,
+    '',
+    '### SUMMARY_CAPTION',
+    summaryCaption,
+    '',
+    '### TITLE_CANDIDATES',
+    titleLines.map((line, index) => (index + 1) + '. ' + line).join('\n'),
+    '',
+    '### REPORT_DESCRIPTION',
+    reportDescription
+  ].join('\n').trim();
 }
 
 function windowsOverlapSeconds(a = {}, b = {}) {
@@ -9042,6 +9177,11 @@ async function createHighlightDraftForItem({
   const highlightWorkingDir = copyDraftToGeneratingFolder(result.draftPath, highlightOutDir);
   const finalCaptionNormalization = normalizeFinalDraftCaptions(highlightWorkingDir);
   attachJsonFilePatch(path.join(highlightWorkingDir, 'edit_manifest.json'), {
+    variant: 'highlight',
+    draft_variant: 'highlight',
+    target_locale: 'ja-JP',
+    output_language: 'ja',
+    variant_policy_id: 'jp_highlight',
     highlight_draft: {
       enabled: true,
       highlight_index: highlightOrdinal,
@@ -9119,6 +9259,10 @@ async function createHighlightDraftForItem({
     original_zip_path: result.zipPath,
     final_mp4_path: fs.existsSync(path.join(highlightOutDir, 'final.mp4')) ? path.join(highlightOutDir, 'final.mp4') : '',
     metadata_files: metadataFiles,
+    target_locale: 'ja-JP',
+    output_language: 'ja',
+    variant: 'highlight',
+    variant_policy_id: 'jp_highlight',
     direct_render_status: result.directRender?.status || '',
     source_window: window,
     selected_scene_ids: window.selected_scene_ids || [],
@@ -9673,7 +9817,10 @@ async function createKoreanHighlightDraftForItem({
   baseConfig,
   sourceVideoPath,
   outputRoot,
-  createZip
+  createZip,
+  highlightWindow = null,
+  highlightIndex = 1,
+  highlightTotal = 1
 }) {
   const maxDurationSec = highlightMaxDurationForItem(itemConfig, queueConfig.highlight_duration_sec);
   const sourceDurationSec = getSourceVideoDurationSec(sourceVideoPath, itemConfig);
@@ -9691,9 +9838,11 @@ async function createKoreanHighlightDraftForItem({
         }
       }
     : itemConfig;
-  const pickedWindow = pickHighlightWindow(itemForHighlight, maxDurationSec);
+  const pickedWindow = highlightWindow || pickHighlightWindow(itemForHighlight, maxDurationSec);
   const itemDir = getItemDir(itemId);
-  const highlightSourcePath = path.join(itemDir, 'korean_highlight_source.mp4');
+  const highlightOrdinal = Math.max(1, Math.round(Number(highlightIndex) || 1));
+  const totalHighlights = Math.max(1, Math.round(Number(highlightTotal) || 1));
+  const highlightSourcePath = path.join(itemDir, totalHighlights > 1 ? `korean_highlight_source_${String(highlightOrdinal).padStart(2, '0')}.mp4` : 'korean_highlight_source.mp4');
   const trimResult = await runSafeHighlightTrim({
     sourcePath: sourceVideoPath,
     targetPath: highlightSourcePath,
@@ -9705,7 +9854,19 @@ async function createKoreanHighlightDraftForItem({
 
   const shiftedScenes = shiftHighlightSceneTransitions(itemConfig, window);
   const koreanReview = itemConfig.korean_review || {};
-  const koreanHighlightMetadata = getVariantReviewMetadata(itemConfig.ottogi_guide_output || {}, 'highlight');
+  const baseGuide = itemConfig.ottogi_guide_output || {};
+  const baseTitleInfo = selectKoreanTitle(itemConfig, 'highlight');
+  const baseHighlightTitle = String(baseTitleInfo.title || itemConfig.highlight_upload_title || itemConfig.upload_title || `${itemId} Korean Highlight`).trim();
+  const highlightTitle = totalHighlights > 1
+    ? `${baseHighlightTitle} H${String(highlightOrdinal).padStart(2, '0')}`
+    : baseHighlightTitle;
+  const candidateGuide = buildHighlightCandidateGuide({
+    ...baseGuide,
+    video_metadata: itemForHighlight.video_metadata || itemConfig.video_metadata || {},
+    source_classification: itemForHighlight.source_classification || itemConfig.source_classification || {},
+    target_duration_sec: itemForHighlight.target_duration_sec || itemConfig.target_duration_sec || 0
+  }, window, highlightOrdinal, totalHighlights, highlightTitle);
+  const koreanHighlightMetadata = getVariantReviewMetadata(candidateGuide, 'highlight');
   const titleInfo = selectKoreanTitle(itemConfig, 'highlight');
   const guideText = stripEmoji(String(
     koreanHighlightMetadata.onscreen_caption_block
@@ -9740,9 +9901,9 @@ async function createKoreanHighlightDraftForItem({
     visual_template: 'kr_highlight',
     source_video: highlightSourcePath,
     target_duration_sec: window.duration_sec,
-    upload_title: titleInfo.title || itemConfig.highlight_upload_title || itemConfig.upload_title,
-    upload_description: koreanReview.report_description || koreanReview.short_description || '',
-    upload_hashtags: titleInfo.hashtags.length ? titleInfo.hashtags : normalizeHashtags(itemConfig.upload_hashtags || []),
+    upload_title: koreanHighlightMetadata.upload_title || titleInfo.title || highlightTitle,
+    upload_description: koreanHighlightMetadata.report_description || koreanReview.report_description || koreanHighlightMetadata.short_description || koreanReview.short_description || '',
+    upload_hashtags: titleInfo.hashtags.length ? titleInfo.hashtags : normalizeHashtags(koreanHighlightMetadata.hashtags || itemConfig.upload_hashtags || []),
     output_language: 'ko',
     channel_asset: channelAsset,
     channel_frame_asset: disabledChannelFrameAsset(),
@@ -9751,10 +9912,11 @@ async function createKoreanHighlightDraftForItem({
     custom_bgm_original_name: queueConfig.korean_highlight_custom_bgm_original_name || queueConfig.korean_custom_bgm_original_name || queueConfig.highlight_custom_bgm_original_name || baseConfig.custom_bgm_original_name || '',
     bgm_volume: queueConfig.korean_highlight_bgm_volume ?? queueConfig.korean_bgm_volume ?? baseConfig.bgm_volume,
     video_transform_preset: buildHighlightHookZoomOutPreset(baseConfig.video_transform_preset, itemConfig, window),
+    target_locale: 'ko-KR',
     explainer_blocks: [
       {
         ...(itemConfig.explainer_blocks?.[0] || defaultItemConfig(itemId).explainer_blocks[0]),
-        block_id: 'ko_highlight_exp_001',
+        block_id: `ko_highlight_exp_${String(highlightOrdinal).padStart(3, '0')}`,
         text: guideText,
         start_sec: 0,
         end_sec: window.duration_sec,
@@ -9788,19 +9950,26 @@ async function createKoreanHighlightDraftForItem({
     startedAtStamp: draftStartedAtStamp,
     itemNumber,
     variant: 'KH',
-    title: titleInfo.title || itemConfig.upload_title,
+    title: koreanHighlightMetadata.upload_title || titleInfo.title || itemConfig.upload_title,
     fallback: `${itemId}_korean_highlight`
   });
   const outDir = path.join(outputRoot, projectName);
   copyDirContents(result.draftPath, outDir);
   const finalCaptionNormalization = normalizeFinalDraftCaptions(outDir);
-  const metadataFiles = copyOttogiMetadataFiles(itemId, outDir, projectName, 'highlight', 'ko', itemConfig.ottogi_guide_output || {});
+  const metadataFiles = copyOttogiMetadataFiles(itemId, outDir, projectName, 'highlight', 'ko', candidateGuide);
   attachJsonFilePatch(path.join(outDir, 'edit_manifest.json'), {
+    variant: 'ko_highlight',
+    draft_variant: 'ko_highlight',
+    target_locale: 'ko-KR',
+    output_language: 'ko',
+    variant_policy_id: 'kr_highlight',
     korean_draft: {
       enabled: true,
-      variant: 'highlight',
+      variant: 'ko_highlight',
       language: 'ko',
       source_item_id: itemId,
+      highlight_index: highlightOrdinal,
+      highlight_total: totalHighlights,
       source_window: window,
       selection_strategy: window.selection_strategy || 'natural_source_repetition_no_artificial_loop',
       auto_video_transform_preset: koreanHighlightConfig.video_transform_preset?.preset_id || '',
@@ -9819,7 +9988,7 @@ async function createKoreanHighlightDraftForItem({
       source_stage: 'korean_highlight_source_before_capcut_draft_generation',
       source_video_modified: false
     },
-    ...buildVariantStrategyManifestPatch(itemConfig, 'kr_highlight')
+    ...buildVariantStrategyManifestPatch({ ...itemConfig, ottogi_guide_output: candidateGuide }, 'kr_highlight')
   });
   fs.appendFileSync(
     path.join(outDir, 'capcut_notes.md'),
@@ -9828,6 +9997,7 @@ async function createKoreanHighlightDraftForItem({
       '## Korean Highlight Draft',
       '- Enabled: true',
       '- Language: ko',
+      `- Highlight Index: ${highlightOrdinal}/${totalHighlights}`,
       `- Source Window: ${window.start_sec}s - ${window.end_sec}s`,
       `- Duration: ${window.duration_sec}s`,
       `- Auto Video Transform Preset: ${koreanHighlightConfig.video_transform_preset?.preset_id || 'unknown'}`,
@@ -9840,19 +10010,25 @@ async function createKoreanHighlightDraftForItem({
       `- OCR Mask Preview: ${koreanHighlightOcrDetection.preview_path || 'none'}`,
       ...trimResult.warnings.map((warning) => `- Source Trim Warning: ${warning}`),
       ...koreanHighlightOcrWarnings.map((warning) => `- OCR Warning: ${warning}`),
-      ...buildVariantStrategyNoteLines(itemConfig, 'kr_highlight'),
+      ...buildVariantStrategyNoteLines({ ...itemConfig, ottogi_guide_output: candidateGuide }, 'kr_highlight'),
       ''
     ].join('\n'),
     'utf8'
   );
   return {
     status: 'success',
+    highlight_index: highlightOrdinal,
+    highlight_total: totalHighlights,
     output_folder: outDir,
     source_path: highlightSourcePath,
     original_draft_path: result.draftPath,
     original_zip_path: result.zipPath,
     final_mp4_path: fs.existsSync(path.join(outDir, 'final.mp4')) ? path.join(outDir, 'final.mp4') : '',
     metadata_files: metadataFiles,
+    target_locale: 'ko-KR',
+    output_language: 'ko',
+    variant: 'ko_highlight',
+    variant_policy_id: 'kr_highlight',
     direct_render_status: result.directRender?.status || '',
     source_window: window,
     selected_scene_ids: window.selected_scene_ids || [],
@@ -9862,7 +10038,7 @@ async function createKoreanHighlightDraftForItem({
   };
 }
 
-async function generateQueue({ batch_name, item_ids, stop_on_error = false, draft_variant_mode = 'all' } = {}) {
+async function generateQueue({ batch_name, item_ids, stop_on_error = false, draft_variant_mode = 'all', batch_mode = '' } = {}) {
   ensureQueueFolders();
   const queueConfig = loadQueueConfig();
   const normalizedDraftVariantMode = normalizeDraftVariantMode(draft_variant_mode);
@@ -9893,6 +10069,9 @@ async function generateQueue({ batch_name, item_ids, stop_on_error = false, draf
   const itemsToRun = Array.isArray(item_ids) && item_ids.length
     ? item_ids.map((id) => queueItemMap.get(safeId(id))).filter(Boolean)
     : queue.queueItems;
+  const localeBatchValidation = batch_mode === LOCALE_6_6_BATCH_MODE
+    ? validateLocale66QueueItems(queue.queueItems, itemsToRun.map((item) => item.item_id))
+    : null;
 
   const report = {
     batch_id: batchId,
@@ -9908,6 +10087,8 @@ async function generateQueue({ batch_name, item_ids, stop_on_error = false, draf
     report_dir: reportDir,
     metadata_export_dir: metadataExportDir,
     metadata_export_date: metadataExportDate,
+    batch_mode: batch_mode || '',
+    locale_batch_validation: localeBatchValidation,
     output_root: capcutDraftRoot,
     output: {
       mode: 'capcut_draft_root',
@@ -9948,6 +10129,7 @@ async function generateQueue({ batch_name, item_ids, stop_on_error = false, draf
     const itemNumber = runIndex + 1;
     const itemConfigPath = getItemConfigPath(itemId);
     let itemConfig = normalizeItemConfig(readJsonIfExists(itemConfigPath) || itemSummary.item_config, itemId);
+    const targetLocale = normalizeTargetLocale(itemConfig.target_locale);
     const titleProjectName = draftFolderNameForBatchItem({
       startedAtStamp: draftStartedAtStamp,
       itemNumber,
@@ -9974,6 +10156,11 @@ async function generateQueue({ batch_name, item_ids, stop_on_error = false, draf
       upload_description: itemConfig.upload_description || '',
       upload_hashtags: itemConfig.upload_hashtags || [],
       source_url: itemConfig.source_url || '',
+      canonical_source_key: getCanonicalKeyForQueueConfig(itemConfig),
+      target_locale: targetLocale,
+      output_language: targetLocale === 'ko-KR' ? 'ko' : 'ja',
+      variant: targetLocale === 'ko-KR' ? 'ko_highlight' : 'highlight',
+      variant_policy_id: targetLocale === 'ko-KR' ? 'kr_highlight' : 'jp_highlight',
       source_type: itemConfig.source_type || 'unknown',
       source_type_origin: itemConfig.source_type_origin || '',
       source_workflow_mode: itemConfig.source_workflow_mode || 'unknown',
@@ -10338,7 +10525,10 @@ async function generateQueue({ batch_name, item_ids, stop_on_error = false, draf
           assertHighlightCandidateMetadataDistinct(itemConfig, highlightWindows);
           const highlightResults = [];
           for (const [highlightIndex, highlightWindow] of highlightWindows.entries()) {
-            const highlight = await createHighlightDraftForItem({
+            const highlightFactory = isKoreanTargetLocale(itemConfig)
+              ? createKoreanHighlightDraftForItem
+              : createHighlightDraftForItem;
+            const highlight = await highlightFactory({
               itemId,
               itemNumber,
               draftStartedAtStamp,
@@ -10367,7 +10557,11 @@ async function generateQueue({ batch_name, item_ids, stop_on_error = false, draf
             source_window: item.source_window,
             selected_scene_ids: item.selected_scene_ids || [],
             metadata_files: item.metadata_files || [],
-            direct_render_status: item.direct_render_status || ''
+            direct_render_status: item.direct_render_status || '',
+            target_locale: item.target_locale || targetLocale,
+            output_language: item.output_language || (targetLocale === 'ko-KR' ? 'ko' : 'ja'),
+            variant: item.variant || (targetLocale === 'ko-KR' ? 'ko_highlight' : 'highlight'),
+            variant_policy_id: item.variant_policy_id || (targetLocale === 'ko-KR' ? 'kr_highlight' : 'jp_highlight')
           }));
           row.highlight_metadata_export_files = highlightResults.flatMap((item) => exportOttogiMetadataFiles(
             item.metadata_files || [],
@@ -10445,7 +10639,7 @@ async function generateQueue({ batch_name, item_ids, stop_on_error = false, draf
       row.korean_full_output_folder = shouldGenerateFullDraft ? row.output_folder : '';
       row.korean_full_final_mp4_path = shouldGenerateFullDraft ? row.final_mp4_path : '';
       row.korean_full_direct_render_status = shouldGenerateFullDraft ? row.direct_render_status : 'disabled';
-      row.korean_highlight_status = 'disabled';
+      row.korean_highlight_status = isKoreanTargetLocale(itemConfig) && row.highlight_status === 'success' ? 'success' : 'disabled';
       if (!shouldGenerateFullDraft) {
         if (row.highlight_status === 'success' || row.midform_status === 'success' || row.korean_highlight_status === 'success') {
           row.status = 'success';
@@ -10512,7 +10706,8 @@ async function generateQueue({ batch_name, item_ids, stop_on_error = false, draf
     `- Stop On Error: ${String(!!stop_on_error)}`,
     `- Highlight Drafts: ${queueConfig.create_highlight_draft === true ? 'enabled' : 'disabled'}`,
     '- Midform Drafts: disabled (removed from current JP Highlight-only contract)',
-    '- Korean Drafts: disabled (Korean is review-only inside JP metadata TXT)',
+    `- Locale Batch Mode: ${batch_mode || 'general'}`,
+    '- Korean Highlight Drafts: enabled only for ko-KR target_locale items; Full Korean drafts remain disabled',
     `- Highlight Max Duration Sec: ${queueConfig.highlight_duration_sec || 10}`,
     '- Midform Target Duration Sec: n/a',
     '',
@@ -10607,9 +10802,16 @@ module.exports = {
   previewKoreanFullDraftTts,
   createKoreanFullDraftScriptReview,
   approveKoreanFullDraftScriptReview,
+  validateLocale66QueueItems,
   generateQueue,
   getReport,
   __test: {
+    LOCALE_6_6_BATCH_MODE,
+    getCanonicalKeyForQueueConfig,
+    isKoreanTargetLocale,
+    normalizeTargetLocale,
+    validateLocale66Rows,
+    validateLocale66QueueItems,
     assertCaptionUnitsMatchTtsSentences,
     assertKoreanFullTtsFitsVideoTimeline,
     buildKoreanFullDraftTtsPlan,
