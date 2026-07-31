@@ -215,6 +215,32 @@ function buildWorkspacePaths(normalizedRequest) {
   };
 }
 
+function buildWorkspacePathsWithOverrides(normalizedRequest, options = {}) {
+  const base = buildWorkspacePaths(normalizedRequest);
+  const workspaceName = normalizeText(options.workspaceNameOverride) || base.workspaceName;
+  const workspaceDir = options.workspaceDirOverride
+    ? (path.isAbsolute(options.workspaceDirOverride) ? options.workspaceDirOverride : path.join(PROJECT_ROOT, options.workspaceDirOverride))
+    : base.workspaceDir;
+  return {
+    workspaceName,
+    workspaceDir,
+    summaryPath: path.join(workspaceDir, 'run_summary.json'),
+    requestPath: path.join(workspaceDir, 'normalized_request.json'),
+    contextPath: path.join(workspaceDir, 'generated_context.md'),
+    beatmapPath: path.join(workspaceDir, 'story_beatmap.json')
+  };
+}
+
+function buildAttemptSetPaths(normalizedRequest, options = {}) {
+  const base = buildWorkspacePaths(normalizedRequest);
+  const runSetName = normalizeText(options.runSetNameOverride)
+    || `${base.workspaceName}_attempts_${nowStamp()}`;
+  const runSetDir = options.runSetDirOverride
+    ? (path.isAbsolute(options.runSetDirOverride) ? options.runSetDirOverride : path.join(PROJECT_ROOT, options.runSetDirOverride))
+    : path.join(WORKSPACE_ROOT, runSetName);
+  return { runSetName, runSetDir };
+}
+
 function buildRunId(workspaceName) {
   return `midform_run_${nowStamp()}_${workspaceName}`;
 }
@@ -490,6 +516,124 @@ function hasLocaleDraftFolders(summary = {}) {
   return Boolean(outputPaths.draft_folder_ko && outputPaths.draft_folder_ja);
 }
 
+function candidateOutputPaths(summary = {}, value = '') {
+  const text = normalizeText(value);
+  if (!text) return [];
+  if (path.isAbsolute(text)) return [text];
+  const candidates = [path.join(PROJECT_ROOT, text)];
+  const workspaceDir = normalizeText(summary.workspace_dir || '');
+  if (workspaceDir) {
+    const resolvedWorkspace = path.isAbsolute(workspaceDir) ? workspaceDir : path.join(PROJECT_ROOT, workspaceDir);
+    candidates.push(path.join(resolvedWorkspace, text));
+    candidates.push(path.join(resolvedWorkspace, path.basename(text)));
+  }
+  return [...new Set(candidates.map((candidate) => path.normalize(candidate)))];
+}
+
+function outputPathExists(summary = {}, value = '') {
+  return candidateOutputPaths(summary, value).some((candidate) => fs.existsSync(candidate));
+}
+
+function hasPhysicalDrafts(summary = {}) {
+  const outputPaths = summary.output_paths || {};
+  return [
+    outputPaths.draft_folder_ko,
+    outputPaths.draft_folder_ja,
+    outputPaths.draft_folder,
+    outputPaths.draft_zip
+  ].some((value) => outputPathExists(summary, value));
+}
+
+function summaryFailureCode(summary = {}) {
+  return String(summary.failure_reason?.code || summary.manual_review?.reason || '').trim();
+}
+
+function summaryFailureMessage(summary = {}) {
+  return String(summary.failure_reason?.message || summary.manual_review?.message || '').trim();
+}
+
+function isRetryableBeforeDraftFailure(summary = {}) {
+  if (hasPhysicalDrafts(summary)) return false;
+  const status = String(summary.status || '').trim();
+  if (status && !['failed', 'manual_review_required'].includes(status)) return false;
+  const code = summaryFailureCode(summary);
+  const message = summaryFailureMessage(summary);
+  const reason = `${code} ${message}`;
+  if (/SOURCE|TRANSCRIPT|SUBTITLE|YTDLP|YT[-_ ]?DLP|DOWNLOAD|CORRUPT/i.test(reason)) return false;
+  if (/DIALOGUE|UTTERANCE|QUOTE|REFERENCE/i.test(reason) && /MISMATCH|MISSING|INVALID|NOT_FOUND|NOT FOUND/i.test(reason)) return false;
+  if (code === 'MIDFORM_ACCEPTANCE_FAILED' || code === 'MIDFORM_DETERMINISTIC_INTEGRITY_FAILED') return false;
+  if (code === 'MIDFORM_BOOTSTRAP_PREFLIGHT_FAILED') return true;
+  if (/missing bridge role|edit plan is missing bridge role/i.test(message)) return true;
+  if (/(TEMPLATE|EDIT_PLAN).*(VALIDATION|SCHEMA|STRUCTURE)|(VALIDATION|SCHEMA|STRUCTURE).*(TEMPLATE|EDIT_PLAN)/i.test(code)) return true;
+  if (/(template|edit[ -]?plan).*(validation|schema|structure)|(validation|schema|structure).*(template|edit[ -]?plan)/i.test(message)) return true;
+  if (/TRANSIENT|TIMEOUT|DNS|UNAVAILABLE|ECONN|ETIMEDOUT|ENOTFOUND|429/i.test(reason)) return true;
+  return false;
+}
+
+function attemptSelectionRank(summary = {}) {
+  const status = String(summary.status || '').trim();
+  if (status === 'passed') return 50;
+  if (status === 'passed_with_warnings' || status === 'completed_with_warnings') return 40;
+  if (status === 'manual_review_required') return 30;
+  if (hasPhysicalDrafts(summary)) return 20;
+  return 10;
+}
+
+function selectBestAttempt(attempts = []) {
+  const ranked = attempts
+    .filter((attempt) => attempt && attempt.summary)
+    .map((attempt, index) => ({ ...attempt, originalIndex: index, rank: attemptSelectionRank(attempt.summary) }))
+    .sort((left, right) => right.rank - left.rank || left.attempt - right.attempt || left.originalIndex - right.originalIndex);
+  const selected = ranked[0] || null;
+  if (!selected) return null;
+  let selectionReason = 'draftless_failed_attempt';
+  if (String(selected.summary.status || '') === 'passed') selectionReason = 'passed';
+  else if (['passed_with_warnings', 'completed_with_warnings'].includes(String(selected.summary.status || ''))) selectionReason = 'passed_with_warnings';
+  else if (String(selected.summary.status || '') === 'manual_review_required') selectionReason = 'manual_review_required';
+  else if (hasPhysicalDrafts(selected.summary)) selectionReason = 'physical_drafts_available';
+  return { ...selected, selectionReason };
+}
+
+function copyDirectoryContents(sourceDir, destinationDir) {
+  if (!sourceDir || !fs.existsSync(sourceDir)) return false;
+  if (fs.existsSync(destinationDir)) throw new Error(`Attempt destination already exists: ${destinationDir}`);
+  ensureDir(path.dirname(destinationDir));
+  fs.cpSync(sourceDir, destinationDir, { recursive: true });
+  return true;
+}
+
+function writeAttemptSummaryIfNeeded(attemptDir, summary) {
+  const summaryPath = path.join(attemptDir, 'run_summary.json');
+  if (!fs.existsSync(summaryPath)) writeJson(summaryPath, summary);
+}
+
+function preserveAttemptArtifact({ summary, attemptDir }) {
+  const workspaceDir = summary?.workspace_dir
+    ? (path.isAbsolute(summary.workspace_dir) ? summary.workspace_dir : path.join(PROJECT_ROOT, summary.workspace_dir))
+    : '';
+  if (workspaceDir && fs.existsSync(workspaceDir) && path.resolve(workspaceDir) !== path.resolve(attemptDir)) {
+    copyDirectoryContents(workspaceDir, attemptDir);
+  } else {
+    ensureDir(attemptDir);
+  }
+  writeAttemptSummaryIfNeeded(attemptDir, summary);
+}
+
+function buildSelectedAttemptManifest(selected, attempts) {
+  return {
+    selected_attempt: selected?.attempt || null,
+    selection_reason: selected?.selectionReason || 'none',
+    status: selected?.summary?.status || 'failed',
+    other_attempts: attempts
+      .filter((attempt) => attempt.attempt !== selected?.attempt)
+      .map((attempt) => ({
+        attempt: attempt.attempt,
+        status: attempt.summary?.status || 'failed',
+        reason: summaryFailureCode(attempt.summary) || summaryFailureMessage(attempt.summary) || ''
+      }))
+  };
+}
+
 function manualReviewTimeHints(qa = {}) {
   const results = Array.isArray(qa?.gateResults?.results) ? qa.gateResults.results : [];
   const hints = [];
@@ -698,7 +842,7 @@ async function runMidformTemplateWorkflow(options = {}) {
   const parsedTemplate = parseTemplateFile(options.templatePath);
   const normalizedRequest = buildNormalizedRequest(parsedTemplate, options);
   const resumeStage = normalizeResumeStage(options.resume);
-  const workspace = buildWorkspacePaths(normalizedRequest);
+  const workspace = buildWorkspacePathsWithOverrides(normalizedRequest, options);
   ensureDir(workspace.workspaceDir);
   writeJson(workspace.requestPath, normalizedRequest);
   writeText(workspace.contextPath, buildGeneratedContextMarkdown(normalizedRequest));
@@ -1038,6 +1182,69 @@ async function runMidformTemplateWorkflow(options = {}) {
   }
 }
 
+async function runMidformTemplateAttempts({
+  templatePath,
+  source,
+  maxAttempts = 2,
+  runner = runMidformTemplateWorkflow,
+  ...options
+} = {}) {
+  if (!templatePath) throw new Error('runMidformTemplateAttempts requires templatePath');
+  const parsedTemplate = parseTemplateFile(templatePath);
+  const normalizedRequest = buildNormalizedRequest(parsedTemplate, { ...options, source });
+  const attemptLimit = Math.max(1, Math.min(2, Number(maxAttempts || 2) || 2));
+  const runSet = buildAttemptSetPaths(normalizedRequest, options);
+  if (fs.existsSync(runSet.runSetDir)) throw new Error(`Attempt run folder already exists: ${runSet.runSetDir}`);
+  ensureDir(runSet.runSetDir);
+
+  const attempts = [];
+  for (let attempt = 1; attempt <= attemptLimit; attempt += 1) {
+    const attemptDir = path.join(runSet.runSetDir, `attempt_${attempt}`);
+    const attemptSummary = await runner({
+      ...options,
+      templatePath,
+      source,
+      workspaceDirOverride: attemptDir,
+      workspaceNameOverride: `${runSet.runSetName}_attempt_${attempt}`,
+      attempt
+    });
+    const summary = {
+      ...attemptSummary,
+      attempt,
+      attempt_dir: rel(attemptDir)
+    };
+    preserveAttemptArtifact({ summary, attemptDir });
+    attempts.push({ attempt, attemptDir, summary });
+    if (!isRetryableBeforeDraftFailure(summary)) break;
+  }
+
+  const selected = selectBestAttempt(attempts);
+  const deliveryDir = path.join(runSet.runSetDir, 'delivery_package');
+  if (selected) copyDirectoryContents(selected.attemptDir, deliveryDir);
+  const selectedManifest = buildSelectedAttemptManifest(selected, attempts);
+  writeJson(path.join(runSet.runSetDir, 'selected_attempt.json'), selectedManifest);
+  if (selected) writeJson(path.join(deliveryDir, 'selected_attempt.json'), selectedManifest);
+  const finalSummary = {
+    status: selected?.summary?.status || 'failed',
+    run_set_dir: rel(runSet.runSetDir),
+    selected_attempt: selectedManifest,
+    attempts: attempts.map((attempt) => ({
+      attempt: attempt.attempt,
+      status: attempt.summary?.status || 'failed',
+      reason: summaryFailureCode(attempt.summary) || summaryFailureMessage(attempt.summary) || '',
+      attempt_dir: rel(attempt.attemptDir),
+      has_physical_drafts: hasPhysicalDrafts(attempt.summary)
+    })),
+    output_paths: {
+      selected_attempt: rel(path.join(runSet.runSetDir, 'selected_attempt.json')),
+      delivery_package: rel(deliveryDir)
+    },
+    selected_summary: selected?.summary || null
+  };
+  writeJson(path.join(runSet.runSetDir, 'run_summary.json'), finalSummary);
+  return finalSummary;
+}
+
 async function runMidformTemplateBatch({ urls = [], templatePath, runner = runMidformTemplateWorkflow, ...options } = {}) {
   const results = [];
   for (const url of urls) {
@@ -1060,6 +1267,54 @@ async function runMidformTemplateBatch({ urls = [], templatePath, runner = runMi
   return { status: 'completed', total: urls.length, results };
 }
 
+function normalizeBatchManifest(manifest = {}) {
+  const urls = Array.isArray(manifest.urls) ? manifest.urls.map(normalizeText).filter(Boolean) : [];
+  return {
+    urls,
+    max_attempts_per_url: Math.max(1, Math.min(2, Number(manifest.max_attempts_per_url || 2) || 2)),
+    continue_on_failure: manifest.continue_on_failure !== false,
+    template_path: normalizeText(manifest.template_path || manifest.templatePath || ''),
+    profile: normalizeText(manifest.profile || ''),
+    analysis_mode: normalizeText(manifest.analysis_mode || manifest.analysisMode || ''),
+    target: manifest.target || manifest.target_sec || manifest.targetSec || ''
+  };
+}
+
+async function runMidformTemplateAttemptBatch({ manifest, manifestPath = '', templatePath = '', runner = runMidformTemplateAttempts, ...options } = {}) {
+  const parsedManifest = manifest || (manifestPath ? readJson(path.isAbsolute(manifestPath) ? manifestPath : path.join(PROJECT_ROOT, manifestPath)) : {});
+  const normalized = normalizeBatchManifest(parsedManifest);
+  const selectedTemplatePath = templatePath || normalized.template_path;
+  if (!selectedTemplatePath) throw new Error('Batch manifest requires template_path or --template');
+  const results = [];
+  for (const url of normalized.urls) {
+    try {
+      const result = await runner({
+        ...options,
+        templatePath: selectedTemplatePath,
+        source: url,
+        maxAttempts: normalized.max_attempts_per_url,
+        profile: options.profile || normalized.profile || undefined,
+        analysisMode: options.analysisMode || normalized.analysis_mode || undefined,
+        target: options.target || normalized.target || undefined
+      });
+      results.push(result);
+    } catch (error) {
+      results.push({
+        status: 'failed',
+        source_url: url,
+        failure_reason: {
+          stage: 'batch_item',
+          code: error.code || 'MIDFORM_BATCH_ITEM_FAILED',
+          message: error.message || 'Batch item failed',
+          details: error.details || {}
+        }
+      });
+      if (!normalized.continue_on_failure) break;
+    }
+  }
+  return { status: 'completed', total: normalized.urls.length, results };
+}
+
 module.exports = {
   PROFILE_DEFAULTS,
   RESUME_STAGES,
@@ -1067,15 +1322,23 @@ module.exports = {
   buildNormalizedRequest,
   buildStoryBeatmap,
   buildAutoEscalationDecision,
+  normalizeBatchManifest,
   normalizeAnalysisMode,
   normalizeResumeStage,
   parseTemplateFile,
+  runMidformTemplateAttemptBatch,
+  runMidformTemplateAttempts,
   runMidformTemplateBatch,
   runMidformTemplateWorkflow,
   _test: {
+    attemptSelectionRank,
     buildManualReviewMarkdown,
+    buildSelectedAttemptManifest,
     deterministicIntegrityFailures,
+    hasPhysicalDrafts,
+    isRetryableBeforeDraftFailure,
     manualReviewRequiredSummary,
-    removeMultimodalReviewOutputPaths
+    removeMultimodalReviewOutputPaths,
+    selectBestAttempt
   }
 };

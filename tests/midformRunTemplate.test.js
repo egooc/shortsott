@@ -9,11 +9,14 @@ const {
   buildGeneratedContextMarkdown,
   buildNormalizedRequest,
   buildStoryBeatmap,
+  normalizeBatchManifest,
   normalizeAnalysisMode,
   normalizeResumeStage,
   parseTemplateFile,
+  runMidformTemplateAttemptBatch,
+  runMidformTemplateAttempts,
   runMidformTemplateBatch,
-  _test: { manualReviewRequiredSummary }
+  _test: { isRetryableBeforeDraftFailure, manualReviewRequiredSummary, selectBestAttempt }
 } = require('../server/services/midformRunTemplateService');
 
 function writeTempTemplate(text) {
@@ -228,6 +231,173 @@ test('batch runner continues after one provider failure item', async () => {
   assert.equal(batch.status, 'completed');
   assert.equal(batch.results[0].status, 'failed');
   assert.equal(batch.results[1].status, 'passed');
+});
+
+test('attempt runner retries pre-draft preflight failure and selects second draft success', async () => {
+  const templatePath = writeTempTemplate([
+    '---',
+    'source:',
+    '  url: https://youtu.be/from-template',
+    'output:',
+    '  target_length_sec: 150',
+    '---',
+    ''
+  ].join('\n'));
+  const runSetDir = fs.mkdtempSync(path.join(os.tmpdir(), 'midform-attempt-set-'));
+  fs.rmSync(runSetDir, { recursive: true, force: true });
+  const calls = [];
+  const result = await runMidformTemplateAttempts({
+    templatePath,
+    source: 'https://youtu.be/retry111111',
+    runSetDirOverride: runSetDir,
+    runner: async ({ attempt, workspaceDirOverride }) => {
+      calls.push({ attempt, workspaceDirOverride });
+      fs.mkdirSync(workspaceDirOverride, { recursive: true });
+      const summary = attempt === 1
+        ? {
+            status: 'failed',
+            workspace_dir: workspaceDirOverride,
+            failure_reason: { code: 'MIDFORM_BOOTSTRAP_PREFLIGHT_FAILED', message: 'Bootstrap preflight failed' },
+            output_paths: {}
+          }
+        : {
+            status: 'passed',
+            workspace_dir: workspaceDirOverride,
+            output_paths: { draft_folder_ko: path.join(workspaceDirOverride, 'draft_ko'), draft_folder_ja: path.join(workspaceDirOverride, 'draft_ja') }
+          };
+      fs.writeFileSync(path.join(workspaceDirOverride, 'run_summary.json'), `${JSON.stringify(summary, null, 2)}\n`, 'utf8');
+      return summary;
+    }
+  });
+
+  assert.equal(calls.length, 2);
+  assert.equal(result.selected_attempt.selected_attempt, 2);
+  assert.equal(result.selected_attempt.selection_reason, 'passed');
+  assert.equal(fs.existsSync(path.join(runSetDir, 'attempt_1', 'run_summary.json')), true);
+  assert.equal(fs.existsSync(path.join(runSetDir, 'attempt_2', 'run_summary.json')), true);
+  assert.equal(fs.existsSync(path.join(runSetDir, 'delivery_package', 'run_summary.json')), true);
+  assert.equal(fs.existsSync(path.join(runSetDir, 'delivery_package', 'selected_attempt.json')), true);
+});
+
+test('attempt selection prefers draft-bearing failed attempt over later draftless failure', () => {
+  const attemptOneDir = fs.mkdtempSync(path.join(os.tmpdir(), 'midform-draft-bearing-'));
+  fs.mkdirSync(path.join(attemptOneDir, 'draft_ko'), { recursive: true });
+  fs.mkdirSync(path.join(attemptOneDir, 'draft_ja'), { recursive: true });
+  const selected = selectBestAttempt([
+    {
+      attempt: 1,
+      summary: {
+        status: 'failed',
+        workspace_dir: attemptOneDir,
+        failure_reason: { code: 'MIDFORM_DETERMINISTIC_INTEGRITY_FAILED' },
+        output_paths: { draft_folder_ko: path.join(attemptOneDir, 'draft_ko'), draft_folder_ja: path.join(attemptOneDir, 'draft_ja') }
+      }
+    },
+    {
+      attempt: 2,
+      summary: {
+        status: 'failed',
+        failure_reason: { code: 'MIDFORM_BOOTSTRAP_PREFLIGHT_FAILED' },
+        output_paths: {}
+      }
+    }
+  ]);
+
+  assert.equal(selected.attempt, 1);
+  assert.equal(selected.selectionReason, 'physical_drafts_available');
+});
+
+test('attempt runner preserves two draftless failed attempts and reports final failure', async () => {
+  const templatePath = writeTempTemplate([
+    '---',
+    'source:',
+    '  url: https://youtu.be/from-template',
+    'output:',
+    '  target_length_sec: 150',
+    '---',
+    ''
+  ].join('\n'));
+  const runSetDir = fs.mkdtempSync(path.join(os.tmpdir(), 'midform-attempt-failed-'));
+  fs.rmSync(runSetDir, { recursive: true, force: true });
+  const result = await runMidformTemplateAttempts({
+    templatePath,
+    source: 'https://youtu.be/failonly111',
+    runSetDirOverride: runSetDir,
+    runner: async ({ attempt, workspaceDirOverride }) => {
+      fs.mkdirSync(workspaceDirOverride, { recursive: true });
+      return {
+        status: 'failed',
+        workspace_dir: workspaceDirOverride,
+        failure_reason: attempt === 1
+          ? { code: 'MIDFORM_BOOTSTRAP_PREFLIGHT_FAILED', message: 'preflight failed' }
+          : { code: 'MIDFORM_TEMPLATE_VALIDATION_FAILED', message: 'template validation failed' },
+        output_paths: {}
+      };
+    }
+  });
+
+  assert.equal(result.status, 'failed');
+  assert.equal(result.attempts.length, 2);
+  assert.equal(fs.existsSync(path.join(runSetDir, 'attempt_1', 'run_summary.json')), true);
+  assert.equal(fs.existsSync(path.join(runSetDir, 'attempt_2', 'run_summary.json')), true);
+});
+
+test('attempt runner refuses to overwrite an existing attempt run folder', async () => {
+  const templatePath = writeTempTemplate([
+    '---',
+    'source:',
+    '  url: https://youtu.be/from-template',
+    'output:',
+    '  target_length_sec: 150',
+    '---',
+    ''
+  ].join('\n'));
+  const runSetDir = fs.mkdtempSync(path.join(os.tmpdir(), 'midform-attempt-existing-'));
+
+  await assert.rejects(
+    () => runMidformTemplateAttempts({
+      templatePath,
+      source: 'https://youtu.be/existing111',
+      runSetDirOverride: runSetDir,
+      runner: async () => ({ status: 'passed', output_paths: {} })
+    }),
+    /Attempt run folder already exists/
+  );
+});
+
+test('attempt batch manifest continues after one URL failure and does not invent sources', async () => {
+  const calls = [];
+  const manifest = normalizeBatchManifest({
+    urls: ['https://youtu.be/fail1111111', 'https://youtu.be/pass2222222'],
+    max_attempts_per_url: 2,
+    continue_on_failure: true,
+    template_path: 'template.md'
+  });
+  const result = await runMidformTemplateAttemptBatch({
+    manifest,
+    runner: async ({ source }) => {
+      calls.push(source);
+      if (/fail/.test(source)) throw Object.assign(new Error('item failed'), { code: 'ITEM_FAILED' });
+      return { status: 'passed', source_url: source };
+    }
+  });
+
+  assert.deepEqual(calls, ['https://youtu.be/fail1111111', 'https://youtu.be/pass2222222']);
+  assert.equal(result.status, 'completed');
+  assert.equal(result.results[0].status, 'failed');
+  assert.equal(result.results[1].status, 'passed');
+});
+
+test('retry policy only retries transient pre-draft failures', () => {
+  assert.equal(isRetryableBeforeDraftFailure({ status: 'failed', failure_reason: { code: 'MIDFORM_BOOTSTRAP_PREFLIGHT_FAILED' }, output_paths: {} }), true);
+  assert.equal(isRetryableBeforeDraftFailure({ status: 'failed', failure_reason: { message: 'edit plan is missing bridge role' }, output_paths: {} }), true);
+  assert.equal(isRetryableBeforeDraftFailure({ status: 'failed', failure_reason: { code: 'MIDFORM_TEMPLATE_VALIDATION_FAILED', message: 'template validation failed' }, output_paths: {} }), true);
+  assert.equal(isRetryableBeforeDraftFailure({ status: 'failed', failure_reason: { code: 'VERTEX_DNS_FAILED' }, output_paths: {} }), true);
+  assert.equal(isRetryableBeforeDraftFailure({ status: 'failed', failure_reason: { code: 'SUBTITLE_NOT_FOUND' }, output_paths: {} }), false);
+  assert.equal(isRetryableBeforeDraftFailure({ status: 'failed', failure_reason: { code: 'YTDLP_DOWNLOAD_FAILED' }, output_paths: {} }), false);
+  assert.equal(isRetryableBeforeDraftFailure({ status: 'failed', failure_reason: { code: 'SOURCE_VIDEO_NOT_FOUND' }, output_paths: {} }), false);
+  assert.equal(isRetryableBeforeDraftFailure({ status: 'failed', failure_reason: { code: 'DIALOGUE_SOURCE_REFERENCE_MISMATCH' }, output_paths: {} }), false);
+  assert.equal(isRetryableBeforeDraftFailure({ status: 'failed', failure_reason: { code: 'MIDFORM_ACCEPTANCE_FAILED' }, output_paths: { draft_folder_ko: 'draft_ko' } }), false);
 });
 
 test('normalizeResumeStage validates supported stages', () => {

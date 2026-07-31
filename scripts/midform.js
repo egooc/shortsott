@@ -14,7 +14,7 @@ const {
   refreshCompressionPlan
 } = require('../server/services/midformCompressionService');
 const { runBootstrapToPipeline } = require('../server/services/midformBootstrapAdapterService');
-const { runMidformTemplateWorkflow } = require('../server/services/midformRunTemplateService');
+const { runMidformTemplateAttemptBatch, runMidformTemplateWorkflow } = require('../server/services/midformRunTemplateService');
 const { runMidformFullAutoWorkflow } = require('../server/services/midformFullAutoService');
 
 const DEFAULT_CHANNEL_SHEET_PATH = path.join(PROJECT_ROOT, 'midform', 'materials', 'channels_sheet.csv');
@@ -53,6 +53,7 @@ function parseArgs(argv) {
     if (flag === '--profile') options.profile = nextValue;
     if (flag === '--analysis-mode') options.analysisMode = nextValue;
     if (flag === '--template') options.template = nextValue;
+    if (flag === '--manifest') options.manifest = nextValue;
     if (flag === '--resume') options.resume = nextValue;
     if (flag === '--csv') options.csv = nextValue;
     if (flag === '--context-file') options.contextFile = nextValue;
@@ -89,6 +90,7 @@ function printUsage() {
       '  node scripts/midform.js run --template midform/skills/midform-run/templates/base.md',
       '  node scripts/midform.js run --template midform/skills/midform-run/templates/base.md --profile production',
       '  node scripts/midform.js run --template midform/skills/midform-run/templates/base.md --analysis-mode auto',
+      '  node scripts/midform.js batch --manifest midform/batch_manifest.json --template midform/skills/midform-run/templates/production_default_ko.md',
       '',
     'Default sheet path:',
     `  ${path.relative(PROJECT_ROOT, DEFAULT_CHANNEL_SHEET_PATH).replace(/\\/g, '/')}`
@@ -152,6 +154,18 @@ async function main() {
       analysisMode: options.analysisMode,
       source: options.source,
       resume: options.resume,
+      target: options.target
+    });
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    return;
+  }
+  if (command === 'batch') {
+    if (!options.manifest) throw new Error('batch requires --manifest <path/to/batch_manifest.json>');
+    const result = await runMidformTemplateAttemptBatch({
+      manifestPath: options.manifest,
+      templatePath: options.template || subcommand,
+      profile: options.profile,
+      analysisMode: options.analysisMode,
       target: options.target
     });
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
