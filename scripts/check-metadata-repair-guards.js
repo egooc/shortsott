@@ -3,6 +3,7 @@ const {
     applyMetadataFieldRepair,
     buildFallbackReport,
     repairPublicTitles,
+    normalizeLocalizedHashtags,
     koreanSubjectParticle,
     deterministicDescription,
     applyLocalMetadataFallbacks,
@@ -454,8 +455,8 @@ function testPublicMetadataLanguageEnforcementRebuildsContaminatedFields() {
     ...publicTextValues(enforced.highlight_metadata_ko)
   ].join('\n').replace(/[#＃][A-Za-z0-9_-]+/g, '');
   assert(!/[A-Za-z]{2,}/u.test(values), `expected public metadata to be Latin-free, got: ${values}`);
-  assert(enforced.highlight_metadata_ko.recommended_titles.length >= 5, 'expected Korean highlight review titles to be rebuilt');
-  assert(enforced.highlight_metadata.recommended_titles.length >= 5, 'expected Japanese highlight titles to be rebuilt');
+  assert(enforced.highlight_metadata_ko.recommended_titles.length === 1, 'Korean highlight keeps exactly one upload title');
+  assert(enforced.highlight_metadata.recommended_titles.length === 1, 'Japanese highlight keeps exactly one upload title');
 }
 
 function testPublicJapaneseHighlightTitlesRemoveHangul() {
@@ -564,49 +565,58 @@ function stripHashtagsForTest(value) {
   return String(value || '').replace(/[#＃][\p{L}\p{N}_-]+/gu, '');
 }
 
-function testOneBadTitleDoesNotDiscardTheOtherFour() {
-  // 2026-08-01 item_005: Gemini returned five Japanese hook titles, one contaminated
-  // subject was enough to replace all five with "<subject>ができるまで" templates, and
-  // Phase 3 uploads recommended_titles[0].
-  const hookTitles = [
-    'エアコン漏れ、職人技で復活！泡立つ水槽で漏れを発見',
-    'プロが教える！エアコン銅管の漏れ修理テクニック全公開',
-    '驚きの精密さ！エアコンコイルの漏れを完璧に直す溶接技術',
-    'これで安心！エアコンの冷媒漏れを自分でチェック'
-  ];
-  const metadata = {
+function testUploadTitleIsGeminisHookTitleNotATemplate() {
+  // 2026-08-01 item_005: Gemini returned Japanese hook titles, one contaminated
+  // entry replaced them all with "<subject>ができるまで", and Phase 3 uploads
+  // recommended_titles[0]. Only the first title is ever used, so it must be the
+  // model's own hook line whenever one is usable.
+  const hook = 'エアコン漏れ、職人技で復活！泡立つ水槽で漏れを発見';
+  const repaired = repairPublicTitles({
     recommended_titles: [
-      { category: 'hook', title: 'Air conditioner repair overview #worker #process', hashtags: ['#worker'] },
-      ...hookTitles.map((title) => ({ category: 'hook', title: `${title} #worker #process`, hashtags: ['#worker'] }))
+      { category: 'hook', title: 'Air conditioner repair overview', hashtags: ['#DIY'] },
+      { category: 'hook', title: hook, hashtags: ['#エアコン修理', '#冷媒漏れ'] }
     ],
-    hashtags: ['#worker']
-  };
+    hashtags: ['#エアコン修理']
+  }, 'エアコンの銅管を精密に切断・除去', false);
 
-  const repaired = repairPublicTitles(metadata, 'エアコンの銅管を精密に切断・除去', false);
-  assert(repaired.length === 5, `expected five titles, got ${repaired.length}`);
-
-  hookTitles.forEach((title) => {
-    assert(
-      repaired.some((item) => item.title.includes(title)),
-      `usable hook title must survive the language repair: ${title}`
-    );
-  });
+  assert(repaired.length === 1, `only one title is uploaded, got ${repaired.length}`);
   assert(
-    !repaired.some((item) => /Air conditioner repair/u.test(item.title)),
-    'the contaminated title must be the one that gets replaced'
+    repaired[0].title.includes(hook),
+    `recommended_titles[0] must be the model hook title, got: ${repaired[0].title}`
   );
   assert(
-    repaired[0].title.includes(hookTitles[0]),
-    `recommended_titles[0] is what Phase 3 uploads, so it must be a real hook title, got: ${repaired[0].title}`
+    !/Air conditioner repair/u.test(repaired[0].title),
+    'the contaminated title must not become the upload title'
+  );
+  assert(
+    !/ができるまで|が形になる瞬間/u.test(repaired[0].title),
+    'a usable model title must never be replaced by a deterministic template'
   );
 
-  // All five unusable is still a full template rebuild.
+  // Everything unusable is still the one case where a template is acceptable.
   const allBad = repairPublicTitles({
-    recommended_titles: Array.from({ length: 5 }, () => ({ category: 'hook', title: 'Air conditioner repair', hashtags: [] })),
+    recommended_titles: [{ category: 'hook', title: 'Air conditioner repair', hashtags: [] }],
     hashtags: []
   }, 'エアコンの銅管を精密に切断・除去', false);
-  assert(allBad.length === 5, 'a fully contaminated list must still be topped up to five');
-  assert(!allBad.some((item) => /Air conditioner/u.test(item.title)), 'no contaminated title may survive');
+  assert(allBad.length === 1, 'a fully contaminated list must still yield one usable title');
+  assert(!/Air conditioner/u.test(allBad[0].title), 'no contaminated title may survive');
+}
+
+function testHashtagsStayInTheTitleLanguage() {
+  const ja = normalizeLocalizedHashtags(['#エアコン修理', '#冷媒漏れ', '#職人技'], false);
+  assert(ja.length === 3, `Japanese hashtags must survive, got ${JSON.stringify(ja)}`);
+  assert(ja.includes('#エアコン修理'), 'model hashtags must be kept verbatim');
+  assert(!ja.includes('#worker') && !ja.includes('#process'), 'generic English tags must not be force-injected');
+
+  const ko = normalizeLocalizedHashtags(['#에어컨수리', '#냉매누출'], true);
+  assert(ko.includes('#에어컨수리'), 'Korean hashtags must survive');
+  assert(!ko.includes('#worker'), 'generic English tags must not be force-injected');
+
+  // Only an empty list falls back, and the fallback is in the target language.
+  const emptyJa = normalizeLocalizedHashtags([], false);
+  const emptyKo = normalizeLocalizedHashtags([], true);
+  assert(emptyJa.length > 0 && !/[A-Za-z]/u.test(emptyJa.join('')), `JA fallback must be Japanese, got ${JSON.stringify(emptyJa)}`);
+  assert(emptyKo.length > 0 && !/[A-Za-z]/u.test(emptyKo.join('')), `KO fallback must be Korean, got ${JSON.stringify(emptyKo)}`);
 }
 
 function main() {
@@ -624,7 +634,8 @@ function main() {
   testPublicJapaneseHighlightTitlesRemoveHangul();
   testReportDescriptionNeverJamsASentenceIntoASubjectSlot();
   testKoreanHighlightRebuildsFromHighlightSeedsNotFullDraftSeeds();
-  testOneBadTitleDoesNotDiscardTheOtherFour();
+  testUploadTitleIsGeminisHookTitleNotATemplate();
+  testHashtagsStayInTheTitleLanguage();
   console.log('metadata repair guards ok');
 }
 

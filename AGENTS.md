@@ -131,6 +131,20 @@ Metadata rules:
 - Upload TXT can include review-only sections for local inspection, but YouTube upload descriptions must not include review-only text.
 - If Gemini output is missing required fields for the item's locale, retry or fail. Do not silently fill with English fallback captions.
 
+Title and hashtag rules:
+- Exactly **one** title per variant (`MAX_RECOMMENDED_TITLES`). Phase 3 uploads
+  `recommended_titles[0]` and nothing reads the rest, so do not generate or pad a list of five.
+- The uploaded title is Gemini's own hook title, verbatim. Deterministic patterns
+  (`<subject>ができるまで`, `<subject>이 만들어지는 과정`) are a last resort for when the model
+  title is unusable - never a replacement for a usable one. Language repair replaces only the
+  titles that fail the check, never the whole list.
+- Hashtags are written in the **title's own language** - Japanese hashtags on JP titles, Korean on
+  KR titles - and should be specific to what the video shows. Do not force `#worker`/`#process`
+  or other generic English tags into the list; the English-only hashtag contract from
+  commit 003a985 is retired because reach on JP/KR channels depends on native-language tags.
+- Hashtags are stripped before every language-contamination check, so native hashtags never count
+  as contamination.
+
 Naming rules:
 - Draft folder names must not include hashtags.
 - Draft folder naming pattern: `YYYYMMDD-F_or_H_or_M-HHMMSS-title`.

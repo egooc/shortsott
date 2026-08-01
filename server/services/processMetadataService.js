@@ -1830,7 +1830,7 @@ function buildLongformFinalPrompt({ sourceUrl, filename, durationSec, candidateG
     '- Full metadata is process-story oriented.',
     '- Highlight metadata is visual-hook oriented.',
     '- Midform metadata is fuller process-flow oriented and suitable for an about 2-minute Japanese upload.',
-    '- Each recommended title has exactly five English hashtags: #worker, #process, plus three relevant English hashtags. Do not use Japanese or Korean hashtags.',
+    '- Each recommended title carries exactly five hashtags written in the same language as the title (Japanese hashtags for Japanese titles, Korean hashtags for Korean titles). Make them specific to what the video actually shows, not generic process words.',
     '- No emoji or decorative symbols.',
     '',
     'Return the existing Ottogi metadata schema shape with these required fields:',
@@ -1926,7 +1926,7 @@ function buildMetadataPrompt({ sourceUrl, filename, durationSec, sceneGuide, sou
         '- Write highlight_metadata_ko as the Korean Highlight counterpart. It becomes public upload metadata only when the source target_locale is ko-KR; for JP Highlight outputs it remains local review text.',
       '- Highlight metadata must use variant_type="highlight", caption_mode="long_bottom_explainer", and onscreen_caption_block as one long lower-third explainer paragraph.',
       '- Highlight versions must never use an onscreen_subtitles array.',
-      '- Each metadata object must include short_description, summary_caption, variant_type, caption_mode, exactly five recommended_titles, report_description, upload_title, and hashtags.',
+      '- Each metadata object must include short_description, summary_caption, variant_type, caption_mode, exactly one recommended_title (the single strongest hook title - it is the uploaded title), report_description, upload_title, and hashtags.',
       '- Korean metadata and caption fields must not contain Japanese Hiragana or Katakana.',
       '- Do not invent facts not visible in the video/scene analysis.',
       '',
@@ -1957,7 +1957,7 @@ function buildMetadataPrompt({ sourceUrl, filename, durationSec, sceneGuide, sou
     '- highlight_metadata_ko as the Korean natural-action Highlight counterpart. It becomes public upload metadata only when the source target_locale is ko-KR; for JP Highlight outputs it remains local review text.',
     '- midform_metadata for the Japanese 120-second midform draft when the source is long enough.',
     '- midform_metadata_ko as Korean review text for the Japanese midform draft. This is not upload metadata.',
-    '- Each metadata object must include short_description, summary_caption, variant_type, caption_mode, exactly five recommended_titles, report_description, upload_title, and hashtags.',
+    '- Each metadata object must include short_description, summary_caption, variant_type, caption_mode, exactly one recommended_title (the single strongest hook title - it is the uploaded title), report_description, upload_title, and hashtags.',
     `- Full metadata objects must use variant_type="full", caption_mode="${OUTPUT_CONFIG.full_draft.captionMode}", and onscreen_subtitles as an array copied from the manuscript-based ${OUTPUT_CONFIG.full_draft.scriptKey}, not from raw scene labels.`,
     `- Highlight metadata objects must use variant_type="highlight", caption_mode="${OUTPUT_CONFIG.highlight.captionMode}", and onscreen_caption_block as one long lower-third explainer paragraph.`,
     '- Highlight versions must never use an onscreen_subtitles array. Full versions must never use onscreen_caption_block.',
@@ -2059,8 +2059,8 @@ function buildMetadataPrompt({ sourceUrl, filename, durationSec, sceneGuide, sou
     '- Bad Korean review subtitles: ["숙련된 작업자들이 무쇠 웍을 만드는 과정입니다. 붉게 달궈진 쇳물을 틀에 부어 굳히고 섬세한 가공을 거칩니다."].',
     '- Good Korean review subtitles: ["뜨거운 쇳물을 붓고", "틀 안으로 빠르게 퍼져요", "웍의 형태가 잡히고", "단단하게 굳어요"].',
     '- Good Korean highlight review block: "붉게 달궈진 쇳물이 웍 모양의 틀 안으로 한 번에 쏟아지는 순간입니다. 뜨거운 금속이 틀 전체로 빠르게 퍼지면서, 순식간에 무쇠 웍의 형태가 잡히는 장면이 핵심입니다.".',
-    '- Every recommended title must include exactly five English hashtags. Include #worker and #process plus three relevant English hashtags such as #manufacturing, #craftsmanship, #factory, #metalwork, #tools, #machinework, #satisfying, or #processvideo.',
-    '- Do not use Japanese or Korean hashtags anywhere. Japanese/Korean prose is allowed in titles/descriptions, but hashtags must be ASCII English only.',
+    '- Each recommended title carries exactly five hashtags written in the same language as the title (Japanese hashtags for Japanese titles, Korean hashtags for Korean titles). Make them specific to what the video actually shows, not generic process words.',
+    '- Hashtags must match the title language. Do not fall back to generic English tags such as #worker or #process.',
     '- Do not use emoji, emoticons, decorative symbols, or reaction icons in any upload metadata or explainer text.',
     `- ${OUTPUT_CONFIG.full_draft.label} titles and ${OUTPUT_CONFIG.highlight.label} titles must be meaningfully different. Do not reuse the same title list.`,
     '- Every report_description is the actual YouTube upload description metadata. Do not shorten it into one paragraph.',
@@ -2131,7 +2131,7 @@ function buildReviewPrompt({ sourceUrl, filename, durationSec, draftGuide, sourc
     '',
     'Required validation and repair tasks:',
     '- Ensure every required top-level field exists.',
-    '- Ensure recommended_titles_ko contains exactly 5 usable Korean Full upload titles.',
+    '- Ensure recommended_titles_ko contains exactly 1 usable Korean Full upload title.',
     '- Ensure full_metadata_ko uses caption_mode="scene_based_short_subtitles" and contains Korean onscreen_subtitles arrays copied from full_caption_script_ko.',
     '- Ensure midform_metadata uses caption_mode="scene_based_short_subtitles" for the Japanese midform draft when present.',
     '- Ensure midform_metadata_ko is review-only Korean text matching the Japanese midform intent when present.',
@@ -2165,8 +2165,8 @@ function buildReviewPrompt({ sourceUrl, filename, durationSec, draftGuide, sourc
     '- Ensure highlight_metadata and highlight_metadata_ko are visual-hook oriented.',
     '- Ensure Japanese Highlight upload outputs follow observation-rhythm/midokoro. Korean Full fields are production upload fields.',
     '- Ensure variant_strategy is present and states that Korean Full and Japanese Highlight are the active output variants.',
-    '- Ensure every title in every language has exactly five English hashtags: #worker, #process, plus three relevant English hashtags.',
-    '- Do not use Japanese or Korean hashtags anywhere. Hashtags must be ASCII English only.',
+    '- Each recommended title carries exactly five hashtags written in the same language as the title (Japanese hashtags for Japanese titles, Korean hashtags for Korean titles). Make them specific to what the video actually shows, not generic process words.',
+    '- Hashtags must match the title language. Do not fall back to generic English tags such as #worker or #process.',
     '- Ensure every report_description has the five required numbered sections. Japanese: 作業概要, 使用材料と設備, 工程手順, 作業の重要性, ガイドライン遵守と教育目的. Korean: 작업 개요, 사용 재료 및 장비, 시공 절차, 작업의 중요성, 가이드라인 준수 및 교육적 목적.',
     '- Ensure scene_transitions is not empty.',
     '- Ensure every scene has safe start_sec/end_sec values within source duration.',
@@ -2837,42 +2837,47 @@ function extractHashtagsFromText(value = '') {
   return tags;
 }
 
+// Last resort only. A JP/KR channel is surfaced by hashtags written in its own
+// language, so these are only used when the model returned none at all.
+// Phase 3 uploads recommended_titles[0]; nothing consumes the rest.
+const MAX_RECOMMENDED_TITLES = 1;
+
 function defaultLocalizedHashtags(korean = false) {
-  void korean;
-  return ['#worker', '#process', '#manufacturing', '#craftsmanship', '#factory'];
+  return korean
+    ? ['#제조공정', '#공정영상', '#작업영상', '#장인', '#공장']
+    : ['#製造工程', '#工程動画', '#ものづくり', '#職人', '#工場'];
 }
 
 function normalizeLocalizedHashtags(value = [], korean = false) {
-  void korean;
   const raw = Array.isArray(value) ? value : String(value || '').split(/[\s,]+/);
   const seen = new Set();
   const tags = [];
   const push = (tag) => {
-    const cleaned = normalizeText(tag).replace(/^#/, '').replace(/[^A-Za-z0-9_-]+/g, '');
+    // Keep the locale's own script. Stripping to [A-Za-z0-9_-] used to erase
+    // every Japanese/Korean hashtag the model produced.
+    const cleaned = normalizeText(tag)
+      .replace(/^[#＃]/u, '')
+      .replace(/[^\p{L}\p{N}_-]+/gu, '');
     if (!cleaned) return;
     const valueWithHash = `#${cleaned}`;
-    if (!/^#[A-Za-z0-9_-]+$/u.test(valueWithHash)) return;
     const key = valueWithHash.toLowerCase();
     if (seen.has(key)) return;
     seen.add(key);
     tags.push(valueWithHash);
   };
 
-  push('#worker');
-  push('#process');
   raw.forEach(push);
-
-  defaultLocalizedHashtags().forEach(push);
+  if (!tags.length) defaultLocalizedHashtags(korean).forEach(push);
 
   return tags.slice(0, 5);
 }
 
-function titleWithEnglishHashtags(title = '', hashtags = []) {
+function titleWithHashtags(title = '', hashtags = [], korean = false) {
   const cleanTitle = normalizeText(title)
     .replace(/[#＃][\p{L}\p{N}_-]+/gu, '')
     .replace(/\s{2,}/g, ' ')
     .trim();
-  const normalizedHashtags = normalizeLocalizedHashtags(hashtags);
+  const normalizedHashtags = normalizeLocalizedHashtags(hashtags, korean);
   return normalizeText(`${cleanTitle} ${normalizedHashtags.join(' ')}`).trim();
 }
 
@@ -2888,7 +2893,7 @@ function normalizeTitleList(value, subject, korean = false) {
         const hashtags = normalizeLocalizedHashtags(tagsFromTitle, korean);
         return {
           category: categories[index] || categories[0],
-          title: titleWithEnglishHashtags(item, hashtags),
+          title: titleWithHashtags(item, hashtags, korean),
           hashtags
         };
       }
@@ -2899,23 +2904,25 @@ function normalizeTitleList(value, subject, korean = false) {
       ], korean);
       return {
         category: normalizeText(item.category || categories[index] || categories[0]),
-        title: titleWithEnglishHashtags(item.title || item.text || item.name || '', hashtags),
+        title: titleWithHashtags(item.title || item.text || item.name || '', hashtags, korean),
         hashtags
       };
     })
     .filter((item) => item?.title);
 
-  while (normalized.length < 5) {
+  // Only recommended_titles[0] is ever uploaded, so padding a list out to five
+  // just manufactured four unused deterministic templates per variant.
+  while (normalized.length < MAX_RECOMMENDED_TITLES) {
     const index = normalized.length;
     const title = korean ? defaultKoreanTitle(index, subject) : defaultJapaneseTitle(index, subject);
     normalized.push({
       category: categories[index] || categories[0],
-      title: titleWithEnglishHashtags(title, extractHashtagsFromText(title)),
+      title: titleWithHashtags(title, extractHashtagsFromText(title), korean),
       hashtags: normalizeLocalizedHashtags(extractHashtagsFromText(title), korean)
     });
   }
 
-  return normalized.slice(0, 5);
+  return normalized.slice(0, MAX_RECOMMENDED_TITLES);
 }
 
 function normalizeHashtagList(value) {
@@ -4121,9 +4128,9 @@ function rebuildMetadataTitles(metadata = {}, seed = '', korean = false) {
       ? metadata.recommended_titles.flatMap((item) => Array.isArray(item?.hashtags) ? item.hashtags : [])
       : [])
   ], korean);
-  return deterministicTitlePatterns(titleSeed, korean).map((title, index) => ({
+  return deterministicTitlePatterns(titleSeed, korean).slice(0, MAX_RECOMMENDED_TITLES).map((title, index) => ({
     category: categories[index] || categories[0],
-    title: titleWithEnglishHashtags(title, hashtags),
+    title: titleWithHashtags(title, hashtags, korean),
     hashtags
   }));
 }
@@ -4138,7 +4145,7 @@ function publicMetadataTextHasWrongLanguage(value = '', korean = false) {
 
 function publicTitleNeedsRebuild(metadata = {}, korean = false) {
   const titles = Array.isArray(metadata.recommended_titles) ? metadata.recommended_titles : [];
-  return titles.length < 5 || titles.some((item) => publicMetadataTextHasWrongLanguage(item?.title || '', korean));
+  return titles.length < MAX_RECOMMENDED_TITLES || titles.some((item) => publicMetadataTextHasWrongLanguage(item?.title || '', korean));
 }
 
 // Repair only the titles that are actually unusable. Replacing all five whenever one
@@ -4148,18 +4155,18 @@ function publicTitleNeedsRebuild(metadata = {}, korean = false) {
 function repairPublicTitles(metadata = {}, seed = '', korean = false) {
   const titles = Array.isArray(metadata.recommended_titles) ? metadata.recommended_titles : [];
   const usable = titles.filter((item) => !publicMetadataTextHasWrongLanguage(item?.title || '', korean));
-  if (usable.length >= 5) return usable.slice(0, 5);
+  if (usable.length >= MAX_RECOMMENDED_TITLES) return usable.slice(0, MAX_RECOMMENDED_TITLES);
 
   const repaired = [...usable];
   const seen = new Set(usable.map((item) => stripMetadataHashtags(item?.title || '')));
   for (const candidate of rebuildMetadataTitles(metadata, seed, korean)) {
-    if (repaired.length >= 5) break;
+    if (repaired.length >= MAX_RECOMMENDED_TITLES) break;
     const key = stripMetadataHashtags(candidate.title || '');
     if (seen.has(key)) continue;
     seen.add(key);
     repaired.push(candidate);
   }
-  return repaired.slice(0, 5);
+  return repaired.slice(0, MAX_RECOMMENDED_TITLES);
 }
 
 function enforceMetadataSectionLanguage(metadata = {}, seedCandidates = [], korean = false) {
@@ -4170,7 +4177,7 @@ function enforceMetadataSectionLanguage(metadata = {}, seedCandidates = [], kore
     const value = normalizeText(next[field] || '');
     if (publicMetadataTextHasWrongLanguage(value, korean)) {
       next[field] = field === 'upload_title'
-        ? titleWithEnglishHashtags(deterministicTitlePatterns(compactMetadataTitleSeed(seed, korean), korean)[0], next.hashtags || [])
+        ? titleWithHashtags(deterministicTitlePatterns(compactMetadataTitleSeed(seed, korean), korean)[0], next.hashtags || [])
         : deterministicDescription(seed, korean);
     }
   });
@@ -4351,8 +4358,8 @@ function buildLongformVariantFinalPrompt({ variant, sourceUrl, filename, duratio
     '- Korean is review-only. Korean must never be upload metadata.',
     '- English fallback is forbidden.',
     '- No emoji or decorative symbols.',
-    '- Titles must include exactly five English hashtags: #worker, #process, plus three relevant English hashtags.',
-    '- Korean review titles must also use English hashtags only.',
+    '- Each recommended title carries exactly five hashtags written in the same language as the title (Japanese hashtags for Japanese titles, Korean hashtags for Korean titles). Make them specific to what the video actually shows, not generic process words.',
+    '- Korean review titles must use Korean hashtags, matching the title language.',
     '- Ground the subject in Source information below, especially Original YouTube Title and Description. If previous generated metadata conflicts with the source topic, ignore the previous metadata and follow the source topic.',
     '- Do not invent unrelated topics such as food processing, toy manufacturing, or generic precision work unless the source information and visible window support them.',
     '',
@@ -4459,7 +4466,7 @@ function buildLongformMidformMetadataPrompt({ sourceUrl, filename, durationSec, 
     '- English fallback is forbidden.',
     '- No emoji or decorative symbols.',
     '- Do not write Midform captions in this response. Captions are requested in separate smaller calls.',
-    '- Titles must include exactly five English hashtags: #worker, #process, plus three relevant English hashtags.',
+    '- Each recommended title carries exactly five hashtags written in the same language as the title (Japanese hashtags for Japanese titles, Korean hashtags for Korean titles). Make them specific to what the video actually shows, not generic process words.',
     '- midform_metadata.caption_mode must be scene_based_short_subtitles.',
     '- midform_metadata.onscreen_subtitles may be empty here because captions are generated separately.',
     '- midform_metadata_ko is Korean review-only metadata for checking.',
@@ -8070,7 +8077,7 @@ function applyLocalMetadataFallbacks(guide = {}, issues = []) {
     const titles = Array.isArray(metadata.recommended_titles) ? [...metadata.recommended_titles] : [];
     const korean = /_ko$/u.test(section);
     const fallbackTitle = korean
-      ? titleWithEnglishHashtags(
+      ? titleWithHashtags(
           normalizeText(guide.detected_subject || '제조 공정') || '제조 공정',
           metadata.hashtags || ['#worker', '#process', '#metalwork', '#tools', '#craftsmanship']
         )
@@ -10577,6 +10584,7 @@ module.exports = {
   __test: {
     buildFallbackReport,
     repairPublicTitles,
+    normalizeLocalizedHashtags,
     metadataSubjectPhrase,
     koreanSubjectParticle,
     deterministicDescription,
