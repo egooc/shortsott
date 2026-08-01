@@ -155,15 +155,21 @@ function buildBootstrapTranscript(editPlan, transcriptTimed) {
   const utterances = [];
   const warnings = [];
   const timeline = Array.isArray(editPlan?.timeline) ? editPlan.timeline : [];
+  const sourceDurationSec = Number(editPlan?.source_duration_sec || editPlan?.duration_sec || editPlan?.duration_budget?.source_duration_sec || 0);
 
   // 1) One utterance per KEEP_DIALOGUE line, referenced by its dialogue segment via utt_id.
   //    Stored dialogue_line_windows coordinates used verbatim so the utterance matches the
   //    segment's source_scenes exactly (validate_dialogue_utterance_references needs <=0.05s).
   const dialogueWindows = [];
+  const dialogueVisualRanges = [];
   for (const item of timeline) {
     if (item.decision !== 'KEEP_DIALOGUE') continue;
     const slotId = String(item.slot_id || '').trim();
     const windows = Array.isArray(item.dialogue_line_windows) ? item.dialogue_line_windows : [];
+    const orderedDialogueWindows = windows
+      .map((win, index) => ({ win, index }))
+      .filter((entry) => entry.win && entry.win.matched === true)
+      .sort((a, b) => Number(a.win.start_sec) - Number(b.win.start_sec));
     windows.forEach((win, index) => {
       if (!win || win.matched !== true) {
         warnings.push(`${slotId} line ${index + 1} has no matched window, skipped: "${win ? win.line : ''}"`);
@@ -177,6 +183,11 @@ function buildBootstrapTranscript(editPlan, transcriptTimed) {
         words: []
       });
       dialogueWindows.push([Number(win.start_sec), Number(win.end_sec)]);
+      const orderedIndex = orderedDialogueWindows.findIndex((entry) => entry.win === win && entry.index === index);
+      if (orderedIndex >= 0) {
+        const timing = buildDialogueTimingAdjustment(item, win, orderedDialogueWindows, orderedIndex, sourceDurationSec);
+        dialogueVisualRanges.push(timing.visual_range_sec);
+      }
     });
   }
 
@@ -184,7 +195,7 @@ function buildBootstrapTranscript(editPlan, transcriptTimed) {
   //    (choose_story_anchor_source_clips) to avoid talking mouths. EXCLUDE cues overlapping a
   //    per-line dialogue window: the SAME transcript feeds the FATAL reserved-range gate, and a
   //    stray cue overlapping a dialogue clip would trip dialogue_not_aligned_to_dialogue_map.
-  const overlapsDialogueWindow = (s, e) => dialogueWindows.some(([ws, we]) => e > ws + 0.001 && s < we - 0.001);
+  const overlapsDialogueWindow = (s, e) => dialogueVisualRanges.some(([ws, we]) => e > ws + 0.001 && s < we - 0.001);
   const cues = Array.isArray(transcriptTimed) ? transcriptTimed : [];
   const keptByText = new Map();
   let cueSeq = 0;
@@ -212,7 +223,7 @@ function buildBootstrapTranscript(editPlan, transcriptTimed) {
     keptByText.set(text, utt);
   }
   if (excludedForDialogueOverlap > 0) {
-    warnings.push(`${excludedForDialogueOverlap} VTT cue(s) excluded from transcript for overlapping a dialogue-line window (avoids the reserved-range gate)`);
+    warnings.push(`${excludedForDialogueOverlap} VTT cue(s) excluded from transcript for overlapping a dialogue visual window (avoids the reserved-range gate)`);
   }
 
   utterances.sort((a, b) => a.start - b.start || a.end - b.end);
@@ -343,6 +354,14 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
   };
   const pickNarrationBroll = (prefStart, prefEnd) => {
     const free = subtractBusyRanges(prefStart, prefEnd, [...reservedDialogueRanges, ...assignedBrollRanges]);
+    if (!free.length) return null;
+    free.sort((a, b) => (b[1] - b[0]) - (a[1] - a[0]));
+    const chosen = free[0];
+    return [chosen[0], Math.min(chosen[1], chosen[0] + 30)]; // cap clip length; capcut trims to TTS
+  };
+  const pickFallbackNarrationBroll = () => {
+    if (!(durationSec > 0)) return null;
+    const free = subtractBusyRanges(0, durationSec, [...reservedDialogueRanges, ...assignedBrollRanges]);
     if (!free.length) return null;
     free.sort((a, b) => (b[1] - b[0]) - (a[1] - a[0]));
     const chosen = free[0];
@@ -508,9 +527,17 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
         sourceScenes = [{ clip_id: `${slotId}_broll_clip`, scene_id: 'narration_broll', start: secondsToTimecode(broll[0]), end: secondsToTimecode(broll[1]), speed_multiplier: 1 }];
         assignedBrollRanges.push(broll);
       } else {
-        warnings.push(`${slotId} (${role}) NARRATE found no free b-roll window in [${winStart},${winEnd}] (dialogue-saturated); using beat window as-is`);
-        sourceRange = [winStart, winEnd];
-        sourceScenes = (winEnd > winStart) ? [{ clip_id: `${slotId}_broll_clip`, scene_id: 'narration_broll', start: secondsToTimecode(winStart), end: secondsToTimecode(winEnd), speed_multiplier: 1 }] : [];
+        const fallbackBroll = pickFallbackNarrationBroll();
+        if (fallbackBroll) {
+          warnings.push(`${slotId} (${role}) NARRATE found no free b-roll window in [${winStart},${winEnd}] (dialogue-saturated); using fallback non-dialogue b-roll [${fallbackBroll[0]},${fallbackBroll[1]}]`);
+          sourceRange = fallbackBroll;
+          sourceScenes = [{ clip_id: `${slotId}_broll_clip`, scene_id: 'narration_broll_fallback', start: secondsToTimecode(fallbackBroll[0]), end: secondsToTimecode(fallbackBroll[1]), speed_multiplier: 1 }];
+          assignedBrollRanges.push(fallbackBroll);
+        } else {
+          warnings.push(`${slotId} (${role}) NARRATE found no free b-roll window in [${winStart},${winEnd}] and no global fallback b-roll; leaving source empty`);
+          sourceRange = [winStart, winStart];
+          sourceScenes = [];
+        }
       }
       sourceRangeHint = [sourceRange[0], sourceRange[0]]; // degenerate -> auto-picker declines
     }

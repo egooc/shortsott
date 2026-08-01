@@ -894,6 +894,28 @@ function findDownloadedSource(runDir) {
   return candidates[0] || '';
 }
 
+function preferredYtDlpJsRuntime() {
+  const nodePath = resolveTool('node', { envKey: 'NODE_PATH', command: 'node.exe' });
+  return nodePath && fs.existsSync(nodePath) ? `node:${nodePath}` : '';
+}
+
+function ytDlpArgsForSource(url, outputTemplate, mode = 'download') {
+  const args = ['--no-playlist'];
+  const jsRuntime = preferredYtDlpJsRuntime();
+  if (jsRuntime) args.push('--js-runtimes', jsRuntime);
+  if (mode === 'metadata') {
+    args.push('--dump-single-json', url);
+    return args;
+  }
+  args.push(
+    '-f', 'bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/best[ext=mp4]/best',
+    '--merge-output-format', 'mp4',
+    '-o', outputTemplate,
+    url
+  );
+  return args;
+}
+
 async function prepareSource(state) {
   const runDir = state.runDir;
   ensureDir(runDir);
@@ -923,10 +945,10 @@ async function prepareSource(state) {
     throw createHttpError(400, 'SOURCE_REQUIRED', 'sourceUrl or sourceVideoPath is required');
   }
   const ytDlp = resolveTool('yt-dlp', { envKey: 'YT_DLP_PATH' });
-  const metadata = await execFileAsync(ytDlp, ['--dump-single-json', '--no-playlist', state.input.sourceUrl], { errorCode: 'YTDLP_METADATA_FAILED' });
+  const metadata = await execFileAsync(ytDlp, ytDlpArgsForSource(state.input.sourceUrl, '', 'metadata'), { errorCode: 'YTDLP_METADATA_FAILED' });
   const parsed = JSON.parse(metadata.stdout.trim());
   writeJson(sourceInfoPath, parsed);
-  await execFileAsync(ytDlp, ['--no-playlist', '-f', 'bv*+ba/b', '--merge-output-format', 'mp4', '-o', path.join(runDir, 'source.%(ext)s'), state.input.sourceUrl], { errorCode: 'YTDLP_DOWNLOAD_FAILED' });
+  await execFileAsync(ytDlp, ytDlpArgsForSource(state.input.sourceUrl, path.join(runDir, 'source.%(ext)s'), 'download'), { errorCode: 'YTDLP_DOWNLOAD_FAILED' });
   const sourceVideoPath = findDownloadedSource(runDir);
   if (!sourceVideoPath) throw createHttpError(500, 'SOURCE_DOWNLOAD_MISSING', 'yt-dlp completed but no source file was found', { runDir });
   state.artifacts.sourceVideoPath = sourceVideoPath;

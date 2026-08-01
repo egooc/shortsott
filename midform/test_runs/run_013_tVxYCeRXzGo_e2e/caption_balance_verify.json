@@ -1,309 +1,56 @@
 {
   "signature_quotes": {
-    "srt": "server/output/drafts/pipeline_1784045533/subtitles/subtitles.srt",
-    "status": "failed",
-    "subtitle_count": 57,
-    "max_chars": 35,
-    "overlong": [
-      {
-        "index": "1",
-        "text": "아들이 원하는 건 거창한 게 아니었습니다.",
-        "chars": 18,
-        "limit": 11
-      },
-      {
-        "index": "41",
-        "text": "그 뒤 트로이는 자신이 준 건 돈이나 밥이 아니라 코리의 삶 그 자체라고 밀어붙입니다.",
-        "chars": 35,
-        "limit": 11
-      }
-    ],
+    "srt": "tests/fixtures/midform/signature_quotes/subtitles.srt",
+    "status": "passed",
+    "subtitle_count": 9,
+    "max_chars": 9,
+    "overlong": [],
     "too_short": [],
     "ratio_violations": [],
     "entries": [
       {
         "index": "1",
-        "text": "아들이 원하는 건 거창한 게 아니었습니다.",
-        "chars": 18
+        "text": "아들이 원하는 건",
+        "chars": 7
       },
       {
         "index": "2",
-        "text": "아버지 트로이에게",
-        "chars": 8
+        "text": "아빠는 왜 날",
+        "chars": 5
       },
       {
         "index": "3",
-        "text": "자신이 사랑받는",
-        "chars": 7
-      },
-      {
-        "index": "4",
-        "text": "아들인지 확인하고",
-        "chars": 8
-      },
-      {
-        "index": "5",
-        "text": "싶었죠.",
-        "chars": 4
-      },
-      {
-        "index": "6",
-        "text": "아빠는 왜 날 한 번도",
-        "chars": 8
-      },
-      {
-        "index": "7",
-        "text": "좋아한 적 없어?",
-        "chars": 7
-      },
-      {
-        "index": "8",
         "text": "트로이는 그 질문을",
         "chars": 8
       },
       {
+        "index": "4",
+        "text": "그건 내 책임이야",
+        "chars": 7
+      },
+      {
+        "index": "5",
+        "text": "아버지는 사랑보다",
+        "chars": 8
+      },
+      {
+        "index": "6",
+        "text": "널 좋아할 의무는 없어",
+        "chars": 9
+      },
+      {
+        "index": "7",
+        "text": "말은 더 차가워지고",
+        "chars": 8
+      },
+      {
+        "index": "8",
+        "text": "누가 널 봐도",
+        "chars": 5
+      },
+      {
         "index": "9",
-        "text": "사랑의 확인이",
-        "chars": 6
-      },
-      {
-        "index": "10",
-        "text": "아니라 자기 권위에",
-        "chars": 8
-      },
-      {
-        "index": "11",
-        "text": "대한 도전으로",
-        "chars": 6
-      },
-      {
-        "index": "12",
-        "text": "받아들였습니다.",
-        "chars": 8
-      },
-      {
-        "index": "13",
-        "text": "그래서 코리를",
-        "chars": 6
-      },
-      {
-        "index": "14",
-        "text": "더 세게 몰아붙이고,",
-        "chars": 9
-      },
-      {
-        "index": "15",
-        "text": "밥과 집과 옷을 누가",
-        "chars": 8
-      },
-      {
-        "index": "16",
-        "text": "줬는지 하나씩 묻습니다.",
-        "chars": 11
-      },
-      {
-        "index": "17",
-        "text": "이 집에서 트로이는",
-        "chars": 8
-      },
-      {
-        "index": "18",
-        "text": "아버지보다",
-        "chars": 5
-      },
-      {
-        "index": "19",
-        "text": "가장으로 인정받고",
-        "chars": 8
-      },
-      {
-        "index": "20",
-        "text": "싶어 했고,",
-        "chars": 5
-      },
-      {
-        "index": "21",
-        "text": "코리는 그 안에서",
-        "chars": 7
-      },
-      {
-        "index": "22",
-        "text": "아들로 사랑받는지 묻고",
-        "chars": 10
-      },
-      {
-        "index": "23",
-        "text": "있었습니다.",
-        "chars": 6
-      },
-      {
-        "index": "24",
-        "text": "코리는 그 부양이",
-        "chars": 7
-      },
-      {
-        "index": "25",
-        "text": "애정의 증거라고",
-        "chars": 7
-      },
-      {
-        "index": "26",
-        "text": "믿고 싶었는데,",
-        "chars": 7
-      },
-      {
-        "index": "27",
-        "text": "트로이는 말을",
-        "chars": 6
-      },
-      {
-        "index": "28",
-        "text": "전혀 다른 쪽으로 끌고 가죠.",
-        "chars": 12
-      },
-      {
-        "index": "29",
-        "text": "내 책임이야.",
-        "chars": 6
-      },
-      {
-        "index": "30",
-        "text": "트로이는",
-        "chars": 4
-      },
-      {
-        "index": "31",
-        "text": "이제 아버지의 희생을",
-        "chars": 9
-      },
-      {
-        "index": "32",
-        "text": "사랑이 아니라 책임으로",
-        "chars": 10
-      },
-      {
-        "index": "33",
-        "text": "못 박습니다.",
-        "chars": 6
-      },
-      {
-        "index": "34",
-        "text": "집과 밥을",
-        "chars": 4
-      },
-      {
-        "index": "35",
-        "text": "줬으니 할 만큼 했다는",
-        "chars": 9
-      },
-      {
-        "index": "36",
-        "text": "뜻이었죠.",
-        "chars": 5
-      },
-      {
-        "index": "37",
-        "text": "그 한마디로 코리가",
-        "chars": 8
-      },
-      {
-        "index": "38",
-        "text": "기대했던 대답은",
-        "chars": 7
-      },
-      {
-        "index": "39",
-        "text": "사실상 사라집니다.",
-        "chars": 9
-      },
-      {
-        "index": "40",
-        "text": "널 좋아할 의무는 없어.",
-        "chars": 10
-      },
-      {
-        "index": "41",
-        "text": "그 뒤 트로이는 자신이 준 건 돈이나 밥이 아니라 코리의 삶 그 자체라고 밀어붙입니다.",
-        "chars": 35
-      },
-      {
-        "index": "42",
-        "text": "코리는 반박하지 못하고,",
-        "chars": 11
-      },
-      {
-        "index": "43",
-        "text": "아버지의 말만",
-        "chars": 6
-      },
-      {
-        "index": "44",
-        "text": "더 차갑게 남죠.",
-        "chars": 7
-      },
-      {
-        "index": "45",
-        "text": "살면서 남들이",
-        "chars": 6
-      },
-      {
-        "index": "46",
-        "text": "널 좋아하는지만",
-        "chars": 7
-      },
-      {
-        "index": "47",
-        "text": "붙잡고 살지 마.",
-        "chars": 7
-      },
-      {
-        "index": "48",
-        "text": "트로이의 말은",
-        "chars": 6
-      },
-      {
-        "index": "49",
-        "text": "조언처럼 들리지만,",
-        "chars": 9
-      },
-      {
-        "index": "50",
-        "text": "코리에게는 사랑을",
-        "chars": 8
-      },
-      {
-        "index": "51",
-        "text": "포기하라는",
-        "chars": 5
-      },
-      {
-        "index": "52",
-        "text": "결론이었습니다.",
-        "chars": 8
-      },
-      {
-        "index": "53",
-        "text": "결국 둘은 서로",
-        "chars": 6
-      },
-      {
-        "index": "54",
-        "text": "다른 쪽으로 물러나고,",
-        "chars": 10
-      },
-      {
-        "index": "55",
-        "text": "집 안의 로즈는",
-        "chars": 6
-      },
-      {
-        "index": "56",
-        "text": "아들의 굳은 얼굴에서",
-        "chars": 9
-      },
-      {
-        "index": "57",
-        "text": "상처를 알아차렸죠.",
+        "text": "결국 상처만 남습니다",
         "chars": 9
       }
     ]

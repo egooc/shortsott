@@ -64,6 +64,23 @@ function getVertexConfig() {
   };
 }
 
+function requireVertexProject(context) {
+  const config = getVertexConfig();
+  if (!config.project) {
+    throw createError(
+      400,
+      'GOOGLE_CLOUD_PROJECT_REQUIRED',
+      `${context || 'Vertex'} requires GOOGLE_CLOUD_PROJECT or GCLOUD_PROJECT for Vertex ADC mode. Set the project env var and authenticate ADC with Google Cloud before using the default Vertex provider, or set MIDFORM_COMPRESS_LLM=codex for the opt-in Codex compression fallback.`,
+      {
+        required_env: ['GOOGLE_CLOUD_PROJECT or GCLOUD_PROJECT'],
+        optional_env: ['GOOGLE_CLOUD_LOCATION', 'VERTEX_GEMINI_MODEL', 'VERTEX_COMPRESS_MODEL'],
+        auth: 'Application Default Credentials with cloud-platform scope'
+      }
+    );
+  }
+  return config;
+}
+
 async function getVertexAccessToken() {
   const auth = new GoogleAuth({
     scopes: ['https://www.googleapis.com/auth/cloud-platform']
@@ -290,10 +307,7 @@ function buildVertexEndpoint(config) {
 }
 
 async function requestVertexMidformAnalysis({ videoPath, prompt, token, endpoint }) {
-  const config = getVertexConfig();
-  if (!config.project) {
-    throw createError(400, 'GOOGLE_CLOUD_PROJECT_REQUIRED', 'GOOGLE_CLOUD_PROJECT is required for Vertex ADC mode');
-  }
+  requireVertexProject('Vertex midform analysis');
   const body = {
     contents: [
       {
@@ -576,10 +590,7 @@ async function analyzeMidformVideo(videoPath, contentType = 'movie_midform_recap
     throw createError(400, 'SOURCE_VIDEO_REQUIRED', 'source video file is required');
   }
 
-  const config = getVertexConfig();
-  if (!config.project) {
-    throw createError(400, 'GOOGLE_CLOUD_PROJECT_REQUIRED', 'GOOGLE_CLOUD_PROJECT is required for Vertex ADC mode');
-  }
+  const config = requireVertexProject('Vertex midform analysis');
 
   const token = await getVertexAccessToken();
   const endpoint = buildVertexEndpoint(config);
@@ -612,10 +623,7 @@ function toVertexResponseSchema(node) {
 // (returns the raw model text for the caller to extractJson + validate). Reuses the same auth,
 // endpoint, and response-extraction path as scene analysis.
 async function generateVertexJson({ prompt, responseSchema, model, temperature = 0.1 }) {
-  const config = getVertexConfig();
-  if (!config.project) {
-    throw createError(400, 'GOOGLE_CLOUD_PROJECT_REQUIRED', 'GOOGLE_CLOUD_PROJECT is required for Vertex ADC mode');
-  }
+  const config = requireVertexProject('Vertex JSON generation');
   const token = await getVertexAccessToken();
   const endpoint = buildVertexEndpoint({ ...config, model: String(model || config.model).trim() });
   const body = {

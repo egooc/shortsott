@@ -7,6 +7,7 @@
       "properties": {
         "title_candidates": {
           "type": "array",
+          "description": "Exactly 3 Korean YouTube title hooks. Each item must be a question-shaped curiosity hook, preferably ending with '?', such as '왜 아버지는 사랑이 의무가 아니라고 했을까?'. Do not output flat declarative summaries.",
           "items": { "type": "string" },
           "minItems": 3,
           "maxItems": 3
@@ -52,7 +53,16 @@
             "enum": ["", "faithful_dialogue"]
           }
         },
-        "required": ["slot_id", "narration", "caption_units", "caption_kr"],
+        "required": [
+          "slot_id",
+          "narration",
+          "caption_units",
+          "caption_kr",
+          "caption_kr_dialogue",
+          "speaker",
+          "speakers",
+          "translation_mode"
+        ],
         "additionalProperties": false
       }
     },

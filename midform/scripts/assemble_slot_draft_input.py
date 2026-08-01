@@ -777,22 +777,35 @@ def build_timeline_units(segments):
                     )
         else:
             chunks = []
-            for display_source in split_display_caption_sources(text, segment_type):
-                chunks.extend(merge_short_units(split_caption_text(display_source), segment=segment))
+            if segment_type in {"dialogue_quote", "dialogue"}:
+                display_text = sanitize_display_caption_text(text)
+                if display_text:
+                    chunks.append(display_text)
+            else:
+                for display_source in split_display_caption_sources(text, segment_type):
+                    chunks.extend(merge_short_units(split_caption_text(display_source), segment=segment))
             for order, chunk in enumerate(chunks, start=1):
                 caption_id = f"{safe_filename_stem(segment_id, f's{segment_index:02d}')}_cap_{order:03d}"
-                caption_units.append(
-                    {
-                        "caption_id": caption_id,
-                        "segment_id": segment_id,
-                        "segment_type": segment_type,
-                        "tts_enabled": False,
-                        "order": order,
-                        "text": sanitize_display_caption_text(chunk),
-                        "speaker": normalize_text(segment.get("speaker")),
-                        "source_segment_order": segment_index,
-                    }
-                )
+                unit = {
+                    "caption_id": caption_id,
+                    "segment_id": segment_id,
+                    "segment_type": segment_type,
+                    "tts_enabled": False,
+                    "order": order,
+                    "text": sanitize_display_caption_text(chunk),
+                    "speaker": normalize_text(segment.get("speaker")),
+                    "source_segment_order": segment_index,
+                }
+                if segment_type in {"dialogue_quote", "dialogue"}:
+                    if safe_float(segment.get("caption_timeline_offset_sec"), None) is not None:
+                        unit["caption_timeline_offset_sec"] = safe_float(segment.get("caption_timeline_offset_sec"), 0.0)
+                    if safe_float(segment.get("duration_override_sec"), None) is not None and safe_float(segment.get("duration_override_sec"), 0.0) > 0:
+                        unit["duration_override_sec"] = safe_float(segment.get("duration_override_sec"), 0.0)
+                    if isinstance(segment.get("dialogue_speech_range_sec"), list):
+                        unit["dialogue_speech_range_sec"] = segment.get("dialogue_speech_range_sec")
+                    if isinstance(segment.get("dialogue_timing_adjustment"), dict):
+                        unit["dialogue_timing_adjustment"] = segment.get("dialogue_timing_adjustment")
+                caption_units.append(unit)
     return merge_short_dialogue_units_across_slots(caption_units, segments_by_id), tts_units
 
 
