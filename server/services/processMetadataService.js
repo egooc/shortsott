@@ -4187,9 +4187,18 @@ function enforcePublicMetadataLanguage(guide = {}) {
     ...(Array.isArray(next.highlight_hook_captions_ja) ? next.highlight_hook_captions_ja : []),
     next.detected_subject_ja
   ];
+  // Mirror of jaSeedCandidates. Without this the Korean highlight rebuilt its titles
+  // from full-draft fields (short_description_ko etc.), which carry generic
+  // process wording, while highlight_explainer_text_ko held the specific text.
+  const koHighlightSeedCandidates = [
+    next.highlight_explainer_text_ko,
+    ...(Array.isArray(next.highlight_hook_captions_ko) ? next.highlight_hook_captions_ko : []),
+    next.detected_subject_ko,
+    ...koSeedCandidates
+  ];
   next.full_metadata_ko = enforceMetadataSectionLanguage(next.full_metadata_ko, koSeedCandidates, true);
   next.highlight_metadata = enforceMetadataSectionLanguage(next.highlight_metadata, jaSeedCandidates, false);
-  next.highlight_metadata_ko = enforceMetadataSectionLanguage(next.highlight_metadata_ko, koSeedCandidates, true);
+  next.highlight_metadata_ko = enforceMetadataSectionLanguage(next.highlight_metadata_ko, koHighlightSeedCandidates, true);
   next.short_description_ko = metadataTextHasLatin(next.short_description_ko) || !isValidKoreanCaption(next.short_description_ko)
     ? deterministicDescription(safeMetadataSeed(koSeedCandidates, true), true)
     : next.short_description_ko;

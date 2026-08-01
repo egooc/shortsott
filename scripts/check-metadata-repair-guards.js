@@ -524,6 +524,45 @@ function testReportDescriptionNeverJamsASentenceIntoASubjectSlot() {
   assert(seeded.length < 60, `deterministicDescription must stay short, got ${seeded.length}`);
 }
 
+function testKoreanHighlightRebuildsFromHighlightSeedsNotFullDraftSeeds() {
+  // Shape of the real 2026-08-01 item_005 guide: the full-draft Korean fields carry
+  // generic process wording, and only highlight_explainer_text_ko names what the
+  // highlight actually shows. Latin titles force the language rebuild path.
+  const contaminated = [{ category: '간결형', title: 'Air conditioner repair site', hashtags: ['#worker'] }];
+  const guide = {
+    detected_subject: 'Air conditioner repair',
+    short_description_ko: '소재가 가공되고 형태를 바꾸며 제품에 가까워지는 공정을 소개합니다.',
+    explainer_text_ko: '소재가 가공되고 형태를 바꾸며 제품에 가까워지는 공정을 소개합니다.',
+    highlight_explainer_text_ko: '숙련된 기술자가 낡은 동관을 정밀하게 절단 및 제거하고 새 부품을 용접합니다.',
+    highlight_hook_captions_ko: ['동관을 절단하는 순간'],
+    full_metadata_ko: { recommended_titles: contaminated, hashtags: ['#worker'] },
+    highlight_metadata_ko: { recommended_titles: contaminated, hashtags: ['#worker'] },
+    highlight_metadata: { recommended_titles: contaminated, hashtags: ['#worker'] }
+  };
+
+  const out = enforcePublicMetadataLanguage(guide);
+  const highlightTitles = (out.highlight_metadata_ko.recommended_titles || []).map((item) => item.title).join('\n');
+  const fullTitles = (out.full_metadata_ko.recommended_titles || []).map((item) => item.title).join('\n');
+
+  assert(
+    highlightTitles.includes('절단'),
+    `KO highlight titles must be seeded from highlight_explainer_text_ko, got: ${highlightTitles}`
+  );
+  assert(
+    !fullTitles.includes('절단'),
+    `KO full titles must stay seeded from the full-draft fields, got: ${fullTitles}`
+  );
+  assert(
+    highlightTitles !== fullTitles,
+    'KO highlight and KO full must not collapse onto the same rebuilt title set'
+  );
+  assert(!/[A-Za-z]{2,}/u.test(stripHashtagsForTest(highlightTitles)), 'rebuilt KO highlight titles must not keep Latin subjects');
+}
+
+function stripHashtagsForTest(value) {
+  return String(value || '').replace(/[#＃][\p{L}\p{N}_-]+/gu, '');
+}
+
 function main() {
   testFullKoRepairSurvivesNormalize();
   testRepairLossGuard();
@@ -538,6 +577,7 @@ function main() {
   testPublicMetadataLanguageEnforcementRebuildsContaminatedFields();
   testPublicJapaneseHighlightTitlesRemoveHangul();
   testReportDescriptionNeverJamsASentenceIntoASubjectSlot();
+  testKoreanHighlightRebuildsFromHighlightSeedsNotFullDraftSeeds();
   console.log('metadata repair guards ok');
 }
 
