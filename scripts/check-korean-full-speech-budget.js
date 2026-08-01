@@ -72,18 +72,18 @@ function budgetIssuesFor(script, budget) {
 function testBudgetMath() {
   const budget = metadataTest.calculateKoreanFullSpeechBudget({ targetDurationSec: 30, prerollSec: 2, marginSec: 1.5 });
   assert(budget.available_sec === 26.5, `expected available_sec 26.5, got ${budget.available_sec}`);
-  assert(budget.target_chars === 119, `expected target_chars floor(26.5*5*.9)=119, got ${budget.target_chars}`);
-  assert(budget.min_chars === 89, `expected 75% min 89, got ${budget.min_chars}`);
-  assert(budget.max_chars === 130, `expected 110% max 130, got ${budget.max_chars}`);
+  assert(budget.target_chars === 169, `expected target_chars floor(26.5*7.12*.9)=169, got ${budget.target_chars}`);
+  assert(budget.min_chars === 126, `expected 75% min 126, got ${budget.min_chars}`);
+  assert(budget.max_chars === 185, `expected 110% max 185, got ${budget.max_chars}`);
 }
 
 function testPromptBudgetInjection() {
   const budget = metadataTest.calculateKoreanFullSpeechBudget({ targetDurationSec: 30, prerollSec: 2, marginSec: 1.5, sentenceCount: 22 });
   const lines = metadataTest.koreanFullSpeechBudgetPromptLines(budget);
   const joined = lines.join('\n');
-  assert(joined.includes('이 영상 30초. 원고 총 119자 ±10%, 문장 22개 내외.'), 'expected Korean prompt budget sentence');
-  assert(joined.includes('hard lower signal 89 Korean chars'), 'expected lower-budget validation line');
-  assert(joined.includes('hard upper 130 Korean chars'), 'expected upper-budget validation line');
+  assert(joined.includes('이 영상 30초. 원고 총 169자 ±10%, 문장 22개 내외.'), 'expected Korean prompt budget sentence');
+  assert(joined.includes('hard lower signal 126 Korean chars'), 'expected lower-budget validation line');
+  assert(joined.includes('hard upper 185 Korean chars'), 'expected upper-budget validation line');
 }
 
 function testSceneBudgetPromptInjection() {
@@ -93,8 +93,8 @@ function testSceneBudgetPromptInjection() {
   ]);
   const joined = lines.join('\n');
   assert(joined.includes('각 장면의 원고 분량 가이드'), 'expected scene budget heading');
-  assert(joined.includes('scene_01 (5.75초): 약 25자 이내'), 'expected scene_01 budget line');
-  assert(joined.includes('scene_02 (7.25초): 약 32자 이내'), 'expected scene_02 budget line');
+  assert(joined.includes('scene_01 (5.75초): 약 36자 이내'), 'expected scene_01 budget line');
+  assert(joined.includes('scene_02 (7.25초): 약 46자 이내'), 'expected scene_02 budget line');
   assert(joined.includes('한 장면에 배정된 full_caption_script_ko 문장들의 한글 가시 글자 합'), 'expected per-scene sum guard');
 }
 
@@ -207,7 +207,7 @@ function testSyncEvidenceFields() {
   assert(evidence.actual_tts_raw_sum_sec === 6.6, `expected raw sum 6.6, got ${evidence.actual_tts_raw_sum_sec}`);
   assert(evidence.actual_tts_occupied_timeline_sec === 6.6, `expected occupied timeline 6.6, got ${evidence.actual_tts_occupied_timeline_sec}`);
   assert(evidence.video_timeline_sec === 24, `expected video_timeline_sec 24, got ${evidence.video_timeline_sec}`);
-  assert(evidence.actual_tts_vs_budget_delta_sec === 2.8, `expected budget delta 2.8, got ${evidence.actual_tts_vs_budget_delta_sec}`);
+  assert(evidence.actual_tts_vs_budget_delta_sec === 3.931461, `expected budget delta 3.931461, got ${evidence.actual_tts_vs_budget_delta_sec}`);
 }
 
 function testAnchoredTimelineGuardUsesOccupiedEnd() {

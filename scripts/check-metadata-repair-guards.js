@@ -5,9 +5,15 @@ const {
     collectJapaneseCaptionIssues,
     enforcePublicMetadataLanguage,
     isKoreanFullScriptStyleRegenerationIssue,
+    collectKoreanFullRepairGateIssues,
+    metadataSchemaForMetadataVariantMode,
+    reviewSchemaForMetadataVariantMode,
     selectKoreanFullHookType,
     normalizeGuide,
     assertRepairNormalizationDidNotCollapse,
+    OTTOGI_HIGHLIGHT_METADATA_ONLY_SCHEMA,
+    OTTOGI_REVIEW_SCHEMA,
+    OTTOGI_HIGHLIGHT_ONLY_REVIEW_SCHEMA,
     OTTOGI_METADATA_FIELD_REPAIR_SCHEMA,
     OTTOGI_FULL_CAPTION_SCRIPT_REPAIR_SCHEMA
   }
@@ -132,6 +138,54 @@ function testMetadataRepairSchemaIsThin() {
   assert(!schemaText.includes('full_metadata_ko'), 'metadata repair schema must not embed full metadata objects');
   assert(!schemaText.includes('full_caption_script_ko'), 'metadata repair schema must not embed caption script arrays');
   assert(OTTOGI_FULL_CAPTION_SCRIPT_REPAIR_SCHEMA.properties.full_caption_script_ko.maxItems === 24, 'full script repair schema should cap maxItems at 24');
+}
+
+function testHighlightOnlySchemasDoNotRequireFullDraftFields() {
+  const metadataSchema = metadataSchemaForMetadataVariantMode('highlight_only');
+  const reviewSchema = reviewSchemaForMetadataVariantMode('highlight_only');
+  const metadataSchemaText = JSON.stringify(metadataSchema);
+  const reviewSchemaText = JSON.stringify(reviewSchema);
+
+  assert(metadataSchema === OTTOGI_HIGHLIGHT_METADATA_ONLY_SCHEMA, 'highlight-only metadata must use the highlight-only schema');
+  assert(reviewSchema === OTTOGI_HIGHLIGHT_ONLY_REVIEW_SCHEMA, 'highlight-only review must use the highlight-only schema');
+  assert(reviewSchemaForMetadataVariantMode('all') === OTTOGI_REVIEW_SCHEMA, 'full-capable review modes must use the standard loose review schema');
+  assert(!metadataSchemaText.includes('full_caption_script_ko'), 'highlight-only metadata schema must not request Korean Full script fields');
+  assert(!metadataSchemaText.includes('full_metadata_ko'), 'highlight-only metadata schema must not request Korean Full metadata fields');
+  assert(!reviewSchemaText.includes('full_caption_script_ko'), 'highlight-only review schema must not request Korean Full script fields');
+  assert(!reviewSchemaText.includes('full_metadata_ko'), 'highlight-only review schema must not request Korean Full metadata fields');
+}
+
+function testKoreanFullRepairGateAllowsConnectedClauses() {
+  const connectedScript = [
+    '처음엔 금속 막대처럼 보여도요',
+    '이건 형태를 다시 잡는 공정이에요',
+    '먼저 공구 안에 넣고',
+    '흔들리면 안 되니까',
+    '손으로 위치를 잡아줘요',
+    '힘을 한 번에 주지 않고',
+    '압력을 나눠야 해요',
+    '잘못 구부리면',
+    '전체 기준이 틀어져요',
+    '기계가 눌러도',
+    '방향이 먼저 맞아야 하고',
+    '표면이 천천히 돌아가면서',
+    '원형이 조금씩 살아나요',
+    '중간마다 확인하고',
+    '작은 오차를 바로 잡아요',
+    '같은 움직임을 반복하면서',
+    '정밀함이 조금씩 쌓여요',
+    '분리할 때도 모양을 보고',
+    '끝까지 기준을 지켜요',
+    '작은 부품 하나가 정확히 완성돼요'
+  ].map((text, index) => ({
+    scene_id: `scene_${String((index % 4) + 1).padStart(2, '0')}`,
+    role: index === 0 ? 'hook' : index >= 18 ? 'closing' : 'technical_context',
+    text,
+    source_basis: 'test_connected_clause_gate'
+  }));
+
+  const issues = collectKoreanFullRepairGateIssues(connectedScript);
+  assert(!issues.length, `expected connected Korean clauses to pass repair gate, got ${JSON.stringify(issues)}`);
 }
 
 function testKoreanFullStyleIssuesRequireRegeneration() {
@@ -400,16 +454,58 @@ function testPublicMetadataLanguageEnforcementRebuildsContaminatedFields() {
   assert(enforced.highlight_metadata.recommended_titles.length >= 5, 'expected Japanese highlight titles to be rebuilt');
 }
 
+function testPublicJapaneseHighlightTitlesRemoveHangul() {
+  const guide = {
+    detected_subject_ko: '병따개 제작',
+    detected_subject_ja: '栓抜きづくり',
+    highlight_metadata: {
+      upload_title: '병따개 제작の流れを短く見る',
+      short_description: '熱い金属を叩く工程です。',
+      summary_caption: '熱い金属を叩く工程です。',
+      onscreen_caption_block: '熱い金属を叩く工程です。',
+      report_description: '## 1. 作業概要\n熱い金属を叩く工程です。',
+      recommended_titles: [
+        { title: '병따개 제작の流れを短く見る #worker #process', hashtags: ['#worker', '#process'] },
+        { title: '職人と機械で進む병따개 제작 #worker #process', hashtags: ['#worker', '#process'] }
+      ]
+    },
+    highlight_metadata_ko: {
+      upload_title: '병따개 제작이 만들어지는 흐름',
+      short_description: '병따개 제작 과정입니다.',
+      summary_caption: '병따개 제작 과정입니다.',
+      onscreen_caption_block: '병따개 제작 과정입니다.',
+      report_description: '## 1. 작업 개요\n병따개 제작 과정입니다.',
+      recommended_titles: [
+        { title: '병따개 제작이 만들어지는 흐름 #worker #process', hashtags: ['#worker', '#process'] }
+      ]
+    }
+  };
+  const enforced = enforcePublicMetadataLanguage(guide);
+  const publicTitles = [
+    enforced.highlight_metadata.upload_title,
+    ...enforced.highlight_metadata.recommended_titles.map((item) => item.title)
+  ].join('\n');
+  assert(!/[가-힣]/u.test(publicTitles), `expected Japanese public highlight titles to be Hangul-free, got: ${publicTitles}`);
+  const reviewTitles = [
+    enforced.highlight_metadata_ko.upload_title,
+    ...enforced.highlight_metadata_ko.recommended_titles.map((item) => item.title)
+  ].join('\n');
+  assert(/[가-힣]/u.test(reviewTitles), 'expected Korean review-only titles to keep Hangul');
+}
+
 function main() {
   testFullKoRepairSurvivesNormalize();
   testRepairLossGuard();
   testMetadataRepairSchemaIsThin();
+  testHighlightOnlySchemasDoNotRequireFullDraftFields();
+  testKoreanFullRepairGateAllowsConnectedClauses();
   testKoreanFullStyleIssuesRequireRegeneration();
   testKoreanFullHookSelectionAndPayoffGuards();
   testKoreanFullRegenerationSourceBasisIsDistinct();
   testFullKoRegenerationSurvivesNormalize();
   testLocalMetadataReportFallbacksRemoveLanguageContamination();
   testPublicMetadataLanguageEnforcementRebuildsContaminatedFields();
+  testPublicJapaneseHighlightTitlesRemoveHangul();
   console.log('metadata repair guards ok');
 }
 

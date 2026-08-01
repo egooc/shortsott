@@ -28,7 +28,7 @@ function sceneBudgets(guide = {}) {
         start_sec: Number(start.toFixed(3)),
         end_sec: Number(end.toFixed(3)),
         duration_sec: Number(duration.toFixed(3)),
-        guide_chars: Math.max(1, Math.floor(duration * 5.0 * 0.90))
+        guide_chars: Math.max(1, Math.floor(duration * 7.12 * 0.90))
       };
     })
     .filter(Boolean);

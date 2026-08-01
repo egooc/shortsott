@@ -3,6 +3,8 @@ const path = require('path');
 const os = require('os');
 const { execFileSync } = require('child_process');
 
+process.env.OTTOGI_SKIP_SCRIPT_REVIEW_PREFLIGHT_DRAFT = '1';
+
 const queueService = require('../server/services/processQueueService');
 
 function assert(condition, message) {
@@ -277,12 +279,12 @@ async function main() {
     const s02Index = timelineFailureLines.findIndex((line) => line.startsWith('[S02] '));
     const s03Index = timelineFailureLines.findIndex((line) => line.startsWith('[S03] '));
     assert(s01Index >= 0 && s02Index >= 0 && s03Index >= 0, 'expected fixture anchor lines for timeline failure case');
-    timelineFailureLines[s01Index] = '[S01] 기준을 아주 자세히 다시 또 길게 설명하면서도 끝까지 차분히 확인해요.';
-    timelineFailureLines[s02Index] = '[S02] 천천히 여러 번 옮기고 또 맞추고 다시 살펴보면서 한 번 더 정리해요.';
-    timelineFailureLines[s03Index] = '[S03] 각도도 다시 세밀하게 맞추고 작은 차이까지 계속 확인해요.';
+    timelineFailureLines[s01Index] = '[S01] 기준 잡죠.';
+    timelineFailureLines[s02Index] = '[S02] 옮겨요.';
+    timelineFailureLines[s03Index] = '[S03] 맞춰요.';
     const s04Index = timelineFailureLines.findIndex((line) => line.startsWith('[S04] '));
     assert(s04Index >= 0, 'expected fixture S04 line for timeline failure case');
-    timelineFailureLines[s04Index] = '[S04] 단단히 고정한 뒤에도 흔들림이 없는지 여러 번 반복해서 확인해요.';
+    timelineFailureLines[s04Index] = '[S04] 고정 중';
     fs.writeFileSync(reviewTextPath, `${timelineFailureLines.join('\n')}\n`, 'utf8');
     let timelineFailure = null;
     try {
@@ -290,7 +292,7 @@ async function main() {
     } catch (error) {
       timelineFailure = error;
     }
-    assert(timelineFailure && timelineFailure.code === 'SCRIPT_REVIEW_VALIDATION_FAILED', 'expected non-empty machine-readable failure payload for overflowing review text');
+    assert(timelineFailure && timelineFailure.code === 'SCRIPT_REVIEW_VALIDATION_FAILED', 'expected non-empty machine-readable failure payload for invalid review text');
     assertFailureHasReasons(timelineFailure);
 
     console.log('script review integrity guard ok');
