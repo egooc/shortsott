@@ -87,14 +87,21 @@ test('script runtime is only enforced when a target is supplied', () => {
 test('curiosity titles accept question forms and answer-promising nouns', () => {
   assert.ok(isCuriosityTitle('쫓던 보안관은 어쩌다 미끼가 됐을까?'));
   assert.ok(isCuriosityTitle('왜 그는 증거를 보고도 물러서지 않았을까'));
-  // Noun-ending hooks are just as valid — this exact line used to be rejected.
+  // The noun that promises the answer is an open set, and enumerating it kept rejecting
+  // good hooks. Each of these was turned away by an earlier allow-list.
   assert.ok(isCuriosityTitle('그녀가 보여준 미래가 오히려 전쟁을 불렀던 이유'));
+  assert.ok(isCuriosityTitle('뱀파이어들이 목숨을 건 최후의 전쟁을 시작한 진짜 계기'));
   assert.ok(isCuriosityTitle('설원을 뒤덮은 전쟁의 결말'));
   assert.ok(isCuriosityTitle('아이를 둘러싼 오해의 정체'));
+  assert.ok(isCuriosityTitle('협상장을 뒤집은 한 마디'));
 });
 
-test('flat declarative summaries are still rejected as titles', () => {
+test('titles that close the gap are rejected', () => {
+  // A finished statement answers itself...
   assert.ok(!isCuriosityTitle('두 진영이 전투를 벌였습니다'));
+  assert.ok(!isCuriosityTitle('결국 전쟁이 시작됐다'));
+  // ...and a label just describes the clip.
   assert.ok(!isCuriosityTitle('브레이킹 던 파트2 최종 전투 장면'));
+  assert.ok(!isCuriosityTitle('최종 결전 하이라이트'));
   assert.ok(!isCuriosityTitle(''));
 });

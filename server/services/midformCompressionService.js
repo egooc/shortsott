@@ -154,14 +154,20 @@ function normalizeUploadText(uploadText) {
 // "을까" covers the general past-tense question form (했을까 / 않았을까 / 왜였을까), which the
 // earlier explicit list kept missing.
 const CURIOSITY_TITLE_QUESTION_ENDINGS = /(을까|ㄹ까|일까|될까|할까|무엇일까|누굴까|누구일까|어쩌다)$/;
-const CURIOSITY_TITLE_GAP_NOUNS = /(이유|까닭|비밀|정체|진실|반전|사연|전말|결말|순간|차이|끝)$/;
+// Enumerating the acceptable noun endings kept rejecting perfectly good hooks, because the
+// set is open — 이유, 정체, 계기, 전말 and so on. Invert it: a title fails when it closes
+// the gap, either by finishing as a declarative sentence or by labelling the clip.
+const CURIOSITY_TITLE_DECLARATIVE_ENDINGS = /(습니다|합니다|입니다|됩니다|겁니다|한다|된다|이다|였다|이었다|했다|됐다|왔다|갔다|난다|진다)$/;
+const CURIOSITY_TITLE_LABEL_ENDINGS = /(장면|명장면|하이라이트|모음|편집본|영상|클립|다시보기|요약)$/;
 
 function isCuriosityTitle(title) {
   const text = String(title || '').trim();
   if (!text) return false;
-  return /[?？]/.test(text)
-    || CURIOSITY_TITLE_QUESTION_ENDINGS.test(text)
-    || CURIOSITY_TITLE_GAP_NOUNS.test(text);
+  if (/[?？]/.test(text)) return true;
+  if (CURIOSITY_TITLE_QUESTION_ENDINGS.test(text)) return true;
+  if (CURIOSITY_TITLE_DECLARATIVE_ENDINGS.test(text)) return false;
+  if (CURIOSITY_TITLE_LABEL_ENDINGS.test(text)) return false;
+  return true;
 }
 
 function splitNarrationSentences(text) {
@@ -795,9 +801,13 @@ function buildTeaserSuitabilityScore(beat, lines) {
   };
 }
 
+// One beat only carries so much narration before it turns into a lecture, so a longer cut
+// comes from more slots rather than longer ones.
+const NARRATION_SLOT_MAX_SEC = 18;
+
 function narrationDurationForBeat(beat) {
   const sourceDuration = Math.max(4, Number(beat?.end_sec || 0) - Number(beat?.start_sec || 0));
-  return roundSec(Math.min(18, Math.max(8, sourceDuration * 0.28)));
+  return roundSec(Math.min(NARRATION_SLOT_MAX_SEC, Math.max(8, sourceDuration * 0.28)));
 }
 
 function focusDurationForBeat(beat, transcript) {
@@ -2281,6 +2291,80 @@ function prepareColdOpenCallbackTimeline(timeline, editPlan, beats, transcript) 
   return nextTimeline;
 }
 
+// How long a slot will really play, as opposed to what the planner claimed: a preserved
+// dialogue slot lasts exactly as long as its source lines, and a narration slot is bounded
+// by how much speech fits over one beat.
+function realisticSlotDurationSec(item) {
+  if (!item || item.decision === 'DROP') return 0;
+  if (item.decision === 'KEEP_DIALOGUE') {
+    const span = Number(item.end_sec || 0) - Number(item.start_sec || 0);
+    return span > 0 ? roundSec(span) : 0;
+  }
+  return roundSec(Math.min(NARRATION_SLOT_MAX_SEC, Number(item.estimated_duration_sec || 0)));
+}
+
+function realisticTimelineRuntimeSec(timeline) {
+  return roundSec((Array.isArray(timeline) ? timeline : []).reduce((sum, item) => sum + realisticSlotDurationSec(item), 0));
+}
+
+function nextFreeSlotId(usedIds) {
+  let candidate = 1;
+  while (usedIds.has(String(candidate))) candidate += 1;
+  return String(candidate);
+}
+
+// Asking the planner for a longer cut produced a different answer every run (a 120s request
+// came back anywhere from 38s to 132s). Rather than retrying until the model happens to
+// comply, fill the gap here: promote the strongest beats it left on the floor into short
+// narration slots, in story order, until the cut can actually reach its target.
+function topUpTimelineToTargetRuntime(timeline, beats, transcript, targetSec) {
+  const target = Number(targetSec || 0);
+  const items = Array.isArray(timeline) ? [...timeline] : [];
+  if (!(target > 0) || !items.length) return items;
+  const floor = target * EDIT_PLAN_MIN_TARGET_RATIO;
+  let runtime = realisticTimelineRuntimeSec(items);
+  if (runtime >= floor) return items;
+
+  const activeBeatIds = new Set(items.filter((item) => item?.decision !== 'DROP').map((item) => String(item?.beat_id || '').trim()));
+  const usedIds = new Set(items.map((item) => String(item?.slot_id || '').trim()));
+  const candidates = (Array.isArray(beats) ? beats : [])
+    .filter((beat) => !activeBeatIds.has(String(beat?.beat_id || '').trim()))
+    .filter((beat) => Number(beat?.end_sec || 0) > Number(beat?.start_sec || 0))
+    .sort((left, right) => (
+      (Number(right.hook_potential || 0) + Number(right.dramatic_weight || 0))
+      - (Number(left.hook_potential || 0) + Number(left.dramatic_weight || 0))
+    ));
+
+  const added = [];
+  for (const beat of candidates) {
+    if (runtime >= floor) break;
+    const slotId = nextFreeSlotId(usedIds);
+    usedIds.add(slotId);
+    const duration = narrationDurationForBeat(beat);
+    added.push({
+      slot_id: slotId,
+      beat_id: String(beat.beat_id || '').trim(),
+      role: 'body',
+      decision: 'NARRATE',
+      start_sec: roundSec(beat.start_sec),
+      end_sec: roundSec(beat.end_sec),
+      estimated_duration_sec: duration,
+      reason: 'Promoted from an unused beat so the cut reaches its target runtime.',
+      spoiler_policy: 'Keep the mystery progression grounded in transcript evidence.',
+      repeat_policy: 'No repeat.',
+      runtime_topup: true
+    });
+    runtime = roundSec(runtime + duration);
+  }
+  if (!added.length) return items;
+
+  // Keep the opening where it is and re-thread everything else in story order.
+  const head = items.slice(0, 1);
+  const rest = [...items.slice(1), ...added]
+    .sort((left, right) => Number(left.start_sec || 0) - Number(right.start_sec || 0));
+  return [...head, ...rest];
+}
+
 function finalizeEditPlan(editPlan, beats, transcript, targetSec) {
   const beatMap = new Map((Array.isArray(beats) ? beats : []).map((beat) => [String(beat?.beat_id || '').trim(), beat]));
   const sortedBeatStarts = (Array.isArray(beats) ? beats : []).map((b) => Number(b.start_sec)).filter((n) => Number.isFinite(n)).sort((a, b) => a - b);
@@ -2598,7 +2682,8 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec) {
     }));
   }
 
-  let finalizedTimeline = timeline.map((item) => {
+  const toppedUpTimeline = topUpTimelineToTargetRuntime(timeline, beats, transcript, targetSec);
+  let finalizedTimeline = toppedUpTimeline.map((item) => {
     if (item.decision === 'KEEP_DIALOGUE') return annotateDialogueSlotForQc(item, { windows: item.dialogue_line_windows || [] }, item);
     return annotateNarrationSlotForQc(item);
   });
@@ -2857,6 +2942,15 @@ function buildSlotFillsPrompt(beats, editPlan, movieTitle, recapContextMarkdown)
     '- upload_text.pinned_comment must be a concise Korean pinned comment containing the movie title and any verified creator/cast information provided in the context. If director/cast are not provided, do not invent them; include only verified details.',
     '- Keep movie-identification metadata out of the narration itself. Put that information into upload_text only.',
     '',
+    'Fixing the listing style (this is the most common failure — study these rewrites):',
+    '- BAD, an event list chained into one sentence: "앨리스의 선공과 함께 설원은 전쟁터로 변했고, 양측 모두 막대한 희생을 치르며 동료들이 눈앞에서 쓰러져 갑니다."',
+    '- GOOD, one idea per sentence, each pulling into the next: "앨리스가 먼저 움직입니다. 그 순간 협상은 끝났습니다. 쓰러지는 건, 적만이 아니었죠."',
+    '- BAD, opening a slot by naming every side and motive at once: "아이를 둘러싼 오해로, 두 뱀파이어 진영이 절멸 직전의 대치를 이어갑니다."',
+    '- GOOD, entering mid-tension and letting context arrive later: "이 대치는 아이 하나에서 시작됐습니다. 문제는, 증거로는 멈출 수 없다는 것."',
+    '- BAD, reporting the twist: "하지만 이 모든 건 아직 일어나지 않은 미래였습니다."',
+    '- GOOD, landing the twist: "그런데 이 전쟁은, 아직 일어나지 않았습니다."',
+    '- Concretely: do not chain events with 하자 / 했고 / 되자 / ~과 함께 inside one sentence. Split them. A narration slot of 15 seconds should be four or five short sentences, not two long ones.',
+    '',
     'Good narration examples (tone target):',
     '- cold_open example: "쫓던 쪽이, 왜 사냥당하는 쪽이 됐을까?"',
     '- bridge/setup example: "아들이 납치됐습니다. 범인은 무법자, 제드. 보안관은 놈들을 건물 하나까지 몰아넣었죠. 하지만 순순히 나올 놈이 아니었습니다."',
@@ -2981,9 +3075,9 @@ function validateSlotFillsDialogueCaptions(slotFills, editPlan, locale = 'ko') {
   for (const title of isKorean ? uploadText.title_candidates : []) {
     if (!isCuriosityTitle(title)) {
       throw new Error(
-        'upload_text.title_candidates must open a curiosity gap: end with a question form '
-        + '("~일까?", "왜 ~했을까?") or with a noun that promises the answer without giving it '
-        + `("~한 이유", "~의 정체", "~의 비밀", "~의 결말"). Got a flat declarative line: ${title}`
+        'upload_text.title_candidates must leave the answer open: ask a question ("왜 ~했을까?") '
+        + 'or end on a noun that promises it ("~한 이유", "~의 정체", "~한 계기"). This one closes '
+        + `the gap by finishing as a statement or labelling the clip: ${title}`
       );
     }
   }
