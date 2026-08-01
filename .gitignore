@@ -112,3 +112,6 @@ pilot50_selection.json
 *.lnk
 Thumbs.db
 Desktop.ini
+
+# Archived legacy app, stripped from history (kept on disk only)
+removed_ottugi_20260715/
