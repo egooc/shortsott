@@ -1,6 +1,9 @@
 const {
   __test: {
     applyMetadataFieldRepair,
+    buildFallbackReport,
+    koreanSubjectParticle,
+    deterministicDescription,
     applyLocalMetadataFallbacks,
     collectJapaneseCaptionIssues,
     enforcePublicMetadataLanguage,
@@ -493,6 +496,34 @@ function testPublicJapaneseHighlightTitlesRemoveHangul() {
   assert(/[가-힣]/u.test(reviewTitles), 'expected Korean review-only titles to keep Hangul');
 }
 
+function testReportDescriptionNeverJamsASentenceIntoASubjectSlot() {
+  // Real 2026-08-01 item_005 summary. Passing this as the subject used to render
+  // "...보여줍니다.이 어떤 순서로 변화하는지 보여주는 공정 영상입니다."
+  const summaryKo = '숙련된 기술자가 에어컨 냉매 누출을 능숙하게 확인하고 수리하는 모습을 보세요. 영상은 물에 잠긴 에어컨 코일에서 거품을 통해 누출을 발견하고, 이어서 구리 파이프를 정밀하게 절단하고 브레이징하여 완벽하게 수리하는 과정을 보여줍니다.';
+  const summaryJa = 'エアコンの冷媒漏れは性能低下や故障の原因に。この動画では、熟練の技術者が水槽を使って漏れ箇所を特定し、古い銅管を精密に切断・除去します。';
+
+  const ko = buildFallbackReport(summaryKo, summaryKo, true);
+  assert(!/[다요]\.(이|가|의|은|는)\s/u.test(ko), `Korean report must not glue a particle onto a finished sentence: ${ko}`);
+  assert(!/보여줍니다\.이 /u.test(ko), 'the exact 2026-08-01 defect must not reappear');
+  assert(ko.includes(summaryKo), 'the real summary must survive as the overview section, not be discarded');
+
+  const ja = buildFallbackReport(summaryJa, summaryJa, false);
+  assert(!/。が(?:どのような|形に)/u.test(ja), `Japanese report must not glue a particle onto a finished sentence: ${ja}`);
+  assert(ja.includes(summaryJa), 'the real Japanese summary must survive as the overview section');
+
+  // Repair path: no usable description, so the template must still be grammatical.
+  const repaired = buildFallbackReport(summaryKo, '', true);
+  assert(/^1\. 작업 개요\n[^\n]+\n2\./u.test(repaired), 'repair-path overview must be a single clean sentence');
+  assert(!repaired.includes(summaryKo), 'repair path must use a short subject, not the whole summary');
+
+  assert(koreanSubjectParticle('절단 공정') === '이', 'final-consonant subject takes 이');
+  assert(koreanSubjectParticle('기계') === '가', 'open-syllable subject takes 가');
+
+  const seeded = deterministicDescription(summaryKo, true);
+  assert(!seeded.includes(summaryKo), 'deterministicDescription must clamp its noun slot');
+  assert(seeded.length < 60, `deterministicDescription must stay short, got ${seeded.length}`);
+}
+
 function main() {
   testFullKoRepairSurvivesNormalize();
   testRepairLossGuard();
@@ -506,6 +537,7 @@ function main() {
   testLocalMetadataReportFallbacksRemoveLanguageContamination();
   testPublicMetadataLanguageEnforcementRebuildsContaminatedFields();
   testPublicJapaneseHighlightTitlesRemoveHangul();
+  testReportDescriptionNeverJamsASentenceIntoASubjectSlot();
   console.log('metadata repair guards ok');
 }
 

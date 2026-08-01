@@ -3980,29 +3980,49 @@ function midformCaptionMinimumForDuration(durationSec = 120) {
   return Math.max(24, Math.min(MIDFORM_CAPTION_MIN_ITEMS_120S, Math.floor(duration / 4)));
 }
 
+// Subject slots are interpolated as a noun ("<subject>이 어떤 순서로 ..."), so they must
+// never receive a whole summary sentence - that produces "...보여줍니다.이 어떤 순서로 ...".
+// Callers routinely pass long seed text, so clamp here rather than at every call site.
+function metadataSubjectPhrase(subject, korean = false) {
+  return compactMetadataTitleSeed(normalizeText(subject) || '', korean);
+}
+
+// Korean subject particle depends on whether the last syllable has a final consonant.
+function koreanSubjectParticle(word = '') {
+  const last = String(word || '').trim().slice(-1);
+  if (!last) return '이';
+  const code = last.charCodeAt(0);
+  if (code < 0xac00 || code > 0xd7a3) return '이';
+  return (code - 0xac00) % 28 === 0 ? '가' : '이';
+}
+
 function buildFallbackReport(subject, shortDescription, korean = false) {
-  const safeSubject = normalizeText(subject) || (korean ? '공정' : '工程');
+  const safeSubject = metadataSubjectPhrase(subject, korean);
+  const description = normalizeText(shortDescription);
   if (korean) {
+    const template = `${safeSubject}${koreanSubjectParticle(safeSubject)} 어떤 순서로 변화하는지 보여주는 공정 영상입니다.`;
     return [
       '1. 작업 개요',
-      `${safeSubject}이 어떤 순서로 변화하는지 보여주는 공정 영상입니다.`,
+      // Lead with the real summary when we have one; the template is the fallback.
+      description || template,
       '2. 사용 재료 및 장비',
       '영상에서 확인되는 재료, 작업 도구, 기계 장치를 중심으로 설명합니다.',
       '3. 시공 절차',
-      shortDescription || '소재가 투입되고, 가공되며, 형태를 갖추는 과정을 순서대로 정리합니다.',
+      description ? template : '소재가 투입되고, 가공되며, 형태를 갖추는 과정을 순서대로 정리합니다.',
       '4. 작업의 중요성',
       '각 단계의 손작업과 기계 동작은 결과물의 형태와 품질을 결정합니다.',
       '5. 가이드라인 준수 및 교육적 목적',
       '본 영상은 제조 공정을 이해하기 위한 교육적 목적의 설명입니다.'
     ].join('\n');
   }
+  const template = `${safeSubject}がどのような順序で変化するかを紹介する工程映像です。`;
   return [
     '1. 作業概要',
-    `${safeSubject}がどのような順序で変化するかを紹介する工程映像です。`,
+    description || template,
     '2. 使用材料と設備',
     '映像で確認できる素材、道具、機械の動きを中心に説明します。',
     '3. 工程手順',
-    shortDescription || '素材が投入され、加工され、形を整えていく流れを順番にまとめます。',
+    description ? template : '素材が投入され、加工され、形を整えていく流れを順番にまとめます。',
     '4. 作業の重要性',
     '各工程の手作業と機械動作が、仕上がりの形や品質に影響します。',
     '5. ガイドライン遵守と教育目的',
@@ -4057,7 +4077,8 @@ function metadataSectionTextCandidates(metadata = {}) {
 }
 
 function deterministicDescription(seed = '', korean = false) {
-  const safeSeed = safeMetadataSeed([seed], korean);
+  // Noun slot - clamp so a full summary sentence never lands in "<seed>의 핵심 장면을 ...".
+  const safeSeed = compactMetadataTitleSeed(safeMetadataSeed([seed], korean), korean);
   return korean
     ? `${safeSeed}의 핵심 장면을 자연스럽게 보여주는 공정 영상입니다.`
     : `${safeSeed}の見どころを自然に伝える工程映像です。`;
@@ -10524,6 +10545,10 @@ module.exports = {
   outputLanguageForVariant,
   selectKoreanFullHookType,
   __test: {
+    buildFallbackReport,
+    metadataSubjectPhrase,
+    koreanSubjectParticle,
+    deterministicDescription,
     applyMetadataFieldRepair,
     applyLocalMetadataFallbacks,
     buildMetadataPrompt,
