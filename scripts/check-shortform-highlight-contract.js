@@ -422,6 +422,18 @@ function testLocale66ExecutionSubsetRegression() {
   assert(arbitraryValidationBlocked?.code === 'LOCALE_6_6_EXECUTION_INVALID', 'An arbitrary different 12-item locale batch must not validate draft execution for this job subset.');
 }
 
+function testKoreanHighlightFolderNamesStayDistinct() {
+  const queueSource = fs.readFileSync(path.join(__dirname, '..', 'server', 'services', 'processQueueService.js'), 'utf8');
+  assert(
+    queueSource.includes('const koreanHighlightOrdinalSuffix = totalHighlights > 1'),
+    'Korean highlight drafts must add an ordinal suffix so two highlights from one source do not share a folder name.'
+  );
+  assert(
+    !queueSource.includes('preserveHighlightOutputFolder'),
+    'Folder collisions must be prevented by naming, not by renaming an already-written draft folder.'
+  );
+}
+
 function testLocaleHighlightOutputCountPolicy() {
   const cases = [
     [{ target_locale: 'ko-KR', source_type: 'longform', source_workflow_mode: 'longform_to_shorts', video_metadata: { duration_sec: 240 } }, 5, 'KO longform must produce 5 Highlights.'],
@@ -805,6 +817,7 @@ function main() {
   testHighlightOnlyOutputCountPolicy();
   testLocale66BatchValidation();
   testLocale66ExecutionSubsetRegression();
+  testKoreanHighlightFolderNamesStayDistinct();
   testLocaleHighlightOutputCountPolicy();
   testKoreanUploadMetadataAndProfileContracts();
   testSceneLevelUniquenessDoesNotRequireFixedTimeGap();

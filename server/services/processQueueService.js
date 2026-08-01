@@ -10150,12 +10150,19 @@ async function createKoreanHighlightDraftForItem({
     useExistingConfig: false,
     createZip
   });
+  // Same ordinal suffix the JP highlight path uses: without it, two highlights from
+  // one source resolve to the identical folder name and the second copyDirContents
+  // overwrites the first.
+  const koreanHighlightOrdinalSuffix = totalHighlights > 1
+    ? ` H${String(highlightOrdinal).padStart(2, '0')}`
+    : '';
+  const koreanHighlightFolderTitleBase = koreanHighlightMetadata.upload_title || titleInfo.title || itemConfig.upload_title || '';
   const projectName = draftFolderNameForBatchItem({
     startedAtStamp: draftStartedAtStamp,
     itemNumber,
     variant: 'KH',
-    title: koreanHighlightMetadata.upload_title || titleInfo.title || itemConfig.upload_title,
-    fallback: `${itemId}_korean_highlight`
+    title: `${koreanHighlightFolderTitleBase}${koreanHighlightOrdinalSuffix}`,
+    fallback: `${itemId}_korean_highlight${koreanHighlightOrdinalSuffix ? `_h${highlightOrdinal}` : ''}`
   });
   const outDir = path.join(outputRoot, projectName);
   copyDirContents(result.draftPath, outDir);
