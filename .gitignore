@@ -70,3 +70,6 @@ pilot50_selection.json
 *.lnk
 Thumbs.db
 Desktop.ini
+# Agent tooling workspaces (not product code)
+.opencode/
+.sisyphus/
