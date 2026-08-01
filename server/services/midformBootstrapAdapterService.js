@@ -468,10 +468,13 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
     }
 
     // NARRATE (cold_open / bridge / body / payoff narration).
-    const narration = normalizeText(fill.narration || '');
-    const captionKr = normalizeText(fill.caption_kr || '');
-    if (!narration) warnings.push(`${slotId} (${role}) NARRATE has empty narration`);
     const isColdOpen = role === 'cold_open';
+    // Scene hook: heatmap-peak cold open that plays its original action audio — no TTS,
+    // no captions, and the source clip keeps full volume downstream.
+    const isSceneHook = isColdOpen && normalizeText(item.visual_source_mode) === 'source_audio_teaser';
+    const narration = isSceneHook ? '' : normalizeText(fill.narration || '');
+    const captionKr = isSceneHook ? '' : normalizeText(fill.caption_kr || '');
+    if (!narration && !isSceneHook) warnings.push(`${slotId} (${role}) NARRATE has empty narration`);
     // Cold-open uses the muted teaser visual window (visual_source_*), NOT its own story-beat
     // start/end. Every other NARRATE slot has no fixed window and lets the auto-picker choose.
     const teaserStart = Number(item.visual_source_start_sec);
@@ -524,21 +527,21 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
       duration: Number((sourceRange[1] - sourceRange[0]).toFixed(3)),
       scene_summary: normalizeText(item.reason || role),
       scene_ids: [],
-      tts_budget_sec: [Number(item.narration_estimated_duration_sec || item.estimated_duration_sec || 0), Number(item.estimated_duration_sec || 0)],
+      tts_budget_sec: isSceneHook ? [0, 0] : [Number(item.narration_estimated_duration_sec || item.estimated_duration_sec || 0), Number(item.estimated_duration_sec || 0)],
       narration_background: true,
       dialogue_heavy_role: role
     });
     segments.push({
       segment_id: slotId,
-      segment_type: 'recap',
+      segment_type: isSceneHook ? 'scene_hook' : 'recap',
       source_type: 'NARRATE',
       translation_mode: '',
       utt_id: '',
-      tts_enabled: true,
+      tts_enabled: !isSceneHook,
       narration,
       dialogue_original: '',
       translated_caption_ko: '',
-      caption_text: captionKr || narration,
+      caption_text: isSceneHook ? '' : (captionKr || narration),
       story_anchor: { source_range_hint: sourceRangeHint, scene_refs: [] },
       source_scenes: sourceScenes,
       edit_instruction: defaultEditInstruction(role || 'narration'),

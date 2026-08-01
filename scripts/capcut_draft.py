@@ -2300,6 +2300,36 @@ def load_opencv_face_cascades():
 def sample_video_frame(video_path, time_sec):
     if cv2 is None or not video_path or not os.path.exists(video_path):
         return None
+    # ffmpeg input-seeking (-ss before -i) jumps to the nearest keyframe and decodes one
+    # frame. cv2's CAP_PROP_POS_MSEC seek software-decodes the whole GOP up to the target,
+    # which takes minutes per sample on AV1 sources and stalls the draft build.
+    try:
+        import numpy as np
+
+        result = subprocess.run(
+            [
+                FFMPEG_BIN,
+                "-ss",
+                f"{max(0.0, float(time_sec or 0.0)):.3f}",
+                "-i",
+                video_path,
+                "-frames:v",
+                "1",
+                "-f",
+                "image2pipe",
+                "-vcodec",
+                "png",
+                "pipe:1",
+            ],
+            capture_output=True,
+            timeout=30,
+        )
+        if result.returncode == 0 and result.stdout:
+            frame = cv2.imdecode(np.frombuffer(result.stdout, dtype=np.uint8), cv2.IMREAD_COLOR)
+            if frame is not None:
+                return frame
+    except Exception:
+        pass
     capture = None
     try:
         capture = cv2.VideoCapture(video_path)
@@ -8972,7 +9002,8 @@ def apply_midform_hybrid_video_audio_policy(draft_content_path, video_cut_placem
             continue
         segment_id = str(placement.get("segment_id") or "")
         segment_type = str(segment_type_map.get(segment_id) or "recap")
-        if segment_type in {"dialogue_quote", "dialogue"}:
+        # scene_hook: heatmap-peak cold open that plays its original action audio at full volume.
+        if segment_type in {"dialogue_quote", "dialogue", "scene_hook"}:
             segment["volume"] = 1
             segment["last_nonzero_volume"] = 1
             summary["kept_dialogue_video_segments"] += 1
@@ -9752,7 +9783,8 @@ def create_draft(input_json_path):
             duration_sec = total_source_sec / unit_count
         else:
             duration_sec = 2.0
-        if str(segment_type or segment_type_map.get(segment_id) or "") not in {"dialogue_quote", "dialogue"}:
+        # scene_hook plays its full source clip like dialogue — never clamp it to caption pacing.
+        if str(segment_type or segment_type_map.get(segment_id) or "") not in {"dialogue_quote", "dialogue", "scene_hook"}:
             duration_sec = max(1.0, min(duration_sec, 4.0))
         else:
             duration_sec = max(0.001, duration_sec)
@@ -10855,10 +10887,18 @@ def create_draft(input_json_path):
     subtitle_track_count = 0
     if caption_timeline_entries:
         copied_srt_path = os.path.abspath(os.path.join(subtitle_dir, "subtitles.srt"))
-        write_srt_entries(copied_srt_path, caption_timeline_entries)
+        # Filter to the entries write_srt_entries will actually emit (it skips empty text,
+        # e.g. silent scene_hook placeholders) so the positional metadata join stays aligned.
+        srt_visible_entries = [
+            entry
+            for entry in caption_timeline_entries
+            if str(entry.get("text") or "").strip()
+            and int(entry.get("timeline_end_us", 0) or 0) > int(entry.get("timeline_start_us", 0) or 0)
+        ]
+        write_srt_entries(copied_srt_path, srt_visible_entries)
         srt_entries = parse_srt(copied_srt_path)
         for index, entry in enumerate(srt_entries):
-            source_entry = caption_timeline_entries[index] if index < len(caption_timeline_entries) else {}
+            source_entry = srt_visible_entries[index] if index < len(srt_visible_entries) else {}
             if isinstance(source_entry, dict):
                 entry["caption_id"] = source_entry.get("caption_id")
                 entry["segment_id"] = source_entry.get("segment_id")

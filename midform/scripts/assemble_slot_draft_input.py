@@ -356,6 +356,9 @@ def split_by_sentence_boundaries(text):
     ellipsis_placeholder = "<ELLIPSIS>"
     protected_text = text.replace("...", ellipsis_placeholder)
     protected = re.sub(r"([.!?。！？])\s+", r"\1\n", protected_text)
+    # Japanese writes no space after 。！？, so the whitespace-anchored split above never
+    # fires and a whole paragraph ends up as one caption.
+    protected = re.sub(r"([。！？])(?=[^\s\n])", r"\1\n", protected)
     parts = []
     for piece in protected.splitlines():
         piece = piece.replace(ellipsis_placeholder, "...").strip()
@@ -458,8 +461,13 @@ def validate_dialogue_utterance_references(segments, transcript):
         if start is None or end is None:
             continue
         within_utterance = start >= utterance["start"] - 0.05 and end <= utterance["end"] + 0.05 and end > start
-        exact_utterance = abs(start - utterance["start"]) <= 0.05 and abs(end - utterance["end"]) <= 0.05
-        if not (exact_utterance or within_utterance):
+        # Dialogue clips carry deliberate cut-in padding (bootstrap_dialogue_visual_padding_v1
+        # applies up to 0.7s pre-roll / 0.25s post-roll), so a clip that CONTAINS the speech
+        # range with bounded padding is valid — only reject clips that cut into speech or
+        # drift more than 1.0s past the padded window.
+        contains_speech = start <= utterance["start"] + 0.05 and end >= utterance["end"] - 0.05 and end > start
+        padding_bounded = (utterance["start"] - start) <= 1.0 and (end - utterance["end"]) <= 1.0
+        if not (within_utterance or (contains_speech and padding_bounded)):
             errors.append(
                 f"{segment_id}: source clip {start:.3f}-{end:.3f} does not match {utt_id} "
                 f"{utterance['start']:.3f}-{utterance['end']:.3f}"
@@ -593,6 +601,82 @@ def balanced_partition_words(words, max_chars=CAPTION_MAX_CHARS, protected_chars
     return [" ".join(words)]
 
 
+JAPANESE_KANA_RE = re.compile(r"[ぁ-んァ-ヴ]")
+CAPTION_MAX_CHARS_JA = 14
+JA_CLAUSE_BREAK_RE = re.compile(r"(?<=[、，。！？」』])")
+
+
+def is_japanese_text(text):
+    return bool(JAPANESE_KANA_RE.search(str(text or "")))
+
+
+def japanese_char_class(char):
+    if "゠" <= char <= "ヿ" or char == "ー":
+        return "katakana"
+    if "぀" <= char <= "ゟ":
+        return "hiragana"
+    if "一" <= char <= "鿿":
+        return "kanji"
+    return "other"
+
+
+def find_japanese_break(text, limit):
+    """Pick a wrap point at or before `limit` that does not cut a word in half.
+
+    Japanese has no spaces, but a change of character class (katakana <-> kanji <-> kana)
+    almost always marks a word boundary, so breaking there reads naturally.
+    """
+    if visible_len(text) <= limit:
+        return len(text)
+    lowest = max(3, int(limit * 0.6))
+    for index in range(min(limit, len(text) - 1), lowest - 1, -1):
+        previous_class = japanese_char_class(text[index - 1])
+        current_class = japanese_char_class(text[index])
+        if previous_class == current_class:
+            continue
+        # Trailing hiragana are particles/inflections belonging to the word before them.
+        if current_class == "hiragana" and previous_class in {"kanji", "katakana"}:
+            continue
+        return index
+    return limit
+
+
+def split_japanese_caption(text, max_chars=CAPTION_MAX_CHARS_JA):
+    """Chunk Japanese captions, which have no spaces to break on.
+
+    Prefer clause punctuation, then fall back to a hard character wrap so a caption never
+    exceeds the readable line length.
+    """
+    text = normalize_text(text)
+    if not text:
+        return []
+    if visible_len(text) <= max_chars:
+        return [text]
+    pieces = [piece for piece in JA_CLAUSE_BREAK_RE.split(text) if piece.strip()]
+    chunks = []
+    buffer = ""
+    for piece in pieces:
+        piece = piece.strip()
+        if not piece:
+            continue
+        if buffer and visible_len(buffer + piece) > max_chars:
+            chunks.append(buffer)
+            buffer = piece
+        else:
+            buffer += piece
+    if buffer:
+        chunks.append(buffer)
+    wrapped = []
+    for chunk in chunks:
+        while visible_len(chunk) > max_chars:
+            cut = find_japanese_break(chunk, max_chars)
+            wrapped.append(chunk[:cut])
+            chunk = chunk[cut:]
+        if chunk:
+            wrapped.append(chunk)
+    return wrapped or [text]
+
+
 def split_long_caption_by_eojeol(text, max_chars=CAPTION_MAX_CHARS, min_eojeol=1, extended_chars=CAPTION_EXTENDED_CHARS):
     text = normalize_text(text)
     if not text:
@@ -601,7 +685,16 @@ def split_long_caption_by_eojeol(text, max_chars=CAPTION_MAX_CHARS, min_eojeol=1
         return [text]
     words = text.split(" ")
     if len(words) <= 1:
+        # No spaces to split on: Japanese (and other unspaced text) needs character-level
+        # chunking or the whole sentence stays as one unreadable caption.
+        if is_japanese_text(text):
+            return split_japanese_caption(text)
         return [text]
+    if is_japanese_text(text):
+        chunks = []
+        for word in words:
+            chunks.extend(split_japanese_caption(word))
+        return chunks
     return [chunk for chunk in balanced_partition_words(words, max_chars=max_chars, protected_chars=extended_chars, min_chars=CAPTION_MIN_CHARS) if chunk]
 
 
@@ -667,7 +760,7 @@ def merge_short_dialogue_units_across_slots(units, segments_by_id, extended_char
         unit = dict(units[index])
         segment = segments_by_id.get(unit.get("segment_id"), {})
         segment_type = str(segment.get("segment_type") or unit.get("segment_type") or "").strip()
-        if segment_type in {"dialogue_quote", "dialogue"}:
+        if segment_type in {"dialogue_quote", "dialogue", "scene_hook"}:
             merged.append(unit)
             index += 1
             continue
@@ -725,6 +818,22 @@ def build_timeline_units(segments):
     for segment_index, segment in enumerate(segments, start=1):
         segment_id = str(segment.get("segment_id") or f"s{segment_index:02d}")
         segment_type = str(segment.get("segment_type") or "recap")
+        if segment_type == "scene_hook":
+            # Scene hook has no captions and no TTS, but the timeline is unit-driven, so it
+            # needs one silent placeholder unit or the clip would never be placed.
+            caption_units.append(
+                {
+                    "caption_id": f"{safe_filename_stem(segment_id, f's{segment_index:02d}')}_cap_001",
+                    "segment_id": segment_id,
+                    "segment_type": segment_type,
+                    "tts_enabled": False,
+                    "order": 1,
+                    "text": "",
+                    "speaker": "",
+                    "source_segment_order": segment_index,
+                }
+            )
+            continue
         tts_enabled = segment.get("tts_enabled") is not False and segment_type not in {"dialogue_quote", "dialogue"}
         text = segment.get("translated_caption_ko") or segment.get("caption_text") if not tts_enabled else segment.get("narration") or segment.get("caption_text")
         if tts_enabled:
