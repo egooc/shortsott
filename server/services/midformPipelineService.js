@@ -923,10 +923,10 @@ async function prepareSource(state) {
     throw createHttpError(400, 'SOURCE_REQUIRED', 'sourceUrl or sourceVideoPath is required');
   }
   const ytDlp = resolveTool('yt-dlp', { envKey: 'YT_DLP_PATH' });
-  const metadata = await execFileAsync(ytDlp, ['--dump-single-json', '--no-playlist', state.input.sourceUrl], { errorCode: 'YTDLP_METADATA_FAILED' });
+  const metadata = await execFileAsync(ytDlp, ['--js-runtimes', 'node', '--dump-single-json', '--no-playlist', state.input.sourceUrl], { errorCode: 'YTDLP_METADATA_FAILED' });
   const parsed = JSON.parse(metadata.stdout.trim());
   writeJson(sourceInfoPath, parsed);
-  await execFileAsync(ytDlp, ['--no-playlist', '-f', 'bv*+ba/b', '--merge-output-format', 'mp4', '-o', path.join(runDir, 'source.%(ext)s'), state.input.sourceUrl], { errorCode: 'YTDLP_DOWNLOAD_FAILED' });
+  await execFileAsync(ytDlp, ['--js-runtimes', 'node', '--no-playlist', '-f', 'bv*+ba/b', '--merge-output-format', 'mp4', '-o', path.join(runDir, 'source.%(ext)s'), state.input.sourceUrl], { errorCode: 'YTDLP_DOWNLOAD_FAILED' });
   const sourceVideoPath = findDownloadedSource(runDir);
   if (!sourceVideoPath) throw createHttpError(500, 'SOURCE_DOWNLOAD_MISSING', 'yt-dlp completed but no source file was found', { runDir });
   state.artifacts.sourceVideoPath = sourceVideoPath;

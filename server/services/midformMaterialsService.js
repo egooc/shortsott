@@ -519,7 +519,7 @@ function randomScanDelay() {
 function execYtDlp(args) {
   const command = resolveTool('yt-dlp', { envKey: 'YT_DLP_PATH' });
   return new Promise((resolve, reject) => {
-    execFile(command, args, {
+    execFile(command, ['--js-runtimes', 'node', ...args], {
       cwd: PROJECT_ROOT,
       env: getToolEnv(),
       encoding: 'utf8',
