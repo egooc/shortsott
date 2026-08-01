@@ -2910,18 +2910,14 @@ function normalizeTitleList(value, subject, korean = false) {
     })
     .filter((item) => item?.title);
 
-  // Only recommended_titles[0] is ever uploaded, so padding a list out to five
-  // just manufactured four unused deterministic templates per variant.
-  while (normalized.length < MAX_RECOMMENDED_TITLES) {
-    const index = normalized.length;
-    const title = korean ? defaultKoreanTitle(index, subject) : defaultJapaneseTitle(index, subject);
-    normalized.push({
-      category: categories[index] || categories[0],
-      title: titleWithHashtags(title, extractHashtagsFromText(title), korean),
-      hashtags: normalizeLocalizedHashtags(extractHashtagsFromText(title), korean)
-    });
-  }
-
+  // Deliberately no padding. normalizeGuide runs on every stage, including the
+  // scene and hook stages that carry no metadata yet; padding there wrote a
+  // deterministic placeholder into highlight_metadata.recommended_titles, and the
+  // later merge (`source.recommended_titles || fallback.recommended_titles`) then
+  // preferred that placeholder over the real title the metadata call returned.
+  // Leaving the list empty lets the metadata response fill it; the last-resort
+  // template is applied once at the end, by repairPublicTitles.
+  void subject;
   return normalized.slice(0, MAX_RECOMMENDED_TITLES);
 }
 
@@ -8339,8 +8335,8 @@ function validateGuide(guide, options = {}) {
       missing.push('shortform_scene_transitions_too_collapsed');
     }
   }
-  if (!skipFullValidation && (!Array.isArray(guide?.recommended_titles_ko) || guide.recommended_titles_ko.length < 5)) {
-    missing.push('recommended_titles_ko_min_5');
+  if (!skipFullValidation && (!Array.isArray(guide?.recommended_titles_ko) || guide.recommended_titles_ko.length < MAX_RECOMMENDED_TITLES)) {
+    missing.push('recommended_titles_ko_missing');
   }
   if (isLongformGuide(guide)) {
     if (windowDuration(guide?.hook_clip_10s) < 4 && windowDuration(guide?.recommended_highlight_window) < 4) {
