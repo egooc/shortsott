@@ -27,6 +27,20 @@ function readCaptionColorConfig() {
   }
 }
 
+// Deterministic per-alias fallback so an unlisted speaker still gets a stable, visible
+// color instead of failing the speaker-metadata gates on every new film. fallback_roles
+// colors are distinct from the main role colors, so unknowns never collapse into a known
+// speaker's color.
+function fallbackSpeakerColorKey(speakerAlias, config) {
+  const fallbackRoles = config?.fallback_roles && typeof config.fallback_roles === 'object' ? Object.keys(config.fallback_roles) : [];
+  if (!fallbackRoles.length) return '';
+  const id = normalizeSpeakerId(speakerAlias);
+  if (!id) return '';
+  let hash = 0;
+  for (let index = 0; index < id.length; index += 1) hash = ((hash * 31) + id.charCodeAt(index)) >>> 0;
+  return fallbackRoles[hash % fallbackRoles.length];
+}
+
 function resolveSpeakerColorKey(speakerAlias, config = readCaptionColorConfig()) {
   const alias = normalizeText(speakerAlias);
   if (!alias || !config || typeof config !== 'object') return '';
@@ -35,21 +49,25 @@ function resolveSpeakerColorKey(speakerAlias, config = readCaptionColorConfig())
   const mapped = normalizeText(speakers[alias]);
   if (mapped && !mapped.startsWith('#')) return mapped;
   if (roles[alias]) return alias;
-  return '';
+  return fallbackSpeakerColorKey(alias, config);
 }
 
 function resolveCaptionColor({ speakerAlias = '', speakerColorKey = '' } = {}, config = readCaptionColorConfig()) {
   if (!config || typeof config !== 'object') return '';
   const roles = config.roles && typeof config.roles === 'object' ? config.roles : {};
+  const fallbackRoles = config.fallback_roles && typeof config.fallback_roles === 'object' ? config.fallback_roles : {};
   const speakers = config.speakers && typeof config.speakers === 'object' ? config.speakers : {};
   const key = normalizeText(speakerColorKey);
   if (key && String(roles[key] || '').startsWith('#')) return roles[key];
+  if (key && String(fallbackRoles[key] || '').startsWith('#')) return fallbackRoles[key];
   if (key.startsWith('#')) return key;
   const alias = normalizeText(speakerAlias);
   const mapped = normalizeText(speakers[alias]);
   if (mapped.startsWith('#')) return mapped;
   if (mapped && String(roles[mapped] || '').startsWith('#')) return roles[mapped];
   if (String(roles[alias] || '').startsWith('#')) return roles[alias];
+  const fallbackKey = fallbackSpeakerColorKey(alias, config);
+  if (fallbackKey && String(fallbackRoles[fallbackKey] || '').startsWith('#')) return fallbackRoles[fallbackKey];
   return '';
 }
 
