@@ -154,7 +154,7 @@ test('buildLocaleDraftInput reorders physical segment chain from draft_spec plac
   assert.deepEqual(localeInput.segments[0].story_anchor.source_range_hint, [90, 90]);
 });
 
-test('generateLocaleDraftArtifacts creates separate folder-only KO/JA draft artifacts and final overlap report', async () => {
+test('generateLocaleDraftArtifacts skips the ja locale when no japanese script exists', async () => {
   const workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'midform-locale-drafts-'));
   const baseDraftInputPath = path.join(workspaceDir, 'draft_input.json');
   writeJson(baseDraftInputPath, {
@@ -214,20 +214,21 @@ test('generateLocaleDraftArtifacts creates separate folder-only KO/JA draft arti
     }
   });
 
-  assert.deepEqual(rendered.map((item) => item.locale), ['ko', 'ja']);
+  // Rendering ja from the Korean base is what shipped a "Japanese" cut with Korean
+  // narration, voice and subtitles. Without a Japanese script the locale is dropped.
+  assert.deepEqual(rendered.map((item) => item.locale), ['ko']);
+  assert.equal(fs.existsSync(path.join(workspaceDir, 'draft_ja')), false);
+  assert.equal(fs.existsSync(path.join(workspaceDir, 'draft_content.ja.json')), false);
+  assert.equal(result.finalOverlapReport.japanese_locale_skipped, true);
+  assert.ok(result.finalOverlapReport.japanese_locale_skipped_reason);
+
+  // The Korean deliverable still comes through in full.
   assert.equal(fs.existsSync(path.join(workspaceDir, 'draft_input.ko.json')), true);
-  assert.equal(fs.existsSync(path.join(workspaceDir, 'draft_input.ja.json')), true);
   assert.equal(fs.existsSync(path.join(workspaceDir, 'draft_content.ko.json')), true);
-  assert.equal(fs.existsSync(path.join(workspaceDir, 'draft_content.ja.json')), true);
   assert.equal(fs.existsSync(path.join(workspaceDir, 'draft_ko')), true);
-  assert.equal(fs.existsSync(path.join(workspaceDir, 'draft_ja')), true);
   assert.equal(fs.existsSync(path.join(workspaceDir, 'overlap_report_final_draft.ko_vs_ja.json')), true);
-  assert.equal(result.finalOverlapReport.final_status, 'pass');
-  assert.equal(result.finalOverlapReport.source_range_overlap_ratio, 0);
-  assert.equal(result.finalOverlapReport.top_highlight_cluster_ordering.identical, false);
   assert.equal(Object.keys(result.outputPaths).some((key) => key.includes('zip')), false);
   assert.match(result.outputPaths.draft_folder_ko, /draft_ko$/);
-  assert.match(result.outputPaths.draft_folder_ja, /draft_ja$/);
 });
 
 test('replanJaDraftSpecForFinalOverlap changes JA video source ranges instead of caption-only retrying', () => {

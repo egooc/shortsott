@@ -511,16 +511,27 @@ async function generateLocaleDraftArtifacts({ workspaceDir, baseDraftInputPath, 
   // ja renders from its own assembled draft input (Japanese script + Japanese TTS); every
   // other locale renders from the pipeline's base input.
   let japaneseBase = null;
+  let japaneseSkippedReason = '';
   if (japaneseSlotFillsPath && fs.existsSync(japaneseSlotFillsPath)) {
-    const built = await buildJapaneseBaseDraftInput({
-      workspaceDir, baseScriptPath, japaneseSlotFillsPath, sourceVideoPath, transcriptPath
-    });
-    japaneseBase = readJson(built.draftInputPath);
-    outputPaths.script_ja = rel(built.scriptPath);
-    outputPaths.draft_input_ja_base = rel(built.draftInputPath);
+    try {
+      const built = await buildJapaneseBaseDraftInput({
+        workspaceDir, baseScriptPath, japaneseSlotFillsPath, sourceVideoPath, transcriptPath
+      });
+      japaneseBase = readJson(built.draftInputPath);
+      outputPaths.script_ja = rel(built.scriptPath);
+      outputPaths.draft_input_ja_base = rel(built.draftInputPath);
+    } catch (error) {
+      japaneseSkippedReason = String(error?.message || error);
+    }
+  } else {
+    japaneseSkippedReason = 'no Japanese slot fills were generated for this run';
   }
+  // Without a Japanese script the ja locale would render the Korean voice and subtitles
+  // under a ja label, which is the exact defect this locale used to ship. Drop the locale
+  // instead and say why, rather than deliver a mislabelled cut or lose the Korean one.
+  const locales = japaneseBase ? LOCALES : LOCALES.filter((locale) => locale !== 'ja');
   const baseInputForLocale = (locale) => (locale === 'ja' && japaneseBase ? japaneseBase : baseDraftInput);
-  const draftSpecs = Object.fromEntries(LOCALES.map((locale) => [locale, readJson(path.join(workspaceDir, `draft_spec.${locale}.json`))]));
+  const draftSpecs = Object.fromEntries(locales.map((locale) => [locale, readJson(path.join(workspaceDir, `draft_spec.${locale}.json`))]));
   const renderLocale = async (locale, draftSpec, attempt = 0) => {
     const localeBaseInput = baseInputForLocale(locale);
     const normalizedDraftSpec = normalizeDraftSpecSourceRanges(draftSpec, localeBaseInput);
@@ -538,6 +549,20 @@ async function generateLocaleDraftArtifacts({ workspaceDir, baseDraftInputPath, 
     return generated;
   };
   await renderLocale('ko', draftSpecs.ko, 0);
+  if (!japaneseBase) {
+    const skippedReport = {
+      pair: 'ko_vs_ja',
+      comparison_level: 'final_draft_video_track',
+      final_status: 'not_applicable',
+      failed_gates: [],
+      japanese_locale_skipped: true,
+      japanese_locale_skipped_reason: japaneseSkippedReason
+    };
+    const skippedPath = path.join(workspaceDir, 'overlap_report_final_draft.ko_vs_ja.json');
+    writeJson(skippedPath, skippedReport);
+    outputPaths.overlap_report_final_draft_ko_vs_ja = rel(skippedPath);
+    return { localeResults, finalOverlapReport: skippedReport, outputPaths };
+  }
   await renderLocale('ja', draftSpecs.ja, 0);
   // Dialogue/scene-hook footage is pinned to identical true source windows in every
   // locale, so exclude those windows from the KO/JA duplicate-output comparison.

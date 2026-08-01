@@ -871,6 +871,16 @@ function coldOpenFocusCandidatesForBeat(beat, transcript) {
   });
 }
 
+// Lines that make a scene work rather than lines that can be summarised: declarations,
+// rebuttals, attitude flips, warnings that call someone by name, and reversals of who
+// holds power.
+const SCENE_FORCE_DIALOGUE_RE = /\b(?:no|never|stop|don'?t|won'?t|can'?t|listen|look at me|i (?:said|told|warned|swear|promise)|you (?:lied|knew|did|will|owe|dare)|how dare|shut up|get out|kill|die|now|enough|it'?s over|too late|help|run|behind you|watch out)\b|[!?]/i;
+
+function hasSceneForceDialogue(beat) {
+  const lines = Array.isArray(beat?.key_dialogue) ? beat.key_dialogue : [];
+  return lines.some((line) => SCENE_FORCE_DIALOGUE_RE.test(String(line || '')));
+}
+
 function defaultDecisionForBeat(role, beat, transcript) {
   if (role === 'bridge') return 'NARRATE';
   if (role === 'cold_open') return coldOpenDialogueFocusForBeat(beat, transcript) ? 'KEEP_DIALOGUE' : 'NARRATE';
@@ -878,8 +888,12 @@ function defaultDecisionForBeat(role, beat, transcript) {
   const weight = Number(beat?.dramatic_weight || 0);
   const quality = String(beat?.dialogue_quality || '').trim();
   const focusDuration = focusDurationForBeat(beat, transcript);
-  if ((role === 'body_peak' || role === 'payoff') && quality === 'high') return 'KEEP_DIALOGUE';
-  if (quality === 'high' && hook >= 4 && focusDuration <= 45) return 'KEEP_DIALOGUE';
+  if ((role === 'body_peak' || role === 'payoff') && quality !== 'low') return 'KEEP_DIALOGUE';
+  if (quality === 'high' && focusDuration <= 45) return 'KEEP_DIALOGUE';
+  // A line that declares, rebuts, flips an attitude, calls a name in warning or reverses
+  // who holds power carries the scene itself. Summarising it away is what makes a recap
+  // read as explanation.
+  if (quality !== 'low' && focusDuration <= 45 && hasSceneForceDialogue(beat)) return 'KEEP_DIALOGUE';
   if (hook <= 2 && weight <= 2) return 'DROP';
   return 'NARRATE';
 }
@@ -2340,16 +2354,30 @@ function topUpTimelineToTargetRuntime(timeline, beats, transcript, targetSec) {
     if (runtime >= floor) break;
     const slotId = nextFreeSlotId(usedIds);
     usedIds.add(slotId);
-    const duration = narrationDurationForBeat(beat);
+    // Prefer filling the gap with the scene itself. Promoting a beat that has usable
+    // dialogue as narration would pad the cut with the explanation this format is trying
+    // to get away from.
+    const focus = coldOpenDialogueFocusForBeat(beat, transcript);
+    const keepsDialogue = Boolean(focus);
+    const duration = keepsDialogue ? focus.duration_sec : narrationDurationForBeat(beat);
     added.push({
       slot_id: slotId,
       beat_id: String(beat.beat_id || '').trim(),
       role: 'body',
-      decision: 'NARRATE',
-      start_sec: roundSec(beat.start_sec),
-      end_sec: roundSec(beat.end_sec),
+      decision: keepsDialogue ? 'KEEP_DIALOGUE' : 'NARRATE',
+      start_sec: keepsDialogue ? focus.start_sec : roundSec(beat.start_sec),
+      end_sec: keepsDialogue ? focus.end_sec : roundSec(beat.end_sec),
       estimated_duration_sec: duration,
-      reason: 'Promoted from an unused beat so the cut reaches its target runtime.',
+      ...(keepsDialogue
+        ? {
+            dialogue_focus_source: 'runtime_topup_dialogue',
+            dialogue_focus_lines: focus.lines,
+            dialogue_focus_quotes: focus.quotes
+          }
+        : {}),
+      reason: keepsDialogue
+        ? 'Promoted an unused beat as preserved dialogue so the cut reaches its runtime with scene, not explanation.'
+        : 'Promoted from an unused beat so the cut reaches its target runtime.',
       spoiler_policy: 'Keep the mystery progression grounded in transcript evidence.',
       repeat_policy: 'No repeat.',
       runtime_topup: true
@@ -2722,6 +2750,7 @@ function buildBeatsPrompt(transcript, metadata) {
     '- Every beat start_sec/end_sec must stay inside the provided cue ranges.',
     '- Preserve source order.',
     '- Make beats story-sized, not subtitle-sized. Prefer 5-9 beats for a 5-10 minute clip.',
+    '- Put beat boundaries where the scene turns: a speaker switch, a reaction, a declaration or rebuttal, or the moment a relationship flips. Do not draw boundaries around background or setup explanation.',
     '- key_dialogue must quote exact source dialogue snippets from the transcript.',
     '- anchor_dialogue must contain 1 to 2 identity-defining lines chosen from key_dialogue. Payoff/reveal-heavy beats may carry up to 3 anchors if multiple facts are core to the reveal.',
     '- anchor_dialogue is mandatory for later KEEP_DIALOGUE enforcement whenever the beat has dialogue. Pick the strongest hook/reveal/boundary lines, not cushion lines.',
@@ -2746,10 +2775,18 @@ function buildEditPlanPrompt(beats, heatmap, targetSec, metadata) {
     'You are designing a 3-minute Korean midform compression edit plan from narrative beats and YouTube most-replayed data.',
     'Return JSON only matching the schema. Do not use markdown.',
     '',
+    'Editorial stance for this channel (this decides most of your choices):',
+    '- Scene-preserving and speech-driven cuts outperform explanatory recaps here. Let the scene carry the story: preserve the dialogue that creates the force of a moment and use narration only to recover the situation quickly between those moments.',
+    '- Almost always KEEP_DIALOGUE for a line that declares, rebuts, flips an attitude, calls someone by name as a warning, or reverses who holds power. The test is not "can this be summarised" but "does this line make the scene work". If it makes the scene work, keep it.',
+    '- NARRATE is for what cannot be seen or heard: who these people are, what just changed, what is at stake. Never narrate what the dialogue already says.',
+    '- Prefer short exchanges over long single speeches. One line, a reaction, one line back gives the cut its rhythm; a long explanatory dialogue block kills it.',
+    '- Place cut boundaries at speaker switches, reaction shots, declarations, rebuttals and the moment a relationship flips. Compress the opposite: event recaps, background, and setup explanation.',
+    '- More dialogue is not automatically better. A speech-driven cut fails when the viewer cannot tell what the situation is or who is who, so pair every preserved exchange with just enough context for it to land.',
+    '',
     'Goal structure:',
     'Use the cold_open_callback pattern for dialogue-driven confrontation scenes: HOOK_TEASER -> CONTEXT_RESET -> CALLBACK_DIALOGUE -> BODY_DIALOGUE/PAYOFF.',
     '1. cold_open / HOOK_TEASER: put the strongest emotionally sharp dialogue line or compact micro-exchange first at 0-5s. Prioritize teaser_hook_strength and curiosity_gap over chronology. Do not open dialogue-driven confrontation scenes with narration only when a standalone hook line exists.',
-    '2. bridge / CONTEXT_RESET: immediately after the teaser, use short narration explaining who, when, and why this conflict matters. Target about 8-18 seconds. Do not fully paraphrase or spoil the teaser line.',
+    '2. bridge / CONTEXT_RESET: immediately after the teaser, use the SHORTEST narration that restores who these people are and what is at stake. Target about 5-10 seconds. Its job is situation recovery so the next dialogue lands, not setup or background. Do not fully paraphrase or spoil the teaser line.',
     '3. body: continue selected beats in story order.',
     '4. body_peak / CALLBACK_DIALOGUE: re-enter the same conflict axis within the first 20-35 seconds. The callback may come from a different source timestamp, but it must expand, answer, or contextualize the teaser instead of feeling like an accidental repeat.',
     '5. payoff: close with the strongest unresolved implication or reveal supported by the transcript.',
@@ -2914,6 +2951,8 @@ function buildSlotFillsPrompt(beats, editPlan, movieTitle, recapContextMarkdown)
     '- caption_kr_dialogue must read as natural spoken Korean, not a literal/translationese rendering. Example: "What are they really?" -> "걔넨 대체 뭐야?", not "그들은 정말로 무엇입니까?".',
     '- caption_kr_dialogue must match the narration\'s tone for that scene and reuse the exact character names/forms of address the narration uses. Do not introduce a different name or honorific than the narration already established.',
     '- NARRATE slots should compress omitted story context clearly.',
+    '- Narration is situation recovery, not storytelling duty. Say only what the viewer cannot get from the scene: who these people are, what just changed, what is now at stake. The moment the dialogue can carry it, stop narrating and let the scene play.',
+    '- Bridge narration in particular must be the shortest line that makes the next dialogue land. Two short sentences is usually enough; do not use it to set up background or recap events.',
     '- Each slot rule carries narration_target_sec and narration_target_chars. Write that slot\'s narration to approximately that many Korean characters excluding spaces (within about 15%). These budgets are what makes the cut reach its requested runtime — a one-line summary where 120 characters were budgeted leaves the finished video roughly half its intended length. Use the extra room for beats and consequence, never for filler or repetition.',
     '- Narration must read like a storyteller pulling the viewer forward, NOT like a plot synopsis. Reject the encyclopedic register: do not stack several facts into one "A 때문에 B가 C합니다" sentence, and do not open a slot by naming every faction and motive at once. One idea per sentence, short sentences, and each slot should end with tension or consequence that makes the next slot feel necessary.',
     '- Never resolve the curiosity the opening created before the payoff slot. If the cold open raised "why is this happening", the following slots may show WHAT is happening and raise the stakes, but must withhold the WHY until the payoff.',

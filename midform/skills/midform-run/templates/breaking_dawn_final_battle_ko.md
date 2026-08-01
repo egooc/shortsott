@@ -49,9 +49,10 @@ render:
 
 # Editorial Preferences
 - pattern: auto / scene_type: auto (본체는 action escalation)
-- keep_dialogue_policy: preserve_high_value
-- dialogue_unit_preference: micro_exchange
-- narration_density: medium
+- keep_dialogue_policy: preserve_scene_force — 선언·반박·태도 전환·이름 호출 경고·권력 역전 대사는 거의 무조건 살린다. 판단 기준은 "요약 가능한가"가 아니라 "이 대사가 장면의 힘을 만드는가"
+- dialogue_unit_preference: micro_exchange — 긴 설명형 대사 블록보다 한 줄 + 반응 + 한 줄의 짧은 공방
+- narration_density: low — 설명으로 끌고 가지 않는다. 나레이션은 장면 복구용으로만 최소 투입
+- cut_anchor: speaker switch / 표정 반응 / 선언·반박 라인 / 관계 역전 순간. 사건 정리·배경 회수·설정 설명 컷은 압축
 - fact_priority: clip_grounded
 - rewrite_priority: clarity > rhythm > hook_strength > readability
 - subtitle max lines: 2

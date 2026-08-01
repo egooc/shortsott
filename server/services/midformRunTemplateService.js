@@ -508,7 +508,7 @@ function updateLocaleAcceptanceGatesWithFinalDraft(workspaceDir, finalOverlapRep
     // Re-derive final_draft_* entries from the CURRENT overlap report — stale failures
     // from a previous attempt must not survive a later pass.
     const failed = new Set((Array.isArray(existing.failed) ? existing.failed : []).filter((gate) => !String(gate).startsWith('final_draft_')));
-    if (finalOverlapReport.final_status !== 'pass') {
+    if (finalOverlapReport.final_status !== 'pass' && !finalOverlapReport.japanese_locale_skipped) {
       for (const gate of finalOverlapReport.failed_gates || []) failed.add(`final_draft_${gate}`);
     }
     const next = {
@@ -726,7 +726,11 @@ async function runMidformTemplateWorkflow(options = {}) {
       return failedSummary;
     }
 
-    const japaneseSlotFillsPath = path.join(compressionRunDir, 'compression_slot_fills.ja.json');
+    // When bootstrap preflight rejects this compression run it falls back to an earlier
+    // one, and the drafted script then comes from that run. The Japanese script has to be
+    // built against the same slots, so take its fills from the run that was actually used.
+    const bootstrapSourceRunDir = summary.internal.bootstrap_source_run_dir || compressionRunDir;
+    const japaneseSlotFillsPath = path.join(bootstrapSourceRunDir, 'compression_slot_fills.ja.json');
     const localeDrafts = await generateLocaleDraftArtifacts({
       workspaceDir: workspace.workspaceDir,
       baseDraftInputPath: path.join(finalPipelineState.runDir, 'draft_input.json'),
@@ -805,7 +809,13 @@ async function runMidformTemplateWorkflow(options = {}) {
     }
 
     let finalSummary = finalSummaryFromQa(summary, qa, finalPipelineState, summary.analysis_run);
-    if (localeDrafts.finalOverlapReport.final_status !== 'pass') {
+    if (localeDrafts.finalOverlapReport.japanese_locale_skipped) {
+      finalSummary = {
+        ...finalSummary,
+        warnings: [...(finalSummary.warnings || []), 'japanese_locale_skipped'],
+        japanese_locale_skipped_reason: localeDrafts.finalOverlapReport.japanese_locale_skipped_reason || ''
+      };
+    } else if (localeDrafts.finalOverlapReport.final_status !== 'pass') {
       finalSummary = {
         ...finalSummary,
         status: 'failed',
