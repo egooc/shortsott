@@ -2,6 +2,7 @@ const {
   __test: {
     applyMetadataFieldRepair,
     buildFallbackReport,
+    repairPublicTitles,
     koreanSubjectParticle,
     deterministicDescription,
     applyLocalMetadataFallbacks,
@@ -563,6 +564,51 @@ function stripHashtagsForTest(value) {
   return String(value || '').replace(/[#＃][\p{L}\p{N}_-]+/gu, '');
 }
 
+function testOneBadTitleDoesNotDiscardTheOtherFour() {
+  // 2026-08-01 item_005: Gemini returned five Japanese hook titles, one contaminated
+  // subject was enough to replace all five with "<subject>ができるまで" templates, and
+  // Phase 3 uploads recommended_titles[0].
+  const hookTitles = [
+    'エアコン漏れ、職人技で復活！泡立つ水槽で漏れを発見',
+    'プロが教える！エアコン銅管の漏れ修理テクニック全公開',
+    '驚きの精密さ！エアコンコイルの漏れを完璧に直す溶接技術',
+    'これで安心！エアコンの冷媒漏れを自分でチェック'
+  ];
+  const metadata = {
+    recommended_titles: [
+      { category: 'hook', title: 'Air conditioner repair overview #worker #process', hashtags: ['#worker'] },
+      ...hookTitles.map((title) => ({ category: 'hook', title: `${title} #worker #process`, hashtags: ['#worker'] }))
+    ],
+    hashtags: ['#worker']
+  };
+
+  const repaired = repairPublicTitles(metadata, 'エアコンの銅管を精密に切断・除去', false);
+  assert(repaired.length === 5, `expected five titles, got ${repaired.length}`);
+
+  hookTitles.forEach((title) => {
+    assert(
+      repaired.some((item) => item.title.includes(title)),
+      `usable hook title must survive the language repair: ${title}`
+    );
+  });
+  assert(
+    !repaired.some((item) => /Air conditioner repair/u.test(item.title)),
+    'the contaminated title must be the one that gets replaced'
+  );
+  assert(
+    repaired[0].title.includes(hookTitles[0]),
+    `recommended_titles[0] is what Phase 3 uploads, so it must be a real hook title, got: ${repaired[0].title}`
+  );
+
+  // All five unusable is still a full template rebuild.
+  const allBad = repairPublicTitles({
+    recommended_titles: Array.from({ length: 5 }, () => ({ category: 'hook', title: 'Air conditioner repair', hashtags: [] })),
+    hashtags: []
+  }, 'エアコンの銅管を精密に切断・除去', false);
+  assert(allBad.length === 5, 'a fully contaminated list must still be topped up to five');
+  assert(!allBad.some((item) => /Air conditioner/u.test(item.title)), 'no contaminated title may survive');
+}
+
 function main() {
   testFullKoRepairSurvivesNormalize();
   testRepairLossGuard();
@@ -578,6 +624,7 @@ function main() {
   testPublicJapaneseHighlightTitlesRemoveHangul();
   testReportDescriptionNeverJamsASentenceIntoASubjectSlot();
   testKoreanHighlightRebuildsFromHighlightSeedsNotFullDraftSeeds();
+  testOneBadTitleDoesNotDiscardTheOtherFour();
   console.log('metadata repair guards ok');
 }
 

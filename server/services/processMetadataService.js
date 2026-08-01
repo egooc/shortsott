@@ -4141,6 +4141,27 @@ function publicTitleNeedsRebuild(metadata = {}, korean = false) {
   return titles.length < 5 || titles.some((item) => publicMetadataTextHasWrongLanguage(item?.title || '', korean));
 }
 
+// Repair only the titles that are actually unusable. Replacing all five whenever one
+// is contaminated throws away Gemini's hook titles - the only titles with any pull -
+// and leaves the upload with a deterministic "<subject>이 만들어지는 과정" template.
+// Order is preserved because Phase 3 uploads recommended_titles[0].
+function repairPublicTitles(metadata = {}, seed = '', korean = false) {
+  const titles = Array.isArray(metadata.recommended_titles) ? metadata.recommended_titles : [];
+  const usable = titles.filter((item) => !publicMetadataTextHasWrongLanguage(item?.title || '', korean));
+  if (usable.length >= 5) return usable.slice(0, 5);
+
+  const repaired = [...usable];
+  const seen = new Set(usable.map((item) => stripMetadataHashtags(item?.title || '')));
+  for (const candidate of rebuildMetadataTitles(metadata, seed, korean)) {
+    if (repaired.length >= 5) break;
+    const key = stripMetadataHashtags(candidate.title || '');
+    if (seen.has(key)) continue;
+    seen.add(key);
+    repaired.push(candidate);
+  }
+  return repaired.slice(0, 5);
+}
+
 function enforceMetadataSectionLanguage(metadata = {}, seedCandidates = [], korean = false) {
   const source = metadata && typeof metadata === 'object' ? metadata : {};
   const seed = safeMetadataSeed([...seedCandidates, ...metadataSectionTextCandidates(source)], korean);
@@ -4168,7 +4189,7 @@ function enforceMetadataSectionLanguage(metadata = {}, seedCandidates = [], kore
     ), korean);
   }
   if (publicTitleNeedsRebuild(next, korean)) {
-    next.recommended_titles = rebuildMetadataTitles(next, seed, korean);
+    next.recommended_titles = repairPublicTitles(next, seed, korean);
   }
   return next;
 }
@@ -10555,6 +10576,7 @@ module.exports = {
   selectKoreanFullHookType,
   __test: {
     buildFallbackReport,
+    repairPublicTitles,
     metadataSubjectPhrase,
     koreanSubjectParticle,
     deterministicDescription,
