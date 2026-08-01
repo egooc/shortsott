@@ -328,6 +328,100 @@ function testLocale66BatchValidation() {
   assert(missingLocaleResult.counts['ja-JP'] === 6, 'Missing target_locale must default to ja-JP in locale validation.');
 }
 
+function locale66QueueItem(itemId, targetLocale, sourceIndex) {
+  const videoId = `LC66${String(sourceIndex).padStart(7, '0')}`;
+  return {
+    item_id: itemId,
+    item_config: {
+      item_id: itemId,
+      target_locale: targetLocale,
+      source_url: `https://www.youtube.com/watch?v=${videoId}`,
+      canonical_source_key: `youtube:${videoId}`,
+      source_type: 'shortform',
+      source_workflow_mode: 'shortform_direct',
+      video_metadata: { duration_sec: 18 }
+    }
+  };
+}
+
+function testLocale66ExecutionSubsetRegression() {
+  const localePairs = [
+    ['item_001', 'ja-JP'],
+    ['item_002', 'ja-JP'],
+    ['item_003', 'ja-JP'],
+    ['item_004', 'ja-JP'],
+    ['item_005', 'ko-KR'],
+    ['item_006', 'ja-JP'],
+    ['item_007', 'ko-KR'],
+    ['item_008', 'ja-JP'],
+    ['item_009', 'ko-KR'],
+    ['item_010', 'ko-KR'],
+    ['item_011', 'ko-KR'],
+    ['item_012', 'ko-KR']
+  ];
+  const queueItems = localePairs.map(([itemId, targetLocale], index) => locale66QueueItem(itemId, targetLocale, index + 1));
+  const validationIds = localePairs.map(([itemId]) => itemId);
+  const failedMetadataIds = ['item_002', 'item_004', 'item_008', 'item_011'];
+  const executionIds = validationIds.filter((itemId) => !failedMetadataIds.includes(itemId));
+
+  const plan = queueTest.validateLocale66ExecutionPlan(queueItems, {
+    locale_validation_item_ids: validationIds,
+    execution_item_ids: executionIds
+  });
+
+  assert(plan.total === 12, 'locale_6_6 execution plan must validate the original 12-item batch.');
+  assert(plan.counts['ja-JP'] === 6 && plan.counts['ko-KR'] === 6, 'locale_6_6 execution plan must preserve JP 6 / KO 6 validation.');
+  assert(plan.execution_subset_count === 8, 'locale_6_6 execution plan must execute only the 8 metadata-ready items.');
+  assert(JSON.stringify(plan.execution_item_ids) === JSON.stringify(executionIds), 'locale_6_6 execution IDs must match the metadata-ready subset.');
+  assert(JSON.stringify(plan.skipped_item_ids) === JSON.stringify(failedMetadataIds), 'locale_6_6 skipped IDs must be the 4 metadata-failed items.');
+  assert(plan.validation_items.length === 12, 'locale_6_6 report plan must keep all original validation items.');
+  assert(plan.execution_items.length === 8, 'locale_6_6 report plan must separate the 8 execution items from validation items.');
+
+  const skipped = new Set(plan.validation_items.filter((item) => !item.will_execute).map((item) => item.item_id));
+  failedMetadataIds.forEach((itemId) => {
+    assert(skipped.has(itemId), `${itemId} must be recorded as skipped, not sent to draft.`);
+  });
+  executionIds.forEach((itemId) => {
+    const item = plan.execution_items.find((row) => row.item_id === itemId);
+    assert(item, `${itemId} must be recorded as draft-ready.`);
+    const expectedBuilder = item.target_locale === 'ko-KR'
+      ? 'createKoreanHighlightDraftForItem'
+      : 'createHighlightDraftForItem';
+    assert(item.highlight_builder === expectedBuilder, `${itemId} must route to the ${expectedBuilder} builder.`);
+  });
+
+  const item006 = plan.validation_items.find((item) => item.item_id === 'item_006');
+  const item007 = plan.validation_items.find((item) => item.item_id === 'item_007');
+  assert(item006.target_locale === 'ja-JP', 'JP item locale must be preserved in the execution plan.');
+  assert(item007.target_locale === 'ko-KR', 'KO item locale must be preserved in the execution plan.');
+
+  let subsetBlocked = null;
+  try {
+    queueTest.validateLocale66ExecutionPlan(queueItems, {
+      locale_validation_item_ids: validationIds.filter((itemId) => itemId !== 'item_001'),
+      execution_item_ids: executionIds
+    });
+  } catch (error) {
+    subsetBlocked = error;
+  }
+  assert(subsetBlocked?.code === 'LOCALE_6_6_EXECUTION_INVALID', 'Execution IDs outside the validation IDs must be blocked.');
+
+  const extraQueueItems = [
+    ...queueItems,
+    ...Array.from({ length: 12 }, (_, index) => locale66QueueItem(`other_${String(index + 1).padStart(3, '0')}`, index < 6 ? 'ja-JP' : 'ko-KR', index + 101))
+  ];
+  let arbitraryValidationBlocked = null;
+  try {
+    queueTest.validateLocale66ExecutionPlan(extraQueueItems, {
+      locale_validation_item_ids: Array.from({ length: 12 }, (_, index) => `other_${String(index + 1).padStart(3, '0')}`),
+      execution_item_ids: executionIds
+    });
+  } catch (error) {
+    arbitraryValidationBlocked = error;
+  }
+  assert(arbitraryValidationBlocked?.code === 'LOCALE_6_6_EXECUTION_INVALID', 'An arbitrary different 12-item locale batch must not validate draft execution for this job subset.');
+}
+
 function testLocaleHighlightOutputCountPolicy() {
   const cases = [
     [{ target_locale: 'ko-KR', source_type: 'longform', source_workflow_mode: 'longform_to_shorts', video_metadata: { duration_sec: 240 } }, 5, 'KO longform must produce 5 Highlights.'],
@@ -686,6 +780,18 @@ function main() {
   );
 
   assertContains(
+    queueService,
+    'locale_validation_item_ids = null',
+    'locale_6_6 draft continuation must validate the original 12-item batch, not only metadata-ready draft items.'
+  );
+
+  assertContains(
+    jobService,
+    'locale_validation_item_ids: job.item_ids || []',
+    'Process job draft continuation must pass original job item_ids for locale_6_6 validation.'
+  );
+
+  assertContains(
     phaseUi,
     'disabled={localeLocked}',
     'Phase 2 locale selector must lock running or completed queue items.'
@@ -698,6 +804,7 @@ function main() {
   testQueueHighlightPublicTitlesRejectHangulSubject();
   testHighlightOnlyOutputCountPolicy();
   testLocale66BatchValidation();
+  testLocale66ExecutionSubsetRegression();
   testLocaleHighlightOutputCountPolicy();
   testKoreanUploadMetadataAndProfileContracts();
   testSceneLevelUniquenessDoesNotRequireFixedTimeGap();

@@ -3192,6 +3192,102 @@ function validateLocale66QueueItems(queueItems = [], itemIds = []) {
   return validateLocale66Rows(rows, { stage: 'queue_execution' });
 }
 
+function uniqueLocalePlanIds(ids = []) {
+  const seen = new Set();
+  const duplicates = [];
+  const values = [];
+  (Array.isArray(ids) ? ids : []).forEach((id) => {
+    const value = safeId(id);
+    if (!value) return;
+    if (seen.has(value)) {
+      duplicates.push(value);
+      return;
+    }
+    seen.add(value);
+    values.push(value);
+  });
+  return { values, duplicates };
+}
+
+function locale66ExecutionPlanError(message, details = {}) {
+  const error = new Error(message);
+  error.status = 400;
+  error.code = 'LOCALE_6_6_EXECUTION_INVALID';
+  error.details = {
+    mode: LOCALE_6_6_BATCH_MODE,
+    stage: 'execution_plan',
+    ...details
+  };
+  return error;
+}
+
+function highlightBuilderNameForItem(itemConfig = {}) {
+  return isKoreanTargetLocale(itemConfig)
+    ? 'createKoreanHighlightDraftForItem'
+    : 'createHighlightDraftForItem';
+}
+
+function validateLocale66ExecutionPlan(queueItems = [], options = {}) {
+  const queueRows = Array.isArray(queueItems) ? queueItems : [];
+  const queueItemMap = new Map(queueRows.map((item) => [String(item.item_id || ''), item]));
+  const executionPlanIds = uniqueLocalePlanIds(options.execution_item_ids || []);
+  const validationPlanIds = uniqueLocalePlanIds(options.locale_validation_item_ids || executionPlanIds.values);
+  const executionItemIds = executionPlanIds.values;
+  const validationItemIds = validationPlanIds.values;
+
+  if (executionPlanIds.duplicates.length || validationPlanIds.duplicates.length) {
+    throw locale66ExecutionPlanError('locale_6_6 item ID 목록에 중복이 있습니다.', {
+      duplicate_execution_item_ids: executionPlanIds.duplicates,
+      duplicate_validation_item_ids: validationPlanIds.duplicates
+    });
+  }
+
+  const missingValidationItemIds = validationItemIds.filter((itemId) => !queueItemMap.has(itemId));
+  const missingExecutionItemIds = executionItemIds.filter((itemId) => !queueItemMap.has(itemId));
+  if (missingValidationItemIds.length || missingExecutionItemIds.length) {
+    throw locale66ExecutionPlanError('locale_6_6 item ID가 현재 queue에 없습니다.', {
+      missing_validation_item_ids: missingValidationItemIds,
+      missing_execution_item_ids: missingExecutionItemIds
+    });
+  }
+
+  const validationSet = new Set(validationItemIds);
+  const executionOutsideValidation = executionItemIds.filter((itemId) => !validationSet.has(itemId));
+  if (executionOutsideValidation.length) {
+    throw locale66ExecutionPlanError('draft 실행 대상은 locale_6_6 최초 검증 대상의 부분집합이어야 합니다.', {
+      execution_item_ids: executionItemIds,
+      validation_item_ids: validationItemIds,
+      execution_outside_validation_item_ids: executionOutsideValidation
+    });
+  }
+
+  const validation = validateLocale66QueueItems(queueRows, validationItemIds);
+  const executionSet = new Set(executionItemIds);
+  const validationItems = validationItemIds.map((itemId) => {
+    const itemConfig = queueItemMap.get(itemId)?.item_config || {};
+    const targetLocale = normalizeTargetLocale(itemConfig.target_locale || itemConfig.targetLocale);
+    const willExecute = executionSet.has(itemId);
+    return {
+      item_id: itemId,
+      target_locale: targetLocale,
+      canonical_source_key: getCanonicalKeyForQueueConfig(itemConfig),
+      execution_status: willExecute ? 'ready' : 'skipped_not_metadata_ready',
+      will_execute: willExecute,
+      highlight_builder: willExecute ? highlightBuilderNameForItem(itemConfig) : ''
+    };
+  });
+
+  return {
+    ...validation,
+    validation_item_ids: validationItemIds,
+    execution_item_ids: executionItemIds,
+    skipped_item_ids: validationItemIds.filter((itemId) => !executionSet.has(itemId)),
+    execution_subset_count: executionItemIds.length,
+    validation_items: validationItems,
+    execution_items: validationItems.filter((item) => item.will_execute)
+  };
+}
+
 function decideSourceLaneForItem(itemConfig = {}) {
   const item = normalizeItemConfig(itemConfig, itemConfig?.item_id);
   const sourceDuration = getSourceDurationSec(item);
@@ -10038,7 +10134,7 @@ async function createKoreanHighlightDraftForItem({
   };
 }
 
-async function generateQueue({ batch_name, item_ids, stop_on_error = false, draft_variant_mode = 'all', batch_mode = '' } = {}) {
+async function generateQueue({ batch_name, item_ids, stop_on_error = false, draft_variant_mode = 'all', batch_mode = '', locale_validation_item_ids = null } = {}) {
   ensureQueueFolders();
   const queueConfig = loadQueueConfig();
   const normalizedDraftVariantMode = normalizeDraftVariantMode(draft_variant_mode);
@@ -10069,8 +10165,12 @@ async function generateQueue({ batch_name, item_ids, stop_on_error = false, draf
   const itemsToRun = Array.isArray(item_ids) && item_ids.length
     ? item_ids.map((id) => queueItemMap.get(safeId(id))).filter(Boolean)
     : queue.queueItems;
-  const localeBatchValidation = batch_mode === LOCALE_6_6_BATCH_MODE
-    ? validateLocale66QueueItems(queue.queueItems, itemsToRun.map((item) => item.item_id))
+  const executionItemIds = itemsToRun.map((item) => item.item_id);
+  const localeExecutionPlan = batch_mode === LOCALE_6_6_BATCH_MODE
+    ? validateLocale66ExecutionPlan(queue.queueItems, {
+      locale_validation_item_ids,
+      execution_item_ids: executionItemIds
+    })
     : null;
 
   const report = {
@@ -10088,7 +10188,17 @@ async function generateQueue({ batch_name, item_ids, stop_on_error = false, draf
     metadata_export_dir: metadataExportDir,
     metadata_export_date: metadataExportDate,
     batch_mode: batch_mode || '',
-    locale_batch_validation: localeBatchValidation,
+    locale_batch_validation: localeExecutionPlan,
+    locale_execution_plan: localeExecutionPlan
+      ? {
+          validation_item_ids: localeExecutionPlan.validation_item_ids,
+          execution_item_ids: localeExecutionPlan.execution_item_ids,
+          skipped_item_ids: localeExecutionPlan.skipped_item_ids,
+          validation_count: localeExecutionPlan.total,
+          execution_count: localeExecutionPlan.execution_subset_count,
+          validation_items: localeExecutionPlan.validation_items
+        }
+      : null,
     output_root: capcutDraftRoot,
     output: {
       mode: 'capcut_draft_root',
@@ -10812,6 +10922,8 @@ module.exports = {
     normalizeTargetLocale,
     validateLocale66Rows,
     validateLocale66QueueItems,
+    validateLocale66ExecutionPlan,
+    highlightBuilderNameForItem,
     assertCaptionUnitsMatchTtsSentences,
     assertKoreanFullTtsFitsVideoTimeline,
     buildKoreanFullDraftTtsPlan,

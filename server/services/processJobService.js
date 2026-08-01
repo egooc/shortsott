@@ -1230,6 +1230,7 @@ async function runDraftStage(jobId, items, options = {}) {
     const result = await generateQueue({
       batch_name: `${baseBatchName}_${LOCALE_6_6_BATCH_MODE}`,
       item_ids: items.map((item) => item.item_id),
+      locale_validation_item_ids: options.locale_validation_item_ids || items.map((item) => item.item_id),
       stop_on_error: false,
       draft_variant_mode: options.draft_variant_mode || 'all',
       batch_mode: options.batch_mode
@@ -1524,7 +1525,8 @@ async function runJob(jobId) {
           totals.draft = await runDraftStage(jobId, draftItems, {
             batch_name: job.batch_name,
             draft_variant_mode: effectiveDraftVariantMode,
-            batch_mode: job.batch_mode || ''
+            batch_mode: job.batch_mode || '',
+            locale_validation_item_ids: job.item_ids || []
           });
         } else {
           appendJobLog(
@@ -1551,7 +1553,8 @@ async function runJob(jobId) {
         totals.draft = await runDraftStage(jobId, draftItems, {
           batch_name: job.batch_name,
           draft_variant_mode: job.draft_variant_mode || 'all',
-          batch_mode: job.batch_mode || ''
+          batch_mode: job.batch_mode || '',
+          locale_validation_item_ids: job.item_ids || []
         });
       } else {
         totals.draft = {
