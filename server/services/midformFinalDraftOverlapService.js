@@ -1,12 +1,20 @@
 const fs = require('fs');
 
+// The locales are allowed to share footage. What separates them is the language layer
+// (their own script, voice track and subtitles) plus differing cut points, frame starts
+// and ordering — so these gates only need to catch a wholesale identical edit, not any
+// reuse of the same shots.
 const THRESHOLDS = {
-  pairwise_overlap_score: 0.65,
-  opening_similarity_score: 0.45,
-  chain_similarity_score: 0.55,
-  top_highlight_cluster_ordering_similarity_score: 0.8,
-  shared_contiguous_block_max_sec: 6.0
+  pairwise_overlap_score: 0.88,
+  opening_similarity_score: 0.75,
+  chain_similarity_score: 0.85,
+  top_highlight_cluster_ordering_similarity_score: 0.9,
+  shared_contiguous_block_max_sec: 20.0
 };
+
+// Two clips count as the same cut only when their in/out points essentially coincide; a
+// shifted frame start is a real difference, not a duplicate.
+const IDENTICAL_CUT_TOLERANCE_SEC = 0.5;
 
 function round3(value) {
   return Number(Number(value || 0).toFixed(3));
@@ -104,7 +112,19 @@ function sourceRangeOverlapRatio(leftChain, rightChain) {
   return round3(overlap / union);
 }
 
-function sharedContiguousBlocks(leftChain, rightChain) {
+// KEEP_DIALOGUE (and scene-hook) footage is pinned to the same true source windows in
+// every locale, so KO/JA sharing it is by design, not a duplicate-output signal. Overlaps
+// that fall inside an excluded window (with cut-in padding tolerance) end the block
+// instead of counting toward it.
+function overlapWithinExcludedWindow(left, right, excludedWindows) {
+  if (!Array.isArray(excludedWindows) || !excludedWindows.length) return false;
+  const start = Math.max(Number(left.source_range?.[0] || 0), Number(right.source_range?.[0] || 0));
+  const end = Math.min(Number(left.source_range?.[1] || 0), Number(right.source_range?.[1] || 0));
+  if (end <= start) return false;
+  return excludedWindows.some(([windowStart, windowEnd]) => start >= Number(windowStart) - 1.0 && end <= Number(windowEnd) + 1.0);
+}
+
+function sharedContiguousBlocks(leftChain, rightChain, excludedWindows = []) {
   const blocks = [];
   for (let i = 0; i < leftChain.length; i += 1) {
     for (let j = 0; j < rightChain.length; j += 1) {
@@ -116,8 +136,11 @@ function sharedContiguousBlocks(leftChain, rightChain) {
         const right = rightChain[j + k];
         const overlap = rangeOverlap(left.source_range, right.source_range);
         if (overlap < 0.25) break;
+        if (overlapWithinExcludedWindow(left, right, excludedWindows)) break;
         duration += overlap;
-        clips.push({ ko_clip_id: left.clip_id, ja_clip_id: right.clip_id, overlap_sec: round3(overlap) });
+        const identicalCut = Math.abs(Number(left.source_range?.[0] || 0) - Number(right.source_range?.[0] || 0)) <= IDENTICAL_CUT_TOLERANCE_SEC
+          && Math.abs(Number(left.source_range?.[1] || 0) - Number(right.source_range?.[1] || 0)) <= IDENTICAL_CUT_TOLERANCE_SEC;
+        clips.push({ ko_clip_id: left.clip_id, ja_clip_id: right.clip_id, overlap_sec: round3(overlap), identical_cut: identicalCut });
         k += 1;
       }
       if (clips.length) blocks.push({ ko_start_index: i, ja_start_index: j, length: clips.length, duration_sec: round3(duration), clips });
@@ -126,7 +149,7 @@ function sharedContiguousBlocks(leftChain, rightChain) {
   return blocks.sort((left, right) => right.duration_sec - left.duration_sec || right.length - left.length);
 }
 
-function compareFinalDraftClipChains(koChain, jaChain, thresholds = THRESHOLDS) {
+function compareFinalDraftClipChains(koChain, jaChain, thresholds = THRESHOLDS, excludedWindows = []) {
   if (!koChain.length || !jaChain.length) {
     return {
       pair: 'ko_vs_ja',
@@ -145,17 +168,25 @@ function compareFinalDraftClipChains(koChain, jaChain, thresholds = THRESHOLDS) 
       final_status: 'fail'
     };
   }
-  const koOpening = koChain.filter((clip) => Number(clip.timeline_range?.[0] || 0) < 15);
-  const jaOpening = jaChain.filter((clip) => Number(clip.timeline_range?.[0] || 0) < 15);
+  // A clip pinned to a fixed window (the scene hook, a preserved dialogue line) plays in
+  // every locale by design, so it must not count as opening duplication.
+  const isFixedWindowClip = (clip) => (Array.isArray(excludedWindows) ? excludedWindows : []).some(([start, end]) => (
+    Number(clip.source_range?.[0] || 0) >= Number(start) - 1.0 && Number(clip.source_range?.[1] || 0) <= Number(end) + 1.0
+  ));
+  const openingClips = (chain) => chain.filter((clip) => Number(clip.timeline_range?.[0] || 0) < 15 && !isFixedWindowClip(clip));
+  const koOpening = openingClips(koChain);
+  const jaOpening = openingClips(jaChain);
   const chainSimilarity = lcsSimilarity(koChain.map(signatureForClip), jaChain.map(signatureForClip));
   const openingSimilarity = lcsSimilarity(koOpening.map(signatureForClip), jaOpening.map(signatureForClip));
   const overlapRatio = sourceRangeOverlapRatio(koChain, jaChain);
   const koTopHighlightOrder = topHighlightClusterOrdering(koChain);
   const jaTopHighlightOrder = topHighlightClusterOrdering(jaChain);
   const topHighlightSimilarity = lcsSimilarity(koTopHighlightOrder.map((clip) => clip.signature), jaTopHighlightOrder.map((clip) => clip.signature));
-  const blocks = sharedContiguousBlocks(koChain, jaChain);
+  const blocks = sharedContiguousBlocks(koChain, jaChain, excludedWindows);
   const maxBlockSec = round3(blocks[0]?.duration_sec || 0);
-  const threeShot = blocks.some((block) => block.length >= 3);
+  // Only a run of genuinely identical cuts signals a copied edit; the same shots entered
+  // at different frames are a legitimately different cut.
+  const threeShot = blocks.some((block) => (block.clips || []).filter((clip) => clip.identical_cut).length >= 3);
   const pairwiseScore = round3((overlapRatio * 0.35) + (chainSimilarity * 0.25) + (openingSimilarity * 0.25) + (topHighlightSimilarity * 0.15));
   const failed = [];
   if (pairwiseScore > thresholds.pairwise_overlap_score) failed.push('pairwise_overlap_threshold');
@@ -186,11 +217,12 @@ function compareFinalDraftClipChains(koChain, jaChain, thresholds = THRESHOLDS) 
   };
 }
 
-function compareFinalDraftFiles(koDraftContentPath, jaDraftContentPath, thresholds = THRESHOLDS) {
+function compareFinalDraftFiles(koDraftContentPath, jaDraftContentPath, thresholds = THRESHOLDS, excludedWindows = []) {
   const koChain = extractVideoClipChain(koDraftContentPath);
   const jaChain = extractVideoClipChain(jaDraftContentPath);
   return {
-    ...compareFinalDraftClipChains(koChain, jaChain, thresholds),
+    ...compareFinalDraftClipChains(koChain, jaChain, thresholds, excludedWindows),
+    excluded_fixed_windows: excludedWindows,
     ko_clip_count: koChain.length,
     ja_clip_count: jaChain.length
   };
