@@ -1,14 +1,22 @@
 const fs = require('fs');
 const path = require('path');
+const { execFile } = require('child_process');
+const { promisify } = require('util');
 
 const { generateDraft } = require('./capcutService');
+const { PROJECT_ROOT } = require('./pipelinePaths');
+const { resolveTool, getToolEnv } = require('../utils/toolPaths');
 const { compareFinalDraftFiles } = require('./midformFinalDraftOverlapService');
 const { ensureDir, rel, writeJson } = require('./midformRunArtifactsService');
 const { buildSpeakerMetadata, resolveCaptionColor } = require('../utils/captionColorConfig');
 
 const LOCALES = ['ko', 'ja'];
 const MAX_FINAL_DRAFT_REPLAN_ATTEMPTS = 4;
-const MAX_PHYSICAL_SOURCE_CLIP_SEC = 8;
+// A clip shorter than its narration forces CapCut to repeat-pad it: the shot visibly
+// jumps back to its own start mid-slot. Size every clip to cover its timeline need plus
+// editing headroom instead, and keep the ceiling high enough that real slots never hit it.
+const MAX_PHYSICAL_SOURCE_CLIP_SEC = 30;
+const CUT_HEADROOM_SEC = 3;
 const PHYSICAL_SOURCE_GAP_SEC = 0.3;
 
 function readJson(filePath) {
@@ -129,13 +137,49 @@ function replanJaDraftSpecForFinalOverlap(draftSpec, finalOverlapReport, attempt
   return next;
 }
 
+// Slots whose segments play fixed source footage (dialogue utterance windows, scene hooks)
+// keyed by base slot id -> [[start_sec, end_sec], ...].
+function collectFixedSourceWindowsBySlot(baseDraftInput) {
+  const bySlot = new Map();
+  for (const segment of Array.isArray(baseDraftInput?.segments) ? baseDraftInput.segments : []) {
+    const segmentType = String(segment?.segment_type || '').trim();
+    const isFixed = ['dialogue_quote', 'dialogue', 'scene_hook'].includes(segmentType)
+      || String(segment?.caption_kind || '').trim() === 'dialogue'
+      || Boolean(String(segment?.utt_id || segment?.source_utterance_id || '').trim());
+    if (!isFixed) continue;
+    const slotKey = String(segment?.parent_slot_id || segment?.segment_id || '').trim();
+    if (!slotKey) continue;
+    const clips = [
+      ...(Array.isArray(segment?.source_scenes) ? segment.source_scenes : []),
+      ...(Array.isArray(segment?.source_clips) ? segment.source_clips : [])
+    ];
+    for (const clip of clips) {
+      const start = secondsFromTimecode(clip?.start ?? clip?.start_sec);
+      const end = secondsFromTimecode(clip?.end ?? clip?.end_sec);
+      if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) continue;
+      const existing = bySlot.get(slotKey) || [];
+      existing.push([start, end]);
+      bySlot.set(slotKey, existing);
+    }
+  }
+  return bySlot;
+}
+
 function normalizeDraftSpecSourceRanges(draftSpec, baseDraftInput = {}) {
   const next = cloneJson(draftSpec);
   const placements = Array.isArray(next?.clip_placement) ? next.clip_placement : [];
   const sourceDurationSec = inferSourceDurationSec(baseDraftInput, next);
+  const fixedWindowsBySlot = collectFixedSourceWindowsBySlot(baseDraftInput);
+  const reservedWindows = [...fixedWindowsBySlot.values()].flat().sort((left, right) => left[0] - right[0]);
+  const overlapsReserved = (start, end) => reservedWindows.find(([ws, we]) => start < we - 0.001 && end > ws + 0.001);
   const cappedDurations = placements.map((placement) => {
     const sourceRange = Array.isArray(placement?.source_range) ? placement.source_range.map(Number) : [];
-    return Number(sourceRange[1]) > Number(sourceRange[0]) ? Math.min(rangeDuration(sourceRange), MAX_PHYSICAL_SOURCE_CLIP_SEC) : 0;
+    if (!(Number(sourceRange[1]) > Number(sourceRange[0]))) return 0;
+    // timeline_range is how long this clip actually plays (narration length). The source
+    // clip must cover at least that, or the draft repeat-pads it into a visible jump cut.
+    const timelineNeed = rangeDuration(Array.isArray(placement?.timeline_range) ? placement.timeline_range.map(Number) : []);
+    const wanted = timelineNeed > 0 ? timelineNeed + CUT_HEADROOM_SEC : rangeDuration(sourceRange);
+    return Math.max(timelineNeed, Math.min(wanted, MAX_PHYSICAL_SOURCE_CLIP_SEC));
   });
   const remainingPackedDuration = (index) => cappedDurations
     .slice(index + 1)
@@ -145,6 +189,20 @@ function normalizeDraftSpecSourceRanges(draftSpec, baseDraftInput = {}) {
   next.clip_placement = placements.map((placement, index) => {
     const sourceRange = Array.isArray(placement?.source_range) ? placement.source_range.map(Number) : [];
     if (!(Number(sourceRange[1]) > Number(sourceRange[0]))) return placement;
+    const slotKey = String(placement?.clip_id || '').replace(/^(ko|ja)_/, '') || String(placement?.slot_id || '');
+    const fixedWindows = fixedWindowsBySlot.get(slotKey);
+    if (fixedWindows && fixedWindows.length) {
+      // Dialogue/scene-hook slots play their true source windows; pin the placement to
+      // that span instead of packing it. It does not advance lastEnd — the windows act as
+      // reserved obstacles for the b-roll packing below.
+      const start = Math.min(...fixedWindows.map((window) => window[0]));
+      const end = Math.max(...fixedWindows.map((window) => window[1]));
+      return {
+        ...placement,
+        source_range: [Number(start.toFixed(3)), Number(end.toFixed(3))],
+        source_range_pinned_to_fixed_windows: true
+      };
+    }
     const originalDuration = rangeDuration(sourceRange);
     const duration = cappedDurations[index];
     const minStart = lastEnd > 0 ? lastEnd + PHYSICAL_SOURCE_GAP_SEC : 0;
@@ -152,6 +210,13 @@ function normalizeDraftSpecSourceRanges(draftSpec, baseDraftInput = {}) {
     if (sourceDurationSec > 0) {
       const latestStartToFitRest = sourceDurationSec - duration - remainingPackedDuration(index);
       if (start > latestStartToFitRest) start = Math.max(minStart, latestStartToFitRest);
+    }
+    // B-roll must not sit on top of reserved dialogue/scene-hook footage: those segments
+    // keep their true source windows, so nudge the packed range forward past any overlap.
+    for (let guard = 0; guard < 32; guard += 1) {
+      const blocking = overlapsReserved(start, start + duration);
+      if (!blocking) break;
+      start = blocking[1] + PHYSICAL_SOURCE_GAP_SEC;
     }
     let end = start + duration;
     let adjusted = start !== Number(sourceRange[0]) || duration !== originalDuration;
@@ -208,7 +273,20 @@ function slotKeyForSegment(segment) {
 function applyDraftSpecToSegment(segment, placement) {
   const sourceRange = placement.source_range;
   const segmentType = String(segment?.segment_type || '').trim();
-  const isDialogue = ['dialogue_quote', 'dialogue'].includes(segmentType);
+  const isDialogue = ['dialogue_quote', 'dialogue'].includes(segmentType)
+    || String(segment?.caption_kind || '').trim() === 'dialogue'
+    || Boolean(String(segment?.utt_id || segment?.source_utterance_id || '').trim());
+  if (isDialogue || segmentType === 'scene_hook') {
+    // Dialogue lines are locked to their source utterance windows. A slot-level locale
+    // placement covers the whole parent slot, so applying it to each sibling line would
+    // duplicate the same source range (hybrid overlap) and can cut into speech. The same
+    // holds for a scene_hook: its heatmap-peak window plays original audio and must not be
+    // remapped. Keep the original clips; the locale spec still controls ordering.
+    return {
+      ...segment,
+      locale_clip_id: placement.clip_id || ''
+    };
+  }
   const sourceScene = {
     clip_id: `${placement.clip_id || segment.segment_id}_locale_clip`,
     scene_id: `${placement.visual_role || 'locale'}_${placement.clip_id || segment.segment_id}`,
@@ -230,7 +308,10 @@ function applyDraftSpecToSegment(segment, placement) {
     ],
     story_anchor: {
       ...(segment.story_anchor || {}),
-      source_range_hint: [sourceRange[0], sourceRange[1]]
+      // Degenerate hint (end==start): the locale placement already provides explicit
+      // source_scenes, and a real range would arm CapCut's story-sync monotonic checks,
+      // which a reordered recap (cold open, locale divergence) can never satisfy.
+      source_range_hint: [sourceRange[0], sourceRange[0]]
     }
   };
 }
@@ -330,16 +411,122 @@ async function generateLocaleDraftFromInput(locale, localeDraftInput, workspaceD
   };
 }
 
-async function generateLocaleDraftArtifacts({ workspaceDir, baseDraftInputPath, sourceVideoPath, transcriptPath, draftGenerator = generateLocaleDraftFromInput }) {
+const execFileAsync = promisify(execFile);
+
+function parentSlotIdForSegment(segment) {
+  const segmentId = String(segment?.segment_id || '').trim();
+  const parent = String(segment?.parent_slot_id || '').trim();
+  if (parent) return parent;
+  const match = segmentId.match(/^(.*)_L\d+$/);
+  return match ? match[1] : segmentId;
+}
+
+function dialogueLineIndexForSegment(segment) {
+  const match = String(segment?.segment_id || '').match(/_L(\d+)$/);
+  return match ? Number(match[1]) - 1 : 0;
+}
+
+// Rewrites the pipeline's script into the Japanese script: same slots, same cuts, same
+// dialogue windows, but every viewer-facing string replaced with the Japanese pass.
+function buildJapaneseScript(baseScript, japaneseSlotFills) {
+  const fillsBySlot = new Map((Array.isArray(japaneseSlotFills?.slot_fills) ? japaneseSlotFills.slot_fills : [])
+    .map((fill) => [String(fill?.slot_id || '').trim(), fill]));
+  const missing = [];
+  const segments = (Array.isArray(baseScript?.segments) ? baseScript.segments : []).map((segment) => {
+    const fill = fillsBySlot.get(parentSlotIdForSegment(segment));
+    const segmentType = String(segment?.segment_type || '').trim();
+    if (!fill) {
+      if (segmentType !== 'scene_hook') missing.push(String(segment?.segment_id || ''));
+      return { ...segment };
+    }
+    if (['dialogue_quote', 'dialogue'].includes(segmentType)) {
+      const lines = Array.isArray(fill.caption_kr_dialogue) ? fill.caption_kr_dialogue : [];
+      const text = String(lines[dialogueLineIndexForSegment(segment)] || '').trim();
+      if (!text) missing.push(String(segment?.segment_id || ''));
+      return { ...segment, translated_caption_ko: text, caption_text: text };
+    }
+    if (segmentType === 'scene_hook') return { ...segment };
+    const narration = String(fill.narration || '').trim();
+    const caption = String(fill.caption_kr || '').trim() || narration;
+    if (!narration) missing.push(String(segment?.segment_id || ''));
+    return { ...segment, narration, caption_text: caption, translated_caption_ko: '' };
+  });
+  if (missing.length) {
+    throw new Error(`Japanese script is missing text for segments: ${missing.slice(0, 10).join(', ')}`);
+  }
+  const uploadText = japaneseSlotFills?.upload_text || {};
+  const overlay = uploadText.overlay_title && typeof uploadText.overlay_title === 'object' ? uploadText.overlay_title : {};
+  const titles = Array.isArray(uploadText.title_candidates) ? uploadText.title_candidates : [];
+  const top = String(overlay.top || '').trim();
+  const bottom = String(overlay.bottom || '').trim();
+  return {
+    ...baseScript,
+    locale: 'ja',
+    title_block: {
+      ...(baseScript?.title_block || {}),
+      full_title: String(titles[0] || '').trim() || (baseScript?.title_block || {}).full_title || '',
+      overlay_title: { top, bottom },
+      top_title: top,
+      top_subtitle: bottom
+    },
+    metadata: { ...(baseScript?.metadata || {}), title_candidates: titles },
+    segments
+  };
+}
+
+// Runs the shared assembler over the Japanese script so the ja cut gets its own TTS audio
+// and its own caption timing instead of inheriting the Korean voice track.
+async function buildJapaneseBaseDraftInput({ workspaceDir, baseScriptPath, japaneseSlotFillsPath, sourceVideoPath, transcriptPath }) {
+  if (!baseScriptPath || !fs.existsSync(baseScriptPath)) throw new Error(`Japanese locale needs the base script: ${baseScriptPath}`);
+  if (!japaneseSlotFillsPath || !fs.existsSync(japaneseSlotFillsPath)) {
+    throw new Error(`Japanese locale needs generated Japanese slot fills: ${japaneseSlotFillsPath}`);
+  }
+  const japaneseScript = buildJapaneseScript(readJson(baseScriptPath), readJson(japaneseSlotFillsPath));
+  const japaneseScriptPath = path.join(workspaceDir, 'script.ja.json');
+  writeJson(japaneseScriptPath, japaneseScript);
+
+  const outputPath = path.join(workspaceDir, 'draft_input.ja.base.json');
+  const ttsDir = path.join(workspaceDir, 'tts_ja');
+  ensureDir(ttsDir);
+  const python = resolveTool('python', { envKey: 'PYTHON_PATH' });
+  const scriptPath = path.join(PROJECT_ROOT, 'midform', 'scripts', 'assemble_slot_draft_input.py');
+  await execFileAsync(python, [
+    scriptPath,
+    '--script', japaneseScriptPath,
+    '--source-video', sourceVideoPath || '',
+    '--transcript', transcriptPath || '',
+    '--output', outputPath,
+    '--tts-dir', ttsDir,
+    '--movie-research', '',
+    '--gemini-analysis', ''
+  ], { cwd: PROJECT_ROOT, env: getToolEnv(), maxBuffer: 50 * 1024 * 1024 });
+  if (!fs.existsSync(outputPath)) throw new Error('Japanese draft input assembly produced no output');
+  return { draftInputPath: outputPath, scriptPath: japaneseScriptPath, ttsDir };
+}
+
+async function generateLocaleDraftArtifacts({ workspaceDir, baseDraftInputPath, sourceVideoPath, transcriptPath, baseScriptPath, japaneseSlotFillsPath, draftGenerator = generateLocaleDraftFromInput }) {
   const baseDraftInput = readJson(baseDraftInputPath);
   const localeResults = {};
   const outputPaths = {};
+  // ja renders from its own assembled draft input (Japanese script + Japanese TTS); every
+  // other locale renders from the pipeline's base input.
+  let japaneseBase = null;
+  if (japaneseSlotFillsPath && fs.existsSync(japaneseSlotFillsPath)) {
+    const built = await buildJapaneseBaseDraftInput({
+      workspaceDir, baseScriptPath, japaneseSlotFillsPath, sourceVideoPath, transcriptPath
+    });
+    japaneseBase = readJson(built.draftInputPath);
+    outputPaths.script_ja = rel(built.scriptPath);
+    outputPaths.draft_input_ja_base = rel(built.draftInputPath);
+  }
+  const baseInputForLocale = (locale) => (locale === 'ja' && japaneseBase ? japaneseBase : baseDraftInput);
   const draftSpecs = Object.fromEntries(LOCALES.map((locale) => [locale, readJson(path.join(workspaceDir, `draft_spec.${locale}.json`))]));
   const renderLocale = async (locale, draftSpec, attempt = 0) => {
-    const normalizedDraftSpec = normalizeDraftSpecSourceRanges(draftSpec, baseDraftInput);
+    const localeBaseInput = baseInputForLocale(locale);
+    const normalizedDraftSpec = normalizeDraftSpecSourceRanges(draftSpec, localeBaseInput);
     draftSpecs[locale] = normalizedDraftSpec;
     writeJson(path.join(workspaceDir, `draft_spec.${locale}.json`), normalizedDraftSpec);
-    const localeDraftInput = buildLocaleDraftInput(baseDraftInput, normalizedDraftSpec, locale);
+    const localeDraftInput = buildLocaleDraftInput(localeBaseInput, normalizedDraftSpec, locale);
     localeDraftInput.finalDraftReplanAttempt = attempt;
     const draftInputPath = path.join(workspaceDir, `draft_input.${locale}.json`);
     writeJson(draftInputPath, localeDraftInput);
@@ -352,14 +539,17 @@ async function generateLocaleDraftArtifacts({ workspaceDir, baseDraftInputPath, 
   };
   await renderLocale('ko', draftSpecs.ko, 0);
   await renderLocale('ja', draftSpecs.ja, 0);
-  let finalOverlapReport = compareFinalDraftFiles(localeResults.ko.draft_content_path, localeResults.ja.draft_content_path);
+  // Dialogue/scene-hook footage is pinned to identical true source windows in every
+  // locale, so exclude those windows from the KO/JA duplicate-output comparison.
+  const fixedSourceWindows = [...collectFixedSourceWindowsBySlot(baseDraftInput).values()].flat();
+  let finalOverlapReport = compareFinalDraftFiles(localeResults.ko.draft_content_path, localeResults.ja.draft_content_path, undefined, fixedSourceWindows);
   let replanAttempts = 0;
   while (finalOverlapReport.final_status !== 'pass' && replanAttempts < MAX_FINAL_DRAFT_REPLAN_ATTEMPTS) {
     replanAttempts += 1;
-    draftSpecs.ja = replanJaDraftSpecForFinalOverlap(draftSpecs.ja, finalOverlapReport, replanAttempts, baseDraftInput);
+    draftSpecs.ja = replanJaDraftSpecForFinalOverlap(draftSpecs.ja, finalOverlapReport, replanAttempts, baseInputForLocale('ja'));
     writeJson(path.join(workspaceDir, 'draft_spec.ja.json'), draftSpecs.ja);
     await renderLocale('ja', draftSpecs.ja, replanAttempts);
-    finalOverlapReport = compareFinalDraftFiles(localeResults.ko.draft_content_path, localeResults.ja.draft_content_path);
+    finalOverlapReport = compareFinalDraftFiles(localeResults.ko.draft_content_path, localeResults.ja.draft_content_path, undefined, fixedSourceWindows);
   }
   finalOverlapReport = {
     ...finalOverlapReport,
@@ -387,9 +577,12 @@ module.exports = {
   placementOrderBySlot,
   replanJaDraftSpecForFinalOverlap,
   secondsToTimecode,
+  buildJapaneseScript,
+  buildJapaneseBaseDraftInput,
   _test: {
     cloneJson,
     normalizeDraftSpecSourceRanges,
-    shiftedSourceRange
+    shiftedSourceRange,
+    buildJapaneseScript
   }
 };

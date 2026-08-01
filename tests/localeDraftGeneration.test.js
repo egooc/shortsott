@@ -100,11 +100,14 @@ test('buildLocaleDraftInput rewrites video source_scenes from draft_spec without
   assert.equal(localeInput.package_zip, false);
   assert.equal(localeInput.captionUnits.length, baseDraftInput.captionUnits.length);
   assert.equal(localeInput.captionUnits[0].text, baseDraftInput.captionUnits[0].text);
-  assert.equal(localeInput.segments[0].source_scenes[0].start, '00:40.000');
-  assert.equal(localeInput.segments[0].source_scenes[0].end, '00:44.000');
-  assert.equal(localeInput.segments[0].source_clips[0].start, '00:40.000');
-  assert.equal(localeInput.segments[0].source_clips[0].source, 'locale_draft_spec');
-  assert.deepEqual(localeInput.segments[0].story_anchor.source_range_hint, [40, 44]);
+  // Dialogue lines are locked to their source utterance windows: the locale placement
+  // controls ordering only and must not remap their clips (it would duplicate the parent
+  // slot range across sibling lines and cut into speech).
+  assert.equal(localeInput.segments[0].source_scenes[0].start, '00:01.000');
+  assert.equal(localeInput.segments[0].source_scenes[0].end, '00:03.000');
+  assert.equal(localeInput.segments[0].locale_clip_id, 'ja_slot_01');
+  assert.ok(!localeInput.segments[0].locale_source_override);
+  assert.deepEqual(localeInput.segments[0].story_anchor.source_range_hint, [1, 1]);
   assert.equal(localeInput.segments[0].speaker_id, 'jobs');
   assert.equal(localeInput.captionUnits[0].speaker_id, 'jobs');
   assert.equal(localeInput.captionUnits[0].speaker_color_key, '남주');
@@ -115,7 +118,9 @@ test('buildLocaleDraftInput rewrites video source_scenes from draft_spec without
   assert.equal(localeInput.segments[1].source_clips[0].end, '01:30.000');
   assert.equal(localeInput.segments[1].narration_background, true);
   assert.equal(localeInput.segments[1].source_audio_ducking, 0);
-  assert.equal(localeInput.segments[0].locale_source_override, true);
+  assert.equal(localeInput.segments[1].locale_source_override, true);
+  // Degenerate hint keeps CapCut's story-sync/auto-picker off for explicit locale clips.
+  assert.deepEqual(localeInput.segments[1].story_anchor.source_range_hint, [80, 80]);
 });
 
 test('buildLocaleDraftInput reorders physical segment chain from draft_spec placement order', () => {
@@ -144,7 +149,9 @@ test('buildLocaleDraftInput reorders physical segment chain from draft_spec plac
 
   assert.deepEqual(localeInput.segments.map((segment) => segment.segment_id), ['slot_03', 'slot_01', 'slot_02']);
   assert.deepEqual(localeInput.captionUnits.map((unit) => unit.segment_id), ['slot_03', 'slot_01', 'slot_02']);
-  assert.deepEqual(localeInput.segments[0].story_anchor.source_range_hint, [90, 92]);
+  assert.equal(localeInput.segments[0].source_scenes[0].start, '01:30.000');
+  // Degenerate hint keeps CapCut's story-sync/auto-picker off for explicit locale clips.
+  assert.deepEqual(localeInput.segments[0].story_anchor.source_range_hint, [90, 90]);
 });
 
 test('generateLocaleDraftArtifacts creates separate folder-only KO/JA draft artifacts and final overlap report', async () => {
@@ -273,7 +280,7 @@ test('normalizeDraftSpecSourceRanges preserves monotonic order near source tail'
   assert.equal(normalized.clip_placement[1].source_range_normalized_for_physical_draft, true);
 });
 
-test('normalizeDraftSpecSourceRanges caps long source windows for physical edit clips', () => {
+test('normalizeDraftSpecSourceRanges caps very long source windows but keeps clips packed in order', () => {
   const normalized = normalizeDraftSpecSourceRanges({
     locale: 'ja',
     clip_placement: [
@@ -282,6 +289,26 @@ test('normalizeDraftSpecSourceRanges caps long source windows for physical edit 
     ]
   }, { sourceDurationSec: 140 });
 
-  assert.ok(normalized.clip_placement[0].source_range[1] - normalized.clip_placement[0].source_range[0] <= 8);
+  assert.ok(normalized.clip_placement[0].source_range[1] - normalized.clip_placement[0].source_range[0] <= 30);
   assert.ok(normalized.clip_placement[1].source_range[0] > normalized.clip_placement[0].source_range[1]);
+});
+
+test('normalizeDraftSpecSourceRanges gives each clip its full playing time plus headroom', () => {
+  // A clip shorter than its timeline_range would be repeat-padded by CapCut, which shows
+  // as the shot jumping back to its own start mid-slot.
+  const normalized = normalizeDraftSpecSourceRanges({
+    locale: 'ko',
+    clip_placement: [
+      { clip_id: 'ko_slot_01', source_range: [10, 70], timeline_range: [0, 9.64], visual_role: 'bridge' },
+      { clip_id: 'ko_slot_02', source_range: [90, 140], timeline_range: [9.64, 20.54], visual_role: 'payoff' }
+    ]
+  }, { sourceDurationSec: 600 });
+
+  const [first, second] = normalized.clip_placement;
+  const firstDuration = first.source_range[1] - first.source_range[0];
+  const secondDuration = second.source_range[1] - second.source_range[0];
+  assert.ok(firstDuration >= 9.64, `first clip must cover its 9.64s playing time, got ${firstDuration}`);
+  assert.ok(secondDuration >= 10.9, `second clip must cover its 10.9s playing time, got ${secondDuration}`);
+  // Headroom on top so the editor has material to drag, without running away.
+  assert.ok(firstDuration <= 9.64 + 3.01, `first clip should not exceed need + headroom, got ${firstDuration}`);
 });
