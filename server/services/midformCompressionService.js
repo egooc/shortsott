@@ -148,11 +148,20 @@ function normalizeUploadText(uploadText) {
   };
 }
 
+// Curiosity titles do not have to be literal questions. Korean hook titles just as often
+// end on a noun that promises an answer without giving it ("...전쟁을 불렀던 이유"), which
+// opens the same curiosity gap. What we still reject is a flat declarative summary.
+// "을까" covers the general past-tense question form (했을까 / 않았을까 / 왜였을까), which the
+// earlier explicit list kept missing.
+const CURIOSITY_TITLE_QUESTION_ENDINGS = /(을까|ㄹ까|일까|될까|할까|무엇일까|누굴까|누구일까|어쩌다)$/;
+const CURIOSITY_TITLE_GAP_NOUNS = /(이유|까닭|비밀|정체|진실|반전|사연|전말|결말|순간|차이|끝)$/;
+
 function isCuriosityTitle(title) {
   const text = String(title || '').trim();
   if (!text) return false;
   return /[?？]/.test(text)
-    || /(일까|될까|됐을까|되었을까|왜일까|어쩌다|무슨 일일까|무엇일까|누굴까|누구일까|왜였을까)$/.test(text);
+    || CURIOSITY_TITLE_QUESTION_ENDINGS.test(text)
+    || CURIOSITY_TITLE_GAP_NOUNS.test(text);
 }
 
 function splitNarrationSentences(text) {
@@ -509,7 +518,7 @@ function findVttFile(dirPath) {
 
 async function loadYoutubeMetadata(sourceUrl, runDir) {
   const ytDlp = resolveTool('yt-dlp', { envKey: 'YT_DLP_PATH' });
-  const result = await execFileAsync(ytDlp, ['--dump-single-json', '--skip-download', '--no-playlist', sourceUrl], { timeout: 10 * 60 * 1000 });
+  const result = await execFileAsync(ytDlp, ['--js-runtimes', 'node', '--dump-single-json', '--skip-download', '--no-playlist', sourceUrl], { timeout: 10 * 60 * 1000 });
   const metadata = JSON.parse(result.stdout.trim());
   const metadataPath = path.join(runDir, 'source_info.json');
   writeJson(metadataPath, metadata);
@@ -521,6 +530,7 @@ async function extractTimedTranscript(sourceUrl, runDir) {
   const subtitleDir = path.join(runDir, 'subtitles_raw');
   ensureDir(subtitleDir);
   await execFileAsync(ytDlp, [
+    '--js-runtimes', 'node',
     '--skip-download',
     '--no-playlist',
     '--write-sub',
@@ -610,6 +620,21 @@ function peakHeatmapItem(heatmap) {
   }, null);
 }
 
+// Clamp a heatmap-peak window to a cold-open-sized scene hook (original-audio teaser),
+// shrinking around the peak center so validateEditPlan's NARRATE cold-open limit holds.
+function clampSceneHookWindow(startSec, endSec) {
+  const start = Number(startSec);
+  const end = Number(endSec);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return null;
+  const duration = Math.min(end - start, COLD_OPEN_VISUAL_MAX_SEC);
+  const center = (start + end) / 2;
+  const clampedStart = Math.max(0, center - duration / 2);
+  return {
+    start_sec: roundSec(clampedStart),
+    end_sec: roundSec(clampedStart + duration)
+  };
+}
+
 function heatmapVisualTeaserFromSelection(selection) {
   const startSec = Number(selection?.heatmap_peak_start_sec);
   const endSec = Number(selection?.heatmap_peak_end_sec);
@@ -641,19 +666,9 @@ function selectColdOpenBeat(beats, heatmap) {
       .filter((item) => item.overlap > 0)
       .sort((left, right) => right.overlap - left.overlap || Number(right.beat.hook_potential || 0) - Number(left.beat.hook_potential || 0));
     if (ranked.length) {
+      // Heatmap peaks outrank dialogue hooks: the most-replayed moment is the hook even
+      // when it is a non-dialogue action sequence (scene hook with original audio).
       const heatmapBeat = ranked[0].beat;
-      const heatmapScore = coldOpenCallbackBeatScore(heatmapBeat);
-      if (hookRanked[0] && hookRanked[0].score >= heatmapScore + 18) {
-        return {
-          beat: hookRanked[0].beat,
-          source: 'cold_open_callback_hook',
-          fallback_used: false,
-          fallback_reason: 'dialogue_hook_overrode_late_heatmap_peak',
-          heatmap_peak_start_sec: roundSec(peak.start_sec),
-          heatmap_peak_end_sec: roundSec(peak.end_sec),
-          reason: 'Selected the strongest standalone dialogue hook so the cut opens with teaser dialogue, then returns to the conflict as a callback.'
-        };
-      }
       return {
         beat: heatmapBeat,
         source: 'heatmap_peak',
@@ -661,7 +676,7 @@ function selectColdOpenBeat(beats, heatmap) {
         fallback_reason: '',
         heatmap_peak_start_sec: roundSec(peak.start_sec),
         heatmap_peak_end_sec: roundSec(peak.end_sec),
-        reason: 'Selected the beat overlapping the strongest replay peak.'
+        reason: 'Selected the beat overlapping the strongest replay peak. Heatmap peaks take priority over dialogue hooks for the cold open.'
       };
     }
   }
@@ -870,6 +885,11 @@ function buildFallbackEditPlan(beats, heatmap, targetSec, metadata, transcript) 
   const payoffBeatId = String(payoffBeat.beat_id || '').trim();
 
   const coldDialogueFocus = coldOpenDialogueFocusForBeat(coldOpen.beat, transcript);
+  // Non-dialogue heatmap peak -> scene hook: the peak moment opens the cut with its
+  // original action audio instead of a muted narration teaser.
+  const sceneHookWindow = !coldDialogueFocus && coldOpen.source === 'heatmap_peak'
+    ? clampSceneHookWindow(coldOpen.heatmap_peak_start_sec, coldOpen.heatmap_peak_end_sec)
+    : null;
   const coldOpenDecision = coldDialogueFocus ? 'KEEP_DIALOGUE' : 'NARRATE';
   const timeline = [{
     slot_id: 'slot_01',
@@ -878,16 +898,20 @@ function buildFallbackEditPlan(beats, heatmap, targetSec, metadata, transcript) 
     decision: coldOpenDecision,
     start_sec: coldDialogueFocus ? coldDialogueFocus.start_sec : roundSec(coldOpen.beat.start_sec),
     end_sec: coldDialogueFocus ? coldDialogueFocus.end_sec : roundSec(coldOpen.beat.end_sec),
-    estimated_duration_sec: coldDialogueFocus ? coldDialogueFocus.duration_sec : 5,
+    estimated_duration_sec: coldDialogueFocus
+      ? coldDialogueFocus.duration_sec
+      : (sceneHookWindow ? roundSec(sceneHookWindow.end_sec - sceneHookWindow.start_sec) : 5),
     reason: coldDialogueFocus
       ? 'Teaser opening selected from the strongest replay/hook beat and preserved as original dialogue with Korean captions.'
-      : 'Teaser opening selected from the strongest replay/hook beat.',
+      : (sceneHookWindow
+        ? 'Heatmap-peak scene hook: the most-replayed action moment opens the cut with its original audio.'
+        : 'Teaser opening selected from the strongest replay/hook beat.'),
     spoiler_policy: 'Do not reveal the answer in the teaser.',
     repeat_policy: coldDialogueFocus ? 'Original dialogue hook first; return later with aftermath/context, not duplicate the same line.' : 'Teaser only; replay later as body_peak with context.',
-    visual_source_mode: coldDialogueFocus ? 'source_dialogue_hook' : '',
-    visual_source_beat_id: coldDialogueFocus ? coldBeatId : '',
-    visual_source_start_sec: coldDialogueFocus ? coldDialogueFocus.start_sec : 0,
-    visual_source_end_sec: coldDialogueFocus ? coldDialogueFocus.end_sec : 0,
+    visual_source_mode: coldDialogueFocus ? 'source_dialogue_hook' : (sceneHookWindow ? 'source_audio_teaser' : ''),
+    visual_source_beat_id: coldDialogueFocus || sceneHookWindow ? coldBeatId : '',
+    visual_source_start_sec: coldDialogueFocus ? coldDialogueFocus.start_sec : (sceneHookWindow ? sceneHookWindow.start_sec : 0),
+    visual_source_end_sec: coldDialogueFocus ? coldDialogueFocus.end_sec : (sceneHookWindow ? sceneHookWindow.end_sec : 0),
     dialogue_focus_source: coldDialogueFocus ? 'cold_open_anchor_dialogue' : 'none',
     dialogue_focus_lines: coldDialogueFocus ? coldDialogueFocus.lines : [],
     dialogue_focus_quotes: coldDialogueFocus ? coldDialogueFocus.quotes : [],
@@ -1935,13 +1959,24 @@ function resizeColdOpenWindow(centerSec, targetSec, sourceBeat, fallbackStartSec
 // based on source-clip/visual-window length, not the actual Korean narration — this
 // recalculates them from real narration length and, for cold_open, resizes the muted
 // teaser visual window (grow or shrink) to fit rather than forcing the narration to be cut.
-function recalculateNarrationDurations(editPlan, slotFills, beats) {
+function recalculateNarrationDurations(editPlan, slotFills, beats, transcript = []) {
   const beatMap = new Map((Array.isArray(beats) ? beats : []).map((beat) => [String(beat?.beat_id || '').trim(), beat]));
   const fillsBySlot = new Map((Array.isArray(slotFills?.slot_fills) ? slotFills.slot_fills : [])
     .map((fill) => [String(fill?.slot_id || '').trim(), fill]));
 
   const timeline = (Array.isArray(editPlan?.timeline) ? editPlan.timeline : []).map((item) => {
     if (item.decision !== 'NARRATE') return item;
+    if (item.role === 'cold_open' && String(item.visual_source_mode || '').trim() === 'source_audio_teaser') {
+      // Scene hook plays the peak window with original audio — no narration sizing, and
+      // the visual window must not be resized to a narration length.
+      const windowSec = roundSec(Number(item.visual_source_end_sec || 0) - Number(item.visual_source_start_sec || 0));
+      return {
+        ...item,
+        narration_estimated_duration_sec: 0,
+        estimated_duration_sec: windowSec > 0 ? windowSec : Number(item.estimated_duration_sec || 0),
+        duration_check: { status: 'scene_hook_source_audio', narration_estimated_duration_sec: 0 }
+      };
+    }
     const fill = fillsBySlot.get(String(item.slot_id || '').trim());
     const narrationText = String(fill?.narration || '');
     const narrationEstimatedSec = estimateKoreanNarrationSeconds(narrationText);
@@ -1998,7 +2033,7 @@ function recalculateNarrationDurations(editPlan, slotFills, beats) {
     coldOpenSelection.teaser_visual_end_sec = safeTimeline[coldIndex].visual_source_end_sec ?? coldOpenSelection.teaser_visual_end_sec;
   }
 
-  const callbackMetadata = buildColdOpenCallbackMetadata(safeTimeline, editPlan, beats);
+  const callbackMetadata = buildColdOpenCallbackMetadata(safeTimeline, editPlan, beats, transcript);
   const durationBudget = recalculateDurationBudget(safeTimeline, Number(editPlan?.duration_budget?.target_sec || DEFAULT_TARGET_SEC));
   const dialogueTimingQc = evaluateDialogueTimingQc(safeTimeline, {
     dialogueDrivenConfrontation: isDialogueDrivenConfrontation(editPlan, beats),
@@ -2017,7 +2052,31 @@ function recalculateNarrationDurations(editPlan, slotFills, beats) {
   };
 }
 
-function buildColdOpenCallbackMetadata(timeline, editPlan, beats) {
+// A source that is mostly silence/action is not a dialogue confrontation even when a few
+// of its beats argue. Classifying it as one applies the strict dialogue-oriented gates,
+// which then escalate an action recap into a path that rejects action sources outright.
+const DIALOGUE_SCENE_MIN_SPEECH_RATIO = 0.2;
+
+function speechRatioForTranscript(transcript) {
+  const cues = Array.isArray(transcript) ? transcript : [];
+  if (!cues.length) return null;
+  let speechSec = 0;
+  let minStart = Number.POSITIVE_INFINITY;
+  let maxEnd = 0;
+  for (const cue of cues) {
+    const start = Number(cue?.start_sec);
+    const end = Number(cue?.end_sec);
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) continue;
+    speechSec += end - start;
+    minStart = Math.min(minStart, start);
+    maxEnd = Math.max(maxEnd, end);
+  }
+  const span = maxEnd - (Number.isFinite(minStart) ? minStart : 0);
+  if (!(span > 0)) return null;
+  return speechSec / span;
+}
+
+function buildColdOpenCallbackMetadata(timeline, editPlan, beats, transcript = []) {
   const active = (Array.isArray(timeline) ? timeline : []).filter((item) => item?.decision !== 'DROP');
   const starts = timelineStartBySlot(active);
   const beatMap = new Map((Array.isArray(beats) ? beats : []).map((beat) => [String(beat?.beat_id || '').trim(), beat]));
@@ -2034,9 +2093,14 @@ function buildColdOpenCallbackMetadata(timeline, editPlan, beats) {
     ? 'same_line_callback'
     : (callbackBeat && hookBeat && hasEarlyConfrontationSignal([...hookLines, ...callbackLines], callbackBeat) ? 'same_conflict_axis' : 'payoff_response');
   const reusedConflictAxis = String(hook?.reused_conflict_axis || callback?.reused_conflict_axis || hookBeat?.summary || callbackBeat?.summary || '').slice(0, 120);
+  const speechRatio = speechRatioForTranscript(transcript);
+  const speechDense = speechRatio == null || speechRatio >= DIALOGUE_SCENE_MIN_SPEECH_RATIO;
   return {
     editorial_pattern: hook && callback ? 'cold_open_callback' : 'standard_chronological',
-    scene_type: hook && callback ? 'dialogue_confrontation' : String(editPlan?.scene_type || ''),
+    scene_type: hook && callback && speechDense
+      ? 'dialogue_confrontation'
+      : (String(editPlan?.scene_type || '') || (speechDense ? '' : 'action_escalation')),
+    source_speech_ratio: speechRatio == null ? null : roundSec(speechRatio),
     hook_teaser: {
       enabled: Boolean(hook),
       source_lines: hookLines,
@@ -2099,6 +2163,10 @@ function bestColdOpenCallbackBeat(beats, transcript, preferredBeatId = '') {
 
 function prepareColdOpenCallbackTimeline(timeline, editPlan, beats, transcript) {
   if (!isDialogueDrivenConfrontation(editPlan, beats)) return timeline;
+  // A heatmap-peak scene hook (original-audio action teaser) must not be replaced by a
+  // dialogue callback hook — the peak moment IS the hook.
+  const existingCold = (Array.isArray(timeline) ? timeline : []).find((item) => item?.role === 'cold_open');
+  if (String(existingCold?.visual_source_mode || '').trim() === 'source_audio_teaser') return timeline;
   const selected = bestColdOpenCallbackBeat(beats, transcript, editPlan?.cold_open_selection?.beat_id);
   if (!selected) return timeline;
   const hookBeatId = String(selected.beat.beat_id || '').trim();
@@ -2276,7 +2344,8 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec) {
   if (coldIndex >= 0) {
     const cold = { ...timeline[coldIndex] };
     const coldBeat = beatMap.get(String(cold.beat_id || '').trim());
-    const coldDialogueFocus = cold.decision === 'KEEP_DIALOGUE' ? null : coldOpenDialogueFocusForBeat(coldBeat, transcript);
+    const isSceneHookCold = String(cold.visual_source_mode || '').trim() === 'source_audio_teaser';
+    const coldDialogueFocus = (cold.decision === 'KEEP_DIALOGUE' || isSceneHookCold) ? null : coldOpenDialogueFocusForBeat(coldBeat, transcript);
     if (coldDialogueFocus) {
       cold.decision = 'KEEP_DIALOGUE';
       cold.start_sec = coldDialogueFocus.start_sec;
@@ -2328,6 +2397,31 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec) {
       }
       delete cold.narration_estimated_duration_sec;
       delete cold.duration_check;
+      timeline[coldIndex] = cold;
+    } else if (isSceneHookCold && Number(cold.visual_source_end_sec) > Number(cold.visual_source_start_sec)) {
+      // Scene hook: keep the heatmap-peak window (clamped to cold-open length) with its
+      // original audio. Only nudge it off reserved dialogue windows; never replace it with
+      // a muted teaser or a dialogue hook.
+      const reservedRanges = timeline
+        .filter((item) => item.decision === 'KEEP_DIALOGUE' && Number(item.end_sec) > Number(item.start_sec))
+        .map((item) => [Number(item.start_sec), Number(item.end_sec)]);
+      const clamped = clampSceneHookWindow(cold.visual_source_start_sec, cold.visual_source_end_sec)
+        || { start_sec: Number(cold.visual_source_start_sec), end_sec: Number(cold.visual_source_end_sec) };
+      const adjusted = adjustVisualSourceAwayFromReserved({
+        mode: 'source_audio_teaser',
+        beat_id: cold.visual_source_beat_id || cold.beat_id,
+        start_sec: clamped.start_sec,
+        end_sec: clamped.end_sec,
+        reason: 'Heatmap-peak scene hook window rechecked against reserved dialogue windows.'
+      }, beatMap.get(String(cold.visual_source_beat_id || cold.beat_id || '').trim()), reservedRanges);
+      cold.decision = 'NARRATE';
+      cold.visual_source_mode = 'source_audio_teaser';
+      cold.visual_source_beat_id = String(adjusted?.beat_id || cold.visual_source_beat_id || cold.beat_id || '');
+      cold.visual_source_start_sec = Number(adjusted?.start_sec ?? clamped.start_sec);
+      cold.visual_source_end_sec = Number(adjusted?.end_sec ?? clamped.end_sec);
+      cold.visual_source_center_sec = roundSec((cold.visual_source_start_sec + cold.visual_source_end_sec) / 2);
+      cold.estimated_duration_sec = roundSec(cold.visual_source_end_sec - cold.visual_source_start_sec);
+      cold.repeat_policy = 'Scene hook teaser only; the body may replay this beat later with full context.';
       timeline[coldIndex] = cold;
     } else {
       // Source-video windows already claimed by KEEP_DIALOGUE slots (real dialogue audio).
@@ -2509,7 +2603,7 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec) {
     return annotateNarrationSlotForQc(item);
   });
   finalizedTimeline = applyColdOpenVisualOverlapSafety(finalizedTimeline, beatMap);
-  const callbackMetadata = buildColdOpenCallbackMetadata(finalizedTimeline, editPlan, beats);
+  const callbackMetadata = buildColdOpenCallbackMetadata(finalizedTimeline, editPlan, beats, transcript);
   const dialogueTimingQc = evaluateDialogueTimingQc(finalizedTimeline, {
     dialogueDrivenConfrontation: isDialogueDrivenConfrontation(editPlan, beats),
     editorialPattern: callbackMetadata.editorial_pattern,
@@ -2545,7 +2639,8 @@ function buildBeatsPrompt(transcript, metadata) {
     '- Make beats story-sized, not subtitle-sized. Prefer 5-9 beats for a 5-10 minute clip.',
     '- key_dialogue must quote exact source dialogue snippets from the transcript.',
     '- anchor_dialogue must contain 1 to 2 identity-defining lines chosen from key_dialogue. Payoff/reveal-heavy beats may carry up to 3 anchors if multiple facts are core to the reveal.',
-    '- anchor_dialogue is mandatory for later KEEP_DIALOGUE enforcement. Pick the strongest hook/reveal/boundary lines, not cushion lines.',
+    '- anchor_dialogue is mandatory for later KEEP_DIALOGUE enforcement whenever the beat has dialogue. Pick the strongest hook/reveal/boundary lines, not cushion lines.',
+    '- A pure action/visual beat (fight, chase, spectacle) with no meaningful spoken lines is valid: leave key_dialogue and anchor_dialogue empty rather than padding them with shouts, names, or filler. Such beats can still carry high hook_potential and dramatic_weight.',
     '- Good anchors: "if you were smart, you\'d stay away from me" / "what if I\'m the bad guy?" / "descended from wolves" / "we made a treaty with them" / "What are they really?"',
     '- Bad anchors: "Eggshells, carrot tops" / "radioactive spiders" / "No, our bus is full" / "I can keep a secret" / "old scary story" / "I\'m not really supposed to say anything about it"',
     '- dramatic_weight and hook_potential are 1 to 5.',
@@ -2575,10 +2670,11 @@ function buildEditPlanPrompt(beats, heatmap, targetSec, metadata) {
     '5. payoff: close with the strongest unresolved implication or reveal supported by the transcript.',
     '',
     'Rules:',
-    '- If heatmap.status is available, cold_open_selection.source should identify the story beat triggered by the heatmap peak, but the teaser visual may still come from a different high-hook beat if that better matches the narration hook.',
+    '- If heatmap.status is available, the heatmap peak has PRIORITY for the cold_open — the most-replayed moment outranks dialogue hooks from other beats. Anchor cold_open_selection on the beat overlapping the strongest peak.',
+    '- If the heatmap-peak moment is dialogue-led, open with that dialogue (KEEP_DIALOGUE). If it is a non-dialogue action/visual sequence, open with the peak itself as a SCENE HOOK: decision NARRATE, visual_source_mode "source_audio_teaser", visual_source_start_sec/visual_source_end_sec covering the peak moment (about 3-6 seconds), and plan NO narration over it — the original action audio and energy carry the hook. Do not fall back to a dialogue hook from another beat just because the peak lacks dialogue.',
     '- If heatmap is unavailable, set fallback_used true and choose max hook_potential, then dramatic_weight.',
-    '- cold_open must be short. Use about 3-6 seconds for narration-led visual teasers, or up to about 16 seconds when preserving a compact original-dialogue hook.',
-    '- For dialogue-led hook beats, cold_open should be KEEP_DIALOGUE with 1-2 strongest anchor lines, not a narrated muted clip.',
+    '- cold_open must be short. Use about 3-6 seconds for narration-led visual teasers or scene hooks, or up to about 16 seconds when preserving a compact original-dialogue hook.',
+    '- For dialogue-led hook beats (when no heatmap peak overrides), cold_open should be KEEP_DIALOGUE with 1-2 strongest anchor lines, not a narrated muted clip.',
     '- Score dialogue candidates with teaser_hook_strength, callback_payoff_strength, curiosity_gap, replay_value, and context_dependency. Avoid teaser lines that are pronoun-dependent or too context-heavy unless you extend to a micro-exchange.',
     '- If cold_open is KEEP_DIALOGUE, the later body_peak for the same beat must not duplicate the exact same source dialogue window; use aftermath/context narration or a distinct later line instead.',
     '- KEEP_DIALOGUE keeps only the identity dialogue of the beat, not the full beat transcript.',
@@ -2588,7 +2684,10 @@ function buildEditPlanPrompt(beats, heatmap, targetSec, metadata) {
     '- If there are more than 5 candidate lines, keep only the highest identity / hook / reveal lines.',
     '- NARRATE compresses via narration. DROP removes low-value side branches.',
     '- If cold_open would otherwise inherit irrelevant chatter, mark it as a narration-led teaser and let body_peak replay the full story beat later.',
-    '- Keep estimated_total_sec close to target_sec without exceeding it badly.',
+    `- The SUM of estimated_duration_sec across all non-DROP timeline slots MUST land between ${Math.round(targetSec * 0.9)} and ${Math.round(targetSec * 1.1)} seconds. This is checked by summing your slots, so an optimistic duration_budget will not pass.`,
+    '- A single narration slot realistically carries at most about 18 seconds of Korean speech, and a KEEP_DIALOGUE slot only lasts as long as its source lines. So reach the target by using MORE beats as slots, not by writing large durations on a few slots.',
+    `- For a ${targetSec}s cut that means roughly ${Math.max(6, Math.round(targetSec / 14))} or more slots. Revisit the beat list and promote the beats you would otherwise DROP into short body slots rather than leaving the cut short.`,
+    '- Do not compress the whole clip into a handful of summary slots. Prefer more, shorter beats over a few long summarizing ones.',
     '- Include role values cold_open, bridge, body, body_peak, payoff where appropriate.',
     '- Always fill dialogue_focus_quotes for KEEP_DIALOGUE slots, and leave it as [] for NARRATE or DROP slots.',
     '- dialogue_focus_lines should mirror dialogue_focus_quotes in concise readable form.',
@@ -2627,10 +2726,23 @@ function buildSlotFillEditorialGuide(editPlan = {}) {
     .map((item) => {
       const scores = item.dialogue_selection_scores && typeof item.dialogue_selection_scores === 'object' ? item.dialogue_selection_scores : {};
       const qcAction = item.qc_action && typeof item.qc_action === 'object' ? item.qc_action : {};
+      // Without an explicit budget the model writes one short summary sentence per slot and
+      // the cut lands at roughly half its requested runtime, so spell out how much speech
+      // each narration slot has to carry.
+      const isNarrate = String(item.decision || item.mode || '').trim() === 'NARRATE';
+      const plannedSec = Number(item.estimated_duration_sec || 0);
+      const sceneHook = String(item.visual_source_mode || '').trim() === 'source_audio_teaser';
+      const narrationTargetSec = isNarrate && !sceneHook && plannedSec > 0 ? roundSec(plannedSec) : 0;
+      const narrationTargetChars = narrationTargetSec > 0
+        ? Math.max(0, Math.round((narrationTargetSec - KOREAN_NARRATION_PAUSE_BUFFER_SEC) * koreanNarrationCharsPerSec()))
+        : 0;
       const compact = {
         slot_id: String(item.slot_id || '').trim(),
         role: String(item.role || '').trim(),
         decision: String(item.decision || item.mode || '').trim(),
+        visual_source_mode: String(item.visual_source_mode || '').trim(),
+        narration_target_sec: narrationTargetSec,
+        narration_target_chars: narrationTargetChars,
         editorial_role: String(item.editorial_role || '').trim(),
         scene_type: String(item.scene_type || editPlan.scene_type || '').trim(),
         dialogue_unit: compactSlotDialogueUnit(item.dialogue_unit),
@@ -2717,8 +2829,14 @@ function buildSlotFillsPrompt(beats, editPlan, movieTitle, recapContextMarkdown)
     '- caption_kr_dialogue must read as natural spoken Korean, not a literal/translationese rendering. Example: "What are they really?" -> "걔넨 대체 뭐야?", not "그들은 정말로 무엇입니까?".',
     '- caption_kr_dialogue must match the narration\'s tone for that scene and reuse the exact character names/forms of address the narration uses. Do not introduce a different name or honorific than the narration already established.',
     '- NARRATE slots should compress omitted story context clearly.',
+    '- Each slot rule carries narration_target_sec and narration_target_chars. Write that slot\'s narration to approximately that many Korean characters excluding spaces (within about 15%). These budgets are what makes the cut reach its requested runtime — a one-line summary where 120 characters were budgeted leaves the finished video roughly half its intended length. Use the extra room for beats and consequence, never for filler or repetition.',
+    '- Narration must read like a storyteller pulling the viewer forward, NOT like a plot synopsis. Reject the encyclopedic register: do not stack several facts into one "A 때문에 B가 C합니다" sentence, and do not open a slot by naming every faction and motive at once. One idea per sentence, short sentences, and each slot should end with tension or consequence that makes the next slot feel necessary.',
+    '- Never resolve the curiosity the opening created before the payoff slot. If the cold open raised "why is this happening", the following slots may show WHAT is happening and raise the stakes, but must withhold the WHY until the payoff.',
+    '- When the cold open is a wordless scene hook (visual_source_mode "source_audio_teaser"), the very next narration must NOT begin by explaining the whole premise. Enter mid-tension with the immediate situation, then let context arrive a piece at a time across the following slots.',
+    '- The payoff slot must land its reversal as a reveal, not a report. Deliver the turn in a short punchy line rather than a calm descriptive sentence that merely states what happened.',
     '- Do not repeat a preserved dialogue line in narration with the same informational content. If KEEP_DIALOGUE already says the core beat, narration must add setup, consequence, stakes, or interpretation instead of paraphrasing the same line.',
     '- If cold_open is NARRATE, its narration must plant a question and must not reveal the answer.',
+    '- EXCEPTION: if the cold_open slot rule shows visual_source_mode "source_audio_teaser" (heatmap scene hook), set narration to an empty string and leave caption_kr and caption_units empty — the original action audio of the peak moment IS the hook, and any voiceover would smother it.',
     '- If cold_open is NARRATE, write a single hook sentence only: one question or reversal, no explanation, no setup, no answer.',
     '- If cold_open is NARRATE, keep it roughly 20-30 Korean characters excluding spaces (~4-6 seconds of speech). Do not write two sentences.',
     '- If cold_open is KEEP_DIALOGUE, leave narration and caption_units empty and make caption_kr_dialogue carry the hook with punchy Korean spoken captions.',
@@ -2731,7 +2849,7 @@ function buildSlotFillsPrompt(beats, editPlan, movieTitle, recapContextMarkdown)
     '- body_peak should let original dialogue carry the answer when decision is KEEP_DIALOGUE.',
     '- The closing should NOT fully summarize the story. Keep it to 2 or 3 very short beats at most. Leave one unresolved threat or dangling consequence and end on that. Good style: "경고는 현실이 됐습니다. 그 혼란을 틈타, 제드는 아들과 함께 사라졌죠. 아들은 아직, 저들 손에 있습니다."',
     '- caption_kr should be a concise Korean caption line for the narration; empty for dialogue-only slots.',
-    '- upload_text.title_candidates must contain exactly 3 Korean title options. Every title must read as a curiosity-driven hook sentence, preferably question-shaped. Use endings like "~일까?", "왜 ~했을까?", "어쩌다 ~됐을까?" rather than a flat declarative summary. Do not use the movie title itself as the hook.',
+    '- upload_text.title_candidates must contain exactly 3 Korean title options. Every title must open a curiosity gap, either question-shaped ("~일까?", "왜 ~했을까?", "어쩌다 ~됐을까?") or ending on a noun that promises the answer without giving it ("~한 이유", "~의 정체", "~의 비밀", "~의 결말", "~한 순간"). A flat declarative summary is rejected. Do not use the movie title itself as the hook.',
     '- upload_text.overlay_title is required and must be separate from YouTube title_candidates. It must be an object with top and bottom strings, each 8 Korean characters or fewer excluding spaces where possible. This is for the on-screen CapCut title overlay, so it can be shorter than the YouTube title.',
     '- upload_text.overlay_title must preserve curiosity but fit two compact lines. Example: {"top":"쫓던 보안관이","bottom":"미끼가 된 날"}.',
     '- Avoid overclaiming causation or hidden plans in upload_text.title_candidates. If the provided facts do not explicitly say someone orchestrated the trap, do not write titles like "계략" or "자작극" or other mastermind wording.',
@@ -2756,7 +2874,100 @@ function buildSlotFillsPrompt(beats, editPlan, movieTitle, recapContextMarkdown)
   ].join('\n');
 }
 
-function validateSlotFillsDialogueCaptions(slotFills, editPlan) {
+// The Japanese cut is written for a Japanese audience rather than translated from the
+// Korean script, so it needs its own pass over the same edit plan. It reuses the slot
+// fills schema: the caption_kr* fields simply carry Japanese text for this locale.
+function buildJapaneseSlotFillsPrompt(beats, editPlan, movieTitle, recapContextMarkdown) {
+  const title = String(movieTitle || '').trim();
+  const context = String(recapContextMarkdown || '').trim();
+  const editorialGuide = buildSlotFillEditorialGuide(editPlan);
+  return [
+    'You are writing the Japanese narration script for a midform movie recap, for Japanese viewers on YouTube.',
+    'Return JSON only matching the schema. Do not use markdown.',
+    '',
+    'CRITICAL language rule:',
+    '- EVERY piece of viewer-facing text you produce must be natural Japanese. That includes narration, caption_units, caption_kr, caption_kr_dialogue, and every field of upload_text. Despite their names, the caption_kr* fields carry Japanese text in this task.',
+    '- Do NOT output Korean anywhere. Do not romanize. Write normal Japanese using kanji, hiragana and katakana.',
+    '- Write as a Japanese narrator would write, not as a translation of a Korean script. Rebuild each beat in Japanese rather than mapping it phrase by phrase.',
+    '- Render foreign character and place names in katakana as Japanese audiences know them.',
+    '',
+    'Narration style:',
+    '- Use plain, punchy narration in です・ます調. Keep sentences short, roughly one idea per sentence.',
+    '- Mix in occasional noun-ending fragments for rhythm instead of explaining everything in full sentences.',
+    '- Narration must pull the viewer forward, not read like a plot synopsis. Do not stack several facts into one long sentence.',
+    '- Do not narrate what is plainly visible on screen. Narrate hidden stakes, meaning, and consequence.',
+    '- Refer to characters by role first where it reads naturally, and avoid stacking multiple full names in one slot.',
+    '',
+    'Structural rules (identical to the Korean cut, follow the edit plan exactly):',
+    '- Each slot rule carries narration_target_sec and narration_target_chars. The character budget was computed for Korean speech; for Japanese aim for roughly 80% of narration_target_chars, because Japanese text of the same duration uses fewer characters. Filling the slot is what makes the cut reach its runtime, so do not answer with one short sentence where a full slot was budgeted.',
+    '- KEEP_DIALOGUE slots must leave narration and caption_units empty, and must fill caption_kr_dialogue with one Japanese subtitle line per line in that slot\'s dialogue_focus_lines, in the same order. The counts must match exactly; never merge or split lines.',
+    '- KEEP_DIALOGUE slots must set translation_mode to "faithful_dialogue". Preserve the original meaning and the speaker attitude; do not beautify or invent stronger phrasing.',
+    '- caption_kr_dialogue must read as natural spoken Japanese, not a stiff literal rendering.',
+    '- For KEEP_DIALOGUE slots, optionally fill speakers with one speaker name per line when the speaker is clear.',
+    '- If the cold_open slot rule shows visual_source_mode "source_audio_teaser", leave its narration, caption_kr and caption_units empty: the original action audio is the hook.',
+    '- If cold_open is NARRATE without that mode, write a single short hook sentence that plants a question and reveals no answer.',
+    '- Never resolve the curiosity the opening created before the payoff slot.',
+    '- The payoff slot must land its reversal as a reveal, not a calm report.',
+    '- Do not invent relationships, motives, or events that the provided facts and transcript do not support.',
+    '',
+    'upload_text rules:',
+    '- All of upload_text must be Japanese.',
+    '- title_candidates must contain exactly 3 Japanese titles, each opening a curiosity gap: a question ("なぜ〜のか？") or a noun ending that promises the answer without giving it ("〜の理由", "〜の正体", "〜の結末"). No flat summary titles, and do not use the movie title itself as the hook.',
+    '- overlay_title must be an object with short top and bottom lines for the on-screen title, each about 8 characters or fewer.',
+    '- description is plain Japanese prose for the description box; pinned_comment is a concise Japanese comment. Include only verified title/cast details.',
+    '',
+    context ? `Human-provided recap context (AUTHORITATIVE, may be Korean — treat it as source facts and write your output in Japanese):\n${context}\n` : '',
+    `Movie title: ${title}`,
+    '',
+    'Editorial control map (USE THIS BEFORE WRITING EACH SLOT):',
+    JSON.stringify(editorialGuide, null, 2),
+    '',
+    'Narrative beats:',
+    JSON.stringify(beats, null, 2),
+    '',
+    'Edit plan:',
+    JSON.stringify(editPlan, null, 2)
+  ].filter((line) => line !== '').join('\n');
+}
+
+const JAPANESE_SCRIPT_RE = /[ぁ-んァ-ヴ一-龯]/;
+const KOREAN_SCRIPT_RE = /[가-힣]/;
+
+// Guards the one failure that made the previous "Japanese" locale worthless: shipping the
+// Korean script under a ja label.
+function validateJapaneseSlotFills(slotFills, editPlan) {
+  const offenders = [];
+  const checkText = (label, value) => {
+    const text = String(value || '').trim();
+    if (!text) return;
+    if (KOREAN_SCRIPT_RE.test(text)) offenders.push(`${label} contains Korean: ${text.slice(0, 40)}`);
+    else if (!JAPANESE_SCRIPT_RE.test(text)) offenders.push(`${label} is not Japanese: ${text.slice(0, 40)}`);
+  };
+  for (const fill of Array.isArray(slotFills?.slot_fills) ? slotFills.slot_fills : []) {
+    const slotId = String(fill?.slot_id || '').trim();
+    checkText(`${slotId}.narration`, fill?.narration);
+    checkText(`${slotId}.caption_kr`, fill?.caption_kr);
+    for (const [index, line] of (Array.isArray(fill?.caption_kr_dialogue) ? fill.caption_kr_dialogue : []).entries()) {
+      checkText(`${slotId}.caption_kr_dialogue[${index}]`, line);
+    }
+  }
+  const uploadText = slotFills?.upload_text || {};
+  for (const [index, title] of (Array.isArray(uploadText.title_candidates) ? uploadText.title_candidates : []).entries()) {
+    checkText(`upload_text.title_candidates[${index}]`, title);
+  }
+  checkText('upload_text.description', uploadText.description);
+  checkText('upload_text.pinned_comment', uploadText.pinned_comment);
+  if (offenders.length) {
+    throw new Error(
+      `Japanese slot fills must be written in Japanese, not Korean. Rewrite these in natural Japanese: ${offenders.slice(0, 8).join('; ')}`
+    );
+  }
+  return slotFills;
+}
+
+function validateSlotFillsDialogueCaptions(slotFills, editPlan, locale = 'ko') {
+  // Structural checks apply to every locale; the wording checks below are Korean-specific.
+  const isKorean = String(locale || 'ko') === 'ko';
   const uploadText = normalizeUploadText(slotFills?.upload_text);
   if (uploadText.title_candidates.length !== 3) {
     throw new Error(`upload_text.title_candidates must contain exactly 3 non-empty items, got ${uploadText.title_candidates.length}`);
@@ -2767,9 +2978,13 @@ function validateSlotFillsDialogueCaptions(slotFills, editPlan) {
   if (uploadText.overlay_title.top.length > 8 || uploadText.overlay_title.bottom.length > 8) {
     throw new Error(`upload_text.overlay_title top/bottom must be <= 8 chars, got: ${uploadText.overlay_title.top} / ${uploadText.overlay_title.bottom}`);
   }
-  for (const title of uploadText.title_candidates) {
+  for (const title of isKorean ? uploadText.title_candidates : []) {
     if (!isCuriosityTitle(title)) {
-      throw new Error(`upload_text.title_candidates must be curiosity-driven question/suspense lines, got: ${title}`);
+      throw new Error(
+        'upload_text.title_candidates must open a curiosity gap: end with a question form '
+        + '("~일까?", "왜 ~했을까?") or with a noun that promises the answer without giving it '
+        + `("~한 이유", "~의 정체", "~의 비밀", "~의 결말"). Got a flat declarative line: ${title}`
+      );
     }
   }
   if (!uploadText.description) throw new Error('upload_text.description is required');
@@ -2780,7 +2995,7 @@ function validateSlotFillsDialogueCaptions(slotFills, editPlan) {
     const fill = fillsBySlot.get(String(item.slot_id || '').trim());
     const narration = String(fill?.narration || '').trim();
     const narrationSentences = splitNarrationSentences(narration);
-    if (/(의도적으로|조작|자작극|계략)/.test(narration) && /(유인|함정|미끼|습격)/.test(narration)) {
+    if (isKorean && /(의도적으로|조작|자작극|계략)/.test(narration) && /(유인|함정|미끼|습격)/.test(narration)) {
       throw new Error(`${item.slot_id} narration must not invent deliberate trap/attack causation without explicit facts`);
     }
     if (item.role === 'closing' && narration) {
@@ -2815,6 +3030,43 @@ function validateSlotFillsDialogueCaptions(slotFills, editPlan) {
   return slotFills;
 }
 
+// The edit plan's own duration estimates are the model's guesses; the real runtime only
+// becomes knowable once narration text exists. Enforce the target here so a too-short
+// script is fed back for a rewrite instead of silently shipping a half-length cut.
+function validateSlotFillsRuntime(slotFills, editPlan, targetSec) {
+  const target = Number(targetSec || 0);
+  if (!(target > 0)) return slotFills;
+  const fillsBySlot = new Map((Array.isArray(slotFills?.slot_fills) ? slotFills.slot_fills : [])
+    .map((fill) => [String(fill?.slot_id || '').trim(), fill]));
+  let totalSec = 0;
+  const shortSlots = [];
+  for (const item of Array.isArray(editPlan?.timeline) ? editPlan.timeline : []) {
+    if (item?.decision === 'DROP') continue;
+    if (item?.decision === 'KEEP_DIALOGUE') {
+      totalSec += Number(item.estimated_duration_sec || 0);
+      continue;
+    }
+    const fill = fillsBySlot.get(String(item.slot_id || '').trim());
+    const narrationSec = estimateKoreanNarrationSeconds(String(fill?.narration || ''));
+    totalSec += narrationSec;
+    const budget = Number(item.estimated_duration_sec || 0);
+    if (budget > 0 && narrationSec > 0 && narrationSec < budget * 0.7) {
+      shortSlots.push(`${item.slot_id} (${Math.round(narrationSec)}s written vs ${Math.round(budget)}s budgeted)`);
+    }
+  }
+  const floor = target * EDIT_PLAN_MIN_TARGET_RATIO;
+  if (totalSec < floor) {
+    throw new Error(
+      `narration is far too short for the requested runtime: the written script speaks for about `
+      + `${Math.round(totalSec)}s but the target is ${target}s (minimum ${Math.round(floor)}s). `
+      + `Expand the narration of every NARRATE slot toward its narration_target_chars budget`
+      + `${shortSlots.length ? `, especially: ${shortSlots.slice(0, 6).join('; ')}` : ''}. `
+      + 'Add concrete beats, stakes, and consequence rather than padding with repetition.'
+    );
+  }
+  return slotFills;
+}
+
 function validateBeats(beatsObject, transcript) {
   const beats = normalizeBeatAnchors(Array.isArray(beatsObject?.beats) ? beatsObject.beats : []);
   if (!beats.length) throw new Error('narrative beats output is empty');
@@ -2826,7 +3078,10 @@ function validateBeats(beatsObject, transcript) {
     if (Number(beat.start_sec) < minStart - 0.5 || Number(beat.end_sec) > maxEnd + 0.5) throw new Error(`${beat.beat_id} is outside transcript range`);
     const anchors = Array.isArray(beat.anchor_dialogue) ? beat.anchor_dialogue : [];
     const maxAnchors = maxAnchorsForBeat(beat);
-    if (!anchors.length || anchors.length > maxAnchors) throw new Error(`${beat.beat_id} must include 1-${maxAnchors} anchor_dialogue lines`);
+    // A pure action/visual beat legitimately has no dialogue — anchors are only required
+    // when the beat actually carries key_dialogue lines.
+    if (!anchors.length && beat.key_dialogue.length) throw new Error(`${beat.beat_id} must include 1-${maxAnchors} anchor_dialogue lines`);
+    if (anchors.length > maxAnchors) throw new Error(`${beat.beat_id} must include 1-${maxAnchors} anchor_dialogue lines`);
     for (const anchor of anchors) {
       if (!beat.key_dialogue.includes(anchor)) throw new Error(`${beat.beat_id} anchor_dialogue must be selected from key_dialogue`);
     }
@@ -2857,9 +3112,30 @@ function validateEditPlanAgainstBeats(editPlan, beats) {
   return editPlan;
 }
 
-function validateEditPlan(editPlan) {
+// The plan may run a little short or long, but coming in at half the requested runtime is
+// a planning failure, not a style choice — the retry loop gets this back as feedback.
+const EDIT_PLAN_MIN_TARGET_RATIO = 0.85;
+
+function validateEditPlan(editPlan, targetSec = 0) {
   const timeline = Array.isArray(editPlan?.timeline) ? editPlan.timeline : [];
   if (!timeline.length) throw new Error('edit plan timeline is empty');
+  const target = Number(targetSec || 0);
+  if (target > 0) {
+    // Sum the slots rather than trusting duration_budget.estimated_total_sec: a plan can
+    // report a healthy total while its actual slots add up to half the runtime.
+    const slotTotal = timeline
+      .filter((item) => item?.decision !== 'DROP')
+      .reduce((sum, item) => sum + Number(item?.estimated_duration_sec || 0), 0);
+    const floor = target * EDIT_PLAN_MIN_TARGET_RATIO;
+    if (slotTotal < floor) {
+      throw new Error(
+        `edit plan is far too short: its slots add up to ${Math.round(slotTotal)}s against a target of ${target}s `
+        + `(minimum ${Math.round(floor)}s), regardless of what duration_budget claims. A narration slot realistically `
+        + `carries at most ~18s of speech, so reach the target by ADDING more body slots from unused beats, `
+        + `not by inflating the duration of the ${timeline.length} slots you already have.`
+      );
+    }
+  }
   if (!timeline.some((item) => item.role === 'cold_open')) throw new Error('edit plan is missing cold_open role');
   if (!timeline.some((item) => item.role === 'bridge')) throw new Error('edit plan is missing bridge role');
   const coldOpen = timeline.find((item) => item.role === 'cold_open');
@@ -3027,7 +3303,7 @@ async function runCompression(source, options = {}) {
     const editResult = await runJsonGeneration(
       buildEditPlanPrompt(beatsResult.parsed.beats, heatmap, targetSec, metadata),
       MIDFORM_COMPRESSION_EDIT_PLAN_SCHEMA_PATH,
-      (parsed) => validateEditPlanAgainstBeats(validateEditPlan(parsed), beatsResult.parsed.beats)
+      (parsed) => validateEditPlanAgainstBeats(validateEditPlan(parsed, targetSec), beatsResult.parsed.beats)
     );
     finalizedEditPlan = finalizeEditPlan(editResult.parsed, beatsResult.parsed.beats, transcript, targetSec);
     validateEditPlanAgainstBeats(validateEditPlan(finalizedEditPlan), beatsResult.parsed.beats);
@@ -3086,18 +3362,47 @@ async function runCompressionApply(runIdOrPath, applyOptions = {}) {
   const movieTitle = (fs.existsSync(sourceInfoPath) ? (readJson(sourceInfoPath) || {}).title : '')
     || (fs.existsSync(applyManifestPath) ? (readJson(applyManifestPath) || {}).title : '') || '';
   const recapContext = resolveRecapContext(runDir, applyOptions.contextFile);
-  const result = await runJsonGeneration(
-    buildSlotFillsPrompt(beatsObject.beats || [], finalizedEditPlan, movieTitle, recapContext.contextMarkdown),
-    MIDFORM_SLOT_FILLS_SCHEMA_PATH,
-    (parsed) => validateSlotFillsDialogueCaptions(normalizeSlotFillsForStyle(parsed, finalizedEditPlan), finalizedEditPlan)
-  );
+  const slotFillsPrompt = buildSlotFillsPrompt(beatsObject.beats || [], finalizedEditPlan, movieTitle, recapContext.contextMarkdown);
+  const validateStructure = (parsed) => validateSlotFillsDialogueCaptions(normalizeSlotFillsForStyle(parsed, finalizedEditPlan), finalizedEditPlan);
+  let runtimeShortfall = '';
+  let result;
+  try {
+    result = await runJsonGeneration(
+      slotFillsPrompt,
+      MIDFORM_SLOT_FILLS_SCHEMA_PATH,
+      (parsed) => validateSlotFillsRuntime(validateStructure(parsed), finalizedEditPlan, targetSec)
+    );
+  } catch (error) {
+    // Runtime is a quality target, not a correctness invariant. The retries above push the
+    // script toward the target; if it still falls short, ship the cut with a warning rather
+    // than failing the whole run and producing nothing.
+    if (!String(error?.message || '').includes('far too short for the requested runtime')) throw error;
+    runtimeShortfall = String(error.message);
+    result = await runJsonGeneration(slotFillsPrompt, MIDFORM_SLOT_FILLS_SCHEMA_PATH, validateStructure);
+  }
   const slotFillsPath = path.join(runDir, 'compression_slot_fills.json');
   const normalizedSlotFills = normalizeSlotFillsForStyle(result.parsed, finalizedEditPlan);
   writeJson(slotFillsPath, normalizedSlotFills);
   const uploadTextPath = path.join(runDir, 'upload_text.md');
   writeText(uploadTextPath, `${buildUploadTextMarkdown(normalizedSlotFills.upload_text)}\n`);
 
-  const recalculatedEditPlan = recalculateNarrationDurations(finalizedEditPlan, normalizedSlotFills, beatsObject.beats || []);
+  // The Japanese cut gets its own script over the same edit plan, so the ja locale is a
+  // real localization instead of the Korean audio with different cuts.
+  let japaneseSlotFillsPath = '';
+  if (applyOptions.generateJapanese !== false) {
+    const japaneseResult = await runJsonGeneration(
+      buildJapaneseSlotFillsPrompt(beatsObject.beats || [], finalizedEditPlan, movieTitle, recapContext.contextMarkdown),
+      MIDFORM_SLOT_FILLS_SCHEMA_PATH,
+      (parsed) => validateJapaneseSlotFills(
+        validateSlotFillsDialogueCaptions(parsed, finalizedEditPlan, 'ja'),
+        finalizedEditPlan
+      )
+    );
+    japaneseSlotFillsPath = path.join(runDir, 'compression_slot_fills.ja.json');
+    writeJson(japaneseSlotFillsPath, japaneseResult.parsed);
+  }
+
+  const recalculatedEditPlan = recalculateNarrationDurations(finalizedEditPlan, normalizedSlotFills, beatsObject.beats || [], transcript);
   writeJson(editPlanPath, recalculatedEditPlan);
   const slotQcReportPath = path.join(runDir, 'slot_qc_report.json');
   writeJson(slotQcReportPath, buildSlotQcReport(recalculatedEditPlan, normalizedSlotFills));
@@ -3132,6 +3437,8 @@ async function runCompressionApply(runIdOrPath, applyOptions = {}) {
     status: 'slot_fills_generated_pipeline_not_connected',
     runDir,
     slotFillsPath,
+    japaneseSlotFillsPath,
+    runtimeShortfall,
     uploadTextPath,
     editPlanPath,
     slotQcReportPath,
@@ -3165,7 +3472,7 @@ function refreshCompressionPlan(runIdOrPath) {
   const targetSec = Number(currentPlan?.duration_budget?.target_sec || DEFAULT_TARGET_SEC) || DEFAULT_TARGET_SEC;
   let refreshedPlan = finalizeEditPlan(currentPlan, beatsObject.beats || [], transcript, targetSec);
   if (fs.existsSync(slotFillsPath)) {
-    refreshedPlan = recalculateNarrationDurations(refreshedPlan, readJson(slotFillsPath), beatsObject.beats || []);
+    refreshedPlan = recalculateNarrationDurations(refreshedPlan, readJson(slotFillsPath), beatsObject.beats || [], transcript);
   }
   validateEditPlanAgainstBeats(validateEditPlan(refreshedPlan), beatsObject.beats || []);
   writeJson(editPlanPath, refreshedPlan);
@@ -3222,6 +3529,7 @@ async function downloadCompressionSourceVideo(runIdOrPath, options = {}) {
 
   const ytDlp = resolveTool('yt-dlp', { envKey: 'YT_DLP_PATH' });
   await execFileAsync(ytDlp, [
+    '--js-runtimes', 'node',
     '--no-playlist',
     '-f', 'bv*+ba/b',
     '--merge-output-format', 'mp4',
@@ -3257,6 +3565,13 @@ module.exports = {
     buildSlotQcReport,
     buildSlotFillEditorialGuide,
     finalizeEditPlan,
+    selectColdOpenBeat,
+    buildFallbackEditPlan,
+    clampSceneHookWindow,
+    validateBeats,
+    validateEditPlan,
+    validateSlotFillsRuntime,
+    isCuriosityTitle,
     validateEditPlanAgainstBeats,
     evaluateDialogueTimingQc,
     buildMicroExchangeCandidates,

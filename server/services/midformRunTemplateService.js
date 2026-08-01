@@ -505,7 +505,9 @@ function updateLocaleAcceptanceGatesWithFinalDraft(workspaceDir, finalOverlapRep
   for (const locale of ['ko', 'ja']) {
     const gatePath = path.join(workspaceDir, `acceptance_gates.${locale}.json`);
     const existing = readJsonIfExists(gatePath) || { artifact_type: 'midform_locale_acceptance_gates', locale, failed: [], warnings: [], checks: {} };
-    const failed = new Set(Array.isArray(existing.failed) ? existing.failed : []);
+    // Re-derive final_draft_* entries from the CURRENT overlap report — stale failures
+    // from a previous attempt must not survive a later pass.
+    const failed = new Set((Array.isArray(existing.failed) ? existing.failed : []).filter((gate) => !String(gate).startsWith('final_draft_')));
     if (finalOverlapReport.final_status !== 'pass') {
       for (const gate of finalOverlapReport.failed_gates || []) failed.add(`final_draft_${gate}`);
     }
@@ -724,11 +726,14 @@ async function runMidformTemplateWorkflow(options = {}) {
       return failedSummary;
     }
 
+    const japaneseSlotFillsPath = path.join(compressionRunDir, 'compression_slot_fills.ja.json');
     const localeDrafts = await generateLocaleDraftArtifacts({
       workspaceDir: workspace.workspaceDir,
       baseDraftInputPath: path.join(finalPipelineState.runDir, 'draft_input.json'),
       sourceVideoPath: finalPipelineState.artifacts?.sourceVideoPath || '',
-      transcriptPath: finalPipelineState.artifacts?.transcriptPath || ''
+      transcriptPath: finalPipelineState.artifacts?.transcriptPath || '',
+      baseScriptPath: finalPipelineState.artifacts?.scriptPath || path.join(finalPipelineState.runDir, 'script.json'),
+      japaneseSlotFillsPath: fs.existsSync(japaneseSlotFillsPath) ? japaneseSlotFillsPath : ''
     });
     const localeAcceptancePaths = updateLocaleAcceptanceGatesWithFinalDraft(workspace.workspaceDir, localeDrafts.finalOverlapReport);
     summary.internal.locale_draft_artifacts = localeDrafts.outputPaths;
