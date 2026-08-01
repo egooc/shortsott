@@ -847,7 +847,30 @@ export default function Phase5Draft() {
 
   const getQueueSavePayload = (queue = processQueue) => ({
     queue_config: queue?.queueConfig || {},
-    queue_items: (queue?.queueItems || []).map((item) => item.item_config || item)
+    // Send only UI-owned fields. The rest of item_config is server-owned and this
+    // snapshot goes stale the moment a metadata job writes Gemini results into it,
+    // so posting the whole config back wipes them. Keep in sync with
+    // QUEUE_UI_EDITABLE_FIELDS in server/services/processQueueService.js.
+    queue_items: (queue?.queueItems || []).map((item) => {
+      const itemConfig = item.item_config || item;
+      const patch = {
+        item_id: item.item_id || itemConfig.item_id,
+        target_locale: normalizeTargetLocale(itemConfig.target_locale || item.target_locale),
+        aux_source_url: itemConfig.aux_source_url || '',
+        aux_source_video: itemConfig.aux_source_video || 'source_aux.mp4'
+      };
+      if (itemConfig.video_transform_preset !== undefined) {
+        patch.video_transform_preset = itemConfig.video_transform_preset;
+      }
+      if (itemConfig.manual_explainer_blocks_enabled !== undefined) {
+        patch.manual_explainer_blocks_enabled = itemConfig.manual_explainer_blocks_enabled;
+        patch.explainer_blocks = itemConfig.explainer_blocks || [];
+      }
+      if (itemConfig.upload_hashtags !== undefined) {
+        patch.upload_hashtags = itemConfig.upload_hashtags;
+      }
+      return patch;
+    })
   });
 
   const persistQueueSnapshot = async (queue = processQueue) => {

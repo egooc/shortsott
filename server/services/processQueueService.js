@@ -108,6 +108,43 @@ const VARIANT_TEMPLATE_DRAFT_NAMES = {
   kr_highlight: 'sample draft kr highlight'
 };
 
+// Fields Phase 2 UI is allowed to write back through saveQueue.
+// Everything else in item_config is server-owned: the UI holds a snapshot that
+// goes stale as soon as a metadata job writes Gemini analysis results, so a full
+// item_config write-back silently wipes them (see QUEUE_SERVER_OWNED_FIELDS).
+// Keep this list in sync with the updateQueueItem() patches in Phase5Draft.jsx.
+const QUEUE_UI_EDITABLE_FIELDS = Object.freeze([
+  'target_locale',
+  'video_transform_preset',
+  'manual_explainer_blocks_enabled',
+  'explainer_blocks',
+  'upload_hashtags',
+  'aux_source_url',
+  'aux_source_video'
+]);
+
+const QUEUE_SERVER_OWNED_FIELDS = Object.freeze([
+  'ottogi_guide_output',
+  'gemini_scene_transitions',
+  'scene_transitions',
+  'shortform_candidate_windows',
+  'highlight_candidate_windows',
+  'hook_candidates',
+  'highlight_candidates',
+  'recommended_highlight_window',
+  'hook_clip_10s',
+  'transcript',
+  'segments',
+  'highlight_metadata_ja',
+  'highlight_metadata_ko',
+  'metadata',
+  'metadata_result',
+  'metadata_status',
+  'metadata_generated_at',
+  'metadata_error',
+  'analysis_status'
+]);
+
 function ensureQueueFolders() {
   ensureProjectFolders();
   fs.mkdirSync(QUEUE_ROOT, { recursive: true });
@@ -6675,12 +6712,83 @@ function duplicateQueueItem(itemId) {
   return summarizeItem(duplicated);
 }
 
+function hasMeaningfulQueueValue(value) {
+  if (value === undefined || value === null) return false;
+  if (typeof value === 'string') return value.trim().length > 0;
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === 'object') return Object.keys(value).length > 0;
+  return true;
+}
+
+function queueValueEqual(left, right) {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function protectedQueueFieldsChanged(existingConfig = {}, incomingItem = {}) {
+  return QUEUE_SERVER_OWNED_FIELDS.filter((field) => {
+    const existingValue = existingConfig[field];
+    const incomingValue = incomingItem[field];
+    if (!hasMeaningfulQueueValue(existingValue)) return false;
+    return !hasMeaningfulQueueValue(incomingValue) || !queueValueEqual(existingValue, incomingValue);
+  });
+}
+
+function applyQueueUiPatch(existingConfig = {}, incomingItem = {}) {
+  const patch = {};
+  for (const field of QUEUE_UI_EDITABLE_FIELDS) {
+    if (!Object.prototype.hasOwnProperty.call(incomingItem, field)) continue;
+    if (incomingItem[field] === undefined) continue;
+    patch[field] = incomingItem[field];
+  }
+
+  return normalizeItemConfig({
+    ...existingConfig,
+    ...patch
+  }, existingConfig.item_id);
+}
+
+function patchExistingQueueItem(itemId, incomingItem = {}) {
+  const id = safeId(itemId);
+  const configPath = getItemConfigPath(id);
+  const existingConfig = readJsonIfExists(configPath);
+  if (!existingConfig) {
+    const error = new Error('queue item not found');
+    error.status = 404;
+    throw error;
+  }
+
+  const preservedFields = protectedQueueFieldsChanged(existingConfig, incomingItem);
+  if (preservedFields.length) {
+    console.warn(
+      `QUEUE_STALE_SNAPSHOT_METADATA_PRESERVED item_id=${id} fields=${preservedFields.join(',')}`
+    );
+  }
+
+  const nextConfig = applyQueueUiPatch(existingConfig, incomingItem);
+  const saved = writeJsonWithBackup(configPath, nextConfig);
+  return {
+    item: summarizeItem(nextConfig),
+    savedPath: saved.targetPath,
+    backupPath: saved.backupPath || null,
+    preservedFields
+  };
+}
+
 function saveQueue({ queue_config, queue_items } = {}) {
-  const configResult = saveQueueConfig(queue_config || {});
+  const configResult = queue_config === undefined
+    ? { targetPath: '', backupPath: null }
+    : saveQueueConfig(queue_config || {});
   const items = [];
   if (Array.isArray(queue_items)) {
     for (const item of queue_items) {
-      items.push(addQueueItem({ item_id: item.item_id, item_config: item.item_config || item }));
+      const itemId = safeId(item?.item_id || item?.item_config?.item_id);
+      if (!itemId) continue;
+      const configPath = getItemConfigPath(itemId);
+      if (fs.existsSync(configPath)) {
+        items.push(patchExistingQueueItem(itemId, item.item_config || item).item);
+      } else {
+        items.push(addQueueItem({ item_id: itemId, item_config: item.item_config || item }));
+      }
     }
   }
   return {
