@@ -248,8 +248,8 @@ function dialoguePaddingRule(item, win) {
 }
 
 function buildDialogueTimingAdjustment(item, win, orderedWindows, orderedIndex, sourceDurationSec) {
-  const speechStart = Number(win.start_sec);
-  const speechEnd = Number(win.end_sec);
+  let speechStart = Number(win.start_sec);
+  let speechEnd = Number(win.end_sec);
   const rule = dialoguePaddingRule(item, win);
   const minGapSec = 0.02;
   const prev = orderedWindows[orderedIndex - 1]?.win;
@@ -263,10 +263,15 @@ function buildDialogueTimingAdjustment(item, win, orderedWindows, orderedIndex, 
     visualEnd = Math.min(visualEnd, Math.max(speechEnd, Number(next.start_sec) - minGapSec));
   }
   if (Number.isFinite(sourceDurationSec) && sourceDurationSec > 0) {
+    // Clamp the speech itself, not just the padded window: the "never cut into speech" line
+    // below would otherwise push the clip straight back past the end of the video, which is
+    // how a dialogue window ended up 1.7s beyond a 529s source.
+    speechEnd = Math.min(speechEnd, sourceDurationSec);
+    speechStart = Math.min(speechStart, speechEnd);
     visualEnd = Math.min(visualEnd, sourceDurationSec);
   }
   visualEnd = Math.max(visualEnd, speechEnd);
-  visualStart = Math.min(visualStart, speechStart);
+  visualStart = Math.max(0, Math.min(visualStart, speechStart));
   const round3 = (value) => Number(Number(value).toFixed(3));
   const roundedVisualStart = round3(visualStart);
   const roundedVisualEnd = round3(visualEnd);

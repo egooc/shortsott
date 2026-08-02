@@ -2496,6 +2496,36 @@ function interleaveDialogueIntoNarrationRuns(timeline, beats, transcript) {
 // retries and can drop the run onto a fallback that overshoots too, so trim it here: drop
 // the weakest body slots until the cut fits. The opening, the bridge that restores the
 // situation, and the payoff are never dropped — they are the shape of the cut.
+// Two slots can end up pointing at exactly the same moment of source, which plays the line
+// twice and trips the cross-segment overlap gate. Only an essentially identical window
+// counts: a callback that re-enters the same exchange from a different point is deliberate.
+function dropDuplicateDialogueSlots(timeline) {
+  const items = (Array.isArray(timeline) ? timeline : []).map((item) => ({ ...item }));
+  const claimed = [];
+  for (let index = 0; index < items.length; index += 1) {
+    const item = items[index];
+    if (item.decision !== 'KEEP_DIALOGUE') continue;
+    const start = Number(item.start_sec);
+    const end = Number(item.end_sec);
+    if (!(end > start)) continue;
+    const clash = claimed.find(([claimedStart, claimedEnd]) => (
+      Math.abs(start - claimedStart) <= 0.15 && Math.abs(end - claimedEnd) <= 0.15
+    ));
+    if (clash) {
+      items[index] = {
+        ...item,
+        decision: 'DROP',
+        estimated_duration_sec: 0,
+        duplicate_dialogue_dropped: true,
+        reason: `${item.reason || ''} Dropped: this source dialogue is already used by an earlier slot.`.trim()
+      };
+      continue;
+    }
+    claimed.push([start, end]);
+  }
+  return items;
+}
+
 function trimTimelineToTargetRuntime(timeline, targetSec) {
   const target = Number(targetSec || 0);
   const items = (Array.isArray(timeline) ? timeline : []).map((item) => ({ ...item }));
@@ -2848,7 +2878,8 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec) {
 
   const toppedUpTimeline = topUpTimelineToTargetRuntime(timeline, beats, transcript, targetSec);
   const interleavedTimeline = interleaveDialogueIntoNarrationRuns(toppedUpTimeline, beats, transcript);
-  const trimmedTimeline = trimTimelineToTargetRuntime(interleavedTimeline, targetSec);
+  const dedupedTimeline = dropDuplicateDialogueSlots(interleavedTimeline);
+  const trimmedTimeline = trimTimelineToTargetRuntime(dedupedTimeline, targetSec);
   let finalizedTimeline = trimmedTimeline.map((item) => {
     if (item.decision === 'KEEP_DIALOGUE') return annotateDialogueSlotForQc(item, { windows: item.dialogue_line_windows || [] }, item);
     return annotateNarrationSlotForQc(item);
