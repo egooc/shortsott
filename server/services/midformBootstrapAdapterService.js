@@ -504,7 +504,13 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
     return [snappedStart, snappedEnd];
   };
 
-  const pickNarrationBroll = (prefStart, prefEnd) => {
+  const pickNarrationBroll = (prefStartRaw, prefEndRaw) => {
+    // The preferred range follows the slot, which can run past the end of the footage: a closing
+    // recap asked for b-roll ending at 531.280s of a 529.561s source and the clip was emitted
+    // as-is, failing source_duration_covers_timestamps.
+    const prefStart = Math.max(0, Number(prefStartRaw));
+    const prefEnd = durationSec > 0 ? Math.min(Number(prefEndRaw), durationSec) : Number(prefEndRaw);
+    if (!(prefEnd > prefStart)) return null;
     const free = subtractBusyRanges(prefStart, prefEnd, [...reservedDialogueRanges, ...assignedBrollRanges]);
     if (!free.length) return null;
     free.sort((a, b) => (b[1] - b[0]) - (a[1] - a[0]));
@@ -675,6 +681,12 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
         const vs = Number(item.visual_source_start_sec);
         const ve = Number(item.visual_source_end_sec);
         if (ve > vs) { winStart = vs; winEnd = ve; }
+      }
+      // The dialogue-saturated fallback below emits this window verbatim, so it has to respect
+      // the footage too — otherwise a slot running past the source produces an unplayable clip.
+      if (durationSec > 0) {
+        winEnd = Math.min(winEnd, durationSec);
+        winStart = Math.min(winStart, winEnd);
       }
       const broll = (winEnd > winStart) ? pickNarrationBroll(winStart, winEnd) : null;
       if (broll) {
@@ -916,9 +928,14 @@ function runBootstrapPreflight(assembled, options = {}) {
 
   // 5. Cold-open teaser window must not overlap any KEEP_DIALOGUE window (post-resize re-encroach).
   const coldOpen = (editPlan.timeline || []).find((t) => t.role === 'cold_open');
+  // Reserve the clips a dialogue slot actually cuts, not its start_sec..end_sec span: a slot whose
+  // lines are scattered across the source (38.9s to 180.8s here) reserved 142s of mostly dead
+  // footage and rejected a teaser sitting in a gap no line occupies.
   const reserved = (editPlan.timeline || [])
-    .filter((t) => t.decision === 'KEEP_DIALOGUE' && t.slot_id !== coldOpen?.slot_id && Number(t.end_sec) > Number(t.start_sec))
-    .map((t) => [Number(t.start_sec), Number(t.end_sec)]);
+    .filter((t) => t.decision === 'KEEP_DIALOGUE' && t.slot_id !== coldOpen?.slot_id)
+    .flatMap((t) => (Array.isArray(t.dialogue_line_windows) ? t.dialogue_line_windows : [])
+      .filter((win) => win && win.matched === true && Number(win.end_sec) > Number(win.start_sec))
+      .map((win) => [Number(win.start_sec), Number(win.end_sec)]));
   let coldOverlap = '';
   if (coldOpen && Number.isFinite(Number(coldOpen.visual_source_start_sec))) {
     const cs = Number(coldOpen.visual_source_start_sec);
