@@ -2531,7 +2531,9 @@ function trimTimelineToTargetRuntime(timeline, targetSec) {
   const items = (Array.isArray(timeline) ? timeline : []).map((item) => ({ ...item }));
   if (!(target > 0)) return items;
 
-  const protectedRoles = new Set(['cold_open', 'bridge', 'payoff', 'closing']);
+  // body_peak belongs here too: validateEditPlan requires it to outlast the teaser, so
+  // trimming it away leaves a plan its own validator rejects.
+  const protectedRoles = new Set(['cold_open', 'bridge', 'body_peak', 'payoff', 'closing']);
   const droppable = () => items
     .map((item, index) => ({ item, index }))
     .filter(({ item }) => item.decision !== 'DROP' && !protectedRoles.has(String(item.role || '').trim()))
