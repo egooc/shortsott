@@ -127,3 +127,41 @@ test('an inflated dialogue duration cannot fake reaching the target', () => {
   assert.ok(finalized.timeline.filter((item) => item.runtime_topup).length > 0,
     'the inflated dialogue slot should not have satisfied the target');
 });
+
+test('a long stretch of narration gets a line from the scene in the middle', () => {
+  // Asking the planner to alternate did not hold: dialogue landed in the first half and
+  // the back half came back as one long explanation.
+  const plan = {
+    cold_open_selection: { beat_id: '1', source: 'heatmap_peak' },
+    timeline: [
+      { slot_id: '1', beat_id: '1', role: 'cold_open', decision: 'NARRATE', start_sec: 10, end_sec: 16, estimated_duration_sec: 6 },
+      { slot_id: '2', beat_id: '2', role: 'body', decision: 'NARRATE', start_sec: 70, end_sec: 130, estimated_duration_sec: 18 },
+      { slot_id: '3', beat_id: '3', role: 'body', decision: 'NARRATE', start_sec: 140, end_sec: 220, estimated_duration_sec: 18 },
+      { slot_id: '4', beat_id: '4', role: 'payoff', decision: 'NARRATE', start_sec: 230, end_sec: 320, estimated_duration_sec: 18 }
+    ],
+    duration_budget: { target_sec: 120, estimated_total_sec: 60 },
+    quality_check: {}
+  };
+  const dialogueBeats = beats().map((item) => ({
+    ...item,
+    dialogue_quality: 'high',
+    key_dialogue: ['I have evidence.', 'Then it is decided.'],
+    anchor_dialogue: ['I have evidence.']
+  }));
+  const cues = [];
+  for (let start = 10; start < 600; start += 20) {
+    cues.push({ start_sec: start, end_sec: start + 4, text: 'I have evidence.' });
+  }
+
+  const finalized = finalizeEditPlan(plan, dialogueBeats, cues, 120);
+  const active = finalized.timeline.filter((item) => item.decision !== 'DROP');
+  let run = 0;
+  let longestRun = 0;
+  for (const item of active) {
+    if (item.decision === 'KEEP_DIALOGUE') { run = 0; continue; }
+    run += Number(item.estimated_duration_sec || 0);
+    longestRun = Math.max(longestRun, run);
+  }
+  assert.ok(active.some((item) => item.decision === 'KEEP_DIALOGUE'), 'the cut needs dialogue in it');
+  assert.ok(longestRun <= 45, `narration should not carry the whole back half, longest run ${longestRun}s`);
+});

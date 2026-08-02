@@ -2454,6 +2454,44 @@ function topUpTimelineToTargetRuntime(timeline, beats, transcript, targetSec) {
   return [...head, ...rest];
 }
 
+// Asking the planner to alternate did not hold: dialogue kept landing in the first half and
+// the back half came back as one long stretch of explanation. Break the run here instead —
+// when narration has carried the cut this long, a line from the scene belongs in the middle
+// of it.
+const MAX_NARRATION_RUN_SEC = 25;
+
+function interleaveDialogueIntoNarrationRuns(timeline, beats, transcript) {
+  const beatMap = new Map((Array.isArray(beats) ? beats : []).map((beat) => [String(beat?.beat_id || '').trim(), beat]));
+  const items = (Array.isArray(timeline) ? timeline : []).map((item) => ({ ...item }));
+  let runSec = 0;
+  for (let index = 0; index < items.length; index += 1) {
+    const item = items[index];
+    if (item.decision === 'DROP') continue;
+    if (item.decision === 'KEEP_DIALOGUE') { runSec = 0; continue; }
+    runSec += realisticSlotDurationSec(item);
+    if (runSec <= MAX_NARRATION_RUN_SEC) continue;
+    // The opening hook stays whatever it was chosen to be.
+    if (item.role === 'cold_open') continue;
+    const beat = beatMap.get(String(item.beat_id || '').trim());
+    const focus = beat ? coldOpenDialogueFocusForBeat(beat, transcript) : null;
+    if (!focus) continue;
+    items[index] = {
+      ...item,
+      decision: 'KEEP_DIALOGUE',
+      start_sec: focus.start_sec,
+      end_sec: focus.end_sec,
+      estimated_duration_sec: focus.duration_sec,
+      dialogue_focus_source: 'narration_run_interleave',
+      dialogue_focus_lines: focus.lines,
+      dialogue_focus_quotes: (focus.quotes && focus.quotes.length ? focus.quotes : focus.lines).slice(0, 2),
+      narration_run_interleave: true,
+      reason: 'Narration had carried the cut too long, so this beat plays its own dialogue instead.'
+    };
+    runSec = 0;
+  }
+  return items;
+}
+
 function finalizeEditPlan(editPlan, beats, transcript, targetSec) {
   const beatMap = new Map((Array.isArray(beats) ? beats : []).map((beat) => [String(beat?.beat_id || '').trim(), beat]));
   const sortedBeatStarts = (Array.isArray(beats) ? beats : []).map((b) => Number(b.start_sec)).filter((n) => Number.isFinite(n)).sort((a, b) => a - b);
@@ -2772,7 +2810,8 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec) {
   }
 
   const toppedUpTimeline = topUpTimelineToTargetRuntime(timeline, beats, transcript, targetSec);
-  let finalizedTimeline = toppedUpTimeline.map((item) => {
+  const interleavedTimeline = interleaveDialogueIntoNarrationRuns(toppedUpTimeline, beats, transcript);
+  let finalizedTimeline = interleavedTimeline.map((item) => {
     if (item.decision === 'KEEP_DIALOGUE') return annotateDialogueSlotForQc(item, { windows: item.dialogue_line_windows || [] }, item);
     return annotateNarrationSlotForQc(item);
   });
