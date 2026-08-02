@@ -247,7 +247,7 @@ function dialoguePaddingRule(item, win) {
   return { dialogue_type: 'default_dialogue', pre_roll_sec: 0.5, post_roll_sec: 0.15 };
 }
 
-function buildDialogueTimingAdjustment(item, win, orderedWindows, orderedIndex, sourceDurationSec) {
+function buildDialogueTimingAdjustment(item, win, orderedWindows, orderedIndex, sourceDurationSec, speechRanges) {
   let speechStart = Number(win.start_sec);
   let speechEnd = Number(win.end_sec);
   const rule = dialoguePaddingRule(item, win);
@@ -261,6 +261,17 @@ function buildDialogueTimingAdjustment(item, win, orderedWindows, orderedIndex, 
   }
   if (next && Number(next.start_sec) >= speechEnd) {
     visualEnd = Math.min(visualEnd, Math.max(speechEnd, Number(next.start_sec) - minGapSec));
+  }
+  // orderedWindows only holds the lines this slot preserved, so padding was free to reach back
+  // into a neighbouring line we did not select — bleeding its audio into the clip, and tripping
+  // the reserved-range gate because that line still has a transcript cue of its own.
+  for (const range of Array.isArray(speechRanges) ? speechRanges : []) {
+    const rangeStart = Number(range?.[0]);
+    const rangeEnd = Number(range?.[1]);
+    if (!Number.isFinite(rangeStart) || !Number.isFinite(rangeEnd) || rangeEnd <= rangeStart) continue;
+    if (rangeEnd > speechStart && rangeStart < speechEnd) continue; // this line's own speech
+    if (rangeEnd <= speechStart) visualStart = Math.max(visualStart, Math.min(speechStart, rangeEnd + minGapSec));
+    else if (rangeStart >= speechEnd) visualEnd = Math.min(visualEnd, Math.max(speechEnd, rangeStart - minGapSec));
   }
   if (Number.isFinite(sourceDurationSec) && sourceDurationSec > 0) {
     // Clamp the speech itself, not just the padded window: the "never cut into speech" line
@@ -440,7 +451,7 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
       .sort((a, b) => Number(a.win.start_sec) - Number(b.win.start_sec));
     for (let orderedIndex = 0; orderedIndex < orderedDialogueWindows.length; orderedIndex += 1) {
       const entry = orderedDialogueWindows[orderedIndex];
-      const timing = buildDialogueTimingAdjustment(t, entry.win, orderedDialogueWindows, orderedIndex, durationSec);
+      const timing = buildDialogueTimingAdjustment(t, entry.win, orderedDialogueWindows, orderedIndex, durationSec, options.speechRanges);
       reservedDialogueRanges.push(timing.visual_range_sec);
     }
   }
@@ -517,7 +528,7 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
         .sort((a, b) => Number(a.win.start_sec) - Number(b.win.start_sec));
       for (const { win, index } of orderedDialogueWindows) {
         const orderedIndex = orderedDialogueWindows.findIndex((entry) => entry.win === win && entry.index === index);
-        const timing = buildDialogueTimingAdjustment(item, win, orderedDialogueWindows, orderedIndex, durationSec);
+        const timing = buildDialogueTimingAdjustment(item, win, orderedDialogueWindows, orderedIndex, durationSec, options.speechRanges);
         const segId = `${slotId}_L${String(index + 1).padStart(2, '0')}`;
         const startTc = secondsToTimecode(timing.visual_range_sec[0]);
         const endTc = secondsToTimecode(timing.visual_range_sec[1]);
