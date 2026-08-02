@@ -701,6 +701,56 @@ function testDuplicateCandidateMetadataBlocksGeneration() {
   assert(blocked && blocked.code === 'OTTOGI_HIGHLIGHT_METADATA_DUPLICATE_BODY', 'Duplicate generic highlight metadata must block generation before draft creation.');
 }
 
+function testEachHighlightWindowGetsItsOwnTitle() {
+  // Gemini returns one hook title per candidate window. Two highlights cut from
+  // different actions must not receive interchangeable titles - which is what
+  // indexing into recommended_titles used to produce.
+  const metadata = {
+    recommended_titles: [{ category: 'hook', title: 'エアコン修理の全工程', hashtags: ['#エアコン修理'] }],
+    highlight_candidate_titles: [
+      { start_sec: 36, end_sec: 40, title: '炎で銅管をろう付け！修理が決まる瞬間', hashtags: ['#ろう付け'] },
+      { start_sec: 31, end_sec: 36, title: '壊れた銅管を切断！原因を断つ一手', hashtags: ['#切断'] }
+    ]
+  };
+
+  const brazing = queueTest.rankedTitleCandidate(metadata, {}, 1, '', { start_sec: 36, end_sec: 40 });
+  const cutting = queueTest.rankedTitleCandidate(metadata, {}, 2, '', { start_sec: 31, end_sec: 36 });
+  assert(brazing.includes('ろう付け'), `brazing window must get its own title, got: ${brazing}`);
+  assert(cutting.includes('切断'), `cutting window must get its own title, got: ${cutting}`);
+  assert(brazing !== cutting, 'two highlight windows must not share a title');
+
+  // A window with no matching candidate entry falls back to the representative title
+  // rather than borrowing another cut's title.
+  const unmatched = queueTest.rankedTitleCandidate(metadata, {}, 1, '', { start_sec: 0, end_sec: 6 });
+  assert(
+    !unmatched.includes('ろう付け') && !unmatched.includes('切断'),
+    `an unmatched window must not borrow another cut's title, got: ${unmatched}`
+  );
+
+  assert(queueTest.candidateTitleForWindow(metadata, { start_sec: 36, end_sec: 40 })?.title.includes('ろう付け'),
+    'candidateTitleForWindow must match on overlap');
+  assert(queueTest.candidateTitleForWindow({}, { start_sec: 36, end_sec: 40 }) === null,
+    'no candidate titles means no match');
+}
+
+function testPublicHighlightDescriptionHasNoInternalNotes() {
+  const queueSource = fs.readFileSync(path.join(__dirname, '..', 'server', 'services', 'processQueueService.js'), 'utf8');
+  assert(
+    !queueSource.includes('이 문단은 로컬 검수용이며'),
+    'the local-review note must not be written into the public upload description'
+  );
+  assert(
+    queueSource.includes('function publicCandidateReason'),
+    'selector strategy ids must be filtered out of the public description'
+  );
+  // formatMetadataReportDescription collapses whitespace and only restores line
+  // breaks for headings it knows, so the highlight headings must be listed.
+  assert(
+    queueSource.includes('|하이라이트') && queueSource.includes('|ハイライト'),
+    'highlight section headings must be registered so the description keeps its line breaks'
+  );
+}
+
 function main() {
   const queueService = 'server/services/processQueueService.js';
   const metadataService = 'server/services/processMetadataService.js';
@@ -826,6 +876,8 @@ function main() {
   testGenericSceneExplanationDetector();
   testDuplicateCandidateMetadataBlocksGeneration();
 
+  testEachHighlightWindowGetsItsOwnTitle();
+  testPublicHighlightDescriptionHasNoInternalNotes();
   console.log('shortform highlight contract ok');
 }
 

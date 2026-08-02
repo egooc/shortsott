@@ -301,6 +301,21 @@ const OTTOGI_VARIANT_METADATA_SCHEMA = {
         required: ['category', 'title', 'hashtags']
       }
     },
+    // One hook title per candidate window, so a source that yields two highlights
+    // gets two titles about those two cuts instead of two slices of one generic list.
+    highlight_candidate_titles: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          start_sec: { type: 'number' },
+          end_sec: { type: 'number' },
+          title: { type: 'string' },
+          hashtags: { type: 'array', items: { type: 'string' } }
+        },
+        required: ['start_sec', 'end_sec', 'title', 'hashtags']
+      }
+    },
     report_description: { type: 'string' },
     upload_title: { type: 'string' },
     hashtags: { type: 'array', items: { type: 'string' } }
@@ -1914,6 +1929,15 @@ function buildMetadataPrompt({ sourceUrl, filename, durationSec, sceneGuide, sou
     .slice(0, 30)
     .map((scene) => `${scene.scene_id || ''} ${scene.start_sec}-${scene.end_sec}: ${scene.visual_summary || scene.caption_text || ''}`)
     .join('\n');
+  // Each candidate window is a different cut of the source and can become its own
+  // highlight draft, so each one needs its own hook title rather than a slice of a
+  // generic title list.
+  const candidateWindows = (Array.isArray(sceneGuide?.shortform_candidate_windows)
+    ? sceneGuide.shortform_candidate_windows
+    : []).slice(0, 8);
+  const candidateWindowSummary = candidateWindows
+    .map((w, index) => `[${index + 1}] ${w.start_sec}-${w.end_sec}s | visual_hook: ${w.visual_hook || ''} | why: ${w.why_this_clip || w.reason || ''}`)
+    .join('\n');
 
   if (!wantsFull) {
     return [
@@ -1927,6 +1951,13 @@ function buildMetadataPrompt({ sourceUrl, filename, durationSec, sceneGuide, sou
       '- Highlight metadata must use variant_type="highlight", caption_mode="long_bottom_explainer", and onscreen_caption_block as one long lower-third explainer paragraph.',
       '- Highlight versions must never use an onscreen_subtitles array.',
       '- Each metadata object must include short_description, summary_caption, variant_type, caption_mode, exactly one recommended_title (the single strongest hook title - it is the uploaded title), report_description, upload_title, and hashtags.',
+      '- Also return highlight_candidate_titles: one entry per candidate window listed below, copying that window\'s start_sec/end_sec exactly.',
+      '- Each highlight_candidate_titles[].title must be a hook title for THAT window only, built from that window\'s own visual_hook. Two windows showing different actions must not receive interchangeable titles.',
+      '- Give each entry its own hashtags in the same language as the title, specific to what that window shows.',
+      '- recommended_titles[0] stays the title for the single strongest window.',
+      '',
+      'Candidate windows (each may become its own highlight draft):',
+      candidateWindowSummary || 'No candidate windows provided. Return highlight_candidate_titles as an empty array.',
       '- Korean metadata and caption fields must not contain Japanese Hiragana or Katakana.',
       '- Do not invent facts not visible in the video/scene analysis.',
       '',
@@ -2881,6 +2912,34 @@ function titleWithHashtags(title = '', hashtags = [], korean = false) {
   return normalizeText(`${cleanTitle} ${normalizedHashtags.join(' ')}`).trim();
 }
 
+// One hook title per candidate window, keyed by that window's timestamps.
+function normalizeCandidateTitleList(value = [], korean = false) {
+  const source = Array.isArray(value) ? value : [];
+  const seen = new Set();
+  const out = [];
+  for (const item of source) {
+    if (!item || typeof item !== 'object') continue;
+    const startSec = Number(item.start_sec);
+    const endSec = Number(item.end_sec);
+    const rawTitle = normalizeText(item.title || '');
+    if (!Number.isFinite(startSec) || !Number.isFinite(endSec) || endSec <= startSec || !rawTitle) continue;
+    const key = startSec.toFixed(2) + '-' + endSec.toFixed(2);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const hashtags = normalizeLocalizedHashtags([
+      ...(Array.isArray(item.hashtags) ? item.hashtags : []),
+      ...extractHashtagsFromText(rawTitle)
+    ], korean);
+    out.push({
+      start_sec: startSec,
+      end_sec: endSec,
+      title: titleWithHashtags(rawTitle, hashtags, korean),
+      hashtags
+    });
+  }
+  return out.slice(0, 8);
+}
+
 function normalizeTitleList(value, subject, korean = false) {
   const source = Array.isArray(value) ? value : [];
   const categories = korean
@@ -3197,6 +3256,12 @@ function normalizeVariantMetadata(value = {}, fallback = {}) {
     onscreen_subtitles: onscreenSubtitles,
     onscreen_caption_block: onscreenCaptionBlock,
     recommended_titles: titles,
+    // This merge rebuilds the object field by field, so anything not listed here is
+    // dropped on every normalizeGuide pass.
+    highlight_candidate_titles: normalizeCandidateTitleList(
+      source.highlight_candidate_titles || fallback.highlight_candidate_titles || [],
+      Boolean(fallback.korean)
+    ),
     report_description: ensureStructuredReportDescription(
       reportDescription,
       fallback.subject || '',
@@ -6322,9 +6387,23 @@ function mergeReviewedGuide(draftGuide = {}, reviewGuide = {}, sourceUrl = '', d
   const reviewedScenes = Array.isArray(reviewGuide.scene_transitions) && reviewGuide.scene_transitions.length
     ? reviewGuide.scene_transitions
     : draftGuide.scene_transitions;
+  // The review schema does not include highlight_candidate_titles, so spreading the
+  // reviewed variant object over the drafted one silently dropped the per-window
+  // titles the metadata call produced. Carry them across when review has none.
+  const withCandidateTitles = (variantKey) => {
+    const reviewed = reviewGuide[variantKey];
+    const drafted = draftGuide[variantKey];
+    if (!reviewed || typeof reviewed !== 'object') return drafted;
+    if (Array.isArray(reviewed.highlight_candidate_titles) && reviewed.highlight_candidate_titles.length) return reviewed;
+    const draftedTitles = Array.isArray(drafted?.highlight_candidate_titles) ? drafted.highlight_candidate_titles : [];
+    if (!draftedTitles.length) return reviewed;
+    return { ...reviewed, highlight_candidate_titles: draftedTitles };
+  };
   return normalizeGuide({
     ...draftGuide,
     ...reviewGuide,
+    highlight_metadata: withCandidateTitles('highlight_metadata'),
+    highlight_metadata_ko: withCandidateTitles('highlight_metadata_ko'),
     scene_transitions: reviewedScenes,
     detected_subject: reviewGuide.detected_subject || draftGuide.detected_subject || '',
     source_url: sourceUrl || reviewGuide.source_url || draftGuide.source_url || '',
@@ -10580,6 +10659,7 @@ module.exports = {
   __test: {
     buildFallbackReport,
     repairPublicTitles,
+    mergeReviewedGuide,
     normalizeLocalizedHashtags,
     metadataSubjectPhrase,
     koreanSubjectParticle,

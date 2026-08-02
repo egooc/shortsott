@@ -5043,12 +5043,41 @@ function assertHighlightCandidateMetadataDistinct(itemConfig = {}, highlightWind
   return { checked: true, metadata };
 }
 
-function rankedTitleCandidate(baseMetadata = {}, baseGuide = {}, highlightOrdinal = 1, fallbackTitle = '') {
+// Gemini writes one hook title per candidate window. Match on the window's own
+// timestamps: indexing into recommended_titles only ever handed out slices of a
+// list written about the whole source, so two highlights of different cuts got two
+// interchangeable titles.
+function candidateTitleForWindow(metadata = {}, window = {}) {
+  const entries = Array.isArray(metadata.highlight_candidate_titles) ? metadata.highlight_candidate_titles : [];
+  if (!entries.length) return null;
+  const start = Number(window.start_sec);
+  const end = Number(window.end_sec);
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
+
+  let best = null;
+  let bestOverlap = 0;
+  for (const entry of entries) {
+    const entryStart = Number(entry.start_sec);
+    const entryEnd = Number(entry.end_sec);
+    if (!Number.isFinite(entryStart) || !Number.isFinite(entryEnd)) continue;
+    const overlap = Math.max(0, Math.min(end, entryEnd) - Math.max(start, entryStart));
+    if (overlap > bestOverlap) {
+      bestOverlap = overlap;
+      best = entry;
+    }
+  }
+  // Require real overlap, otherwise this is a different cut and its title would lie.
+  if (!best || bestOverlap < Math.min(1, Math.max(0.1, (end - start) * 0.25))) return null;
+  return best;
+}
+
+function rankedTitleCandidate(baseMetadata = {}, baseGuide = {}, highlightOrdinal = 1, fallbackTitle = '', window = null) {
+  const matched = window ? candidateTitleForWindow(baseMetadata, window) : null;
   const titles = Array.isArray(baseMetadata.recommended_titles) && baseMetadata.recommended_titles.length
     ? baseMetadata.recommended_titles
     : (Array.isArray(baseGuide.recommended_titles) ? baseGuide.recommended_titles : []);
   const index = Math.max(0, Math.round(Number(highlightOrdinal) || 1) - 1);
-  const picked = titles[index] || titles[0] || null;
+  const picked = matched || titles[index] || titles[0] || null;
   return safeJapanesePublicHighlightTitle(
     stripHashtagsFromTitle(picked?.title || baseMetadata.upload_title || fallbackTitle || '', ''),
     index + 1,
@@ -5056,20 +5085,33 @@ function rankedTitleCandidate(baseMetadata = {}, baseGuide = {}, highlightOrdina
   );
 }
 
+// Internal selector bookkeeping - strategy ids like
+// "gemini_best_highlight_window", "H01/2", "후보" - used to end up in the public
+// YouTube description. Keep only prose a viewer can read.
+function publicCandidateReason(window = {}) {
+  const reason = stripEmoji(String(window.reason || window.selection_reason || '').replace(/\s+/g, ' ').trim());
+  if (!reason) return '';
+  // Strategy identifiers are snake_case ASCII, never sentences.
+  if (/^[a-z0-9_]+$/i.test(reason)) return '';
+  return reason;
+}
+
 function buildCandidateReportDescription(block = '', window = {}, label = 'H01', candidateCount = 1, cueTitle = '', korean = false) {
-  const reason = stripEmoji(String(window.reason || window.selection_reason || window.selection_strategy || '').replace(/\s+/g, ' ').trim());
+  void label;
+  void candidateCount;
+  const reason = publicCandidateReason(window);
   if (korean) {
     return [
       '## 1. 하이라이트 개요',
       block,
       '',
       '## 2. 선택 장면',
-      `${label}/${candidateCount} 후보는 ${formatHighlightWindowRange(window, true)} 구간입니다.`,
-      cueTitle ? `장면 유형: ${cueTitle}` : '',
-      reason ? `선정 이유: ${reason}` : '',
+      [`${formatHighlightWindowRange(window, true)} 구간입니다.`, cueTitle ? `장면 유형: ${cueTitle}.` : '']
+        .filter(Boolean).join(' '),
+      reason,
       '',
-      '## 3. 검수 메모',
-      '이 문단은 로컬 검수용이며, 공개 업로드 설명은 일본어 메타데이터를 사용합니다.'
+      '## 3. 보는 포인트',
+      '전체 공정의 요약이 아니라, 이 컷에서 두드러지는 움직임과 변화에 집중한 하이라이트입니다.'
     ].filter(Boolean).join('\n');
   }
   return [
@@ -5077,12 +5119,12 @@ function buildCandidateReportDescription(block = '', window = {}, label = 'H01',
     block,
     '',
     '## 2. 選定シーン',
-    `${label}/${candidateCount}候補は${formatHighlightWindowRange(window)}の区間です。`,
-    cueTitle ? `シーンタイプ: ${cueTitle}` : '',
-    reason ? `選定理由: ${reason}` : '',
+    [`${formatHighlightWindowRange(window)}の区間です。`, cueTitle ? `シーンタイプ: ${cueTitle}。` : '']
+      .filter(Boolean).join(' '),
+    reason,
     '',
-    '## 3. 視聴ポイント',
-    '全体工程の要約ではなく、このカットで目立つ動きと変化に絞ったJP Highlight用メタデータです。'
+    '## 3. 見どころ',
+    '全体工程の要約ではなく、このカットで目立つ動きと変化に絞ったハイライトです。'
   ].filter(Boolean).join('\n');
 }
 
@@ -5108,7 +5150,7 @@ function buildHighlightCandidateGuide(baseGuide = {}, window = {}, highlightOrdi
   const stage = windowRelativeStage(window, sourceDurationSec);
   const titleCueJa = candidateCueTitle(cue, stage, false);
   const rawTitle = highlightTitle || baseMetadata.upload_title || selectGuideTitle(baseGuide, 'highlight')?.title || '';
-  const title = rankedTitleCandidate(baseMetadata, baseGuide, highlightOrdinal, stripCandidateLabelFromTitle(rawTitle, label)) || stripCandidateLabelFromTitle(rawTitle, label) || '工程ハイライト';
+  const title = rankedTitleCandidate(baseMetadata, baseGuide, highlightOrdinal, stripCandidateLabelFromTitle(rawTitle, label), window) || stripCandidateLabelFromTitle(rawTitle, label) || '工程ハイライト';
   const focusJa = buildCandidateFocusText(window, publicLabelJa, false);
   const focusKo = buildCandidateFocusText(window, publicLabelKo, true);
   const baseBlockJa = baseMetadata.onscreen_caption_block || baseGuide.highlight_onscreen_caption_block_ja || baseGuide.highlight_explainer_text || baseMetadata.short_description || '';
@@ -5271,18 +5313,22 @@ function formatMetadataReportDescription(value = '', korean = false) {
     .replace(/\s+/g, ' ')
     .trim();
   if (!text) return '';
+  // The highlight variants use their own section titles. They have to be listed here
+  // too: this function collapses all whitespace first and only restores line breaks
+  // in front of headings it recognises, so an unlisted heading set came out as one
+  // run-on paragraph in the uploaded description.
   const headings = korean
     ? [
-        ['1', '작업\\s*개요'],
-        ['2', '사용\\s*재료\\s*및\\s*장비'],
-        ['3', '시공\\s*절차'],
+        ['1', '(?:작업\\s*개요|하이라이트\\s*개요)'],
+        ['2', '(?:사용\\s*재료\\s*및\\s*장비|선택\\s*장면)'],
+        ['3', '(?:시공\\s*절차|보는\\s*포인트)'],
         ['4', '작업의\\s*중요성'],
         ['5', '가이드라인\\s*준수\\s*및\\s*교육적\\s*목적']
       ]
     : [
-        ['1', '作業\\s*概要'],
-        ['2', '使用\\s*材料\\s*と\\s*設備'],
-        ['3', '(?:工程\\s*手順|作業\\s*手順)'],
+        ['1', '(?:作業\\s*概要|ハイライト\\s*概要)'],
+        ['2', '(?:使用\\s*材料\\s*と\\s*設備|選定\\s*シーン)'],
+        ['3', '(?:工程\\s*手順|作業\\s*手順|見どころ)'],
         ['4', '作業\\s*の\\s*重要性'],
         ['5', 'ガイドライン\\s*遵守\\s*と\\s*教育\\s*目的']
       ];
@@ -11064,6 +11110,8 @@ module.exports = {
     buildHighlightHookZoomOutPreset,
     buildLongformHighlightTwoLayerPreset,
     highlightOutputCountForItem,
+    candidateTitleForWindow,
+    rankedTitleCandidate,
     LONGFORM_COMPRESS_LANE_MIN_SOURCE_SEC,
     SOURCE_LANE_LONGFORM_COMPRESS,
     SOURCE_LANE_STANDARD_SHORTFORM
