@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run verify)",
+      "Bash(npm run check:encoding)",
+      "Bash(npm run check:shortform-highlight)",
+      "Bash(npm run check:queue-save-metadata)",
+      "Bash(npm run check:metadata-repair)",
+      "Bash(npm run check:longform-compress-lane)",
+      "Bash(npm run check:output-config)",
+      "Bash(npm run check:caption-tts-alignment)",
+      "Bash(npm run check:korean-full-speech-budget)",
+      "Bash(npm run check:script-review-integrity)"
+    ]
+  }
+}

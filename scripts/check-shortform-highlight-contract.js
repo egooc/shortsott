@@ -774,6 +774,52 @@ function testKoreanHighlightAlsoMatchesTitlesByWindow() {
   assert(!unmatched.highlight_metadata_ko.upload_title.includes('기포') && !unmatched.highlight_metadata_ko.upload_title.includes('토치'), 'an unmatched KO window must not borrow another cut title');
 }
 
+function testSourceDurationDoesNotFallBackToOutputTarget() {
+  // item_005 is a 47s source with target_duration_sec 30 and no video_metadata.
+  // Treating the output target as the source length clamped every window past 30s
+  // away, so the 36~41s torch window Gemini ranked and titled was unreachable.
+  const itemConfig = {
+    item_id: 'duration_fallback_fixture',
+    source_type: 'shortform',
+    source_workflow_mode: 'shortform_direct',
+    target_duration_sec: 30,
+    source_classification: { duration_sec: 47 },
+    ottogi_guide_output: {
+      recommended_highlight_window: { start_sec: 6, end_sec: 14 },
+      scene_transitions: [],
+      shortform_candidate_windows: [
+        { window_id: 'highlight_01', start_sec: 6, end_sec: 14, hook_score: 0.9, visual_hook: '泡', purpose: '視聴者の興味を引く' },
+        { window_id: 'highlight_02', start_sec: 36, end_sec: 41, hook_score: 0.85, visual_hook: '溶接', purpose: '修理技術を示す' }
+      ]
+    }
+  };
+
+  const windows = queueTest.pickHighlightWindows(itemConfig, 10, 2);
+  assert(windows.length === 2, `expected two windows, got ${windows.length}`);
+  const tail = windows.find((w) => w.start_sec >= 30);
+  assert(tail, `a window past the 30s output target must stay reachable, got ${JSON.stringify(windows.map((w) => `${w.start_sec}-${w.end_sec}`))}`);
+  assert(
+    Math.abs(tail.start_sec - 36) < 1 && Math.abs(tail.end_sec - 41) < 1,
+    `the nominated 36~41s window must survive intact, got ${tail.start_sec}-${tail.end_sec}`
+  );
+}
+
+function testNominatedCandidatesAndSourceLengthAreProtected() {
+  const queueSource = fs.readFileSync(path.join(__dirname, '..', 'server', 'services', 'processQueueService.js'), 'utf8');
+  assert(
+    queueSource.includes('nominatedHighlightCandidates.has(candidate)'),
+    'windows Gemini nominated as highlight candidates must not be re-screened by purpose keywords'
+  );
+  assert(
+    queueSource.includes('function sourceDurationSecForItem'),
+    'source duration must come from one helper, not an ad-hoc target_duration_sec fallback'
+  );
+  assert(
+    /QUEUE_SERVER_OWNED_FIELDS[\s\S]{0,80}video_metadata/.test(queueSource),
+    'video_metadata must be server-owned so a queue save cannot wipe the real source length'
+  );
+}
+
 function main() {
   const queueService = 'server/services/processQueueService.js';
   const metadataService = 'server/services/processMetadataService.js';
@@ -901,6 +947,8 @@ function main() {
 
   testEachHighlightWindowGetsItsOwnTitle();
   testKoreanHighlightAlsoMatchesTitlesByWindow();
+  testSourceDurationDoesNotFallBackToOutputTarget();
+  testNominatedCandidatesAndSourceLengthAreProtected();
   testPublicHighlightDescriptionHasNoInternalNotes();
   console.log('shortform highlight contract ok');
 }

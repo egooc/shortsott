@@ -1932,9 +1932,25 @@ function buildMetadataPrompt({ sourceUrl, filename, durationSec, sceneGuide, sou
   // Each candidate window is a different cut of the source and can become its own
   // highlight draft, so each one needs its own hook title rather than a slice of a
   // generic title list.
-  const candidateWindows = (Array.isArray(sceneGuide?.shortform_candidate_windows)
-    ? sceneGuide.shortform_candidate_windows
-    : []).slice(0, 8);
+  // The draft-stage selector treats shortform_candidate_windows, hook_candidates and
+  // highlight_candidates as one pool, so a title written for only the first array
+  // often has no window to attach to. Title every window the selector can pick.
+  const candidateWindowSeen = new Set();
+  const candidateWindows = [
+    ...(Array.isArray(sceneGuide?.shortform_candidate_windows) ? sceneGuide.shortform_candidate_windows : []),
+    ...(Array.isArray(sceneGuide?.hook_candidates) ? sceneGuide.hook_candidates : []),
+    ...(Array.isArray(sceneGuide?.highlight_candidates) ? sceneGuide.highlight_candidates : []),
+    ...(sceneGuide?.recommended_highlight_window ? [sceneGuide.recommended_highlight_window] : []),
+    ...(sceneGuide?.hook_clip_10s ? [sceneGuide.hook_clip_10s] : [])
+  ].filter((w) => {
+    const start = Number(w?.start_sec);
+    const end = Number(w?.end_sec);
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return false;
+    const key = `${start.toFixed(2)}-${end.toFixed(2)}`;
+    if (candidateWindowSeen.has(key)) return false;
+    candidateWindowSeen.add(key);
+    return true;
+  }).slice(0, 8);
   const candidateWindowSummary = candidateWindows
     .map((w, index) => `[${index + 1}] ${w.start_sec}-${w.end_sec}s | visual_hook: ${w.visual_hook || ''} | why: ${w.why_this_clip || w.reason || ''}`)
     .join('\n');

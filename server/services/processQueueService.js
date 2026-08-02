@@ -124,6 +124,8 @@ const QUEUE_UI_EDITABLE_FIELDS = Object.freeze([
 ]);
 
 const QUEUE_SERVER_OWNED_FIELDS = Object.freeze([
+  'video_metadata',
+  'source_classification',
   'ottogi_guide_output',
   'gemini_scene_transitions',
   'scene_transitions',
@@ -215,6 +217,24 @@ function effectiveDraftVariantModeForItem(draftVariantMode = 'all', itemConfig =
   void draftVariantMode;
   void itemConfig;
   return 'highlight_only';
+}
+
+// Real length of the source file. target_duration_sec is the OUTPUT target (30s),
+// so falling back to it made a 47s source look 30s long: every window past 30s was
+// clamped away, and the strongest hook could sit in the unreachable tail.
+// source_classification.duration_sec is written by the classifier and survives when
+// video_metadata is missing.
+function sourceDurationSecForItem(itemConfig = {}) {
+  const candidates = [
+    itemConfig.video_metadata?.duration_sec,
+    itemConfig.source_classification?.duration_sec,
+    itemConfig.target_duration_sec
+  ];
+  for (const value of candidates) {
+    const duration = Number(value);
+    if (Number.isFinite(duration) && duration > 0) return duration;
+  }
+  return 0;
 }
 
 function highlightOutputCountForItem(itemConfig = {}) {
@@ -1172,7 +1192,7 @@ async function createKoreanFullDraftScriptReview(itemIds = []) {
     items.push({
       item_id: item.item_id,
       title: itemConfig.upload_title || item.filename || '',
-      duration_sec: Number(itemConfig.video_metadata?.duration_sec || itemConfig.target_duration_sec || 0),
+      duration_sec: sourceDurationSecForItem(itemConfig),
       sentence_count: plan.sentence_count,
       tts_call_count: plan.tts_call_count,
       caption_units_count: plan.caption_units_count,
@@ -1248,9 +1268,9 @@ async function approveKoreanFullDraftScriptReview(itemId) {
   const updatedGuide = updateGuideForApprovedScript(itemConfig.ottogi_guide_output || {}, approvedSentences);
   const updatedExplainerBlocks = buildFullCaptionScriptBlocks(
     updatedGuide.full_caption_script_ko,
-    normalizeSceneTransitions(updatedGuide.scene_transitions, itemConfig.video_metadata?.duration_sec || itemConfig.target_duration_sec || 0),
+    normalizeSceneTransitions(updatedGuide.scene_transitions, sourceDurationSecForItem(itemConfig)),
     {
-      fallbackDurationSec: itemConfig.video_metadata?.duration_sec || itemConfig.target_duration_sec || 30,
+      fallbackDurationSec: sourceDurationSecForItem(itemConfig) || 30,
       animation: 'pop_in',
       styleProfile: 'full_cut_caption',
       blockPrefix: 'full_script_ko',
@@ -6888,7 +6908,7 @@ const FULL_DRAFT_TRANSFORM_TERM_GROUPS = {
 function classifyFullDraftTransform(itemConfig = {}, sceneTransitions = [], language = 'ja') {
   const scenes = normalizeSceneTransitions(
     sceneTransitions,
-    itemConfig.video_metadata?.duration_sec || itemConfig.target_duration_sec || 0
+    sourceDurationSecForItem(itemConfig)
   );
   const sourceWidth = Number(itemConfig.video_metadata?.width || itemConfig.source_metadata?.width || 0);
   const sourceHeight = Number(itemConfig.video_metadata?.height || itemConfig.source_metadata?.height || 0);
@@ -7714,7 +7734,7 @@ function scoreNaturalRepetitionWindow(selected = []) {
 }
 
 function pickHighlightWindow(itemConfig = {}, maxDurationSec = 10) {
-  const sourceDuration = Number(itemConfig.video_metadata?.duration_sec || itemConfig.target_duration_sec || 0);
+  const sourceDuration = sourceDurationSecForItem(itemConfig);
   const isLongformSource = isLongformHighlightSource(itemConfig);
   const safeMax = Math.max(1, Math.min(
     isLongformSource ? LONGFORM_HIGHLIGHT_MAX_DURATION_SEC : SHORTFORM_HIGHLIGHT_MAX_DURATION_SEC,
@@ -7889,7 +7909,7 @@ function normalizeHighlightCandidateWindow(raw, itemConfig = {}, maxDurationSec 
   const hasWindowData = ['start_sec', 'start', 'end_sec', 'end', 'duration_sec', 'duration']
     .some((key) => raw[key] !== undefined && raw[key] !== null && raw[key] !== '');
   if (!hasWindowData) return null;
-  const sourceDuration = Number(itemConfig.video_metadata?.duration_sec || itemConfig.target_duration_sec || 0);
+  const sourceDuration = sourceDurationSecForItem(itemConfig);
   const longformSource = isLongformHighlightSource(itemConfig);
   const normalized = normalizeGuideWindow(raw, sourceDuration || itemConfig.target_duration_sec || 0);
   if (!normalized) return null;
@@ -7940,7 +7960,7 @@ function normalizeHighlightCandidateWindow(raw, itemConfig = {}, maxDurationSec 
 
 function collectHighlightCandidateWindows(itemConfig = {}, maxDurationSec = 10) {
   const guide = itemConfig.ottogi_guide_output || {};
-  const sourceDuration = Number(itemConfig.video_metadata?.duration_sec || itemConfig.target_duration_sec || 0);
+  const sourceDuration = sourceDurationSecForItem(itemConfig);
   const windows = [];
   const pushWindow = (raw, reason) => {
     const window = normalizeHighlightCandidateWindow(raw, itemConfig, maxDurationSec, reason);
@@ -7950,11 +7970,24 @@ function collectHighlightCandidateWindows(itemConfig = {}, maxDurationSec = 10) 
   pushWindow(guide.recommended_highlight_window, 'gemini_recommended_highlight_window');
   pushWindow(guide.hook_clip_10s, 'gemini_hook_clip_10s');
 
-  const candidates = [
-    ...(Array.isArray(guide.shortform_candidate_windows) ? guide.shortform_candidate_windows : []),
-    ...(Array.isArray(guide.hook_candidates) ? guide.hook_candidates : []),
-    ...(Array.isArray(guide.highlight_candidates) ? guide.highlight_candidates : [])
-  ];
+  // These three arrays are what Gemini returns when it is explicitly asked for
+  // ranked highlight candidates, so membership already means "hook". Screening them
+  // again through the purpose-keyword test below dropped perfectly good candidates
+  // whose purpose was ordinary prose: item_005's 36~41s torch-welding window was
+  // rejected for reading "修理技術を示す", which left the second highlight to be
+  // invented from scratch.
+  const nominatedHighlightCandidates = new Set();
+  const candidates = [];
+  const addCandidates = (list, nominated) => {
+    (Array.isArray(list) ? list : []).forEach((candidate) => {
+      if (!candidate || typeof candidate !== 'object') return;
+      if (nominated) nominatedHighlightCandidates.add(candidate);
+      candidates.push(candidate);
+    });
+  };
+  addCandidates(guide.shortform_candidate_windows, true);
+  addCandidates(guide.hook_candidates, true);
+  addCandidates(guide.highlight_candidates, true);
   candidates
     .map((candidate, index) => ({ candidate, index, tierRank: cutSelectionTierRank(candidate) }))
     .sort((a, b) => {
@@ -7968,7 +8001,9 @@ function collectHighlightCandidateWindows(itemConfig = {}, maxDurationSec = 10) 
     .forEach(({ candidate }, index) => {
       if (isProcessSpanHighlightCandidate(candidate)) return;
       const purpose = String(candidate.purpose || candidate.process_coverage || candidate.visual_hook || '').toLowerCase();
-      const isHookLike = !purpose || /hook|visual|repeat|rhythm|press|cut|pour|flow|transform|impact|핵심|반복|압착|절단|흐름|変化|反復|切断|押|注/.test(purpose);
+      const isHookLike = nominatedHighlightCandidates.has(candidate)
+        || !purpose
+        || /hook|visual|repeat|rhythm|press|cut|pour|flow|transform|impact|핵심|반복|압착|절단|흐름|変化|反復|切断|押|注/.test(purpose);
       if (isHookLike) {
         pushWindow(
           { ...candidate, cut_selection_tier: computeCutSelectionTier(candidate) },
@@ -8270,7 +8305,7 @@ function buildFullPrerollHookBlock(itemConfig = {}, queueConfig = {}, language =
   );
   if (!hookConfig.enabled) return null;
 
-  const sourceDuration = Number(itemConfig.video_metadata?.duration_sec || itemConfig.target_duration_sec || 0);
+  const sourceDuration = sourceDurationSecForItem(itemConfig);
   if (!Number.isFinite(sourceDuration) || sourceDuration <= 1) return null;
   const isLongformSource = itemConfig.source_workflow_mode === 'longform_to_shorts'
     || itemConfig.source_type === 'longform';
@@ -8403,7 +8438,7 @@ function applyFullPrerollHookToBlocks(blocks = [], itemConfig = {}, queueConfig 
 }
 
 function shiftHighlightSceneTransitions(itemConfig = {}, window = {}) {
-  const sourceDuration = Number(itemConfig.video_metadata?.duration_sec || itemConfig.target_duration_sec || 0);
+  const sourceDuration = sourceDurationSecForItem(itemConfig);
   const transitions = normalizeSceneTransitions(getItemSceneTransitions(itemConfig), sourceDuration || itemConfig.target_duration_sec || 0);
   const start = Number(window.start_sec || 0);
   const end = Number(window.end_sec || start + Number(window.duration_sec || 10));
@@ -8888,7 +8923,7 @@ const HIGHLIGHT_HOOK_TERM_GROUPS = {
 };
 
 function getHighlightScenesForWindow(itemConfig = {}, window = {}) {
-  const sourceDuration = Number(itemConfig.video_metadata?.duration_sec || itemConfig.target_duration_sec || 0);
+  const sourceDuration = sourceDurationSecForItem(itemConfig);
   const transitions = normalizeSceneTransitions(getItemSceneTransitions(itemConfig), sourceDuration || itemConfig.target_duration_sec || 0);
   const start = Number(window.start_sec || 0);
   const end = Number(window.end_sec || start + Number(window.duration_sec || 10));
@@ -9864,7 +9899,7 @@ function selectKoreanCapcutTemplateDraftName(queueConfig = {}) {
 
 function buildKoreanFullDraftConfig({ itemId, itemConfig, queueConfig, baseConfig }) {
   const actualSourceDuration = getSourceVideoDurationSec(resolveItemSourcePath(itemConfig), itemConfig);
-  const sourceDuration = Number(actualSourceDuration || itemConfig.video_metadata?.duration_sec || itemConfig.target_duration_sec || baseConfig.target_duration_sec || 30);
+  const sourceDuration = Number(actualSourceDuration || sourceDurationSecForItem(itemConfig) || baseConfig.target_duration_sec || 30);
   const scriptReviewApprovedForTts = String(itemConfig.script_review?.status || '').trim() === 'approved_for_tts';
   const titleInfo = selectKoreanTitle(itemConfig, 'full');
   const koreanReview = itemConfig.korean_review || {};
