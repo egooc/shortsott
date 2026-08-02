@@ -655,6 +655,61 @@ function testLatinLoanwordsAreNotTreatedAsEnglishContamination() {
   });
 }
 
+function testPreMetadataStagesDoNotPlantPlaceholderTitles() {
+  // normalizeGuide and enforcePublicMetadataLanguage also run at the scene and hook
+  // stages, before any metadata exists. Filling the empty fields there wrote
+  // "製造工程ができるまで" plus default hashtags into highlight_metadata, and that
+  // placeholder then beat the real metadata response in the merge.
+  const sceneStage = enforcePublicMetadataLanguage(normalizeGuide({ detected_subject: 'Mud brick making' }));
+  assert(
+    (sceneStage.highlight_metadata.recommended_titles || []).length === 0,
+    `a stage with no metadata must not invent a title, got ${JSON.stringify(sceneStage.highlight_metadata.recommended_titles)}`
+  );
+  assert(!sceneStage.highlight_metadata.upload_title, 'an absent upload_title must stay absent, not become a template');
+
+  // The real response, merged on top of that stage, must win.
+  const response = {
+    highlight_metadata: {
+      short_description: '泥だらけの少女が真剣に指差す場面です。',
+      summary_caption: '泥だらけの少女が真剣に指差す場面です。',
+      variant_type: 'highlight',
+      caption_mode: 'long_bottom_explainer',
+      onscreen_caption_block: '泥だらけの少女が真剣に指差す場面から、粘土細工が始まります。'.repeat(3),
+      report_description: '## 1. 作業概要 泥だらけの少女が真剣に指差す場面です。',
+      upload_title: '激しい指差し！泥だらけの少女の真剣な訴え',
+      hashtags: ['#少女', '#怒り', '#指差し'],
+      recommended_titles: [
+        { category: 'hook', title: '激しい指差し！泥だらけの少女の真剣な訴え', hashtags: ['#少女', '#指差し'] }
+      ]
+    }
+  };
+  const merged = enforcePublicMetadataLanguage(normalizeGuide({ ...sceneStage, ...response }));
+  assert(
+    merged.highlight_metadata.recommended_titles[0].title.includes('激しい指差し'),
+    `the metadata response must outrank the earlier stage, got ${merged.highlight_metadata.recommended_titles[0].title}`
+  );
+  assert(
+    merged.highlight_metadata.hashtags.includes('#少女'),
+    `model hashtags must survive, got ${JSON.stringify(merged.highlight_metadata.hashtags)}`
+  );
+
+  // A title that exists but is contaminated is still replaced.
+  const contaminated = enforcePublicMetadataLanguage(normalizeGuide({
+    highlight_metadata: {
+      short_description: 'テスト',
+      summary_caption: 'テスト',
+      caption_mode: 'long_bottom_explainer',
+      report_description: '## 1. 作業概要 テスト',
+      upload_title: 'Mud brick making overview',
+      recommended_titles: [{ category: 'hook', title: 'Mud brick making overview', hashtags: [] }]
+    }
+  }));
+  assert(
+    !/Mud brick making/u.test(contaminated.highlight_metadata.recommended_titles[0].title),
+    'an English title must still be repaired'
+  );
+}
+
 function main() {
   testFullKoRepairSurvivesNormalize();
   testRepairLossGuard();
@@ -673,6 +728,7 @@ function main() {
   testUploadTitleIsGeminisHookTitleNotATemplate();
   testHashtagsStayInTheTitleLanguage();
   testLatinLoanwordsAreNotTreatedAsEnglishContamination();
+  testPreMetadataStagesDoNotPlantPlaceholderTitles();
   console.log('metadata repair guards ok');
 }
 

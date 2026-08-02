@@ -4257,6 +4257,10 @@ function enforceMetadataSectionLanguage(metadata = {}, seedCandidates = [], kore
   const next = { ...source };
   ['upload_title', 'short_description', 'summary_caption'].forEach((field) => {
     const value = normalizeText(next[field] || '');
+    // Absent is not "wrong language". This runs at the scene and hook stages as well,
+    // where these fields are simply not written yet; filling them there planted
+    // deterministic placeholders that later outranked the real metadata response.
+    if (!value) return;
     if (publicMetadataTextHasWrongLanguage(value, korean)) {
       next[field] = field === 'upload_title'
         ? titleWithHashtags(deterministicTitlePatterns(compactMetadataTitleSeed(seed, korean), korean)[0], next.hashtags || [])
@@ -4265,7 +4269,7 @@ function enforceMetadataSectionLanguage(metadata = {}, seedCandidates = [], kore
   });
   if (Object.prototype.hasOwnProperty.call(next, 'onscreen_caption_block')) {
     const value = normalizeText(next.onscreen_caption_block || '');
-    if (publicMetadataTextHasWrongLanguage(value, korean)) {
+    if (value && publicMetadataTextHasWrongLanguage(value, korean)) {
       next.onscreen_caption_block = deterministicCaptionBlock(seed, korean);
     }
   }
@@ -4277,7 +4281,14 @@ function enforceMetadataSectionLanguage(metadata = {}, seedCandidates = [], kore
       korean
     ), korean);
   }
-  if (publicTitleNeedsRebuild(next, korean)) {
+  // Repair titles that exist; never invent one from nothing. normalizeGuide and this
+  // enforcement run at the scene and hook stages too, where highlight_metadata has no
+  // title yet - filling it there planted "製造工程ができるまで" plus default hashtags, and
+  // that placeholder then won the merge against the real metadata response.
+  // A section with neither a title nor an upload_title has nothing to repair.
+  const hasTitleMaterial = (Array.isArray(next.recommended_titles) && next.recommended_titles.length > 0)
+    || Boolean(normalizeText(next.upload_title || ''));
+  if (hasTitleMaterial && publicTitleNeedsRebuild(next, korean)) {
     next.recommended_titles = repairPublicTitles(next, seed, korean);
   }
   return next;
