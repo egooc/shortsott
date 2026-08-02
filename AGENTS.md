@@ -213,6 +213,46 @@ Settings
 5. Run `npm run build` or `npm run verify` before completion.
 6. Report verification evidence.
 
+## Derived Values Must Never Outrank the Source
+
+The metadata pipeline runs the same normalize / enforce / merge helpers at **every**
+stage — scene analysis, hook analysis, metadata, review, repair. Those helpers were
+written as if they always receive a finished guide, so they fill and repair
+defensively. At an early stage there is nothing to repair yet, so what they produce
+is invented; and because merges are truthiness-based (`source.x || fallback.x`), an
+invented value is indistinguishable from a real one and wins against the real value
+that arrives later.
+
+Four separate defects in 2026-08-02 were the same shape:
+
+| Where | What it invented / overwrote |
+|---|---|
+| `normalizeTitleList` | padded `recommended_titles` to a fixed count with deterministic templates |
+| `mergeReviewedGuide` | dropped `highlight_candidate_titles` by spreading the review object over the drafted one |
+| `enforceMetadataSectionLanguage` | treated an **empty** field as "wrong language" and filled it with a template |
+| review (3/3) merge | re-emitted `recommended_titles` / `upload_title` and replaced the metadata call's real title |
+
+Symptom in every case: Gemini returned a good hook title, and the stored guide held
+`製造工程ができるまで` / `제조 공정이 만들어지는 과정` with default hashtags.
+
+Rules:
+
+- **Absent is not wrong.** Repair only values that exist and fail a check. A field that
+  has not been produced yet must stay empty.
+- **Do not fabricate in shared helpers.** If a field must be non-empty in the final
+  output, guarantee it once, at the output boundary — not in a function that also runs
+  on intermediate guides.
+- **A validation pass may not rewrite.** Review exists to catch problems; when the
+  drafted value passes its checks, keep the drafted value.
+- **Field-by-field merges drop unknown fields.** `mergeVariantMetadata` and
+  `mergeReviewedGuide` rebuild objects explicitly, so any new metadata field must be
+  added to both or it silently disappears before it reaches disk.
+- When a value looks wrong in `item_config.json` but right in the draft folder (or the
+  reverse), suspect this class first and diff the raw Gemini response
+  (`queue/process/<item>/full_draft_stages/*.raw.json`) against the stored guide.
+  Offline replays of the response alone will not reproduce it — the placeholder is
+  planted by a stage the replay skips.
+
 ## Do Not Reintroduce
 
 1. `TEMPLATE_PROCESS_TITLE`
@@ -222,4 +262,5 @@ Settings
 5. Unused TTS/ZIP/archive controls in the main workflow
 6. English fallback captions for Japanese/Korean draft generation
 7. Uploading Korean review-only text to YouTube descriptions
+8. Padding, filling, or repairing metadata fields in helpers that also run on pre-metadata stages (see "Derived Values Must Never Outrank the Source")
 
