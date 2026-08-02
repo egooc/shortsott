@@ -362,12 +362,15 @@ function roundSec3(value) {
 // a five-word line can be recorded as thirty seconds. Captions are locked to these windows,
 // which left short lines held on screen long after the speaker had finished and drifting out
 // of sync with the audio. Trim each window to the speech actually inside it.
-function trimDialogueWindowsToSpeech(editPlan, speechRanges) {
+function trimDialogueWindowsToSpeech(editPlan, speechRanges, sourceDurationSec = 0) {
   const ranges = (Array.isArray(speechRanges) ? speechRanges : [])
     .map((range) => [Number(range[0]), Number(range[1])])
     .filter(([start, end]) => Number.isFinite(start) && Number.isFinite(end) && end > start)
     .sort((left, right) => left[0] - right[0]);
-  if (!ranges.length) return { trimmed: 0, details: [] };
+  // Clamping to the source runs even with no detected speech, so keep going.
+  const limitSec = Number(sourceDurationSec);
+  const hasLimit = Number.isFinite(limitSec) && limitSec > 0;
+  if (!ranges.length && !hasLimit) return { trimmed: 0, details: [] };
 
   let trimmed = 0;
   const details = [];
@@ -378,6 +381,13 @@ function trimDialogueWindowsToSpeech(editPlan, speechRanges) {
       const start = Number(win.start_sec);
       const end = Number(win.end_sec);
       if (!(end > start)) continue;
+      // The transcript utterance keeps these numbers verbatim, so a window past the end of
+      // the video has to be cut here — clamping the padded clip later does not reach it.
+      if (hasLimit && end > limitSec) {
+        if (start >= limitSec - DIALOGUE_WINDOW_MIN_SEC) continue;
+        win.end_sec = roundSec3(limitSec);
+        trimmed += 1;
+      }
       const inside = ranges.filter(([rangeStart, rangeEnd]) => rangeEnd > start + 0.05 && rangeStart < end - 0.05);
       if (!inside.length) continue;
       const speechStart = Math.max(start, Math.min(...inside.map((range) => range[0])));
@@ -779,7 +789,7 @@ function assembleBootstrapArtifacts(runIdOrPath, options = {}) {
   // Trim before either consumer reads the windows: the transcript and the slot map derive
   // their coordinates from the same numbers and must agree to within 0.05s.
   const speechRanges = detectSpeechRanges(sourceVideoPath, transcriptTimed);
-  const dialogueTrim = trimDialogueWindowsToSpeech(editPlan, speechRanges);
+  const dialogueTrim = trimDialogueWindowsToSpeech(editPlan, speechRanges, sourceDurationSec);
 
   const { transcript, stats: transcriptStats, warnings: tW } = buildBootstrapTranscript(editPlan, transcriptTimed);
   const { slotMap, script, warnings: sW } = buildBootstrapSlotMapAndScript(editPlan, slotFills, {

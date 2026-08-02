@@ -88,3 +88,32 @@ test('unmatched windows and non-dialogue slots are skipped', () => {
   const result = trimDialogueWindowsToSpeech(plan, [[1.0, 2.0]]);
   assert.equal(result.trimmed, 0);
 });
+
+test('a window running past the end of the video is cut back to it', () => {
+  // The transcript utterance keeps these numbers verbatim, so clamping the padded clip
+  // later never reaches it: a window ended 1.7s past a 529s source.
+  const plan = {
+    timeline: [{
+      slot_id: 'slot_9',
+      decision: 'KEEP_DIALOGUE',
+      dialogue_line_windows: [{ matched: true, line: 'a line near the very end', start_sec: 527.0, end_sec: 531.28 }]
+    }]
+  };
+  trimDialogueWindowsToSpeech(plan, [], 529.561);
+  const win = plan.timeline[0].dialogue_line_windows[0];
+  assert.ok(win.end_sec <= 529.561, `window must end inside the source, got ${win.end_sec}`);
+  assert.ok(win.end_sec > win.start_sec);
+});
+
+test('a window that starts past the end is left for the caller rather than inverted', () => {
+  const plan = {
+    timeline: [{
+      slot_id: 'slot_9',
+      decision: 'KEEP_DIALOGUE',
+      dialogue_line_windows: [{ matched: true, line: 'beyond', start_sec: 529.4, end_sec: 531.0 }]
+    }]
+  };
+  trimDialogueWindowsToSpeech(plan, [], 529.561);
+  const win = plan.timeline[0].dialogue_line_windows[0];
+  assert.ok(win.end_sec > win.start_sec, 'never produce an inverted window');
+});
