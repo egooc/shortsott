@@ -264,7 +264,9 @@ function buildDialogueTimingAdjustment(item, win, orderedWindows, orderedIndex, 
   }
   // orderedWindows only holds the lines this slot preserved, so padding was free to reach back
   // into a neighbouring line we did not select — bleeding its audio into the clip, and tripping
-  // the reserved-range gate because that line still has a transcript cue of its own.
+  // the reserved-range gate because that line still has a transcript cue of its own. Guard on
+  // the CUE boundaries, not just detected speech: the gate compares the clip against the cues
+  // we emit, so stopping at the detected speech edge still leaves the clip overlapping the cue.
   for (const range of Array.isArray(speechRanges) ? speechRanges : []) {
     const rangeStart = Number(range?.[0]);
     const rangeEnd = Number(range?.[1]);
@@ -437,6 +439,15 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
   const slots = [];
   const segments = [];
 
+  // Dialogue padding must clear both the detected speech and the caption cues: the reserved-range
+  // gate compares each clip against the cues we emit, so stopping at the speech edge alone still
+  // leaves the clip overlapping a neighbouring cue.
+  const paddingGuardRanges = [
+    ...(Array.isArray(options.speechRanges) ? options.speechRanges : []),
+    ...(Array.isArray(options.cueRanges) ? options.cueRanges : [])
+  ].map((range) => [Number(range?.[0]), Number(range?.[1])])
+    .filter(([start, end]) => Number.isFinite(start) && Number.isFinite(end) && end > start);
+
   // Adapter-side b-roll. All narration segments get a degenerate story_anchor hint so capcut's
   // b-roll auto-picker DECLINES; that leaves story_sync_segment_reports empty, so the story-sync
   // gate (its monotonic + 70%-coverage checks, both incompatible with the teaser/compression
@@ -451,7 +462,7 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
       .sort((a, b) => Number(a.win.start_sec) - Number(b.win.start_sec));
     for (let orderedIndex = 0; orderedIndex < orderedDialogueWindows.length; orderedIndex += 1) {
       const entry = orderedDialogueWindows[orderedIndex];
-      const timing = buildDialogueTimingAdjustment(t, entry.win, orderedDialogueWindows, orderedIndex, durationSec, options.speechRanges);
+      const timing = buildDialogueTimingAdjustment(t, entry.win, orderedDialogueWindows, orderedIndex, durationSec, paddingGuardRanges);
       reservedDialogueRanges.push(timing.visual_range_sec);
     }
   }
@@ -528,7 +539,7 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
         .sort((a, b) => Number(a.win.start_sec) - Number(b.win.start_sec));
       for (const { win, index } of orderedDialogueWindows) {
         const orderedIndex = orderedDialogueWindows.findIndex((entry) => entry.win === win && entry.index === index);
-        const timing = buildDialogueTimingAdjustment(item, win, orderedDialogueWindows, orderedIndex, durationSec, options.speechRanges);
+        const timing = buildDialogueTimingAdjustment(item, win, orderedDialogueWindows, orderedIndex, durationSec, paddingGuardRanges);
         const segId = `${slotId}_L${String(index + 1).padStart(2, '0')}`;
         const startTc = secondsToTimecode(timing.visual_range_sec[0]);
         const endTc = secondsToTimecode(timing.visual_range_sec[1]);
@@ -807,7 +818,8 @@ function assembleBootstrapArtifacts(runIdOrPath, options = {}) {
     scriptId: manifest.runId || path.basename(runDir),
     title: manifest.title || '',
     sourceDurationSec,
-    speechRanges
+    speechRanges,
+    cueRanges: (Array.isArray(transcriptTimed) ? transcriptTimed : []).map((cue) => [Number(cue?.start_sec), Number(cue?.end_sec)])
   });
 
   const outTranscriptPath = path.join(runDir, 'bootstrap_source_transcript.json');

@@ -64,6 +64,18 @@ test('with clear air around it the line keeps its full padding', () => {
   assert.ok(end > 40.596);
 });
 
+// Detected speech has gaps inside a caption cue, so guarding on speech alone let the clip start
+// at 467.82 while the cue it belonged to ran to 468.32 — which is what the gate compares against.
+test('padding clears the caption cue even when detected speech leaves a gap', () => {
+  const { script } = buildBootstrapSlotMapAndScript(editPlan(), slotFills(), {
+    sourceDurationSec: 529.561,
+    speechRanges: [[36.927, 37.604], [38.894, 40.596]],
+    cueRanges: [[36.0, 38.894], [38.894, 40.596]]
+  });
+  const [start] = dialogueClip(script);
+  assert.ok(start >= 38.894, `clip starts at ${start}, inside the previous cue`);
+});
+
 test('with no speech ranges the padding behaves as before', () => {
   const { script } = buildBootstrapSlotMapAndScript(editPlan(), slotFills(), { sourceDurationSec: 529.561 });
   const [start, end] = dialogueClip(script);
