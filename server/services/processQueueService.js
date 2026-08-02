@@ -4968,11 +4968,15 @@ function buildCandidateHighlightBlock(baseText = '', focusText = '', options = {
   return 'この工程で最も目を引く瞬間を切り出したハイライトです。素材の形が変わる動き、機械や手作業のリズム、完成へ近づく気持ちよさが短い時間に詰まっています。';
 }
 
+// These blocks are written without seeing the video, so they must never name a material,
+// tool, or process the source was not confirmed to contain. The old sparks_hammering and
+// flattening_spreading entries asserted red-hot metal, a hammer, sparks and forging - and
+// a bamboo-sawing source was handed that caption because its cue words matched.
 function buildSemanticHighlightBlock(payload = {}, korean = false) {
   const key = payload.semantic_key || 'motion';
   const ja = {
-    sparks_hammering: '赤く熱した金属をハンマーで叩くたびに火花が散り、棒材の形が少しずつ整っていく場面です。強い衝撃と光の変化が同時に見えるため、鍛造らしい迫力を短い尺で伝えられます。',
-    flattening_spreading: 'プレスの下で熱い金属が押し広げられ、厚みが変わっていく初期変形の場面です。火花よりも、素材が平たく伸びていく形の変化に集中して見せるハイライトです。',
+    sparks_hammering: '素材に強い衝撃が繰り返し加わり、形が少しずつ整っていく場面です。打ち込む動きと戻りのリズムが短い尺で伝わるため、このカットだけで作業の手応えが分かります。',
+    flattening_spreading: '素材が押し広げられ、厚みと広がりが変わっていく初期変形の場面です。仕上がりよりも、形が伸びて変わっていく過程そのものに集中して見せるハイライトです。',
     cutting: '刃や工具が素材に入り、形が分かれていく瞬間を見せる場面です。切り込む動きと分離する変化がはっきり見えるため、このカットだけで加工の手応えが伝わります。',
     flow: '素材や液体が流れに沿って進み、量や形が連続して変わる場面です。一定方向へ動くリズムと表面の変化を中心に、工程の気持ちよさを切り出しています。',
     handwork: '作業者の手元と道具の細かな動きに注目する場面です。素材を支える位置、持ち替え、調整のタイミングが見えるため、手作業ならではのリズムが伝わります。',
@@ -4980,8 +4984,8 @@ function buildSemanticHighlightBlock(payload = {}, korean = false) {
     motion: '素材、道具、機械の位置関係が変わる場面を切り出しています。全体工程の説明ではなく、このカットで見える動きと変化に絞ったハイライトです。'
   };
   const ko = {
-    sparks_hammering: '붉게 달아오른 금속을 망치로 두드릴 때마다 불꽃이 튀고, 막대의 형태가 조금씩 다듬어지는 장면입니다. 강한 충격과 빛의 변화가 함께 보여 단조 공정의 박력을 짧게 전달합니다.',
-    flattening_spreading: '프레스 아래에서 뜨거운 금속이 눌리며 넓게 퍼지고 두께가 바뀌는 초기 변형 장면입니다. 불꽃보다 소재가 납작하게 늘어나는 형태 변화에 집중한 하이라이트입니다.',
+    sparks_hammering: '소재에 강한 충격이 반복해서 가해지며 형태가 조금씩 다듬어지는 장면입니다. 내리치는 움직임과 되돌아오는 리듬이 짧은 시간에 드러나 이 컷만으로 작업의 손맛이 전달됩니다.',
+    flattening_spreading: '소재가 눌리며 넓게 퍼지고 두께와 폭이 바뀌는 초기 변형 장면입니다. 완성된 모습보다 형태가 늘어나며 변해가는 과정 자체에 집중한 하이라이트입니다.',
     cutting: '날이나 도구가 소재에 들어가 형태가 나뉘는 순간을 보여주는 장면입니다. 잘려 나가는 움직임과 분리되는 변화가 뚜렷해서 이 컷만으로 가공의 손맛이 전달됩니다.',
     flow: '소재나 액체가 흐름을 따라 이동하며 양과 형태가 연속적으로 바뀌는 장면입니다. 한 방향으로 이어지는 리듬과 표면 변화를 중심으로 공정의 시원함을 잘라냈습니다.',
     handwork: '작업자의 손과 도구의 세밀한 움직임에 집중하는 장면입니다. 소재를 받치는 위치, 손을 바꾸는 순간, 조정 타이밍이 보여 수작업 특유의 리듬이 전달됩니다.',
@@ -5041,22 +5045,36 @@ function buildCandidateSpecificBlock(window = {}, scenes = [], label = 'H01', ko
   return truncateChars((korean ? templatesKo : templatesJa)[cue] || (korean ? templatesKo.motion : templatesJa.motion), korean ? 230 : 235);
 }
 
+function normalizedTextsAreDistinct(texts = []) {
+  for (let i = 0; i < texts.length; i += 1) {
+    for (let j = i + 1; j < texts.length; j += 1) {
+      if (texts[i] === texts[j]) return false;
+      const shorter = Math.min(texts[i].length, texts[j].length);
+      if (shorter >= 24 && (texts[i].includes(texts[j]) || texts[j].includes(texts[i]))) return false;
+    }
+  }
+  return true;
+}
+
 function highlightMetadataBodiesAreDistinct(metadataList = []) {
-  const bodies = (Array.isArray(metadataList) ? metadataList : [])
+  const list = Array.isArray(metadataList) ? metadataList : [];
+  // The on-screen caption block has to be distinct on its own. Checking it only as part
+  // of the joined body let byte-identical caption blocks through, because
+  // report_description carries the window's time range and made the joined strings
+  // differ - two highlights of one source shipped with the same caption on screen.
+  const captionBlocks = list
+    .map((metadata) => normalizeHighlightCompareText(metadata?.onscreen_caption_block || ''))
+    .filter(Boolean);
+  if (!normalizedTextsAreDistinct(captionBlocks)) return false;
+
+  const bodies = list
     .map((metadata) => normalizeHighlightCompareText([
       metadata?.onscreen_caption_block,
       metadata?.summary_caption,
       metadata?.report_description
     ].join(' ')))
     .filter(Boolean);
-  for (let i = 0; i < bodies.length; i += 1) {
-    for (let j = i + 1; j < bodies.length; j += 1) {
-      if (bodies[i] === bodies[j]) return false;
-      const shorter = Math.min(bodies[i].length, bodies[j].length);
-      if (shorter >= 24 && (bodies[i].includes(bodies[j]) || bodies[j].includes(bodies[i]))) return false;
-    }
-  }
-  return true;
+  return normalizedTextsAreDistinct(bodies);
 }
 
 function assertHighlightCandidateMetadataDistinct(itemConfig = {}, highlightWindows = []) {
@@ -5198,7 +5216,11 @@ function withCandidateExplanation(baseGuide = {}, window = {}) {
   const pool = [
     ...(Array.isArray(baseGuide.shortform_candidate_windows) ? baseGuide.shortform_candidate_windows : []),
     ...(Array.isArray(baseGuide.hook_candidates) ? baseGuide.hook_candidates : []),
-    ...(Array.isArray(baseGuide.highlight_candidates) ? baseGuide.highlight_candidates : [])
+    ...(Array.isArray(baseGuide.highlight_candidates) ? baseGuide.highlight_candidates : []),
+    // Longform writes its per-window explanations onto the candidate title entries,
+    // which is the only list that phase produces one row per published cut.
+    ...(Array.isArray(baseGuide.highlight_metadata?.highlight_candidate_titles) ? baseGuide.highlight_metadata.highlight_candidate_titles : []),
+    ...(Array.isArray(baseGuide.highlight_metadata_ko?.highlight_candidate_titles) ? baseGuide.highlight_metadata_ko.highlight_candidate_titles : [])
   ];
   let best = null;
   let bestOverlap = 0;
@@ -8153,13 +8175,24 @@ function collectHighlightCandidateWindows(itemConfig = {}, maxDurationSec = 10) 
   return windows;
 }
 
+// Every window Gemini/Vision actually nominated carries its own hook evidence
+// (visual_hook, why_this_clip, per-window explanation). A scene_ranked window is derived
+// locally from the scene list and carries none of that, so its caption and title can only
+// come from a generic template - which is how a bamboo-cutting source got a forging
+// caption about hot metal and sparks. Longform ships nominated windows only.
+function isGeminiNominatedHighlightWindow(window = {}) {
+  const origin = String(window?.selection_strategy || window?.reason || '');
+  return origin.startsWith('gemini_');
+}
+
 function pickHighlightWindows(itemConfig = {}, maxDurationSec = 10, count = 1) {
   const requestedCount = Math.min(5, Math.max(1, Math.round(Number(count) || 1)));
   const longformSource = isLongformHighlightSource(itemConfig);
   if (longformSource && isLocalOrFallbackLongformGuide(itemConfig.ottogi_guide_output || {})) return [];
   const primary = pickHighlightWindow(itemConfig, maxDurationSec);
   const candidates = [primary, ...collectHighlightCandidateWindows(itemConfig, maxDurationSec)]
-    .filter((candidate) => !(longformSource && isLocalOrFallbackLongformWindow(candidate)));
+    .filter((candidate) => !(longformSource && isLocalOrFallbackLongformWindow(candidate)))
+    .filter((candidate) => !longformSource || isGeminiNominatedHighlightWindow(candidate));
   const picked = [];
   const seenKeys = new Set();
 

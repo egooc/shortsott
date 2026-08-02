@@ -306,6 +306,8 @@ const OTTOGI_VARIANT_METADATA_SCHEMA = {
     },
     // One hook title per candidate window, so a source that yields two highlights
     // gets two titles about those two cuts instead of two slices of one generic list.
+    // The per-window explanations live here too: without them each cut falls back to a
+    // generic template that describes a manufacturing motion the source may not contain.
     highlight_candidate_titles: {
       type: 'array',
       items: {
@@ -314,9 +316,11 @@ const OTTOGI_VARIANT_METADATA_SCHEMA = {
           start_sec: { type: 'number' },
           end_sec: { type: 'number' },
           title: { type: 'string' },
-          hashtags: { type: 'array', items: { type: 'string' } }
+          hashtags: { type: 'array', items: { type: 'string' } },
+          scene_specific_explanation_ja: { type: 'string' },
+          scene_specific_explanation_ko: { type: 'string' }
         },
-        required: ['start_sec', 'end_sec', 'title', 'hashtags']
+        required: ['start_sec', 'end_sec', 'title', 'hashtags', 'scene_specific_explanation_ja', 'scene_specific_explanation_ko']
       }
     },
     report_description: { type: 'string' },
@@ -2972,7 +2976,11 @@ function normalizeCandidateTitleList(value = [], korean = false) {
       start_sec: startSec,
       end_sec: endSec,
       title: titleWithHashtags(rawTitle, hashtags, korean),
-      hashtags
+      hashtags,
+      // Carried through so the draft builder can caption each cut from what Gemini
+      // actually saw in that window instead of a generic cue template.
+      scene_specific_explanation_ja: normalizeText(item.scene_specific_explanation_ja || ''),
+      scene_specific_explanation_ko: normalizeText(item.scene_specific_explanation_ko || '')
     });
   }
   return out.slice(0, 8);
@@ -4358,6 +4366,33 @@ function enforcePublicMetadataLanguage(guide = {}) {
   return next;
 }
 
+// The draft builder cuts one highlight per nominated window, so the metadata writer has
+// to see the same list. Feeding it only hook_clip_10s is what made every cut of one
+// source ship under the same title with the same caption.
+function longformHighlightCandidateSummary(candidateGuide = {}, hookGuide = {}) {
+  const seen = new Set();
+  const windows = [
+    hookGuide?.hook_clip_10s,
+    candidateGuide?.hook_clip_10s,
+    candidateGuide?.recommended_highlight_window,
+    ...(Array.isArray(candidateGuide?.hook_candidates) ? candidateGuide.hook_candidates : []),
+    ...(Array.isArray(candidateGuide?.shortform_candidate_windows) ? candidateGuide.shortform_candidate_windows : [])
+  ].filter((window) => {
+    const start = Number(window?.start_sec);
+    const end = Number(window?.end_sec);
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return false;
+    const key = `${start.toFixed(2)}-${end.toFixed(2)}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, 5);
+
+  if (!windows.length) return 'No candidate windows provided. Return highlight_candidate_titles as an empty array.';
+  return windows
+    .map((window, index) => `[${index + 1}] start_sec=${window.start_sec} end_sec=${window.end_sec} | visual_hook: ${window.visual_hook || ''} | why: ${window.why_this_clip || window.reason || ''}`)
+    .join('\n');
+}
+
 function buildLongformVariantFinalPrompt({ variant, sourceUrl, filename, durationSec, candidateGuide, hookGuide, storyGuide, midformGuide, assignedHookType = null, sourceContext = {} }) {
   const storyDurationSec = durationFromWindow(storyGuide?.story_clip_40s)
     || durationFromWindow(candidateGuide?.story_clip_40s)
@@ -4425,7 +4460,14 @@ function buildLongformVariantFinalPrompt({ variant, sourceUrl, filename, duratio
       rules: [
         '- Create only the JP Highlight visual-hook metadata.',
         '- Highlight uses hook_clip_10s only.',
-        '- The production workflow creates two separate JP Highlight drafts per source: one for the best highlight candidate and one for the second-best candidate. This response describes the fixed candidate window it receives; do not merge candidates.',
+        '- The production workflow cuts one separate JP Highlight draft per candidate window listed below - up to five from a single long-form source. Every one of them is published on its own, so each needs its own title and its own caption. Do not merge candidates and do not describe the source as a whole.',
+        '- highlight_metadata.highlight_candidate_titles is mandatory: return exactly one entry per candidate window listed below, copying that window\'s start_sec and end_sec unchanged.',
+        '- Each entry\'s title must be a hook title for THAT window only, written from that window\'s own visual_hook. Two windows showing different actions must never receive interchangeable titles, and no two entries may share a title.',
+        '- Each entry needs its own five hashtags in the title language, specific to what that window shows.',
+        '- Each entry\'s scene_specific_explanation_ja is the 180-240 character Japanese lower-third explainer for THAT window, describing the concrete action, tool, material and visible change in that cut. scene_specific_explanation_ko is the Korean counterpart.',
+        '- Two entries must never share an explanation, and an explanation must never be a generic label such as "工程の動き", "作業の流れ", or "공정의 움직임".',
+        '- Never describe a material, tool or process the window does not show. If a window shows bamboo being sawn, do not write about hot metal, sparks or forging.',
+        '- highlight_metadata_ko.highlight_candidate_titles mirrors the same windows with Korean titles and the same per-window explanations.',
         '- Highlight must describe one selected process/action only, not the whole long-form source.',
         '- Do not mention multiple unrelated scenes, many workers, or a compilation of different jobs in Highlight metadata.',
         '- Highlight caption mode is long_bottom_explainer.',
@@ -4483,6 +4525,13 @@ function buildLongformVariantFinalPrompt({ variant, sourceUrl, filename, duratio
     '',
     ...variantConfig.rules,
     '',
+    ...(variant === 'highlight'
+      ? [
+          'Candidate windows (each becomes its own JP Highlight draft - return one highlight_candidate_titles entry per line, with these exact timestamps):',
+          longformHighlightCandidateSummary(candidateGuide, hookGuide),
+          ''
+        ]
+      : []),
     'Return these fields when relevant:',
     variantConfig.requiredFields.map((field) => `- ${field}`).join('\n'),
     '',

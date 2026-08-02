@@ -630,10 +630,115 @@ function testMultipleHighlightMetadataDiffersBySceneWindow() {
   assert(!/H0[12]/.test(`${h01.highlight_metadata.upload_title}\n${h02.highlight_metadata.upload_title}`), 'Public upload titles must not rely on H01/H02 suffixes.');
   assert(h01.highlight_metadata.onscreen_caption_block !== h02.highlight_metadata.onscreen_caption_block, 'Each JP Highlight output must get a scene/window-specific Japanese caption block.');
   assert(h01.highlight_metadata.report_description !== h02.highlight_metadata.report_description, 'Each JP Highlight output must get a scene/window-specific metadata description.');
-  assert(/火花|叩|ハンマー/u.test(h01.highlight_metadata.onscreen_caption_block), 'H01 caption must include spark/hammering semantics.');
+  assert(/衝撃|打ち込|リズム/u.test(h01.highlight_metadata.onscreen_caption_block), 'H01 caption must include impact/repetition semantics.');
   assert(/平たく|広が|厚み/u.test(h02.highlight_metadata.onscreen_caption_block), 'H02 caption must include flattening/spreading semantics.');
+  // These blocks are written without seeing the video. A cue keyword like "impact" must
+  // never license a claim about the material: a bamboo-sawing source was captioned with
+  // red-hot metal, sparks and forging purely because its cue words matched.
+  assert(
+    !/赤く熱した|火花|鍛造|熱い金属/u.test(`${h01.highlight_metadata.onscreen_caption_block}\n${h02.highlight_metadata.onscreen_caption_block}`),
+    'Template captions must not assert a material or process Gemini did not report for that window.'
+  );
   assert(queueTest.highlightMetadataBodiesAreDistinct([h01.highlight_metadata, h02.highlight_metadata]), 'Highlight bodies must be distinct after normalization.');
   assert(h01.highlight_candidate_metadata_cue.semantic_key !== h02.highlight_candidate_metadata_cue.semantic_key, 'Different scene actions should produce different semantic keys.');
+}
+
+function testLongformShipsOnlyGeminiNominatedWindows() {
+  // A scene_ranked window is derived locally from the scene list and carries no
+  // per-window hook evidence, so its caption and title can only be a generic template.
+  // Longform used to pad up to five with them: a 3-candidate source shipped 3 real cuts
+  // plus 2 invented ones, and the padded cuts got captions about the wrong material.
+  const item = {
+    item_id: 'longform_gemini_only',
+    source_type: 'longform',
+    source_workflow_mode: 'longform_to_shorts',
+    target_duration_sec: 750,
+    video_metadata: { duration_sec: 750 },
+    source_classification: { duration_sec: 750 },
+    ottogi_guide_output: {
+      shortform_candidate_windows: [
+        { window_id: 'hook_candidate_01', start_sec: 107, end_sec: 113, hook_score: 9, visual_hook: 'bandsaw cuts a bamboo pole', why_this_clip: 'clean repeated cut', selected_scene_ids: ['scene_101'] },
+        { window_id: 'hook_candidate_02', start_sec: 199.7, end_sec: 208.7, hook_score: 8, visual_hook: 'pole sections fall away', why_this_clip: 'satisfying separation', selected_scene_ids: ['scene_102'] },
+        { window_id: 'hook_candidate_03', start_sec: 542.4, end_sec: 549.4, hook_score: 7, visual_hook: 'finished flute sections lined up', why_this_clip: 'result reveal', selected_scene_ids: ['scene_103'] }
+      ],
+      // Plenty of scene material that could pad the set out to five.
+      scene_transitions: Array.from({ length: 10 }, (_, index) => ({
+        scene_id: `scene_2${String(index).padStart(2, '0')}`,
+        start_sec: 20 + index * 50,
+        end_sec: 44 + index * 50,
+        transition_at_sec: 30 + index * 50,
+        visual_summary: 'workshop activity',
+        visual_hook_score: 8,
+        motion_intensity: 'high'
+      }))
+    }
+  };
+
+  const windows = queueTest.pickHighlightWindows(item, 24, 5);
+  assert(windows.length === 3, `only the 3 Gemini-nominated windows may ship, got ${windows.length}`);
+  assert(
+    windows.every((window) => String(window.selection_strategy || window.reason || '').startsWith('gemini_')),
+    `every longform highlight window must be Gemini-nominated, got ${JSON.stringify(windows.map((w) => w.selection_strategy))}`
+  );
+  assert(
+    !windows.some((window) => String(window.selection_strategy || '') === 'scene_ranked_highlight_candidate'),
+    'scene-ranked windows must not pad a longform highlight set'
+  );
+}
+
+function testDuplicateGuardCatchesIdenticalCaptionBlocks() {
+  // report_description carries the window's time range, so two byte-identical caption
+  // blocks still produced two different joined strings and the guard passed them.
+  const sameBlock = '刃や工具が素材に入り、形が分かれていく瞬間を見せる場面です。切り込む動きと分離する変化がはっきり見えるため、このカットだけで加工の手応えが伝わります。';
+  const metadata = [
+    {
+      onscreen_caption_block: sameBlock,
+      summary_caption: sameBlock,
+      report_description: '## 2. 選定シーン\n199.7〜208.7の区間です。'
+    },
+    {
+      onscreen_caption_block: sameBlock,
+      summary_caption: sameBlock,
+      report_description: '## 2. 選定シーン\n64.2〜88.2の区間です。'
+    }
+  ];
+  assert(
+    !queueTest.highlightMetadataBodiesAreDistinct(metadata),
+    'two highlights sharing one on-screen caption block must be rejected even when their descriptions differ'
+  );
+}
+
+function testLongformCandidateTitlesCarryPerWindowCaptions() {
+  // Longform returns its per-window titles and explanations on
+  // highlight_metadata.highlight_candidate_titles - the only list that phase produces
+  // with one row per published cut.
+  const entry = (start, end, index) => ({
+    start_sec: start,
+    end_sec: end,
+    title: `竹カット${index}の見どころ`,
+    hashtags: ['#竹加工'],
+    scene_specific_explanation_ja: `${index}本目の区間では帯鋸の刃が竹に入り、節を避けながら決まった長さへ切り分けていく動きが続きます。切断面が現れる瞬間と切り落とされた竹が転がる流れがはっきり見えるカットです。`,
+    scene_specific_explanation_ko: `${index}번째 구간에서는 띠톱 날이 대나무에 들어가 마디를 피해 정해진 길이로 잘라내는 움직임이 이어집니다. 절단면이 드러나는 순간과 잘린 대나무가 굴러가는 흐름이 뚜렷하게 보이는 컷입니다.`
+  });
+  const titles = [entry(107, 113, 1), entry(199.7, 208.7, 2)];
+  const baseGuide = {
+    video_metadata: { duration_sec: 750 },
+    highlight_metadata: { variant_type: 'highlight', upload_title: '帯鋸で竹を切断', highlight_candidate_titles: titles },
+    highlight_metadata_ko: { variant_type: 'highlight', upload_title: '띠톱으로 대나무 절단', highlight_candidate_titles: titles }
+  };
+
+  const h01 = queueTest.buildHighlightCandidateGuide(baseGuide, { start_sec: 107, end_sec: 113 }, 1, 2, '');
+  const h02 = queueTest.buildHighlightCandidateGuide(baseGuide, { start_sec: 199.7, end_sec: 208.7 }, 2, 2, '');
+
+  assert(h01.highlight_metadata.upload_title !== h02.highlight_metadata.upload_title, 'two longform highlights of one source must not share a title');
+  assert(h01.highlight_metadata.upload_title.includes('竹カット1'), `H01 must take the title written for its own window, got ${h01.highlight_metadata.upload_title}`);
+  assert(h02.highlight_metadata.upload_title.includes('竹カット2'), `H02 must take the title written for its own window, got ${h02.highlight_metadata.upload_title}`);
+  assert(h01.highlight_metadata.onscreen_caption_block.includes('帯鋸'), 'the caption must come from the window explanation, not a generic template');
+  assert(h01.highlight_metadata_ko.onscreen_caption_block.includes('띠톱'), 'the Korean caption must follow the same window');
+  assert(
+    !/赤く熱した|火花|鍛造/u.test(h01.highlight_metadata.onscreen_caption_block),
+    'a bamboo window must never be captioned with forging vocabulary'
+  );
 }
 
 function testHighlightDuplicateGuardRejectsLabelTimeOnlyDifference() {
@@ -1063,6 +1168,9 @@ function main() {
   testSceneLevelUniquenessDoesNotRequireFixedTimeGap();
   testMultipleHighlightMetadataDiffersBySceneWindow();
   testHighlightDuplicateGuardRejectsLabelTimeOnlyDifference();
+  testLongformShipsOnlyGeminiNominatedWindows();
+  testDuplicateGuardCatchesIdenticalCaptionBlocks();
+  testLongformCandidateTitlesCarryPerWindowCaptions();
   testGenericSceneExplanationDetector();
   testDuplicateCandidateMetadataBlocksGeneration();
 
