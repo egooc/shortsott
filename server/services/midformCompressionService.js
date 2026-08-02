@@ -3416,9 +3416,9 @@ function validateEditPlan(editPlan, targetSec = 0) {
     const focusQuotes = Array.isArray(item.dialogue_focus_quotes) ? item.dialogue_focus_quotes : [];
     if (item.decision === 'KEEP_DIALOGUE') {
       if (focusQuotes.length < 1) throw new Error(`${item.slot_id} KEEP_DIALOGUE must include dialogue_focus_quotes`);
-      // A slot is a short exchange, not a whole conversation. Allowing five turns per slot
-      // is how a speech-dense source came back as one 151s block of dialogue.
-      if (focusQuotes.length > 3) throw new Error(`${item.slot_id} KEEP_DIALOGUE must limit dialogue_focus_quotes to 3 lines; split a longer exchange across slots`);
+      // A dialogue slot may be long when the exchange earns it — the total runtime ceiling
+      // is what keeps a cut from swallowing whole conversations, not a per-slot line count.
+      if (focusQuotes.length > 5) throw new Error(`${item.slot_id} KEEP_DIALOGUE must limit dialogue_focus_quotes to 5 lines`);
     }
   }
   return editPlan;

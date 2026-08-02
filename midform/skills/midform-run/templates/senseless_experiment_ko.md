@@ -5,7 +5,7 @@ source:
   url: "https://www.youtube.com/watch?v=cOnwFBs6HKg"
   content_type: movie_midform_recap
 output:
-  target_length_sec: 120
+  target_length_sec: 180
 tone: 상황이 점점 통제를 벗어나는 코미디의 리듬을 살리되, 설명으로 웃음을 죽이지 않는 한국어 리캡 톤
 opener_policy: cold_open_callback
 callback_required: true
