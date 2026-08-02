@@ -342,6 +342,52 @@ function detectSpeechRanges(sourceVideoPath, cues) {
   return speech.filter(([start, end]) => end - start > 0.1);
 }
 
+const DIALOGUE_WINDOW_MIN_SEC = 0.8;
+const DIALOGUE_WINDOW_TRIM_MIN_GAIN_SEC = 0.4;
+
+function roundSec3(value) {
+  return Number(Number(value).toFixed(3));
+}
+
+// An auto-caption cue ends when the caption leaves the screen, not when the words stop, so
+// a five-word line can be recorded as thirty seconds. Captions are locked to these windows,
+// which left short lines held on screen long after the speaker had finished and drifting out
+// of sync with the audio. Trim each window to the speech actually inside it.
+function trimDialogueWindowsToSpeech(editPlan, speechRanges) {
+  const ranges = (Array.isArray(speechRanges) ? speechRanges : [])
+    .map((range) => [Number(range[0]), Number(range[1])])
+    .filter(([start, end]) => Number.isFinite(start) && Number.isFinite(end) && end > start)
+    .sort((left, right) => left[0] - right[0]);
+  if (!ranges.length) return { trimmed: 0, details: [] };
+
+  let trimmed = 0;
+  const details = [];
+  for (const item of Array.isArray(editPlan?.timeline) ? editPlan.timeline : []) {
+    if (item?.decision !== 'KEEP_DIALOGUE') continue;
+    for (const win of Array.isArray(item.dialogue_line_windows) ? item.dialogue_line_windows : []) {
+      if (!win || win.matched !== true) continue;
+      const start = Number(win.start_sec);
+      const end = Number(win.end_sec);
+      if (!(end > start)) continue;
+      const inside = ranges.filter(([rangeStart, rangeEnd]) => rangeEnd > start + 0.05 && rangeStart < end - 0.05);
+      if (!inside.length) continue;
+      const speechStart = Math.max(start, Math.min(...inside.map((range) => range[0])));
+      const speechEnd = Math.min(end, Math.max(...inside.map((range) => range[1])));
+      if (!(speechEnd - speechStart >= DIALOGUE_WINDOW_MIN_SEC)) continue;
+      if ((end - speechEnd) + (speechStart - start) < DIALOGUE_WINDOW_TRIM_MIN_GAIN_SEC) continue;
+      details.push({
+        line: String(win.line || '').slice(0, 40),
+        from: [roundSec3(start), roundSec3(end)],
+        to: [roundSec3(speechStart), roundSec3(speechEnd)]
+      });
+      win.start_sec = roundSec3(speechStart);
+      win.end_sec = roundSec3(speechEnd);
+      trimmed += 1;
+    }
+  }
+  return { trimmed, details };
+}
+
 function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
   const warnings = [];
   const durationSec = Number(options.sourceDurationSec || editPlan?.duration_budget?.estimated_total_sec || 0);
@@ -713,12 +759,17 @@ function assembleBootstrapArtifacts(runIdOrPath, options = {}) {
     ? Number(getVideoMetadata(sourceVideoPath)?.duration_sec || 0)
     : 0;
 
+  // Trim before either consumer reads the windows: the transcript and the slot map derive
+  // their coordinates from the same numbers and must agree to within 0.05s.
+  const speechRanges = detectSpeechRanges(sourceVideoPath, transcriptTimed);
+  const dialogueTrim = trimDialogueWindowsToSpeech(editPlan, speechRanges);
+
   const { transcript, stats: transcriptStats, warnings: tW } = buildBootstrapTranscript(editPlan, transcriptTimed);
   const { slotMap, script, warnings: sW } = buildBootstrapSlotMapAndScript(editPlan, slotFills, {
     scriptId: manifest.runId || path.basename(runDir),
     title: manifest.title || '',
     sourceDurationSec,
-    speechRanges: detectSpeechRanges(sourceVideoPath, transcriptTimed)
+    speechRanges
   });
 
   const outTranscriptPath = path.join(runDir, 'bootstrap_source_transcript.json');
@@ -743,7 +794,8 @@ function assembleBootstrapArtifacts(runIdOrPath, options = {}) {
     sourceDurationSec,
     paths: { outTranscriptPath, outSlotMapPath, outScriptPath, reviewDraftPath, editorialReviewPath },
     warnings: [...tW, ...sW],
-    stats: transcriptStats
+    stats: transcriptStats,
+    dialogue_window_trim: dialogueTrim
   };
 }
 
@@ -926,6 +978,7 @@ module.exports = {
   buildBootstrapTranscript,
   buildBootstrapSlotMapAndScript,
   detectSpeechRanges,
+  trimDialogueWindowsToSpeech,
   buildEditorialReviewArtifact,
   assembleBootstrapArtifacts,
   runBootstrapPreflight,
