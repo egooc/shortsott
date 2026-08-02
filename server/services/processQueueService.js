@@ -68,10 +68,15 @@ const QUEUE_RESERVED_DIRS = new Set([
   'korean_channel_frame_asset',
   'korean_highlight_channel_frame_asset'
 ]);
-const MAX_YOUTUBE_IMPORT_URLS = 20;
+// Matches the Phase 1 basket cap (pendingSourceVideos is sliced to 100), so the
+// basket is the only place a batch size is bounded.
+const MAX_YOUTUBE_IMPORT_URLS = 100;
 const YOUTUBE_IMPORT_DELAY_MIN_MS = 15_000;
 const YOUTUBE_IMPORT_DELAY_MAX_MS = 35_000;
-const MAX_LONGFORM_HIGHLIGHT_CANDIDATES = 8;
+// No fixed candidate-pool cap: every Gemini/Vision-backed window stays selectable.
+// How many highlights actually get produced is decided by highlightOutputCountForItem,
+// not by the size of the pool.
+const MAX_LONGFORM_HIGHLIGHT_CANDIDATES = Number.POSITIVE_INFINITY;
 const SHORTFORM_HIGHLIGHT_MAX_DURATION_SEC = 10;
 const LONGFORM_HIGHLIGHT_MAX_DURATION_SEC = 24;
 const LONGFORM_HIGHLIGHT_DEFAULT_DURATION_SEC = 16;
@@ -3211,10 +3216,11 @@ function validateLocale66Rows(rows = [], options = {}) {
     }
   });
 
+  // Batch size and the JP/KO split are free: this validation only rejects an
+  // unusable batch (a locale we cannot generate for, or the same source twice).
   const errors = [];
   if (invalidLocales.length) errors.push('허용 locale은 ja-JP 또는 ko-KR만 가능합니다.');
-  if (items.length !== 12) errors.push('총 12개 source item을 선택해 주세요.');
-  if (counts['ja-JP'] !== 6 || counts['ko-KR'] !== 6) errors.push('일본어와 한국어 소스를 각각 6개씩 선택해 주세요.');
+  if (!items.length) errors.push('source item을 1개 이상 선택해 주세요.');
   if (duplicates.length) errors.push('동일한 YouTube 영상이 중복 선택되어 있습니다.');
 
   if (errors.length) {
@@ -8211,7 +8217,10 @@ function isLocalOrFallbackLongformGuide(guide = {}) {
 }
 
 function getDefaultLongformHighlightWindows(itemConfig = {}, maxDurationSec = 10, limit = MAX_LONGFORM_HIGHLIGHT_CANDIDATES) {
-  const maxItems = Math.max(1, Math.min(MAX_LONGFORM_HIGHLIGHT_CANDIDATES, Math.round(Number(limit) || MAX_LONGFORM_HIGHLIGHT_CANDIDATES)));
+  const requestedLimit = Number(limit);
+  const maxItems = Number.isFinite(requestedLimit) && requestedLimit > 0
+    ? Math.max(1, Math.round(requestedLimit))
+    : Number.POSITIVE_INFINITY;
   const picked = [];
   const seenKeys = new Set();
 
@@ -10490,6 +10499,7 @@ async function generateQueue({ batch_name, item_ids, stop_on_error = false, draf
     success_count: 0,
     failed_count: 0,
     held_count: 0,
+    skipped_count: 0,
     capcut_draft_root: capcutDraftRoot,
     report_dir: reportDir,
     metadata_export_dir: metadataExportDir,
@@ -10916,27 +10926,29 @@ async function generateQueue({ batch_name, item_ids, stop_on_error = false, draf
             requestedHighlightCount
           );
           if (!highlightWindows.length) {
-            if (isLongformHighlight) {
-              const guide = itemConfig.ottogi_guide_output || {};
-              const error = new Error('longform highlight draft blocked: no Gemini/Vision-backed highlight candidates available');
-              error.code = 'OTTOGI_LONGFORM_HIGHLIGHT_CANDIDATES_REQUIRED';
-              error.details = {
-                item_id: itemId,
-                source_type: itemConfig.source_type || '',
-                source_workflow_mode: itemConfig.source_workflow_mode || '',
-                reason: 'generic_or_local_fallback_candidates_are_not_valid_for_longform_five_highlights',
-                shortform_candidate_count: Array.isArray(guide.shortform_candidate_windows) ? guide.shortform_candidate_windows.length : 0,
-                hook_candidate_count: Array.isArray(guide.hook_candidates) ? guide.hook_candidates.length : 0,
-                scene_count: Array.isArray(guide.scene_transitions) ? guide.scene_transitions.length : 0,
-                first_candidate_reason: String(guide.shortform_candidate_windows?.[0]?.reason || guide.hook_candidates?.[0]?.reason || '').slice(0, 240),
-                first_scene_change_type: String(guide.scene_transitions?.[0]?.change_type || '').slice(0, 120),
-                first_scene_caption: String(guide.scene_transitions?.[0]?.caption_text || '').slice(0, 120),
-                recommended_action: 'Run Gemini/Vision reanalysis that returns scene-specific, non-generic longform highlight candidates before generating five JP Highlights.'
-              };
-              throw error;
-            }
+            // Longform and shortform behave the same here: when Gemini/Vision does not
+            // return usable candidate windows we do not fall back to generic/local
+            // windows and we do not fail the item - we report why and move on.
+            const guide = itemConfig.ottogi_guide_output || {};
             row.highlight_status = 'skipped';
-            row.highlight_skip_reason = 'all highlight candidates were excluded';
+            row.highlight_skip_reason = isLongformHighlight
+              ? `Gemini/Vision 하이라이트 후보가 없어 건너뜁니다. 롱폼은 서로 다른 장면 후보 ${requestedHighlightCount}개가 필요합니다. 재분석 후 다시 실행하세요.`
+              : 'Gemini/Vision 하이라이트 후보가 없어 건너뜁니다. 재분석 후 다시 실행하세요.';
+            row.highlight_skip_code = 'OTTOGI_HIGHLIGHT_CANDIDATES_UNAVAILABLE';
+            row.highlight_skip_details = {
+              item_id: itemId,
+              source_type: itemConfig.source_type || '',
+              source_workflow_mode: itemConfig.source_workflow_mode || '',
+              is_longform: isLongformHighlight,
+              requested_highlight_count: requestedHighlightCount,
+              shortform_candidate_count: Array.isArray(guide.shortform_candidate_windows) ? guide.shortform_candidate_windows.length : 0,
+              hook_candidate_count: Array.isArray(guide.hook_candidates) ? guide.hook_candidates.length : 0,
+              scene_count: Array.isArray(guide.scene_transitions) ? guide.scene_transitions.length : 0,
+              first_candidate_reason: String(guide.shortform_candidate_windows?.[0]?.reason || guide.hook_candidates?.[0]?.reason || '').slice(0, 240),
+              first_scene_change_type: String(guide.scene_transitions?.[0]?.change_type || '').slice(0, 120),
+              first_scene_caption: String(guide.scene_transitions?.[0]?.caption_text || '').slice(0, 120),
+              recommended_action: 'Run Gemini/Vision reanalysis that returns scene-specific, non-generic highlight candidates, then re-run draft generation for this item.'
+            };
             row.warnings.push(row.highlight_skip_reason);
           } else {
           assertHighlightCandidateMetadataDistinct(itemConfig, highlightWindows);
@@ -11062,6 +11074,12 @@ async function generateQueue({ batch_name, item_ids, stop_on_error = false, draf
           row.status = 'success';
         } else if (row.full_status === 'held') {
           row.status = 'held';
+        } else if (row.highlight_status === 'skipped') {
+          // Nothing was generated because there were no usable Gemini/Vision
+          // candidates. That is a skip with a reason, not an item failure.
+          row.status = 'skipped';
+          row.skip_reason = row.highlight_skip_reason || 'no highlight candidates available';
+          row.skip_code = row.highlight_skip_code || '';
         } else {
           const noDraftError = new Error(row.highlight_error || row.midform_error || 'requested item did not produce any draft');
           noDraftError.code = row.highlight_error_code || row.midform_error_code || '';
@@ -11084,6 +11102,8 @@ async function generateQueue({ batch_name, item_ids, stop_on_error = false, draf
       }
       if (row.status === 'held') {
         report.held_count += 1;
+      } else if (row.status === 'skipped') {
+        report.skipped_count += 1;
       } else {
         report.success_count += 1;
       }
@@ -11119,6 +11139,7 @@ async function generateQueue({ batch_name, item_ids, stop_on_error = false, draf
     `- Total Items: ${report.total_items}`,
     `- Success Count: ${report.success_count}`,
     `- Held Count: ${report.held_count}`,
+    `- Skipped Count: ${report.skipped_count}`,
     `- Failed Count: ${report.failed_count}`,
     `- Stop On Error: ${String(!!stop_on_error)}`,
     `- Highlight Drafts: ${queueConfig.create_highlight_draft === true ? 'enabled' : 'disabled'}`,

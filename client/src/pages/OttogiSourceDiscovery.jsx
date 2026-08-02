@@ -322,9 +322,7 @@ export default function OttogiSourceDiscovery() {
       if (key && keys.has(key)) return '동일한 YouTube 영상이 중복 선택되어 있습니다.';
       if (key) keys.add(key);
     }
-    if (pendingSourceVideos.length !== 12 || basketCounts.ja !== 6 || basketCounts.ko !== 6) {
-      return '일본어와 한국어 소스를 각각 6개씩 선택해 주세요.';
-    }
+    // Batch size and the JP/KO ratio are free. Only a duplicated source blocks the send.
     return '';
   }
 
@@ -603,7 +601,7 @@ export default function OttogiSourceDiscovery() {
           <div className="rounded-3xl border border-[#c8ff00]/20 bg-[#c8ff00]/10 p-4">
             <div className="text-xs font-bold text-[#dfff58]">URL 바구니</div>
             <div className="mt-2 text-lg font-black text-white">{pendingSourceVideos.length}개</div>
-            <div className="mt-1 text-[11px] font-bold text-[#eaff9a]">일본어 {basketCounts.ja} / 6 · 한국어 {basketCounts.ko} / 6 · 전체 {basketCounts.total} / 12</div>
+            <div className="mt-1 text-[11px] font-bold text-[#eaff9a]">일본어 {basketCounts.ja} · 한국어 {basketCounts.ko} · 전체 {basketCounts.total}</div>
             <button type="button" onClick={goToBatchDraft} disabled={!pendingSourceVideos.length || sendingToBatch || !!basketLocaleIssue} className="mt-3 rounded-2xl bg-[#c8ff00] px-3 py-2 text-xs font-black text-black disabled:opacity-35">
               {sendingToBatch ? '보내는 중...' : 'Phase2로 이동'}
             </button>
@@ -648,9 +646,9 @@ export default function OttogiSourceDiscovery() {
         {pendingSourceVideos.length ? (
           <div className="mt-4 space-y-3">
             <div className="grid gap-2 rounded-2xl border border-[#c8ff00]/20 bg-[#c8ff00]/10 p-3 text-xs font-black text-[#eaff9a] md:grid-cols-3">
-              <div>일본어 소스 {basketCounts.ja} / 6</div>
-              <div>한국어 소스 {basketCounts.ko} / 6</div>
-              <div>전체 소스 {basketCounts.total} / 12</div>
+              <div>일본어 소스 {basketCounts.ja}개</div>
+              <div>한국어 소스 {basketCounts.ko}개</div>
+              <div>전체 소스 {basketCounts.total}개</div>
             </div>
             <div className="flex flex-wrap gap-2">
             {pendingSourceVideos.slice(0, 20).map((item) => (

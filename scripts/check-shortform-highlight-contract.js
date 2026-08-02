@@ -263,8 +263,8 @@ function testLocale66BatchValidation() {
     target_locale: index < 6 ? 'ja-JP' : 'ko-KR'
   }));
   const result = queueTest.validateLocale66Rows(rows, { stage: 'contract_test' });
-  assert(result.total === 12, 'locale_6_6 validation must accept exactly 12 source items.');
-  assert(result.counts['ja-JP'] === 6 && result.counts['ko-KR'] === 6, 'locale_6_6 validation must require JP 6 and KO 6.');
+  assert(result.total === 12, 'locale batch validation must report the batch size it was given.');
+  assert(result.counts['ja-JP'] === 6 && result.counts['ko-KR'] === 6, 'locale batch validation must report the JP/KO split it was given.');
 
   let duplicateBlocked = null;
   try {
@@ -277,35 +277,30 @@ function testLocale66BatchValidation() {
   }
   assert(duplicateBlocked?.code === 'LOCALE_6_6_BATCH_INVALID', 'locale_6_6 validation must block duplicated canonical YouTube sources.');
 
-  let countBlocked = null;
-  try {
-    queueTest.validateLocale66Rows(rows.slice(0, 11), { stage: 'contract_test_count' });
-  } catch (error) {
-    countBlocked = error;
-  }
-  assert(countBlocked?.code === 'LOCALE_6_6_BATCH_INVALID', 'locale_6_6 validation must block non-12 item batches.');
+  // Batch size is free: 11, 13, or any other count must pass.
+  const elevenItems = queueTest.validateLocale66Rows(rows.slice(0, 11), { stage: 'contract_test_count_11' });
+  assert(elevenItems.total === 11, 'locale batch validation must accept a batch that is not 12 items.');
 
-  let count13Blocked = null;
-  try {
-    queueTest.validateLocale66Rows([
-      ...rows,
-      { source_url: 'https://www.youtube.com/watch?v=ZZZZZZZZZ13', target_locale: 'ja-JP' }
-    ], { stage: 'contract_test_count_13' });
-  } catch (error) {
-    count13Blocked = error;
-  }
-  assert(count13Blocked?.code === 'LOCALE_6_6_BATCH_INVALID', 'locale_6_6 validation must block 13 item batches.');
+  const thirteenItems = queueTest.validateLocale66Rows([
+    ...rows,
+    { source_url: 'https://www.youtube.com/watch?v=ZZZZZZZZZ13', target_locale: 'ja-JP' }
+  ], { stage: 'contract_test_count_13' });
+  assert(thirteenItems.total === 13, 'locale batch validation must accept more than 12 items.');
 
-  let ratioBlocked = null;
+  // The JP/KO ratio is free too.
+  const skewedRatio = queueTest.validateLocale66Rows(rows.map((row, index) => ({
+    ...row,
+    target_locale: index < 7 ? 'ja-JP' : 'ko-KR'
+  })), { stage: 'contract_test_ratio' });
+  assert(skewedRatio.counts['ja-JP'] === 7 && skewedRatio.counts['ko-KR'] === 5, 'locale batch validation must accept an uneven JP/KO split.');
+
+  let emptyBlocked = null;
   try {
-    queueTest.validateLocale66Rows(rows.map((row, index) => ({
-      ...row,
-      target_locale: index < 7 ? 'ja-JP' : 'ko-KR'
-    })), { stage: 'contract_test_ratio' });
+    queueTest.validateLocale66Rows([], { stage: 'contract_test_empty' });
   } catch (error) {
-    ratioBlocked = error;
+    emptyBlocked = error;
   }
-  assert(ratioBlocked?.code === 'LOCALE_6_6_BATCH_INVALID', 'locale_6_6 validation must block JP 7 / KO 5 batches.');
+  assert(emptyBlocked?.code === 'LOCALE_6_6_BATCH_INVALID', 'locale batch validation must still block an empty batch.');
 
   const canonicalRows = rows.map((row, index) => ({ ...row, source_url: `https://www.youtube.com/watch?v=${String(index + 20).padStart(11, 'B')}` }));
   const duplicateId = 'VIDEO_ID001';
@@ -1001,13 +996,51 @@ function main() {
   assertContains(
     queueService,
     'locale_validation_item_ids = null',
-    'locale_6_6 draft continuation must validate the original 12-item batch, not only metadata-ready draft items.'
+    'locale batch draft continuation must validate the original batch, not only metadata-ready draft items.'
   );
 
   assertContains(
     jobService,
     'locale_validation_item_ids: job.item_ids || []',
-    'Process job draft continuation must pass original job item_ids for locale_6_6 validation.'
+    'Process job draft continuation must pass original job item_ids for locale batch validation.'
+  );
+
+  assertNotContains(
+    queueService,
+    "errors.push('총 12개 source item을 선택해 주세요.')",
+    'Locale batch size must stay free - no fixed 12-item requirement.'
+  );
+
+  assertNotContains(
+    queueService,
+    "counts['ja-JP'] !== 6 || counts['ko-KR'] !== 6",
+    'Locale batch JP/KO split must stay free - no fixed 6/6 requirement.'
+  );
+
+  // No usable Gemini/Vision candidates is reported and skipped, never turned into a
+  // draft-stage exception and never filled in with generic/local fallback windows.
+  assertContains(
+    queueService,
+    "row.highlight_skip_code = 'OTTOGI_HIGHLIGHT_CANDIDATES_UNAVAILABLE'",
+    'Missing highlight candidates must skip the item with a reason, for longform and shortform alike.'
+  );
+
+  assertNotContains(
+    queueService,
+    "error.code = 'OTTOGI_LONGFORM_HIGHLIGHT_CANDIDATES_REQUIRED'",
+    'Draft generation must not throw on missing longform candidates - it reports and skips.'
+  );
+
+  assertContains(
+    metadataService,
+    "'OTTOGI_LONGFORM_HIGHLIGHT_CANDIDATES_REQUIRED'",
+    'Analysis-side strictness must stay: longform still refuses generic/local fallback candidates.'
+  );
+
+  assertContains(
+    jobService,
+    "const METADATA_NO_CANDIDATES_STATUS = 'skipped_no_highlight_candidates'",
+    'A missing-candidates analysis result must carry a skip status, not a failed_* status.'
   );
 
   assertContains(

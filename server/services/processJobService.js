@@ -481,8 +481,18 @@ function resolveAnalysisDurationSec(itemConfig = {}, refreshedItem = {}) {
   return 0;
 }
 
+// Gemini/Vision returning no usable highlight candidates is an expected outcome for
+// some sources, not a pipeline failure. It gets its own non-"failed" status so the
+// item is reported and skipped instead of counted as a broken analysis.
+const METADATA_NO_CANDIDATES_STATUS = 'skipped_no_highlight_candidates';
+
+function isNoHighlightCandidatesCode(code = '') {
+  return String(code || '') === 'OTTOGI_LONGFORM_HIGHLIGHT_CANDIDATES_REQUIRED';
+}
+
 function metadataFailureStatus(error = {}) {
   const code = error.code || error.errorCode || '';
+  if (isNoHighlightCandidatesCode(code)) return METADATA_NO_CANDIDATES_STATUS;
   if (isMetadataValidationFailureCode(code)) return 'failed_validation';
   if (code === 'OTTOGI_METADATA_JSON_PARSE_ERROR') return 'failed_parse';
   return 'failed';
@@ -507,6 +517,24 @@ function summarizeMetadataFailure(error = {}) {
   const missing = Array.isArray(details?.missing) ? details.missing : [];
   const issues = Array.isArray(details?.issues) ? details.issues : [];
   const statusCode = Number(error.status || error.statusCode || details.statusCode || 0);
+
+  if (isNoHighlightCandidatesCode(code)) {
+    const validCount = Number(details?.valid_hook_candidates_count ?? details?.hook_candidates_count ?? 0);
+    const minCount = Number(details?.min_hook_candidates ?? 0);
+    return {
+      category: 'no_highlight_candidates',
+      title: '하이라이트 후보 없음 - 건너뜀',
+      user_message: 'Gemini/Vision이 쓸 수 있는 하이라이트 후보 구간을 내놓지 못해 이 소재는 건너뜁니다.',
+      recommended_action: '재분석 후 드래프트 생성 (또는 이 소재 제외)',
+      retry_stage: 'metadata_then_draft',
+      can_regenerate_draft_only: false,
+      detail_lines: [
+        minCount ? `유효 후보 ${validCount}개 / 필요 ${minCount}개` : '',
+        '일반적/로컬 추정 구간은 하이라이트 후보로 쓰지 않습니다.',
+        '선택: 재분석해도 후보가 안 나오면 다른 소재로 교체하세요.'
+      ].filter(Boolean)
+    };
+  }
 
   if (code === 'OTTOGI_METADATA_JSON_PARSE_ERROR') {
     return {
@@ -758,36 +786,46 @@ function selectDraftItemsAfterMetadata(jobId, items = [], metadataResult = {}, o
   }
 
   if (blockedItems.length && options.silent_blocked !== true) {
+    const metadataStatusByItemId = new Map(
+      (metadataResult.metadataAnalysis || []).map((entry) => [entry.item_id, String(entry.status || '')])
+    );
     for (const item of blockedItems) {
       const itemIndex = items.findIndex((candidate) => candidate.item_id === item.item_id);
       const label = itemIndex >= 0 ? `${itemIndex + 1}/${items.length}` : item.item_id;
+      const noCandidates = metadataStatusByItemId.get(item.item_id) === METADATA_NO_CANDIDATES_STATUS;
       updateItemStatus(jobId, item.item_id, {
         stage: 'metadata',
-        draft_status: 'blocked_metadata_failed',
+        draft_status: noCandidates ? 'skipped_no_highlight_candidates' : 'blocked_metadata_failed',
         can_regenerate_draft_only: false,
         failure_retry_stage: 'metadata_then_draft',
         failure_recommended_action: '재분석 후 드래프트 생성'
       });
       appendJobLog(
         jobId,
-        `${label} Gemini 분석 실패로 드래프트 생성을 건너뜁니다. 재분석 후 드래프트 생성을 실행하세요.`,
+        noCandidates
+          ? `${label} Gemini/Vision 하이라이트 후보가 없어 드래프트 생성을 건너뜁니다. 재분석하거나 다른 소재로 교체하세요.`
+          : `${label} Gemini 분석 실패로 드래프트 생성을 건너뜁니다. 재분석 후 드래프트 생성을 실행하세요.`,
         'warning',
         item.item_id,
         {
           stage: 'draft',
-          blocked_by: 'metadata_failed',
+          blocked_by: noCandidates ? 'no_highlight_candidates' : 'metadata_failed',
           continued_from_metadata: options.continued_from_metadata === true
         }
       );
     }
+    const noCandidateItemIds = blockedItems
+      .map((item) => item.item_id)
+      .filter((itemId) => metadataStatusByItemId.get(itemId) === METADATA_NO_CANDIDATES_STATUS);
     appendJobLog(
       jobId,
-      `Gemini 분석 실패로 드래프트 생성 제외: ${blockedItems.length}개`,
+      `드래프트 생성 제외 ${blockedItems.length}개 (하이라이트 후보 없음 ${noCandidateItemIds.length}개, Gemini 분석 실패 ${blockedItems.length - noCandidateItemIds.length}개)`,
       'warning',
       '',
       {
         stage: 'draft',
         blocked_item_ids: blockedItems.map((item) => item.item_id),
+        no_highlight_candidate_item_ids: noCandidateItemIds,
         continued_from_metadata: options.continued_from_metadata === true
       }
     );
@@ -979,6 +1017,7 @@ async function runMetadataStage(jobId, items, options = {}) {
   const apiKey = getGeminiApiKeyForCurrentMode();
   let success = 0;
   let failed = 0;
+  let skipped = 0;
   const metadataAnalysis = [];
 
   for (let index = 0; index < items.length; index += 1) {
@@ -1166,8 +1205,13 @@ async function runMetadataStage(jobId, items, options = {}) {
       if (error.code === 'JOB_CANCELLED') {
         throw error;
       }
-      failed += 1;
       const failureRecord = recordMetadataAnalysisFailure(refreshed.item_id, itemConfig, error);
+      const isSkip = failureRecord.status === METADATA_NO_CANDIDATES_STATUS;
+      if (isSkip) {
+        skipped += 1;
+      } else {
+        failed += 1;
+      }
       metadataAnalysis.push({
         item_id: refreshed.item_id,
         status: failureRecord.status,
@@ -1193,7 +1237,10 @@ async function runMetadataStage(jobId, items, options = {}) {
         raw_response_path: failureRecord.failure.raw_response_path,
         cleaned_response_path: failureRecord.failure.cleaned_response_path
       });
-      appendJobLog(jobId, `${label} Gemini 분석 실패: ${failureRecord.failure.title} / 권장: ${failureRecord.failure.recommended_action}`, 'error', refreshed.item_id, {
+      appendJobLog(jobId, isSkip
+        ? `${label} ${failureRecord.failure.title}: ${failureRecord.failure.user_message} / 권장: ${failureRecord.failure.recommended_action}`
+        : `${label} Gemini 분석 실패: ${failureRecord.failure.title} / 권장: ${failureRecord.failure.recommended_action}`,
+      isSkip ? 'warning' : 'error', refreshed.item_id, {
         analysis_status: failureRecord.status,
         failure_category: failureRecord.failure.category,
         recommended_action: failureRecord.failure.recommended_action,
@@ -1205,10 +1252,10 @@ async function runMetadataStage(jobId, items, options = {}) {
     }
   }
 
-  appendJobLog(jobId, `Gemini \uBD84\uC11D \uC885\uB8CC: \uC131\uACF5/\uC7AC\uC0AC\uC6A9 ${success}\uAC1C, \uC2E4\uD328 ${failed}\uAC1C`, failed ? 'warning' : 'success', '', {
+  appendJobLog(jobId, `Gemini \uBD84\uC11D \uC885\uB8CC: \uC131\uACF5/\uC7AC\uC0AC\uC6A9 ${success}\uAC1C, \uAC74\uB108\uB700 ${skipped}\uAC1C, \uC2E4\uD328 ${failed}\uAC1C`, failed || skipped ? 'warning' : 'success', '', {
     metadataAnalysis
   });
-  return { success, failed, metadataAnalysis };
+  return { success, failed, skipped, metadataAnalysis };
 }
 
 async function runDraftStage(jobId, items, options = {}) {
@@ -1220,6 +1267,7 @@ async function runDraftStage(jobId, items, options = {}) {
   let success = 0;
   let failed = 0;
   let held = 0;
+  let skipped = 0;
   const batchReports = [];
   const aggregateItems = [];
   let lastResponse = null;
@@ -1261,6 +1309,15 @@ async function runDraftStage(jobId, items, options = {}) {
       } else if (row.status === 'held') {
         held += 1;
         updateItemStatus(jobId, row.item_id, { stage: 'draft', draft_status: 'held', highlight_status: row.highlight_status || 'disabled' });
+      } else if (row.status === 'skipped') {
+        skipped += 1;
+        updateItemStatus(jobId, row.item_id, {
+          stage: 'draft',
+          draft_status: 'skipped',
+          highlight_status: row.highlight_status || 'skipped',
+          highlight_skip_reason: row.highlight_skip_reason || row.skip_reason || ''
+        });
+        appendJobLog(jobId, `${row.item_id} 드래프트 건너뜀: ${row.skip_reason || row.highlight_skip_reason || '하이라이트 후보 없음'}`, 'warning', row.item_id);
       } else {
         failed += 1;
         updateItemStatus(jobId, row.item_id, {
@@ -1272,8 +1329,8 @@ async function runDraftStage(jobId, items, options = {}) {
         });
       }
     }
-    appendJobLog(jobId, `locale_6_6 드래프트 생성 종료: 성공 ${success}개, 실패 ${failed}개`, failed ? 'warning' : 'success', '', { result });
-    return { success, failed, held, result };
+    appendJobLog(jobId, `locale 배치 드래프트 생성 종료: 성공 ${success}개, 건너뜀 ${skipped}개, 실패 ${failed}개`, failed || skipped ? 'warning' : 'success', '', { result });
+    return { success, failed, held, skipped, result };
   }
 
   for (let index = 0; index < items.length; index += 1) {
@@ -1382,6 +1439,15 @@ async function runDraftStage(jobId, items, options = {}) {
           midform_status: row.midform_status || 'disabled'
         });
         appendJobLog(jobId, `${label} 드래프트 생성 보류(held): ${row.full_error || 'full 원고가 script_review.txt 검수 대기 중'} / 다음 항목으로 진행합니다.`, 'warning', item.item_id);
+      } else if (row.status === 'skipped') {
+        skipped += 1;
+        updateItemStatus(jobId, item.item_id, {
+          stage: 'draft',
+          draft_status: 'skipped',
+          highlight_status: row.highlight_status || 'skipped',
+          highlight_skip_reason: row.highlight_skip_reason || row.skip_reason || ''
+        });
+        appendJobLog(jobId, `${label} 드래프트 생성 건너뜀: ${row.skip_reason || row.highlight_skip_reason || '하이라이트 후보 없음'} / 다음 항목으로 진행합니다.`, 'warning', item.item_id);
       } else {
         failed += 1;
         updateItemStatus(jobId, item.item_id, {
@@ -1436,6 +1502,7 @@ async function runDraftStage(jobId, items, options = {}) {
       total_items: aggregateItems.length,
       success_count: success,
       held_count: held,
+      skipped_count: skipped,
       failed_count: failed,
       capcut_draft_root: lastResponse?.report?.capcut_draft_root || '',
       output_root: lastResponse?.report?.output_root || '',
@@ -1443,10 +1510,10 @@ async function runDraftStage(jobId, items, options = {}) {
     }
   };
 
-  appendJobLog(jobId, `\uB4DC\uB798\uD504\uD2B8 \uC0DD\uC131 \uC885\uB8CC: \uC131\uACF5 ${success}\uAC1C, \uBCF4\uB958(held) ${held}\uAC1C, \uC2E4\uD328 ${failed}\uAC1C`, failed ? 'warning' : 'success', '', {
+  appendJobLog(jobId, `\uB4DC\uB798\uD504\uD2B8 \uC0DD\uC131 \uC885\uB8CC: \uC131\uACF5 ${success}\uAC1C, \uBCF4\uB958(held) ${held}\uAC1C, \uAC74\uB108\uB700 ${skipped}\uAC1C, \uC2E4\uD328 ${failed}\uAC1C`, failed || skipped ? 'warning' : 'success', '', {
     result: aggregateResult
   });
-  return { success, failed, held, result: aggregateResult };
+  return { success, failed, held, skipped, result: aggregateResult };
 }
 
 async function runJob(jobId) {

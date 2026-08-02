@@ -188,7 +188,10 @@ function testLongformDoesNotUseLocalFallbackCandidatesForDrafts() {
   assert(queueSource.includes('isLocalOrFallbackLongformGuide(itemConfig.ottogi_guide_output || {})'), 'Longform draft selection must reject local-preprocessed item guides');
   assert(queueSource.includes('if (longformSource) return picked.length >= requestedCount ? picked : [];'), 'Longform Highlight must return only a complete real candidate set before evenly spaced fallback generation');
   assert(!queueSource.includes('fallback_full_highlight_candidate_scene'), 'KR Full backbone must not synthesize fallback candidate scenes for draft generation');
-  assert(queueSource.includes('longform highlight draft blocked: no Gemini/Vision-backed highlight candidates available'), 'Longform Highlight must fail when no Gemini/Vision-backed candidates exist');
+  // No usable candidates is reported and skipped rather than thrown, for longform and
+  // shortform alike - but it still must never be filled in with a fallback window.
+  assert(queueSource.includes("row.highlight_skip_code = 'OTTOGI_HIGHLIGHT_CANDIDATES_UNAVAILABLE'"), 'Longform Highlight must skip with a stated reason when no Gemini/Vision-backed candidates exist');
+  assert(!queueSource.includes("error.code = 'OTTOGI_LONGFORM_HIGHLIGHT_CANDIDATES_REQUIRED'"), 'Draft generation must not throw on missing longform candidates');
 }
 
 function testItem017StyleGenericLongformReturnsNoWindows() {

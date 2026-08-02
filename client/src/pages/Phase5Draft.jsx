@@ -129,14 +129,43 @@ function isWarningServerItem(item = {}) {
   );
 }
 
+const NO_HIGHLIGHT_CANDIDATES_STATUS = 'skipped_no_highlight_candidates';
+
+// Gemini/Vision produced no usable highlight candidate for this source. Nothing was
+// generated, but nothing broke either - the item is reported and skipped.
+function isSkippedNoCandidatesItem(item = {}) {
+  if (isDraftSuccessItem(item)) return false;
+  return item.metadata_status === NO_HIGHLIGHT_CANDIDATES_STATUS
+    || item.analysis_status === NO_HIGHLIGHT_CANDIDATES_STATUS
+    || item.draft_status === NO_HIGHLIGHT_CANDIDATES_STATUS
+    || item.draft_status === 'skipped'
+    || item.highlight_status === 'skipped';
+}
+
 function getServerItemDisplayStatus(item = {}) {
   if (isHardFailedServerItem(item)) return 'failed';
   if (isWarningServerItem(item)) return 'metadata_partial_failed';
   if (isDraftSuccessItem(item)) return 'draft_success';
+  if (isSkippedNoCandidatesItem(item)) return 'skipped_no_highlight_candidates';
   return item.metadata_status || item.source_download_status || item.status || 'unknown';
 }
 
 function getFailureDecision(item = {}) {
+  if (isSkippedNoCandidatesItem(item)) {
+    return {
+      title: '하이라이트 후보 없음 - 건너뜀',
+      message: item.highlight_skip_reason
+        || item.failure_user_message
+        || 'Gemini/Vision이 쓸 수 있는 하이라이트 후보 구간을 내놓지 못해 이 소재는 건너뛰었습니다.',
+      action: '재분석 후 드래프트 생성 (또는 소재 교체)',
+      tone: 'amber',
+      details: Array.isArray(item.failure_detail_lines) && item.failure_detail_lines.length
+        ? item.failure_detail_lines.filter(Boolean)
+        : ['일반적/로컬 추정 구간은 하이라이트 후보로 쓰지 않습니다.', '재분석해도 후보가 안 나오면 다른 소재로 교체하세요.'],
+      rawPath: item.raw_response_path || '',
+      cleanedPath: item.cleaned_response_path || ''
+    };
+  }
   if (isMidformPartialFailureItem(item) && !isMetadataFailureItem(item)) {
     const failedVariants = getFailedAnalysisVariants(item);
     const detailLines = failedVariants.map((variant) => `${variant}: ${item[`${variant}_error`] || '원고/메타데이터 검증 실패'}`);
@@ -980,7 +1009,7 @@ export default function Phase5Draft() {
       const localeIssue = validateLocale66QueueSelection(getTargetItemsForAction(itemIds));
       if (localeIssue) {
         updateQueueErrorState(localeIssue);
-        addQueueProgress(`locale_6_6 실행 차단: ${localeIssue}`, 'error');
+        addQueueProgress(`locale 배치 실행 차단: ${localeIssue}`, 'error');
         return;
       }
     }
@@ -2281,7 +2310,9 @@ export default function Phase5Draft() {
       if (key && seen.has(key)) return '동일한 YouTube 영상이 중복 선택되어 있습니다.';
       if (key) seen.add(key);
     }
-    if (counts.total !== 12 || counts.ja !== 6 || counts.ko !== 6) return '일본어와 한국어 소스를 각각 6개씩 선택해 주세요.';
+    // Batch size and the JP/KO ratio are free; only an empty or duplicated
+    // selection blocks the locale batch.
+    if (!counts.total) return '실행할 소스를 1개 이상 선택해 주세요.';
     return '';
   };
   const localeBatchIssue = validateLocale66QueueSelection();
@@ -2570,6 +2601,11 @@ export default function Phase5Draft() {
     || (serverQueueJob?.status === 'failed' && isMetadataFailureItem(item) && !isDraftSuccessItem(item))
   ));
   const warningServerJobItems = serverJobItems.filter((item) => isWarningServerItem(item) && !failedServerJobItems.includes(item));
+  const skippedServerJobItems = serverJobItems.filter((item) => (
+    isSkippedNoCandidatesItem(item)
+    && !failedServerJobItems.includes(item)
+    && !warningServerJobItems.includes(item)
+  ));
   const metadataFailedServerJobItems = serverJobItems.filter((item) => isMetadataFailureItem(item));
   const failedVariantItemIds = getFailedVariantItemIdsByVariant();
   const draftOnlyFailedItemIds = getDraftOnlyFailedItemIds(failedVariantItemIds);
@@ -2764,11 +2800,11 @@ const renderWorkflowGuide = () => (
             <div className="mb-3 rounded-2xl border border-fuchsia-300/30 bg-fuchsia-300/10 p-3">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <div className="text-sm font-black text-fuchsia-100">JP 6 + KO 6 하이라이트 일괄 실행</div>
-                  <div className="mt-1 text-xs text-fuchsia-100/80">선택 항목이 없으면 전체 큐를 기준으로 검사합니다. 동일 YouTube 소스 중복 없이 일본어 6개, 한국어 6개일 때만 Highlight-only 배치를 시작합니다.</div>
-                  <div className={localeBatchIssue ? 'mt-2 text-xs font-bold text-amber-100' : 'mt-2 text-xs font-bold text-emerald-100'}>{localeBatchIssue || 'locale_6_6 실행 가능'}</div>
+                  <div className="text-sm font-black text-fuchsia-100">JP/KO 하이라이트 일괄 실행</div>
+                  <div className="mt-1 text-xs text-fuchsia-100/80">선택 항목이 없으면 전체 큐를 기준으로 검사합니다. 개수와 일본어/한국어 비율은 자유이며, 동일 YouTube 소스만 중복되지 않으면 Highlight-only 배치를 시작합니다.</div>
+                  <div className={localeBatchIssue ? 'mt-2 text-xs font-bold text-amber-100' : 'mt-2 text-xs font-bold text-emerald-100'}>{localeBatchIssue || `${localeBatchCounts.total}개 실행 가능 (JP ${localeBatchCounts.ja} · KO ${localeBatchCounts.ko})`}</div>
                 </div>
-                <button title="12개 소스를 하나의 locale_6_6 서버 작업으로 실행합니다. Full/Midform은 생성하지 않습니다." className="rounded-2xl bg-fuchsia-300 px-4 py-3 text-sm font-black text-black disabled:opacity-50" disabled={serverQueueBusy || !!localeBatchIssue || requiredSettingIssues.highlightPipeline.length > 0} onClick={runLocale66Workflow}>12개 JP/KO HL 생성</button>
+                <button title="선택한 소스를 하나의 locale 배치 서버 작업으로 실행합니다. Full/Midform은 생성하지 않습니다." className="rounded-2xl bg-fuchsia-300 px-4 py-3 text-sm font-black text-black disabled:opacity-50" disabled={serverQueueBusy || !!localeBatchIssue || requiredSettingIssues.highlightPipeline.length > 0} onClick={runLocale66Workflow}>JP/KO HL 일괄 생성</button>
               </div>
             </div>
             <div className="grid gap-3 md:grid-cols-3">
@@ -3125,8 +3161,16 @@ const renderWorkflowGuide = () => (
               <div className={failedServerJobItems.length || warningServerJobItems.length ? 'mt-3 rounded-2xl border border-amber-300/30 bg-amber-300/10 p-3 text-sm text-amber-50' : 'mt-3 rounded-2xl border border-emerald-300/25 bg-emerald-300/10 p-3 text-sm text-emerald-50'}>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="font-black">작업 종료: {formatStatus(serverQueueJob.status)}{serverJobFinishedAt ? <span className="ml-2 text-xs font-medium opacity-70">{serverJobFinishedAt}</span> : null}</div>
-                  <div className="text-xs font-bold opacity-80">드래프트 성공 {serverQueueJob?.job_summary?.draft_success_count ?? Math.max(0, serverJobItems.length - failedServerJobItems.length)}개 / 경고 {warningServerJobItems.length}개 / 실패 {failedServerJobItems.length}개</div>
+                  <div className="text-xs font-bold opacity-80">드래프트 성공 {serverQueueJob?.job_summary?.draft_success_count ?? Math.max(0, serverJobItems.length - failedServerJobItems.length - skippedServerJobItems.length)}개 / 경고 {warningServerJobItems.length}개 / 건너뜀 {skippedServerJobItems.length}개 / 실패 {failedServerJobItems.length}개</div>
                 </div>
+                {skippedServerJobItems.length ? (
+                  <div className="mt-3 space-y-2">
+                    <div className="text-xs font-black uppercase tracking-[0.16em] text-amber-100">하이라이트 후보 없음 / 건너뜀</div>
+                    {skippedServerJobItems.map((item) => (
+                      <FailureDecisionCard key={item.item_id} item={item} warning />
+                    ))}
+                  </div>
+                ) : null}
                 {warningServerJobItems.length ? (
                   <div className="mt-3 space-y-2">
                     <div className="text-xs font-black uppercase tracking-[0.16em] text-amber-100">분석 일부 실패 / 드래프트 보존</div>
