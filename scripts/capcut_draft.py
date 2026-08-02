@@ -10986,9 +10986,25 @@ def create_draft(input_json_path):
         subtitle_border = subtitle_components["border"]
         subtitle_background = subtitle_components["background"]
         subtitle_effect_id = subtitle_components["effect_id"]
+        # A subtitle track holds one caption at a time. Locale drafts reorder the cuts and
+        # recompute caption timing from the new durations, which can leave two captions
+        # touching by a rounding step; CapCut then rejects the entire draft. Nudge the later
+        # caption behind the earlier one rather than losing the render.
+        previous_subtitle_end_us = 0
         for entry in srt_entries:
             start_us = int(entry["start_sec"] * 1_000_000)
             duration_us = int((entry["end_sec"] - entry["start_sec"]) * 1_000_000)
+            if start_us < previous_subtitle_end_us:
+                overlap_us = previous_subtitle_end_us - start_us
+                warnings.append(
+                    f"subtitle overlap {overlap_us / 1_000_000:.3f}s shifted: {str(entry.get('text'))[:24]}"
+                )
+                start_us = previous_subtitle_end_us
+                duration_us -= overlap_us
+            if duration_us <= 0:
+                warnings.append(f"subtitle dropped, no room after overlap: {str(entry.get('text'))[:24]}")
+                continue
+            previous_subtitle_end_us = start_us + duration_us
             text_segment = cc.TextSegment(
                 text=entry["text"],
                 timerange=cc.Timerange(start=start_us, duration=duration_us),
@@ -11016,9 +11032,25 @@ def create_draft(input_json_path):
         subtitle_border = subtitle_components["border"]
         subtitle_background = subtitle_components["background"]
         subtitle_effect_id = subtitle_components["effect_id"]
+        # A subtitle track holds one caption at a time. Locale drafts reorder the cuts and
+        # recompute caption timing from the new durations, which can leave two captions
+        # touching by a rounding step; CapCut then rejects the entire draft. Nudge the later
+        # caption behind the earlier one rather than losing the render.
+        previous_subtitle_end_us = 0
         for entry in srt_entries:
             start_us = int(entry["start_sec"] * 1_000_000)
             duration_us = int((entry["end_sec"] - entry["start_sec"]) * 1_000_000)
+            if start_us < previous_subtitle_end_us:
+                overlap_us = previous_subtitle_end_us - start_us
+                warnings.append(
+                    f"subtitle overlap {overlap_us / 1_000_000:.3f}s shifted: {str(entry.get('text'))[:24]}"
+                )
+                start_us = previous_subtitle_end_us
+                duration_us -= overlap_us
+            if duration_us <= 0:
+                warnings.append(f"subtitle dropped, no room after overlap: {str(entry.get('text'))[:24]}")
+                continue
+            previous_subtitle_end_us = start_us + duration_us
             text_segment = cc.TextSegment(
                 text=entry["text"],
                 timerange=cc.Timerange(start=start_us, duration=duration_us),
