@@ -77,6 +77,9 @@ const YOUTUBE_IMPORT_DELAY_MAX_MS = 35_000;
 // How many highlights actually get produced is decided by highlightOutputCountForItem,
 // not by the size of the pool.
 const MAX_LONGFORM_HIGHLIGHT_CANDIDATES = Number.POSITIVE_INFINITY;
+// A longform source aims for 5 highlights but ships as few as 3 distinct real
+// windows. Fewer than this and the item is skipped rather than padded out.
+const LONGFORM_HIGHLIGHT_MIN_OUTPUT_COUNT = 3;
 const SHORTFORM_HIGHLIGHT_MAX_DURATION_SEC = 10;
 const LONGFORM_HIGHLIGHT_MAX_DURATION_SEC = 24;
 const LONGFORM_HIGHLIGHT_DEFAULT_DURATION_SEC = 16;
@@ -8186,9 +8189,18 @@ function pickHighlightWindows(itemConfig = {}, maxDurationSec = 10, count = 1) {
     if (picked.length >= requestedCount) break;
   }
 
-  if (longformSource) return picked.length >= requestedCount ? picked : [];
+  if (longformSource) {
+    // A longform source ships whatever distinct, real windows it actually found.
+    // Below LONGFORM_HIGHLIGHT_MIN_OUTPUT_COUNT the set is too thin to be worth a
+    // draft, so it returns nothing and the item is reported and skipped - it is
+    // never topped up with generic or evenly spaced fallback windows.
+    const minimumWindows = Math.min(requestedCount, LONGFORM_HIGHLIGHT_MIN_OUTPUT_COUNT);
+    if (picked.length < minimumWindows) return [];
+    return picked.map((window) => ({ ...window, highlight_total: picked.length }));
+  }
 
-  return picked.length ? picked : [primary];
+  if (!picked.length) return [primary];
+  return picked.map((window) => ({ ...window, highlight_total: picked.length }));
 }
 
 function isLocalOrFallbackLongformWindow(window = {}) {

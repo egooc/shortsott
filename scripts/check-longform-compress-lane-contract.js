@@ -186,7 +186,8 @@ function testLongformDoesNotUseLocalFallbackCandidatesForDrafts() {
   assert(metadataSource.includes('function isLocalLongformCandidateGuide'), 'Existing local-preprocessed longform guides must be detected and ignored');
   assert(queueSource.includes('function isLocalOrFallbackLongformGuide'), 'Queue generation must detect local-preprocessed longform guides before draft selection');
   assert(queueSource.includes('isLocalOrFallbackLongformGuide(itemConfig.ottogi_guide_output || {})'), 'Longform draft selection must reject local-preprocessed item guides');
-  assert(queueSource.includes('if (longformSource) return picked.length >= requestedCount ? picked : [];'), 'Longform Highlight must return only a complete real candidate set before evenly spaced fallback generation');
+  assert(queueSource.includes('if (picked.length < minimumWindows) return [];'), 'Longform Highlight must return only real candidate windows, never evenly spaced fallback generation');
+  assert(queueSource.includes('const LONGFORM_HIGHLIGHT_MIN_OUTPUT_COUNT = 3;'), 'Longform Highlight ships 3 or more distinct real windows and skips below that');
   assert(!queueSource.includes('fallback_full_highlight_candidate_scene'), 'KR Full backbone must not synthesize fallback candidate scenes for draft generation');
   // No usable candidates is reported and skipped rather than thrown, for longform and
   // shortform alike - but it still must never be filled in with a fallback window.
@@ -286,14 +287,21 @@ function testLongformStrictValidationRejectsLocalFallback() {
 }
 
 function testLongformStrictValidationRejectsTooFewCandidates() {
+  // 3 is the production minimum, so 3 and 4 must pass analysis and reach draft generation.
+  const three = metadataTest.validateLongformCandidateGuide(goodVisionCandidateGuide(3), 240, { strictHighlightCandidates: true });
+  assert(three.hook_candidates.length === 3, `three Vision-backed hooks must pass analysis, got ${three.hook_candidates.length}`);
+  const four = metadataTest.validateLongformCandidateGuide(goodVisionCandidateGuide(4), 240, { strictHighlightCandidates: true });
+  assert(four.hook_candidates.length === 4, `four Vision-backed hooks must pass analysis, got ${four.hook_candidates.length}`);
+
   let error = null;
   try {
-    metadataTest.validateLongformCandidateGuide(goodVisionCandidateGuide(4), 240, { strictHighlightCandidates: true });
+    metadataTest.validateLongformCandidateGuide(goodVisionCandidateGuide(2), 240, { strictHighlightCandidates: true });
   } catch (caught) {
     error = caught;
   }
-  assert(error, 'strict longform validation must reject fewer than five candidates');
-  assert(error.details?.valid_hook_candidates_count === 4, `expected 4 valid hooks in error details, got ${error.details?.valid_hook_candidates_count}`);
+  assert(error, 'strict longform validation must reject fewer than three candidates');
+  assert(error.details?.valid_hook_candidates_count === 2, `expected 2 valid hooks in error details, got ${error.details?.valid_hook_candidates_count}`);
+  assert(error.details?.min_hook_candidates === 3, `expected a minimum of 3 in error details, got ${error.details?.min_hook_candidates}`);
 }
 
 function testLongformExistingLocalGuideForcesRescan() {
@@ -308,16 +316,27 @@ function testLongformExistingLocalGuideForcesRescan() {
   assert(reused === null, 'local-preprocessed longform guide must force a Vision rescan');
 }
 
-function testLongformQueueRequiresFiveValidWindows() {
-  const fourCandidateItem = itemWithDuration(240, {
+function testLongformQueueShipsThreeOrMoreValidWindows() {
+  const longformItemWith = (candidateCount) => itemWithDuration(240, {
     source_type: 'longform',
     source_workflow_mode: 'longform_to_shorts',
     ottogi_guide_output: {
-      shortform_candidate_windows: goodVisionCandidateGuide(4).hook_candidates
+      shortform_candidate_windows: goodVisionCandidateGuide(candidateCount).hook_candidates
     }
   });
-  const windows = queueTest.pickHighlightWindows(fourCandidateItem, 24, 5);
-  assert(windows.length === 0, `longform queue must fail closed when fewer than five valid windows exist, got ${windows.length}`);
+
+  // 3 or more distinct real windows is enough to go to draft generation.
+  const four = queueTest.pickHighlightWindows(longformItemWith(4), 24, 5);
+  assert(four.length === 4, `four valid windows must go to draft generation, got ${four.length}`);
+  assert(four.every((window) => window.highlight_total === 4), 'highlight_total must report the windows actually produced, not the requested count');
+
+  const three = queueTest.pickHighlightWindows(longformItemWith(3), 24, 5);
+  assert(three.length === 3, `three valid windows must go to draft generation, got ${three.length}`);
+  assert(three.every((window) => window.highlight_total === 3), 'a three-window longform set must be numbered 1..3 of 3');
+
+  // Below three the set is too thin: fail closed, never pad with fallback windows.
+  const two = queueTest.pickHighlightWindows(longformItemWith(2), 24, 5);
+  assert(two.length === 0, `longform must fail closed below three valid windows, got ${two.length}`);
 }
 
 function main() {
@@ -334,7 +353,7 @@ function main() {
   testLongformStrictValidationRejectsLocalFallback();
   testLongformStrictValidationRejectsTooFewCandidates();
   testLongformExistingLocalGuideForcesRescan();
-  testLongformQueueRequiresFiveValidWindows();
+  testLongformQueueShipsThreeOrMoreValidWindows();
   console.log('longform compress lane contract ok');
 }
 

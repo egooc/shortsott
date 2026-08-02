@@ -2810,13 +2810,13 @@ const renderWorkflowGuide = () => (
             <div className="grid gap-3 md:grid-cols-3">
               <div className="rounded-3xl border border-amber-300/30 bg-amber-300/10 p-3" title="10초 전후 시각적 후킹 중심 드래프트를 생성합니다. 긴 하단 설명형 자막을 사용합니다.">
                 <div className="text-sm font-black text-amber-100">Highlight</div>
-                <div className="mt-2 rounded-xl border border-[#c8ff00]/25 bg-[#c8ff00]/10 px-3 py-2 text-xs font-black text-[#c8ff00]" title="롱폼은 후보를 여러 개 분석하지만 최종 Highlight는 후킹 점수 최상위 후보만 생성합니다.">
+                <div className="mt-2 rounded-xl border border-[#c8ff00]/25 bg-[#c8ff00]/10 px-3 py-2 text-xs font-black text-[#c8ff00]" title="롱폼은 서로 다른 실제 구간을 최대 5개까지 Highlight로 만듭니다. 3개 미만이면 그 소재는 건너뜁니다. 숏폼은 24초 이상 2개, 미만 1개입니다.">
                   예상 {highlightDraftEstimate}개
                   <span className="ml-2 font-bold text-amber-50/60">롱폼 {longformHighlightItemCount} · 숏폼 {shortformHighlightItemCount}</span>
                 </div>
                 {longformHighlightItemCount > 0 ? (
                   <div className="mt-3 grid gap-2">
-                    <button title="롱폼 소스는 후보 분석 후 최고점 구간 1개를 바로 Highlight 드래프트로 생성합니다." className="w-full rounded-2xl bg-amber-300 px-4 py-3 text-sm font-black text-black disabled:opacity-50" disabled={serverQueueBusy || requiredSettingIssues.highlightPipeline.length > 0} onClick={() => runVariantMetadataAndDraft('highlight')}>후보 분석+HL 생성</button>
+                    <button title="롱폼 소스는 후보 분석 후 서로 다른 실제 구간 3~5개를 Highlight 드래프트로 생성합니다. 3개를 못 채우면 건너뜁니다." className="w-full rounded-2xl bg-amber-300 px-4 py-3 text-sm font-black text-black disabled:opacity-50" disabled={serverQueueBusy || requiredSettingIssues.highlightPipeline.length > 0} onClick={() => runVariantMetadataAndDraft('highlight')}>후보 분석+HL 생성</button>
                   </div>
                 ) : (
                   <button title="Gemini 분석부터 Highlight 드래프트 생성까지 실행합니다." className="mt-3 w-full rounded-2xl bg-amber-300 px-4 py-3 text-sm font-black text-black disabled:opacity-50" disabled={serverQueueBusy || requiredSettingIssues.highlightPipeline.length > 0} onClick={() => runVariantMetadataAndDraft('highlight')}>하이라이트 제작</button>
