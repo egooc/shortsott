@@ -2492,6 +2492,43 @@ function interleaveDialogueIntoNarrationRuns(timeline, beats, transcript) {
   return items;
 }
 
+// The target is a hard ceiling, not a suggestion. Rejecting an over-long plan only burns
+// retries and can drop the run onto a fallback that overshoots too, so trim it here: drop
+// the weakest body slots until the cut fits. The opening, the bridge that restores the
+// situation, and the payoff are never dropped — they are the shape of the cut.
+function trimTimelineToTargetRuntime(timeline, targetSec) {
+  const target = Number(targetSec || 0);
+  const items = (Array.isArray(timeline) ? timeline : []).map((item) => ({ ...item }));
+  if (!(target > 0)) return items;
+
+  const protectedRoles = new Set(['cold_open', 'bridge', 'payoff', 'closing']);
+  const droppable = () => items
+    .map((item, index) => ({ item, index }))
+    .filter(({ item }) => item.decision !== 'DROP' && !protectedRoles.has(String(item.role || '').trim()))
+    .sort((left, right) => {
+      const weight = (entry) => Number(entry.item.hook_potential || 0) + Number(entry.item.dramatic_weight || 0);
+      // Weakest first; on a tie drop the longest, so one cut buys the most room.
+      return weight(left) - weight(right)
+        || realisticSlotDurationSec(right.item) - realisticSlotDurationSec(left.item);
+    });
+
+  let runtime = realisticTimelineRuntimeSec(items);
+  while (runtime > target) {
+    const candidates = droppable();
+    if (!candidates.length) break;
+    const { index } = candidates[0];
+    items[index] = {
+      ...items[index],
+      decision: 'DROP',
+      estimated_duration_sec: 0,
+      runtime_trimmed: true,
+      reason: `${items[index].reason || ''} Dropped so the cut stays inside its ${Math.round(target)}s ceiling.`.trim()
+    };
+    runtime = realisticTimelineRuntimeSec(items);
+  }
+  return items;
+}
+
 function finalizeEditPlan(editPlan, beats, transcript, targetSec) {
   const beatMap = new Map((Array.isArray(beats) ? beats : []).map((beat) => [String(beat?.beat_id || '').trim(), beat]));
   const sortedBeatStarts = (Array.isArray(beats) ? beats : []).map((b) => Number(b.start_sec)).filter((n) => Number.isFinite(n)).sort((a, b) => a - b);
@@ -2811,7 +2848,8 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec) {
 
   const toppedUpTimeline = topUpTimelineToTargetRuntime(timeline, beats, transcript, targetSec);
   const interleavedTimeline = interleaveDialogueIntoNarrationRuns(toppedUpTimeline, beats, transcript);
-  let finalizedTimeline = interleavedTimeline.map((item) => {
+  const trimmedTimeline = trimTimelineToTargetRuntime(interleavedTimeline, targetSec);
+  let finalizedTimeline = trimmedTimeline.map((item) => {
     if (item.decision === 'KEEP_DIALOGUE') return annotateDialogueSlotForQc(item, { windows: item.dialogue_line_windows || [] }, item);
     return annotateNarrationSlotForQc(item);
   });

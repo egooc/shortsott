@@ -165,3 +165,31 @@ test('a long stretch of narration gets a line from the scene in the middle', () 
   assert.ok(active.some((item) => item.decision === 'KEEP_DIALOGUE'), 'the cut needs dialogue in it');
   assert.ok(longestRun <= 45, `narration should not carry the whole back half, longest run ${longestRun}s`);
 });
+
+test('a cut that would run past its target is trimmed back under it', () => {
+  const plan = {
+    cold_open_selection: { beat_id: '1', source: 'heatmap_peak' },
+    timeline: [
+      { slot_id: '1', beat_id: '1', role: 'cold_open', decision: 'NARRATE', start_sec: 10, end_sec: 16, estimated_duration_sec: 6 },
+      { slot_id: '2', beat_id: '2', role: 'bridge', decision: 'NARRATE', start_sec: 70, end_sec: 130, estimated_duration_sec: 14 },
+      { slot_id: '3', beat_id: '3', role: 'body', decision: 'NARRATE', start_sec: 140, end_sec: 220, estimated_duration_sec: 18, hook_potential: 2, dramatic_weight: 2 },
+      { slot_id: '4', beat_id: '4', role: 'body', decision: 'NARRATE', start_sec: 230, end_sec: 320, estimated_duration_sec: 18, hook_potential: 5, dramatic_weight: 5 },
+      { slot_id: '5', beat_id: '5', role: 'body', decision: 'NARRATE', start_sec: 330, end_sec: 430, estimated_duration_sec: 18, hook_potential: 1, dramatic_weight: 1 },
+      { slot_id: '6', beat_id: '6', role: 'body', decision: 'NARRATE', start_sec: 440, end_sec: 540, estimated_duration_sec: 18, hook_potential: 4, dramatic_weight: 4 },
+      { slot_id: '7', beat_id: '7', role: 'payoff', decision: 'NARRATE', start_sec: 550, end_sec: 600, estimated_duration_sec: 14 }
+    ],
+    duration_budget: { target_sec: 60, estimated_total_sec: 106 },
+    quality_check: {}
+  };
+  const finalized = finalizeEditPlan(plan, beats(), transcript(), 60);
+  const active = finalized.timeline.filter((item) => item.decision !== 'DROP');
+  const roles = active.map((item) => item.role);
+
+  assert.ok(finalized.duration_budget.estimated_total_sec <= 60,
+    `the cut must stay inside its ceiling, got ${finalized.duration_budget.estimated_total_sec}s`);
+  // The shape of the cut survives the trim; only body slots are candidates.
+  assert.ok(roles.includes('cold_open') && roles.includes('bridge') && roles.includes('payoff'));
+  // The weakest body slot goes first.
+  const dropped = finalized.timeline.filter((item) => item.runtime_trimmed).map((item) => item.slot_id);
+  assert.ok(dropped.includes('5'), `expected the weakest slot dropped first, dropped ${dropped.join(',')}`);
+});
