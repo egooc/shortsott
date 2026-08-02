@@ -10,7 +10,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { execFileSync } = require('child_process');
+const { execFileSync, spawnSync } = require('child_process');
 const { PROJECT_ROOT } = require('./pipelinePaths');
 const { resolveTool, getToolEnv } = require('../utils/toolPaths');
 const { getVideoMetadata } = require('../utils/ffprobe');
@@ -299,6 +299,49 @@ function buildDialogueTimingAdjustment(item, win, orderedWindows, orderedIndex, 
 // validate_slot_source_monotonicity returns not_applicable (line 9553) AND the story-anchor b-roll
 // auto-picker runs (line 8961). Both desired behaviors come from omitting the key — there is no
 // trade-off, so we never embed slot_map here.
+// Where someone is actually speaking, which neither signal knows on its own: subtitle cues
+// say which stretches contain dialogue but arrive in blocks tens of seconds long that
+// swallow the pauses, while silence detection is frame-accurate but hears score and
+// effects as sound. Their intersection is the spoken audio.
+function detectSpeechRanges(sourceVideoPath, cues) {
+  const windows = (Array.isArray(cues) ? cues : [])
+    .map((cue) => [Number(cue?.start_sec), Number(cue?.end_sec)])
+    .filter(([start, end]) => Number.isFinite(start) && Number.isFinite(end) && end > start);
+  if (!sourceVideoPath || !fs.existsSync(sourceVideoPath) || !windows.length) return windows;
+
+  const ffmpeg = resolveTool('ffmpeg', { envKey: 'FFMPEG_PATH' });
+  const speech = [];
+  for (const [cueStart, cueEnd] of windows) {
+    // silencedetect reports on stderr even on success, so this has to be spawnSync: with
+    // execFileSync the log is only reachable from a thrown error, which made every cue
+    // look pause-free.
+    const probe = spawnSync(ffmpeg, [
+      '-hide_banner', '-nostats', '-y',
+      '-ss', cueStart.toFixed(3), '-t', (cueEnd - cueStart).toFixed(3), '-i', sourceVideoPath,
+      // -32dB treats a scored action scene as continuous sound and finds no pauses at
+      // all; -26dB leans on dialogue sitting above the music bed.
+      '-af', 'silencedetect=noise=-26dB:d=0.20', '-f', 'null', '-'
+    ], { env: getToolEnv(), encoding: 'utf8', timeout: 60000, maxBuffer: 16 * 1024 * 1024 });
+    const log = String(probe.stderr || '');
+    if (!log) { speech.push([cueStart, cueEnd]); continue; }
+    const silences = [];
+    let openStart = null;
+    for (const match of log.matchAll(/silence_(start|end):\s*(-?[\d.]+)/g)) {
+      const value = Number(match[2]);
+      if (match[1] === 'start') openStart = value;
+      else if (openStart != null) { silences.push([cueStart + openStart, cueStart + value]); openStart = null; }
+    }
+    if (openStart != null) silences.push([cueStart + openStart, cueEnd]);
+    let cursor = cueStart;
+    for (const [silenceStart, silenceEnd] of silences.sort((left, right) => left[0] - right[0])) {
+      if (silenceStart > cursor) speech.push([cursor, silenceStart]);
+      cursor = Math.max(cursor, silenceEnd);
+    }
+    if (cursor < cueEnd) speech.push([cursor, cueEnd]);
+  }
+  return speech.filter(([start, end]) => end - start > 0.1);
+}
+
 function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
   const warnings = [];
   const durationSec = Number(options.sourceDurationSec || editPlan?.duration_budget?.estimated_total_sec || 0);
@@ -341,12 +384,45 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
     if (cursor < rangeEnd) free.push([cursor, rangeEnd]);
     return free.filter((r) => r[1] - r[0] > 0.3);
   };
+  // Narration b-roll plays the source quietly under the voiceover, so a boundary that lands
+  // mid-sentence starts or ends the shot on a clipped syllable. Pull each edge out of any
+  // utterance it cuts into, as long as enough footage survives to be worth using.
+  const speechRanges = (Array.isArray(options.speechRanges) ? options.speechRanges : [])
+    .map((range) => [Number(range[0]), Number(range[1])])
+    .filter(([start, end]) => Number.isFinite(start) && Number.isFinite(end) && end > start)
+    .sort((left, right) => left[0] - right[0]);
+  const BROLL_SPEECH_EDGE_TOLERANCE_SEC = 0.12;
+  const BROLL_MIN_USABLE_SEC = 3;
+
+  const snapOutOfSpeech = ([start, end]) => {
+    let snappedStart = start;
+    let snappedEnd = end;
+    for (const [speechStart, speechEnd] of speechRanges) {
+      if (speechStart + BROLL_SPEECH_EDGE_TOLERANCE_SEC < snappedStart && snappedStart < speechEnd - BROLL_SPEECH_EDGE_TOLERANCE_SEC) {
+        snappedStart = speechEnd;
+      }
+      if (speechStart + BROLL_SPEECH_EDGE_TOLERANCE_SEC < snappedEnd && snappedEnd < speechEnd - BROLL_SPEECH_EDGE_TOLERANCE_SEC) {
+        snappedEnd = speechStart;
+      }
+    }
+    if (snappedEnd - snappedStart < BROLL_MIN_USABLE_SEC) return null;
+    return [snappedStart, snappedEnd];
+  };
+
   const pickNarrationBroll = (prefStart, prefEnd) => {
     const free = subtractBusyRanges(prefStart, prefEnd, [...reservedDialogueRanges, ...assignedBrollRanges]);
     if (!free.length) return null;
     free.sort((a, b) => (b[1] - b[0]) - (a[1] - a[0]));
+    for (const candidate of free) {
+      // Cap before snapping: trimming to the 30s ceiling afterwards would drop a fresh
+      // boundary back into the middle of a sentence. capcut trims further to the TTS.
+      const capped = [candidate[0], Math.min(candidate[1], candidate[0] + 30)];
+      const snapped = snapOutOfSpeech(capped);
+      if (snapped) return snapped;
+    }
     const chosen = free[0];
-    return [chosen[0], Math.min(chosen[1], chosen[0] + 30)]; // cap clip length; capcut trims to TTS
+    // Every window cuts into speech; keep the largest rather than dropping the b-roll.
+    return [chosen[0], Math.min(chosen[1], chosen[0] + 30)];
   };
 
   for (const item of timeline) {
@@ -641,7 +717,8 @@ function assembleBootstrapArtifacts(runIdOrPath, options = {}) {
   const { slotMap, script, warnings: sW } = buildBootstrapSlotMapAndScript(editPlan, slotFills, {
     scriptId: manifest.runId || path.basename(runDir),
     title: manifest.title || '',
-    sourceDurationSec
+    sourceDurationSec,
+    speechRanges: detectSpeechRanges(sourceVideoPath, transcriptTimed)
   });
 
   const outTranscriptPath = path.join(runDir, 'bootstrap_source_transcript.json');
@@ -848,6 +925,7 @@ async function runBootstrapToPipeline(runIdOrPath, options = {}) {
 module.exports = {
   buildBootstrapTranscript,
   buildBootstrapSlotMapAndScript,
+  detectSpeechRanges,
   buildEditorialReviewArtifact,
   assembleBootstrapArtifacts,
   runBootstrapPreflight,

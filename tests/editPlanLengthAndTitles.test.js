@@ -18,23 +18,28 @@ function planOfDuration(totalSec, claimedTotalSec = totalSec) {
   };
 }
 
-test('an edit plan that runs far under target is rejected', () => {
-  // The real failure this guards: a 120s request came back as a 62s plan and shipped.
-  assert.throws(() => validateEditPlan(planOfDuration(62), 120), /far too short/);
+// Runtime is split between two stages: finalizeEditPlan tops a short plan up from unused
+// beats, and this check only rejects a plan too short to top up. Rejecting merely-short
+// plans here burned the retries and dropped the run onto the fallback planner instead.
+test('a pathologically short edit plan is rejected', () => {
+  assert.throws(() => validateEditPlan(planOfDuration(30), 120), /far too short/);
+});
+
+test('a merely short plan is left for the top-up rather than rejected', () => {
+  assert.ok(validateEditPlan(planOfDuration(62), 120));
 });
 
 test('a short plan cannot pass by overstating duration_budget', () => {
-  // The plan that slipped through in practice: slots summing to 84s while the budget
-  // field claimed a healthy total.
-  assert.throws(() => validateEditPlan(planOfDuration(84, 118), 120), /far too short/);
+  // The slots are summed; the budget field is not trusted.
+  assert.throws(() => validateEditPlan(planOfDuration(30, 118), 120), /far too short/);
 });
 
 test('DROP slots do not count toward the runtime floor', () => {
   const plan = planOfDuration(110);
   plan.timeline.push({ slot_id: '5', role: 'body', decision: 'DROP', estimated_duration_sec: 40 });
   assert.ok(validateEditPlan(plan, 120));
-  const shortPlan = planOfDuration(62);
-  shortPlan.timeline.push({ slot_id: '5', role: 'body', decision: 'DROP', estimated_duration_sec: 60 });
+  const shortPlan = planOfDuration(30);
+  shortPlan.timeline.push({ slot_id: '5', role: 'body', decision: 'DROP', estimated_duration_sec: 90 });
   assert.throws(() => validateEditPlan(shortPlan, 120), /far too short/);
 });
 

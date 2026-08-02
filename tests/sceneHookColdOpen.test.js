@@ -3,7 +3,7 @@ const test = require('node:test');
 
 const { _test } = require('../server/services/midformCompressionService');
 
-const { selectColdOpenBeat, buildFallbackEditPlan, clampSceneHookWindow, validateBeats } = _test;
+const { selectColdOpenBeat, buildFallbackEditPlan, clampSceneHookWindow, validateBeats, validateEditPlan } = _test;
 
 function buildBeats() {
   return [
@@ -99,6 +99,29 @@ test('a beat that has dialogue always ends up anchored', () => {
   const dialogueBeat = validated.beats.find((beat) => String(beat.beat_id) === '1');
   assert.ok(dialogueBeat.anchor_dialogue.length > 0);
   for (const anchor of dialogueBeat.anchor_dialogue) assert.ok(dialogueBeat.key_dialogue.includes(anchor));
+});
+
+test('the fallback planner produces a plan its own validator accepts', () => {
+  // The fallback is what runs when generation fails, so a plan it emits that validateEditPlan
+  // rejects leaves the run with nothing at all. It shipped two such shapes: no bridge slot,
+  // and a preserved cold open far over the dialogue limit.
+  const dialogueBeats = [
+    { ...buildBeats()[0], start_sec: 10, end_sec: 90, dialogue_quality: 'high' },
+    { ...buildBeats()[1], beat_id: '2', start_sec: 100, end_sec: 160 },
+    { ...buildBeats()[0], beat_id: '3', start_sec: 170, end_sec: 240, dialogue_quality: 'high' }
+  ];
+  const transcript = [
+    { start_sec: 12, end_sec: 20, text: 'I have evidence.' },
+    { start_sec: 22, end_sec: 60, text: "Even when you see, you still won't change your decision." },
+    { start_sec: 62, end_sec: 88, text: 'Then it is decided.' },
+    { start_sec: 180, end_sec: 200, text: 'Say something else.' },
+    { start_sec: 220, end_sec: 238, text: 'Fall back!' }
+  ];
+  const heatmap = { status: 'available', items: [{ start_sec: 12, end_sec: 18, score: 0.9 }] };
+
+  const plan = buildFallbackEditPlan(dialogueBeats, heatmap, 120, {}, transcript);
+  assert.ok(plan.timeline.some((item) => item.role === 'bridge'), 'a fallback plan needs a bridge');
+  assert.doesNotThrow(() => validateEditPlan(plan));
 });
 
 test('dialogue-led heatmap peak still opens with the peak beat dialogue', () => {

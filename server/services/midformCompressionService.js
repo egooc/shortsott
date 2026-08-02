@@ -477,6 +477,39 @@ function cleanVttText(text) {
     .trim();
 }
 
+// YouTube auto-captions roll: each cue repeats the tail of the one before it and adds a few
+// words. Left as-is, no cue holds a whole sentence, so a quoted line never matches any cue
+// and the whole scene gets narrated instead of preserved. Drop the repeated words and give
+// the surviving text the span it was spoken over.
+function dedupeRollingCues(cues) {
+  const result = [];
+  for (const cue of cues) {
+    const previous = result[result.length - 1];
+    if (!previous) { result.push({ ...cue }); continue; }
+    const previousWords = previous.text.split(' ');
+    const currentWords = cue.text.split(' ');
+    let overlap = 0;
+    const maxOverlap = Math.min(previousWords.length, currentWords.length);
+    for (let size = maxOverlap; size > 0; size -= 1) {
+      const tail = previousWords.slice(previousWords.length - size).join(' ').toLowerCase();
+      const head = currentWords.slice(0, size).join(' ').toLowerCase();
+      if (tail === head) { overlap = size; break; }
+    }
+    const remainder = currentWords.slice(overlap).join(' ').trim();
+    if (!remainder) {
+      // A pure repeat: it only tells us the previous line was still on screen.
+      previous.end_sec = Math.max(previous.end_sec, cue.end_sec);
+      continue;
+    }
+    result.push({
+      start_sec: overlap ? Math.max(previous.end_sec, cue.start_sec) : cue.start_sec,
+      end_sec: Math.max(cue.end_sec, (overlap ? Math.max(previous.end_sec, cue.start_sec) : cue.start_sec) + 0.2),
+      text: remainder
+    });
+  }
+  return result;
+}
+
 function parseVtt(vttText) {
   const cues = [];
   const lines = String(vttText || '').replace(/^\uFEFF/, '').split(/\r?\n/);
@@ -505,7 +538,7 @@ function parseVtt(vttText) {
     }
     index += 1;
   }
-  return cues;
+  return dedupeRollingCues(cues);
 }
 
 function findVttFile(dirPath) {
@@ -951,20 +984,48 @@ function buildFallbackEditPlan(beats, heatmap, targetSec, metadata, transcript) 
     if (index === 0 && coldBeatIndex > 0) role = 'bridge';
     if (beatId === coldBeatId) role = 'body_peak';
     if (beatId === payoffBeatId && beatId !== coldBeatId) role = 'payoff';
-    const decision = defaultDecisionForBeat(role, beat, transcript);
+    let decision = defaultDecisionForBeat(role, beat, transcript);
+    // A KEEP_DIALOGUE slot must carry the lines it preserves, so only keep dialogue when
+    // the beat actually yields a focus; otherwise narrate it.
+    const bodyFocus = decision === 'KEEP_DIALOGUE'
+      ? (collectDialogueFocus(beat, transcript) || coldOpenDialogueFocusForBeat(beat, transcript))
+      : null;
+    if (decision === 'KEEP_DIALOGUE' && !bodyFocus) decision = 'NARRATE';
     timeline.push({
       slot_id: `slot_${String(slotNumber).padStart(2, '0')}`,
       beat_id: beatId,
       role,
       decision,
-      start_sec: roundSec(beat.start_sec),
-      end_sec: roundSec(beat.end_sec),
+      start_sec: bodyFocus ? bodyFocus.start_sec : roundSec(beat.start_sec),
+      end_sec: bodyFocus ? bodyFocus.end_sec : roundSec(beat.end_sec),
+      ...(bodyFocus
+        ? {
+            dialogue_focus_source: 'fallback_beat_dialogue',
+            dialogue_focus_lines: bodyFocus.lines,
+            dialogue_focus_quotes: (bodyFocus.quotes && bodyFocus.quotes.length ? bodyFocus.quotes : bodyFocus.lines).slice(0, 5)
+          }
+        : {}),
       estimated_duration_sec: decision === 'KEEP_DIALOGUE' ? focusDurationForBeat(beat, transcript) : (decision === 'NARRATE' ? narrationDurationForBeat(beat) : 0),
       reason: `Fallback local planner selected this ${role} beat from beat metadata and transcript focus.`,
       spoiler_policy: role === 'cold_open' ? 'Do not reveal the answer in the teaser.' : 'Keep the mystery progression grounded in transcript evidence.',
       repeat_policy: role === 'body_peak' && beatId === coldBeatId ? 'Replay the teaser beat with context.' : 'No repeat.'
     });
     slotNumber += 1;
+  }
+
+  // The fallback planner is what runs when generation fails, so it has to satisfy the same
+  // contract validateEditPlan enforces. Two shapes slipped through: a cut with no bridge
+  // (the bridge role was only assigned when the cold open was not the first beat) and an
+  // over-long preserved cold open. Both made the fallback itself unusable.
+  if (!timeline.some((item) => item.role === 'bridge')) {
+    const firstNarration = timeline.find((item) => item.role !== 'cold_open' && item.decision === 'NARRATE');
+    if (firstNarration) firstNarration.role = 'bridge';
+  }
+  const coldOpenSlot = timeline[0];
+  if (coldOpenSlot.decision === 'KEEP_DIALOGUE' && Number(coldOpenSlot.estimated_duration_sec || 0) > COLD_OPEN_DIALOGUE_MAX_SEC) {
+    coldOpenSlot.end_sec = roundSec(Number(coldOpenSlot.start_sec) + COLD_OPEN_DIALOGUE_MAX_SEC);
+    coldOpenSlot.estimated_duration_sec = COLD_OPEN_DIALOGUE_MAX_SEC;
+    coldOpenSlot.reason = `${coldOpenSlot.reason} Trimmed to the cold-open dialogue limit.`;
   }
 
   const plan = {
@@ -3248,6 +3309,9 @@ function validateEditPlanAgainstBeats(editPlan, beats) {
 // The plan may run a little short or long, but coming in at half the requested runtime is
 // a planning failure, not a style choice — the retry loop gets this back as feedback.
 const EDIT_PLAN_MIN_TARGET_RATIO = 0.85;
+// Below this the plan is not merely short, it is a different cut, so topping it up would
+// mean rebuilding it rather than filling a gap.
+const EDIT_PLAN_PATHOLOGICAL_RATIO = 0.4;
 
 function validateEditPlan(editPlan, targetSec = 0) {
   const timeline = Array.isArray(editPlan?.timeline) ? editPlan.timeline : [];
@@ -3259,7 +3323,10 @@ function validateEditPlan(editPlan, targetSec = 0) {
     const slotTotal = timeline
       .filter((item) => item?.decision !== 'DROP')
       .reduce((sum, item) => sum + Number(item?.estimated_duration_sec || 0), 0);
-    const floor = target * EDIT_PLAN_MIN_TARGET_RATIO;
+    // finalizeEditPlan tops a short plan up from unused beats, so rejecting one here only
+    // burns retries and pushes the run onto the fallback planner. Keep the check for
+    // pathologically short plans, where topping up would rebuild the cut wholesale.
+    const floor = target * EDIT_PLAN_PATHOLOGICAL_RATIO;
     if (slotTotal < floor) {
       throw new Error(
         `edit plan is far too short: its slots add up to ${Math.round(slotTotal)}s against a target of ${target}s `
