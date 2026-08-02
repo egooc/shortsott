@@ -3018,7 +3018,15 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec) {
   const toppedUpTimeline = topUpTimelineToTargetRuntime(timeline, beats, transcript, targetSec);
   const interleavedTimeline = interleaveDialogueIntoNarrationRuns(toppedUpTimeline, beats, transcript);
   const dedupedTimeline = dropDuplicateDialogueSlots(interleavedTimeline);
-  const trimmedTimeline = clampColdOpenToTeaser(trimTimelineToTargetRuntime(dedupedTimeline, targetSec));
+  // Write the corrected measure back onto the slot. Fixing only realisticSlotDurationSec left
+  // estimated_duration_sec holding the raw span - slot_02 still read 151.3s for four lines - so
+  // every consumer that reads the field directly still saw the dead air between them.
+  const measuredTimeline = clampColdOpenToTeaser(trimTimelineToTargetRuntime(dedupedTimeline, targetSec));
+  const trimmedTimeline = measuredTimeline.map((item) => (
+    item.decision === 'KEEP_DIALOGUE'
+      ? { ...item, estimated_duration_sec: realisticSlotDurationSec(item) }
+      : item
+  ));
   let finalizedTimeline = trimmedTimeline.map((item) => {
     if (item.decision === 'KEEP_DIALOGUE') return annotateDialogueSlotForQc(item, { windows: item.dialogue_line_windows || [] }, item);
     return annotateNarrationSlotForQc(item);
