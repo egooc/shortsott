@@ -41,6 +41,40 @@ function fallbackSpeakerColorKey(speakerAlias, config) {
   return fallbackRoles[hash % fallbackRoles.length];
 }
 
+// Hashing each alias independently gives no guarantee that two speakers in the same scene differ,
+// which is exactly what the collapse gate checks: "대릴" and "여자" both hashed to 기타1 and a
+// two-hander played out in one colour. Walk the aliases in order of appearance instead, so unknown
+// speakers take distinct fallback roles until the palette runs out.
+function assignFallbackSpeakerColorKeys(speakerAliases, config = readCaptionColorConfig()) {
+  const assignment = new Map();
+  const fallbackRoles = config?.fallback_roles && typeof config.fallback_roles === 'object' ? Object.keys(config.fallback_roles) : [];
+  if (!fallbackRoles.length) return assignment;
+  let next = 0;
+  for (const rawAlias of Array.isArray(speakerAliases) ? speakerAliases : []) {
+    const alias = normalizeText(rawAlias);
+    if (!alias || assignment.has(alias)) continue;
+    // Speakers the config names keep their own colour; only unknowns draw from the palette.
+    const known = resolveSpeakerColorKeyFromConfig(alias, config);
+    if (known) continue;
+    assignment.set(alias, fallbackRoles[next % fallbackRoles.length]);
+    next += 1;
+  }
+  return assignment;
+}
+
+// The config-only half of resolveSpeakerColorKey: returns '' when the alias is not named, so the
+// caller can decide how to pick a fallback rather than always getting the hashed one.
+function resolveSpeakerColorKeyFromConfig(speakerAlias, config = readCaptionColorConfig()) {
+  const alias = normalizeText(speakerAlias);
+  if (!alias || !config || typeof config !== 'object') return '';
+  const speakers = config.speakers && typeof config.speakers === 'object' ? config.speakers : {};
+  const roles = config.roles && typeof config.roles === 'object' ? config.roles : {};
+  const mapped = normalizeText(speakers[alias]);
+  if (mapped && !mapped.startsWith('#')) return mapped;
+  if (roles[alias]) return alias;
+  return '';
+}
+
 function resolveSpeakerColorKey(speakerAlias, config = readCaptionColorConfig()) {
   const alias = normalizeText(speakerAlias);
   if (!alias || !config || typeof config !== 'object') return '';
@@ -91,6 +125,7 @@ function buildSpeakerMetadata(source = {}, fallback = {}) {
 
 module.exports = {
   CAPTION_COLORS_CONFIG_PATH,
+  assignFallbackSpeakerColorKeys,
   buildSpeakerMetadata,
   normalizeSpeakerId,
   readCaptionColorConfig,

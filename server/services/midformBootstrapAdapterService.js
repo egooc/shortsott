@@ -14,7 +14,7 @@ const { execFileSync, spawnSync } = require('child_process');
 const { PROJECT_ROOT } = require('./pipelinePaths');
 const { resolveTool, getToolEnv } = require('../utils/toolPaths');
 const { getVideoMetadata } = require('../utils/ffprobe');
-const { buildSpeakerMetadata, resolveCaptionColor } = require('../utils/captionColorConfig');
+const { buildSpeakerMetadata, resolveCaptionColor, assignFallbackSpeakerColorKeys } = require('../utils/captionColorConfig');
 const { resolveCompressionRunDir, downloadCompressionSourceVideo } = require('./midformCompressionService');
 const { startRun } = require('./midformPipelineService');
 
@@ -448,6 +448,21 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
   ].map((range) => [Number(range?.[0]), Number(range?.[1])])
     .filter(([start, end]) => Number.isFinite(start) && Number.isFinite(end) && end > start);
 
+  // Assign fallback caption colours across the whole timeline before building any segment, so two
+  // unknown speakers in one exchange never land on the same colour.
+  const dialogueSpeakerAliases = [];
+  for (const item of timeline) {
+    if (item.decision !== 'KEEP_DIALOGUE') continue;
+    const fill = fillsBySlot.get(String(item.slot_id || '').trim()) || {};
+    const speakerList = Array.isArray(fill.speakers) ? fill.speakers : [];
+    const windows = Array.isArray(item.dialogue_line_windows) ? item.dialogue_line_windows : [];
+    for (let index = 0; index < windows.length; index += 1) {
+      const alias = normalizeText(speakerList[index] || fill.speaker || '');
+      if (alias) dialogueSpeakerAliases.push(alias);
+    }
+  }
+  const fallbackColorKeyByAlias = assignFallbackSpeakerColorKeys(dialogueSpeakerAliases);
+
   // Adapter-side b-roll. All narration segments get a degenerate story_anchor hint so capcut's
   // b-roll auto-picker DECLINES; that leaves story_sync_segment_reports empty, so the story-sync
   // gate (its monotonic + 70%-coverage checks, both incompatible with the teaser/compression
@@ -558,10 +573,10 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
           utt_id: segId,
           source_line_id: segId
         });
-        const captionColor = resolveCaptionColor({
-          speakerAlias: speakerMetadata.speaker_alias || speaker,
-          speakerColorKey: speakerMetadata.speaker_color_key
-        });
+        const alias = speakerMetadata.speaker_alias || speaker;
+        const speakerColorKey = fallbackColorKeyByAlias.get(alias) || speakerMetadata.speaker_color_key;
+        speakerMetadata.speaker_color_key = speakerColorKey;
+        const captionColor = resolveCaptionColor({ speakerAlias: alias, speakerColorKey });
         if (!captionText) warnings.push(`${segId} has no Korean caption (caption_kr_dialogue[${index}] empty)`);
         slots.push({
           slot_id: segId,
