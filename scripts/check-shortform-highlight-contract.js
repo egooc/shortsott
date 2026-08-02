@@ -832,6 +832,82 @@ function testItemUploadTitleComesFromTheLocaleHighlight() {
   );
 }
 
+function testProcessSpanFilterOnlyRejectsRealWholeProcessWindows() {
+  // item_010's 49~54s window was dropped because its reason read "the punchline of
+  // the story" - substring matching on free prose. Losing it pushed the second
+  // highlight onto a scene fallback with no explanation, which produced a duplicate
+  // template caption and failed the whole item.
+  const keep = [
+    { reason: 'This clip delivers the punchline of the story, showing the confusion.' },
+    { purpose: 'To show the successful execution of the prank.' },
+    { visual_hook: 'A whole cake being decorated' }
+  ];
+  keep.forEach((candidate) => {
+    assert(
+      !queueTest.isProcessSpanHighlightCandidate(candidate),
+      `ordinary prose must not read as a whole-process window: ${JSON.stringify(candidate)}`
+    );
+  });
+
+  const reject = [
+    { window_type: 'summary' },
+    { type: 'full_process' },
+    { selection_strategy: 'story' },
+    { purpose: 'Covers the full process from start to finish.' },
+    { process_coverage: '工程全体を通して見せる' },
+    { reason: '전체 공정을 요약해서 보여줍니다.' }
+  ];
+  reject.forEach((candidate) => {
+    assert(
+      queueTest.isProcessSpanHighlightCandidate(candidate),
+      `an explicit whole-process window must still be rejected: ${JSON.stringify(candidate)}`
+    );
+  });
+}
+
+function testHighlightCaptionsUseGeminiPerWindowExplanations() {
+  // The cue templates describe generic manufacturing motion. A delivery-prank source
+  // got "刃や工具が素材に入り、形が分かれていく" on both highlights, which is both wrong
+  // and identical, so the duplicate-body guard failed the item.
+  const baseGuide = {
+    shortform_candidate_windows: [
+      {
+        start_sec: 41,
+        end_sec: 47,
+        hook_score: 0.98,
+        visual_hook: 'The delivery person pulls out a TV remote',
+        scene_specific_explanation_ja: '配達員が突然復讐のアイデアを思いつき、不機嫌な顧客の前でさりげなくリュックサックからテレビのリモコンを取り出す、物語のクライマックス部分です。',
+        scene_specific_explanation_ko: '배달원이 갑자기 복수 아이디어를 떠올리고, 불친절한 손님 앞에서 슬며시 백팩에서 TV 리모컨을 꺼내는 이야기의 클라이맥스 부분입니다.'
+      },
+      {
+        start_sec: 49,
+        end_sec: 54,
+        hook_score: 0.95,
+        reason: 'This clip delivers the punchline of the story.',
+        scene_specific_explanation_ja: '配達員が満足げな表情で立ち去り、その後ろでテレビが消える。それを目の当たりにした顧客が困惑する場面です。',
+        scene_specific_explanation_ko: '배달원이 만족스러운 표정으로 떠나고, 그 뒤에서 TV가 꺼집니다. 이를 목격한 손님이 당황하는 장면입니다.'
+      }
+    ],
+    // The selected window itself carries no explanation - it must be borrowed by overlap.
+    recommended_highlight_window: { start_sec: 41, end_sec: 47 }
+  };
+
+  const first = queueTest.buildHighlightCandidateGuide(baseGuide, { start_sec: 41, end_sec: 47 }, 1, 2, '');
+  const second = queueTest.buildHighlightCandidateGuide(baseGuide, { start_sec: 49, end_sec: 54 }, 2, 2, '');
+
+  const firstJa = first.highlight_metadata.onscreen_caption_block;
+  const secondJa = second.highlight_metadata.onscreen_caption_block;
+  assert(firstJa.includes('リモコン'), `the 41~47s caption must describe that window, got: ${firstJa}`);
+  assert(secondJa.includes('テレビが消える'), `the 49~54s caption must describe that window, got: ${secondJa}`);
+  assert(firstJa !== secondJa, 'two highlights of one source must not share a caption block');
+  assert(!firstJa.includes('刃や工具'), 'a generic manufacturing template must not describe a non-manufacturing source');
+
+  const firstKo = first.highlight_metadata_ko.onscreen_caption_block;
+  const secondKo = second.highlight_metadata_ko.onscreen_caption_block;
+  assert(firstKo.includes('리모컨'), `the Korean caption must follow the same window, got: ${firstKo}`);
+  assert(firstKo !== secondKo, 'Korean caption blocks must differ per window too');
+}
+
 function main() {
   const queueService = 'server/services/processQueueService.js';
   const metadataService = 'server/services/processMetadataService.js';
@@ -958,6 +1034,8 @@ function main() {
   testDuplicateCandidateMetadataBlocksGeneration();
 
   testEachHighlightWindowGetsItsOwnTitle();
+  testProcessSpanFilterOnlyRejectsRealWholeProcessWindows();
+  testHighlightCaptionsUseGeminiPerWindowExplanations();
   testKoreanHighlightAlsoMatchesTitlesByWindow();
   testItemUploadTitleComesFromTheLocaleHighlight();
   testSourceDurationDoesNotFallBackToOutputTarget();

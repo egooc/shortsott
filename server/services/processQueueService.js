@@ -4982,7 +4982,28 @@ function buildSemanticHighlightBlock(payload = {}, korean = false) {
   return korean ? ko[key] || ko.motion : ja[key] || ja.motion;
 }
 
+// Gemini writes a per-window explanation when it ranks highlight candidates. Prefer it
+// over the cue templates below: the templates describe a generic manufacturing motion,
+// so a delivery-prank source got "刃や工具が素材に入り、形が分かれていく" on both of its
+// highlights, and the duplicate-body guard then failed the whole item.
+function candidateExplanationForWindow(window = {}, korean = false) {
+  const direct = korean
+    ? (window.scene_specific_explanation_ko || window.scene_specific_explanation)
+    : (window.scene_specific_explanation_ja || window.scene_specific_explanation);
+  const text = String(direct || '').replace(/\s+/g, ' ').trim();
+  if (!text) return '';
+  // A one-liner is not a caption block; let the template path fill it out instead.
+  if ([...text].length < 40) return '';
+  if (korean && !/[가-힣]/u.test(text)) return '';
+  if (!korean && !/[぀-ヿ一-鿿]/u.test(text)) return '';
+  return text;
+}
+
 function buildCandidateSpecificBlock(window = {}, scenes = [], label = 'H01', korean = false, sourceDurationSec = 0, payload = null) {
+  const explanation = candidateExplanationForWindow(window, korean);
+  if (explanation) {
+    return truncateChars(explanation, korean ? 230 : 235);
+  }
   if (payload && payload.semantic_key) {
     return truncateChars(buildSemanticHighlightBlock(payload, korean), korean ? 230 : 235);
   }
@@ -5155,7 +5176,41 @@ function withCandidateTitleSuffix(title = '', label = 'H01') {
   return `${cleanTitle} ${label}`.trim();
 }
 
-function buildHighlightCandidateGuide(baseGuide = {}, window = {}, highlightOrdinal = 1, totalHighlights = 1, highlightTitle = '') {
+// The selected window often comes from recommended_highlight_window / hook_clip_10s,
+// which carry no per-window explanation, while the ranked candidate covering the same
+// seconds does. Borrow it so the caption describes this cut instead of falling back to
+// a generic manufacturing template.
+function withCandidateExplanation(baseGuide = {}, window = {}) {
+  if (window.scene_specific_explanation_ja || window.scene_specific_explanation_ko) return window;
+  const start = Number(window.start_sec);
+  const end = Number(window.end_sec);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return window;
+
+  const pool = [
+    ...(Array.isArray(baseGuide.shortform_candidate_windows) ? baseGuide.shortform_candidate_windows : []),
+    ...(Array.isArray(baseGuide.hook_candidates) ? baseGuide.hook_candidates : []),
+    ...(Array.isArray(baseGuide.highlight_candidates) ? baseGuide.highlight_candidates : [])
+  ];
+  let best = null;
+  let bestOverlap = 0;
+  for (const candidate of pool) {
+    if (!candidate?.scene_specific_explanation_ja && !candidate?.scene_specific_explanation_ko) continue;
+    const overlap = Math.max(0, Math.min(end, Number(candidate.end_sec)) - Math.max(start, Number(candidate.start_sec)));
+    if (overlap > bestOverlap) {
+      bestOverlap = overlap;
+      best = candidate;
+    }
+  }
+  if (!best || bestOverlap < Math.min(1, Math.max(0.1, (end - start) * 0.25))) return window;
+  return {
+    ...window,
+    scene_specific_explanation_ja: best.scene_specific_explanation_ja || '',
+    scene_specific_explanation_ko: best.scene_specific_explanation_ko || ''
+  };
+}
+
+function buildHighlightCandidateGuide(baseGuide = {}, rawWindow = {}, highlightOrdinal = 1, totalHighlights = 1, highlightTitle = '') {
+  const window = withCandidateExplanation(baseGuide, rawWindow);
   const guide = cloneJson(baseGuide);
   const label = `H${String(Math.max(1, Number(highlightOrdinal) || 1)).padStart(2, '0')}`;
   const candidateCount = Math.max(1, Number(totalHighlights) || 1);
@@ -7897,19 +7952,36 @@ function windowsOverlapSeconds(a = {}, b = {}) {
   return Math.max(0, Math.min(aEnd, bEnd) - Math.max(aStart, bStart));
 }
 
+// Rejects windows that cover the whole process instead of one hook moment.
+//
+// This used to substring-match words like "story", "summary" and "whole" across the
+// free-prose fields too, so ordinary description killed good candidates: item_010's
+// 49~54s window was dropped because its reason read "the punchline of the story".
+// Losing it pushed the second highlight onto a scene fallback with no Gemini
+// explanation, which then produced a duplicated template caption and failed the item.
+//
+// Classification labels are matched as whole tokens; free prose only counts when it
+// carries an explicit whole-process phrase.
+const PROCESS_SPAN_LABEL_PATTERN = /^(?:full[_\s-]?process|full[_\s-]?cycle|process[_\s-]?summary|summary|story|overall|entire|whole|full)$/u;
+const PROCESS_SPAN_PHRASE_PATTERN = /full[_\s-]?process|full[_\s-]?cycle|process[_\s-]?summary|entire[_\s-]process|whole[_\s-]process|overall[_\s-]process|전체[_\s]*공정|공정[_\s]*전체|전체[_\s]*요약|工程全体|全体[のを]?(?:工程|流れ)|工程[のを]?まとめ/u;
+
 function isProcessSpanHighlightCandidate(candidate = {}) {
-  const text = [
+  // Structured classification fields: a bare label like "summary" is decisive.
+  const labels = [candidate.window_type, candidate.type, candidate.selection_strategy, candidate.purpose_type]
+    .map((value) => String(value || '').trim().toLowerCase())
+    .filter(Boolean);
+  if (labels.some((label) => PROCESS_SPAN_LABEL_PATTERN.test(label))) return true;
+
+  // Free prose: only an explicit whole-process phrase counts.
+  const prose = [
     candidate.purpose,
     candidate.process_coverage,
     candidate.visual_hook,
     candidate.story_flow,
     candidate.process_flow,
-    candidate.selection_strategy,
-    candidate.reason,
-    candidate.window_type,
-    candidate.type
+    candidate.reason
   ].map((value) => String(value || '').toLowerCase()).join(' ');
-  return /full[_\s-]?process|full[_\s-]?cycle|process[_\s-]?summary|summary|story|overall|entire|whole|전체|요약|스토리|工程全体|全体|まとめ/u.test(text);
+  return PROCESS_SPAN_PHRASE_PATTERN.test(prose);
 }
 
 function getGeminiBestHighlightWindow(itemConfig = {}, maxDurationSec = 10) {
@@ -11185,6 +11257,8 @@ module.exports = {
     buildLongformHighlightTwoLayerPreset,
     highlightOutputCountForItem,
     candidateTitleForWindow,
+    collectHighlightCandidateWindows,
+    isProcessSpanHighlightCandidate,
     rankedTitleCandidate,
     LONGFORM_COMPRESS_LANE_MIN_SOURCE_SEC,
     SOURCE_LANE_LONGFORM_COMPRESS,
