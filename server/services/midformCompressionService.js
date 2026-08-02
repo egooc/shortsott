@@ -1991,9 +1991,10 @@ function selectColdOpenVisualSource(beats, coldBeatId, transcript, reservedRange
 }
 
 function recalculateDurationBudget(timeline, targetSec) {
+  // Measure dialogue the way the cut does — the lines, not the span between them.
   const keepDialogueSec = roundSec(timeline
     .filter((item) => item.decision === 'KEEP_DIALOGUE')
-    .reduce((sum, item) => sum + Number(item.estimated_duration_sec || 0), 0));
+    .reduce((sum, item) => sum + realisticSlotDurationSec(item), 0));
   const narrationSec = roundSec(timeline
     .filter((item) => item.decision === 'NARRATE')
     .reduce((sum, item) => sum + Number(item.estimated_duration_sec || 0), 0));
@@ -2370,11 +2371,26 @@ function prepareColdOpenCallbackTimeline(timeline, editPlan, beats, transcript) 
 // How long a slot will really play, as opposed to what the planner claimed: a preserved
 // dialogue slot lasts exactly as long as its source lines, and a narration slot is bounded
 // by how much speech fits over one beat.
+// Pre-roll plus post-roll the adapter adds around each preserved line.
+const DIALOGUE_LINE_PADDING_SEC = 0.65;
+
 function realisticSlotDurationSec(item) {
   if (!item || item.decision === 'DROP') return 0;
   if (item.decision === 'KEEP_DIALOGUE') {
+    // Only the per-line windows are cut; the gap between them never reaches the timeline. Using
+    // start_sec..end_sec counted that dead air as runtime, so a slot whose five lines total 16.4s
+    // was booked as 133.5s. The plan then read as 194s while the finished cut ran 53.5s, which
+    // both blocked the top-up and raised a phantom over-ceiling warning.
+    const windows = Array.isArray(item.dialogue_line_windows) ? item.dialogue_line_windows : [];
+    const lineTotal = windows
+      .filter((win) => win && win.matched === true)
+      .reduce((sum, win) => {
+        const lineSec = Number(win.end_sec) - Number(win.start_sec);
+        return sum + (Number.isFinite(lineSec) && lineSec > 0 ? lineSec + DIALOGUE_LINE_PADDING_SEC : 0);
+      }, 0);
+    if (lineTotal > 0) return roundSec(lineTotal);
     const span = Number(item.end_sec || 0) - Number(item.start_sec || 0);
-    return span > 0 ? roundSec(span) : 0;
+    return span > 0 ? roundSec(Math.min(span, NARRATION_SLOT_MAX_SEC)) : 0;
   }
   return roundSec(Math.min(NARRATION_SLOT_MAX_SEC, Number(item.estimated_duration_sec || 0)));
 }
@@ -2586,14 +2602,10 @@ function trimTimelineToTargetRuntime(timeline, targetSec) {
         || realisticSlotDurationSec(right.item) - realisticSlotDurationSec(left.item);
     });
 
-  // Two runtime measures disagreed: this trim used the realistic one while duration_budget sums
-  // the raw estimates, so a plan the trim called finished still reported 194s against a 180s
-  // ceiling. Enforce the ceiling on whichever measure is larger.
-  const runtimeOf = (list) => Math.max(
-    realisticTimelineRuntimeSec(list),
-    list.filter((item) => item.decision !== 'DROP')
-      .reduce((sum, item) => sum + Number(item.estimated_duration_sec || 0), 0)
-  );
+  // Both this trim and duration_budget now measure a dialogue slot by the lines it cuts, so the
+  // one measure is authoritative. Taking the max with the raw estimate would reinstate the dead
+  // air between scattered lines and trim real content to satisfy a runtime that never existed.
+  const runtimeOf = (list) => realisticTimelineRuntimeSec(list);
 
   let runtime = runtimeOf(items);
   while (runtime > target) {
