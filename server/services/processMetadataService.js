@@ -6426,10 +6426,25 @@ function mergeReviewedGuide(draftGuide = {}, reviewGuide = {}, sourceUrl = '', d
     const reviewed = reviewGuide[variantKey];
     const drafted = draftGuide[variantKey];
     if (!reviewed || typeof reviewed !== 'object') return drafted;
-    if (Array.isArray(reviewed.highlight_candidate_titles) && reviewed.highlight_candidate_titles.length) return reviewed;
-    const draftedTitles = Array.isArray(drafted?.highlight_candidate_titles) ? drafted.highlight_candidate_titles : [];
-    if (!draftedTitles.length) return reviewed;
-    return { ...reviewed, highlight_candidate_titles: draftedTitles };
+    const merged = { ...reviewed };
+
+    const reviewedCandidates = Array.isArray(reviewed.highlight_candidate_titles) ? reviewed.highlight_candidate_titles : [];
+    const draftedCandidates = Array.isArray(drafted?.highlight_candidate_titles) ? drafted.highlight_candidate_titles : [];
+    if (!reviewedCandidates.length && draftedCandidates.length) {
+      merged.highlight_candidate_titles = draftedCandidates;
+    }
+
+    // Review is a validation pass, not a rewriting pass. It re-emits the metadata
+    // object and its version of recommended_titles/upload_title overwrote the ones
+    // the metadata call produced - item_001's 泥がレンガに変わる瞬間！ came back as
+    // 製造工程ができるまで. Keep the drafted title unless review actually improves on it.
+    const draftedTitles = Array.isArray(drafted?.recommended_titles) ? drafted.recommended_titles : [];
+    const draftedTitleText = normalizeText(draftedTitles[0]?.title || '');
+    if (draftedTitleText && !publicMetadataTextHasWrongLanguage(draftedTitleText, variantKey.endsWith('_ko'))) {
+      merged.recommended_titles = draftedTitles;
+      if (normalizeText(drafted?.upload_title || '')) merged.upload_title = drafted.upload_title;
+    }
+    return merged;
   };
   return normalizeGuide({
     ...draftGuide,

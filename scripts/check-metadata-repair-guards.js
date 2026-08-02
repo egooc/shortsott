@@ -16,6 +16,7 @@ const {
     reviewSchemaForMetadataVariantMode,
     selectKoreanFullHookType,
     normalizeGuide,
+    mergeReviewedGuide,
     assertRepairNormalizationDidNotCollapse,
     OTTOGI_HIGHLIGHT_METADATA_ONLY_SCHEMA,
     OTTOGI_REVIEW_SCHEMA,
@@ -710,6 +711,64 @@ function testPreMetadataStagesDoNotPlantPlaceholderTitles() {
   );
 }
 
+function testReviewPassDoesNotRewriteUsableTitles() {
+  // The review call re-emits the whole metadata object. Spreading it over the
+  // drafted one replaced item_001's 泥がレンガに変わる瞬間！ with 製造工程ができるまで,
+  // even though review is a validation pass, not a rewriting pass.
+  const drafted = {
+    highlight_metadata: {
+      short_description: '泥をこねてレンガの形に整える工程です。',
+      summary_caption: '泥をこねてレンガの形に整える工程です。',
+      variant_type: 'highlight',
+      caption_mode: 'long_bottom_explainer',
+      onscreen_caption_block: '泥をこねてレンガの形に整えていく工程を追いかけます。'.repeat(3),
+      report_description: '## 1. 作業概要 泥をこねてレンガの形に整える工程です。',
+      upload_title: '泥がレンガに変わる瞬間！',
+      hashtags: ['#泥レンガ', '#職人技'],
+      recommended_titles: [{ category: 'hook', title: '泥がレンガに変わる瞬間！', hashtags: ['#泥レンガ'] }],
+      highlight_candidate_titles: [{ start_sec: 16, end_sec: 19, title: '泥がレンガに変わる瞬間！', hashtags: ['#泥レンガ'] }]
+    }
+  };
+  const reviewEcho = {
+    highlight_metadata: {
+      ...drafted.highlight_metadata,
+      upload_title: '製造工程ができるまで',
+      recommended_titles: [{ category: 'concise', title: '製造工程ができるまで', hashtags: [] }],
+      highlight_candidate_titles: undefined
+    }
+  };
+
+  const merged = mergeReviewedGuide(normalizeGuide(drafted), reviewEcho, '', 19);
+  assert(
+    merged.highlight_metadata.recommended_titles[0].title.includes('泥がレンガに変わる瞬間'),
+    `review must not overwrite a usable title, got ${merged.highlight_metadata.recommended_titles[0].title}`
+  );
+  assert(
+    merged.highlight_metadata.upload_title.includes('泥がレンガに変わる瞬間'),
+    `review must not overwrite a usable upload_title, got ${merged.highlight_metadata.upload_title}`
+  );
+  assert(
+    (merged.highlight_metadata.highlight_candidate_titles || []).length === 1,
+    'per-window titles must survive the review merge'
+  );
+
+  // When the drafted title really is unusable, review's version wins.
+  const contaminatedDraft = normalizeGuide({
+    highlight_metadata: {
+      ...drafted.highlight_metadata,
+      upload_title: 'Mud brick making overview',
+      recommended_titles: [{ category: 'hook', title: 'Mud brick making overview', hashtags: [] }]
+    }
+  });
+  const repaired = mergeReviewedGuide(contaminatedDraft, {
+    highlight_metadata: { ...drafted.highlight_metadata, upload_title: '泥レンガづくり', recommended_titles: [{ category: 'hook', title: '泥レンガづくり', hashtags: [] }] }
+  }, '', 19);
+  assert(
+    !/Mud brick making/u.test(repaired.highlight_metadata.recommended_titles[0].title),
+    'an unusable drafted title must still be replaced by review'
+  );
+}
+
 function main() {
   testFullKoRepairSurvivesNormalize();
   testRepairLossGuard();
@@ -729,6 +788,7 @@ function main() {
   testHashtagsStayInTheTitleLanguage();
   testLatinLoanwordsAreNotTreatedAsEnglishContamination();
   testPreMetadataStagesDoNotPlantPlaceholderTitles();
+  testReviewPassDoesNotRewriteUsableTitles();
   console.log('metadata repair guards ok');
 }
 
