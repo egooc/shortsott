@@ -5732,8 +5732,34 @@ function applyOttogiGuideToItem(itemId, guide = {}, sourceUrl = '') {
   ) || 60;
   const selectedTitle = Array.isArray(fullMetadata.recommended_titles) ? fullMetadata.recommended_titles[0] || null : null;
   const highlightTitle = selectGuideTitle(guide, 'highlight');
-  const uploadTitle = sanitizeKoreanProductionText(selectedTitle?.title || fullMetadata.recommended_titles?.[0]?.title || fullMetadata.upload_title || item.upload_title || '');
-  const hashtags = normalizeHashtags(selectedTitle?.hashtags || fullMetadata.hashtags || guide.upload_hashtags || item.upload_hashtags || []);
+  // Highlight is the only variant this workflow ships, so the item-level upload
+  // title must be the highlight title for the item's own locale. It used to come
+  // from full_metadata_ko, which nothing produces any more, so the queue kept
+  // showing "제조 공정이 만들어지는 과정" next to a real highlight draft.
+  const itemIsKorean = isKoreanTargetLocale(item);
+  const localeHighlightMetadata = itemIsKorean
+    ? getVariantReviewMetadata(guide, 'highlight')
+    : highlightMetadata;
+  const localeHighlightTitle = Array.isArray(localeHighlightMetadata.recommended_titles)
+    ? localeHighlightMetadata.recommended_titles[0] || null
+    : null;
+  const preferredTitle = localeHighlightTitle?.title
+    || localeHighlightMetadata.upload_title
+    || highlightTitle?.title
+    || selectedTitle?.title
+    || fullMetadata.upload_title
+    || item.upload_title
+    || '';
+  const preferredHashtags = localeHighlightTitle?.hashtags
+    || localeHighlightMetadata.hashtags
+    || highlightTitle?.hashtags
+    || selectedTitle?.hashtags
+    || fullMetadata.hashtags
+    || guide.upload_hashtags
+    || item.upload_hashtags
+    || [];
+  const uploadTitle = sanitizeKoreanProductionText(preferredTitle);
+  const hashtags = normalizeHashtags(preferredHashtags);
   const shortDescription = sanitizeKoreanProductionText(fullMetadata.short_description || guide.short_description_200 || '');
   const shortDescriptionKo = String(fullReviewMetadata.short_description || guide.short_description_ko || guide.explainer_text_ko || '').trim();
   const reportDescription = sanitizeKoreanProductionText(fullMetadata.report_description || guide.report_description || '');

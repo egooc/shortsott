@@ -820,6 +820,18 @@ function testNominatedCandidatesAndSourceLengthAreProtected() {
   );
 }
 
+function testItemUploadTitleComesFromTheLocaleHighlight() {
+  const queueSource = fs.readFileSync(path.join(__dirname, '..', 'server', 'services', 'processQueueService.js'), 'utf8');
+  assert(
+    queueSource.includes('const localeHighlightMetadata = itemIsKorean'),
+    'item-level upload_title must be derived from the highlight metadata of the item locale'
+  );
+  assert(
+    !queueSource.includes('const uploadTitle = sanitizeKoreanProductionText(selectedTitle?.title'),
+    'item-level upload_title must no longer be taken from full_metadata_ko, which this workflow never produces'
+  );
+}
+
 function main() {
   const queueService = 'server/services/processQueueService.js';
   const metadataService = 'server/services/processMetadataService.js';
@@ -947,6 +959,7 @@ function main() {
 
   testEachHighlightWindowGetsItsOwnTitle();
   testKoreanHighlightAlsoMatchesTitlesByWindow();
+  testItemUploadTitleComesFromTheLocaleHighlight();
   testSourceDurationDoesNotFallBackToOutputTarget();
   testNominatedCandidatesAndSourceLengthAreProtected();
   testPublicHighlightDescriptionHasNoInternalNotes();
