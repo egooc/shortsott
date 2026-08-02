@@ -3362,6 +3362,9 @@ const EDIT_PLAN_MIN_TARGET_RATIO = 0.85;
 // Below this the plan is not merely short, it is a different cut, so topping it up would
 // mean rebuilding it rather than filling a gap.
 const EDIT_PLAN_PATHOLOGICAL_RATIO = 0.4;
+// Overshooting is not something finalize can absorb the way it tops a short plan up, so the
+// ceiling sits much closer to the target than the floor does.
+const EDIT_PLAN_MAX_TARGET_RATIO = 1.35;
 
 function validateEditPlan(editPlan, targetSec = 0) {
   const timeline = Array.isArray(editPlan?.timeline) ? editPlan.timeline : [];
@@ -3376,6 +3379,16 @@ function validateEditPlan(editPlan, targetSec = 0) {
     // finalizeEditPlan tops a short plan up from unused beats, so rejecting one here only
     // burns retries and pushes the run onto the fallback planner. Keep the check for
     // pathologically short plans, where topping up would rebuild the cut wholesale.
+    // A speech-dense source pushed the planner the other way: a 120s request came back as a
+    // 303s plan with one 151s dialogue slot. Runtime needs a ceiling as well as a floor.
+    const ceiling = target * EDIT_PLAN_MAX_TARGET_RATIO;
+    if (slotTotal > ceiling) {
+      throw new Error(
+        `edit plan runs far too long: its slots add up to ${Math.round(slotTotal)}s against a target of `
+        + `${target}s (maximum ${Math.round(ceiling)}s). Cut whole slots and shorten preserved dialogue to the `
+        + 'lines that carry the scene, rather than keeping every exchange.'
+      );
+    }
     const floor = target * EDIT_PLAN_PATHOLOGICAL_RATIO;
     if (slotTotal < floor) {
       throw new Error(
@@ -3403,7 +3416,9 @@ function validateEditPlan(editPlan, targetSec = 0) {
     const focusQuotes = Array.isArray(item.dialogue_focus_quotes) ? item.dialogue_focus_quotes : [];
     if (item.decision === 'KEEP_DIALOGUE') {
       if (focusQuotes.length < 1) throw new Error(`${item.slot_id} KEEP_DIALOGUE must include dialogue_focus_quotes`);
-      if (focusQuotes.length > 5) throw new Error(`${item.slot_id} KEEP_DIALOGUE must limit dialogue_focus_quotes to 5 lines`);
+      // A slot is a short exchange, not a whole conversation. Allowing five turns per slot
+      // is how a speech-dense source came back as one 151s block of dialogue.
+      if (focusQuotes.length > 3) throw new Error(`${item.slot_id} KEEP_DIALOGUE must limit dialogue_focus_quotes to 3 lines; split a longer exchange across slots`);
     }
   }
   return editPlan;

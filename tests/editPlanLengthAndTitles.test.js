@@ -110,3 +110,27 @@ test('titles that close the gap are rejected', () => {
   assert.ok(!isCuriosityTitle('최종 결전 하이라이트'));
   assert.ok(!isCuriosityTitle(''));
 });
+
+test('a plan that overshoots the target is rejected', () => {
+  // A speech-dense source pushed the planner the other way: a 120s request came back as a
+  // 303s plan built from whole conversations.
+  assert.throws(() => validateEditPlan(planOfDuration(303), 120), /runs far too long/);
+  assert.ok(validateEditPlan(planOfDuration(140), 120), 'a little over target is fine');
+});
+
+test('a dialogue slot may not swallow a whole conversation', () => {
+  const plan = {
+    timeline: [
+      { slot_id: '1', role: 'cold_open', decision: 'NARRATE', estimated_duration_sec: 6 },
+      { slot_id: '2', role: 'bridge', decision: 'NARRATE', estimated_duration_sec: 8 },
+      {
+        slot_id: '3',
+        role: 'body_peak',
+        decision: 'KEEP_DIALOGUE',
+        estimated_duration_sec: 100,
+        dialogue_focus_quotes: ['one', 'two', 'three', 'four', 'five']
+      }
+    ]
+  };
+  assert.throws(() => validateEditPlan(plan), /3 lines/);
+});
