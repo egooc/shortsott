@@ -117,3 +117,43 @@ test('a plan that overshoots the target is rejected', () => {
   assert.throws(() => validateEditPlan(planOfDuration(303), 120), /runs far too long/);
   assert.ok(validateEditPlan(planOfDuration(140), 120), 'a little over target is fine');
 });
+
+test('a caption list that does not match the dialogue lines is reconciled, not rejected', () => {
+  const { reconcileDialogueCaptionCounts } = _test;
+
+  // Too few captions: the extra line has nothing to show, so it is dropped.
+  const shortPlan = {
+    timeline: [{
+      slot_id: '1',
+      decision: 'KEEP_DIALOGUE',
+      dialogue_focus_lines: ['a', 'b', 'c'],
+      dialogue_focus_quotes: ['a', 'b', 'c'],
+      dialogue_line_windows: [
+        { matched: true, start_sec: 1, end_sec: 2 },
+        { matched: true, start_sec: 3, end_sec: 4 },
+        { matched: true, start_sec: 5, end_sec: 6 }
+      ]
+    }]
+  };
+  reconcileDialogueCaptionCounts({ slot_fills: [{ slot_id: '1', caption_kr_dialogue: ['가', '나'] }] }, shortPlan);
+  assert.equal(shortPlan.timeline[0].dialogue_focus_lines.length, 2);
+  assert.equal(shortPlan.timeline[0].dialogue_line_windows.filter((w) => w.matched).length, 2);
+
+  // Too many captions: the extra caption has no moment to play at, so it is dropped.
+  const longPlan = {
+    timeline: [{
+      slot_id: '1',
+      decision: 'KEEP_DIALOGUE',
+      dialogue_focus_lines: ['a', 'b'],
+      dialogue_focus_quotes: ['a', 'b'],
+      dialogue_line_windows: [
+        { matched: true, start_sec: 1, end_sec: 2 },
+        { matched: true, start_sec: 3, end_sec: 4 }
+      ]
+    }]
+  };
+  const fills = { slot_fills: [{ slot_id: '1', caption_kr_dialogue: ['가', '나', '다'] }] };
+  reconcileDialogueCaptionCounts(fills, longPlan);
+  assert.equal(longPlan.timeline[0].dialogue_focus_lines.length, 2);
+  assert.equal(fills.slot_fills[0].caption_kr_dialogue.length, 2);
+});

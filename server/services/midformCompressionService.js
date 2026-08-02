@@ -3294,17 +3294,20 @@ function reconcileDialogueCaptionCounts(slotFills, editPlan) {
     const fill = fillsBySlot.get(String(item.slot_id || '').trim());
     const captions = (Array.isArray(fill?.caption_kr_dialogue) ? fill.caption_kr_dialogue : [])
       .filter((caption) => String(caption || '').trim());
-    if (!captions.length || captions.length >= lines.length) continue;
-    item.dialogue_focus_lines = lines.slice(0, captions.length);
+    if (!captions.length || captions.length === lines.length) continue;
+    // Either side can come back long. Keep whichever count is smaller: a line without a
+    // caption is silent on screen, and a caption without a line has no moment to play at.
+    const keepCount = Math.min(captions.length, lines.length);
+    item.dialogue_focus_lines = lines.slice(0, keepCount);
     if (Array.isArray(item.dialogue_focus_quotes)) {
-      item.dialogue_focus_quotes = item.dialogue_focus_quotes.slice(0, captions.length);
+      item.dialogue_focus_quotes = item.dialogue_focus_quotes.slice(0, keepCount);
     }
     if (Array.isArray(item.dialogue_line_windows)) {
       const matched = item.dialogue_line_windows.filter((win) => win && win.matched === true);
-      const keep = new Set(matched.slice(0, captions.length));
+      const keep = new Set(matched.slice(0, keepCount));
       item.dialogue_line_windows = item.dialogue_line_windows.filter((win) => !win || win.matched !== true || keep.has(win));
     }
-    if (fill) fill.caption_kr_dialogue = captions;
+    if (fill) fill.caption_kr_dialogue = captions.slice(0, keepCount);
   }
   return slotFills;
 }
@@ -3939,6 +3942,7 @@ module.exports = {
     validateBeats,
     validateEditPlan,
     validateSlotFillsRuntime,
+    reconcileDialogueCaptionCounts,
     isCuriosityTitle,
     validateEditPlanAgainstBeats,
     evaluateDialogueTimingQc,
