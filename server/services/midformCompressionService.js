@@ -52,6 +52,7 @@ const COLD_OPEN_VISUAL_MIN_SEC = 3;
 const COLD_OPEN_VISUAL_MAX_SEC = 6;
 const COLD_OPEN_VISUAL_TARGET_SEC = 4.5;
 const COLD_OPEN_DIALOGUE_MAX_SEC = 16;
+const COLD_OPEN_NARRATION_MAX_SEC = 6.5;
 const DIALOGUE_QUALITY_RANK = { high: 3, mid: 2, low: 1 };
 const CODEX_TRANSPORT_RETRIES = 3;
 const EDIT_PLAN_MAX_DIALOGUE_QUOTES = 4;
@@ -2526,6 +2527,47 @@ function dropDuplicateDialogueSlots(timeline) {
   return items;
 }
 
+// A cold open that overruns the teaser limit used to fail validation outright, which spent the
+// retries and dropped the run onto the fallback planner over the tail of a single slot. Trim it
+// to the lines that fit instead: the hook survives, the plan survives with it.
+function clampColdOpenToTeaser(timeline) {
+  const coldOpen = timeline.find((item) => item.role === 'cold_open');
+  if (!coldOpen) return timeline;
+  const isDialogue = coldOpen.decision === 'KEEP_DIALOGUE';
+  const limit = isDialogue ? COLD_OPEN_DIALOGUE_MAX_SEC : COLD_OPEN_NARRATION_MAX_SEC;
+  if (Number(coldOpen.estimated_duration_sec || 0) <= limit) return timeline;
+
+  if (isDialogue) {
+    const windows = Array.isArray(coldOpen.dialogue_line_windows) ? coldOpen.dialogue_line_windows : [];
+    const matched = windows.filter((win) => win && win.matched !== false && Number.isFinite(Number(win.start_sec)));
+    if (matched.length > 1) {
+      const openStart = Number(matched[0].start_sec);
+      let keep = 1;
+      while (keep < matched.length && Number(matched[keep].end_sec) - openStart <= limit) keep += 1;
+      if (keep < matched.length) {
+        const dropped = new Set(matched.slice(keep));
+        coldOpen.dialogue_line_windows = windows.filter((win) => !dropped.has(win));
+        if (Array.isArray(coldOpen.dialogue_focus_lines)) coldOpen.dialogue_focus_lines = coldOpen.dialogue_focus_lines.slice(0, keep);
+        if (Array.isArray(coldOpen.dialogue_focus_quotes)) coldOpen.dialogue_focus_quotes = coldOpen.dialogue_focus_quotes.slice(0, keep);
+        const keptEnd = Number(matched[keep - 1].end_sec);
+        if (Number.isFinite(keptEnd) && keptEnd > openStart) {
+          coldOpen.start_sec = roundSec(openStart);
+          coldOpen.end_sec = roundSec(keptEnd);
+          coldOpen.estimated_duration_sec = roundSec(keptEnd - openStart);
+        }
+      }
+    }
+  }
+
+  if (Number(coldOpen.estimated_duration_sec || 0) > limit) {
+    const start = Number(coldOpen.start_sec);
+    coldOpen.estimated_duration_sec = limit;
+    if (Number.isFinite(start)) coldOpen.end_sec = roundSec(start + limit);
+  }
+  coldOpen.reason = `${coldOpen.reason || ''} Trimmed to the cold-open teaser limit.`.trim();
+  return timeline;
+}
+
 function trimTimelineToTargetRuntime(timeline, targetSec) {
   const target = Number(targetSec || 0);
   const items = (Array.isArray(timeline) ? timeline : []).map((item) => ({ ...item }));
@@ -2881,7 +2923,7 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec) {
   const toppedUpTimeline = topUpTimelineToTargetRuntime(timeline, beats, transcript, targetSec);
   const interleavedTimeline = interleaveDialogueIntoNarrationRuns(toppedUpTimeline, beats, transcript);
   const dedupedTimeline = dropDuplicateDialogueSlots(interleavedTimeline);
-  const trimmedTimeline = trimTimelineToTargetRuntime(dedupedTimeline, targetSec);
+  const trimmedTimeline = clampColdOpenToTeaser(trimTimelineToTargetRuntime(dedupedTimeline, targetSec));
   let finalizedTimeline = trimmedTimeline.map((item) => {
     if (item.decision === 'KEEP_DIALOGUE') return annotateDialogueSlotForQc(item, { windows: item.dialogue_line_windows || [] }, item);
     return annotateNarrationSlotForQc(item);
@@ -3507,7 +3549,7 @@ function validateEditPlan(editPlan, targetSec = 0) {
   const coldOpen = timeline.find((item) => item.role === 'cold_open');
   const bodyPeak = coldOpen ? timeline.find((item) => item.role === 'body_peak' && item.beat_id === coldOpen.beat_id) : null;
   if (coldOpen) {
-    const coldOpenLimit = coldOpen.decision === 'KEEP_DIALOGUE' ? COLD_OPEN_DIALOGUE_MAX_SEC : 6.5;
+    const coldOpenLimit = coldOpen.decision === 'KEEP_DIALOGUE' ? COLD_OPEN_DIALOGUE_MAX_SEC : COLD_OPEN_NARRATION_MAX_SEC;
     if (Number(coldOpen.estimated_duration_sec || 0) > coldOpenLimit) {
       throw new Error(`cold_open should stay teaser-short (limit ${coldOpenLimit}s for ${coldOpen.decision})`);
     }
@@ -3933,6 +3975,7 @@ module.exports = {
   parseVtt,
   extractHeatmap,
   _test: {
+    clampColdOpenToTeaser,
     buildSlotQcReport,
     buildSlotFillEditorialGuide,
     finalizeEditPlan,
