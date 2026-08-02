@@ -2517,11 +2517,23 @@ function topUpTimelineToTargetRuntime(timeline, beats, transcript, targetSec) {
 // the back half came back as one long stretch of explanation. Break the run here instead —
 // when narration has carried the cut this long, a line from the scene belongs in the middle
 // of it.
-const MAX_NARRATION_RUN_SEC = 25;
+// Narration belongs at the seam between scenes, so a run past this is the cut explaining rather
+// than showing. Deliberately well below the old 25s: consecutive preserved dialogue is the shape
+// this format wants, and a long narration stretch is what interrupts it.
+const MAX_NARRATION_RUN_SEC = 12;
 
 function interleaveDialogueIntoNarrationRuns(timeline, beats, transcript) {
   const beatMap = new Map((Array.isArray(beats) ? beats : []).map((beat) => [String(beat?.beat_id || '').trim(), beat]));
   const items = (Array.isArray(timeline) ? timeline : []).map((item) => ({ ...item }));
+  // Everything between a KEEP_DIALOGUE cold open and the first later dialogue slot is the gap the
+  // callback must survive; leave it alone.
+  const protectedCallbackGapIndexes = new Set();
+  if (items[0]?.role === 'cold_open' && items[0]?.decision === 'KEEP_DIALOGUE') {
+    for (let index = 1; index < items.length; index += 1) {
+      if (items[index]?.decision === 'KEEP_DIALOGUE') break;
+      if (items[index]?.decision !== 'DROP') protectedCallbackGapIndexes.add(index);
+    }
+  }
   let runSec = 0;
   for (let index = 0; index < items.length; index += 1) {
     const item = items[index];
@@ -2531,6 +2543,10 @@ function interleaveDialogueIntoNarrationRuns(timeline, beats, transcript) {
     if (runSec <= MAX_NARRATION_RUN_SEC) continue;
     // The opening hook stays whatever it was chosen to be.
     if (item.role === 'cold_open') continue;
+    // The stretch between a teaser and its callback is load-bearing: the callback has to land in
+    // its 20-35s window. Tightening narration runs to 12s started converting a slot inside that
+    // stretch, which both broke the pattern and stole the callback role at 5.9s.
+    if (protectedCallbackGapIndexes.has(index)) continue;
     const beat = beatMap.get(String(item.beat_id || '').trim());
     const focus = beat ? coldOpenDialogueFocusForBeat(beat, transcript) : null;
     if (!focus) continue;
@@ -3130,8 +3146,8 @@ function buildEditPlanPrompt(beats, heatmap, targetSec, metadata) {
     '- KEEP_DIALOGUE keeps only the identity dialogue of the beat, not the full beat transcript.',
     '- KEEP_DIALOGUE dialogue_focus must always include every anchor_dialogue line from that beat.',
     '- dialogue_focus_quotes for a KEEP_DIALOGUE slot should hold 1 or 2 lines — a line, or a line and the answer to it. Three or more turns crams a whole conversation into one block and flattens the rhythm; split them into separate slots instead, and never exceed 4.',
-    '- Spread the dialogue through the cut rather than stacking it. Two KEEP_DIALOGUE slots in a row are fine when they are a call and its answer, but a run of dialogue followed by a long stretch of pure narration is the shape to avoid. Aim for dialogue -> short recovery -> dialogue -> reaction -> short recovery -> dialogue -> payoff.',
-    '- Never let narration run for more than about 25 seconds without preserved dialogue between. If a stretch needs that much explaining, a line from the scene belongs in the middle of it.',
+    '- Run KEEP_DIALOGUE slots back to back wherever the scene allows it. Long chains of preserved dialogue are what this format is built on; the viewer reads the situation from the exchange itself. Break the chain only where the scene actually moves.',
+    '- Narration is for the SEAM between scenes, so keep NARRATE slots few and short. A narration stretch beyond about 12 seconds means the cut is explaining instead of showing — replace it with the lines from the scene.',
     '- Exclude environment description, transitions, cushion setup, joke detours, and side-branch lines even if they happen inside the same beat.',
     '- If there are more than 5 candidate lines, keep only the highest identity / hook / reveal lines.',
     '- NARRATE compresses via narration. DROP removes low-value side branches.',
@@ -3256,11 +3272,10 @@ function buildSlotFillsPrompt(beats, editPlan, movieTitle, recapContextMarkdown)
     'Narrative-glue rules: the whole video must read as ONE continuous story, not an intro plus disconnected quotes:',
     '- Start with the incident/hook before backstory. Do not open a narration slot by explaining who someone is if a more immediate event, reversal, threat, or question can lead the sentence first.',
     '- If the context implies 사건 훅 먼저, the first bridge/body narration after the cold open must begin with the kidnapping, standoff, chase, attack, trap, or another live event, not with a standalone character-introduction sentence like a nameplate.',
-    '- The NARRATE/bridge slot immediately BEFORE a KEEP_DIALOGUE slot must set up that dialogue: who is speaking, and why this line happens now (use the movie context above).',
-    '- The NARRATE slot immediately AFTER a KEEP_DIALOGUE slot should resolve or interpret what that dialogue meant or led to.',
-    '- Narration is the connective tissue between dialogue moments. A viewer must never reach a dialogue line without the surrounding narration having given its context.',
-    '- After EVERY KEEP_DIALOGUE block, the very next NARRATE must state the OUTCOME, what that dialogue led to, before moving on. Example: after a hostage-bargain dialogue, say how the exchange ended and how the victim came to die; after a "we were bait" line, explain WHY they were bait and what the trap actually was. Never jump to the next scene leaving the result untold.',
-    '- The cold_open question MUST be explicitly answered by narration in the body (at or right after body_peak). Do not leave the answer to the dialogue alone. The narration itself must resolve the hook in plain words.',
+    '- Narration belongs at the SEAM between scenes, not around every line. When one dialogue block flows into the next inside the same situation, let them run back to back with no narration in between. Consecutive preserved dialogue is the goal of this format, not a problem to smooth over.',
+    '- Write narration only when the scene has MOVED — a new place, a jump in time, or a new party entering — and the viewer would otherwise be lost. If the scene already shows it, say nothing.',
+    '- Do not explain what a line meant, name the emotion behind it, or state the outcome it led to. The viewer works that out from the scene; saying it out loud kills the moment. Trust the footage.',
+    '- The cold_open question is answered by what the scene later SHOWS, not by narration restating it. Only if the footage genuinely cannot carry the answer may one short narration line recover it.',
     '- When answering WHY they became bait, prefer grounded situational causes (for example: entering a Sioux war zone, exposing their trail, or being caught in an existing conflict). Do NOT invent mastermind intent such as saying someone deliberately orchestrated, staged, lured, or set up the Sioux attack unless the provided facts explicitly say so.',
     '- The slot with role "closing" is the ending: wrap the story in narration. State how it ends, resolve any remaining question from the cold_open, and give a clean sense of closure (optionally one lingering thought). The video must NEVER end on a bare dialogue quote.',
     '- The full arc must flow: cold_open hook -> setup -> each dialogue block (setup before + outcome after) -> the twist explicitly paid off -> closing narration.',
