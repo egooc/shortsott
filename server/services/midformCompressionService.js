@@ -3280,6 +3280,35 @@ function validateJapaneseSlotFills(slotFills, editPlan) {
   return slotFills;
 }
 
+// Caption timing is locked to the dialogue lines, so the two counts have to agree. The
+// model keeps coming back one caption short on long exchanges, and rejecting that only
+// burns retries. Preserve the lines that actually have a caption instead — dropping a line
+// is honest, inventing a caption for it would not be.
+function reconcileDialogueCaptionCounts(slotFills, editPlan) {
+  const fillsBySlot = new Map((Array.isArray(slotFills?.slot_fills) ? slotFills.slot_fills : [])
+    .map((fill) => [String(fill?.slot_id || '').trim(), fill]));
+  for (const item of Array.isArray(editPlan?.timeline) ? editPlan.timeline : []) {
+    if (item?.decision !== 'KEEP_DIALOGUE') continue;
+    const lines = Array.isArray(item.dialogue_focus_lines) ? item.dialogue_focus_lines : [];
+    if (!lines.length) continue;
+    const fill = fillsBySlot.get(String(item.slot_id || '').trim());
+    const captions = (Array.isArray(fill?.caption_kr_dialogue) ? fill.caption_kr_dialogue : [])
+      .filter((caption) => String(caption || '').trim());
+    if (!captions.length || captions.length >= lines.length) continue;
+    item.dialogue_focus_lines = lines.slice(0, captions.length);
+    if (Array.isArray(item.dialogue_focus_quotes)) {
+      item.dialogue_focus_quotes = item.dialogue_focus_quotes.slice(0, captions.length);
+    }
+    if (Array.isArray(item.dialogue_line_windows)) {
+      const matched = item.dialogue_line_windows.filter((win) => win && win.matched === true);
+      const keep = new Set(matched.slice(0, captions.length));
+      item.dialogue_line_windows = item.dialogue_line_windows.filter((win) => !win || win.matched !== true || keep.has(win));
+    }
+    if (fill) fill.caption_kr_dialogue = captions;
+  }
+  return slotFills;
+}
+
 function validateSlotFillsDialogueCaptions(slotFills, editPlan, locale = 'ko') {
   // Structural checks apply to every locale; the wording checks below are Korean-specific.
   const isKorean = String(locale || 'ko') === 'ko';
@@ -3699,7 +3728,10 @@ async function runCompressionApply(runIdOrPath, applyOptions = {}) {
     || (fs.existsSync(applyManifestPath) ? (readJson(applyManifestPath) || {}).title : '') || '';
   const recapContext = resolveRecapContext(runDir, applyOptions.contextFile);
   const slotFillsPrompt = buildSlotFillsPrompt(beatsObject.beats || [], finalizedEditPlan, movieTitle, recapContext.contextMarkdown);
-  const validateStructure = (parsed) => validateSlotFillsDialogueCaptions(normalizeSlotFillsForStyle(parsed, finalizedEditPlan), finalizedEditPlan);
+  const validateStructure = (parsed) => validateSlotFillsDialogueCaptions(
+    reconcileDialogueCaptionCounts(normalizeSlotFillsForStyle(parsed, finalizedEditPlan), finalizedEditPlan),
+    finalizedEditPlan
+  );
   let runtimeShortfall = '';
   let result;
   try {
