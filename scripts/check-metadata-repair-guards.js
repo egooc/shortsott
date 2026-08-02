@@ -769,6 +769,46 @@ function testReviewPassDoesNotRewriteUsableTitles() {
   );
 }
 
+function testFallbackTitleUsesTheLocaleSubject() {
+  const contaminated = (upload) => ({
+    short_description: 'x',
+    summary_caption: 'x',
+    caption_mode: 'long_bottom_explainer',
+    report_description: '## 1. 作業概要 x',
+    upload_title: upload,
+    recommended_titles: [{ category: 'hook', title: upload, hashtags: [] }]
+  });
+  const guide = (ja, ko) => normalizeGuide({
+    detected_subject: 'Air conditioner repair',
+    detected_subject_ja: ja,
+    detected_subject_ko: ko,
+    highlight_explainer_text: 'エアコンの冷媒漏れを水槽で特定し、銅管を切断して溶接する作業です。',
+    highlight_explainer_text_ko: '에어컨 냉매 누출을 수조로 확인하고 동관을 절단해 용접하는 작업입니다.',
+    highlight_metadata: contaminated('Air conditioner repair overview'),
+    highlight_metadata_ko: contaminated('Air conditioner repair overview')
+  });
+
+  // detected_subject_* is the noun phrase these seeds are trying to recover, so the
+  // fallback title must use it instead of clamping a full sentence to 切断工程 / 절단 공정.
+  const withSubject = enforcePublicMetadataLanguage(guide('エアコン修理', '에어컨 수리'));
+  const ja = withSubject.highlight_metadata.recommended_titles[0].title;
+  const ko = withSubject.highlight_metadata_ko.recommended_titles[0].title;
+  assert(ja.includes('エアコン修理'), `JA fallback must use detected_subject_ja, got: ${ja}`);
+  assert(ko.includes('에어컨 수리'), `KO fallback must use detected_subject_ko, got: ${ko}`);
+  assert(!ja.includes('切断工程') && !ko.includes('절단 공정'), 'the keyword map must not override a real subject');
+
+  // Korean subject particle follows the final consonant.
+  assert(!/에어컨 수리이/u.test(ko), `particle must agree with the subject, got: ${ko}`);
+
+  // A subject that is not a manufacturing process must not be framed as one.
+  const prank = enforcePublicMetadataLanguage(guide('配達員の意外な行動', '배달원의 의외의 행동'));
+  const prankKo = prank.highlight_metadata_ko.recommended_titles[0].title;
+  assert(
+    !/만들어지는 과정|제작 과정/u.test(prankKo),
+    `a non-process subject must not get process framing, got: ${prankKo}`
+  );
+}
+
 function main() {
   testFullKoRepairSurvivesNormalize();
   testRepairLossGuard();
@@ -789,6 +829,7 @@ function main() {
   testLatinLoanwordsAreNotTreatedAsEnglishContamination();
   testPreMetadataStagesDoNotPlantPlaceholderTitles();
   testReviewPassDoesNotRewriteUsableTitles();
+  testFallbackTitleUsesTheLocaleSubject();
   console.log('metadata repair guards ok');
 }
 

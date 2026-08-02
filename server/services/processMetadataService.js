@@ -501,6 +501,8 @@ const OTTOGI_METADATA_SCHEMA = {
     recommended_highlight_window: { type: 'object' },
     recommended_midform_window: { type: 'object' },
     detected_subject: { type: 'string' },
+    detected_subject_ja: { type: 'string' },
+    detected_subject_ko: { type: 'string' },
     safety_note: { type: 'string' },
     source_url: { type: 'string' },
     scene_transitions: {
@@ -588,6 +590,8 @@ const OTTOGI_SCENE_SCHEMA = {
   type: 'object',
   properties: {
     detected_subject: { type: 'string' },
+    detected_subject_ja: { type: 'string' },
+    detected_subject_ko: { type: 'string' },
     source_type: { type: 'string' },
     source_workflow_mode: { type: 'string' },
     shortform_candidate_windows: OTTOGI_METADATA_SCHEMA.properties.shortform_candidate_windows,
@@ -787,6 +791,8 @@ const OTTOGI_METADATA_ONLY_SCHEMA = {
     regional_editing_strategy: { type: 'object' },
     variant_strategy: { type: 'object' },
     detected_subject: { type: 'string' },
+    detected_subject_ja: { type: 'string' },
+    detected_subject_ko: { type: 'string' },
     safety_note: { type: 'string' },
     source_url: { type: 'string' }
   },
@@ -813,6 +819,8 @@ const OTTOGI_HIGHLIGHT_METADATA_ONLY_SCHEMA = {
     regional_editing_strategy: { type: 'object' },
     variant_strategy: { type: 'object' },
     detected_subject: { type: 'string' },
+    detected_subject_ja: { type: 'string' },
+    detected_subject_ko: { type: 'string' },
     safety_note: { type: 'string' },
     source_url: { type: 'string' }
   },
@@ -849,6 +857,8 @@ const OTTOGI_REVIEW_SCHEMA = {
     regional_editing_strategy: { type: 'object' },
     variant_strategy: { type: 'object' },
     detected_subject: { type: 'string' },
+    detected_subject_ja: { type: 'string' },
+    detected_subject_ko: { type: 'string' },
     safety_note: { type: 'string' },
     source_url: { type: 'string' },
     scene_transitions: {
@@ -882,6 +892,8 @@ const OTTOGI_HIGHLIGHT_ONLY_REVIEW_SCHEMA = {
     regional_editing_strategy: { type: 'object' },
     variant_strategy: { type: 'object' },
     detected_subject: { type: 'string' },
+    detected_subject_ja: { type: 'string' },
+    detected_subject_ko: { type: 'string' },
     safety_note: { type: 'string' },
     source_url: { type: 'string' },
     scene_transitions: {
@@ -1974,6 +1986,8 @@ function buildMetadataPrompt({ sourceUrl, filename, durationSec, sceneGuide, sou
       '',
       'Candidate windows (each may become its own highlight draft):',
       candidateWindowSummary || 'No candidate windows provided. Return highlight_candidate_titles as an empty array.',
+      '- Return detected_subject_ja and detected_subject_ko: the video subject as a SHORT noun phrase in that language, usable inside a title as-is (e.g. エアコン修理 / 에어컨 수리, 大型トラックのタイヤ交換 / 대형 트럭 타이어 교체).',
+      '- detected_subject_ja must be Japanese and detected_subject_ko must be Korean. Do not put English in either, and do not force a manufacturing framing onto a subject that is not one.',
       '- Korean metadata and caption fields must not contain Japanese Hiragana or Katakana.',
       '- Do not invent facts not visible in the video/scene analysis.',
       '',
@@ -4182,18 +4196,22 @@ function deterministicCaptionBlock(seed = '', korean = false) {
 
 function deterministicTitlePatterns(seed = '', korean = false) {
   const safeSeed = safeMetadataSeed([seed], korean);
+  // Only pattern[0] is ever uploaded (MAX_RECOMMENDED_TITLES), and the subject is not
+  // always a manufacturing process - this batch included a circus act, a delivery
+  // prank and a stray-dog clip. The lead pattern therefore stays subject-neutral;
+  // the process-framed ones remain behind it for genuinely process-like subjects.
   return korean
     ? [
-        `${safeSeed}이 만들어지는 과정`,
-        `${safeSeed}이 완성되는 순간`,
-        `${safeSeed} 공정의 핵심 장면`,
+        `${safeSeed}의 결정적 순간`,
+        `${safeSeed}${koreanSubjectParticle(safeSeed)} 만들어지는 과정`,
+        `${safeSeed}${koreanSubjectParticle(safeSeed)} 완성되는 순간`,
         `작업 흐름으로 보는 ${safeSeed}`,
         `${safeSeed} 제작 과정 관찰`
       ]
     : [
+        `${safeSeed}の決定的瞬間`,
         `${safeSeed}ができるまで`,
         `${safeSeed}が形になる瞬間`,
-        `${safeSeed}工程の見どころ`,
         `作業の流れで見る${safeSeed}`,
         `${safeSeed}づくりを観察`
       ];
@@ -4303,18 +4321,22 @@ function enforcePublicMetadataLanguage(guide = {}) {
     next.report_description_ko,
     ...(Array.isArray(next.full_caption_script_ko) ? next.full_caption_script_ko.map((item) => item?.text) : [])
   ];
+  // detected_subject_* is already the short noun phrase these seeds are trying to
+  // recover, so it goes first. Behind it sit full sentences, which compactMetadataTitleSeed
+  // can only clamp to a generic 製造工程 / 제조 공정 - that clamp is why an air-conditioner
+  // repair became 단조 공정 and a delivery prank became 제조 공정.
   const jaSeedCandidates = [
+    next.detected_subject_ja,
     next.highlight_explainer_text,
-    ...(Array.isArray(next.highlight_hook_captions_ja) ? next.highlight_hook_captions_ja : []),
-    next.detected_subject_ja
+    ...(Array.isArray(next.highlight_hook_captions_ja) ? next.highlight_hook_captions_ja : [])
   ];
   // Mirror of jaSeedCandidates. Without this the Korean highlight rebuilt its titles
   // from full-draft fields (short_description_ko etc.), which carry generic
   // process wording, while highlight_explainer_text_ko held the specific text.
   const koHighlightSeedCandidates = [
+    next.detected_subject_ko,
     next.highlight_explainer_text_ko,
     ...(Array.isArray(next.highlight_hook_captions_ko) ? next.highlight_hook_captions_ko : []),
-    next.detected_subject_ko,
     ...koSeedCandidates
   ];
   next.full_metadata_ko = enforceMetadataSectionLanguage(next.full_metadata_ko, koSeedCandidates, true);
