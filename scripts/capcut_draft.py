@@ -2728,6 +2728,21 @@ def apply_midform_portrait_crops_to_draft(draft_content_path, video_cut_placemen
     return summary
 
 
+CAPTION_TRACK_BASE_NAME = "subtitle"
+
+
+def caption_track_name(index):
+    """Overflow caption tracks, used when two captions genuinely share a moment."""
+    return CAPTION_TRACK_BASE_NAME if index == 0 else f"{CAPTION_TRACK_BASE_NAME}_{index + 1}"
+
+
+def is_caption_track(track):
+    if not isinstance(track, dict) or track.get("type") != "text":
+        return False
+    name = str(track.get("name") or "")
+    return name == CAPTION_TRACK_BASE_NAME or name.startswith(f"{CAPTION_TRACK_BASE_NAME}_")
+
+
 def normalize_midform_caption_text_track(draft_content_path, caption_y=MIDFORM_CAPTION_Y):
     summary = {"applied": False, "track_found": False, "segments": 0, "caption_y": caption_y}
     if not draft_content_path or not os.path.exists(draft_content_path):
@@ -2740,16 +2755,14 @@ def normalize_midform_caption_text_track(draft_content_path, caption_y=MIDFORM_C
         summary["reason"] = f"draft_content load failed: {error}"
         return summary
     tracks = draft_content.get("tracks") if isinstance(draft_content.get("tracks"), list) else []
-    subtitle_track = None
-    for track in tracks:
-        if isinstance(track, dict) and track.get("type") == "text" and track.get("name") == "subtitle":
-            subtitle_track = track
-            break
-    if subtitle_track is None:
+    subtitle_tracks = [track for track in tracks if is_caption_track(track)]
+    if not subtitle_tracks:
         summary["reason"] = "subtitle track not found"
         return summary
-    subtitle_track["visible"] = True
-    segments = [segment for segment in subtitle_track.get("segments") or [] if isinstance(segment, dict)]
+    segments = []
+    for subtitle_track in subtitle_tracks:
+        subtitle_track["visible"] = True
+        segments.extend(segment for segment in subtitle_track.get("segments") or [] if isinstance(segment, dict))
 
     def coerce_int(value, fallback=0):
         try:
@@ -2789,25 +2802,38 @@ def rebuild_midform_caption_track_from_template(draft_content_path, template_doc
         return summary
 
     tracks = draft_content.setdefault("tracks", [])
-    subtitle_track = None
-    for track in tracks:
-        if isinstance(track, dict) and track.get("type") == "text" and track.get("name") == "subtitle":
-            subtitle_track = track
-            break
-    if subtitle_track is None:
-        subtitle_track = {
-            "id": new_capcut_id(),
-            "type": "text",
-            "segments": [],
-            "flag": 1,
-            "attribute": 0,
-            "name": "subtitle",
-            "is_default_name": False,
-            "visible": True,
-        }
-        tracks.append(subtitle_track)
-    subtitle_track["visible"] = True
-    subtitle_track["segments"] = []
+    # Captions that genuinely share a moment go on their own track rather than being shifted
+    # off their line. Reuse any overflow tracks already present and clear them all.
+    caption_tracks = [track for track in tracks if is_caption_track(track)]
+    caption_tracks.sort(key=lambda track: str(track.get("name") or ""))
+    for track in caption_tracks:
+        track["visible"] = True
+        track["segments"] = []
+
+    def caption_track_for(start_us, track_ends):
+        for position, end_us in enumerate(track_ends):
+            if start_us >= end_us:
+                return position
+        return len(track_ends)
+
+    def ensure_caption_track(position):
+        while len(caption_tracks) <= position:
+            caption_tracks.append({
+                "id": new_capcut_id(),
+                "type": "text",
+                "segments": [],
+                "flag": 1,
+                "attribute": 0,
+                "name": caption_track_name(len(caption_tracks)),
+                "is_default_name": False,
+                "visible": True,
+            })
+            tracks.append(caption_tracks[-1])
+        return caption_tracks[position]
+
+    ensure_caption_track(0)
+    caption_track_ends = [0]
+    subtitle_track = caption_tracks[0]
 
     source_to_target_id_map = {}
     source_material = marker_entry.get("material")
@@ -2850,7 +2876,13 @@ def rebuild_midform_caption_track_from_template(draft_content_path, template_doc
         )
         if color_applied:
             summary["removed_effect_refs"] += preserve_glow_effect_layers_for_colored_caption(cloned_material, cloned_segment, draft_content)
-        subtitle_track["segments"].append(cloned_segment)
+        track_position = caption_track_for(start_us, caption_track_ends)
+        target_track = ensure_caption_track(track_position)
+        if track_position >= len(caption_track_ends):
+            caption_track_ends.append(0)
+        caption_track_ends[track_position] = start_us + duration_us
+        cloned_segment["track_render_index"] = track_position
+        target_track["segments"].append(cloned_segment)
 
     try:
         with open(draft_content_path, "w", encoding="utf-8") as file:
@@ -10986,25 +11018,22 @@ def create_draft(input_json_path):
         subtitle_border = subtitle_components["border"]
         subtitle_background = subtitle_components["background"]
         subtitle_effect_id = subtitle_components["effect_id"]
-        # A subtitle track holds one caption at a time. Locale drafts reorder the cuts and
-        # recompute caption timing from the new durations, which can leave two captions
-        # touching by a rounding step; CapCut then rejects the entire draft. Nudge the later
-        # caption behind the earlier one rather than losing the render.
-        previous_subtitle_end_us = 0
+        # One track holds one caption at a time, and CapCut rejects the whole draft if two
+        # overlap. Captions that share a moment go on their own track, which keeps every
+        # caption on the line it belongs to instead of shifting it off its speech.
+        caption_track_ends_us = [0]
         for entry in srt_entries:
             start_us = int(entry["start_sec"] * 1_000_000)
             duration_us = int((entry["end_sec"] - entry["start_sec"]) * 1_000_000)
-            if start_us < previous_subtitle_end_us:
-                overlap_us = previous_subtitle_end_us - start_us
-                warnings.append(
-                    f"subtitle overlap {overlap_us / 1_000_000:.3f}s shifted: {str(entry.get('text'))[:24]}"
-                )
-                start_us = previous_subtitle_end_us
-                duration_us -= overlap_us
             if duration_us <= 0:
-                warnings.append(f"subtitle dropped, no room after overlap: {str(entry.get('text'))[:24]}")
                 continue
-            previous_subtitle_end_us = start_us + duration_us
+            lane = next((index for index, end_us in enumerate(caption_track_ends_us) if start_us >= end_us), None)
+            if lane is None:
+                lane = len(caption_track_ends_us)
+                caption_track_ends_us.append(0)
+                script.add_track(cc.TrackType.text, caption_track_name(lane), relative_index=subtitle_track_relative_index + lane)
+                warnings.append(f"caption overlap: added track {caption_track_name(lane)}")
+            caption_track_ends_us[lane] = start_us + duration_us
             text_segment = cc.TextSegment(
                 text=entry["text"],
                 timerange=cc.Timerange(start=start_us, duration=duration_us),
@@ -11020,7 +11049,7 @@ def create_draft(input_json_path):
                 except Exception:
                     warnings.append(f"failed to apply template text effect id={subtitle_effect_id}")
                     fallback_template_style_used = True
-            script.add_segment(text_segment, track_name="subtitle")
+            script.add_segment(text_segment, track_name=caption_track_name(lane))
             subtitle_track_count += 1
     elif srt_file and os.path.exists(srt_file):
         copied_srt_path = os.path.abspath(os.path.join(subtitle_dir, "subtitles.srt"))
@@ -11032,25 +11061,22 @@ def create_draft(input_json_path):
         subtitle_border = subtitle_components["border"]
         subtitle_background = subtitle_components["background"]
         subtitle_effect_id = subtitle_components["effect_id"]
-        # A subtitle track holds one caption at a time. Locale drafts reorder the cuts and
-        # recompute caption timing from the new durations, which can leave two captions
-        # touching by a rounding step; CapCut then rejects the entire draft. Nudge the later
-        # caption behind the earlier one rather than losing the render.
-        previous_subtitle_end_us = 0
+        # One track holds one caption at a time, and CapCut rejects the whole draft if two
+        # overlap. Captions that share a moment go on their own track, which keeps every
+        # caption on the line it belongs to instead of shifting it off its speech.
+        caption_track_ends_us = [0]
         for entry in srt_entries:
             start_us = int(entry["start_sec"] * 1_000_000)
             duration_us = int((entry["end_sec"] - entry["start_sec"]) * 1_000_000)
-            if start_us < previous_subtitle_end_us:
-                overlap_us = previous_subtitle_end_us - start_us
-                warnings.append(
-                    f"subtitle overlap {overlap_us / 1_000_000:.3f}s shifted: {str(entry.get('text'))[:24]}"
-                )
-                start_us = previous_subtitle_end_us
-                duration_us -= overlap_us
             if duration_us <= 0:
-                warnings.append(f"subtitle dropped, no room after overlap: {str(entry.get('text'))[:24]}")
                 continue
-            previous_subtitle_end_us = start_us + duration_us
+            lane = next((index for index, end_us in enumerate(caption_track_ends_us) if start_us >= end_us), None)
+            if lane is None:
+                lane = len(caption_track_ends_us)
+                caption_track_ends_us.append(0)
+                script.add_track(cc.TrackType.text, caption_track_name(lane), relative_index=subtitle_track_relative_index + lane)
+                warnings.append(f"caption overlap: added track {caption_track_name(lane)}")
+            caption_track_ends_us[lane] = start_us + duration_us
             text_segment = cc.TextSegment(
                 text=entry["text"],
                 timerange=cc.Timerange(start=start_us, duration=duration_us),
@@ -11066,7 +11092,7 @@ def create_draft(input_json_path):
                 except Exception:
                     warnings.append(f"failed to apply template text effect id={subtitle_effect_id}")
                     fallback_template_style_used = True
-            script.add_segment(text_segment, track_name="subtitle")
+            script.add_segment(text_segment, track_name=caption_track_name(lane))
             subtitle_track_count += 1
     elif srt_file:
         warnings.append(f"srt file not found - {srt_file}")
