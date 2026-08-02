@@ -751,6 +751,29 @@ function testPublicHighlightDescriptionHasNoInternalNotes() {
   );
 }
 
+function testKoreanHighlightAlsoMatchesTitlesByWindow() {
+  const base = {
+    highlight_metadata: { recommended_titles: [{ category: 'hook', title: 'JA representative', hashtags: [] }], upload_title: 'JA representative', highlight_candidate_titles: [] },
+    highlight_metadata_ko: {
+      recommended_titles: [{ category: 'hook', title: '대표 KO 제목', hashtags: [] }],
+      upload_title: '대표 KO 제목',
+      highlight_candidate_titles: [
+        { start_sec: 7, end_sec: 14, title: '비상사태 발생! 의문의 기포', hashtags: ['#에어컨고장'] },
+        { start_sec: 36, end_sec: 40, title: '신의 손길! 불꽃 토치 용접', hashtags: ['#토치용접'] }
+      ]
+    },
+    video_metadata: { duration_sec: 47 }
+  };
+  const first = queueTest.buildHighlightCandidateGuide(base, { start_sec: 7, end_sec: 14 }, 1, 2, '');
+  const second = queueTest.buildHighlightCandidateGuide(base, { start_sec: 36, end_sec: 40 }, 2, 2, '');
+  assert(first.highlight_metadata_ko.upload_title.includes('기포'), 'KO highlight must take the title written for its own window: ' + first.highlight_metadata_ko.upload_title);
+  assert(second.highlight_metadata_ko.upload_title.includes('토치'), 'second KO window must take its own title: ' + second.highlight_metadata_ko.upload_title);
+  assert(first.highlight_metadata_ko.upload_title !== second.highlight_metadata_ko.upload_title, 'two KO highlights of one source must not share a title');
+  assert(first.highlight_metadata_ko.upload_title, 'upload_title must be populated so the draft folder does not fall back to the stale item title');
+  const unmatched = queueTest.buildHighlightCandidateGuide(base, { start_sec: 27, end_sec: 30 }, 1, 2, '');
+  assert(!unmatched.highlight_metadata_ko.upload_title.includes('기포') && !unmatched.highlight_metadata_ko.upload_title.includes('토치'), 'an unmatched KO window must not borrow another cut title');
+}
+
 function main() {
   const queueService = 'server/services/processQueueService.js';
   const metadataService = 'server/services/processMetadataService.js';
@@ -877,6 +900,7 @@ function main() {
   testDuplicateCandidateMetadataBlocksGeneration();
 
   testEachHighlightWindowGetsItsOwnTitle();
+  testKoreanHighlightAlsoMatchesTitlesByWindow();
   testPublicHighlightDescriptionHasNoInternalNotes();
   console.log('shortform highlight contract ok');
 }

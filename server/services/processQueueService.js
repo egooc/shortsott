@@ -5186,20 +5186,33 @@ function buildHighlightCandidateGuide(baseGuide = {}, window = {}, highlightOrdi
     highlight_candidate_index: highlightOrdinal,
     highlight_candidate_total: candidateCount
   };
+  // Same window matching the Japanese side uses. Without it the Korean highlight kept
+  // the source-wide representative title, so two cuts of one source shipped under
+  // identical titles - and upload_title stayed empty, which made the draft folder fall
+  // back to the stale item-level title.
+  const matchedKoTitle = candidateTitleForWindow(baseReview, window);
+  const koreanTitles = matchedKoTitle
+    ? [{
+        category: 'hook',
+        title: String(matchedKoTitle.title || '').replace(/\s+/g, ' ').trim(),
+        hashtags: Array.isArray(matchedKoTitle.hashtags) ? matchedKoTitle.hashtags : []
+      }]
+    : recommendedTitlesKo.map((item) => ({
+        ...item,
+        title: String(item.title || '').replace(/\s+/g, ' ').trim()
+      }));
+
   guide.highlight_metadata_ko = {
     ...baseReview,
     variant_type: 'highlight',
     caption_mode: 'long_bottom_explainer',
-    upload_title: '',
+    upload_title: stripHashtagsFromTitle(koreanTitles[0]?.title || baseReview.upload_title || '', ''),
     summary_caption: blockKo,
     short_description: blockKo,
     onscreen_caption_block: blockKo,
     onscreen_subtitles: [],
     report_description: buildCandidateReportDescription(blockKo, window, label, candidateCount, candidateCueTitle(cue, stage, true), true),
-    recommended_titles: recommendedTitlesKo.map((item) => ({
-      ...item,
-      title: String(item.title || '').replace(/\s+/g, ' ').trim()
-    })),
+    recommended_titles: koreanTitles,
     hashtags: []
   };
   guide.highlight_upload_title = title;
