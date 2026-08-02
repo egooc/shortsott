@@ -3,6 +3,7 @@ const {
     applyMetadataFieldRepair,
     buildFallbackReport,
     repairPublicTitles,
+    hasLongLatinWord,
     normalizeLocalizedHashtags,
     koreanSubjectParticle,
     deterministicDescription,
@@ -453,8 +454,10 @@ function testPublicMetadataLanguageEnforcementRebuildsContaminatedFields() {
     ...publicTextValues(enforced.full_metadata_ko),
     ...publicTextValues(enforced.highlight_metadata),
     ...publicTextValues(enforced.highlight_metadata_ko)
-  ].join('\n').replace(/[#＃][A-Za-z0-9_-]+/g, '');
-  assert(!/[A-Za-z]{2,}/u.test(values), `expected public metadata to be Latin-free, got: ${values}`);
+  ].join('\n').replace(/[#＃][\p{L}\p{N}_-]+/gu, '');
+  // Latin loanword abbreviations (DIY, AC, CNC ...) are legitimate inside JP/KR
+  // prose. What must not survive is English wording such as 'Wire brush making'.
+  assert(!hasLongLatinWord(values), `expected public metadata to carry no English prose, got: ${values}`);
   assert(enforced.highlight_metadata_ko.recommended_titles.length === 1, 'Korean highlight keeps exactly one upload title');
   assert(enforced.highlight_metadata.recommended_titles.length === 1, 'Japanese highlight keeps exactly one upload title');
 }
@@ -612,11 +615,44 @@ function testHashtagsStayInTheTitleLanguage() {
   assert(ko.includes('#에어컨수리'), 'Korean hashtags must survive');
   assert(!ko.includes('#worker'), 'generic English tags must not be force-injected');
 
+  // Hashtags must not bleed between the two channels.
+  const mixed = ['#製造工程', '#제조공정', '#DIY'];
+  const koFiltered = normalizeLocalizedHashtags(mixed, true);
+  const jaFiltered = normalizeLocalizedHashtags(mixed, false);
+  assert(!koFiltered.some((tag) => /[぀-ヿ一-鿿]/u.test(tag)), 'Korean hashtags must not inherit Japanese tags: ' + JSON.stringify(koFiltered));
+  assert(!jaFiltered.some((tag) => /[가-힣]/u.test(tag)), 'Japanese hashtags must not inherit Korean tags: ' + JSON.stringify(jaFiltered));
+  assert(koFiltered.includes('#DIY') && jaFiltered.includes('#DIY'), 'shared Latin tags stay in both locales');
+
   // Only an empty list falls back, and the fallback is in the target language.
   const emptyJa = normalizeLocalizedHashtags([], false);
   const emptyKo = normalizeLocalizedHashtags([], true);
   assert(emptyJa.length > 0 && !/[A-Za-z]/u.test(emptyJa.join('')), `JA fallback must be Japanese, got ${JSON.stringify(emptyJa)}`);
   assert(emptyKo.length > 0 && !/[A-Za-z]/u.test(emptyKo.join('')), `KO fallback must be Korean, got ${JSON.stringify(emptyKo)}`);
+}
+
+function testLatinLoanwordsAreNotTreatedAsEnglishContamination() {
+  // 2026-08-02 item_005 failed validation twice on this exact sentence: Gemini
+  // writes エアコン as ACコイル, which is how the word is actually written in
+  // Japanese, and the Latin guard rejected the whole metadata package.
+  const allowed = [
+    'ACコイルを水中に沈め、泡が示す場所から漏れを特定します。',
+    '에어컨 AC 코일을 물에 담가 누수를 확인합니다.',
+    'DIY修理のASMR動画です。',
+    'CNC旋盤とPVCパイプの加工工程。'
+  ];
+  allowed.forEach((text) => {
+    assert(!hasLongLatinWord(text), `loanword abbreviation must not count as English: ${text}`);
+  });
+
+  // The guard still has to catch real English leaking into JP/KR metadata.
+  const blocked = [
+    'Watch a skilled technician fix an AC leak.',
+    'Air conditioner repairの流れ',
+    'ACコイル repair工程'
+  ];
+  blocked.forEach((text) => {
+    assert(hasLongLatinWord(text), `English prose must still be rejected: ${text}`);
+  });
 }
 
 function main() {
@@ -636,6 +672,7 @@ function main() {
   testKoreanHighlightRebuildsFromHighlightSeedsNotFullDraftSeeds();
   testUploadTitleIsGeminisHookTitleNotATemplate();
   testHashtagsStayInTheTitleLanguage();
+  testLatinLoanwordsAreNotTreatedAsEnglishContamination();
   console.log('metadata repair guards ok');
 }
 

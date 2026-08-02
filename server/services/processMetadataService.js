@@ -2890,6 +2890,11 @@ function normalizeLocalizedHashtags(value = [], korean = false) {
       .replace(/^[#＃]/u, '')
       .replace(/[^\p{L}\p{N}_-]+/gu, '');
     if (!cleaned) return;
+    // ...but only this locale's script. A Korean title inheriting #製造工程, or a
+    // Japanese one inheriting #제조공정, is language bleed between the two channels.
+    // Pure Latin/digit tags (#DIY, #ASMR) are fine in both.
+    if (korean && /[぀-ヿ一-鿿]/u.test(cleaned)) return;
+    if (!korean && /[가-힣]/u.test(cleaned)) return;
     const valueWithHash = `#${cleaned}`;
     const key = valueWithHash.toLowerCase();
     if (seen.has(key)) return;
@@ -7244,10 +7249,27 @@ function isStiffKoreanScreenCaption(value = '') {
   return /(일련의|공정을 보여줍니다|과정을 보여줍니다|자동화된 공정|수행됩니다|고정되는 모습|제조되어|조립되는)/u.test(text);
 }
 
+// Latin abbreviations that are normal loanwords inside Japanese and Korean prose.
+// Gemini writes エアコン as ACコイル and 디아이와이 as DIY because that is how these
+// words are actually written; treating them as English contamination rejected
+// otherwise-correct metadata. Only fixed abbreviations belong here - anything that
+// could start an English sentence must keep tripping the guard.
+const LATIN_LOANWORD_ABBREVIATIONS = [
+  // media / format
+  '4K', '8K', 'HD', 'FHD', 'ASMR', 'POV', 'DIY', 'VLOG', '3D', '2D',
+  // appliances / electronics
+  'AC', 'DC', 'TV', 'PC', 'LED', 'LCD', 'OLED', 'USB', 'UV', 'IH', 'EV', 'AI', 'IoT',
+  // manufacturing / materials
+  'CNC', 'PVC', 'ABS', 'PET', 'PLA', 'TPU', 'MDF', 'FRP', 'SUS', 'LPG', 'LNG',
+  'RPM', 'MIG', 'TIG', 'CO2', 'PP', 'PE'
+];
+
+const LATIN_LOANWORD_PATTERN = new RegExp(`\\b(?:${LATIN_LOANWORD_ABBREVIATIONS.join('|')})\\b`, 'giu');
+
 function hasLongLatinWord(value = '') {
   const textWithoutHashtags = normalizeText(value || '')
     .replace(/#[A-Za-z0-9_]+/gu, '')
-    .replace(/\b(?:4K|3D)\b/giu, '');
+    .replace(LATIN_LOANWORD_PATTERN, '');
   return /[A-Za-z]{2,}/u.test(textWithoutHashtags);
 }
 
@@ -10660,6 +10682,7 @@ module.exports = {
     buildFallbackReport,
     repairPublicTitles,
     mergeReviewedGuide,
+    hasLongLatinWord,
     normalizeLocalizedHashtags,
     metadataSubjectPhrase,
     koreanSubjectParticle,
