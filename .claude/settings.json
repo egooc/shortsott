@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run test:unit)",
+      "Bash(npm run check:encoding)",
+      "Bash(npm run check:shortform-highlight)",
+      "Bash(npm run verify)",
+      "Bash(npm run typecheck)",
+      "Bash(npx tsc --noEmit)",
+      "Bash(node --check *)",
+      "Bash(git check-ignore *)"
+    ]
+  }
+}

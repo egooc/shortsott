@@ -2629,7 +2629,6 @@ def apply_midform_portrait_crops_to_draft(draft_content_path, video_cut_placemen
         # shot without breaking the geometry the frame bands depend on.
         base_scale = midform_scale_base(source_aspect)
         shot_multiplier = MIDFORM_SHOT_TYPE_SCALE_MULTIPLIERS["dialogue" if is_dialogue else "narration"]
-        dialogue_bonus_applied = False
         target_final_scale = base_scale * shot_multiplier
         scale_source = "source_aspect_ratio_base"
         uncapped_final_scale = target_final_scale
@@ -2706,10 +2705,9 @@ def apply_midform_portrait_crops_to_draft(draft_content_path, video_cut_placemen
             "portrait_fill_scale": round(portrait_fill_scale, 6),
             "requested_uncapped_final_scale": round(uncapped_final_scale, 6),
             "base_scale": round(base_scale, 6),
-            "dialogue_bonus_applied": dialogue_bonus_applied,
+            "shot_multiplier": shot_multiplier,
             "scale_source": scale_source,
             "target_final_scale": round(target_final_scale, 6),
-            "minimum_final_scale": round(minimum_final_scale, 6),
             "max_final_scale_cap": scale_cap,
             "final_effective_scale": applied_scale,
             "cap_applied": target_final_scale > scale_cap,
