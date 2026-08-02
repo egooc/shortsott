@@ -1800,29 +1800,31 @@ def upsert_timerange(segment_obj, start_us, duration_us):
 MIDFORM_FIXED_TITLE_Y = 0.7004421221864953
 MIDFORM_FIXED_SUBTITLE_Y = 0.5416639871382638
 MIDFORM_CAPTION_Y = -0.35
-MIDFORM_CROP_FINAL_SCALE_CAP = 2.0
-MIDFORM_MULTI_PERSON_FINAL_SCALE_TARGET = 1.8
-MIDFORM_SINGLE_PERSON_FINAL_SCALE_TARGET = 2.0
-MIDFORM_NARRATION_FINAL_SCALE_MIN = 1.8
-MIDFORM_NARRATION_FINAL_SCALE_TARGET = 1.8
-MIDFORM_DIALOGUE_FINAL_SCALE_MIN = 1.8
-MIDFORM_DIALOGUE_FINAL_SCALE_TARGET = 2.0
-MIDFORM_DIALOGUE_SHOT_SCALE_BONUS = 0.0
-MIDFORM_SHOT_TYPE_SCALE_TARGETS = {
-    "wide_shot": 1.8,
-    "action_shot": 1.8,
-    "montage": 1.8,
-    "medium_shot": 2.0,
-    "close_up": 2.0,
-    "text_overlay": 1.8,
-    "unknown": 1.8,
+MIDFORM_CROP_FINAL_SCALE_CAP = 2.4
+
+# Scale is derived from the source aspect ratio, never written as an absolute. At scale 1.0
+# a landscape source fits the portrait canvas by width, so its height is canvas_width /
+# source_ar; scaling by source_ar therefore makes the visible window exactly square. Shot
+# type then multiplies that base, which keeps its meaning if the source AR changes.
+MIDFORM_SQUARE_WINDOW_MULTIPLIER = 1.0
+MIDFORM_SHOT_TYPE_SCALE_MULTIPLIERS = {
+    "narration": 1.0,
+    "dialogue": 1.0,
 }
+
+
+def midform_scale_base(source_aspect):
+    """Scale that makes the visible video window square on a portrait canvas."""
+    ratio = safe_float(source_aspect, 0.0)
+    if ratio <= 0:
+        return 1.0
+    return max(1.0, ratio * MIDFORM_SQUARE_WINDOW_MULTIPLIER)
 
 
 def load_portrait_crop_config():
     defaults = {
-        "source_scale_multi": MIDFORM_MULTI_PERSON_FINAL_SCALE_TARGET,
-        "source_scale_single": MIDFORM_SINGLE_PERSON_FINAL_SCALE_TARGET,
+        "source_scale_multi": 0.0,
+        "source_scale_single": 0.0,
         "scale_cap": MIDFORM_CROP_FINAL_SCALE_CAP,
         "use_face_anchor": True,
     }
@@ -1839,8 +1841,10 @@ def load_portrait_crop_config():
     source_scale_single = safe_float(data.get("source_scale_single"), defaults["source_scale_single"])
     scale_cap = safe_float(data.get("scale_cap"), defaults["scale_cap"])
     return {
-        "source_scale_multi": max(1.0, source_scale_multi),
-        "source_scale_single": max(1.0, source_scale_single),
+        # 0 is the "no override" sentinel and must survive: clamping it to 1.0 would pin the
+        # video to fit-by-width instead of leaving the scale derived from the source AR.
+        "source_scale_multi": source_scale_multi if source_scale_multi <= 0 else max(1.0, source_scale_multi),
+        "source_scale_single": source_scale_single if source_scale_single <= 0 else max(1.0, source_scale_single),
         "scale_cap": max(1.0, scale_cap),
         "use_face_anchor": coerce_bool(data.get("use_face_anchor"), defaults["use_face_anchor"]),
     }
@@ -1907,7 +1911,6 @@ def build_midform_shot_scene_ranges(gemini_analysis):
                 "end_sec": float(end_sec),
                 "shot_type": raw_shot_type,
                 "normalized_shot_type": normalized_shot_type,
-                "scale_target": MIDFORM_SHOT_TYPE_SCALE_TARGETS.get(normalized_shot_type, MIDFORM_SHOT_TYPE_SCALE_TARGETS["unknown"]),
             }
         )
     return ranges
@@ -2345,6 +2348,59 @@ def sample_video_frame(video_path, time_sec):
             capture.release()
 
 
+MIDFORM_FACE_SAMPLE_POSITIONS = (0.2, 0.5, 0.8)
+# Cuts this close together in the source are almost always the same scene, so an undetected
+# cut can borrow the previous framing instead of snapping back to centre.
+MIDFORM_FACE_ANCHOR_INHERIT_GAP_SEC = 2.0
+
+
+def detect_face_anchor_for_cut(video_path, start_sec, end_sec, cascades):
+    """Anchor a cut on the median of three sampled frames.
+
+    A single mid-cut sample decides the framing for the whole shot, so one missed or
+    mistaken detection throws the entire cut off. Sampling at 20/50/80% survives a miss on
+    any one frame, and taking the median rather than the mean keeps a stray detection from
+    dragging the result. This is not tracking — the anchor is still fixed per cut.
+    """
+    span = max(0.0, safe_float(end_sec, 0.0) - safe_float(start_sec, 0.0))
+    if span <= 0:
+        return detect_primary_face_anchor(video_path, start_sec, cascades)
+
+    samples, attempts = [], []
+    for position in MIDFORM_FACE_SAMPLE_POSITIONS:
+        moment = safe_float(start_sec, 0.0) + span * position
+        probe = detect_primary_face_anchor(video_path, moment, cascades)
+        attempts.append({
+            "position": position,
+            "sample_time_sec": probe.get("sample_time_sec"),
+            "detected": bool(probe.get("detected")),
+            "anchor_x": probe.get("anchor_x"),
+        })
+        if probe.get("detected"):
+            samples.append((float(probe.get("anchor_x") or 0.5), probe))
+
+    if not samples:
+        return {
+            "detected": False,
+            "anchor_x": 0.5,
+            "anchor_y": 0.42,
+            "sample_time_sec": round(safe_float(start_sec, 0.0) + span * 0.5, 3),
+            "faces_count": 0,
+            "source": "opencv_haar_face_median",
+            "reason": "no face detected in any sampled frame",
+            "samples": attempts,
+        }
+
+    samples.sort(key=lambda item: item[0])
+    median_x, median_probe = samples[len(samples) // 2]
+    result = dict(median_probe)
+    result["anchor_x"] = median_x
+    result["source"] = "opencv_haar_face_median"
+    result["samples"] = attempts
+    result["detected_samples"] = len(samples)
+    return result
+
+
 def detect_primary_face_anchor(video_path, time_sec, cascades):
     result = {
         "detected": False,
@@ -2490,8 +2546,9 @@ def build_final_slot_tail_plan(slot_map_input, gemini_analysis, source_duration_
 
 def apply_midform_portrait_crops_to_draft(draft_content_path, video_cut_placements, segment_type_map, canvas_width, canvas_height, source_video_path="", gemini_analysis=None):
     crop_config = load_portrait_crop_config()
-    source_scale_multi = safe_float(crop_config.get("source_scale_multi"), MIDFORM_MULTI_PERSON_FINAL_SCALE_TARGET)
-    source_scale_single = safe_float(crop_config.get("source_scale_single"), MIDFORM_SINGLE_PERSON_FINAL_SCALE_TARGET)
+    # 0 means "no override": scale stays derived from the source AR.
+    source_scale_multi = safe_float(crop_config.get("source_scale_multi"), 0.0)
+    source_scale_single = safe_float(crop_config.get("source_scale_single"), 0.0)
     scale_cap = safe_float(crop_config.get("scale_cap"), MIDFORM_CROP_FINAL_SCALE_CAP)
     use_face_anchor = coerce_bool(crop_config.get("use_face_anchor"), True)
     scene_ranges = build_midform_shot_scene_ranges(gemini_analysis if isinstance(gemini_analysis, dict) else {})
@@ -2515,12 +2572,11 @@ def apply_midform_portrait_crops_to_draft(draft_content_path, video_cut_placemen
         "source_dimensions": {"width": 0, "height": 0},
         "canvas_dimensions": {"width": int(canvas_width or 0), "height": int(canvas_height or 0)},
         "shot_scene_count": len(scene_ranges),
-        "shot_type_scale_targets": MIDFORM_SHOT_TYPE_SCALE_TARGETS,
+        "shot_type_scale_multipliers": MIDFORM_SHOT_TYPE_SCALE_MULTIPLIERS,
         "person_scale_targets": {
             "multi_person": source_scale_multi,
             "single_person": source_scale_single,
         },
-        "dialogue_bonus": MIDFORM_DIALOGUE_SHOT_SCALE_BONUS,
         "records": [],
         "applied": False,
         "reason": "not applied",
@@ -2550,6 +2606,8 @@ def apply_midform_portrait_crops_to_draft(draft_content_path, video_cut_placemen
         return summary
     video_segments = [segment for segment in source_track.get("segments") or [] if isinstance(segment, dict)]
     placements = [placement for placement in video_cut_placements or [] if isinstance(placement, dict)]
+    previous_face_anchor_x = None
+    previous_face_source_end = None
     for index, segment in enumerate(video_segments):
         if index >= len(placements):
             break
@@ -2564,27 +2622,18 @@ def apply_midform_portrait_crops_to_draft(draft_content_path, video_cut_placemen
             source_match_start_for_duration = float(source_match_start)
             source_match_end = source_match_start_for_duration + placement_source_duration
         matched_scene = match_midform_shot_scene(scene_ranges, source_match_start, source_match_end)
-        if matched_scene:
-            raw_shot_type = matched_scene.get("shot_type") or "unknown"
-            normalized_shot_type = matched_scene.get("normalized_shot_type") or "unknown"
-            base_scale = float(matched_scene.get("scale_target") or MIDFORM_SHOT_TYPE_SCALE_TARGETS["unknown"])
-            dialogue_bonus_applied = bool(is_dialogue)
-            target_final_scale = base_scale + (MIDFORM_DIALOGUE_SHOT_SCALE_BONUS if dialogue_bonus_applied else 0.0)
-            scale_source = "gemini_scene_shot_type_overlap"
-        else:
-            raw_shot_type = ""
-            normalized_shot_type = ""
-            base_scale = MIDFORM_DIALOGUE_FINAL_SCALE_TARGET if is_dialogue else MIDFORM_NARRATION_FINAL_SCALE_TARGET
-            dialogue_bonus_applied = False
-            target_final_scale = base_scale
-            scale_source = "segment_type_fallback"
-        minimum_final_scale = MIDFORM_DIALOGUE_FINAL_SCALE_MIN if is_dialogue else MIDFORM_NARRATION_FINAL_SCALE_MIN
-        uncapped_final_scale = portrait_fill_scale * (1.35 if is_dialogue else 1.15)
-        if is_dialogue:
-            target_final_scale = max(target_final_scale, MIDFORM_DIALOGUE_FINAL_SCALE_TARGET)
-        else:
-            target_final_scale = max(target_final_scale, MIDFORM_NARRATION_FINAL_SCALE_TARGET)
-        capped_final_scale = min(scale_cap, max(minimum_final_scale, target_final_scale))
+        raw_shot_type = matched_scene.get("shot_type") or "unknown" if matched_scene else ""
+        normalized_shot_type = matched_scene.get("normalized_shot_type") or "unknown" if matched_scene else ""
+        # One base derived from the source AR, multiplied by shot type. The multipliers are
+        # 1.0 today, so every cut shares the square window; raising one later tightens that
+        # shot without breaking the geometry the frame bands depend on.
+        base_scale = midform_scale_base(source_aspect)
+        shot_multiplier = MIDFORM_SHOT_TYPE_SCALE_MULTIPLIERS["dialogue" if is_dialogue else "narration"]
+        dialogue_bonus_applied = False
+        target_final_scale = base_scale * shot_multiplier
+        scale_source = "source_aspect_ratio_base"
+        uncapped_final_scale = target_final_scale
+        capped_final_scale = min(scale_cap, target_final_scale)
         applied_scale = round(capped_final_scale, 6)
         anchor_x = 0.5
         face_anchor = {"detected": False, "reason": "not attempted"}
@@ -2599,14 +2648,38 @@ def apply_midform_portrait_crops_to_draft(draft_content_path, video_cut_placemen
             source_duration_us = safe_float(source_timerange.get("duration"), 0.0)
             source_mid_sec = (source_start_us + source_duration_us / 2.0) / 1_000_000
         if use_face_anchor and source_mid_sec is not None:
-            face_anchor = detect_primary_face_anchor(source_video_path, source_mid_sec, face_cascades)
+            cut_start = source_match_start if source_match_start is not None else source_mid_sec
+            cut_end = source_match_end if source_match_end is not None else source_mid_sec
+            face_anchor = detect_face_anchor_for_cut(source_video_path, cut_start, cut_end, face_cascades)
             if face_anchor.get("detected"):
                 anchor_x = float(face_anchor.get("anchor_x") or anchor_x)
                 faces_count = int(safe_float(face_anchor.get("faces_count"), 0.0) or 0)
-                capped_final_scale = min(scale_cap, source_scale_multi if faces_count > 1 else source_scale_single)
-                applied_scale = round(capped_final_scale, 6)
+                scale_override = source_scale_multi if faces_count > 1 else source_scale_single
+                if scale_override > 0:
+                    capped_final_scale = min(scale_cap, scale_override)
+                    applied_scale = round(capped_final_scale, 6)
                 anchor_source = "opencv_face_anchor"
                 summary["face_detection"]["detected_segments"] += 1
+                previous_face_anchor_x = anchor_x
+                previous_face_source_end = cut_end
+            else:
+                # A cut with no detection would snap to centre and visibly jump. Recaps
+                # usually take consecutive cuts from one scene, so inherit the last anchor
+                # while the footage stays contiguous, and only re-centre on a scene change.
+                contiguous = (
+                    previous_face_anchor_x is not None
+                    and previous_face_source_end is not None
+                    and abs(safe_float(cut_start, 0.0) - safe_float(previous_face_source_end, 0.0)) <= MIDFORM_FACE_ANCHOR_INHERIT_GAP_SEC
+                )
+                if contiguous:
+                    anchor_x = previous_face_anchor_x
+                    anchor_source = "inherited_face_anchor"
+                    summary["face_detection"]["inherited_segments"] = summary["face_detection"].get("inherited_segments", 0) + 1
+                else:
+                    anchor_source = "centre_fallback_scene_change"
+                    summary["face_detection"]["recentred_segments"] = summary["face_detection"].get("recentred_segments", 0) + 1
+                    previous_face_anchor_x = None
+                previous_face_source_end = cut_end
         logical_zoom = capped_final_scale / max(0.001, portrait_fill_scale)
         transform_x = round((0.5 - anchor_x) * 0.35, 6)
         transform_y = round((0.5 - anchor_y) * 0.35, 6)
@@ -2634,7 +2707,6 @@ def apply_midform_portrait_crops_to_draft(draft_content_path, video_cut_placemen
             "requested_uncapped_final_scale": round(uncapped_final_scale, 6),
             "base_scale": round(base_scale, 6),
             "dialogue_bonus_applied": dialogue_bonus_applied,
-            "dialogue_bonus": MIDFORM_DIALOGUE_SHOT_SCALE_BONUS if dialogue_bonus_applied else 0.0,
             "scale_source": scale_source,
             "target_final_scale": round(target_final_scale, 6),
             "minimum_final_scale": round(minimum_final_scale, 6),
