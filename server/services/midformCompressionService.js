@@ -2586,7 +2586,16 @@ function trimTimelineToTargetRuntime(timeline, targetSec) {
         || realisticSlotDurationSec(right.item) - realisticSlotDurationSec(left.item);
     });
 
-  let runtime = realisticTimelineRuntimeSec(items);
+  // Two runtime measures disagreed: this trim used the realistic one while duration_budget sums
+  // the raw estimates, so a plan the trim called finished still reported 194s against a 180s
+  // ceiling. Enforce the ceiling on whichever measure is larger.
+  const runtimeOf = (list) => Math.max(
+    realisticTimelineRuntimeSec(list),
+    list.filter((item) => item.decision !== 'DROP')
+      .reduce((sum, item) => sum + Number(item.estimated_duration_sec || 0), 0)
+  );
+
+  let runtime = runtimeOf(items);
   while (runtime > target) {
     const candidates = droppable();
     if (!candidates.length) break;
@@ -2598,7 +2607,39 @@ function trimTimelineToTargetRuntime(timeline, targetSec) {
       runtime_trimmed: true,
       reason: `${items[index].reason || ''} Dropped so the cut stays inside its ${Math.round(target)}s ceiling.`.trim()
     };
-    runtime = realisticTimelineRuntimeSec(items);
+    runtime = runtimeOf(items);
+  }
+
+  // Once only protected slots remain the loop above gives up, which is how a plan stayed over
+  // the ceiling. Shorten them instead: drop trailing dialogue lines, weakest slot first, always
+  // leaving each slot at least one line.
+  while (runtime > target) {
+    const shaveable = items
+      .map((item, index) => ({ item, index }))
+      .filter(({ item }) => item.decision === 'KEEP_DIALOGUE'
+        && (Array.isArray(item.dialogue_line_windows) ? item.dialogue_line_windows : []).filter((w) => w && w.matched === true).length > 1)
+      .sort((left, right) => (Number(left.item.hook_potential || 0) + Number(left.item.dramatic_weight || 0))
+        - (Number(right.item.hook_potential || 0) + Number(right.item.dramatic_weight || 0)));
+    if (!shaveable.length) break;
+    const { item, index } = shaveable[0];
+    const windows = item.dialogue_line_windows.slice();
+    let lastMatched = windows.length - 1;
+    while (lastMatched >= 0 && !(windows[lastMatched] && windows[lastMatched].matched === true)) lastMatched -= 1;
+    windows.splice(lastMatched, 1);
+    const kept = windows.filter((w) => w && w.matched === true);
+    const starts = kept.map((w) => Number(w.start_sec)).filter(Number.isFinite);
+    const ends = kept.map((w) => Number(w.end_sec)).filter(Number.isFinite);
+    const shaved = { ...item, dialogue_line_windows: windows, runtime_trimmed: true };
+    if (Array.isArray(item.dialogue_focus_lines)) shaved.dialogue_focus_lines = item.dialogue_focus_lines.filter((_, i) => i !== lastMatched);
+    if (Array.isArray(item.dialogue_focus_quotes)) shaved.dialogue_focus_quotes = item.dialogue_focus_quotes.filter((_, i) => i !== lastMatched);
+    if (starts.length && ends.length) {
+      shaved.start_sec = roundSec(Math.min(...starts));
+      shaved.end_sec = roundSec(Math.max(...ends));
+      shaved.estimated_duration_sec = roundSec(Math.max(...ends) - Math.min(...starts));
+    }
+    shaved.reason = `${item.reason || ''} Shortened so the cut stays inside its ${Math.round(target)}s ceiling.`.trim();
+    items[index] = shaved;
+    runtime = runtimeOf(items);
   }
   return items;
 }
@@ -3976,6 +4017,7 @@ module.exports = {
   extractHeatmap,
   _test: {
     clampColdOpenToTeaser,
+    trimTimelineToTargetRuntime,
     buildSlotQcReport,
     buildSlotFillEditorialGuide,
     finalizeEditPlan,
