@@ -9,7 +9,7 @@ function planWithWindow(start, end) {
       {
         slot_id: 'slot_3',
         decision: 'KEEP_DIALOGUE',
-        dialogue_line_windows: [{ matched: true, line: 'a spoken line', start_sec: start, end_sec: end }]
+        dialogue_line_windows: [{ matched: true, line: 'I brought you the evidence you asked for', start_sec: start, end_sec: end }]
       }
     ]
   };
@@ -30,6 +30,23 @@ test('a caption cue that lingers after the words stop is trimmed to the speech',
   const [start, end] = windowOf(plan);
   assert.ok(start >= 15.46 && start <= 15.6, `start ${start}`);
   assert.ok(end <= 17.7, `end should follow the speech, got ${end}`);
+});
+
+test('a window longer than the words could take is capped by word count', () => {
+  // Silence detection finds no pauses under a continuous score, so a five-word line can
+  // still come back as a nine-second window. The word count is independent of the audio.
+  const plan = {
+    timeline: [{
+      slot_id: 'slot_3',
+      decision: 'KEEP_DIALOGUE',
+      dialogue_line_windows: [{ matched: true, line: 'let me show you brother', start_sec: 17.2, end_sec: 26.6 }]
+    }]
+  };
+  trimDialogueWindowsToSpeech(plan, [[17.2, 26.6]]);
+  const win = plan.timeline[0].dialogue_line_windows[0];
+  const duration = win.end_sec - win.start_sec;
+  assert.ok(duration < 5, `five words cannot take ${duration}s`);
+  assert.ok(duration >= 0.8, 'but the line still needs to be readable');
 });
 
 test('a window that already matches its speech is left alone', () => {

@@ -344,6 +344,10 @@ function detectSpeechRanges(sourceVideoPath, cues) {
 
 const DIALOGUE_WINDOW_MIN_SEC = 0.8;
 const DIALOGUE_WINDOW_TRIM_MIN_GAIN_SEC = 0.4;
+// Unhurried conversational English, kept deliberately slow so the ceiling only catches
+// windows that are clearly impossible rather than trimming real delivery.
+const DIALOGUE_WORDS_PER_SEC = 2.2;
+const DIALOGUE_WORD_ESTIMATE_MARGIN_SEC = 1.2;
 
 function roundSec3(value) {
   return Number(Number(value).toFixed(3));
@@ -372,7 +376,15 @@ function trimDialogueWindowsToSpeech(editPlan, speechRanges) {
       const inside = ranges.filter(([rangeStart, rangeEnd]) => rangeEnd > start + 0.05 && rangeStart < end - 0.05);
       if (!inside.length) continue;
       const speechStart = Math.max(start, Math.min(...inside.map((range) => range[0])));
-      const speechEnd = Math.min(end, Math.max(...inside.map((range) => range[1])));
+      let speechEnd = Math.min(end, Math.max(...inside.map((range) => range[1])));
+      // Silence detection alone cannot find the pauses under a continuous score, so a line
+      // can still come back far longer than anyone could have spoken it. The word count is
+      // independent of both the audio and the cue timing, so use it as a ceiling.
+      const wordCount = String(win.line || '').trim().split(/\s+/).filter(Boolean).length;
+      if (wordCount > 0) {
+        const plausibleEnd = speechStart + (wordCount / DIALOGUE_WORDS_PER_SEC) + DIALOGUE_WORD_ESTIMATE_MARGIN_SEC;
+        if (plausibleEnd < speechEnd) speechEnd = Math.max(speechStart + DIALOGUE_WINDOW_MIN_SEC, plausibleEnd);
+      }
       if (!(speechEnd - speechStart >= DIALOGUE_WINDOW_MIN_SEC)) continue;
       if ((end - speechEnd) + (speechStart - start) < DIALOGUE_WINDOW_TRIM_MIN_GAIN_SEC) continue;
       details.push({
