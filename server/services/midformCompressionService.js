@@ -2462,6 +2462,48 @@ function topUpTimelineToTargetRuntime(timeline, beats, transcript, targetSec) {
     });
     runtime = roundSec(runtime + duration);
   }
+  // Every beat can already be in the plan and the cut still fall short — six beats here produced a
+  // 76s plan against a 180s target with nothing left to promote. A beat rendered as narration is
+  // still carrying unspoken dialogue, so play it: the cut lengthens with scene rather than
+  // explanation, which is the direction this format wants anyway.
+  if (runtime < floor) {
+    const beatById = new Map((Array.isArray(beats) ? beats : [])
+      .map((beat) => [String(beat?.beat_id || '').trim(), beat]));
+    const beatsAlreadySpoken = new Set(items
+      .filter((item) => item?.decision === 'KEEP_DIALOGUE')
+      .map((item) => String(item?.beat_id || '').trim()));
+    for (const item of items) {
+      if (runtime >= floor) break;
+      if (item?.decision !== 'NARRATE' || item.role === 'cold_open') continue;
+      const beatId = String(item?.beat_id || '').trim();
+      if (!beatId || beatsAlreadySpoken.has(beatId)) continue;
+      const beat = beatById.get(beatId);
+      if (!beat) continue;
+      const focus = coldOpenDialogueFocusForBeat(beat, transcript);
+      if (!focus) continue;
+      beatsAlreadySpoken.add(beatId);
+      const slotId = nextFreeSlotId(usedIds);
+      usedIds.add(slotId);
+      added.push({
+        slot_id: slotId,
+        beat_id: beatId,
+        role: 'body',
+        decision: 'KEEP_DIALOGUE',
+        start_sec: focus.start_sec,
+        end_sec: focus.end_sec,
+        estimated_duration_sec: focus.duration_sec,
+        dialogue_focus_source: 'runtime_topup_narrated_beat',
+        dialogue_focus_lines: focus.lines,
+        dialogue_focus_quotes: focus.quotes,
+        reason: 'Played the dialogue of a beat the plan only narrated, so the cut reaches its runtime with scene rather than explanation.',
+        spoiler_policy: 'Keep the mystery progression grounded in transcript evidence.',
+        repeat_policy: 'No repeat.',
+        runtime_topup: true
+      });
+      runtime = roundSec(runtime + focus.duration_sec);
+    }
+  }
+
   if (!added.length) return items;
 
   // Keep the opening where it is and re-thread everything else in story order.
@@ -3006,7 +3048,13 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec) {
   };
 }
 
-function buildBeatsPrompt(transcript, metadata) {
+function buildBeatsPrompt(transcript, metadata, targetSec) {
+  // Beats are the raw material every later stage draws from, so asking for a fixed 5-9 regardless
+  // of the requested runtime caps the cut. Six beats on this source yielded a 76s plan against a
+  // 180s target with nothing left for the top-up to promote. A slot carries roughly 14s, so ask
+  // for enough beats to build that many slots.
+  const target = Number(targetSec || 0);
+  const wantedBeats = target > 0 ? Math.max(6, Math.round(target / 14)) : 0;
   return [
     'You are segmenting a long movie clip transcript into narrative beats for a Korean midform compression workflow.',
     'Return JSON only matching the schema. Do not use markdown.',
@@ -3015,7 +3063,10 @@ function buildBeatsPrompt(transcript, metadata) {
     '- Use only the provided timed transcript. Do not invent events, motives, or dialogue.',
     '- Every beat start_sec/end_sec must stay inside the provided cue ranges.',
     '- Preserve source order.',
-    '- Make beats story-sized, not subtitle-sized. Prefer 5-9 beats for a 5-10 minute clip.',
+    ...(wantedBeats
+      ? [`- Return at least ${wantedBeats} beats. The finished cut is built one slot per beat and a slot carries roughly 14 seconds, so fewer beats than this cannot reach the requested ${target}s runtime no matter how they are edited.`]
+      : ['- Make beats story-sized, not subtitle-sized. Prefer 5-9 beats for a 5-10 minute clip.']),
+    '- Keep beats story-sized rather than subtitle-sized: each one is a turn in the scene, not a single line.',
     '- Put beat boundaries where the scene turns: a speaker switch, a reaction, a declaration or rebuttal, or the moment a relationship flips. Do not draw boundaries around background or setup explanation.',
     '- key_dialogue must quote exact source dialogue snippets from the transcript.',
     '- anchor_dialogue must contain 1 to 2 identity-defining lines chosen from key_dialogue. Payoff/reveal-heavy beats may carry up to 3 anchors if multiple facts are core to the reveal.',
@@ -3753,7 +3804,7 @@ async function runCompression(source, options = {}) {
   const { heatmap, heatmapPath } = extractHeatmap(metadata, runDir);
 
   const beatsResult = await runJsonGeneration(
-    buildBeatsPrompt(transcript, metadata),
+    buildBeatsPrompt(transcript, metadata, targetSec),
     MIDFORM_COMPRESSION_BEATS_SCHEMA_PATH,
     (parsed) => validateBeats(parsed, transcript)
   );
@@ -4030,6 +4081,7 @@ module.exports = {
   _test: {
     clampColdOpenToTeaser,
     trimTimelineToTargetRuntime,
+    topUpTimelineToTargetRuntime,
     buildSlotQcReport,
     buildSlotFillEditorialGuide,
     finalizeEditPlan,
