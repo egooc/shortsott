@@ -673,6 +673,13 @@ async function runMidformTemplateWorkflow(options = {}) {
       let bootstrapSourceRunDir = compressionRunDir;
       let preflight = await runBootstrapToPipeline(bootstrapSourceRunId, { preflightOnly: true, forceDownload: false });
       if (preflight.preflight?.ok !== true) {
+        // Falling back to an older compression run silently builds the video from a stale plan.
+        // It hid a whole session of work: three successive plans (76s, 83s, 169s) all shipped the
+        // same 53.5s cut from the previous night's run, and every summary still said "passed".
+        const rejected = {
+          run_id: bootstrapSourceRunId,
+          failed_checks: (preflight.preflight?.checks || []).filter((check) => !check.ok).map((check) => check.name)
+        };
         const fallback = await findBootstrapableCompressionFallback(normalizedRequest.source.url, compressionRunId);
         if (fallback) {
           bootstrapSourceRunId = fallback.runId;
@@ -680,6 +687,13 @@ async function runMidformTemplateWorkflow(options = {}) {
           preflight = await runBootstrapToPipeline(bootstrapSourceRunId, { preflightOnly: true, forceDownload: false });
           summary.internal.bootstrap_fallback_run_id = bootstrapSourceRunId;
           summary.internal.bootstrap_fallback_run_dir = bootstrapSourceRunDir;
+          summary.internal.bootstrap_fallback_rejected = rejected;
+          summary.warnings = [
+            ...(Array.isArray(summary.warnings) ? summary.warnings : []),
+            `bootstrap fell back to an OLDER compression run ${fallback.runId}: this run's own compression `
+            + `${rejected.run_id} failed preflight (${rejected.failed_checks.join(', ') || 'unknown'}). `
+            + 'The finished video is built from the older plan, not from this run.'
+          ];
         }
       }
       summary.internal.bootstrap_preflight = preflight;

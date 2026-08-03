@@ -90,14 +90,21 @@ test('bootstrap pads KEEP_DIALOGUE video while preserving speech-aligned caption
 
   assert.deepEqual(firstSegment.dialogue_speech_range_sec, [10, 11.5]);
   assert.deepEqual(firstSegment.source_scenes[0].start, '00:00:09.300');
-  assert.deepEqual(firstSegment.source_scenes[0].end, '00:00:11.650');
+  // 11.650 here used to be the expected value, but L02's clip opened at 11.520: both lines were
+  // clamped to the other's SPEECH and expanded into the same 0.2s gap. They now stop at the
+  // midpoint, so the pair no longer overlaps.
+  assert.deepEqual(firstSegment.source_scenes[0].end, '00:00:11.590');
+  assert.ok(
+    Number(secondSegment.dialogue_timing_adjustment.visual_range_sec[0]) >= 11.59,
+    'the next clip must not start inside the previous one'
+  );
   assert.equal(firstSegment.caption_timeline_offset_sec, 0.78);
   assert.equal(firstSegment.dialogue_timing_adjustment.caption_start_delay_sec, 0.08);
   assert.equal(firstSegment.duration_override_sec, 1.42);
-  assert.equal(firstSegment.dialogue_timing_adjustment.visual_duration_sec, 2.35);
-  assert.deepEqual(firstSlot.source_range, [9.3, 11.65]);
+  assert.equal(firstSegment.dialogue_timing_adjustment.visual_duration_sec, 2.29);
+  assert.deepEqual(firstSlot.source_range, [9.3, 11.59]);
   assert.ok(firstSegment.dialogue_timing_adjustment.applied_post_roll_sec <= 0.15);
-  assert.equal(secondSegment.source_scenes[0].start, '00:00:11.520');
+  assert.equal(secondSegment.source_scenes[0].start, '00:00:11.610');
   assert.ok(secondSegment.dialogue_timing_adjustment.applied_pre_roll_sec < 0.7);
 
   const captionData = buildCaptionUnits(script.segments);

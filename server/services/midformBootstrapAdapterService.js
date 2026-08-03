@@ -256,11 +256,17 @@ function buildDialogueTimingAdjustment(item, win, orderedWindows, orderedIndex, 
   const next = orderedWindows[orderedIndex + 1]?.win;
   let visualStart = Math.max(0, speechStart - rule.pre_roll_sec);
   let visualEnd = speechEnd + rule.post_roll_sec;
+  // Stop each line at the MIDPOINT of the gap to its neighbour, not at the neighbour's speech.
+  // Clamping to the neighbour's speech let both sides expand into the same gap and collide:
+  // slot_09_L03 ran to 244.85 while L04 opened at 244.72, tripping the cross-segment overlap
+  // gate. A shared boundary cannot be crossed from either side.
   if (prev && Number(prev.end_sec) <= speechStart) {
-    visualStart = Math.max(visualStart, Math.min(speechStart, Number(prev.end_sec) + minGapSec));
+    const boundary = (Number(prev.end_sec) + speechStart) / 2;
+    visualStart = Math.max(visualStart, Math.min(speechStart, boundary + minGapSec / 2));
   }
   if (next && Number(next.start_sec) >= speechEnd) {
-    visualEnd = Math.min(visualEnd, Math.max(speechEnd, Number(next.start_sec) - minGapSec));
+    const boundary = (speechEnd + Number(next.start_sec)) / 2;
+    visualEnd = Math.min(visualEnd, Math.max(speechEnd, boundary - minGapSec / 2));
   }
   // orderedWindows only holds the lines this slot preserved, so padding was free to reach back
   // into a neighbouring line we did not select — bleeding its audio into the clip, and tripping
