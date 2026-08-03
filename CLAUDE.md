@@ -43,10 +43,20 @@ This repo currently contains **two overlapping pipeline generations**. Know whic
 
 **Newer workflow (authoritative — see AGENTS.md in full for per-phase rules):**
 - Settings → **Phase 1 소재 발굴** (`OttogiSourceDiscovery.jsx`, YouTube search/filter) → URL basket → **Phase 2 배치 드래프트 생성** (`processQueue*`, `youtube*` routes/services: download, Gemini/Vertex analysis, CapCut draft folder generation, metadata TXT) → manual CapCut export → **Phase 3 YouTube 자동 업로드** (`OttogiUpload.jsx`, `youtubeUpload*`).
-- Core rule: **one source video must produce 4 channel variants**: `JP Full`, `JP Highlight`, `KR Full`, `KR Highlight` — each with its own script/subtitles/title/description/hashtags/BGM/logo, not copies with only language swapped.
+- Design intent is 4 channel variants per source (`JP Full`, `JP Highlight`, `KR Full`, `KR Highlight`), each with its own script/subtitles/title/description/hashtags/BGM/logo — never copies with only the language swapped.
   - Full: process-explanation video, one short caption per cut, subtitle timing matches cut timeline.
-  - Highlight: <10s strongest visual-hook moment, single ~200-char explainer block (not per-cut captions).
+  - Highlight: strongest visual-hook moment, single ~200-char explainer block (not per-cut captions).
+- **What actually generates today is Highlight only.** `generateQueue` hardcodes `const wantsFullDraft = false;` and `const wantsMidformDraft = false;` — both are asserted by `check:shortform-highlight`, so do not "fix" the 4-variant text above by re-enabling Full without asking. Each queue item produces highlights in its own `target_locale`, not both languages.
+- Highlight count per source (`highlightOutputCountForItem`): longform 5, shortform 2 when the source is 24s or longer, otherwise 1. Duration caps: shortform `SHORTFORM_HIGHLIGHT_MAX_DURATION_SEC` 10s, longform `LONGFORM_HIGHLIGHT_MAX_DURATION_SEC` 24s (default 16s).
+- Longform highlight rules (`pickHighlightWindows`):
+  - Ships **only Gemini/Vision-nominated windows** (`selection_strategy` starting `gemini_`). Scene-ranked windows carry no per-window hook evidence, so they can only be captioned by a generic template — they must never pad a longform set.
+  - Ships **3 or more** distinct real windows (`LONGFORM_HIGHLIGHT_MIN_OUTPUT_COUNT`), up to 5. Below 3 it returns nothing and the item is skipped; it is never topped up with fallback windows. `LONGFORM_MIN_PRODUCTION_HOOK_CANDIDATES` in `processMetadataService.js` must stay in sync or the analysis gate rejects sources before draft generation sees them.
+  - `highlight_total` reports the windows actually produced, not the count requested — folder ordinals and per-window metadata read it.
+- No usable candidates is a **skip, not a failure**: the item records `highlight_skip_reason` / `skipped_no_highlight_candidates`, the batch continues, and the job reports `completed_with_warnings`. Same for longform and shortform.
+- Per-cut titles and captions come from `highlight_metadata.highlight_candidate_titles` — one entry per candidate window carrying `title`, `hashtags`, `scene_specific_explanation_ja`, `scene_specific_explanation_ko`. Without them every cut of one source falls back to a shared title and a generic template caption. The longform prompt must enumerate the **unnarrowed** candidate list (`allCandidateGuide`), and its header must not tell the model to use one fixed window.
+- Template caption blocks (`buildSemanticHighlightBlock`, cue templates) are written without seeing the video and are chosen by keyword. They must never name a material, tool, or process — a bamboo-sawing source was once captioned with red-hot metal and sparks purely on a cue match.
 - Draft variant modes are `full` / `highlight` / `midform` (see `normalizeDraftVariantMode` in `processJobService.js`); `full_highlight_only` auto-promotes when `highlight_only` is requested on a **longform** source (`isLongformQueueItemConfig`) — shortform highlight must stay `highlight_only` (enforced by `check:shortform-highlight`).
+- Phase 1 → Phase 2 batch size and the JP/KO split are **free**. `validateLocale66Rows` only rejects an empty batch, a locale other than `ja-JP`/`ko-KR`, and the same YouTube source twice. The `locale_6_6` batch-mode string is a legacy wire value persisted in job rows — it no longer implies 12 items at 6/6. The only size bound left is `MAX_YOUTUBE_IMPORT_URLS` (100), matching the Phase 1 basket cap.
 - Draft folder naming: `YYYYMMDD-F_or_H_or_M-HHMMSS-title`, no hashtags, no batch item number. `upload_title` is metadata only, never a CapCut text overlay.
 - Do-not-reintroduce list (regressions fixed before): `TEMPLATE_PROCESS_TITLE` / `process_title` text track, upload-title-as-screen-text, English fallback captions for JP/KR, uploading Korean review-only text to YouTube descriptions, duplicate browser-side processing buttons when a server job already exists.
 
@@ -58,13 +68,15 @@ When adding UI, confirm which phase owns a feature and don't duplicate another p
 ## Production highlight path — do not modify without explicit approval
 
 `server/services/processQueueService.js`'s highlight window selection
-(`pickHighlightWindow`, `collectHighlightCandidateWindows`,
-`selectBestHighlightWindow`, `getDefaultLongformHighlightWindows`, and the
+(`pickHighlightWindow`, `pickHighlightWindows`, `collectHighlightCandidateWindows`,
+`selectBestHighlightWindow`, `getDefaultLongformHighlightWindows`, the
 `SHORTFORM_HIGHLIGHT_MAX_DURATION_SEC` / `LONGFORM_HIGHLIGHT_MAX_DURATION_SEC`
-constants) plus `scripts/capcut_draft.py`'s draft assembly are a verified,
-revenue-producing system. **Do not add new selection strategies, "improve"
-the scoring, or change these duration constants without the user's explicit
-sign-off in the conversation.** A prior session built new selectors
+duration constants, and the `LONGFORM_HIGHLIGHT_MIN_OUTPUT_COUNT` /
+`highlightOutputCountForItem` count policy) plus `scripts/capcut_draft.py`'s
+draft assembly are a verified, revenue-producing system. **Do not add new
+selection strategies, "improve" the scoring, or change these duration or count
+constants without the user's explicit sign-off in the conversation.** A prior
+session built new selectors
 (`pickProductionHighlightWindow`, loop-complete/result-reveal completion
 windows) directly on top of this path in an uncommitted working tree; it
 silently changed output behavior for weeks before anyone noticed, and had
