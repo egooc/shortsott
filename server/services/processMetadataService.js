@@ -4462,7 +4462,7 @@ function buildLongformVariantFinalPrompt({ variant, sourceUrl, filename, duratio
       ],
       rules: [
         '- Create only the JP Highlight visual-hook metadata.',
-        '- Highlight uses hook_clip_10s only.',
+        '- highlight_metadata\'s own caption block and upload_title describe hook_clip_10s, the first candidate window. Every other candidate window is described in its own highlight_candidate_titles entry.',
         '- The production workflow cuts one separate JP Highlight draft per candidate window listed below - up to five from a single long-form source. Every one of them is published on its own, so each needs its own title and its own caption. Do not merge candidates and do not describe the source as a whole.',
         '- highlight_metadata.highlight_candidate_titles is mandatory: return exactly one entry per candidate window listed below, copying that window\'s start_sec and end_sec unchanged.',
         '- Each entry\'s title must be a hook title for THAT window only, written from that window\'s own visual_hook. Two windows showing different actions must never receive interchangeable titles, and no two entries may share a title.',
@@ -4514,7 +4514,12 @@ function buildLongformVariantFinalPrompt({ variant, sourceUrl, filename, duratio
     'You are a Shorts video metadata and caption writer for the 3-minute Ottogi workflow.',
     'Return JSON only. Do not include Markdown.',
     `Focused output variant: ${variantConfig.phaseName}`,
-    `Use only this fixed window: ${variantConfig.windowName}. Do not choose new time windows.`,
+    // The highlight variant is cut once per candidate window, so a blanket "use only
+    // hook_clip_10s" made the model answer about that one window and return a single
+    // candidate-title entry no matter how many windows were listed.
+    variant === 'highlight'
+      ? 'Do not choose new time windows. Every window you write about must be one of the candidate windows listed below, with its timestamps copied exactly. hook_clip_10s is only the first of them.'
+      : `Use only this fixed window: ${variantConfig.windowName}. Do not choose new time windows.`,
     '',
     'Critical shared rules:',
     '- Japanese is the upload language.',
