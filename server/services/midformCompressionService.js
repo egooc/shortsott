@@ -3461,6 +3461,9 @@ function buildSlotFillsPrompt(beats, editPlan, movieTitle, recapContextMarkdown)
     '',
     'Narrative-glue rules: the whole video must read as ONE continuous story, not an intro plus disconnected quotes:',
     '- Start with the incident/hook before backstory. Do not open a narration slot by explaining who someone is if a more immediate event, reversal, threat, or question can lead the sentence first.',
+    '- Never introduce a character. No nameplates, no occupation, no backstory, no motive: not "가난한 대학생 대릴은 돈을 벌기 위해...", not "그의 여자친구", not "질투한 그는". Who these people are to each other is for the viewer to work out from how they speak to each other, and getting it slightly wrong is part of watching.',
+    '- Leave the interpretation open. Do not name the emotion, do not say what someone meant, do not settle who is in the right. Two viewers arguing in the comments about what just happened is the goal, not a failure to be prevented by one more explaining sentence.',
+    '- Narration says only what the eye cannot: a jump in time, a change of place, or an event that happened off screen. If the scene shows it or the dialogue says it, write nothing.',
     '- The first narration after the cold open is the one most likely to go wrong: it must NOT lay out the premise. Do not introduce the protagonist, explain what the experiment or the job is, or summarise how things got here. Name only what the next scene needs — where we are, or who just walked in — in one sentence, and let the dialogue carry the rest.',
     '- If the context implies 사건 훅 먼저, the first bridge/body narration after the cold open must begin with the kidnapping, standoff, chase, attack, trap, or another live event, not with a standalone character-introduction sentence like a nameplate.',
     '- Narration belongs at the SEAM between scenes, not around every line. When one dialogue block flows into the next inside the same situation, let them run back to back with no narration in between. Consecutive preserved dialogue is the goal of this format, not a problem to smooth over.',
@@ -3674,6 +3677,26 @@ function reconcileDialogueCaptionCounts(slotFills, editPlan) {
   return slotFills;
 }
 
+// The nameplate: a role noun pinned to a name, "가난한 대학생 대릴은", "그의 여자친구 제니스는".
+// It tells the viewer who someone is instead of letting them read it off the scene, and the
+// prompt rule against it held on one generation and not the next.
+const NARRATION_ROLE_NOUNS = '대학생|학생|남자|여자|친구|여자친구|남자친구|아버지|어머니|아빠|엄마|형사|의사|간호사|교수|사장|직원|점원|경찰|변호사|기자|주인공|청년|소년|소녀|아내|남편|동생|형|누나|오빠|언니';
+
+function findNarrationNameplate(narration, names) {
+  const text = String(narration || '');
+  if (!text.trim()) return '';
+  for (const rawName of Array.isArray(names) ? names : []) {
+    const name = String(rawName || '').trim();
+    if (name.length < 2) continue;
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    // role noun immediately before the name ("대학생 대릴"), or the name followed by 은/는 plus a
+    // role noun later in the same sentence ("대릴은 ... 대학생입니다").
+    if (new RegExp(`(?:${NARRATION_ROLE_NOUNS})\\s*${escaped}`).test(text)) return `${name} is introduced by role`;
+    if (new RegExp(`${escaped}\\s*(?:은|는)[^.!?]{0,40}(?:${NARRATION_ROLE_NOUNS})`).test(text)) return `${name} is introduced by role`;
+  }
+  return '';
+}
+
 function validateSlotFillsDialogueCaptions(slotFills, editPlan, locale = 'ko') {
   // Structural checks apply to every locale; the wording checks below are Korean-specific.
   const isKorean = String(locale || 'ko') === 'ko';
@@ -3683,6 +3706,22 @@ function validateSlotFillsDialogueCaptions(slotFills, editPlan, locale = 'ko') {
   }
   if (!uploadText.overlay_title.top || !uploadText.overlay_title.bottom) {
     throw new Error('upload_text.overlay_title.top and bottom are required');
+  }
+  if (isKorean) {
+    const speakerNames = [];
+    for (const fill of Array.isArray(slotFills?.slot_fills) ? slotFills.slot_fills : []) {
+      for (const name of Array.isArray(fill?.speakers) ? fill.speakers : []) speakerNames.push(name);
+      if (fill?.speaker) speakerNames.push(fill.speaker);
+    }
+    for (const fill of Array.isArray(slotFills?.slot_fills) ? slotFills.slot_fills : []) {
+      const nameplate = findNarrationNameplate(fill?.narration, [...new Set(speakerNames)]);
+      if (nameplate) {
+        throw new Error(
+          `${fill?.slot_id} narration introduces a character (${nameplate}). Who these people are is `
+          + 'for the viewer to read off the scene: cut the role noun and say only what the eye cannot.'
+        );
+      }
+    }
   }
   if (uploadText.overlay_title.top.length > 8 || uploadText.overlay_title.bottom.length > 8) {
     throw new Error(`upload_text.overlay_title top/bottom must be <= 8 chars, got: ${uploadText.overlay_title.top} / ${uploadText.overlay_title.bottom}`);
@@ -4302,6 +4341,7 @@ module.exports = {
     pickTeaserQuote,
     coldOpenDialogueFocusForBeat,
     leadColdOpenWithStrongestLine,
+    findNarrationNameplate,
     separateOverlappingDialogueWindows,
     topUpTimelineToTargetRuntime,
     buildSlotQcReport,
