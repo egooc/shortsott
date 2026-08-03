@@ -2581,6 +2581,57 @@ function interleaveDialogueIntoNarrationRuns(timeline, beats, transcript) {
 // Compare the per-line windows, which is what actually reaches the timeline.
 const DUPLICATE_DIALOGUE_OVERLAP_RATIO = 0.5;
 
+// Auto-caption cues overlap each other slightly, so two DIFFERENT lines can share a moment: the
+// teaser ran to 171.57 while the next line opened at 171.32. Dedupe rightly leaves them alone —
+// they are not duplicates — but the capcut gates reject any overlap at all. Split the contested
+// span down the middle, the same way clip padding already settles a shared gap.
+const DIALOGUE_WINDOW_MIN_KEEP_SEC = 0.4;
+
+function separateOverlappingDialogueWindows(timeline) {
+  const items = (Array.isArray(timeline) ? timeline : []).map((item) => {
+    if (item.decision !== 'KEEP_DIALOGUE' || !Array.isArray(item.dialogue_line_windows)) return item;
+    return { ...item, dialogue_line_windows: item.dialogue_line_windows.map((win) => ({ ...win })) };
+  });
+
+  const windows = [];
+  for (const item of items) {
+    if (item.decision !== 'KEEP_DIALOGUE') continue;
+    for (const win of Array.isArray(item.dialogue_line_windows) ? item.dialogue_line_windows : []) {
+      if (win && win.matched === true && Number(win.end_sec) > Number(win.start_sec)) windows.push(win);
+    }
+  }
+  windows.sort((left, right) => Number(left.start_sec) - Number(right.start_sec));
+
+  for (let index = 1; index < windows.length; index += 1) {
+    const prev = windows[index - 1];
+    const next = windows[index];
+    const prevEnd = Number(prev.end_sec);
+    const nextStart = Number(next.start_sec);
+    if (prevEnd <= nextStart) continue;
+    const boundary = roundSec((nextStart + prevEnd) / 2);
+    // Never shave a line below the point where it stops being readable; give up the span whole
+    // to whichever side can still afford it.
+    if (boundary - Number(prev.start_sec) >= DIALOGUE_WINDOW_MIN_KEEP_SEC
+      && Number(next.end_sec) - boundary >= DIALOGUE_WINDOW_MIN_KEEP_SEC) {
+      prev.end_sec = boundary;
+      next.start_sec = boundary;
+    } else if (Number(next.end_sec) - prevEnd >= DIALOGUE_WINDOW_MIN_KEEP_SEC) {
+      next.start_sec = roundSec(prevEnd);
+    } else if (nextStart - Number(prev.start_sec) >= DIALOGUE_WINDOW_MIN_KEEP_SEC) {
+      prev.end_sec = roundSec(nextStart);
+    }
+  }
+
+  for (const item of items) {
+    if (item.decision !== 'KEEP_DIALOGUE') continue;
+    const matched = (item.dialogue_line_windows || []).filter((win) => win && win.matched === true);
+    if (!matched.length) continue;
+    item.start_sec = roundSec(Math.min(...matched.map((win) => Number(win.start_sec))));
+    item.end_sec = roundSec(Math.max(...matched.map((win) => Number(win.end_sec))));
+  }
+  return items;
+}
+
 function dropDuplicateDialogueSlots(timeline) {
   const items = (Array.isArray(timeline) ? timeline : []).map((item) => ({ ...item }));
   const claimed = [];
@@ -3098,7 +3149,7 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec) {
 
   const toppedUpTimeline = topUpTimelineToTargetRuntime(timeline, beats, transcript, targetSec);
   const interleavedTimeline = interleaveDialogueIntoNarrationRuns(toppedUpTimeline, beats, transcript);
-  const dedupedTimeline = dropDuplicateDialogueSlots(interleavedTimeline);
+  const dedupedTimeline = separateOverlappingDialogueWindows(dropDuplicateDialogueSlots(interleavedTimeline));
   // Write the corrected measure back onto the slot. Fixing only realisticSlotDurationSec left
   // estimated_duration_sec holding the raw span - slot_02 still read 151.3s for four lines - so
   // every consumer that reads the field directly still saw the dead air between them.
@@ -4170,6 +4221,7 @@ module.exports = {
     clampColdOpenToTeaser,
     trimTimelineToTargetRuntime,
     dropDuplicateDialogueSlots,
+    separateOverlappingDialogueWindows,
     topUpTimelineToTargetRuntime,
     buildSlotQcReport,
     buildSlotFillEditorialGuide,

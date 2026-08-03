@@ -78,3 +78,51 @@ test('every clip still contains the speech it belongs to', () => {
     assert.ok(toSec(clip.end) >= speechEnd - 1e-6, `clip ends before the speech for ${segment.segment_id}`);
   }
 });
+
+const { _test } = require('../server/services/midformCompressionService');
+
+// Auto-caption cues overlap slightly, so two different lines shared a moment: the teaser ran to
+// 171.57 while the next line opened at 171.32. Not duplicates, but the capcut gates reject any
+// overlap at all.
+test('two different lines that share a moment are split down the middle', () => {
+  const timeline = [
+    {
+      slot_id: 'slot_001', role: 'cold_open', decision: 'KEEP_DIALOGUE',
+      dialogue_line_windows: [{ matched: true, line: 'hook', start_sec: 166.83, end_sec: 171.57 }]
+    },
+    {
+      slot_id: 'slot_006', role: 'body_peak', decision: 'KEEP_DIALOGUE',
+      dialogue_line_windows: [{ matched: true, line: 'accusation', start_sec: 171.32, end_sec: 174.28 }]
+    }
+  ];
+  const result = _test.separateOverlappingDialogueWindows(timeline);
+  const a = result[0].dialogue_line_windows[0];
+  const b = result[1].dialogue_line_windows[0];
+  assert.ok(a.end_sec <= b.start_sec + 1e-6, `${a.end_sec} still runs into ${b.start_sec}`);
+  assert.ok(a.end_sec > a.start_sec && b.end_sec > b.start_sec, 'neither line may invert');
+  assert.equal(a.end_sec, 171.445, 'the contested span is halved');
+});
+
+test('windows that already sit apart are untouched', () => {
+  const timeline = [{
+    slot_id: 's', role: 'body', decision: 'KEEP_DIALOGUE',
+    dialogue_line_windows: [
+      { matched: true, line: 'a', start_sec: 10, end_sec: 12 },
+      { matched: true, line: 'b', start_sec: 20, end_sec: 22 }
+    ]
+  }];
+  const result = _test.separateOverlappingDialogueWindows(timeline);
+  assert.deepEqual(result[0].dialogue_line_windows.map((w) => [w.start_sec, w.end_sec]), [[10, 12], [20, 22]]);
+});
+
+test('a short line is not shaved below readability', () => {
+  const timeline = [
+    { slot_id: 'a', role: 'body', decision: 'KEEP_DIALOGUE', dialogue_line_windows: [{ matched: true, line: 'long', start_sec: 100, end_sec: 106 }] },
+    { slot_id: 'b', role: 'body', decision: 'KEEP_DIALOGUE', dialogue_line_windows: [{ matched: true, line: 'tiny', start_sec: 105.8, end_sec: 106.1 }] }
+  ];
+  const result = _test.separateOverlappingDialogueWindows(timeline);
+  for (const item of result) {
+    const w = item.dialogue_line_windows[0];
+    assert.ok(w.end_sec > w.start_sec, `${item.slot_id} inverted`);
+  }
+});
