@@ -6919,7 +6919,7 @@ function validateLongformCandidateGuide(candidateGuide = {}, durationSec = 0, op
 
   const fallbacks = [];
   if (strictHighlightCandidates && validHooks.length < minHookCandidates) {
-    throw createHttpError(500, 'OTTOGI_LONGFORM_HIGHLIGHT_CANDIDATES_REQUIRED', 'longform highlight analysis requires at least five Vision-backed hook candidates', {
+    throw createHttpError(500, 'OTTOGI_LONGFORM_HIGHLIGHT_CANDIDATES_REQUIRED', `longform highlight analysis requires at least ${minHookCandidates} Vision-backed hook candidates, got ${validHooks.length}`, {
       reason: 'vision_backed_scene_specific_candidates_required',
       hook_candidates_count: hookCandidates.length,
       valid_hook_candidates_count: validHooks.length,
@@ -9567,7 +9567,11 @@ async function runLongformGeminiPipeline({ generateJson, sourceUrl, filename, du
         retryable_analysis_error: true
       });
       if (wantsHighlightFinal) {
-        throw createHttpError(500, error.code || 'OTTOGI_LONGFORM_HIGHLIGHT_CANDIDATES_REQUIRED', 'longform Vision-backed highlight candidate scan failed', {
+        throw createHttpError(500, error.code || 'OTTOGI_LONGFORM_HIGHLIGHT_CANDIDATES_REQUIRED', error.message || 'longform Vision-backed highlight candidate scan failed', {
+          // Spread the inner details first: valid_hook_candidates_count and
+          // min_hook_candidates are what tell the user how close this source came, and
+          // wrapping used to drop them so the skip card could only say "no candidates".
+          ...(error.details && typeof error.details === 'object' ? error.details : {}),
           phase: 'longform_candidates',
           failure_summary: failureSummary,
           original_code: error.code || error.name || '',

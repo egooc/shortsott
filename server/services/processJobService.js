@@ -647,10 +647,19 @@ function isWarningItem(item = {}) {
   );
 }
 
+function isSkippedNoCandidatesItem(item = {}) {
+  if (isDraftSuccess(item)) return false;
+  return item.metadata_status === METADATA_NO_CANDIDATES_STATUS
+    || item.analysis_status === METADATA_NO_CANDIDATES_STATUS
+    || item.draft_status === METADATA_NO_CANDIDATES_STATUS
+    || item.draft_status === 'skipped';
+}
+
 function summarizeJobOutcome(job = {}, totals = {}) {
   const itemStatuses = Object.values(job.item_statuses || {});
   const hardFailures = itemStatuses.filter(isHardFailureItem);
   const warningItems = itemStatuses.filter(isWarningItem);
+  const skippedItems = itemStatuses.filter(isSkippedNoCandidatesItem);
   const metadataFailures = itemStatuses.filter(isMetadataFailureItem);
   const draftSuccesses = itemStatuses.filter(isDraftSuccess);
   const anySuccess = draftSuccesses.length > 0
@@ -669,6 +678,10 @@ function summarizeJobOutcome(job = {}, totals = {}) {
         ? 'completed_with_warnings'
         : 'failed';
   } else if (warningItems.length > 0) {
+    status = 'completed_with_warnings';
+  } else if (skippedItems.length > 0) {
+    // A skip is not a failure, but a run that skipped a source must not report plain
+    // success - a job that produced nothing would otherwise show up green.
     status = 'completed_with_warnings';
   }
 
