@@ -154,3 +154,15 @@ test('clips from different slots do not overlap either', () => {
   const { script } = buildBootstrapSlotMapAndScript(editPlan, fills, { sourceDurationSec: 529.561 });
   assertNoOverlap(clipRanges(script));
 });
+
+// ">> [bell]" is a sound effect, not a line. The matcher can never find it in the transcript, so
+// the slot it lands in is permanently not-ok and preflight rejects the plan.
+test('sound-effect captions are not treated as dialogue', () => {
+  const { isNonSpeechCaption } = _test;
+  for (const effect of ['>> [bell]', '[bell]', '(applause)', '♪♪', '  >>  [ door creaks ] ', '']) {
+    assert.equal(isNonSpeechCaption(effect), true, `${effect} should not be dialogue`);
+  }
+  for (const line of ['You made me feel special.', 'I think I love you.', 'Oh.', '>> I am sorry.']) {
+    assert.equal(isNonSpeechCaption(line), false, `${line} is dialogue`);
+  }
+});

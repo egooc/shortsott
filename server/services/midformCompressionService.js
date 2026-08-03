@@ -1148,11 +1148,21 @@ function cuesForBeatRange(transcript, beat) {
   return transcript.filter((cue) => cue.start_sec >= Number(beat.start_sec) - 0.05 && cue.end_sec <= Number(beat.end_sec) + 0.05);
 }
 
+// Auto-captions carry sound effects as bracketed cues — ">> [bell]", "(applause)", "♪♪". They are
+// not spoken, so the matcher can never find them in the transcript and the slot they land in is
+// permanently not-ok. slot_013 failed dialogue_line_window_ok on exactly one of these.
+function isNonSpeechCaption(text) {
+  const stripped = String(text || '').replace(/^\s*>>\s*/, '').replace(/\s+/g, ' ').trim();
+  if (!stripped) return true;
+  if (/^[♪♫\s]+$/.test(stripped)) return true;
+  return /^[[(][^\])]*[\])]$/.test(stripped);
+}
+
 function dedupeFocusLines(lines) {
   const output = [];
   for (const value of lines) {
     const text = String(value || '').replace(/\s+/g, ' ').trim();
-    if (!text) continue;
+    if (!text || isNonSpeechCaption(text)) continue;
     const previous = output[output.length - 1] || '';
     if (previous && (previous === text || previous.includes(text) || text.includes(previous))) {
       if (text.length > previous.length) output[output.length - 1] = text;
@@ -4221,6 +4231,7 @@ module.exports = {
     clampColdOpenToTeaser,
     trimTimelineToTargetRuntime,
     dropDuplicateDialogueSlots,
+    isNonSpeechCaption,
     separateOverlappingDialogueWindows,
     topUpTimelineToTargetRuntime,
     buildSlotQcReport,
