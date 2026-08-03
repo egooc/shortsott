@@ -1858,18 +1858,35 @@ function resolveDialogueLineWindows(transcript, windowStartSec, windowEndSec, li
   return { windows, warnings, ok };
 }
 
+// A greeting is the worst possible hook and this used to pick one. The old score was a question
+// mark, a handful of Twilight-specific phrases, and raw length — on any other film only length
+// counted, so the longest rambling line won. "Hi, Janice. I'm glad to see you, baby." opened the
+// Senseless cut while "You cheated on me with that piece of trash?" sat in the middle.
+const TEASER_PLEASANTRY = /^(hi|hey|hello|yo|good (morning|evening|afternoon)|nice to (see|meet)|how are you|how'?s it going|what'?s up|thank you|thanks|excuse me|sorry to bother)\b/i;
+const TEASER_ATTITUDE = /\b(don'?t|didn'?t|doesn'?t|can'?t|won'?t|ain'?t|never|nothing|nobody|shut up|stop it|liar|lying|lied|cheat(ed|ing)?|steal|stole|kill(ed)?|hate|swear|get out|leave me|listen to me|i'?m not|you'?re not|are you kidding|no way)\b/i;
+const TEASER_POWER = /\b(you (tried|made|owe|lied|cheated|promised|did)|who (are|do) you|how dare|i told you|it'?s over|that'?s mine|you work for|i own|do you know who)\b/i;
+
+function teaserQuoteScore(value) {
+  const text = String(value || '').replace(/^\s*>>\s*/, '').trim();
+  if (!text) return -Infinity;
+  let score = 0;
+  if (/[?？]$/.test(text)) score += 10;
+  if (TEASER_ATTITUDE.test(text)) score += 8;
+  if (TEASER_POWER.test(text)) score += 6;
+  if (/[!！]/.test(text)) score += 3;
+  if (TEASER_PLEASANTRY.test(text)) score -= 14;
+  // A hook is a punch, not a paragraph: reward lines that read in one breath.
+  const length = text.length;
+  if (length < 12) score -= 3;
+  else if (length <= 55) score += 2;
+  else score -= Math.min(6, (length - 55) / 20);
+  return score;
+}
+
 function pickTeaserQuote(beat) {
   const quotes = Array.isArray(beat?.key_dialogue) ? beat.key_dialogue : [];
   if (!quotes.length) return '';
-  const ranked = [...quotes].sort((left, right) => {
-    const leftScore = (/[?？]$/.test(String(left).trim()) ? 10 : 0)
-      + (/bad guy|truth|stay away|what are they really|don'?t come here/i.test(String(left)) ? 8 : 0)
-      + String(left).length / 40;
-    const rightScore = (/[?？]$/.test(String(right).trim()) ? 10 : 0)
-      + (/bad guy|truth|stay away|what are they really|don'?t come here/i.test(String(right)) ? 8 : 0)
-      + String(right).length / 40;
-    return rightScore - leftScore;
-  });
+  const ranked = [...quotes].sort((left, right) => teaserQuoteScore(right) - teaserQuoteScore(left));
   return ranked[0];
 }
 
@@ -3397,6 +3414,7 @@ function buildSlotFillsPrompt(beats, editPlan, movieTitle, recapContextMarkdown)
     '',
     'Narrative-glue rules: the whole video must read as ONE continuous story, not an intro plus disconnected quotes:',
     '- Start with the incident/hook before backstory. Do not open a narration slot by explaining who someone is if a more immediate event, reversal, threat, or question can lead the sentence first.',
+    '- The first narration after the cold open is the one most likely to go wrong: it must NOT lay out the premise. Do not introduce the protagonist, explain what the experiment or the job is, or summarise how things got here. Name only what the next scene needs — where we are, or who just walked in — in one sentence, and let the dialogue carry the rest.',
     '- If the context implies 사건 훅 먼저, the first bridge/body narration after the cold open must begin with the kidnapping, standoff, chase, attack, trap, or another live event, not with a standalone character-introduction sentence like a nameplate.',
     '- Narration belongs at the SEAM between scenes, not around every line. When one dialogue block flows into the next inside the same situation, let them run back to back with no narration in between. Consecutive preserved dialogue is the goal of this format, not a problem to smooth over.',
     '- Write narration only when the scene has MOVED — a new place, a jump in time, or a new party entering — and the viewer would otherwise be lost. If the scene already shows it, say nothing.',
@@ -3418,7 +3436,9 @@ function buildSlotFillsPrompt(beats, editPlan, movieTitle, recapContextMarkdown)
     '- KEEP_DIALOGUE is faithful source dialogue translation, NOT copywriting. Preserve the original meaning first, preserve the speaker attitude (sarcasm, attack, defense, admission), avoid beautifying or inventing stronger Korean phrasing, and compress only when meaning is not distorted.',
     '- Any Korean sentence that reads like a quote must be grounded in an actual dialogue_focus_line. Do not turn narration-only interpretation into a quoted dialogue caption.',
     '- caption_kr_dialogue must have exactly the same number of items as dialogue_focus_lines for that slot. Never merge two dialogue lines into one caption, never split one into two. On-screen caption timing is locked to the original dialogue lines, so a count mismatch breaks sync.',
-    '- For KEEP_DIALOGUE slots you MUST fill speakers with exactly one name per caption_kr_dialogue line. Each speaker gets their own caption colour, so a missing name leaves that line uncoloured and the render is rejected. When the auto-captions do not name someone, use a short stable descriptor you reuse for that same person throughout (여자, 남자, 점원). Never leave an entry empty and never merge two speakers under one name.',
+    '- For KEEP_DIALOGUE slots you MUST fill speakers with exactly one name per caption_kr_dialogue line. Each speaker gets their own caption colour, so a missing name leaves that line uncoloured and the render is rejected. When the auto-captions do not name someone, use the SAME name the narration uses for that person; only if the narration never names them either, use a short stable descriptor you reuse throughout (여자, 남자, 점원). A caption reading "남자" while the narration calls him 대릴 leaves the viewer with a nameless stranger. Never leave an entry empty and never merge two speakers under one name.',
+    '- Read every caption back as a line a Korean actor would say. Three failures to avoid, all seen in real output: a term carried over that does not mean the same thing in Korean (an "intervention" is not 혜재); an ungrammatical form of address ("따님 아버님이라고요?"); and a line that only parses if you saw the screen. If a caption is confusing on its own, rewrite it so it lands.',
+    '- Fix the Korean, not the meaning: keep the attitude and force the speaker had, and never soften a hostile or crude line into something polite.',
     '- caption_kr_dialogue must read as natural spoken Korean, not a literal/translationese rendering. Example: "What are they really?" -> "걔넨 대체 뭐야?", not "그들은 정말로 무엇입니까?".',
     '- Keep dialogue captions short. A long caption pulls the eye off the performance and drains the moment; if a line will not fit, cut it down to the part that carries the force rather than wrapping it.',
     '- caption_kr_dialogue must match the narration\'s tone for that scene and reuse the exact character names/forms of address the narration uses. Do not introduce a different name or honorific than the narration already established.',
@@ -3430,7 +3450,7 @@ function buildSlotFillsPrompt(beats, editPlan, movieTitle, recapContextMarkdown)
     '- Do NOT interpret a character\'s emotions for the viewer. Naming feelings ("상실감과 죄책감 속에서 혼란에 빠집니다") kills the scene; describe the situation and let the performance carry the feeling ("사과하러 왔는데, 상대의 반응이 울음보다 낯설었다").',
     '- The payoff is not a conclusion the narrator states. It is the moment an EARLIER line turns out to be true. Write it so the hook line from the opening is what gets proven, and let the scene do the proving.',
     '- Keep the two voices distinct. Dialogue captions sound like a person actually speaking; narration is short and hard. If a narration line could be mistaken for a character speaking, or a dialogue caption reads like a narrator, rewrite it.',
-    '- Each slot rule carries narration_target_sec and narration_target_chars. Write that slot\'s narration to approximately that many Korean characters excluding spaces (within about 15%). These budgets are what makes the cut reach its requested runtime — a one-line summary where 120 characters were budgeted leaves the finished video roughly half its intended length. Use the extra room for beats and consequence, never for filler or repetition.',
+    '- Each slot rule carries narration_target_sec and narration_target_chars. Treat that number as a CEILING, not a quota: write the shortest narration that restores the situation and stop. The cut reaches its runtime on preserved dialogue, not on narration, so an unused budget is a good outcome and padding a slot to fill it is not.',
     '- Narration must read like a storyteller pulling the viewer forward, NOT like a plot synopsis. Reject the encyclopedic register: do not stack several facts into one "A 때문에 B가 C합니다" sentence, and do not open a slot by naming every faction and motive at once. One idea per sentence, short sentences, and each slot should end with tension or consequence that makes the next slot feel necessary.',
     '- Never resolve the curiosity the opening created before the payoff slot. If the cold open raised "why is this happening", the following slots may show WHAT is happening and raise the stakes, but must withhold the WHY until the payoff.',
     '- When the cold open is a wordless scene hook (visual_source_mode "source_audio_teaser"), the very next narration must NOT begin by explaining the whole premise. Enter mid-tension with the immediate situation, then let context arrive a piece at a time across the following slots.',
@@ -4232,6 +4252,7 @@ module.exports = {
     trimTimelineToTargetRuntime,
     dropDuplicateDialogueSlots,
     isNonSpeechCaption,
+    pickTeaserQuote,
     separateOverlappingDialogueWindows,
     topUpTimelineToTargetRuntime,
     buildSlotQcReport,
