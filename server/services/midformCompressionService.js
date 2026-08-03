@@ -2574,19 +2574,61 @@ function interleaveDialogueIntoNarrationRuns(timeline, beats, transcript) {
 // Two slots can end up pointing at exactly the same moment of source, which plays the line
 // twice and trips the cross-segment overlap gate. Only an essentially identical window
 // counts: a callback that re-enters the same exchange from a different point is deliberate.
+// Matching whole slot spans (within 0.15s) only caught exact repeats. Once the cut carried twelve
+// dialogue slots instead of nine, slots started claiming source that merely *contains* another's:
+// slot_001's teaser ran 166.83-171.57 while slot_006 preserved 167.03-169.728 inside it, so the
+// same footage was cut twice and the reserved-range and cross-segment gates both rejected it.
+// Compare the per-line windows, which is what actually reaches the timeline.
+const DUPLICATE_DIALOGUE_OVERLAP_RATIO = 0.5;
+
 function dropDuplicateDialogueSlots(timeline) {
   const items = (Array.isArray(timeline) ? timeline : []).map((item) => ({ ...item }));
   const claimed = [];
+  const overlapsClaimed = (start, end) => claimed.some(([claimedStart, claimedEnd]) => {
+    const overlap = Math.min(end, claimedEnd) - Math.max(start, claimedStart);
+    if (overlap <= 0) return false;
+    return overlap >= DUPLICATE_DIALOGUE_OVERLAP_RATIO * Math.min(end - start, claimedEnd - claimedStart);
+  });
+
   for (let index = 0; index < items.length; index += 1) {
     const item = items[index];
     if (item.decision !== 'KEEP_DIALOGUE') continue;
-    const start = Number(item.start_sec);
-    const end = Number(item.end_sec);
-    if (!(end > start)) continue;
-    const clash = claimed.find(([claimedStart, claimedEnd]) => (
-      Math.abs(start - claimedStart) <= 0.15 && Math.abs(end - claimedEnd) <= 0.15
-    ));
-    if (clash) {
+    // A callback is meant to replay its teaser; that repeat is the point, not a duplicate.
+    const isDeclaredReplay = Boolean(item.replay_of_slot_id) || Boolean(item.teaser_slot_id && item.callback_relation);
+
+    const windows = Array.isArray(item.dialogue_line_windows) ? item.dialogue_line_windows : [];
+    // Slots promoted by the top-up or the interleave carry focus lines but no windows yet; judge
+    // those on their span, as before. Requiring windows here dropped every one of them.
+    if (!windows.some((win) => win && win.matched === true)) {
+      const start = Number(item.start_sec);
+      const end = Number(item.end_sec);
+      if (!(end > start)) continue;
+      if (!isDeclaredReplay && overlapsClaimed(start, end)) {
+        items[index] = {
+          ...item,
+          decision: 'DROP',
+          estimated_duration_sec: 0,
+          duplicate_dialogue_dropped: true,
+          reason: `${item.reason || ''} Dropped: this source dialogue is already used by an earlier slot.`.trim()
+        };
+        continue;
+      }
+      claimed.push([start, end]);
+      continue;
+    }
+
+    const keptIndexes = [];
+    for (let line = 0; line < windows.length; line += 1) {
+      const win = windows[line];
+      const start = Number(win?.start_sec);
+      const end = Number(win?.end_sec);
+      if (!win || win.matched !== true || !(end > start)) continue;
+      if (!isDeclaredReplay && overlapsClaimed(start, end)) continue;
+      keptIndexes.push(line);
+      claimed.push([start, end]);
+    }
+
+    if (!keptIndexes.length) {
       items[index] = {
         ...item,
         decision: 'DROP',
@@ -2596,7 +2638,23 @@ function dropDuplicateDialogueSlots(timeline) {
       };
       continue;
     }
-    claimed.push([start, end]);
+    if (keptIndexes.length === windows.filter((w) => w && w.matched === true).length) continue;
+
+    const keep = new Set(keptIndexes);
+    const kept = windows.filter((win, line) => keep.has(line) || !(win && win.matched === true));
+    const spans = keptIndexes.map((line) => [Number(windows[line].start_sec), Number(windows[line].end_sec)]);
+    items[index] = {
+      ...item,
+      dialogue_line_windows: kept,
+      dialogue_focus_lines: Array.isArray(item.dialogue_focus_lines)
+        ? item.dialogue_focus_lines.filter((_, line) => keep.has(line)) : item.dialogue_focus_lines,
+      dialogue_focus_quotes: Array.isArray(item.dialogue_focus_quotes)
+        ? item.dialogue_focus_quotes.filter((_, line) => keep.has(line)) : item.dialogue_focus_quotes,
+      start_sec: roundSec(Math.min(...spans.map((s) => s[0]))),
+      end_sec: roundSec(Math.max(...spans.map((s) => s[1]))),
+      duplicate_dialogue_lines_dropped: true,
+      reason: `${item.reason || ''} Some lines dropped: already used by an earlier slot.`.trim()
+    };
   }
   return items;
 }
@@ -4104,6 +4162,7 @@ module.exports = {
   _test: {
     clampColdOpenToTeaser,
     trimTimelineToTargetRuntime,
+    dropDuplicateDialogueSlots,
     topUpTimelineToTargetRuntime,
     buildSlotQcReport,
     buildSlotFillEditorialGuide,

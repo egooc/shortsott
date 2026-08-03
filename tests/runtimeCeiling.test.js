@@ -84,3 +84,69 @@ test('droppable slots are still dropped before protected ones are shortened', ()
   assert.equal(trimmed.find((i) => i.slot_id === 'filler').decision, 'DROP');
   assert.ok(runtimeOf(trimmed) <= 60);
 });
+
+// Matching whole slot spans only caught exact repeats. With twelve dialogue slots instead of
+// nine, slot_001's teaser ran 166.83-171.57 while slot_006 preserved 167.03-169.728 inside it:
+// the same footage was cut twice and two capcut gates rejected the plan.
+test('a line contained inside an earlier slot\u0027s line is not cut twice', () => {
+  const { _test: t } = require('../server/services/midformCompressionService');
+  const timeline = [
+    {
+      slot_id: 'slot_001', role: 'cold_open', decision: 'KEEP_DIALOGUE', start_sec: 166.83, end_sec: 171.57,
+      dialogue_focus_lines: ['teaser line'], dialogue_focus_quotes: ['teaser line'],
+      dialogue_line_windows: [{ matched: true, line: 'teaser line', start_sec: 166.83, end_sec: 171.57 }]
+    },
+    {
+      slot_id: 'slot_006', role: 'body', decision: 'KEEP_DIALOGUE', start_sec: 167.03, end_sec: 169.728,
+      dialogue_focus_lines: ['inside it'], dialogue_focus_quotes: ['inside it'],
+      dialogue_line_windows: [{ matched: true, line: 'inside it', start_sec: 167.03, end_sec: 169.728 }]
+    }
+  ];
+  const result = t.dropDuplicateDialogueSlots(timeline);
+  assert.equal(result[0].decision, 'KEEP_DIALOGUE', 'the earlier slot keeps its footage');
+  assert.equal(result[1].decision, 'DROP', 'the contained one is dropped');
+});
+
+test('a slot keeps the lines that do not clash and drops only the ones that do', () => {
+  const { _test: t } = require('../server/services/midformCompressionService');
+  const timeline = [
+    {
+      slot_id: 'a', role: 'body', decision: 'KEEP_DIALOGUE', start_sec: 100, end_sec: 104,
+      dialogue_focus_lines: ['x'], dialogue_focus_quotes: ['x'],
+      dialogue_line_windows: [{ matched: true, line: 'x', start_sec: 100, end_sec: 104 }]
+    },
+    {
+      slot_id: 'b', role: 'body', decision: 'KEEP_DIALOGUE', start_sec: 101, end_sec: 130,
+      dialogue_focus_lines: ['clash', 'clean'], dialogue_focus_quotes: ['clash', 'clean'],
+      dialogue_line_windows: [
+        { matched: true, line: 'clash', start_sec: 101, end_sec: 103.5 },
+        { matched: true, line: 'clean', start_sec: 126, end_sec: 130 }
+      ]
+    }
+  ];
+  const result = t.dropDuplicateDialogueSlots(timeline);
+  assert.equal(result[1].decision, 'KEEP_DIALOGUE');
+  const kept = result[1].dialogue_line_windows.filter((w) => w.matched === true);
+  assert.equal(kept.length, 1);
+  assert.equal(kept[0].line, 'clean');
+  assert.deepEqual(result[1].dialogue_focus_lines, ['clean'], 'captions must follow the windows');
+});
+
+test('a declared callback may replay its teaser', () => {
+  const { _test: t } = require('../server/services/midformCompressionService');
+  const timeline = [
+    {
+      slot_id: 'teaser', role: 'cold_open', decision: 'KEEP_DIALOGUE', start_sec: 20, end_sec: 24,
+      dialogue_focus_lines: ['the line'], dialogue_focus_quotes: ['the line'],
+      dialogue_line_windows: [{ matched: true, line: 'the line', start_sec: 20, end_sec: 24 }]
+    },
+    {
+      slot_id: 'callback', role: 'payoff', decision: 'KEEP_DIALOGUE', start_sec: 20, end_sec: 24,
+      replay_of_slot_id: 'teaser',
+      dialogue_focus_lines: ['the line'], dialogue_focus_quotes: ['the line'],
+      dialogue_line_windows: [{ matched: true, line: 'the line', start_sec: 20, end_sec: 24 }]
+    }
+  ];
+  const result = t.dropDuplicateDialogueSlots(timeline);
+  assert.equal(result[1].decision, 'KEEP_DIALOGUE', 'the replay is the point of a callback');
+});
