@@ -2623,12 +2623,15 @@ function dropDuplicateDialogueSlots(timeline) {
       const start = Number(win?.start_sec);
       const end = Number(win?.end_sec);
       if (!win || win.matched !== true || !(end > start)) continue;
-      if (!isDeclaredReplay && overlapsClaimed(start, end)) continue;
+      if (overlapsClaimed(start, end)) continue;
       keptIndexes.push(line);
       claimed.push([start, end]);
     }
 
     if (!keptIndexes.length) {
+      // A callback whose every line was already shown is a pure replay of its teaser: that repeat
+      // is the point, so keep it. Anything else is just the same footage cut twice.
+      if (isDeclaredReplay) continue;
       items[index] = {
         ...item,
         decision: 'DROP',

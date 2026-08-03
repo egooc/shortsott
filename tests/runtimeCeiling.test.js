@@ -150,3 +150,33 @@ test('a declared callback may replay its teaser', () => {
   const result = t.dropDuplicateDialogueSlots(timeline);
   assert.equal(result[1].decision, 'KEEP_DIALOGUE', 'the replay is the point of a callback');
 });
+
+// The callback replayed the teaser's line and then carried on into the payoff. Re-cutting that
+// first line put slot_001 [166.83,171.82] and slot_006 [167.03,171.32] on the same footage and
+// the capcut gates rejected the plan. The callback keeps the lines the teaser did not show.
+test('a callback drops the line its teaser already showed but keeps the rest', () => {
+  const { _test: t } = require('../server/services/midformCompressionService');
+  const timeline = [
+    {
+      slot_id: 'slot_001', role: 'cold_open', decision: 'KEEP_DIALOGUE', start_sec: 166.83, end_sec: 171.82,
+      teaser_slot_id: 'slot_001',
+      dialogue_focus_lines: ['hook'], dialogue_focus_quotes: ['hook'],
+      dialogue_line_windows: [{ matched: true, line: 'hook', start_sec: 166.83, end_sec: 171.82 }]
+    },
+    {
+      slot_id: 'slot_006', role: 'body_peak', decision: 'KEEP_DIALOGUE', start_sec: 167.03, end_sec: 180.782,
+      replay_of_slot_id: 'slot_001', teaser_slot_id: 'slot_001', callback_relation: 'same_conflict_axis',
+      dialogue_focus_lines: ['hook', 'accusation', 'denial'],
+      dialogue_focus_quotes: ['hook', 'accusation', 'denial'],
+      dialogue_line_windows: [
+        { matched: true, line: 'hook', start_sec: 167.03, end_sec: 171.32 },
+        { matched: true, line: 'accusation', start_sec: 171.32, end_sec: 174.28 },
+        { matched: true, line: 'denial', start_sec: 174.28, end_sec: 177.56 }
+      ]
+    }
+  ];
+  const result = t.dropDuplicateDialogueSlots(timeline);
+  assert.equal(result[1].decision, 'KEEP_DIALOGUE');
+  const kept = result[1].dialogue_line_windows.filter((w) => w.matched === true).map((w) => w.line);
+  assert.deepEqual(kept, ['accusation', 'denial'], 'the already-shown line goes, the payoff stays');
+});
