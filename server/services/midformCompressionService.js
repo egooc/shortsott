@@ -856,7 +856,14 @@ function coldOpenDialogueFocusForBeat(beat, transcript) {
   if (quality !== 'high' || hook < 4) return null;
   const anchors = Array.isArray(beat?.anchor_dialogue) ? beat.anchor_dialogue.map((value) => String(value || '').trim()).filter(Boolean) : [];
   const teaserQuote = pickTeaserQuote(beat);
-  const quotes = anchors.length ? anchors : (teaserQuote ? [teaserQuote] : []);
+  // The anchors were taken in the order the beat listed them, so the opening line was whichever
+  // came first in the scene — a greeting, on this source, while the accusation sat behind it.
+  // pickTeaserQuote was never reached here. Lead with the strongest line and keep one more for
+  // the answer to it; a third only dilutes a teaser.
+  const ranked = (anchors.length ? anchors : (teaserQuote ? [teaserQuote] : []))
+    .map((quote, order) => ({ quote, order, score: teaserQuoteScore(quote) }))
+    .sort((left, right) => right.score - left.score || left.order - right.order);
+  const quotes = ranked.slice(0, 2).map((entry) => entry.quote);
   if (!quotes.length) return null;
   const focus = collectDialogueFocus(beat, transcript, { quotes });
   if (!focus) return null;
@@ -4253,6 +4260,7 @@ module.exports = {
     dropDuplicateDialogueSlots,
     isNonSpeechCaption,
     pickTeaserQuote,
+    coldOpenDialogueFocusForBeat,
     separateOverlappingDialogueWindows,
     topUpTimelineToTargetRuntime,
     buildSlotQcReport,

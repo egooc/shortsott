@@ -45,3 +45,38 @@ test('a beat with no dialogue yields nothing', () => {
 test('a single line is returned whatever it is', () => {
   assert.equal(pickTeaserQuote({ key_dialogue: ['Hello there.'] }), 'Hello there.');
 });
+
+// The cold open used anchor_dialogue in the order the beat listed it, so the opening line was
+// whichever came first in the scene — a greeting — and pickTeaserQuote was never reached.
+test('the cold open leads with the strongest anchor, not the earliest', () => {
+  const { coldOpenDialogueFocusForBeat } = _test;
+  const beat = {
+    beat_id: 'b1', start_sec: 160, end_sec: 200, hook_potential: 5, dialogue_quality: 'high',
+    key_dialogue: ["Hi, Janice. I'm glad to see you, baby.", 'You cheated on me with that piece of trash?'],
+    anchor_dialogue: ["Hi, Janice. I'm glad to see you, baby.", 'You cheated on me with that piece of trash?']
+  };
+  const transcript = [
+    { start_sec: 166.8, end_sec: 171.4, text: "Hi, Janice. I'm glad to see you, baby." },
+    { start_sec: 171.5, end_sec: 174.2, text: 'You cheated on me with that piece of trash?' }
+  ];
+  const focus = coldOpenDialogueFocusForBeat(beat, transcript);
+  assert.ok(focus, 'the beat should still yield a teaser');
+  assert.equal(focus.quotes[0], 'You cheated on me with that piece of trash?');
+});
+
+test('a teaser keeps at most two lines', () => {
+  const { coldOpenDialogueFocusForBeat } = _test;
+  const beat = {
+    beat_id: 'b2', start_sec: 10, end_sec: 40, hook_potential: 5, dialogue_quality: 'high',
+    anchor_dialogue: ['You lied to me!', "I didn't do anything.", 'Hey, good morning everyone.']
+  };
+  const transcript = [
+    { start_sec: 12, end_sec: 14, text: 'You lied to me!' },
+    { start_sec: 15, end_sec: 17, text: "I didn't do anything." },
+    { start_sec: 18, end_sec: 20, text: 'Hey, good morning everyone.' }
+  ];
+  const focus = coldOpenDialogueFocusForBeat(beat, transcript);
+  assert.ok(focus);
+  assert.equal(focus.quotes.length, 2);
+  assert.ok(!focus.quotes.includes('Hey, good morning everyone.'), 'the pleasantry is dropped');
+});
