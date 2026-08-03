@@ -16,12 +16,14 @@ test('two unknown speakers never share a fallback colour', () => {
   assert.notEqual(assignment.get('대릴'), assignment.get('여자'));
 });
 
-test('the palette is used in order and repeats only once exhausted', () => {
+test('the curated palette is used in order before anything is generated', () => {
   const aliases = Array.from({ length: paletteSize + 1 }, (_, i) => `unknown_${i}`);
   const assignment = assignFallbackSpeakerColorKeys(aliases);
   const keys = aliases.map((alias) => assignment.get(alias));
   assert.equal(new Set(keys.slice(0, paletteSize)).size, paletteSize, 'the whole palette should be used first');
-  assert.equal(keys[paletteSize], keys[0], 'only then does it wrap');
+  // It no longer wraps: the next character gets a generated colour rather than a repeat.
+  assert.notEqual(keys[paletteSize], keys[0]);
+  assert.match(keys[paletteSize], /^#[0-9A-F]{6}$/i);
 });
 
 test('a speaker the config names keeps its own colour', () => {
@@ -84,13 +86,24 @@ test('speakers who share a scene get different colours even when the palette wra
   }
 });
 
-test('a colour may still repeat between scenes that never meet', () => {
-  const groups = [['A', 'B'], ['C', 'D'], ['E', 'F']];
-  const assignment = assignFallbackSpeakerColorKeys(groups);
-  const used = new Set(['A', 'B', 'C', 'D', 'E', 'F'].map((a) => assignment.get(a)));
-  assert.ok(used.size <= paletteSize, 'reuse across scenes is fine');
-  for (const group of groups) {
-    assert.notEqual(assignment.get(group[0]), assignment.get(group[1]));
+// Superseded by the one-colour-per-character directive: colours are no longer reused between
+// scenes, they are generated once the curated palette runs out.
+test('every character gets a colour of their own, past the end of the palette', () => {
+  const aliases = Array.from({ length: paletteSize + 5 }, (_, i) => `speaker_${i}`);
+  const assignment = assignFallbackSpeakerColorKeys([aliases]);
+  const colors = aliases.map((alias) => resolveCaptionColor({ speakerAlias: alias, speakerColorKey: assignment.get(alias) }));
+  assert.equal(new Set(colors).size, aliases.length, `only ${new Set(colors).size} colours for ${aliases.length} characters`);
+  for (const color of colors) assert.match(color, /^#[0-9A-F]{6}$/i, `unreadable colour ${color}`);
+});
+
+test('generated colours stay clear of the named cast colours', () => {
+  const config = readCaptionColorConfig();
+  const reserved = new Set(Object.values(config.roles || {}).map((c) => c.toUpperCase()));
+  const aliases = Array.from({ length: paletteSize + 8 }, (_, i) => `s${i}`);
+  const assignment = assignFallbackSpeakerColorKeys([aliases]);
+  for (const alias of aliases) {
+    const color = resolveCaptionColor({ speakerAlias: alias, speakerColorKey: assignment.get(alias) }).toUpperCase();
+    assert.ok(!reserved.has(color), `${color} collides with a named role colour`);
   }
 });
 

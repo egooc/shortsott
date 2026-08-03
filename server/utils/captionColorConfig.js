@@ -17,6 +17,66 @@ function normalizeSpeakerId(value) {
   return normalized || '';
 }
 
+// Every character gets a colour of their own (user directive). The curated palette runs out at
+// four, so beyond it colours are generated rather than reused. Walking the hue circle by the
+// golden angle spreads them further apart than random picks would, and picking randomly is what
+// would eventually put two characters on near-identical colours — the thing the directive is
+// trying to avoid. Saturation and lightness are fixed at values that stay readable over video
+// with the black outline the captions already carry.
+const GENERATED_HUE_STEP_DEG = 137.508;
+const GENERATED_HUE_MIN_SEPARATION_DEG = 24;
+const GENERATED_SATURATION = 0.95;
+const GENERATED_LIGHTNESS = 0.66;
+
+function hslToHex(hueDeg, saturation, lightness) {
+  const hue = ((hueDeg % 360) + 360) % 360;
+  const chroma = (1 - Math.abs(2 * lightness - 1)) * saturation;
+  const secondary = chroma * (1 - Math.abs(((hue / 60) % 2) - 1));
+  const match = lightness - chroma / 2;
+  const [r, g, b] = hue < 60 ? [chroma, secondary, 0]
+    : hue < 120 ? [secondary, chroma, 0]
+      : hue < 180 ? [0, chroma, secondary]
+        : hue < 240 ? [0, secondary, chroma]
+          : hue < 300 ? [secondary, 0, chroma]
+            : [chroma, 0, secondary];
+  const channel = (value) => Math.round((value + match) * 255).toString(16).padStart(2, '0').toUpperCase();
+  return `#${channel(r)}${channel(g)}${channel(b)}`;
+}
+
+function hexToHueDeg(hex) {
+  const match = /^#?([0-9a-f]{6})$/i.exec(String(hex || '').trim());
+  if (!match) return null;
+  const int = parseInt(match[1], 16);
+  const r = ((int >> 16) & 255) / 255;
+  const g = ((int >> 8) & 255) / 255;
+  const b = (int & 255) / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  if (max === min) return null; // grey has no hue to collide with
+  const delta = max - min;
+  const hue = max === r ? 60 * (((g - b) / delta) % 6)
+    : max === g ? 60 * ((b - r) / delta + 2)
+      : 60 * ((r - g) / delta + 4);
+  return ((hue % 360) + 360) % 360;
+}
+
+function hueDistanceDeg(left, right) {
+  const diff = Math.abs(left - right) % 360;
+  return diff > 180 ? 360 - diff : diff;
+}
+
+// Returns a hex colour far enough from every hue already in play. resolveCaptionColor accepts a
+// hex as the colour key directly, so a generated colour needs no config entry.
+function generateDistinctCaptionColor(usedHues, sequence) {
+  let hue = (sequence * GENERATED_HUE_STEP_DEG) % 360;
+  for (let attempt = 0; attempt < 360; attempt += 1) {
+    if (usedHues.every((used) => hueDistanceDeg(hue, used) >= GENERATED_HUE_MIN_SEPARATION_DEG)) break;
+    hue = (hue + GENERATED_HUE_MIN_SEPARATION_DEG / 2) % 360;
+  }
+  usedHues.push(hue);
+  return hslToHex(hue, GENERATED_SATURATION, GENERATED_LIGHTNESS);
+}
+
 function readCaptionColorConfig() {
   if (!fs.existsSync(CAPTION_COLORS_CONFIG_PATH)) return { roles: {}, speakers: {} };
   try {
@@ -59,31 +119,21 @@ function assignFallbackSpeakerColorKeys(speakerAliases, config = readCaptionColo
     .map((alias) => normalizeText(alias))
     .filter((alias) => alias && !resolveSpeakerColorKeyFromConfig(alias, config)));
 
-  // Who shares a scene with whom. A colour may repeat across the cut, never inside one scene.
-  const coOccurring = new Map();
-  for (const group of normalizedGroups) {
-    const distinct = [...new Set(group)];
-    for (const alias of distinct) {
-      if (!coOccurring.has(alias)) coOccurring.set(alias, new Set());
-      for (const other of distinct) if (other !== alias) coOccurring.get(alias).add(other);
-    }
-  }
+  // Hues already spoken for: the named cast roles and the curated fallback palette. A generated
+  // colour has to stay clear of these as well as of the ones generated before it.
+  const usedHues = [
+    ...Object.values(config?.roles && typeof config.roles === 'object' ? config.roles : {}),
+    ...Object.values(config?.fallback_roles && typeof config.fallback_roles === 'object' ? config.fallback_roles : {})
+  ].map(hexToHueDeg).filter((hue) => hue !== null);
 
   let next = 0;
   for (const group of normalizedGroups) {
     for (const alias of group) {
       if (assignment.has(alias)) continue;
-      const taken = new Set([...(coOccurring.get(alias) || [])]
-        .map((other) => assignment.get(other))
-        .filter(Boolean));
-      let chosen = '';
-      for (let offset = 0; offset < fallbackRoles.length; offset += 1) {
-        const candidate = fallbackRoles[(next + offset) % fallbackRoles.length];
-        if (!taken.has(candidate)) { chosen = candidate; break; }
-      }
-      // More speakers in one scene than the palette can colour: take the next key rather than
-      // leaving the speaker with none, and let the caller's gate report the collapse.
-      assignment.set(alias, chosen || fallbackRoles[next % fallbackRoles.length]);
+      // Curated colours first, then generated ones — one per character, never reused.
+      assignment.set(alias, next < fallbackRoles.length
+        ? fallbackRoles[next]
+        : generateDistinctCaptionColor(usedHues, next - fallbackRoles.length + 1));
       next += 1;
     }
   }
