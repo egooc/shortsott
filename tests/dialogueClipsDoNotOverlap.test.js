@@ -126,3 +126,31 @@ test('a short line is not shaved below readability', () => {
     assert.ok(w.end_sec > w.start_sec, `${item.slot_id} inverted`);
   }
 });
+
+// Lines in DIFFERENT slots never saw each other: the per-slot ordering only holds prev/next
+// within one slot, so slot_001's post-roll ran to 171.72 while slot_006 opened at 171.34 even
+// though their speech had already been split apart at 171.445.
+test('clips from different slots do not overlap either', () => {
+  const editPlan = {
+    timeline: [
+      {
+        slot_id: 'slot_001', role: 'cold_open', decision: 'KEEP_DIALOGUE', estimated_duration_sec: 5,
+        dialogue_focus_lines: ['hook'], dialogue_focus_quotes: ['hook'],
+        dialogue_line_windows: [{ matched: true, line: 'hook', start_sec: 166.83, end_sec: 171.445 }]
+      },
+      {
+        slot_id: 'slot_006', role: 'body_peak', decision: 'KEEP_DIALOGUE', estimated_duration_sec: 3,
+        dialogue_focus_lines: ['accusation'], dialogue_focus_quotes: ['accusation'],
+        dialogue_line_windows: [{ matched: true, line: 'accusation', start_sec: 171.445, end_sec: 174.28 }]
+      }
+    ]
+  };
+  const fills = {
+    slot_fills: [
+      { slot_id: 'slot_001', caption_kr_dialogue: ['훅'] },
+      { slot_id: 'slot_006', caption_kr_dialogue: ['고발'] }
+    ]
+  };
+  const { script } = buildBootstrapSlotMapAndScript(editPlan, fills, { sourceDurationSec: 529.561 });
+  assertNoOverlap(clipRanges(script));
+});

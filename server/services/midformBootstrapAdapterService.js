@@ -448,7 +448,18 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
   // Dialogue padding must clear both the detected speech and the caption cues: the reserved-range
   // gate compares each clip against the cues we emit, so stopping at the speech edge alone still
   // leaves the clip overlapping a neighbouring cue.
+  // Every preserved line in the plan, not just this slot's. The per-slot ordering never sees a
+  // line in another slot, so slot_001's post-roll ran to 171.72 while slot_006 opened at 171.34
+  // even though their speech had already been split apart at 171.445.
+  const allDialogueWindows = [];
+  for (const item of timeline) {
+    if (item.decision !== 'KEEP_DIALOGUE') continue;
+    for (const win of Array.isArray(item.dialogue_line_windows) ? item.dialogue_line_windows : []) {
+      if (win && win.matched === true) allDialogueWindows.push([Number(win.start_sec), Number(win.end_sec)]);
+    }
+  }
   const paddingGuardRanges = [
+    ...allDialogueWindows,
     ...(Array.isArray(options.speechRanges) ? options.speechRanges : []),
     ...(Array.isArray(options.cueRanges) ? options.cueRanges : [])
   ].map((range) => [Number(range?.[0]), Number(range?.[1])])
