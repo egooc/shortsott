@@ -4369,12 +4369,15 @@ function enforcePublicMetadataLanguage(guide = {}) {
 // The draft builder cuts one highlight per nominated window, so the metadata writer has
 // to see the same list. Feeding it only hook_clip_10s is what made every cut of one
 // source ship under the same title with the same caption.
-function longformHighlightCandidateSummary(candidateGuide = {}, hookGuide = {}) {
+function longformHighlightCandidateSummary(candidateGuide = {}, hookGuide = {}, allCandidateGuide = null) {
+  const all = allCandidateGuide && typeof allCandidateGuide === 'object' ? allCandidateGuide : {};
   const seen = new Set();
   const windows = [
     hookGuide?.hook_clip_10s,
     candidateGuide?.hook_clip_10s,
     candidateGuide?.recommended_highlight_window,
+    ...(Array.isArray(all.hook_candidates) ? all.hook_candidates : []),
+    ...(Array.isArray(all.shortform_candidate_windows) ? all.shortform_candidate_windows : []),
     ...(Array.isArray(candidateGuide?.hook_candidates) ? candidateGuide.hook_candidates : []),
     ...(Array.isArray(candidateGuide?.shortform_candidate_windows) ? candidateGuide.shortform_candidate_windows : [])
   ].filter((window) => {
@@ -4393,7 +4396,7 @@ function longformHighlightCandidateSummary(candidateGuide = {}, hookGuide = {}) 
     .join('\n');
 }
 
-function buildLongformVariantFinalPrompt({ variant, sourceUrl, filename, durationSec, candidateGuide, hookGuide, storyGuide, midformGuide, assignedHookType = null, sourceContext = {} }) {
+function buildLongformVariantFinalPrompt({ variant, sourceUrl, filename, durationSec, candidateGuide, allCandidateGuide = null, hookGuide, storyGuide, midformGuide, assignedHookType = null, sourceContext = {} }) {
   const storyDurationSec = durationFromWindow(storyGuide?.story_clip_40s)
     || durationFromWindow(candidateGuide?.story_clip_40s)
     || durationFromWindow(candidateGuide?.recommended_full_window)
@@ -4528,7 +4531,7 @@ function buildLongformVariantFinalPrompt({ variant, sourceUrl, filename, duratio
     ...(variant === 'highlight'
       ? [
           'Candidate windows (each becomes its own JP Highlight draft - return one highlight_candidate_titles entry per line, with these exact timestamps):',
-          longformHighlightCandidateSummary(candidateGuide, hookGuide),
+          longformHighlightCandidateSummary(candidateGuide, hookGuide, allCandidateGuide),
           ''
         ]
       : []),
@@ -9633,7 +9636,11 @@ async function runLongformGeminiPipeline({ generateJson, sourceUrl, filename, du
       checkCancellation(throwIfCancelled);
       emitProgress(onProgress, 'Gemini Highlight 3/5: create JP Highlight caption and metadata', { phase: 'longform_final_highlight' });
       highlightGuideRaw = await generateJson(
-        buildLongformVariantFinalPrompt({ variant: 'highlight', sourceUrl, filename, durationSec, candidateGuide: selectedCandidateGuide(), hookGuide, storyGuide, midformGuide, sourceContext }),
+        // allCandidateGuide is the unnarrowed scan. selectedCandidateGuide() collapses
+        // hook_candidates down to the single chosen window, so on its own it would ask
+        // for one title and one explanation - and every cut of the source would then
+        // reuse that one block.
+        buildLongformVariantFinalPrompt({ variant: 'highlight', sourceUrl, filename, durationSec, candidateGuide: selectedCandidateGuide(), allCandidateGuide: candidateGuideRaw, hookGuide, storyGuide, midformGuide, sourceContext }),
         buildLongformVariantFinalSchema('highlight'),
         'longform_final_highlight',
         {
@@ -10806,6 +10813,8 @@ module.exports = {
     applyMetadataFieldRepair,
     applyLocalMetadataFallbacks,
     buildMetadataPrompt,
+    buildLongformVariantFinalPrompt,
+    longformHighlightCandidateSummary,
     buildStoryOutlinePrompt,
     buildInitialFullCaptionScriptSeedPrompt,
     validateFullStoryOutline,
