@@ -45,19 +45,47 @@ function fallbackSpeakerColorKey(speakerAlias, config) {
 // which is exactly what the collapse gate checks: "대릴" and "여자" both hashed to 기타1 and a
 // two-hander played out in one colour. Walk the aliases in order of appearance instead, so unknown
 // speakers take distinct fallback roles until the palette runs out.
+// Accepts a flat list of aliases in order of appearance, or a list of per-scene groups. Grouping
+// matters once there are more speakers than colours: six speakers against a four-colour palette
+// wrapped around and put Darryl and Mr. Tyson on 기타2, and they share two scenes.
 function assignFallbackSpeakerColorKeys(speakerAliases, config = readCaptionColorConfig()) {
   const assignment = new Map();
   const fallbackRoles = config?.fallback_roles && typeof config.fallback_roles === 'object' ? Object.keys(config.fallback_roles) : [];
   if (!fallbackRoles.length) return assignment;
+
+  const input = Array.isArray(speakerAliases) ? speakerAliases : [];
+  const groups = input.length && Array.isArray(input[0]) ? input : [input];
+  const normalizedGroups = groups.map((group) => (Array.isArray(group) ? group : [])
+    .map((alias) => normalizeText(alias))
+    .filter((alias) => alias && !resolveSpeakerColorKeyFromConfig(alias, config)));
+
+  // Who shares a scene with whom. A colour may repeat across the cut, never inside one scene.
+  const coOccurring = new Map();
+  for (const group of normalizedGroups) {
+    const distinct = [...new Set(group)];
+    for (const alias of distinct) {
+      if (!coOccurring.has(alias)) coOccurring.set(alias, new Set());
+      for (const other of distinct) if (other !== alias) coOccurring.get(alias).add(other);
+    }
+  }
+
   let next = 0;
-  for (const rawAlias of Array.isArray(speakerAliases) ? speakerAliases : []) {
-    const alias = normalizeText(rawAlias);
-    if (!alias || assignment.has(alias)) continue;
-    // Speakers the config names keep their own colour; only unknowns draw from the palette.
-    const known = resolveSpeakerColorKeyFromConfig(alias, config);
-    if (known) continue;
-    assignment.set(alias, fallbackRoles[next % fallbackRoles.length]);
-    next += 1;
+  for (const group of normalizedGroups) {
+    for (const alias of group) {
+      if (assignment.has(alias)) continue;
+      const taken = new Set([...(coOccurring.get(alias) || [])]
+        .map((other) => assignment.get(other))
+        .filter(Boolean));
+      let chosen = '';
+      for (let offset = 0; offset < fallbackRoles.length; offset += 1) {
+        const candidate = fallbackRoles[(next + offset) % fallbackRoles.length];
+        if (!taken.has(candidate)) { chosen = candidate; break; }
+      }
+      // More speakers in one scene than the palette can colour: take the next key rather than
+      // leaving the speaker with none, and let the caller's gate report the collapse.
+      assignment.set(alias, chosen || fallbackRoles[next % fallbackRoles.length]);
+      next += 1;
+    }
   }
   return assignment;
 }

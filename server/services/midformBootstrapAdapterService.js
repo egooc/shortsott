@@ -456,18 +456,21 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
 
   // Assign fallback caption colours across the whole timeline before building any segment, so two
   // unknown speakers in one exchange never land on the same colour.
-  const dialogueSpeakerAliases = [];
+  // Grouped per slot: two speakers may share a colour across the cut but never inside one scene.
+  const dialogueSpeakerAliasGroups = [];
   for (const item of timeline) {
     if (item.decision !== 'KEEP_DIALOGUE') continue;
     const fill = fillsBySlot.get(String(item.slot_id || '').trim()) || {};
     const speakerList = Array.isArray(fill.speakers) ? fill.speakers : [];
     const windows = Array.isArray(item.dialogue_line_windows) ? item.dialogue_line_windows : [];
+    const group = [];
     for (let index = 0; index < windows.length; index += 1) {
       const alias = normalizeText(speakerList[index] || fill.speaker || '');
-      if (alias) dialogueSpeakerAliases.push(alias);
+      if (alias) group.push(alias);
     }
+    if (group.length) dialogueSpeakerAliasGroups.push(group);
   }
-  const fallbackColorKeyByAlias = assignFallbackSpeakerColorKeys(dialogueSpeakerAliases);
+  const fallbackColorKeyByAlias = assignFallbackSpeakerColorKeys(dialogueSpeakerAliasGroups);
 
   // Adapter-side b-roll. All narration segments get a degenerate story_anchor hint so capcut's
   // b-roll auto-picker DECLINES; that leaves story_sync_segment_reports empty, so the story-sync

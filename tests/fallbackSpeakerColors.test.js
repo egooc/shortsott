@@ -67,3 +67,34 @@ test('a resolved fallback key maps to a real colour', () => {
   const color = resolveCaptionColor({ speakerAlias: '모르는사람', speakerColorKey: assignment.get('모르는사람') });
   assert.ok(color.startsWith('#'), `expected a hex colour, got ${color}`);
 });
+
+// Six speakers against a four-colour palette wrapped around: Darryl and Mr. Tyson both took 기타2
+// and they share two scenes, so the exchange played out in one colour again.
+test('speakers who share a scene get different colours even when the palette wraps', () => {
+  const groups = [
+    ['Lorraine', 'Darryl'],
+    ['Janice', 'Friend'],
+    ["Janice's Mother", 'Darryl', 'Mr. Tyson'],
+    ['Mr. Tyson', 'Janice', 'Darryl']
+  ];
+  const assignment = assignFallbackSpeakerColorKeys(groups);
+  for (const group of groups) {
+    const keys = [...new Set(group)].map((alias) => assignment.get(alias));
+    assert.equal(new Set(keys).size, keys.length, `${group.join(' / ')} collapsed onto ${keys}`);
+  }
+});
+
+test('a colour may still repeat between scenes that never meet', () => {
+  const groups = [['A', 'B'], ['C', 'D'], ['E', 'F']];
+  const assignment = assignFallbackSpeakerColorKeys(groups);
+  const used = new Set(['A', 'B', 'C', 'D', 'E', 'F'].map((a) => assignment.get(a)));
+  assert.ok(used.size <= paletteSize, 'reuse across scenes is fine');
+  for (const group of groups) {
+    assert.notEqual(assignment.get(group[0]), assignment.get(group[1]));
+  }
+});
+
+test('a flat list of aliases is still accepted', () => {
+  const assignment = assignFallbackSpeakerColorKeys(['대릴', '여자']);
+  assert.notEqual(assignment.get('대릴'), assignment.get('여자'));
+});
