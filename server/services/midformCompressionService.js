@@ -2754,6 +2754,46 @@ function dropDuplicateDialogueSlots(timeline) {
 // A cold open that overruns the teaser limit used to fail validation outright, which spent the
 // retries and dropped the run onto the fallback planner over the tail of a single slot. Trim it
 // to the lines that fit instead: the hook survives, the plan survives with it.
+// Scoring the teaser twice changed nothing because neither place is on the path a real plan takes:
+// the cold-open slot comes from the edit-plan model with its own dialogue_focus_lines, used
+// verbatim. Every plan passes through here, so this is where the opening line gets decided.
+// "재니스, 반가워 자기야" opened the cut while the accusation sat in the middle.
+function leadColdOpenWithStrongestLine(timeline) {
+  const coldOpen = (Array.isArray(timeline) ? timeline : []).find((item) => item.role === 'cold_open');
+  if (!coldOpen || coldOpen.decision !== 'KEEP_DIALOGUE') return timeline;
+  const windows = Array.isArray(coldOpen.dialogue_line_windows) ? coldOpen.dialogue_line_windows : [];
+  const matched = windows.map((win, index) => ({ win, index })).filter((entry) => entry.win && entry.win.matched === true);
+  if (matched.length < 2) return timeline;
+
+  const lines = Array.isArray(coldOpen.dialogue_focus_lines) ? coldOpen.dialogue_focus_lines : [];
+  const best = matched
+    .map((entry) => ({ ...entry, score: teaserQuoteScore(lines[entry.index] || entry.win.line || '') }))
+    .sort((left, right) => right.score - left.score || left.index - right.index)[0];
+  if (!best || best.index === matched[0].index) return timeline;
+
+  // Keep the strongest line and whatever answers it, in source order so the exchange still reads.
+  const keep = new Set([best.index]);
+  const answer = matched.find((entry) => entry.index > best.index);
+  if (answer) keep.add(answer.index);
+
+  const survives = (index) => keep.has(index) || !(windows[index] && windows[index].matched === true);
+  const kept = windows.filter((_win, index) => survives(index));
+  const spans = [...keep].map((index) => [Number(windows[index].start_sec), Number(windows[index].end_sec)]);
+  return timeline.map((item) => (item === coldOpen
+    ? {
+        ...item,
+        dialogue_line_windows: kept,
+        dialogue_focus_lines: lines.filter((_line, index) => survives(index)),
+        dialogue_focus_quotes: Array.isArray(item.dialogue_focus_quotes)
+          ? item.dialogue_focus_quotes.filter((_quote, index) => survives(index)) : item.dialogue_focus_quotes,
+        start_sec: roundSec(Math.min(...spans.map((span) => span[0]))),
+        end_sec: roundSec(Math.max(...spans.map((span) => span[1]))),
+        cold_open_reordered: true,
+        reason: `${item.reason || ''} Opened on the strongest line rather than the earliest.`.trim()
+      }
+    : item));
+}
+
 function clampColdOpenToTeaser(timeline) {
   const coldOpen = timeline.find((item) => item.role === 'cold_open');
   if (!coldOpen) return timeline;
@@ -3187,7 +3227,7 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec) {
   // Write the corrected measure back onto the slot. Fixing only realisticSlotDurationSec left
   // estimated_duration_sec holding the raw span - slot_02 still read 151.3s for four lines - so
   // every consumer that reads the field directly still saw the dead air between them.
-  const measuredTimeline = clampColdOpenToTeaser(trimTimelineToTargetRuntime(dedupedTimeline, targetSec));
+  const measuredTimeline = clampColdOpenToTeaser(leadColdOpenWithStrongestLine(trimTimelineToTargetRuntime(dedupedTimeline, targetSec)));
   const trimmedTimeline = measuredTimeline.map((item) => (
     item.decision === 'KEEP_DIALOGUE'
       ? { ...item, estimated_duration_sec: realisticSlotDurationSec(item) }
@@ -4261,6 +4301,7 @@ module.exports = {
     isNonSpeechCaption,
     pickTeaserQuote,
     coldOpenDialogueFocusForBeat,
+    leadColdOpenWithStrongestLine,
     separateOverlappingDialogueWindows,
     topUpTimelineToTargetRuntime,
     buildSlotQcReport,
