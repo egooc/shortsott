@@ -180,3 +180,33 @@ test('a callback drops the line its teaser already showed but keeps the rest', (
   const kept = result[1].dialogue_line_windows.filter((w) => w.matched === true).map((w) => w.line);
   assert.deepEqual(kept, ['accusation', 'denial'], 'the already-shown line goes, the payoff stays');
 });
+
+// An unmatched window ("[bell]") keeps its place in the list, so its focus line must keep its
+// place too. Filtering the two lists differently left 5 windows against 4 focus lines and the
+// caption-count check rejected the slot.
+test('an unmatched line keeps its place when a clashing line is dropped', () => {
+  const { _test: t } = require('../server/services/midformCompressionService');
+  const timeline = [
+    {
+      slot_id: 'earlier', role: 'body', decision: 'KEEP_DIALOGUE', start_sec: 442, end_sec: 445,
+      dialogue_focus_lines: ['taken'], dialogue_focus_quotes: ['taken'],
+      dialogue_line_windows: [{ matched: true, line: 'taken', start_sec: 442.97, end_sec: 444.37 }]
+    },
+    {
+      slot_id: 'slot_013', role: 'body', decision: 'KEEP_DIALOGUE', start_sec: 442, end_sec: 465,
+      dialogue_focus_lines: ['bell', 'clash', 'keep'],
+      dialogue_focus_quotes: ['bell', 'clash', 'keep'],
+      dialogue_line_windows: [
+        { matched: false, line: '>> [bell]', start_sec: null, end_sec: null },
+        { matched: true, line: 'clash', start_sec: 442.97, end_sec: 444.37 },
+        { matched: true, line: 'keep', start_sec: 461.66, end_sec: 464.66 }
+      ]
+    }
+  ];
+  const result = t.dropDuplicateDialogueSlots(timeline);
+  const slot = result[1];
+  assert.equal(slot.dialogue_line_windows.length, slot.dialogue_focus_lines.length,
+    'windows and focus lines must stay the same length');
+  assert.deepEqual(slot.dialogue_focus_lines, ['bell', 'keep']);
+  assert.equal(slot.dialogue_line_windows[0].matched, false, 'the unmatched line keeps its place');
+});

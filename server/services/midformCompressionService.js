@@ -2644,15 +2644,19 @@ function dropDuplicateDialogueSlots(timeline) {
     if (keptIndexes.length === windows.filter((w) => w && w.matched === true).length) continue;
 
     const keep = new Set(keptIndexes);
-    const kept = windows.filter((win, line) => keep.has(line) || !(win && win.matched === true));
+    // Unmatched windows stay (an unquotable "[bell]" line still holds its place), so their focus
+    // lines have to stay with them. Filtering the two lists differently knocked them out of step
+    // and the caption-count check rejected the slot.
+    const survives = (line) => keep.has(line) || !(windows[line] && windows[line].matched === true);
+    const kept = windows.filter((_win, line) => survives(line));
     const spans = keptIndexes.map((line) => [Number(windows[line].start_sec), Number(windows[line].end_sec)]);
     items[index] = {
       ...item,
       dialogue_line_windows: kept,
       dialogue_focus_lines: Array.isArray(item.dialogue_focus_lines)
-        ? item.dialogue_focus_lines.filter((_, line) => keep.has(line)) : item.dialogue_focus_lines,
+        ? item.dialogue_focus_lines.filter((_, line) => survives(line)) : item.dialogue_focus_lines,
       dialogue_focus_quotes: Array.isArray(item.dialogue_focus_quotes)
-        ? item.dialogue_focus_quotes.filter((_, line) => keep.has(line)) : item.dialogue_focus_quotes,
+        ? item.dialogue_focus_quotes.filter((_, line) => survives(line)) : item.dialogue_focus_quotes,
       start_sec: roundSec(Math.min(...spans.map((s) => s[0]))),
       end_sec: roundSec(Math.max(...spans.map((s) => s[1]))),
       duplicate_dialogue_lines_dropped: true,
