@@ -4388,7 +4388,11 @@ function longformHighlightCandidateSummary(candidateGuide = {}, hookGuide = {}, 
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
-  }).slice(0, 5);
+    // Every candidate must be listed, not just the first five. The draft builder scores
+    // the whole pool and can pick any of them, so a candidate left off this list ships a
+    // cut with no per-window explanation and falls back to a generic template. 8 matches
+    // the cap in normalizeCandidateTitleList.
+  }).slice(0, 8);
 
   if (!windows.length) return 'No candidate windows provided. Return highlight_candidate_titles as an empty array.';
   return windows
