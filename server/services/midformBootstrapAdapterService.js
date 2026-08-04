@@ -52,10 +52,21 @@ function sanitizeDisplayCaptionText(value) {
     .trim();
 }
 
+// Pulls the quote out of a reported-speech caption ("…라고 말합니다"). Quotation marks also do
+// ordinary emphasis work, though, and taking the first quoted run unconditionally destroyed the
+// line: 아니, 잠깐만요. 그런 '당신들' 말고 '당신들'이요. — the man's whole correction — reached
+// the screen as the single word 당신들. Extract only when the quote IS essentially the caption.
+const REPORTED_SPEECH_TAIL_RE = /(라고|이라고)\s*(말|묻|답|외치|소리|경고|반박)/;
+
 function compressDialogueCaptionText(value) {
   let text = sanitizeDisplayCaptionText(value).replace(/^[-•]\s*/, '').trim();
   const quoted = text.match(/["“‘']([^"”’']{2,40})["”’']/);
-  if (quoted) text = sanitizeDisplayCaptionText(quoted[1]);
+  if (quoted) {
+    const inner = sanitizeDisplayCaptionText(quoted[1]);
+    const outside = text.replace(quoted[0], '').trim();
+    // Reported speech: a short wrapper around the quote, or an explicit 라고 말합니다 tail.
+    if (REPORTED_SPEECH_TAIL_RE.test(outside) || outside.replace(/\s+/g, '').length <= 6) text = inner;
+  }
   text = text.replace(/^["'“”‘’]+|["'“”‘’]+$/g, '').trim();
   text = text
     .replace(/\s*(?:라고|이라고)\s*(?:말(?:했|합니다|했다|해요|한다)?|묻(?:습니다|는다|었다|었어요)?|답(?:합니다|했다|해요)?|외(?:칩니다|쳤다|쳐요)?|소리(?:칩니다|쳤다|쳐요)?|경고(?:합니다|했다|해요)?|반박(?:합니다|했다|해요)?)[.!?…]*$/u, '')
@@ -1097,6 +1108,7 @@ async function runBootstrapToPipeline(runIdOrPath, options = {}) {
 }
 
 module.exports = {
+  compressDialogueCaptionText,
   buildBootstrapTranscript,
   buildBootstrapSlotMapAndScript,
   detectSpeechRanges,
