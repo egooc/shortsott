@@ -9621,6 +9621,43 @@ function buildLongformHighlightTwoLayerPreset(analysis = {}, basePreset = {}) {
   });
 }
 
+// A 16:9 source on the 9:16 canvas is placed fit-by-width, so filling the canvas
+// vertically needs scale >= aspect * (canvas_h / canvas_w) - 3.16x for 16:9. The
+// longform crop preset's numbers (2.22-3.05) were authored on the shortform convention
+// where fit already equals fill, so every step left top/bottom letterbox. Black bars
+// break the format - the material has to fill the phone screen - so the whole pattern
+// is rescaled up to the fill floor and the quality cost of the deeper crop is accepted.
+function applyLongformFillScaleFloor(preset = {}, analysis = {}) {
+  if (analysis.wide_longform_core_crop !== true) return preset;
+  const aspect = Number(analysis.source_aspect_ratio) > 0 ? Number(analysis.source_aspect_ratio) : 16 / 9;
+  const minFillScale = Number((aspect * (16 / 9)).toFixed(3));
+  const pattern = Array.isArray(preset.pattern) ? preset.pattern : [];
+  const patternScales = pattern.map((segment) => Number(segment.scale || 0)).filter((value) => value > 0);
+  const patternMin = patternScales.length ? Math.min(...patternScales) : Number(preset.global_transform?.scale || 1);
+  if (!(patternMin > 0) || patternMin >= minFillScale) {
+    return { ...preset, min_fill_scale: minFillScale };
+  }
+  // Rescale so the shallowest step sits exactly at fill: the relative in/out rhythm of
+  // the pattern survives, and no step can show the letterbox.
+  const factor = minFillScale / patternMin;
+  const rescale = (value) => Number(Math.max(minFillScale, Number(value || 0) * factor).toFixed(3));
+  return {
+    ...preset,
+    global_transform: {
+      ...(preset.global_transform || {}),
+      scale: rescale(preset.global_transform?.scale || patternMin)
+    },
+    pattern: pattern.map((segment) => ({
+      ...segment,
+      scale: rescale(segment.scale)
+    })),
+    max_zoom_scale: rescale(preset.max_zoom_scale || patternMin),
+    min_fill_scale: minFillScale,
+    fill_rescale_factor: Number(factor.toFixed(4)),
+    fill_rescale_reason: 'wide_longform_source_must_fill_9_16_no_letterbox'
+  };
+}
+
 function buildHighlightHookZoomOutPreset(basePreset = {}, itemConfig = {}, window = {}) {
   const analysis = classifyHighlightHook(itemConfig, window);
   if (
@@ -9628,9 +9665,9 @@ function buildHighlightHookZoomOutPreset(basePreset = {}, itemConfig = {}, windo
     && analysis.shortform_preset_id
     && isLongformHighlightTwoLayerEnabled(itemConfig)
   ) {
-    return buildLongformHighlightTwoLayerPreset(analysis, basePreset);
+    return applyLongformFillScaleFloor(buildLongformHighlightTwoLayerPreset(analysis, basePreset), analysis);
   }
-  return buildHighlightPresetById(analysis.preset_id, basePreset, analysis);
+  return applyLongformFillScaleFloor(buildHighlightPresetById(analysis.preset_id, basePreset, analysis), analysis);
 }
 
 async function createHighlightDraftForItem({

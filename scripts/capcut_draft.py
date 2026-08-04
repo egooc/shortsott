@@ -2708,7 +2708,33 @@ def get_transform_pan_limits(video_transform_preset):
 
 
 def get_transform_max_zoom(video_transform_preset):
-    return min(3.2, max(1.0, safe_float(video_transform_preset.get("max_zoom_scale"), 2.05)))
+    # A wide (16:9) source needs scale >= ~3.16 just to fill the 9:16 canvas, so a
+    # preset that declares min_fill_scale gets a higher ceiling; the legacy 3.2 cap
+    # stays for every preset that does not (shortform sources fill at 1.0 already).
+    ceiling = 6.0 if safe_float(video_transform_preset.get("min_fill_scale"), 0.0) > 1.0 else 3.2
+    return min(ceiling, max(1.0, safe_float(video_transform_preset.get("max_zoom_scale"), 2.05)))
+
+
+def get_min_fill_scale(video_transform_preset, video_material, draft_width, draft_height):
+    """Smallest scale at which the source fills the canvas with no letterbox.
+
+    The material dimensions are the ground truth: even if the node side failed to
+    stamp min_fill_scale, a source wider than the canvas still must not show black
+    bars under crop_mode vertical_fill. Returns 1.0 when filling needs no zoom.
+    """
+    if get_process_crop_mode(video_transform_preset) != "vertical_fill":
+        return 1.0
+    preset_fill = safe_float((video_transform_preset or {}).get("min_fill_scale"), 0.0)
+    computed_fill = 0.0
+    material_width = safe_float((video_material or {}).get("width"), 0)
+    material_height = safe_float((video_material or {}).get("height"), 0)
+    if material_width > 0 and material_height > 0 and draft_width and draft_height:
+        material_aspect = material_width / material_height
+        canvas_aspect = float(draft_width) / float(draft_height)
+        if material_aspect > canvas_aspect + 0.01:
+            computed_fill = material_aspect / canvas_aspect
+    fill = max(preset_fill, computed_fill)
+    return fill if fill > 1.0 else 1.0
 
 
 def get_process_transform_sequence(video_transform_preset):
@@ -2997,6 +3023,10 @@ def apply_process_video_transforms_to_draft(
     global_transform = get_global_transform(video_transform_preset)
     pan_limits = get_transform_pan_limits(video_transform_preset)
     max_zoom_scale = get_transform_max_zoom(video_transform_preset)
+    # Floor applied after every other clamp: no step of a wide source may ever scale
+    # below the fill point, or the 9:16 frame shows top/bottom letterbox - which breaks
+    # the full-frame process format this channel depends on.
+    min_fill_scale = get_min_fill_scale(video_transform_preset, video_material, draft_width, draft_height)
     scene_focus_plan = scene_focus_plan if isinstance(scene_focus_plan, list) else []
     if sequence_steps and video_track:
         video_segments = [segment for segment in video_track.get("segments", []) if isinstance(segment, dict)]
@@ -3017,7 +3047,7 @@ def apply_process_video_transforms_to_draft(
             if transform_override:
                 step = dict(step)
                 override_scale = safe_float(transform_override.get("zoom_scale", transform_override.get("scale")), safe_float(step.get("zoom_scale"), 1.0))
-                step["zoom_scale"] = min(max_zoom_scale, max(1.0, override_scale))
+                step["zoom_scale"] = max(min_fill_scale, min(max_zoom_scale, max(1.0, override_scale)))
                 step["scale"] = step["zoom_scale"]
                 step["pan_x"] = min(pan_limits["x"], max(-pan_limits["x"], safe_float(transform_override.get("pan_x"), safe_float(step.get("pan_x"), 0.0))))
                 step["pan_y"] = min(pan_limits["y"], max(-pan_limits["y"], safe_float(transform_override.get("pan_y"), safe_float(step.get("pan_y"), 0.0))))
@@ -3034,7 +3064,7 @@ def apply_process_video_transforms_to_draft(
             if not isinstance(step_clip.get("transform"), dict):
                 step_clip["transform"] = {"x": 0.0, "y": 0.0}
 
-            zoom_scale = min(max_zoom_scale, max(1.0, safe_float(step.get("zoom_scale"), 1.0)))
+            zoom_scale = max(min_fill_scale, min(max_zoom_scale, max(1.0, safe_float(step.get("zoom_scale"), 1.0))))
             speed_value = max(0.1, safe_float(step.get("speed"), 1.0))
             pan_x = min(pan_limits["x"], max(-pan_limits["x"], safe_float(step.get("pan_x"), 0.0)))
             pan_y = min(pan_limits["y"], max(-pan_limits["y"], safe_float(step.get("pan_y"), 0.0)))
@@ -3120,7 +3150,7 @@ def apply_process_video_transforms_to_draft(
             applied["distortion"]["value"] = [record["rotation"] for record in sequence_records]
 
     if not sequence_applied:
-        zoom_scale = get_process_zoom_scale(video_transform_preset)
+        zoom_scale = max(min_fill_scale, get_process_zoom_scale(video_transform_preset))
         applied["zoom"]["requested"] = zoom_scale > 1.0001
         applied["zoom"]["value"] = zoom_scale
         if applied["zoom"]["requested"]:
@@ -3134,6 +3164,8 @@ def apply_process_video_transforms_to_draft(
     crop_mode = get_process_crop_mode(video_transform_preset)
     applied["crop"]["requested"] = bool(crop_mode)
     applied["crop"]["mode"] = crop_mode
+    applied["crop"]["min_fill_scale"] = round(min_fill_scale, 4)
+    applied["crop"]["fill_floor_active"] = min_fill_scale > 1.0
     if applied["crop"]["requested"]:
         material_width = safe_float((video_material or {}).get("width"), 0)
         material_height = safe_float((video_material or {}).get("height"), 0)

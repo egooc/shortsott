@@ -841,6 +841,46 @@ function testSelectedHookWindowBorrowsMeasuredBeats() {
   assert(queueTest.scoreHighlightBeatStructure(windows[0]) > 0, 'the selected window must score on the borrowed beats');
 }
 
+function testWideLongformPresetFillsTheVerticalCanvas() {
+  // A 16:9 source sits fit-by-width on the 9:16 canvas, so filling it vertically needs
+  // scale >= aspect * 16/9 = 3.16. The crop preset's numbers were authored on the
+  // shortform convention (fit = fill), so every step used to leave top/bottom
+  // letterbox - which breaks the full-frame process format.
+  const longformItem = {
+    source_type: 'longform',
+    source_workflow_mode: 'longform_to_shorts',
+    video_metadata: { duration_sec: 750, width: 1920, height: 1080 },
+    source_classification: { duration_sec: 750, width: 1920, height: 1080 },
+    ottogi_guide_output: { scene_transitions: [] }
+  };
+  const preset = queueTest.buildHighlightHookZoomOutPreset({}, longformItem, { start_sec: 60, end_sec: 70, duration_sec: 10 });
+  assert(Math.abs(preset.min_fill_scale - 3.161) < 0.01, `16:9 fill floor must be ~3.161, got ${preset.min_fill_scale}`);
+  const patternScales = (preset.pattern || []).map((segment) => Number(segment.scale || 0));
+  assert(patternScales.length > 0, 'wide longform preset must keep its motion pattern');
+  assert(
+    patternScales.every((scale) => scale >= preset.min_fill_scale - 0.001),
+    `every pattern step must fill the canvas, got ${patternScales.join(', ')} vs floor ${preset.min_fill_scale}`
+  );
+  assert(preset.max_zoom_scale >= Math.max(...patternScales) - 0.001, 'max_zoom_scale must not clamp the rescaled pattern back under fill');
+  assert(new Set(patternScales).size > 1, 'the rescale must preserve the in/out rhythm, not flatten every step to one scale');
+
+  // Shortform 9:16 sources already fill at scale 1.0 and must be untouched.
+  const shortformItem = {
+    source_type: 'shortform',
+    video_metadata: { duration_sec: 20, width: 1080, height: 1920 },
+    ottogi_guide_output: { scene_transitions: [] }
+  };
+  const shortformPreset = queueTest.buildHighlightHookZoomOutPreset({}, shortformItem, { start_sec: 2, end_sec: 8 });
+  assert(shortformPreset.min_fill_scale === undefined, 'shortform presets must not gain a fill floor');
+
+  // The python assembler enforces the same floor from the material's real dimensions,
+  // so even a legacy manifest without min_fill_scale cannot render letterbox.
+  const pySource = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'capcut_draft.py'), 'utf8');
+  assert(pySource.includes('def get_min_fill_scale('), 'capcut_draft.py must compute the fill floor from material dimensions');
+  assert(pySource.includes('max(min_fill_scale, min(max_zoom_scale'), 'every zoom clamp in capcut_draft.py must apply the fill floor last');
+  assert(/ceiling = 6\.0 if safe_float\(video_transform_preset\.get\("min_fill_scale"\)/.test(pySource), 'the legacy 3.2 zoom cap must yield to presets that declare a fill floor');
+}
+
 function testHighlightBeatPlanFollowsTheFormula() {
   const plan = queueTest.buildHighlightBeatPlan({
     start_sec: 100,
@@ -1304,6 +1344,7 @@ function main() {
   testFaceLedWindowsAreDroppedNotJustDownranked();
   testHighlightBeatPlanFollowsTheFormula();
   testSelectedHookWindowBorrowsMeasuredBeats();
+  testWideLongformPresetFillsTheVerticalCanvas();
   testGenericSceneExplanationDetector();
   testDuplicateCandidateMetadataBlocksGeneration();
 
