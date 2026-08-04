@@ -1368,7 +1368,11 @@ function splitMultiTurnFocusLines(lines) {
   return output;
 }
 
-function limitDialogueFocusLines(focus, requiredLines = [], maxLines = 5) {
+// Raised from 5. The cap existed to stop a slot swallowing a whole conversation back when slot
+// length WAS the runtime; now the runtime ceiling and the trim bound length properly, and the cap
+// was quietly discarding recovered lines — "I am calm", the first beat of the running gag, was
+// pushed out of its slot by it. Bigger dialogue slots are the intended shape of this format.
+function limitDialogueFocusLines(focus, requiredLines = [], maxLines = 8) {
   const lines = dedupeFocusLines(splitMultiTurnFocusLines(Array.isArray(focus?.lines) ? focus.lines : []));
   if (lines.length <= maxLines) return { ...focus, lines };
   const required = new Set((Array.isArray(requiredLines) ? requiredLines : []).map(normalizeComparableText).filter(Boolean));
