@@ -6126,6 +6126,10 @@ def apply_ocr_mask_effect_template_to_draft(draft_content, template_doc, records
             "is_default_name": False,
         }
         draft_content.setdefault("tracks", []).append(effect_track)
+    # The blur ships in the draft but hidden (attribute 1 = the timeline eye toggle),
+    # so nothing is blurred by default and the reviewer turns it on only when a
+    # watermark/burned-in caption actually needs covering.
+    effect_track["attribute"] = 1
     effect_track["segments"] = []
 
     video_effects = ensure_material_category(draft_content, "video_effects")
@@ -6188,8 +6192,9 @@ def apply_ocr_mask_effect_template_to_draft(draft_content, template_doc, records
     return {
         "applied": bool(records),
         "segments_count": len(records),
-        "reason": "template OCR blur/mosaic effect cloned",
+        "reason": "template OCR blur/mosaic effect cloned (track hidden by default; enable in CapCut when reviewing)",
         "template_name": template_name,
+        "track_hidden_by_default": True,
     }
 
 
@@ -6268,6 +6273,7 @@ def apply_ocr_mask_overlay_to_draft(draft_content_path, process_config, total_du
             "fixed template blur mask applied" if summary["applied"] else "template blur/mosaic effect not found"
         )
         summary["template_effect_name"] = effect_summary.get("template_name", "")
+        summary["track_hidden_by_default"] = bool(effect_summary.get("track_hidden_by_default"))
         return summary
 
     records, summary = build_ocr_mask_records(process_config, total_duration_sec, warnings)
@@ -6339,6 +6345,7 @@ def apply_ocr_mask_overlay_to_draft(draft_content_path, process_config, total_du
         summary["segments_count"] = effect_summary.get("segments_count", 0)
         summary["reason"] = effect_summary.get("reason", "template OCR effect cloned")
         summary["template_effect_name"] = effect_summary.get("template_name", "")
+        summary["track_hidden_by_default"] = bool(effect_summary.get("track_hidden_by_default"))
         summary["records_preview"] = records[:20]
         return summary
 

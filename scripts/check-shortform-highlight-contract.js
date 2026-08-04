@@ -881,6 +881,21 @@ function testWideLongformPresetFillsTheVerticalCanvas() {
   assert(/ceiling = 6\.0 if safe_float\(video_transform_preset\.get\("min_fill_scale"\)/.test(pySource), 'the legacy 3.2 zoom cap must yield to presets that declare a fill floor');
 }
 
+function testOcrBlurShipsHiddenForReview() {
+  // The OCR/watermark blur ships in the draft but with its track hidden (attribute 1,
+  // the CapCut timeline eye toggle), so nothing is blurred by default and the reviewer
+  // enables it only when a watermark or burned-in caption actually needs covering.
+  const pySource = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'capcut_draft.py'), 'utf8');
+  assert(
+    pySource.includes('effect_track["attribute"] = 1'),
+    'the ocr_mask_effect track must ship hidden by default'
+  );
+  assert(
+    pySource.includes('"track_hidden_by_default": True'),
+    'the manifest summary must record that the blur track is present but off'
+  );
+}
+
 function testHighlightBeatPlanFollowsTheFormula() {
   const plan = queueTest.buildHighlightBeatPlan({
     start_sec: 100,
@@ -1345,6 +1360,7 @@ function main() {
   testHighlightBeatPlanFollowsTheFormula();
   testSelectedHookWindowBorrowsMeasuredBeats();
   testWideLongformPresetFillsTheVerticalCanvas();
+  testOcrBlurShipsHiddenForReview();
   testGenericSceneExplanationDetector();
   testDuplicateCandidateMetadataBlocksGeneration();
 
