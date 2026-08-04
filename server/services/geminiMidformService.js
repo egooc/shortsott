@@ -468,7 +468,21 @@ function assertChunkQuality({ chunkResults, merged, durationSec }) {
     }
   }
   if (duplicateGroups.length) {
-    throw createError(500, 'MIDFORM_CHUNK_DUPLICATE_SCENE_SUMMARY', 'Merged Gemini midform scene summaries contain 3+ highly similar visible_action entries', { duplicateGroups });
+    // A single-location source legitimately yields near-identical visible_action lines — people
+    // seated in a plane cabin, scene after scene. That is the footage, not the chunk-merge copy
+    // bug this check exists to catch; the bug's signature is the SAME description repeated in
+    // distant parts of the video. Fail only on distant repeats.
+    const CONTIGUOUS_GAP_SEC = 45;
+    const distantGroups = duplicateGroups.filter((group) => {
+      const starts = group.map((entry) => Number(entry.start_sec)).sort((a, b) => a - b);
+      for (let k = 1; k < starts.length; k += 1) {
+        if (starts[k] - starts[k - 1] > CONTIGUOUS_GAP_SEC) return true;
+      }
+      return false;
+    });
+    if (distantGroups.length) {
+      throw createError(500, 'MIDFORM_CHUNK_DUPLICATE_SCENE_SUMMARY', 'Merged Gemini midform scene summaries contain 3+ highly similar visible_action entries', { duplicateGroups: distantGroups });
+    }
   }
 }
 
