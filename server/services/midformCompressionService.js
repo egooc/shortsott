@@ -1296,7 +1296,10 @@ function dedupeFocusLines(lines) {
 // speaker and one colour: the man's correction after his slip was pinned on the officer, so his
 // excuse never read as his. Split at the interjection that starts a new turn, and let each half
 // take its own caption line, speaker and colour.
-const DIALOGUE_TURN_BOUNDARY_RE = /\b(oh now wait a minute|now wait a minute|wait a minute|hold on|excuse me|sir,?)\s+/i;
+// "sir" is a vocative inside one speaker's turn ("...one more time, sir, calm down"), not a turn
+// boundary — splitting there broke a beat anchor and failed the run. Only interjections that
+// genuinely open a new turn qualify.
+const DIALOGUE_TURN_BOUNDARY_RE = /\b(oh now wait a minute|now wait a minute|wait a minute|hold on)\s+/i;
 const DIALOGUE_TURN_MIN_WORDS = 2;
 
 function splitMultiTurnDialogueLine(line) {

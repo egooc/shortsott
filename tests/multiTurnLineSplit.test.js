@@ -19,6 +19,9 @@ test('a single-turn line is left whole', () => {
     'what is it with you people',
     'sir I will not tolerate any racist behavior on the plane',
     'excuse me could I maybe get that headset please',
+    // "sir" is a vocative inside one turn, not a boundary: splitting here broke a beat anchor
+    // and failed the whole run.
+    "I'm only going to say this one more time sir calm down",
     'just calm down I am calm I just want my headset'
   ]) {
     assert.deepEqual(splitMultiTurnDialogueLine(line), [line], `${line} must stay whole`);
