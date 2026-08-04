@@ -7303,6 +7303,12 @@ def create_process_draft(data):
                         # running past the result - same timeline length, the clip just
                         # returns to the top of the cycle so the action repeats.
                         loop_tail = beat_name == "emphasis" and beat_tail_mode == "repeat_loop"
+                        # A held beat is meant to rest. Subdividing it by the motion
+                        # unit turned a 6s result into 5 pieces before camera cuts were
+                        # even added; only real cuts may break a hold.
+                        if behavior.get("hold"):
+                            pieces = 1
+                            piece_us = span_us
                         # Snap piece boundaries onto camera cuts inside the clip. A held
                         # result/emphasis segment that spans a cut visibly breaks the
                         # hold - the frame jumps to another shot while the crop is
@@ -7350,7 +7356,27 @@ def create_process_draft(data):
                                 }
                             )
                 if segment_plans:
-                    pass
+                    # Every other track (BGM, caption, logo, blur) is laid out against
+                    # the clip length, so the video track has to total exactly that.
+                    # Deriving each piece's timeline length from source/speed made the
+                    # sums drift - a 7s clip rendered a 7.279s video track, leaving a
+                    # tail of picture with no caption, no music and no logo. Speeds are
+                    # kept as RELATIVE weights and normalized back onto the clip length.
+                    raw_targets = []
+                    for plan in segment_plans:
+                        override = plan["scene_meta"]["video_transform_override"]
+                        speed = min(1.55, max(0.65, safe_float(override.get("speed"), 1.0)))
+                        raw_targets.append(max(1.0, plan["duration_us"] / speed))
+                    raw_total = sum(raw_targets)
+                    if raw_total > 0 and remaining_video_us > 0:
+                        scale = remaining_video_us / raw_total
+                        assigned = 0
+                        for index, plan in enumerate(segment_plans):
+                            if index == len(segment_plans) - 1:
+                                plan["target_us"] = max(200_000, remaining_video_us - assigned)
+                            else:
+                                plan["target_us"] = max(200_000, int(round(raw_targets[index] * scale)))
+                                assigned += plan["target_us"]
                 elif scene_change_times:
                     boundaries_us = [0]
                     for scene_time in scene_change_times:
@@ -7402,13 +7428,13 @@ def create_process_draft(data):
                     is_beat_cut = plan_mode == "beat_aligned"
                     trim_us = min(tail_trim_us, max(0, int(step_duration_us * 0.25))) if is_scene_cut else 0
                     if is_beat_cut:
-                        # The beat piece IS the source range: the cut must land on the
-                        # measured beat boundary, so speed derives the timeline length
-                        # from the fixed source span rather than stretching the source.
-                        beat_override = scene_meta.get("video_transform_override") if isinstance(scene_meta.get("video_transform_override"), dict) else {}
-                        speed_value = min(1.55, max(0.65, safe_float(beat_override.get("speed"), 1.0)))
+                        # The beat piece IS the source range, so the cut lands on the
+                        # measured boundary. The timeline length comes from the
+                        # normalized plan above, which keeps the track total equal to
+                        # the clip; the resulting ratio is the segment's real speed.
                         source_duration_us = max(1, min(step_duration_us, material_duration_us if material_duration_us > 0 else step_duration_us))
-                        target_step_duration_us = max(200_000, int(source_duration_us / speed_value))
+                        target_step_duration_us = max(200_000, int(segment_plan.get("target_us") or source_duration_us))
+                        speed_value = max(0.65, min(1.55, source_duration_us / max(1, target_step_duration_us)))
                         source_start_us = int(segment_plan.get("source_start_us") or 0)
                         if material_duration_us > 0:
                             max_start_us = max(0, material_duration_us - source_duration_us)

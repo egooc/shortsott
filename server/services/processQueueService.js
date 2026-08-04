@@ -8503,12 +8503,23 @@ function buildHighlightBeatPlan(window = {}, clipDurationSec = 0) {
   const reportedResult = offsetOf('beat_result_visible_offset_sec', 'beat_result_visible_sec');
 
   const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
-  const coreChangeAt = Number.isFinite(reportedCore)
-    ? clamp(reportedCore, 0.5, Math.max(0.5, duration - 0.5))
-    : clamp(1, 0.5, Math.max(0.5, duration - 0.5));
-  const resultAt = Number.isFinite(reportedResult)
-    ? clamp(reportedResult, coreChangeAt + 0.25, Math.max(coreChangeAt + 0.25, duration))
-    : clamp(4, coreChangeAt + 0.25, Math.max(coreChangeAt + 0.25, duration));
+  // Gemini's measurement positions the beat inside a band; it does not get to
+  // collapse the structure. A lathe cut that "shows its result" at +1.0s once
+  // produced action 0-0.5s, core 0.5-1s and a result beat covering 86% of the clip -
+  // one undifferentiated block, which is not the formula.
+  const actionCeiling = Math.max(0.4, Math.min(1.5, duration * 0.2));
+  const coreChangeAt = clamp(
+    Number.isFinite(reportedCore) ? reportedCore : 1,
+    Math.min(0.4, duration * 0.1),
+    actionCeiling
+  );
+  const resultFloor = Math.max(coreChangeAt + 0.5, duration * 0.35);
+  const resultCeiling = Math.max(resultFloor, Math.min(8, duration * 0.8));
+  const resultAt = clamp(
+    Number.isFinite(reportedResult) ? reportedResult : 4,
+    resultFloor,
+    resultCeiling
+  );
 
   const beats = [
     { beat: 'action', start_sec: 0, end_sec: Number(Math.min(coreChangeAt, duration).toFixed(3)), role: 'physical action already running at frame one' },
