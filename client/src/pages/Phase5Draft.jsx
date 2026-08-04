@@ -2596,9 +2596,13 @@ export default function Phase5Draft() {
     .sort((a, b) => String(a.item_id || '').localeCompare(String(b.item_id || '')));
   const serverJobItems = Object.values(serverQueueJob?.item_statuses || {})
     .sort((a, b) => String(a.item_id || '').localeCompare(String(b.item_id || '')));
+  // A metadata-failed item that produced no draft is a failed item no matter how the
+  // rest of the job went. Gating this on job status === 'failed' meant a partial job
+  // (one source succeeded, one hit a Gemini 500) ended completed_with_warnings and the
+  // failed item showed no card and no retry button at all.
   const failedServerJobItems = serverJobItems.filter((item) => (
     isHardFailedServerItem(item)
-    || (serverQueueJob?.status === 'failed' && isMetadataFailureItem(item) && !isDraftSuccessItem(item))
+    || (isMetadataFailureItem(item) && !isDraftSuccessItem(item))
   ));
   const warningServerJobItems = serverJobItems.filter((item) => isWarningServerItem(item) && !failedServerJobItems.includes(item));
   const skippedServerJobItems = serverJobItems.filter((item) => (
