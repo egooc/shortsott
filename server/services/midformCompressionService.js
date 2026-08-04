@@ -2984,7 +2984,23 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec) {
     if (cold.decision === 'KEEP_DIALOGUE') {
       const existingLines = Array.isArray(cold.dialogue_focus_lines) ? cold.dialogue_focus_lines.filter(Boolean) : [];
       const existingQuotes = Array.isArray(cold.dialogue_focus_quotes) ? cold.dialogue_focus_quotes.filter(Boolean) : [];
-      const preferredQuotes = existingQuotes.length ? existingQuotes : existingLines;
+      // The model's own lines, in the model's order, used to decide the opening. When it opened on
+      // a pleasantry — "Hi, Janice. I'm glad to see you, baby." — nothing downstream could recover:
+      // the slot held that one line, so there was no order left to fix. Widen the candidates to the
+      // whole beat and let the strongest line lead, keeping one more for the answer to it.
+      const modelQuotes = existingQuotes.length ? existingQuotes : existingLines;
+      const beatQuotes = coldBeat
+        ? [...(Array.isArray(coldBeat.anchor_dialogue) ? coldBeat.anchor_dialogue : []),
+           ...(Array.isArray(coldBeat.key_dialogue) ? coldBeat.key_dialogue : [])]
+        : [];
+      const candidateQuotes = [...new Set([...modelQuotes, ...beatQuotes].map((quote) => String(quote || '').trim()).filter(Boolean))];
+      const preferredQuotes = candidateQuotes.length
+        ? candidateQuotes
+          .map((quote, order) => ({ quote, order, score: teaserQuoteScore(quote) }))
+          .sort((left, right) => right.score - left.score || left.order - right.order)
+          .slice(0, 2)
+          .map((entry) => entry.quote)
+        : modelQuotes;
       const rawFocus = coldBeat ? collectDialogueFocus(coldBeat, transcript, preferredQuotes.length ? { quotes: preferredQuotes } : {}) : null;
       if (rawFocus) {
         const enriched = enrichDialogueFocusForCoherence(coldBeat, transcript, rawFocus);

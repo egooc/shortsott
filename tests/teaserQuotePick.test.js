@@ -123,3 +123,36 @@ test('a narrated cold open is left alone', () => {
   const timeline = [{ slot_id: '1', role: 'cold_open', decision: 'NARRATE', estimated_duration_sec: 5 }];
   assert.deepEqual(leadColdOpenWithStrongestLine(timeline), timeline);
 });
+
+// The last of three misses: the cold-open slot held only the greeting, so no reordering could
+// help. The candidates have to come from the whole beat, not just the lines the model listed.
+test('finalize opens on the beat\u0027s strongest line even when the model only listed a greeting', () => {
+  const beats = [{
+    beat_id: 'b1', start_sec: 160, end_sec: 190, hook_potential: 5, dramatic_weight: 5, dialogue_quality: 'high',
+    key_dialogue: ["Hi, Janice. I'm glad to see you, baby.", 'You cheated on me with that piece of trash?'],
+    anchor_dialogue: ["Hi, Janice. I'm glad to see you, baby."]
+  }];
+  const transcript = [
+    { start_sec: 166.8, end_sec: 171.4, text: "Hi, Janice. I'm glad to see you, baby." },
+    { start_sec: 171.5, end_sec: 174.2, text: 'You cheated on me with that piece of trash?' },
+    { start_sec: 180.0, end_sec: 183.0, text: 'I did not do anything.' }
+  ];
+  const plan = {
+    cold_open_selection: { beat_id: 'b1', source: 'dialogue_hook' },
+    timeline: [
+      {
+        slot_id: '1', beat_id: 'b1', role: 'cold_open', decision: 'KEEP_DIALOGUE',
+        start_sec: 166.8, end_sec: 171.4, estimated_duration_sec: 4.6,
+        dialogue_focus_lines: ["Hi, Janice. I'm glad to see you, baby."],
+        dialogue_focus_quotes: ["Hi, Janice. I'm glad to see you, baby."]
+      },
+      { slot_id: '2', beat_id: 'b1', role: 'bridge', decision: 'NARRATE', start_sec: 175, end_sec: 190, estimated_duration_sec: 12 }
+    ],
+    duration_budget: { target_sec: 120, estimated_total_sec: 60 },
+    quality_check: {}
+  };
+  const finalized = _test.finalizeEditPlan(plan, beats, transcript, 120);
+  const cold = finalized.timeline.find((item) => item.role === 'cold_open');
+  const lines = (cold.dialogue_focus_lines || []).join(' ');
+  assert.ok(/cheated/i.test(lines), `the accusation should lead the teaser, got: ${lines}`);
+});
