@@ -2737,6 +2737,33 @@ def get_min_fill_scale(video_transform_preset, video_material, draft_width, draf
     return fill if fill > 1.0 else 1.0
 
 
+def apply_work_anchor_pan(pan_x, pan_y, zoom_scale, min_fill_scale, work_center):
+    """Anchor the deep crop on the point where the work happens, letterbox-proof.
+
+    Transform units are canvas-dimension fractions. At zoom E over a fill floor F the
+    video extends E canvas-widths horizontally and E/F canvas-heights vertically, so the
+    slack before an edge shows is (E-1)/2 sideways and (E/F-1)/2 vertically. The preset
+    pattern's small pan is kept as a sweep around the anchor, and the final pan is
+    clamped to the slack - a pan can therefore never reveal the background, which the
+    old fixed 0.35 pan cap could not guarantee (any pan_y at the fill floor leaked a
+    letterbox strip).
+    """
+    fill = max(1.0, safe_float(min_fill_scale, 1.0))
+    zoom = max(1.0, safe_float(zoom_scale, 1.0))
+    slack_x = max(0.0, (zoom - 1.0) / 2.0)
+    slack_y = max(0.0, (zoom / fill - 1.0) / 2.0)
+    anchor_x = 0.0
+    anchor_y = 0.0
+    if isinstance(work_center, dict):
+        work_x = safe_float(work_center.get("x"), 0.5)
+        work_y = safe_float(work_center.get("y"), 0.5)
+        anchor_x = (0.5 - min(1.0, max(0.0, work_x))) * zoom
+        anchor_y = (0.5 - min(1.0, max(0.0, work_y))) * (zoom / fill)
+    total_x = min(slack_x, max(-slack_x, anchor_x + safe_float(pan_x, 0.0)))
+    total_y = min(slack_y, max(-slack_y, anchor_y + safe_float(pan_y, 0.0)))
+    return total_x, total_y
+
+
 def get_process_transform_sequence(video_transform_preset):
     raw_sequence = video_transform_preset.get("transform_sequence")
     if not isinstance(raw_sequence, list) or not raw_sequence:
@@ -3027,6 +3054,7 @@ def apply_process_video_transforms_to_draft(
     # below the fill point, or the 9:16 frame shows top/bottom letterbox - which breaks
     # the full-frame process format this channel depends on.
     min_fill_scale = get_min_fill_scale(video_transform_preset, video_material, draft_width, draft_height)
+    work_center = video_transform_preset.get("work_center") if isinstance(video_transform_preset.get("work_center"), dict) else None
     scene_focus_plan = scene_focus_plan if isinstance(scene_focus_plan, list) else []
     if sequence_steps and video_track:
         video_segments = [segment for segment in video_track.get("segments", []) if isinstance(segment, dict)]
@@ -3068,6 +3096,11 @@ def apply_process_video_transforms_to_draft(
             speed_value = max(0.1, safe_float(step.get("speed"), 1.0))
             pan_x = min(pan_limits["x"], max(-pan_limits["x"], safe_float(step.get("pan_x"), 0.0)))
             pan_y = min(pan_limits["y"], max(-pan_limits["y"], safe_float(step.get("pan_y"), 0.0)))
+            if min_fill_scale > 1.0:
+                # Deep-crop presets pan to the reported work point (the pattern pan
+                # becomes a sweep around it) and are clamped by geometric slack, so no
+                # pan can reveal the background. Legacy presets keep the fixed limits.
+                pan_x, pan_y = apply_work_anchor_pan(pan_x, pan_y, zoom_scale, min_fill_scale, work_center)
             rotation = min(3.0, max(-3.0, safe_float(step.get("rotation"), 0.0)))
             target_timerange = segment.get("target_timerange") or {}
             source_timerange = segment.get("source_timerange") or {}
@@ -3158,6 +3191,12 @@ def apply_process_video_transforms_to_draft(
             clip["scale"]["y"] = zoom_scale
             video_segment["uniform_scale"] = {"on": True, "value": zoom_scale}
             applied["zoom"]["applied"] = True
+            if min_fill_scale > 1.0:
+                anchor_x, anchor_y = apply_work_anchor_pan(0.0, 0.0, zoom_scale, min_fill_scale, work_center)
+                if not isinstance(clip.get("transform"), dict):
+                    clip["transform"] = {"x": 0.0, "y": 0.0}
+                clip["transform"]["x"] = anchor_x
+                clip["transform"]["y"] = anchor_y
         else:
             applied["zoom"]["reason"] = "zoom not requested"
 
@@ -3166,6 +3205,8 @@ def apply_process_video_transforms_to_draft(
     applied["crop"]["mode"] = crop_mode
     applied["crop"]["min_fill_scale"] = round(min_fill_scale, 4)
     applied["crop"]["fill_floor_active"] = min_fill_scale > 1.0
+    applied["crop"]["work_center"] = work_center if isinstance(work_center, dict) else None
+    applied["crop"]["work_anchor_active"] = bool(min_fill_scale > 1.0 and isinstance(work_center, dict))
     if applied["crop"]["requested"]:
         material_width = safe_float((video_material or {}).get("width"), 0)
         material_height = safe_float((video_material or {}).get("height"), 0)

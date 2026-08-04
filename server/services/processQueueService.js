@@ -8036,7 +8036,9 @@ const HIGHLIGHT_BEAT_FIELD_KEYS = [
   'face_or_emotion_dominant',
   'texture_strength',
   'macro_closeup',
-  'shallow_depth_of_field'
+  'shallow_depth_of_field',
+  'work_center_x',
+  'work_center_y'
 ];
 
 // The hook-selection phase returns hook_clip_10s as a fresh object with no beat fields,
@@ -9658,16 +9660,32 @@ function applyLongformFillScaleFloor(preset = {}, analysis = {}) {
   };
 }
 
+// The deep 9:16 crop of a wide source has to be anchored on the point where the work
+// actually happens, not the frame center. Gemini reports work_center_x/y per candidate
+// window (borrowed onto the selected window like the beat fields); the assembler pans
+// the crop to that point. Without a reported center the assembler stays at frame center.
+function attachHighlightWorkCenter(preset = {}, window = {}) {
+  const x = Number(window?.work_center_x);
+  const y = Number(window?.work_center_y);
+  if (!Number.isFinite(x) && !Number.isFinite(y)) return preset;
+  const clamp01 = (value) => Math.min(1, Math.max(0, value));
+  return {
+    ...preset,
+    work_center: {
+      x: Number.isFinite(x) ? Number(clamp01(x).toFixed(4)) : 0.5,
+      y: Number.isFinite(y) ? Number(clamp01(y).toFixed(4)) : 0.5
+    }
+  };
+}
+
 function buildHighlightHookZoomOutPreset(basePreset = {}, itemConfig = {}, window = {}) {
   const analysis = classifyHighlightHook(itemConfig, window);
-  if (
-    analysis.wide_longform_core_crop === true
+  const preset = analysis.wide_longform_core_crop === true
     && analysis.shortform_preset_id
     && isLongformHighlightTwoLayerEnabled(itemConfig)
-  ) {
-    return applyLongformFillScaleFloor(buildLongformHighlightTwoLayerPreset(analysis, basePreset), analysis);
-  }
-  return applyLongformFillScaleFloor(buildHighlightPresetById(analysis.preset_id, basePreset, analysis), analysis);
+    ? buildLongformHighlightTwoLayerPreset(analysis, basePreset)
+    : buildHighlightPresetById(analysis.preset_id, basePreset, analysis);
+  return attachHighlightWorkCenter(applyLongformFillScaleFloor(preset, analysis), window);
 }
 
 async function createHighlightDraftForItem({

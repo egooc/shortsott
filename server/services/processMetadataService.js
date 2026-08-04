@@ -298,7 +298,12 @@ const HIGHLIGHT_BEAT_SCHEMA_FIELDS = {
   face_or_emotion_dominant: { type: 'boolean' },
   texture_strength: { type: 'integer' },
   macro_closeup: { type: 'boolean' },
-  shallow_depth_of_field: { type: 'boolean' }
+  shallow_depth_of_field: { type: 'boolean' },
+  // Where the work actually happens inside the frame (0..1, left-top origin). The
+  // 9:16 crop of a wide source is anchored here - without it the deep crop can only
+  // cut the frame center, which is rarely where the tool meets the material.
+  work_center_x: { type: 'number' },
+  work_center_y: { type: 'number' }
 };
 
 const OTTOGI_VARIANT_METADATA_SCHEMA = {
@@ -1417,6 +1422,7 @@ function highlightBeatFormulaPromptLines() {
     '- face_or_emotion_dominant: true when a face or reaction dominates. Such a window must not be nominated.',
     '- texture_strength: 1 to 10, how strongly the material reads at phone size.',
     '- macro_closeup and shallow_depth_of_field: true when the framing actually is that.',
+    '- work_center_x and work_center_y: the normalized position (0 to 1, measured from the top-left of the frame) of the point where the tool meets the material - the center of the actual work, averaged over the window. The vertical crop of a wide source is anchored on this point, so report where the action really is, never a default 0.5/0.5 unless the work truly is frame-center.',
     ''
   ];
 }

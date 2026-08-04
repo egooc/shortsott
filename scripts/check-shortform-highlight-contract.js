@@ -881,6 +881,33 @@ function testWideLongformPresetFillsTheVerticalCanvas() {
   assert(/ceiling = 6\.0 if safe_float\(video_transform_preset\.get\("min_fill_scale"\)/.test(pySource), 'the legacy 3.2 zoom cap must yield to presets that declare a fill floor');
 }
 
+function testDeepCropAnchorsOnTheWorkCenter() {
+  // The deep 9:16 crop of a wide source must center on where the work happens, not the
+  // frame center. Gemini reports work_center_x/y per candidate window; the preset
+  // carries it to the assembler, which pans the crop there and clamps every pan by
+  // geometric slack so no pan can reveal the background (the old fixed 0.35 cap let a
+  // floor-scale pan_y leak a letterbox strip).
+  const longformItem = {
+    source_type: 'longform',
+    source_workflow_mode: 'longform_to_shorts',
+    video_metadata: { duration_sec: 750, width: 1920, height: 1080 },
+    source_classification: { duration_sec: 750, width: 1920, height: 1080 },
+    ottogi_guide_output: { scene_transitions: [] }
+  };
+  const preset = queueTest.buildHighlightHookZoomOutPreset({}, longformItem, {
+    start_sec: 60, end_sec: 70, duration_sec: 10, work_center_x: 0.31, work_center_y: 0.55
+  });
+  assert(preset.work_center && preset.work_center.x === 0.31 && preset.work_center.y === 0.55,
+    'the preset must carry the window\'s reported work center to the assembler');
+  const centerless = queueTest.buildHighlightHookZoomOutPreset({}, longformItem, { start_sec: 60, end_sec: 70, duration_sec: 10 });
+  assert(centerless.work_center === undefined, 'no reported work center means center crop, not an invented anchor');
+
+  const pySource = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'capcut_draft.py'), 'utf8');
+  assert(pySource.includes('def apply_work_anchor_pan('), 'capcut_draft.py must anchor deep-crop pans on the work center');
+  assert(pySource.includes('pan_x, pan_y = apply_work_anchor_pan(pan_x, pan_y, zoom_scale, min_fill_scale, work_center)'),
+    'sequence steps must run through the anchor/slack clamp');
+}
+
 function testOcrBlurShipsHiddenForReview() {
   // The OCR/watermark blur ships in the draft but with its track hidden (attribute 1,
   // the CapCut timeline eye toggle), so nothing is blurred by default and the reviewer
@@ -1338,6 +1365,18 @@ function main() {
     'Phase 2 locale selector must lock running or completed queue items.'
   );
 
+  assertContains(
+    phaseUi,
+    '|| (isMetadataFailureItem(item) && !isDraftSuccessItem(item))',
+    'A metadata-failed item with no draft must surface a failure card and retry button even when the job ends completed_with_warnings.'
+  );
+
+  assertNotContains(
+    phaseUi,
+    "serverQueueJob?.status === 'failed' && isMetadataFailureItem(item)",
+    'Failed-item classification must not depend on the whole job having failed.'
+  );
+
   testShortformHighlightUsesSingleHookScene();
   testShortformHighlightRejectsFullCycleCandidates();
   testShortformHighlightValidationRequiresGeminiBestHook();
@@ -1360,6 +1399,7 @@ function main() {
   testHighlightBeatPlanFollowsTheFormula();
   testSelectedHookWindowBorrowsMeasuredBeats();
   testWideLongformPresetFillsTheVerticalCanvas();
+  testDeepCropAnchorsOnTheWorkCenter();
   testOcrBlurShipsHiddenForReview();
   testGenericSceneExplanationDetector();
   testDuplicateCandidateMetadataBlocksGeneration();
