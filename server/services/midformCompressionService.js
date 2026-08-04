@@ -1292,8 +1292,37 @@ function dedupeFocusLines(lines) {
   return output;
 }
 
+// Auto-captions run several speakers together in one line, and the whole blob then gets ONE
+// speaker and one colour: the man's correction after his slip was pinned on the officer, so his
+// excuse never read as his. Split at the interjection that starts a new turn, and let each half
+// take its own caption line, speaker and colour.
+const DIALOGUE_TURN_BOUNDARY_RE = /\b(oh now wait a minute|now wait a minute|wait a minute|hold on|excuse me|sir,?)\s+/i;
+const DIALOGUE_TURN_MIN_WORDS = 2;
+
+function splitMultiTurnDialogueLine(line) {
+  const text = String(line || '').trim();
+  if (!text) return [text];
+  const match = DIALOGUE_TURN_BOUNDARY_RE.exec(text);
+  if (!match || match.index <= 0) return [text];
+  const head = text.slice(0, match.index).trim();
+  const tail = text.slice(match.index).trim();
+  const words = (value) => value.split(/\s+/).filter(Boolean).length;
+  if (words(head) < DIALOGUE_TURN_MIN_WORDS || words(tail) < DIALOGUE_TURN_MIN_WORDS) return [text];
+  return [head, tail];
+}
+
+function splitMultiTurnFocusLines(lines) {
+  const output = [];
+  for (const line of Array.isArray(lines) ? lines : []) {
+    for (const part of splitMultiTurnDialogueLine(line)) {
+      if (String(part || '').trim()) output.push(part);
+    }
+  }
+  return output;
+}
+
 function limitDialogueFocusLines(focus, requiredLines = [], maxLines = 5) {
-  const lines = dedupeFocusLines(Array.isArray(focus?.lines) ? focus.lines : []);
+  const lines = dedupeFocusLines(splitMultiTurnFocusLines(Array.isArray(focus?.lines) ? focus.lines : []));
   if (lines.length <= maxLines) return { ...focus, lines };
   const required = new Set((Array.isArray(requiredLines) ? requiredLines : []).map(normalizeComparableText).filter(Boolean));
   const keep = [];
@@ -4668,6 +4697,7 @@ module.exports = {
     applyColdOpenVisualOverlapSafety,
     validateSlotFillsDialogueCaptions,
     resolveDialogueLineWindows,
+    splitMultiTurnDialogueLine,
     profileSourceCase,
     buildSourceCaseGuidance,
     detectPromoTail,
