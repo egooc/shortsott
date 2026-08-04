@@ -1173,6 +1173,32 @@ const SOURCE_CASE_SHORT_SEC = 240;
 const SOURCE_CASE_SPARSE_DENSITY = 0.35;
 const SOURCE_CASE_DENSE_DENSITY = 0.6;
 
+// Source channels close their clips with ~30s of self-promotion (varies by channel) — outro
+// music, subscribe cards, "watch more" reels. None of it is film footage, so nothing may be cut
+// from it (user directive; if narration runs out of footage, reuse the hook instead).
+const PROMO_TAIL_MIN_SEC = 8;
+const PROMO_CUE_RE = /subscribe|our channel|watch (more|the latest)|movieclips|fandango|coming soon|new trailers?|best (movies|clips|scenes)|link in (the )?(bio|description)|follow us|check out/i;
+
+function detectPromoTail(transcript, sourceDurationSec) {
+  const durationSec = Number(sourceDurationSec || 0);
+  const cues = (Array.isArray(transcript) ? transcript : [])
+    .filter((cue) => Number(cue?.end_sec) > Number(cue?.start_sec))
+    .sort((a, b) => Number(a.start_sec) - Number(b.start_sec));
+  if (!durationSec || !cues.length) return { usable_end_sec: durationSec || 0, promo_tail_sec: 0 };
+  // The last cue that is real film speech: not a sound-effect caption, not promo copy.
+  let lastRealEnd = 0;
+  for (const cue of cues) {
+    const text = String(cue.text || '');
+    if (isNonSpeechCaption(text) || PROMO_CUE_RE.test(text)) continue;
+    lastRealEnd = Math.max(lastRealEnd, Number(cue.end_sec));
+  }
+  if (!lastRealEnd) return { usable_end_sec: durationSec, promo_tail_sec: 0 };
+  const usableEnd = Math.min(durationSec, roundSec(lastRealEnd + 2));
+  const tail = roundSec(durationSec - usableEnd);
+  if (tail < PROMO_TAIL_MIN_SEC) return { usable_end_sec: durationSec, promo_tail_sec: 0 };
+  return { usable_end_sec: usableEnd, promo_tail_sec: tail };
+}
+
 function profileSourceCase(transcript, metadata, heatmap) {
   const durationSec = Number(metadata?.duration || 0);
   const cues = (Array.isArray(transcript) ? transcript : [])
@@ -1201,11 +1227,14 @@ function profileSourceCase(transcript, metadata, heatmap) {
     : (speechDensity >= SOURCE_CASE_DENSE_DENSITY ? 'dialogue_dense' : 'mixed_density');
   const parts = [density, peakIsDialogue ? 'dialogue_peak' : 'action_peak'];
   if (durationSec > 0 && durationSec < SOURCE_CASE_SHORT_SEC) parts.unshift('short_source');
+  const promo = detectPromoTail(transcript, durationSec);
   return {
     case_type: parts.join('+'),
     duration_sec: durationSec,
     speech_density: speechDensity,
-    peak_is_dialogue: peakIsDialogue
+    peak_is_dialogue: peakIsDialogue,
+    usable_end_sec: promo.usable_end_sec,
+    promo_tail_sec: promo.promo_tail_sec
   };
 }
 
@@ -1226,6 +1255,9 @@ function buildSourceCaseGuidance(profile) {
     lines.push('- The peak moment is spoken: open on that dialogue as a captioned hook. Never open with an uncaptioned audio teaser over speech — the hook would play inaudible to the target audience.');
   } else {
     lines.push('- The peak moment is non-verbal: an uncaptioned source-audio teaser on the peak is the right opening; its energy carries the hook. Do not force a weak dialogue line into the hook instead.');
+  }
+  if (Number(profile.promo_tail_sec) > 0) {
+    lines.push(`- The source ends with about ${Math.round(profile.promo_tail_sec)}s of channel self-promotion (outro/subscribe reel). NOTHING may be cut from after ${profile.usable_end_sec}s - no beat, no slot, no b-roll. If narration needs footage and none is left, reuse the hook moment rather than reaching into the outro.`);
   }
   if (profile.duration_sec > 0 && profile.duration_sec < SOURCE_CASE_SHORT_SEC) {
     lines.push('- Short source: completeness beats length. Few beats are expected; do not pad narration to stretch the runtime, and never drop a line of a running gag to save seconds.');
@@ -4560,6 +4592,7 @@ async function downloadCompressionSourceVideo(runIdOrPath, options = {}) {
 }
 
 module.exports = {
+  detectPromoTail,
   buildSlotFillsPrompt,
   resolveRecapContext,
   runCompression,
@@ -4584,6 +4617,7 @@ module.exports = {
     resolveDialogueLineWindows,
     profileSourceCase,
     buildSourceCaseGuidance,
+    detectPromoTail,
     separateOverlappingDialogueWindows,
     topUpTimelineToTargetRuntime,
     buildSlotQcReport,

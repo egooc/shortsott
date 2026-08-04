@@ -15,7 +15,7 @@ const { PROJECT_ROOT } = require('./pipelinePaths');
 const { resolveTool, getToolEnv } = require('../utils/toolPaths');
 const { getVideoMetadata } = require('../utils/ffprobe');
 const { buildSpeakerMetadata, resolveCaptionColor, assignFallbackSpeakerColorKeys } = require('../utils/captionColorConfig');
-const { resolveCompressionRunDir, downloadCompressionSourceVideo } = require('./midformCompressionService');
+const { resolveCompressionRunDir, downloadCompressionSourceVideo, detectPromoTail } = require('./midformCompressionService');
 const { startRun } = require('./midformPipelineService');
 
 const DURATION_CONFIG_PATH = path.join(PROJECT_ROOT, 'midform', 'config', 'duration.json');
@@ -437,6 +437,8 @@ function trimDialogueWindowsToSpeech(editPlan, speechRanges, sourceDurationSec =
 function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
   const warnings = [];
   const durationSec = Number(options.sourceDurationSec || editPlan?.duration_budget?.estimated_total_sec || 0);
+  // Source channels end their clips with a self-promo tail; nothing may be cut from it.
+  const footageEndSec = Number(options.usableEndSec) > 0 ? Math.min(durationSec || Number(options.usableEndSec), Number(options.usableEndSec)) : durationSec;
   const timeline = (Array.isArray(editPlan?.timeline) ? editPlan.timeline : [])
     .filter((item) => item.decision !== 'DROP');
   const fillsBySlot = new Map((Array.isArray(slotFills?.slot_fills) ? slotFills.slot_fills : [])
@@ -539,12 +541,18 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
     return [snappedStart, snappedEnd];
   };
 
+  // When a narration slot's footage falls entirely inside the promo tail, replay the hook
+  // moment instead of showing the outro (user directive).
+  let hookFallbackRange = reservedDialogueRanges.length
+    ? [reservedDialogueRanges[0][0], Math.min(reservedDialogueRanges[0][1], reservedDialogueRanges[0][0] + 6)]
+    : null;
+
   const pickNarrationBroll = (prefStartRaw, prefEndRaw) => {
     // The preferred range follows the slot, which can run past the end of the footage: a closing
     // recap asked for b-roll ending at 531.280s of a 529.561s source and the clip was emitted
     // as-is, failing source_duration_covers_timestamps.
     const prefStart = Math.max(0, Number(prefStartRaw));
-    const prefEnd = durationSec > 0 ? Math.min(Number(prefEndRaw), durationSec) : Number(prefEndRaw);
+    const prefEnd = footageEndSec > 0 ? Math.min(Number(prefEndRaw), footageEndSec) : Number(prefEndRaw);
     if (!(prefEnd > prefStart)) return null;
     const free = subtractBusyRanges(prefStart, prefEnd, [...reservedDialogueRanges, ...assignedBrollRanges]);
     if (!free.length) return null;
@@ -707,6 +715,7 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
       // leaves our explicit muted-teaser source_scenes untouched.
       sourceRangeHint = [teaserStart, teaserStart];
       assignedBrollRanges.push([teaserStart, teaserEnd]);
+      hookFallbackRange = [teaserStart, teaserEnd];
     } else {
       // Non-cold-open narration: pick explicit NON-OVERLAPPING b-roll from the beat window (free of
       // dialogue clips and other narration b-roll), with a degenerate hint so the picker declines.
@@ -719,8 +728,8 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
       }
       // The dialogue-saturated fallback below emits this window verbatim, so it has to respect
       // the footage too — otherwise a slot running past the source produces an unplayable clip.
-      if (durationSec > 0) {
-        winEnd = Math.min(winEnd, durationSec);
+      if (footageEndSec > 0) {
+        winEnd = Math.min(winEnd, footageEndSec);
         winStart = Math.min(winStart, winEnd);
       }
       const broll = (winEnd > winStart) ? pickNarrationBroll(winStart, winEnd) : null;
@@ -729,9 +738,15 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
         sourceScenes = [{ clip_id: `${slotId}_broll_clip`, scene_id: 'narration_broll', start: secondsToTimecode(broll[0]), end: secondsToTimecode(broll[1]), speed_multiplier: 1 }];
         assignedBrollRanges.push(broll);
       } else {
-        warnings.push(`${slotId} (${role}) NARRATE found no free b-roll window in [${winStart},${winEnd}] (dialogue-saturated); using beat window as-is`);
-        sourceRange = [winStart, winEnd];
-        sourceScenes = (winEnd > winStart) ? [{ clip_id: `${slotId}_broll_clip`, scene_id: 'narration_broll', start: secondsToTimecode(winStart), end: secondsToTimecode(winEnd), speed_multiplier: 1 }] : [];
+        if (!(winEnd > winStart) && hookFallbackRange) {
+          warnings.push(`${slotId} (${role}) NARRATE window falls in the promo tail; replaying the hook footage instead`);
+          sourceRange = [...hookFallbackRange];
+          sourceScenes = [{ clip_id: `${slotId}_broll_clip`, scene_id: 'narration_broll', start: secondsToTimecode(hookFallbackRange[0]), end: secondsToTimecode(hookFallbackRange[1]), speed_multiplier: 1 }];
+        } else {
+          warnings.push(`${slotId} (${role}) NARRATE found no free b-roll window in [${winStart},${winEnd}] (dialogue-saturated); using beat window as-is`);
+          sourceRange = [winStart, winEnd];
+          sourceScenes = (winEnd > winStart) ? [{ clip_id: `${slotId}_broll_clip`, scene_id: 'narration_broll', start: secondsToTimecode(winStart), end: secondsToTimecode(winEnd), speed_multiplier: 1 }] : [];
+        }
       }
       sourceRangeHint = [sourceRange[0], sourceRange[0]]; // degenerate -> auto-picker declines
     }
@@ -858,6 +873,7 @@ function assembleBootstrapArtifacts(runIdOrPath, options = {}) {
   // Trim before either consumer reads the windows: the transcript and the slot map derive
   // their coordinates from the same numbers and must agree to within 0.05s.
   const speechRanges = detectSpeechRanges(sourceVideoPath, transcriptTimed);
+  const promoTail = detectPromoTail(transcriptTimed, sourceDurationSec);
   const dialogueTrim = trimDialogueWindowsToSpeech(editPlan, speechRanges, sourceDurationSec);
 
   const { transcript, stats: transcriptStats, warnings: tW } = buildBootstrapTranscript(editPlan, transcriptTimed);
@@ -866,6 +882,7 @@ function assembleBootstrapArtifacts(runIdOrPath, options = {}) {
     title: manifest.title || '',
     sourceDurationSec,
     speechRanges,
+    usableEndSec: promoTail.usable_end_sec,
     cueRanges: (Array.isArray(transcriptTimed) ? transcriptTimed : []).map((cue) => [Number(cue?.start_sec), Number(cue?.end_sec)])
   });
 
