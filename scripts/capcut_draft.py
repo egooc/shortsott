@@ -1800,14 +1800,15 @@ def upsert_timerange(segment_obj, start_us, duration_us):
 MIDFORM_FIXED_TITLE_Y = 0.7004421221864953
 MIDFORM_FIXED_SUBTITLE_Y = 0.5416639871382638
 MIDFORM_CAPTION_Y = -0.35
-# Narration keeps the established caption line; each speaker gets a row beneath it, so two
-# people talking at once can share a moment on separate rows instead of forcing the plan to
-# split slots (user directive). Rows cycle if a scene carries more speakers than rows.
-MIDFORM_SPEAKER_ROW_OFFSETS = (-0.10, -0.20, -0.30)
+# Narration keeps the established caption line and dialogue sits on the two rows under it,
+# ALTERNATING: the first speaker takes the upper row, whoever answers takes the lower, and it
+# swaps back. Giving every speaker a fixed row of their own walked the captions down the frame
+# once a scene had four or five people in it.
+MIDFORM_SPEAKER_ROW_OFFSETS = (-0.10, -0.20)
 
 
 def midform_caption_row_y(caption_kind, speaker_row_index, base_y=MIDFORM_CAPTION_Y):
-    """Narration stays on base_y; dialogue drops onto its speaker's row."""
+    """Narration stays on base_y; dialogue drops onto one of the two rows beneath it."""
     if str(caption_kind or "").strip() != "dialogue":
         return base_y
     if speaker_row_index is None or speaker_row_index < 0:
@@ -1817,15 +1818,23 @@ def midform_caption_row_y(caption_kind, speaker_row_index, base_y=MIDFORM_CAPTIO
 
 
 def assign_midform_speaker_rows(entries):
-    """Give each distinct speaker a stable row index, in order of first appearance."""
-    rows = {}
+    """Alternate rows as the speaker changes, so a reply always lands opposite the line it answers.
+
+    Returns one row index per caption entry (not per speaker): consecutive lines from the same
+    person stay on their row, and every change of speaker flips to the other row.
+    """
+    rows = []
+    current_row = 0
+    previous_alias = None
     for entry in entries or []:
         if str((entry or {}).get("caption_kind") or "").strip() != "dialogue":
+            rows.append(None)
             continue
         alias = str((entry or {}).get("speaker_alias") or (entry or {}).get("speaker") or "").strip()
-        if not alias or alias in rows:
-            continue
-        rows[alias] = len(rows)
+        if previous_alias is not None and alias != previous_alias:
+            current_row = 1 - current_row
+        previous_alias = alias
+        rows.append(current_row)
     return rows
 MIDFORM_CROP_FINAL_SCALE_CAP = 2.4
 
@@ -2899,8 +2908,11 @@ def rebuild_midform_caption_track_from_template(draft_content_path, template_doc
         cloned_segment["render_index"] = 15000 + index
         cloned_segment["track_render_index"] = 0
         upsert_timerange(cloned_segment, start_us, duration_us)
-        entry_alias = str(entry.get("speaker_alias") or entry.get("speaker") or "").strip()
-        entry_row_y = midform_caption_row_y(entry.get("caption_kind"), speaker_rows.get(entry_alias), caption_y)
+        entry_row_y = midform_caption_row_y(
+            entry.get("caption_kind"),
+            speaker_rows[index] if index < len(speaker_rows) else None,
+            caption_y,
+        )
         set_segment_clip_transform_y(cloned_segment, entry_row_y)
         cloned_segment["extra_material_refs"] = clone_material_dependencies(
             template_doc,
