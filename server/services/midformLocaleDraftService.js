@@ -30,9 +30,18 @@ function copyIfExists(sourcePath, destinationPath) {
   return destinationPath;
 }
 
+// CapCut holds the media of any draft the user has open, so rebuilding into the same folder
+// fails with EPERM mid-run — three times now, each losing the whole run. Move the locked folder
+// aside instead of deleting it: renaming a directory Windows has open files in still succeeds.
 function removeIfExists(targetPath) {
   if (!targetPath || !fs.existsSync(targetPath)) return;
-  fs.rmSync(targetPath, { recursive: true, force: true });
+  try {
+    fs.rmSync(targetPath, { recursive: true, force: true });
+  } catch (error) {
+    if (error?.code !== 'EPERM' && error?.code !== 'EBUSY') throw error;
+    const stale = `${targetPath}.locked_${Date.now()}`;
+    fs.renameSync(targetPath, stale);
+  }
 }
 
 function secondsToTimecode(value) {
