@@ -2938,7 +2938,15 @@ function separateOverlappingDialogueWindows(timeline) {
   for (const item of items) {
     if (item.decision !== 'KEEP_DIALOGUE') continue;
     for (const win of Array.isArray(item.dialogue_line_windows) ? item.dialogue_line_windows : []) {
-      if (win && win.matched === true && Number(win.end_sec) > Number(win.start_sec)) windows.push(win);
+      if (win && win.matched === true && Number(win.end_sec) > Number(win.start_sec)) {
+        // Keep the moment the line is actually SPOKEN before the video windows are pulled apart.
+        // CapCut rejects overlapping VIDEO segments, not overlapping captions, so separating both
+        // together made every caption strictly serial - two people speaking over each other could
+        // never share the screen. Captions read these; only the clips get separated.
+        if (win.caption_start_sec === undefined) win.caption_start_sec = roundSec(Number(win.start_sec));
+        if (win.caption_end_sec === undefined) win.caption_end_sec = roundSec(Number(win.end_sec));
+        windows.push(win);
+      }
     }
   }
   windows.sort((left, right) => Number(left.start_sec) - Number(right.start_sec));

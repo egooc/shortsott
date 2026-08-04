@@ -308,8 +308,18 @@ function buildDialogueTimingAdjustment(item, win, orderedWindows, orderedIndex, 
   const roundedSpeechStart = round3(speechStart);
   const roundedSpeechEnd = round3(speechEnd);
   const speechDuration = Math.max(0, roundedSpeechEnd - roundedSpeechStart);
-  const captionStartDelaySec = speechDuration > MIN_DIALOGUE_CAPTION_DURATION_SEC + 0.05
-    ? Math.min(DIALOGUE_CAPTION_START_DELAY_SEC, speechDuration - MIN_DIALOGUE_CAPTION_DURATION_SEC)
+  // The caption follows the moment the line was SPOKEN, which is not the clip: separating the
+  // video windows so CapCut accepts them also pulled the captions apart, leaving every caption
+  // strictly serial. Two people talking over each other can now share the screen on their lanes.
+  const captionSpeechStart = Number.isFinite(Number(win?.caption_start_sec)) ? round3(Number(win.caption_start_sec)) : roundedSpeechStart;
+  const captionSpeechEndRaw = Number.isFinite(Number(win?.caption_end_sec)) ? round3(Number(win.caption_end_sec)) : roundedSpeechEnd;
+  const captionLimitSec = Number(sourceDurationSec);
+  const captionSpeechEnd = Number.isFinite(captionLimitSec) && captionLimitSec > 0
+    ? Math.min(captionSpeechEndRaw, round3(captionLimitSec))
+    : captionSpeechEndRaw;
+  const captionSpokenDuration = Math.max(0, captionSpeechEnd - captionSpeechStart);
+  const captionStartDelaySec = captionSpokenDuration > MIN_DIALOGUE_CAPTION_DURATION_SEC + 0.05
+    ? Math.min(DIALOGUE_CAPTION_START_DELAY_SEC, captionSpokenDuration - MIN_DIALOGUE_CAPTION_DURATION_SEC)
     : 0;
   return {
     dialogue_type: rule.dialogue_type,
@@ -319,9 +329,10 @@ function buildDialogueTimingAdjustment(item, win, orderedWindows, orderedIndex, 
     requested_post_roll_sec: rule.post_roll_sec,
     applied_pre_roll_sec: round3(roundedSpeechStart - roundedVisualStart),
     applied_post_roll_sec: round3(roundedVisualEnd - roundedSpeechEnd),
-    caption_timeline_offset_sec: round3(roundedSpeechStart - roundedVisualStart + captionStartDelaySec),
+    caption_timeline_offset_sec: round3(captionSpeechStart - roundedVisualStart + captionStartDelaySec),
     caption_start_delay_sec: round3(captionStartDelaySec),
-    caption_duration_sec: round3(speechDuration - captionStartDelaySec),
+    caption_duration_sec: round3(Math.max(MIN_DIALOGUE_CAPTION_DURATION_SEC, captionSpokenDuration - captionStartDelaySec)),
+    caption_speech_range_sec: [captionSpeechStart, captionSpeechEnd],
     visual_duration_sec: round3(roundedVisualEnd - roundedVisualStart),
     source: 'bootstrap_dialogue_visual_padding_v1',
     fallback_used: false
