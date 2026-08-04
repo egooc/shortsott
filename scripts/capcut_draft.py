@@ -1800,42 +1800,43 @@ def upsert_timerange(segment_obj, start_us, duration_us):
 MIDFORM_FIXED_TITLE_Y = 0.7004421221864953
 MIDFORM_FIXED_SUBTITLE_Y = 0.5416639871382638
 MIDFORM_CAPTION_Y = -0.35
-# Narration keeps the established caption line and dialogue sits on the two rows under it,
-# ALTERNATING: the first speaker takes the upper row, whoever answers takes the lower, and it
-# swaps back. Giving every speaker a fixed row of their own walked the captions down the frame
-# once a scene had four or five people in it.
-MIDFORM_SPEAKER_ROW_OFFSETS = (-0.10, -0.20)
+# Two caption lanes, each with its own row and its own text track (user directive).
+#   lane 0 - narration's line: narration and the SECOND speaker of an exchange
+#   lane 1 - the row beneath it: the FIRST speaker of an exchange
+# Captions used to run strictly serially on one track: 42 segments, zero overlaps, 41 of them
+# butted end to end. Two rows changed nothing because nothing was ever simultaneous. With a
+# track per lane, order only has to hold WITHIN a lane, so back-to-back speech from two people
+# can share a moment instead of pushing each other later.
+MIDFORM_CAPTION_LANE_OFFSETS = (0.0, -0.10)
 
 
-def midform_caption_row_y(caption_kind, speaker_row_index, base_y=MIDFORM_CAPTION_Y):
-    """Narration stays on base_y; dialogue drops onto one of the two rows beneath it."""
-    if str(caption_kind or "").strip() != "dialogue":
+def midform_caption_row_y(caption_kind, lane_index, base_y=MIDFORM_CAPTION_Y):
+    """Lane 0 sits on the narration line; lane 1 sits one row below it."""
+    if lane_index is None or lane_index < 0:
         return base_y
-    if speaker_row_index is None or speaker_row_index < 0:
-        return base_y
-    offset = MIDFORM_SPEAKER_ROW_OFFSETS[speaker_row_index % len(MIDFORM_SPEAKER_ROW_OFFSETS)]
+    offset = MIDFORM_CAPTION_LANE_OFFSETS[lane_index % len(MIDFORM_CAPTION_LANE_OFFSETS)]
     return round(base_y + offset, 6)
 
 
 def assign_midform_speaker_rows(entries):
-    """Alternate rows as the speaker changes, so a reply always lands opposite the line it answers.
+    """One lane index per caption entry.
 
-    Returns one row index per caption entry (not per speaker): consecutive lines from the same
-    person stay on their row, and every change of speaker flips to the other row.
+    Narration always takes lane 0. Within a run of dialogue the first speaker takes lane 1 and
+    the one who answers takes lane 0, so a reply never has to wait for the line it answers to
+    clear the screen. Consecutive lines from the same person keep their lane.
     """
-    rows = []
-    current_row = 0
-    previous_alias = None
+    lanes = []
+    first_alias = None
     for entry in entries or []:
         if str((entry or {}).get("caption_kind") or "").strip() != "dialogue":
-            rows.append(None)
+            lanes.append(0)
+            first_alias = None
             continue
         alias = str((entry or {}).get("speaker_alias") or (entry or {}).get("speaker") or "").strip()
-        if previous_alias is not None and alias != previous_alias:
-            current_row = 1 - current_row
-        previous_alias = alias
-        rows.append(current_row)
-    return rows
+        if first_alias is None:
+            first_alias = alias
+        lanes.append(1 if alias == first_alias else 0)
+    return lanes
 MIDFORM_CROP_FINAL_SCALE_CAP = 2.4
 
 # Scale is derived from the source aspect ratio, never written as an absolute. At scale 1.0
@@ -2871,8 +2872,9 @@ def rebuild_midform_caption_track_from_template(draft_content_path, template_doc
             tracks.append(caption_tracks[-1])
         return caption_tracks[position]
 
-    ensure_caption_track(0)
-    caption_track_ends = [0]
+    for lane_index in range(len(MIDFORM_CAPTION_LANE_OFFSETS)):
+        ensure_caption_track(lane_index)
+    caption_track_ends = [0] * len(MIDFORM_CAPTION_LANE_OFFSETS)
     subtitle_track = caption_tracks[0]
 
     source_to_target_id_map = {}
@@ -2908,11 +2910,8 @@ def rebuild_midform_caption_track_from_template(draft_content_path, template_doc
         cloned_segment["render_index"] = 15000 + index
         cloned_segment["track_render_index"] = 0
         upsert_timerange(cloned_segment, start_us, duration_us)
-        entry_row_y = midform_caption_row_y(
-            entry.get("caption_kind"),
-            speaker_rows[index] if index < len(speaker_rows) else None,
-            caption_y,
-        )
+        entry_lane = speaker_rows[index] if index < len(speaker_rows) else 0
+        entry_row_y = midform_caption_row_y(entry.get("caption_kind"), entry_lane, caption_y)
         set_segment_clip_transform_y(cloned_segment, entry_row_y)
         cloned_segment["extra_material_refs"] = clone_material_dependencies(
             template_doc,
@@ -2922,9 +2921,13 @@ def rebuild_midform_caption_track_from_template(draft_content_path, template_doc
         )
         if color_applied:
             summary["removed_effect_refs"] += preserve_glow_effect_layers_for_colored_caption(cloned_material, cloned_segment, draft_content)
-        track_position = caption_track_for(start_us, caption_track_ends)
+        # A lane owns a track, so order only has to hold within the lane. If two captions in
+        # the SAME lane still collide, spill to an overflow track rather than shifting either.
+        track_position = entry_lane
+        while track_position < len(caption_track_ends) and start_us < caption_track_ends[track_position]:
+            track_position += len(MIDFORM_CAPTION_LANE_OFFSETS)
         target_track = ensure_caption_track(track_position)
-        if track_position >= len(caption_track_ends):
+        while len(caption_track_ends) <= track_position:
             caption_track_ends.append(0)
         caption_track_ends[track_position] = start_us + duration_us
         cloned_segment["track_render_index"] = track_position
