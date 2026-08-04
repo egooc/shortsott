@@ -3035,8 +3035,28 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec) {
   const coldIndex = timeline.findIndex((item) => item.role === 'cold_open');
   if (coldIndex >= 0) {
     const cold = { ...timeline[coldIndex] };
-    const coldBeat = beatMap.get(String(cold.beat_id || '').trim());
     const isSceneHookCold = String(cold.visual_source_mode || '').trim() === 'source_audio_teaser';
+    // A scene hook deliberately carries no captions — designed for action peaks. When the heatmap
+    // peak IS dialogue the teaser window lands on spoken lines and plays them uncaptioned ("I
+    // don't know where a headset ties into patriotism" opened the cut inaudible to a Korean
+    // audience). Flip it to a dialogue hook: the captioned pipeline — translation, speaker
+    // colours, per-line windows — then applies whole. The uncaptioned hook stays for peaks that
+    // genuinely carry no speech.
+    if (isSceneHookCold && cold.decision === 'NARRATE') {
+      const teaserStart = Number(cold.visual_source_start_sec);
+      const teaserEnd = Number(cold.visual_source_end_sec);
+      const spoken = (Array.isArray(transcript) ? transcript : []).filter((cue) => (
+        Number(cue?.end_sec) > teaserStart && Number(cue?.start_sec) < teaserEnd && !isNonSpeechCaption(cue?.text)
+      ));
+      if (spoken.length) {
+        cold.decision = 'KEEP_DIALOGUE';
+        cold.visual_source_mode = 'source_dialogue_hook';
+        if (cold.visual_source_beat_id) cold.beat_id = String(cold.visual_source_beat_id).trim();
+        cold.dialogue_focus_source = 'scene_hook_flipped_to_dialogue';
+        cold.reason = `${cold.reason || ''} The teaser moment is spoken, so it opens as captioned dialogue rather than an uncaptioned scene hook.`.trim();
+      }
+    }
+    const coldBeat = beatMap.get(String(cold.beat_id || '').trim());
     const coldDialogueFocus = (cold.decision === 'KEEP_DIALOGUE' || isSceneHookCold) ? null : coldOpenDialogueFocusForBeat(coldBeat, transcript);
     if (coldDialogueFocus) {
       cold.decision = 'KEEP_DIALOGUE';
