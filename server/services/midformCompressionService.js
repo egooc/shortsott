@@ -1401,16 +1401,25 @@ function collectDialogueFocus(beat, transcript, options = {}) {
   const quotes = Array.isArray(options.quotes) && options.quotes.length
     ? options.quotes
     : (Array.isArray(beat.key_dialogue) ? beat.key_dialogue : []);
+  // One cue used to serve one line: whichever quote came first claimed it and every other line
+  // inside that cue was dropped. Auto-captions pack several lines into a cue, so "just calm down"
+  // took the cue and the reply to it — "I am calm, I just want my headset" — vanished before any
+  // slot could ask for it. resolveDialogueLineWindows slices a packed cue per line now, so let
+  // several distinct quotes share one; dedupe on the quote instead.
   const matches = [];
+  const claimedQuotes = new Set();
   for (const quote of quotes) {
+    const quoteKey = normalizeComparableText(quote);
+    if (!quoteKey || claimedQuotes.has(quoteKey)) continue;
     let best = null;
     for (const cue of cues) {
-      const duplicate = matches.some((item) => item.cue.start_sec === cue.start_sec && item.cue.end_sec === cue.end_sec);
-      if (duplicate) continue;
       const score = scoreCueAgainstQuote(cue.text, quote);
       if (!best || score > best.score) best = { cue, quote, score };
     }
-    if (best && best.score >= 50) matches.push(best);
+    if (best && best.score >= 50) {
+      claimedQuotes.add(quoteKey);
+      matches.push(best);
+    }
   }
   if (!matches.length) return null;
   matches.sort((left, right) => left.cue.start_sec - right.cue.start_sec || left.cue.end_sec - right.cue.end_sec);
@@ -4751,6 +4760,7 @@ module.exports = {
     resolveDialogueLineWindows,
     splitMultiTurnDialogueLine,
     completeBeatDialogueFromCues,
+    collectDialogueFocus,
     profileSourceCase,
     buildSourceCaseGuidance,
     detectPromoTail,
