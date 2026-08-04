@@ -741,6 +741,107 @@ function testLongformCandidateTitlesCarryPerWindowCaptions() {
   );
 }
 
+function testHighlightBeatFormulaScoring() {
+  const win = (extra) => ({ start_sec: 100, end_sec: 112, duration_sec: 12, hook_score: 8, ...extra });
+
+  // A guide analysed before the beat contract must rank exactly as it did before.
+  assert(queueTest.scoreHighlightBeatStructure(win({})) === 0, 'a window with no beat data must contribute no beat delta');
+  assert(queueTest.scoreHighlightWindow(win({})) === 8, 'a window with no beat data must score as its plain hook score');
+
+  const fits = win({
+    beat_core_change_sec: 102,
+    beat_result_visible_sec: 106,
+    has_result_reveal: true,
+    process_is_subject: true,
+    texture_strength: 9
+  });
+  const flashierButUnfinished = win({
+    hook_score: 9,
+    beat_core_change_sec: 110,
+    has_result_reveal: false,
+    process_is_subject: true,
+    texture_strength: 3
+  });
+  assert(
+    queueTest.scoreHighlightWindow(fits) > queueTest.scoreHighlightWindow(flashierButUnfinished),
+    'a window that opens on action and reaches a result must outrank a higher-scored window that never shows one'
+  );
+  assert(
+    queueTest.scoreHighlightBeatStructure(win({ has_result_reveal: false })) < 0,
+    'a window that never reaches a visible result must be penalised'
+  );
+  assert(
+    queueTest.scoreHighlightBeatStructure(win({ face_or_emotion_dominant: true, process_is_subject: false })) < 0,
+    'a face-led window must be penalised - the process is the subject in this format'
+  );
+}
+
+function testFaceLedWindowsAreDroppedNotJustDownranked() {
+  assert(
+    queueTest.isFaceLedHighlightWindow({ face_or_emotion_dominant: true, process_is_subject: false }),
+    'a window carried by a face and explicitly not by the process must be dropped'
+  );
+  // Both flags are required so one mislabel cannot empty the candidate set.
+  assert(
+    !queueTest.isFaceLedHighlightWindow({ face_or_emotion_dominant: true, process_is_subject: true }),
+    'a process window that merely shows a face must not be dropped'
+  );
+  assert(!queueTest.isFaceLedHighlightWindow({}), 'a window with no face data must not be dropped');
+
+  const item = {
+    item_id: 'face_led_case',
+    source_type: 'longform',
+    source_workflow_mode: 'longform_to_shorts',
+    target_duration_sec: 400,
+    video_metadata: { duration_sec: 400 },
+    source_classification: { duration_sec: 400 },
+    ottogi_guide_output: {
+      shortform_candidate_windows: [
+        { window_id: 'w1', start_sec: 10, end_sec: 20, hook_score: 9, visual_hook: 'worker reacts to camera', why_this_clip: 'funny face', face_or_emotion_dominant: true, process_is_subject: false, selected_scene_ids: ['s1'] },
+        { window_id: 'w2', start_sec: 60, end_sec: 70, hook_score: 8, visual_hook: 'press deforms the billet', why_this_clip: 'clean transformation', has_result_reveal: true, process_is_subject: true, selected_scene_ids: ['s2'] },
+        { window_id: 'w3', start_sec: 120, end_sec: 130, hook_score: 8, visual_hook: 'blade separates the part', why_this_clip: 'clean cut', has_result_reveal: true, process_is_subject: true, selected_scene_ids: ['s3'] },
+        { window_id: 'w4', start_sec: 200, end_sec: 210, hook_score: 7, visual_hook: 'grinder finishes the edge', why_this_clip: 'result', has_result_reveal: true, process_is_subject: true, selected_scene_ids: ['s4'] }
+      ],
+      scene_transitions: []
+    }
+  };
+  const windows = queueTest.pickHighlightWindows(item, 24, 5);
+  assert(windows.length === 3, `the face-led window must not ship, got ${windows.length} windows`);
+  assert(
+    !windows.some((window) => Math.abs(Number(window.start_sec) - 10) < 0.5),
+    'the 10~20s face-led window must be absent from the shipped set'
+  );
+}
+
+function testHighlightBeatPlanFollowsTheFormula() {
+  const plan = queueTest.buildHighlightBeatPlan({
+    start_sec: 100,
+    end_sec: 112,
+    duration_sec: 12,
+    beat_core_change_sec: 101.5,
+    beat_result_visible_sec: 105,
+    loopable: true,
+    has_result_reveal: true
+  }, 12);
+  const byName = Object.fromEntries(plan.beats.map((beat) => [beat.beat, beat]));
+  assert(byName.action.start_sec === 0, 'the action beat must start at the first frame of the clip');
+  assert(byName.action.end_sec === 1.5, 'the action beat must end where Gemini said the core change begins');
+  assert(byName.core_change.end_sec === 5, 'the core-change beat must end where the result becomes visible');
+  assert(byName.emphasis && byName.emphasis.start_sec === 8, 'a clip longer than 8s must get the 8s+ beat');
+  assert(plan.tail_mode === 'repeat_loop', 'a loopable clip must loop rather than hold on the result');
+  assert(plan.beat_times_from_gemini === true, 'the plan must record that the beat times were measured, not assumed');
+
+  // The tail beat only exists when the clip actually runs that long.
+  const shortPlan = queueTest.buildHighlightBeatPlan({ start_sec: 20, end_sec: 26, duration_sec: 6 }, 6);
+  assert(!shortPlan.beats.some((beat) => beat.beat === 'emphasis'), 'a 6s clip must not claim an 8s+ beat');
+  assert(shortPlan.tail_mode === 'none', 'a clip under 8s has no tail mode');
+  assert(shortPlan.beat_times_from_gemini === false, 'nominal beats must be marked as not measured');
+  assert(
+    shortPlan.beats.every((beat) => beat.end_sec <= 6 && beat.start_sec >= 0),
+    'no beat may describe a cut past the end of the clip'
+  );
+}
+
 function testHighlightDuplicateGuardRejectsLabelTimeOnlyDifference() {
   const duplicated = [
     {
@@ -1171,6 +1272,9 @@ function main() {
   testLongformShipsOnlyGeminiNominatedWindows();
   testDuplicateGuardCatchesIdenticalCaptionBlocks();
   testLongformCandidateTitlesCarryPerWindowCaptions();
+  testHighlightBeatFormulaScoring();
+  testFaceLedWindowsAreDroppedNotJustDownranked();
+  testHighlightBeatPlanFollowsTheFormula();
   testGenericSceneExplanationDetector();
   testDuplicateCandidateMetadataBlocksGeneration();
 

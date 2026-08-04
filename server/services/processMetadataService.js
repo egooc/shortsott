@@ -283,6 +283,24 @@ function koreanFullKnowledgeNarrationDistributionPromptLines(budget = {}) {
   ];
 }
 
+// The highlight beat formula: 0-1s immediate physical action, 1-4s the core change of
+// the process, 4-8s the result starting to show, 8s+ result emphasis or a repeat loop.
+// Gemini reports where those beats actually land inside a window (absolute source
+// seconds) plus the traits the format depends on - process as the subject rather than a
+// person, and material that reads on a small screen. Kept optional so a guide analysed
+// before this contract still loads; scoring treats a missing beat as unknown, not bad.
+const HIGHLIGHT_BEAT_SCHEMA_FIELDS = {
+  beat_core_change_sec: { type: 'number' },
+  beat_result_visible_sec: { type: 'number' },
+  has_result_reveal: { type: 'boolean' },
+  loopable: { type: 'boolean' },
+  process_is_subject: { type: 'boolean' },
+  face_or_emotion_dominant: { type: 'boolean' },
+  texture_strength: { type: 'integer' },
+  macro_closeup: { type: 'boolean' },
+  shallow_depth_of_field: { type: 'boolean' }
+};
+
 const OTTOGI_VARIANT_METADATA_SCHEMA = {
   type: 'object',
   properties: {
@@ -497,7 +515,8 @@ const OTTOGI_METADATA_SCHEMA = {
           reason: { type: 'string' },
           cycle_time_sec: { type: 'number' },
           appears_sped_up: { type: 'boolean' },
-          human_visibility: { type: 'string' }
+          human_visibility: { type: 'string' },
+          ...HIGHLIGHT_BEAT_SCHEMA_FIELDS
         }
       }
     },
@@ -682,7 +701,8 @@ const LONGFORM_CANDIDATE_SCHEMA = {
           risk: { type: 'string' },
           cycle_time_sec: { type: 'number' },
           appears_sped_up: { type: 'boolean' },
-          human_visibility: { type: 'string' }
+          human_visibility: { type: 'string' },
+          ...HIGHLIGHT_BEAT_SCHEMA_FIELDS
         },
         required: ['start_sec', 'end_sec', 'duration_sec', 'visual_hook', 'reason']
       }
@@ -1370,6 +1390,37 @@ function sourceContextPromptLines(sourceContext = {}) {
   return lines;
 }
 
+// The house highlight format. A window that satisfies this reads as "process started, so
+// I want to see it finish" - the start of the process is itself the preview of the
+// ending, which is what keeps a viewer past the first second. Shared by every prompt
+// that nominates or confirms a highlight window so the rules cannot drift apart.
+function highlightBeatFormulaPromptLines() {
+  return [
+    'Highlight beat formula (a window is only strong if it fits this shape):',
+    '- 0 to 1 second: a physical action is ALREADY happening at the very first frame. Never open on a static shot, a title card, an establishing wide, a person talking, or a hand about to start. The viewer must be able to ask "what is being made here?" from frame one.',
+    '- 1 to 4 seconds: the core change of the process reads clearly - the press bites, the blade enters, the material deforms, the pour lands.',
+    '- 4 to 8 seconds: the result begins to show. The viewer can see where this is going.',
+    '- 8 seconds onward (only if the window is that long): emphasise the finished result, or return to the top of the cycle so the action repeats cleanly.',
+    '',
+    'Format traits this depends on:',
+    '- The PROCESS is the subject, not a person. Faces, reactions, talking, and emotional beats are not the hook. A window whose subject is a person\'s expression is disqualified as a highlight.',
+    '- Structure must be readable as one line: start -> progress -> result. The viewer should leave with exactly one thought: "so that is how it is made" or "that ending is satisfying".',
+    '- Material must read on a small screen: metal, machinery, soil, snow, wood, equipment surfaces. Macro close-ups, shallow depth of field, reflective metal and visible texture are strong positives.',
+    '- Do not nominate a window that ends before any result is visible, or one that is only a static overview, packaging shot, or explanation.',
+    '',
+    'Report these per candidate window (absolute source seconds, same basis as start_sec):',
+    '- beat_core_change_sec: when the core change first reads. Aim for 1 to 4 seconds after start_sec.',
+    '- beat_result_visible_sec: when the result starts to show. Aim for 4 to 8 seconds after start_sec.',
+    '- has_result_reveal: whether the window actually reaches a visible result at all.',
+    '- loopable: whether the last frame can cut back to the first frame without a visible jump.',
+    '- process_is_subject: true when the process, not a person, carries the shot.',
+    '- face_or_emotion_dominant: true when a face or reaction dominates. Such a window must not be nominated.',
+    '- texture_strength: 1 to 10, how strongly the material reads at phone size.',
+    '- macro_closeup and shallow_depth_of_field: true when the framing actually is that.',
+    ''
+  ];
+}
+
 function buildLongformCandidatePrompt({ sourceUrl, filename, durationSec, sourceType = 'longform', sourceWorkflowMode = 'longform_to_shorts', sourceContext = {} }) {
   return [
     'You are a long-form video editor analyzing a source for short-form extraction.',
@@ -1386,6 +1437,7 @@ function buildLongformCandidatePrompt({ sourceUrl, filename, durationSec, source
     '- Values like 0.11 to 0.25 are forbidden unless the full source itself is under one second.',
     '- end_sec must be greater than start_sec.',
     '',
+    ...highlightBeatFormulaPromptLines(),
     'A-grade manufacturing scene rubric:',
     '- Detection cues: human-machine synchronization, instant transformation within 1-2 seconds, and rhythmic audio or repeated physical cycle.',
     '- Cut points: start 0.5 seconds before the hand/tool/material enters the danger/work zone; peak at press/cut/bend/pour/impact; end when the processed part exits and the worker/machine resets.',
@@ -1631,6 +1683,9 @@ function buildStandardShortformHookPrompt({ sourceUrl, filename, durationSec, sc
     '- Start at or just before the strongest action, not automatically at 0 seconds unless the opening is truly the strongest hook.',
     '- If the video is longer than 15 seconds, the hook must usually be 3 to 10 seconds and must not exceed half of the source duration.',
     '- Never return null or an empty object. Choose the best available hook from the visible footage.',
+    '',
+    ...highlightBeatFormulaPromptLines(),
+    'Report the beat fields above on hook_clip_10s itself.',
     '',
     'Use the existing rough scene analysis only as a reference. If it is generic, ignore the labels and inspect the video directly.',
     'Rough scene analysis:',
@@ -4539,6 +4594,9 @@ function buildLongformVariantFinalPrompt({ variant, sourceUrl, filename, duratio
     '',
     ...(variant === 'highlight'
       ? [
+          ...highlightBeatFormulaPromptLines(),
+          'Write every caption so it follows the same line the cut does: the action that is already running, the change it produces, then what it leads to. Do not summarise the whole source and do not describe a person\'s reaction.',
+          '',
           'Candidate windows (each becomes its own JP Highlight draft - return one highlight_candidate_titles entry per line, with these exact timestamps):',
           longformHighlightCandidateSummary(candidateGuide, hookGuide, allCandidateGuide),
           ''

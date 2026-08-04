@@ -8074,6 +8074,12 @@ function normalizeHighlightCandidateWindow(raw, itemConfig = {}, maxDurationSec 
   const rawCenter = start + Math.max(0.1, rawDuration) / 2;
   const expandedStart = rawDuration < duration ? rawCenter - duration / 2 : start;
   const safeStart = sourceDuration > 0 ? clampWindowStartSec(expandedStart, duration, sourceDuration) : Math.max(0, expandedStart);
+  // Gemini reports beat times as absolute source seconds, but clamping and expansion
+  // above can move the window's start. Pin them to offsets from the start Gemini
+  // actually described, so a shifted window does not read as a broken beat structure.
+  const beatAnchor = Number.isFinite(rawStart) ? rawStart : safeStart;
+  const beatCoreChange = Number(normalized.beat_core_change_sec);
+  const beatResultVisible = Number(normalized.beat_result_visible_sec);
   return {
     ...normalized,
     start_sec: Number(safeStart.toFixed(3)),
@@ -8083,6 +8089,12 @@ function normalizeHighlightCandidateWindow(raw, itemConfig = {}, maxDurationSec 
     selection_strategy: normalized.selection_strategy || reason,
     selected_scene_ids: selectedSceneIds,
     single_process_only: true,
+    beat_core_change_offset_sec: Number.isFinite(beatCoreChange)
+      ? Number((beatCoreChange - beatAnchor).toFixed(3))
+      : undefined,
+    beat_result_visible_offset_sec: Number.isFinite(beatResultVisible)
+      ? Number((beatResultVisible - beatAnchor).toFixed(3))
+      : undefined,
     longform_highlight_rule: longformSource ? 'one_continuous_core_process_natural_end' : undefined
   };
 }
@@ -8120,8 +8132,10 @@ function collectHighlightCandidateWindows(itemConfig = {}, maxDurationSec = 10) 
   candidates
     .map((candidate, index) => ({ candidate, index, tierRank: cutSelectionTierRank(candidate) }))
     .sort((a, b) => {
-      const scoreA = Number(a.candidate.hook_score || a.candidate.visual_hook_score || a.candidate.score || 0);
-      const scoreB = Number(b.candidate.hook_score || b.candidate.visual_hook_score || b.candidate.score || 0);
+      // scoreHighlightWindow adds the beat-structure delta, so a window that opens on
+      // action and reaches a visible result outranks a flashier one that does not.
+      const scoreA = scoreHighlightWindow(a.candidate);
+      const scoreB = scoreHighlightWindow(b.candidate);
       // Tier before score (see computeCutSelectionTier): a T1 window with a
       // modest hook_score beats a flashy T3 one. Ordering only -- every
       // hook-like candidate is still pushed, whatever its tier.
@@ -8185,6 +8199,14 @@ function isGeminiNominatedHighlightWindow(window = {}) {
   return origin.startsWith('gemini_');
 }
 
+// In this format the process is the subject. A window Gemini marked as carried by a face
+// or a reaction, and explicitly not by the process, is a different kind of video - it is
+// dropped rather than merely down-ranked. Both flags are required so a single mislabel
+// cannot empty the candidate set on its own.
+function isFaceLedHighlightWindow(window = {}) {
+  return window?.face_or_emotion_dominant === true && window?.process_is_subject === false;
+}
+
 function pickHighlightWindows(itemConfig = {}, maxDurationSec = 10, count = 1) {
   const requestedCount = Math.min(5, Math.max(1, Math.round(Number(count) || 1)));
   const longformSource = isLongformHighlightSource(itemConfig);
@@ -8192,7 +8214,8 @@ function pickHighlightWindows(itemConfig = {}, maxDurationSec = 10, count = 1) {
   const primary = pickHighlightWindow(itemConfig, maxDurationSec);
   const candidates = [primary, ...collectHighlightCandidateWindows(itemConfig, maxDurationSec)]
     .filter((candidate) => !(longformSource && isLocalOrFallbackLongformWindow(candidate)))
-    .filter((candidate) => !longformSource || isGeminiNominatedHighlightWindow(candidate));
+    .filter((candidate) => !longformSource || isGeminiNominatedHighlightWindow(candidate))
+    .filter((candidate) => !isFaceLedHighlightWindow(candidate));
   const picked = [];
   const seenKeys = new Set();
 
@@ -8291,7 +8314,7 @@ function getDefaultLongformHighlightWindows(itemConfig = {}, maxDurationSec = 10
   }));
 }
 
-function scoreHighlightWindow(window = {}) {
+function baseHighlightHookScore(window = {}) {
   return Number(
     window.hook_score
       || window.visual_hook_score
@@ -8300,6 +8323,131 @@ function scoreHighlightWindow(window = {}) {
       || window.transformation_score
       || 0
   );
+}
+
+// House highlight formula: 0-1s action already running, 1-4s the core change, 4-8s the
+// result showing, 8s+ result emphasis or a clean loop. A window that lands those beats
+// makes the start of the process a preview of its ending, which is what holds a viewer
+// past the first second. Returns a delta added to the hook score, and 0 when Gemini
+// reported no beat data at all so a guide analysed before this contract ranks unchanged.
+function scoreHighlightBeatStructure(window = {}) {
+  const start = Number(window.start_sec);
+  const end = Number(window.end_sec ?? (start + Number(window.duration_sec || 0)));
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return 0;
+
+  // Prefer the offsets pinned at normalization time; a normalized window's start_sec may
+  // have moved away from the start the absolute beat seconds were measured against.
+  const coreOffset = Number(window.beat_core_change_offset_sec);
+  const resultOffset = Number(window.beat_result_visible_offset_sec);
+  const coreChange = Number.isFinite(coreOffset) ? start + coreOffset : Number(window.beat_core_change_sec);
+  const resultVisible = Number.isFinite(resultOffset) ? start + resultOffset : Number(window.beat_result_visible_sec);
+  const hasBeatData = Number.isFinite(coreChange)
+    || Number.isFinite(resultVisible)
+    || typeof window.has_result_reveal === 'boolean'
+    || typeof window.process_is_subject === 'boolean'
+    || typeof window.face_or_emotion_dominant === 'boolean'
+    || Number.isFinite(Number(window.texture_strength));
+  if (!hasBeatData) return 0;
+
+  let delta = 0;
+
+  // A face-led window is not this format at all, whatever else it scores.
+  if (window.face_or_emotion_dominant === true) delta -= 6;
+  if (window.process_is_subject === true) delta += 2;
+
+  if (Number.isFinite(coreChange)) {
+    const offset = coreChange - start;
+    if (offset >= 1 && offset <= 4) delta += 3;
+    else if (offset >= 0 && offset < 1) delta += 1.5;
+    else if (offset > 4 && offset <= 6) delta += 0.5;
+    else delta -= 1;
+  }
+
+  if (Number.isFinite(resultVisible)) {
+    const offset = resultVisible - start;
+    if (offset >= 4 && offset <= 8) delta += 3;
+    else if (offset > 1 && offset < 4) delta += 1.5;
+    else if (offset > 8 && offset <= 10) delta += 0.5;
+    else delta -= 1;
+  }
+
+  // A window that never reaches a visible result breaks the completion payoff.
+  if (window.has_result_reveal === true) delta += 2;
+  else if (window.has_result_reveal === false) delta -= 3;
+
+  // Only meaningful once the window is long enough to reach the 8s beat.
+  if (window.loopable === true && end - start >= 8) delta += 1.5;
+
+  const texture = Number(window.texture_strength);
+  if (Number.isFinite(texture)) delta += Math.max(-1, Math.min(2, (texture - 5) * 0.4));
+  if (window.macro_closeup === true) delta += 0.75;
+  if (window.shallow_depth_of_field === true) delta += 0.5;
+
+  return Number(delta.toFixed(3));
+}
+
+function scoreHighlightWindow(window = {}) {
+  return Number((baseHighlightHookScore(window) + scoreHighlightBeatStructure(window)).toFixed(3));
+}
+
+// Beat boundaries expressed in draft-local seconds - the highlight source is already
+// trimmed to the window, so the draft timeline starts at 0. Falls back to the formula's
+// nominal boundaries when Gemini reported no beat times, and drops any beat that does
+// not fit inside the actual clip so the plan can never describe a cut past the end.
+function buildHighlightBeatPlan(window = {}, clipDurationSec = 0) {
+  const duration = Number(clipDurationSec) > 0
+    ? Number(clipDurationSec)
+    : Number(window.duration_sec || 0);
+  if (!Number.isFinite(duration) || duration <= 0) return null;
+
+  const start = Number(window.start_sec || 0);
+  const offsetOf = (offsetKey, absoluteKey) => {
+    const offset = Number(window[offsetKey]);
+    if (Number.isFinite(offset)) return offset;
+    const absolute = Number(window[absoluteKey]);
+    return Number.isFinite(absolute) ? absolute - start : NaN;
+  };
+  const reportedCore = offsetOf('beat_core_change_offset_sec', 'beat_core_change_sec');
+  const reportedResult = offsetOf('beat_result_visible_offset_sec', 'beat_result_visible_sec');
+
+  const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+  const coreChangeAt = Number.isFinite(reportedCore)
+    ? clamp(reportedCore, 0.5, Math.max(0.5, duration - 0.5))
+    : clamp(1, 0.5, Math.max(0.5, duration - 0.5));
+  const resultAt = Number.isFinite(reportedResult)
+    ? clamp(reportedResult, coreChangeAt + 0.25, Math.max(coreChangeAt + 0.25, duration))
+    : clamp(4, coreChangeAt + 0.25, Math.max(coreChangeAt + 0.25, duration));
+
+  const beats = [
+    { beat: 'action', start_sec: 0, end_sec: Number(Math.min(coreChangeAt, duration).toFixed(3)), role: 'physical action already running at frame one' },
+    { beat: 'core_change', start_sec: Number(Math.min(coreChangeAt, duration).toFixed(3)), end_sec: Number(Math.min(resultAt, duration).toFixed(3)), role: 'core change of the process reads' },
+    { beat: 'result', start_sec: Number(Math.min(resultAt, duration).toFixed(3)), end_sec: Number(Math.min(Math.max(resultAt, 8), duration).toFixed(3)), role: 'result starts to show' }
+  ].filter((beat) => beat.end_sec - beat.start_sec >= 0.25);
+
+  // The 8s+ beat only exists when the clip actually runs that long.
+  const tailStart = Math.min(8, duration);
+  const hasTail = duration - tailStart >= 0.5;
+  if (hasTail) {
+    beats.push({
+      beat: 'emphasis',
+      start_sec: Number(tailStart.toFixed(3)),
+      end_sec: Number(duration.toFixed(3)),
+      role: window.loopable === true ? 'return to the top of the cycle so the action repeats' : 'hold on the finished result'
+    });
+  }
+
+  return {
+    formula: '0-1s action / 1-4s core change / 4-8s result / 8s+ emphasis or loop',
+    clip_duration_sec: Number(duration.toFixed(3)),
+    beats,
+    tail_mode: hasTail ? (window.loopable === true ? 'repeat_loop' : 'result_emphasis') : 'none',
+    beat_times_from_gemini: Number.isFinite(reportedCore) || Number.isFinite(reportedResult),
+    has_result_reveal: window.has_result_reveal === true,
+    loopable: window.loopable === true,
+    process_is_subject: window.process_is_subject === true,
+    texture_strength: Number.isFinite(Number(window.texture_strength)) ? Number(window.texture_strength) : null,
+    beat_structure_score: scoreHighlightBeatStructure(window)
+  };
 }
 
 function selectBestHighlightWindow(windows = [], itemConfig = {}, maxDurationSec = 10) {
@@ -9643,7 +9791,8 @@ async function createHighlightDraftForItem({
       auto_video_transform_preset: highlightConfig.video_transform_preset?.preset_id || '',
       highlight_hook_analysis: highlightConfig.video_transform_preset?.highlight_hook_analysis || null,
       shifted_scene_transitions_count: shiftedScenes.length,
-      highlight_caption_mode: 'single_long_explainer_block'
+      highlight_caption_mode: 'single_long_explainer_block',
+      beat_plan: buildHighlightBeatPlan(window, window.duration_sec)
     },
     final_caption_normalization: finalCaptionNormalization,
     highlight_source_trim_warnings: trimResult.warnings,
@@ -10431,7 +10580,8 @@ async function createKoreanHighlightDraftForItem({
       selection_strategy: window.selection_strategy || 'natural_source_repetition_no_artificial_loop',
       auto_video_transform_preset: koreanHighlightConfig.video_transform_preset?.preset_id || '',
       highlight_hook_analysis: koreanHighlightConfig.video_transform_preset?.highlight_hook_analysis || null,
-      caption_mode: 'korean_long_highlight_explainer'
+      caption_mode: 'korean_long_highlight_explainer',
+      beat_plan: buildHighlightBeatPlan(window, window.duration_sec)
     },
     final_caption_normalization: finalCaptionNormalization,
     highlight_source_trim_warnings: trimResult.warnings,
@@ -11307,6 +11457,10 @@ module.exports = {
     normalizeAnchorSceneTransitions,
     pickHighlightWindow,
     pickHighlightWindows,
+    scoreHighlightWindow,
+    scoreHighlightBeatStructure,
+    buildHighlightBeatPlan,
+    isFaceLedHighlightWindow,
     regroupKoreanFullCaptionScript,
     simulateAnchoredSentencePlacement,
     sumTtsDurationSec,
