@@ -1662,8 +1662,22 @@ function enrichDialogueFocusForCoherence(beat, transcript, focus) {
   let nextLines = lines;
   let contextStrategy = 'none';
   let appliedFix = 'none';
-  const previousCue = (pronounRisk || dialogueDependency) ? findPreviousContextCue(beat, transcript, { ...focus, lines }) : null;
-  if (previousCue) {
+  // The risky line's context can already be IN the slot — since body slots draw on the beat's
+  // whole key_dialogue, the exchange often arrives merged. Only when the risky line leads the
+  // slot is there anything to go and fetch; demanding a fetch regardless flipped these slots to
+  // bridge_narration, prescribing narration for context the dialogue already carries.
+  // Judge by the LAST risky line: the pronoun detector fires on almost any line of an exchange
+  // (the opener "you going to end me" trips it too), so the first risky index is usually 0 and
+  // proves nothing. What matters is whether the latest line needing context has lines before it.
+  const riskIndexes = lines.map((line, index) => (hasPronounRisk(line) || hasDialogueDependencyRisk(line) ? index : -1)).filter((index) => index >= 0);
+  const contextAlreadyMerged = (pronounRisk || dialogueDependency) && riskIndexes.length > 0 && Math.max(...riskIndexes) > 0;
+  const previousCue = (pronounRisk || dialogueDependency) && !contextAlreadyMerged
+    ? findPreviousContextCue(beat, transcript, { ...focus, lines })
+    : null;
+  if (contextAlreadyMerged) {
+    contextStrategy = 'merge_exchange';
+    appliedFix = 'merged_previous_line';
+  } else if (previousCue) {
     nextLines = [String(previousCue.text || '').trim(), ...lines];
     contextStrategy = 'merge_exchange';
     appliedFix = 'merged_previous_line';
@@ -1671,7 +1685,7 @@ function enrichDialogueFocusForCoherence(beat, transcript, focus) {
     contextStrategy = 'bridge_narration';
     appliedFix = 'bridge_required';
   }
-  const standaloneScore = pronounRisk || dialogueDependency ? (previousCue ? 0.72 : 0.45) : 0.9;
+  const standaloneScore = pronounRisk || dialogueDependency ? ((previousCue || contextAlreadyMerged) ? 0.72 : 0.45) : 0.9;
   const boundaryScore = contextStrategy === 'merge_exchange' ? 0.78 : (contextStrategy === 'bridge_narration' ? 0.58 : 0.86);
   return {
     focus: {
@@ -2978,13 +2992,19 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec) {
       const requiredAnchors = Array.isArray(beat?.anchor_dialogue) ? beat.anchor_dialogue : [];
       const hookTeaser = String(next?.editorial_role || '').trim() === 'hook_teaser'
         || (String(next?.role || '').trim() === 'cold_open' && String(editPlan?.editorial_pattern || '').trim() === 'cold_open_callback');
+      // A body slot draws on the beat's WHOLE key_dialogue, not just the model's picks: the model
+      // kept ~2 lines per slot, so the "you people" exchange that sets up the racism accusation
+      // and the patriotism line were captured by the beats and then never reached the cut — the
+      // accusation played with no setup. Anchors and the model's picks stay required; the 5-line
+      // limit and the runtime ceiling already control length.
+      const beatQuotes = Array.isArray(beat?.key_dialogue) ? beat.key_dialogue : [];
       const preferredQuotes = hookTeaser
         ? (plannedQuotes.length ? plannedQuotes : requiredAnchors.slice(0, 1))
-        : (plannedQuotes.length ? [...new Set([...requiredAnchors, ...plannedQuotes])] : requiredAnchors);
+        : [...new Set([...requiredAnchors, ...plannedQuotes, ...beatQuotes])];
       const rawFocus = collectDialogueFocus(beat, transcript, preferredQuotes.length ? { quotes: preferredQuotes } : {});
       if (rawFocus) {
         const enriched = enrichDialogueFocusForCoherence(beat, transcript, rawFocus);
-        const focus = limitDialogueFocusLines(enriched.focus, requiredAnchors);
+        const focus = limitDialogueFocusLines(enriched.focus, [...new Set([...requiredAnchors, ...plannedQuotes])]);
         next.start_sec = focus.start_sec;
         next.end_sec = focus.end_sec;
         next.estimated_duration_sec = roundSec(focus.end_sec - focus.start_sec);
