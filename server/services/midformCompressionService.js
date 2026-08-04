@@ -3704,6 +3704,10 @@ function findNarrationNameplate(narration, names) {
   for (const rawName of Array.isArray(names) ? names : []) {
     const name = String(rawName || '').trim();
     if (name.length < 2) continue;
+    // When the captions never named someone the speaker IS a generic noun — 여자, 남자, 친구. Any
+    // narration using that word as an ordinary noun then reads as a nameplate: "한 남자가 여자
+    // 집에 몰래 들어왔다" was rejected for introducing 여자. Only real names can be introduced.
+    if (new RegExp(`^(?:${NARRATION_ROLE_NOUNS})$`).test(name)) continue;
     const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     // role noun immediately before the name ("대학생 대릴"), or the name followed by 은/는 plus a
     // role noun later in the same sentence ("대릴은 ... 대학생입니다").

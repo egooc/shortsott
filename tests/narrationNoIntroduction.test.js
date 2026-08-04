@@ -33,3 +33,16 @@ test('a role noun with nobody named is not a nameplate', () => {
 test('no names to check means nothing to flag', () => {
   assert.equal(findNarrationNameplate('가난한 대학생 대릴은 실험에 지원합니다.', []), '');
 });
+
+// When the captions never name someone the speaker alias IS a generic noun (여자, 남자), and any
+// narration using that word as an ordinary noun read as a nameplate. This rejected the line
+// "한 남자가 여자 집에 몰래 들어왔다가 딱 걸렸습니다" for introducing 여자.
+test('a speaker whose name is itself a common noun cannot be introduced', () => {
+  const generic = ['여자', '남자', '친구'];
+  assert.equal(findNarrationNameplate('한 남자가 여자 집에 몰래 들어왔다가 딱 걸렸습니다.', generic), '');
+  assert.equal(findNarrationNameplate('여자 친구가 들어옵니다.', generic), '');
+});
+
+test('a real name is still caught alongside generic ones', () => {
+  assert.ok(findNarrationNameplate('가난한 대학생 대릴은 실험에 지원합니다.', ['여자', '대릴']));
+});
