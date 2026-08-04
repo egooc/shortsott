@@ -8081,6 +8081,38 @@ function borrowHighlightBeatFields(window = {}, itemConfig = {}) {
   return borrowed;
 }
 
+// Longform candidate windows come back with timestamps but no selected_scene_ids -
+// every shipped longform window audited had the field empty, so caption matching and
+// duplicate rejection were falling back to time overlap alone. The containing scene is
+// computable from the window's own timestamps, so stamp it here rather than asking
+// Gemini for a link it does not reliably provide. A window that straddles a boundary
+// gets the scene it spends the most time in, and records that it crossed one.
+function resolveWindowSceneLink(rawStart, rawEnd, itemConfig = {}, sourceDuration = 0) {
+  if (!Number.isFinite(rawStart) || !Number.isFinite(rawEnd) || rawEnd <= rawStart) return null;
+  const scenes = normalizeSceneTransitions(getItemSceneTransitions(itemConfig), sourceDuration);
+  if (!scenes.length) return null;
+  let best = null;
+  let bestOverlap = 0;
+  let crossings = 0;
+  for (const scene of scenes) {
+    const sceneStart = Number(scene.start_sec);
+    const sceneEnd = Number(scene.end_sec || scene.transition_at_sec || sceneStart);
+    if (!Number.isFinite(sceneStart) || !Number.isFinite(sceneEnd) || sceneEnd <= sceneStart) continue;
+    if (sceneStart > rawStart + 0.5 && sceneStart < rawEnd - 0.5) crossings += 1;
+    const overlap = Math.max(0, Math.min(rawEnd, sceneEnd) - Math.max(rawStart, sceneStart));
+    if (overlap > bestOverlap) {
+      bestOverlap = overlap;
+      best = scene;
+    }
+  }
+  if (!best || bestOverlap <= 0) return null;
+  return {
+    scene_id: best.scene_id,
+    coverage_ratio: Number((bestOverlap / (rawEnd - rawStart)).toFixed(3)),
+    crossed_scene_boundaries: crossings
+  };
+}
+
 function normalizeHighlightCandidateWindow(raw, itemConfig = {}, maxDurationSec = 10, reason = 'highlight_candidate_window') {
   if (!raw || typeof raw !== 'object') return null;
   // A window with no positional data at all is not a window. Without this
@@ -8134,6 +8166,9 @@ function normalizeHighlightCandidateWindow(raw, itemConfig = {}, maxDurationSec 
   const beatAnchor = Number.isFinite(rawStart) ? rawStart : safeStart;
   const beatCoreChange = Number(normalized.beat_core_change_sec);
   const beatResultVisible = Number(normalized.beat_result_visible_sec);
+  const sceneLink = selectedSceneIds.length
+    ? null
+    : resolveWindowSceneLink(safeStart, safeStart + duration, itemConfig, sourceDuration);
   return {
     ...normalized,
     start_sec: Number(safeStart.toFixed(3)),
@@ -8141,7 +8176,10 @@ function normalizeHighlightCandidateWindow(raw, itemConfig = {}, maxDurationSec 
     end_sec: Number((safeStart + duration).toFixed(3)),
     reason: normalized.reason || reason,
     selection_strategy: normalized.selection_strategy || reason,
-    selected_scene_ids: selectedSceneIds,
+    selected_scene_ids: selectedSceneIds.length ? selectedSceneIds : (sceneLink ? [sceneLink.scene_id] : []),
+    scene_link_source: selectedSceneIds.length ? 'gemini' : (sceneLink ? 'computed_from_timestamps' : 'none'),
+    scene_coverage_ratio: sceneLink ? sceneLink.coverage_ratio : undefined,
+    crossed_scene_boundaries: sceneLink ? sceneLink.crossed_scene_boundaries : undefined,
     single_process_only: true,
     beat_core_change_offset_sec: Number.isFinite(beatCoreChange)
       ? Number((beatCoreChange - beatAnchor).toFixed(3))
@@ -11572,6 +11610,7 @@ module.exports = {
     normalizeAnchorSceneTransitions,
     pickHighlightWindow,
     pickHighlightWindows,
+    normalizeHighlightCandidateWindow,
     scoreHighlightWindow,
     scoreHighlightBeatStructure,
     buildHighlightBeatPlan,

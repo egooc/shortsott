@@ -24,7 +24,8 @@
     "check:output-config": "node scripts/check-output-config-contract.js",
     "check:caption-tts-alignment": "node scripts/check-caption-tts-alignment.js",
     "check:korean-full-speech-budget": "node scripts/check-korean-full-speech-budget.js",
-    "check:script-review-integrity": "node scripts/check-script-review-integrity.js"
+    "check:script-review-integrity": "node scripts/check-script-review-integrity.js",
+    "audit:highlight-scenes": "node scripts/audit-highlight-scene-structure.js"
   },
   "build": {
     "appId": "local.ottogi.process.studio",

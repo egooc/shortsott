@@ -7266,6 +7266,15 @@ def create_process_draft(data):
                 segment_plans = []
                 beat_plan = video_transform_preset.get("beat_plan") if isinstance(video_transform_preset.get("beat_plan"), dict) else None
                 beat_list = [b for b in (beat_plan.get("beats") if beat_plan and isinstance(beat_plan.get("beats"), list) else []) if isinstance(b, dict)]
+                # Camera cuts detected inside the already-trimmed highlight clip, in
+                # clip-local microseconds - the same list the scene-change splitter uses.
+                clip_cut_times_us = sorted(
+                    {
+                        microseconds(t)
+                        for t in scene_change_times
+                        if 0 < microseconds(t) < remaining_video_us
+                    }
+                )
                 if beat_list:
                     # Highlight timeline follows the 0-1s action / 1-4s core change /
                     # 4-8s result / 8s+ emphasis-or-loop plan: cuts land exactly on the
@@ -7294,9 +7303,27 @@ def create_process_draft(data):
                         # running past the result - same timeline length, the clip just
                         # returns to the top of the cycle so the action repeats.
                         loop_tail = beat_name == "emphasis" and beat_tail_mode == "repeat_loop"
-                        for piece_index in range(pieces):
-                            piece_start_us = beat_start_us + piece_index * piece_us
-                            piece_duration_us = span_us - piece_index * piece_us if piece_index == pieces - 1 else piece_us
+                        # Snap piece boundaries onto camera cuts inside the clip. A held
+                        # result/emphasis segment that spans a cut visibly breaks the
+                        # hold - the frame jumps to another shot while the crop is
+                        # supposed to be resting on the work.
+                        piece_bounds = [beat_start_us + piece_index * piece_us for piece_index in range(pieces)]
+                        piece_bounds.append(beat_end_us)
+                        if clip_cut_times_us:
+                            snapped = [piece_bounds[0]]
+                            for bound in piece_bounds[1:-1]:
+                                nearest = min(clip_cut_times_us, key=lambda t: abs(t - bound))
+                                snapped.append(nearest if abs(nearest - bound) <= microseconds(0.4) else bound)
+                            snapped.append(piece_bounds[-1])
+                            piece_bounds = sorted(set(snapped))
+                        # A cut strictly inside a held beat must become a boundary, or
+                        # the hold plays across it.
+                        if behavior.get("hold") and clip_cut_times_us:
+                            inside = [t for t in clip_cut_times_us if beat_start_us + 200_000 < t < beat_end_us - 200_000]
+                            piece_bounds = sorted(set(piece_bounds + inside))
+                        for piece_index in range(len(piece_bounds) - 1):
+                            piece_start_us = piece_bounds[piece_index]
+                            piece_duration_us = piece_bounds[piece_index + 1] - piece_start_us
                             if piece_duration_us < 200_000:
                                 continue
                             source_start_us = (piece_index * piece_us) % max(1, remaining_video_us) if loop_tail else piece_start_us

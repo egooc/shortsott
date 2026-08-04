@@ -927,6 +927,81 @@ function testHighlightTimelineCutsOnTheBeatPlan() {
   assert(pySource.includes('beat_tail_mode == "repeat_loop"'), 'a loopable tail must replay the opening cycle');
 }
 
+function testWindowsCarryAComputedSceneLink() {
+  // Every shipped longform window audited had selected_scene_ids empty, so caption
+  // matching and duplicate rejection ran on time overlap alone. The containing scene
+  // is computable from the window's own timestamps - no Gemini link required.
+  const item = {
+    item_id: 'scene_link_case',
+    source_type: 'longform',
+    source_workflow_mode: 'longform_to_shorts',
+    target_duration_sec: 400,
+    video_metadata: { duration_sec: 400 },
+    source_classification: { duration_sec: 400 },
+    ottogi_guide_output: {
+      scene_transitions: [
+        { scene_id: 'scene_001', start_sec: 0, end_sec: 100, transition_at_sec: 50, visual_summary: 'setup' },
+        { scene_id: 'scene_002', start_sec: 100, end_sec: 200, transition_at_sec: 150, visual_summary: 'press cycle' },
+        { scene_id: 'scene_003', start_sec: 200, end_sec: 400, transition_at_sec: 300, visual_summary: 'finishing' }
+      ]
+    }
+  };
+  const inside = queueTest.normalizeHighlightCandidateWindow(
+    { start_sec: 120, end_sec: 132, duration_sec: 12 }, item, 24, 'gemini_highlight_candidate_1'
+  );
+  assert(inside.selected_scene_ids.length === 1 && inside.selected_scene_ids[0] === 'scene_002',
+    `a window inside scene_002 must be linked to it, got ${JSON.stringify(inside.selected_scene_ids)}`);
+  assert(inside.scene_link_source === 'computed_from_timestamps', 'a computed link must say so');
+  assert(inside.crossed_scene_boundaries === 0, 'a window inside one scene crosses no boundary');
+
+  // A straddling window takes the scene it spends the most time in and records the cross.
+  const straddling = queueTest.normalizeHighlightCandidateWindow(
+    { start_sec: 194, end_sec: 212, duration_sec: 18 }, item, 24, 'gemini_highlight_candidate_2'
+  );
+  assert(straddling.crossed_scene_boundaries === 1, 'a window crossing a scene boundary must record it');
+  assert(straddling.selected_scene_ids[0] === 'scene_003', 'a straddling window takes the scene it mostly covers');
+
+  // A Gemini-provided link is authoritative and must not be overwritten.
+  const explicit = queueTest.normalizeHighlightCandidateWindow(
+    { start_sec: 120, end_sec: 132, duration_sec: 12, selected_scene_ids: ['scene_001'] }, item, 24, 'gemini_highlight_candidate_3'
+  );
+  assert(explicit.selected_scene_ids[0] === 'scene_001' && explicit.scene_link_source === 'gemini',
+    'an explicit Gemini scene link must win over the computed one');
+}
+
+function testHeldBeatsDoNotSpanCameraCuts() {
+  // A held result/emphasis segment that plays across a camera cut visibly breaks the
+  // hold: the frame jumps to another shot while the crop is resting on the work.
+  const pySource = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'capcut_draft.py'), 'utf8');
+  assert(pySource.includes('clip_cut_times_us'), 'the beat planner must know where the camera cuts inside the clip are');
+  assert(
+    pySource.includes('inside = [t for t in clip_cut_times_us if beat_start_us + 200_000 < t < beat_end_us - 200_000]'),
+    'a cut strictly inside a held beat must become a segment boundary'
+  );
+  assert(
+    pySource.includes('nearest if abs(nearest - bound) <= microseconds(0.4) else bound'),
+    'beat piece boundaries must snap onto nearby camera cuts'
+  );
+}
+
+function testCandidateScanRequiresWholeSourceCoverage() {
+  // Audited sources returned candidates clustered in the opening fifth; the later half,
+  // where the finishing and finished-result steps live, went unsampled.
+  const metadataSource = fs.readFileSync(path.join(__dirname, '..', 'server', 'services', 'processMetadataService.js'), 'utf8');
+  assert(
+    metadataSource.includes('Coverage across the whole source (this is a hard requirement):'),
+    'the longform candidate scan must demand coverage of the whole runtime'
+  );
+  assert(
+    metadataSource.includes('Do not return five candidates that all sit inside the first quarter.'),
+    'front-loaded candidate sets must be rejected explicitly'
+  );
+  assert(
+    metadataSource.includes('One scene per window:'),
+    'the candidate scan must forbid windows that run across a camera cut'
+  );
+}
+
 function testOcrBlurShipsHiddenForReview() {
   // The OCR/watermark blur ships in the draft but disabled, so nothing is blurred by
   // default and the reviewer enables it only when a watermark or burned-in caption
@@ -1426,6 +1501,9 @@ function main() {
   testWideLongformPresetFillsTheVerticalCanvas();
   testDeepCropAnchorsOnTheWorkCenter();
   testHighlightTimelineCutsOnTheBeatPlan();
+  testWindowsCarryAComputedSceneLink();
+  testHeldBeatsDoNotSpanCameraCuts();
+  testCandidateScanRequiresWholeSourceCoverage();
   testOcrBlurShipsHiddenForReview();
   testGenericSceneExplanationDetector();
   testDuplicateCandidateMetadataBlocksGeneration();
