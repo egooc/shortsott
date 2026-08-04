@@ -3829,7 +3829,14 @@ function validateSlotFillsDialogueCaptions(slotFills, editPlan, locale = 'ko') {
     const captionUnits = Array.isArray(fill?.caption_units) ? fill.caption_units.filter((value) => String(value || '').trim()) : [];
     const narrationAllowed = item.role === 'payoff';
     if (!narrationAllowed && (narration || captionKr || captionUnits.length)) {
-      throw new Error(`${item.slot_id} KEEP_DIALOGUE (${item.role}) must keep narration, caption_kr, and caption_units empty to avoid repeating preserved dialogue`);
+      // The model sometimes narrates a dialogue slot anyway (twice now, on two different sources).
+      // Nothing downstream reads these fields on a KEEP_DIALOGUE slot, so rejecting the whole
+      // generation over them just burned a retry: clear them instead.
+      if (fill) {
+        fill.narration = '';
+        fill.caption_kr = '';
+        fill.caption_units = [];
+      }
     }
     const dialogueFocusLines = Array.isArray(item.dialogue_focus_lines) ? item.dialogue_focus_lines : [];
     if (!dialogueFocusLines.length) continue;
@@ -4412,6 +4419,7 @@ module.exports = {
     leadColdOpenWithStrongestLine,
     findNarrationNameplate,
     applyColdOpenVisualOverlapSafety,
+    validateSlotFillsDialogueCaptions,
     separateOverlappingDialogueWindows,
     topUpTimelineToTargetRuntime,
     buildSlotQcReport,

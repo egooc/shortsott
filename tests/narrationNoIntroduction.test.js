@@ -46,3 +46,31 @@ test('a speaker whose name is itself a common noun cannot be introduced', () => 
 test('a real name is still caught alongside generic ones', () => {
   assert.ok(findNarrationNameplate('가난한 대학생 대릴은 실험에 지원합니다.', ['여자', '대릴']));
 });
+
+// The model sometimes narrates a dialogue slot anyway (twice, on two different sources); nothing
+// downstream reads those fields on a KEEP_DIALOGUE slot, so rejecting the generation burned a
+// retry each time.
+test('narration on a dialogue slot is cleared, not rejected', () => {
+  const { validateSlotFillsDialogueCaptions } = _test;
+  const editPlan = {
+    timeline: [{
+      slot_id: '5', role: 'body_peak', decision: 'KEEP_DIALOGUE',
+      dialogue_focus_lines: ['line'],
+      dialogue_line_windows: [{ matched: true, line: 'line', start_sec: 1, end_sec: 3 }]
+    }]
+  };
+  const slotFills = {
+    upload_text: {
+      title_candidates: ['그가 끌려나간 진짜 이유', '침착할수록 위험해지는 이유', '한 마디가 부른 참사의 계기'],
+      overlay_title: { top: '기내에서', bottom: '생긴 일' },
+      description: 'd', pinned_comment: 'p'
+    },
+    slot_fills: [{ slot_id: '5', narration: '이 대사가 반복됩니다.', caption_kr: '중복', caption_units: ['중복'], caption_kr_dialogue: ['한 줄'], speakers: ['남자'] }]
+  };
+  const result = validateSlotFillsDialogueCaptions(slotFills, editPlan);
+  assert.ok(result, 'the generation survives');
+  assert.equal(slotFills.slot_fills[0].narration, '', 'the stray narration is cleared');
+  assert.equal(slotFills.slot_fills[0].caption_kr, '');
+  assert.deepEqual(slotFills.slot_fills[0].caption_units, []);
+  assert.deepEqual(slotFills.slot_fills[0].caption_kr_dialogue, ['한 줄'], 'the dialogue captions stay');
+});
