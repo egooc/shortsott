@@ -811,9 +811,22 @@ async function runMidformTemplateWorkflow(options = {}) {
       };
       writeJson(workspace.summaryPath, summary);
       if (!multimodalState || !String(multimodalState.status || '').startsWith('completed')) {
-        const failedSummary = buildPipelineFailureSummary(summary, multimodalState, 'multimodal_escalation');
-        writeJson(workspace.summaryPath, failedSummary);
-        return failedSummary;
+        // The escalation is a second opinion, not the cut. The first pass already produced
+        // complete drafts and gate results; failing the whole run here threw them away over a
+        // Vertex 429 three times in a row. Keep the first pass and say what happened.
+        const escalationError = String(multimodalState?.failure_reason?.message || multimodalState?.error || 'external analysis error');
+        summary.analysis_run.auto_escalation.escalation_failed = true;
+        summary.analysis_run.final_path = 'first_pass_after_escalation_failure';
+        let fallbackSummary = finalSummaryFromQa(summary, qa, finalPipelineState, summary.analysis_run);
+        fallbackSummary = {
+          ...fallbackSummary,
+          warnings: [
+            ...(fallbackSummary.warnings || []),
+            `multimodal escalation failed (${escalationError}); kept the first-pass result`
+          ]
+        };
+        writeJson(workspace.summaryPath, fallbackSummary);
+        return fallbackSummary;
       }
       const multimodalQa = collectQaForPipeline({ workspace, normalizedRequest, pipelineState: multimodalState });
       summary.analysis_run.auto_escalation.final_pass_status = multimodalQa.gateResults.status;
