@@ -1463,6 +1463,42 @@ function adjustVisualSourceAwayFromReserved(visualSource, beat, reservedRanges) 
   };
 }
 
+// When the teaser's own beat has no free room, look at every beat. adjustVisualSourceAwayFromReserved
+// only shifts within one beat and silently returns the overlapping original when that fails — on the
+// Anger Management source the heatmap-peak beat (102.72-114.19) was reserved wall to wall by the
+// dialogue that peaks there, so the teaser stayed inside a preserved line and preflight rejected it.
+function findNearestFreeVisualWindow(beats, reservedRanges, originalStart, originalEnd) {
+  const duration = Math.max(COLD_OPEN_VISUAL_MIN_SEC, roundSec(originalEnd - originalStart));
+  const originalCenter = (originalStart + originalEnd) / 2;
+  let best = null;
+  for (const beat of beats) {
+    const beatStart = Number(beat?.start_sec);
+    const beatEnd = Number(beat?.end_sec);
+    if (!(beatEnd > beatStart)) continue;
+    // Subtract the reserved spans from this beat's range.
+    let free = [[beatStart, beatEnd]];
+    for (const [reservedStart, reservedEnd] of reservedRanges) {
+      free = free.flatMap(([gapStart, gapEnd]) => {
+        if (reservedEnd <= gapStart || reservedStart >= gapEnd) return [[gapStart, gapEnd]];
+        const pieces = [];
+        if (reservedStart > gapStart) pieces.push([gapStart, reservedStart]);
+        if (reservedEnd < gapEnd) pieces.push([reservedEnd, gapEnd]);
+        return pieces;
+      });
+    }
+    for (const [gapStart, gapEnd] of free) {
+      if (gapEnd - gapStart < COLD_OPEN_VISUAL_MIN_SEC) continue;
+      const fit = Math.min(duration, roundSec(gapEnd - gapStart));
+      // Place the window at the gap edge nearest the original moment, so the teaser stays as
+      // close to the peak it was chosen for as the reservations allow.
+      let start = Math.min(Math.max(gapStart, originalCenter - fit / 2), gapEnd - fit);
+      const distance = Math.abs((start + fit / 2) - originalCenter);
+      if (!best || distance < best.distance) best = { start: roundSec(start), end: roundSec(start + fit), distance };
+    }
+  }
+  return best;
+}
+
 function applyColdOpenVisualOverlapSafety(timeline, beatMap) {
   const nextTimeline = (Array.isArray(timeline) ? timeline : []).map((item) => ({ ...item }));
   const coldIndex = nextTimeline.findIndex((item) => item.role === 'cold_open');
@@ -1471,13 +1507,26 @@ function applyColdOpenVisualOverlapSafety(timeline, beatMap) {
   const reservedRanges = nextTimeline
     .filter((item) => item.decision === 'KEEP_DIALOGUE' && Number(item.end_sec) > Number(item.start_sec))
     .map((item) => [Number(item.start_sec), Number(item.end_sec)]);
-  const adjusted = adjustVisualSourceAwayFromReserved({
+  let adjusted = adjustVisualSourceAwayFromReserved({
     mode: cold.visual_source_mode || 'mute_visual_teaser',
     beat_id: cold.visual_source_beat_id,
     start_sec: Number(cold.visual_source_start_sec),
     end_sec: Number(cold.visual_source_end_sec),
     reason: 'Cold-open overlap safety check.'
   }, beatMap.get(String(cold.visual_source_beat_id || '').trim()), reservedRanges);
+  const stillOverlapping = (candidate) => reservedRanges
+    .some(([reservedStart, reservedEnd]) => rangesOverlap(Number(candidate.start_sec), Number(candidate.end_sec), reservedStart, reservedEnd));
+  if (!adjusted || stillOverlapping(adjusted)) {
+    const fallback = findNearestFreeVisualWindow([...beatMap.values()], reservedRanges,
+      Number(cold.visual_source_start_sec), Number(cold.visual_source_end_sec));
+    if (fallback) {
+      adjusted = {
+        start_sec: fallback.start,
+        end_sec: fallback.end,
+        reason: 'Cold-open visual moved to the nearest free window: its own beat is fully reserved by dialogue.'
+      };
+    }
+  }
   if (adjusted && (adjusted.start_sec !== cold.visual_source_start_sec || adjusted.end_sec !== cold.visual_source_end_sec)) {
     nextTimeline[coldIndex] = {
       ...cold,
@@ -4362,6 +4411,7 @@ module.exports = {
     coldOpenDialogueFocusForBeat,
     leadColdOpenWithStrongestLine,
     findNarrationNameplate,
+    applyColdOpenVisualOverlapSafety,
     separateOverlappingDialogueWindows,
     topUpTimelineToTargetRuntime,
     buildSlotQcReport,
