@@ -1314,6 +1314,50 @@ function splitMultiTurnDialogueLine(line) {
   return [head, tail];
 }
 
+// Beat extraction quotes a fragment of a cue and drops the rest: the cue "just calm down I I am
+// gum I just want my" reached the beats as "just calm down" alone, so the man's reply to the
+// order — the first beat of the running gag — was gone before any slot could ask for it. Nothing
+// downstream can recover material the beats never carried, so restore the remainder here.
+const BEAT_CUE_REMAINDER_MIN_WORDS = 3;
+
+function completeBeatDialogueFromCues(beats, transcript) {
+  const cues = (Array.isArray(transcript) ? transcript : [])
+    .filter((cue) => cue && !isNonSpeechCaption(cue.text));
+  if (!cues.length) return Array.isArray(beats) ? beats : [];
+  const wordsOf = (value) => normalizeComparableText(value).split(/\s+/).filter(Boolean);
+
+  return (Array.isArray(beats) ? beats : []).map((beat) => {
+    const lines = Array.isArray(beat?.key_dialogue) ? beat.key_dialogue.map((line) => String(line || '').trim()).filter(Boolean) : [];
+    if (!lines.length) return beat;
+    const added = [];
+    for (const cue of cues) {
+      if (!(Number(cue.end_sec) > Number(beat?.start_sec) - 0.05 && Number(cue.start_sec) < Number(beat?.end_sec) + 0.05)) continue;
+      const cueWords = wordsOf(cue.text);
+      if (cueWords.length < BEAT_CUE_REMAINDER_MIN_WORDS * 2) continue;
+      // Which of this beat's lines this cue already carries, as a word count from its start.
+      let covered = 0;
+      for (const line of [...lines, ...added]) {
+        const lineWords = wordsOf(line);
+        if (!lineWords.length) continue;
+        const joined = cueWords.join(' ');
+        const idx = joined.indexOf(lineWords.join(' '));
+        if (idx < 0) continue;
+        const endWord = joined.slice(0, idx + lineWords.join(' ').length).split(/\s+/).filter(Boolean).length;
+        covered = Math.max(covered, endWord);
+      }
+      if (!covered) continue;
+      const remainder = cueWords.slice(covered);
+      if (remainder.length < BEAT_CUE_REMAINDER_MIN_WORDS) continue;
+      // Keep the cue's own spelling, not the normalised comparison form.
+      const rawWords = String(cue.text || '').trim().split(/\s+/).filter(Boolean);
+      const rawRemainder = rawWords.slice(Math.max(0, rawWords.length - remainder.length)).join(' ');
+      added.push(rawRemainder || remainder.join(' '));
+    }
+    if (!added.length) return beat;
+    return { ...beat, key_dialogue: [...lines, ...added] };
+  });
+}
+
 function splitMultiTurnFocusLines(lines) {
   const output = [];
   for (const line of Array.isArray(lines) ? lines : []) {
@@ -4413,6 +4457,7 @@ async function runCompression(source, options = {}) {
     MIDFORM_COMPRESSION_BEATS_SCHEMA_PATH,
     (parsed) => validateBeats(parsed, transcript)
   );
+  beatsResult.parsed.beats = completeBeatDialogueFromCues(beatsResult.parsed.beats, transcript);
   const beatsPath = path.join(runDir, 'narrative_beats.json');
   writeJson(beatsPath, beatsResult.parsed);
 
@@ -4701,6 +4746,7 @@ module.exports = {
     validateSlotFillsDialogueCaptions,
     resolveDialogueLineWindows,
     splitMultiTurnDialogueLine,
+    completeBeatDialogueFromCues,
     profileSourceCase,
     buildSourceCaseGuidance,
     detectPromoTail,
