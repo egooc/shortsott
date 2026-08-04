@@ -1808,6 +1808,10 @@ MIDFORM_CAPTION_Y = -0.35
 # track per lane, order only has to hold WITHIN a lane, so back-to-back speech from two people
 # can share a moment instead of pushing each other later.
 MIDFORM_CAPTION_LANE_OFFSETS = (0.0, -0.10)
+# A caption may outlive its own video clip so two speakers can share the screen: the clips stay
+# disjoint for the capcut gates while the captions overlap on their lanes. Bounded so a line
+# cannot linger indefinitely over later footage.
+MIDFORM_CAPTION_SPILL_MAX_US = 2_000_000
 
 
 def midform_caption_row_y(caption_kind, lane_index, base_y=MIDFORM_CAPTION_Y):
@@ -10024,11 +10028,22 @@ def create_draft(input_json_path):
                 duration_us = int(round(duration_override_sec * 1_000_000))
             caption_offset_sec = safe_float(caption_unit.get("caption_timeline_offset_sec") if caption_unit else 0, 0.0)
             caption_offset_us = max(0, int(round(caption_offset_sec * 1_000_000)))
+            # The spoken length of this line, computed upstream from the moment it was actually
+            # said rather than from the clip the separation left behind.
+            caption_spoken_sec = safe_float(caption_unit.get("caption_duration_sec") if caption_unit else 0, 0.0)
+            if caption_spoken_sec > 0 and duration_override_sec <= 0:
+                duration_us = int(round(caption_spoken_sec * 1_000_000))
             video_timeline_start_us = current_time_us
             video_timeline_end_us = current_time_us + visual_duration_us
             timeline_start_us = min(video_timeline_end_us - 1, current_time_us + caption_offset_us) if visual_duration_us > 1 else current_time_us
-            timeline_end_us = min(video_timeline_end_us, timeline_start_us + duration_us)
+            # Clamping the caption to its own clip end is what serialised every caption: the next
+            # one starts where this clip stops, so nothing could ever share a moment. Let it run
+            # its spoken length, spilling a bounded amount past the clip.
+            caption_ceiling_us = video_timeline_end_us + MIDFORM_CAPTION_SPILL_MAX_US
+            timeline_end_us = min(caption_ceiling_us, timeline_start_us + duration_us)
+            timeline_end_us = max(timeline_end_us, min(video_timeline_end_us, timeline_start_us + 1))
             duration_us = max(1, timeline_end_us - timeline_start_us)
+            # Video placement is untouched: the next clip still starts where this one ends.
             current_time_us = video_timeline_end_us
 
             caption_timeline_entries.append(
