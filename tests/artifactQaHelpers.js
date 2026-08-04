@@ -179,7 +179,12 @@ function textFromMaterial(material, parsedContent) {
 function extractSubtitleTextMaterials(draftContent) {
   const activeMaterialIds = new Set();
   for (const track of Array.isArray(draftContent?.tracks) ? draftContent.tracks : []) {
-    if (!track || track.type !== 'text' || (track.name && track.name !== 'subtitle')) continue;
+    // Captions live on one text track per lane now (subtitle, subtitle_2, ...). Looking only at
+    // 'subtitle' left every caption in the lower lane invisible to this check, which then
+    // reported them as having no colour at all.
+    const trackName = String(track?.name || '');
+    const isCaptionTrack = !trackName || trackName === 'subtitle' || trackName.startsWith('subtitle_');
+    if (!track || track.type !== 'text' || !isCaptionTrack) continue;
     for (const segment of Array.isArray(track.segments) ? track.segments : []) {
       const materialId = String(segment?.material_id || segment?.materialId || '').trim();
       if (materialId) activeMaterialIds.add(materialId);
