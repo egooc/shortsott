@@ -1091,7 +1091,19 @@ function scoreCueAgainstQuote(cueText, quote) {
   if (cueNorm.includes(quoteNorm)) return 85 + Math.min(10, quoteNorm.length / 20);
   if (quoteNorm.includes(cueNorm)) return 75 + Math.min(10, cueNorm.length / 20);
   const ratio = overlapRatio(cueNorm, quoteNorm);
-  return ratio >= 0.5 ? 50 + ratio * 20 : ratio * 20;
+  // A packed cue punishes its own lines: dividing by the LONGER token set meant a 21-token cue
+  // scored ~9 against a 9-token line it almost wholly contains ("know where a headset ties into
+  // patriotism…" vs the line split across the cue boundary), so the punchline never matched.
+  // Score how much of the QUOTE the cue carries as well, discounted below exact containment.
+  const quoteTokens = uniqueTokens(quoteNorm);
+  const cueTokens = uniqueTokens(cueNorm);
+  let carried = 0;
+  for (const token of quoteTokens) {
+    if (cueTokens.has(token)) carried += 1;
+  }
+  const coverage = quoteTokens.size ? (carried / quoteTokens.size) * 0.8 : 0;
+  const best = Math.max(ratio, coverage);
+  return best >= 0.5 ? 50 + best * 20 : best * 20;
 }
 
 function scoreAnchorLine(text) {
@@ -1913,16 +1925,28 @@ function sliceCueForLine(cue, line) {
   if (!cueText || !lineText) return null;
   if (lineText.length >= cueText.length * 0.85) return null; // the line IS the cue; nothing to slice
   let offset = cueText.indexOf(lineText);
+  let matchedLen = lineText.length;
   if (offset < 0) {
     const head = lineText.slice(0, Math.max(10, Math.floor(lineText.length * 0.6)));
     offset = cueText.indexOf(head);
+  }
+  if (offset < 0) {
+    // A line split across a cue boundary starts mid-sentence in the second cue — "…I don't /
+    // know where a headset ties into patriotism". Its head is in the PREVIOUS cue, so match the
+    // tail: the part of the line this cue actually carries.
+    const tail = lineText.slice(-Math.max(10, Math.floor(lineText.length * 0.6)));
+    const tailOffset = cueText.indexOf(tail);
+    if (tailOffset >= 0) {
+      offset = tailOffset === 0 ? 0 : tailOffset;
+      matchedLen = tail.length;
+    }
   }
   if (offset < 0) return null;
   const cueStart = Number(cue.start_sec);
   const cueDur = Number(cue.end_sec) - cueStart;
   if (!(cueDur > 0)) return null;
   const startFrac = offset / cueText.length;
-  const endFrac = Math.min(1, (offset + lineText.length) / cueText.length);
+  const endFrac = Math.min(1, (offset + matchedLen) / cueText.length);
   return [roundSec(cueStart + cueDur * startFrac), roundSec(cueStart + cueDur * endFrac)];
 }
 

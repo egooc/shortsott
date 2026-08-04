@@ -46,3 +46,24 @@ test('a line that IS the whole cue keeps the whole cue', () => {
   const w = resolution.windows.find((x) => x.matched);
   assert.ok(w.start_sec <= 10.1 && w.end_sec >= 12.9, `expected the full cue, got [${w.start_sec},${w.end_sec}]`);
 });
+
+// A line split across a cue boundary starts mid-sentence in the second cue: "…I don't / know
+// where a headset ties into patriotism". Head matching failed, the whole cue was claimed, it
+// collided with the hook's slice of the same cue, and the punchline fell out of the cut.
+test('a line split across a cue boundary is sliced by its tail', () => {
+  const cue = {
+    start_sec: 66.0,
+    end_sec: 73.5,
+    text: 'know where a headset ties into patriotism is there a problem here sir I I don\'t think so can you come to the'
+  };
+  const resolution = resolveDialogueLineWindows(
+    [cue], 65.0, 74.0,
+    ["I don't know where a headset ties into patriotism", 'is there a problem here sir'],
+    74.0, 80.0
+  );
+  const windows = resolution.windows.filter((w) => w.matched === true);
+  assert.equal(windows.length, 2, 'both the punchline and the question must survive');
+  const punch = windows.find((w) => /patriotism/.test(w.line));
+  const question = windows.find((w) => /problem/.test(w.line));
+  assert.ok(punch.end_sec <= question.start_sec + 1e-6, 'the punchline plays before the question');
+});
