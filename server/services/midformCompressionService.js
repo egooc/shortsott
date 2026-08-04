@@ -3816,7 +3816,7 @@ function reconcileDialogueCaptionCounts(slotFills, editPlan) {
 // The nameplate: a role noun pinned to a name, "가난한 대학생 대릴은", "그의 여자친구 제니스는".
 // It tells the viewer who someone is instead of letting them read it off the scene, and the
 // prompt rule against it held on one generation and not the next.
-const NARRATION_ROLE_NOUNS = '대학생|학생|남자|여자|친구|여자친구|남자친구|아버지|어머니|아빠|엄마|형사|의사|간호사|교수|사장|직원|점원|경찰|변호사|기자|주인공|청년|소년|소녀|아내|남편|동생|형|누나|오빠|언니';
+const NARRATION_ROLE_NOUNS = '대학생|학생|남자|여자|친구|여자친구|남자친구|아버지|어머니|아빠|엄마|형사|의사|간호사|교수|사장|직원|점원|경찰|변호사|기자|주인공|청년|소년|소녀|아내|남편|동생|형|누나|오빠|언니|판사|검사|승무원|보안관|선생님|선생|기장|경비|매니저|점장|아저씨|아줌마|할머니|할아버지';
 
 function findNarrationNameplate(narration, names) {
   const text = String(narration || '');
