@@ -4121,7 +4121,7 @@ function buildNarrativeBeatsMarkdown({ runId, metadata, heatmap, beatsObject, ed
 
 async function runCompression(source, options = {}) {
   const sourceUrl = normalizeSourceUrl(source);
-  const targetSec = Number(options.target || options.targetSec || DEFAULT_TARGET_SEC) || DEFAULT_TARGET_SEC;
+  let targetSec = Number(options.target || options.targetSec || DEFAULT_TARGET_SEC) || DEFAULT_TARGET_SEC;
   const { runId, runDir } = createCompressionRun(sourceUrl);
   const statePath = path.join(runDir, 'compress_state.json');
   writeJson(statePath, { runId, status: 'running', sourceUrl, targetSec, createdAt: new Date().toISOString() });
@@ -4131,6 +4131,21 @@ async function runCompression(source, options = {}) {
   }
 
   const { metadata, metadataPath } = await loadYoutubeMetadata(sourceUrl, runDir);
+  // The target follows the source (user directive): a 90s ask against a 163s clip chased length
+  // the footage cannot carry — burning retries and warnings over a number nobody needs. A recap
+  // is a compression, so cap the target at half the source and let completeness decide the rest.
+  const sourceDurationSec = Number(metadata?.duration || 0);
+  if (sourceDurationSec > 0) {
+    const sourceCappedTarget = Math.max(COLD_OPEN_VISUAL_MIN_SEC * 10, Math.round(sourceDurationSec * 0.5));
+    if (targetSec > sourceCappedTarget) {
+      targetSec = sourceCappedTarget;
+      writeJson(statePath, {
+        runId, status: 'running', sourceUrl, targetSec,
+        target_capped_by_source: true, source_duration_sec: sourceDurationSec,
+        createdAt: new Date().toISOString()
+      });
+    }
+  }
   const { transcript, transcriptPath, vttPath } = await extractTimedTranscript(sourceUrl, runDir);
   const { heatmap, heatmapPath } = extractHeatmap(metadata, runDir);
 

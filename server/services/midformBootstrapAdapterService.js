@@ -909,7 +909,10 @@ function runBootstrapPreflight(assembled, options = {}) {
   const estimatedTotalSec = Number(editPlan?.duration_budget?.estimated_total_sec || 0);
   if (estimatedTotalSec > durationConfig.max_duration_sec) {
     warnings.push(`duration guide warn: edit_plan estimated_total_sec ${estimatedTotalSec.toFixed(3)}s exceeds max_duration_sec ${durationConfig.max_duration_sec}s`);
-  } else if (estimatedTotalSec > 0 && estimatedTotalSec < durationConfig.min_duration_sec) {
+  } else if (estimatedTotalSec > 0 && estimatedTotalSec < durationConfig.min_duration_sec
+    && !(Number(sourceDurationSec) > 0 && Number(sourceDurationSec) * 0.5 < durationConfig.min_duration_sec)) {
+    // A short source cannot reach the configured minimum, and the target follows the source now
+    // (user directive: length is irrelevant when the script is complete) — so no warning either.
     warnings.push(`duration guide warn: edit_plan estimated_total_sec ${estimatedTotalSec.toFixed(3)}s is below min_duration_sec ${durationConfig.min_duration_sec}s`);
   }
 
