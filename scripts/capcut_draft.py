@@ -1800,6 +1800,33 @@ def upsert_timerange(segment_obj, start_us, duration_us):
 MIDFORM_FIXED_TITLE_Y = 0.7004421221864953
 MIDFORM_FIXED_SUBTITLE_Y = 0.5416639871382638
 MIDFORM_CAPTION_Y = -0.35
+# Narration keeps the established caption line; each speaker gets a row beneath it, so two
+# people talking at once can share a moment on separate rows instead of forcing the plan to
+# split slots (user directive). Rows cycle if a scene carries more speakers than rows.
+MIDFORM_SPEAKER_ROW_OFFSETS = (-0.10, -0.20, -0.30)
+
+
+def midform_caption_row_y(caption_kind, speaker_row_index, base_y=MIDFORM_CAPTION_Y):
+    """Narration stays on base_y; dialogue drops onto its speaker's row."""
+    if str(caption_kind or "").strip() != "dialogue":
+        return base_y
+    if speaker_row_index is None or speaker_row_index < 0:
+        return base_y
+    offset = MIDFORM_SPEAKER_ROW_OFFSETS[speaker_row_index % len(MIDFORM_SPEAKER_ROW_OFFSETS)]
+    return round(base_y + offset, 6)
+
+
+def assign_midform_speaker_rows(entries):
+    """Give each distinct speaker a stable row index, in order of first appearance."""
+    rows = {}
+    for entry in entries or []:
+        if str((entry or {}).get("caption_kind") or "").strip() != "dialogue":
+            continue
+        alias = str((entry or {}).get("speaker_alias") or (entry or {}).get("speaker") or "").strip()
+        if not alias or alias in rows:
+            continue
+        rows[alias] = len(rows)
+    return rows
 MIDFORM_CROP_FINAL_SCALE_CAP = 2.4
 
 # Scale is derived from the source aspect ratio, never written as an absolute. At scale 1.0
@@ -2771,7 +2798,11 @@ def normalize_midform_caption_text_track(draft_content_path, caption_y=MIDFORM_C
             return fallback
 
     for index, segment in enumerate(segments):
-        set_segment_clip_transform_y(segment, caption_y)
+        # Do not flatten speaker rows the rebuild path assigned: only place segments that have
+        # no y of their own yet.
+        existing_y = ((segment.get("clip") or {}).get("transform") or {}).get("y")
+        if existing_y is None:
+            set_segment_clip_transform_y(segment, caption_y)
         segment["render_index"] = max(15000 + index, coerce_int(segment.get("render_index"), 0))
         segment["track_render_index"] = max(0, coerce_int(segment.get("track_render_index"), 0))
     try:
@@ -2842,6 +2873,7 @@ def rebuild_midform_caption_track_from_template(draft_content_path, template_doc
         summary["reason"] = "invalid template marker entry"
         return summary
 
+    speaker_rows = assign_midform_speaker_rows(srt_entries or [])
     for index, entry in enumerate(srt_entries or []):
         text_value = str(entry.get("text") or "").strip()
         start_us = microseconds(entry.get("start_sec", 0))
@@ -2867,7 +2899,9 @@ def rebuild_midform_caption_track_from_template(draft_content_path, template_doc
         cloned_segment["render_index"] = 15000 + index
         cloned_segment["track_render_index"] = 0
         upsert_timerange(cloned_segment, start_us, duration_us)
-        set_segment_clip_transform_y(cloned_segment, caption_y)
+        entry_alias = str(entry.get("speaker_alias") or entry.get("speaker") or "").strip()
+        entry_row_y = midform_caption_row_y(entry.get("caption_kind"), speaker_rows.get(entry_alias), caption_y)
+        set_segment_clip_transform_y(cloned_segment, entry_row_y)
         cloned_segment["extra_material_refs"] = clone_material_dependencies(
             template_doc,
             draft_content,
