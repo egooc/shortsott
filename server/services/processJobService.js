@@ -584,6 +584,29 @@ function summarizeMetadataFailure(error = {}) {
     };
   }
 
+  // An oversized source is deterministic, not transient - it failed twice in a row
+  // while the card said "temporary 500, retry later". Since the analysis proxy now
+  // downscales oversized sources automatically, a plain re-run is the right action.
+  if (
+    code === 'ANALYSIS_SOURCE_TOO_LARGE'
+    || code === 'ERR_STRING_TOO_LONG'
+    || /string longer than/i.test(String(error.message || ''))
+  ) {
+    return {
+      category: 'source_too_large',
+      title: '소스가 분석 업로드 한계 초과',
+      user_message: '원본이 너무 커서 Gemini 분석 업로드에 실패했습니다. 재분석 시 480p 분석용 프록시가 자동 생성됩니다.',
+      recommended_action: '재분석 후 드래프트 생성',
+      retry_stage: 'metadata_then_draft',
+      can_regenerate_draft_only: false,
+      detail_lines: [
+        '드래프트는 원본 화질 그대로 잘립니다. 프록시는 분석에만 쓰입니다.',
+        code ? `오류 코드: ${code}` : '',
+        '선택: Gemini 재분석부터 다시 실행'
+      ].filter(Boolean)
+    };
+  }
+
   if ([429, 500, 502, 503, 504].includes(statusCode)) {
     return {
       category: 'temporary_api_error',

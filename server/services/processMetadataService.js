@@ -1,11 +1,14 @@
 const fs = require('fs');
 const path = require('path');
+const { execFile } = require('child_process');
+const { promisify } = require('util');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { GoogleAIFileManager } = require('@google/generative-ai/server');
 const { GoogleAuth } = require('google-auth-library');
 const { createHttpError } = require('./errorService');
 const { loadPrompt } = require('./promptService');
 const { computeCutSelectionTier } = require('../utils/cutSelectionTier');
+const { resolveTool } = require('../utils/toolPaths');
 const { SHORTFORM_FULL_DRAFT_SKIP_MAX_DURATION_SEC } = require('../utils/fullDraftRules');
 
 const GEMINI_MODEL = 'gemini-2.5-flash';
@@ -9262,6 +9265,63 @@ function hasLocalSourceFile(filePath = '') {
   return Boolean(resolved) && fs.existsSync(resolved);
 }
 
+const execFileAsync = promisify(execFile);
+// Above this size the source cannot be inlined for analysis: base64 grows 4/3x and a
+// ~1GB hour-long longform blows Node's 512MB string ceiling (ERR_STRING_TOO_LONG) in
+// the Vertex inline path. The Files API path survives but uploads the full gigabyte.
+const ANALYSIS_PROXY_MAX_SOURCE_BYTES = 300 * 1024 * 1024;
+const ANALYSIS_PROXY_TIMEOUT_MS = 20 * 60 * 1000;
+
+// A downscaled analysis-only copy of an oversized source. Gemini reads content, not
+// pixels - 480p is plenty for candidate windows and beats - while the draft still cuts
+// from the untouched original. Cached next to the source and rebuilt when stale.
+async function ensureAnalysisSourceVideo(filePath, { onProgress = null, throwIfCancelled = null } = {}) {
+  if (!hasLocalSourceFile(filePath)) return filePath;
+  const sourceStats = fs.statSync(filePath);
+  if (sourceStats.size <= ANALYSIS_PROXY_MAX_SOURCE_BYTES) return filePath;
+
+  const proxyPath = path.join(path.dirname(filePath), 'analysis_proxy.mp4');
+  if (fs.existsSync(proxyPath)) {
+    const proxyStats = fs.statSync(proxyPath);
+    if (proxyStats.size > 0 && proxyStats.mtimeMs >= sourceStats.mtimeMs) {
+      return proxyPath;
+    }
+  }
+
+  checkCancellation(throwIfCancelled);
+  const ffmpeg = resolveTool('ffmpeg', { envKey: 'FFMPEG_PATH' });
+  const sizeMb = Math.round(sourceStats.size / 1024 / 1024);
+  emitProgress(onProgress, `분석용 프록시 생성: 원본 ${sizeMb}MB가 업로드 한계를 넘어 480p 분석본을 만듭니다.`, {
+    phase: 'analysis_proxy',
+    source_bytes: sourceStats.size
+  });
+  const encodePasses = [
+    ['-vf', 'scale=-2:480', '-crf', '30'],
+    // An extreme source can stay oversized at 480p; drop once more before giving up.
+    ['-vf', 'scale=-2:360', '-crf', '33']
+  ];
+  for (const passArgs of encodePasses) {
+    await execFileAsync(ffmpeg, [
+      '-y', '-i', filePath,
+      ...passArgs,
+      '-c:v', 'libx264', '-preset', 'veryfast',
+      '-c:a', 'aac', '-b:a', '64k', '-ac', '1',
+      '-movflags', '+faststart',
+      proxyPath
+    ], { timeout: ANALYSIS_PROXY_TIMEOUT_MS, maxBuffer: 64 * 1024 * 1024, windowsHide: true });
+    checkCancellation(throwIfCancelled);
+    if (fs.existsSync(proxyPath) && fs.statSync(proxyPath).size <= ANALYSIS_PROXY_MAX_SOURCE_BYTES) {
+      emitProgress(onProgress, `분석용 프록시 완료: ${Math.round(fs.statSync(proxyPath).size / 1024 / 1024)}MB`, { phase: 'analysis_proxy' });
+      return proxyPath;
+    }
+  }
+  throw createHttpError(413, 'ANALYSIS_SOURCE_TOO_LARGE', 'source video is too large for Gemini analysis even after proxy encoding', {
+    source_bytes: sourceStats.size,
+    proxy_bytes: fs.existsSync(proxyPath) ? fs.statSync(proxyPath).size : 0,
+    limit_bytes: ANALYSIS_PROXY_MAX_SOURCE_BYTES
+  });
+}
+
 function buildYoutubeFilePart(sourceUrl) {
   return {
     fileData: {
@@ -9273,10 +9333,11 @@ function buildYoutubeFilePart(sourceUrl) {
 
 async function buildApiKeyVideoPart({ filePath, sourceUrl, apiKey, throwIfCancelled = null }) {
   if (hasLocalSourceFile(filePath)) {
+    const analysisPath = await ensureAnalysisSourceVideo(filePath, { throwIfCancelled });
     const fileManager = new GoogleAIFileManager(apiKey);
-    const uploadResult = await fileManager.uploadFile(filePath, {
-      mimeType: getMimeType(filePath),
-      displayName: `ottogi_metadata_${Date.now()}_${path.basename(filePath)}`
+    const uploadResult = await fileManager.uploadFile(analysisPath, {
+      mimeType: getMimeType(analysisPath),
+      displayName: `ottogi_metadata_${Date.now()}_${path.basename(analysisPath)}`
     });
 
     let uploadedFile = uploadResult.file;
@@ -9310,12 +9371,16 @@ async function buildApiKeyVideoPart({ filePath, sourceUrl, apiKey, throwIfCancel
   throw createHttpError(400, 'SOURCE_VIDEO_REQUIRED', 'source video file is required');
 }
 
-function buildVertexVideoPart({ filePath, sourceUrl }) {
+async function buildVertexVideoPart({ filePath, sourceUrl, throwIfCancelled = null }) {
   if (hasLocalSourceFile(filePath)) {
+    // Inline base64 grows the payload 4/3x, so an hour-long ~1GB longform used to die
+    // on Node's 512MB string ceiling (ERR_STRING_TOO_LONG) before the request was even
+    // sent. Oversized sources are analysed through a downscaled proxy instead.
+    const analysisPath = await ensureAnalysisSourceVideo(filePath, { throwIfCancelled });
     return {
       inlineData: {
-        mimeType: getMimeType(filePath),
-        data: fs.readFileSync(filePath).toString('base64')
+        mimeType: getMimeType(analysisPath),
+        data: fs.readFileSync(analysisPath).toString('base64')
       }
     };
   }
@@ -10366,7 +10431,7 @@ async function analyzeWithVertexAdc({ filePath, sourceUrl, durationSec, original
   let videoPartPromise = null;
   const ensureVideoPart = async () => {
     if (!videoPartPromise) {
-      videoPartPromise = Promise.resolve(buildVertexVideoPart({ filePath, sourceUrl }));
+      videoPartPromise = buildVertexVideoPart({ filePath, sourceUrl, throwIfCancelled });
     }
     return videoPartPromise;
   };
@@ -10721,7 +10786,7 @@ async function generateAuxSemanticJson({ prompt, responseSchema, phase, includeV
     }
     const token = await getVertexAccessToken();
     const endpoint = buildVertexEndpoint(config);
-    const videoPart = includeVideo ? buildVertexVideoPart({ filePath, sourceUrl }) : null;
+    const videoPart = includeVideo ? await buildVertexVideoPart({ filePath, sourceUrl, throwIfCancelled }) : null;
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       checkCancellation(throwIfCancelled);
       await throttleGeminiCall();
