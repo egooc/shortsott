@@ -74,3 +74,16 @@ test('narration on a dialogue slot is cleared, not rejected', () => {
   assert.deepEqual(slotFills.slot_fills[0].caption_units, []);
   assert.deepEqual(slotFills.slot_fills[0].caption_kr_dialogue, ['한 줄'], 'the dialogue captions stay');
 });
+
+// The invented reveal came back the very next generation despite the prompt rule naming it.
+// Reveal rhetoric is the tell: doctrine narration never interprets, so a sentence staging a
+// revelation about a speaker has no legitimate use.
+test('a staged revelation about a speaker is rejected deterministically', () => {
+  const { findNarrationInventedReveal } = _test;
+  const names = ['판사', '남자', '승무원'];
+  assert.ok(findNarrationInventedReveal('그의 옆자리에 앉았던 남자가, 바로 판사였습니다.', names));
+  assert.ok(findNarrationInventedReveal('알고 보니 그는 승무원이었죠.', names));
+  assert.equal(findNarrationInventedReveal('그렇게 남자는 난동꾼이 됐습니다.', names), '');
+  assert.equal(findNarrationInventedReveal('바로 그 순간, 상황이 뒤집힙니다.', names), '', 'reveal words without a speaker identity claim are fine');
+  assert.equal(findNarrationInventedReveal('', names), '');
+});

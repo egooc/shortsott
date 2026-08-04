@@ -3962,6 +3962,27 @@ function findNarrationNameplate(narration, names) {
   return '';
 }
 
+// The invented reveal came back the very next generation despite the prompt rule naming it
+// ("그의 옆자리에 앉았던 남자가, 바로 판사였습니다"). Reveal rhetoric is the tell: under the
+// doctrine narration never interprets, so a sentence that stages a revelation about a speaker
+// has no legitimate use. Deterministic, as promised when the prompt rule was added.
+const NARRATION_REVEAL_RE = /(알고 보니|바로 그|다름 아닌|바로)/;
+
+function findNarrationInventedReveal(narration, names) {
+  const text = String(narration || '');
+  if (!text.trim()) return '';
+  for (const sentence of text.split(/(?<=[.!?다요죠])\s+/)) {
+    if (!NARRATION_REVEAL_RE.test(sentence)) continue;
+    for (const rawName of Array.isArray(names) ? names : []) {
+      const name = String(rawName || '').trim();
+      if (name.length < 2) continue;
+      const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      if (new RegExp(`${escaped}[가-힣]{0,2}(?:였|이었)`).test(sentence)) return sentence.trim();
+    }
+  }
+  return '';
+}
+
 function validateSlotFillsDialogueCaptions(slotFills, editPlan, locale = 'ko') {
   // Structural checks apply to every locale; the wording checks below are Korean-specific.
   const isKorean = String(locale || 'ko') === 'ko';
@@ -3979,6 +4000,13 @@ function validateSlotFillsDialogueCaptions(slotFills, editPlan, locale = 'ko') {
       if (fill?.speaker) speakerNames.push(fill.speaker);
     }
     for (const fill of Array.isArray(slotFills?.slot_fills) ? slotFills.slot_fills : []) {
+      const reveal = findNarrationInventedReveal(fill?.narration, [...new Set(speakerNames)]);
+      if (reveal) {
+        throw new Error(
+          `${fill?.slot_id} narration stages a revelation the source never shows: "${reveal}". `
+          + 'Narration states only what the transcript or footage shows - no reveals, no hidden connections.'
+        );
+      }
       const nameplate = findNarrationNameplate(fill?.narration, [...new Set(speakerNames)]);
       if (nameplate) {
         throw new Error(
@@ -4636,6 +4664,7 @@ module.exports = {
     coldOpenDialogueFocusForBeat,
     leadColdOpenWithStrongestLine,
     findNarrationNameplate,
+    findNarrationInventedReveal,
     applyColdOpenVisualOverlapSafety,
     validateSlotFillsDialogueCaptions,
     resolveDialogueLineWindows,
