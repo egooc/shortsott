@@ -8038,7 +8038,8 @@ const HIGHLIGHT_BEAT_FIELD_KEYS = [
   'macro_closeup',
   'shallow_depth_of_field',
   'work_center_x',
-  'work_center_y'
+  'work_center_y',
+  'work_center_reason'
 ];
 
 // The hook-selection phase returns hook_clip_10s as a fresh object with no beat fields,

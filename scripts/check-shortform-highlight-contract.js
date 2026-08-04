@@ -909,13 +909,19 @@ function testDeepCropAnchorsOnTheWorkCenter() {
 }
 
 function testOcrBlurShipsHiddenForReview() {
-  // The OCR/watermark blur ships in the draft but with its track hidden (attribute 1,
-  // the CapCut timeline eye toggle), so nothing is blurred by default and the reviewer
-  // enables it only when a watermark or burned-in caption actually needs covering.
+  // The OCR/watermark blur ships in the draft but disabled, so nothing is blurred by
+  // default and the reviewer enables it only when a watermark or burned-in caption
+  // actually needs covering. Rendering is controlled by the SEGMENT "visible" field -
+  // track "attribute" is the audio mute flag (pycapcut: attribute = int(self.mute))
+  // and setting it did nothing for an effect track.
   const pySource = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'capcut_draft.py'), 'utf8');
   assert(
-    pySource.includes('effect_track["attribute"] = 1'),
-    'the ocr_mask_effect track must ship hidden by default'
+    pySource.includes('segment["visible"] = False'),
+    'the ocr_mask_effect segments must ship with visible=false'
+  );
+  assert(
+    !pySource.includes('effect_track["attribute"] = 1'),
+    'track attribute is the mute flag, not the hide flag - it must not be used for hiding'
   );
   assert(
     pySource.includes('"track_hidden_by_default": True'),

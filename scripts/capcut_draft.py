@@ -6167,10 +6167,11 @@ def apply_ocr_mask_effect_template_to_draft(draft_content, template_doc, records
             "is_default_name": False,
         }
         draft_content.setdefault("tracks", []).append(effect_track)
-    # The blur ships in the draft but hidden (attribute 1 = the timeline eye toggle),
-    # so nothing is blurred by default and the reviewer turns it on only when a
-    # watermark/burned-in caption actually needs covering.
-    effect_track["attribute"] = 1
+    # The blur ships in the draft but disabled. Track "attribute" is NOT the hide flag
+    # (pycapcut: attribute = int(self.mute), audio only) - setting it to 1 changed
+    # nothing for an effect track. Rendering is controlled by each segment's "visible"
+    # field, which is what CapCut's timeline eye toggle flips.
+    effect_track["attribute"] = 0
     effect_track["segments"] = []
 
     video_effects = ensure_material_category(draft_content, "video_effects")
@@ -6224,6 +6225,10 @@ def apply_ocr_mask_effect_template_to_draft(draft_content, template_doc, records
         segment["extra_material_refs"] = []
         segment["render_index"] = 13000 + index
         segment["track_render_index"] = 0
+        # Ships disabled: nothing is blurred by default, and the reviewer flips the
+        # segment/track visibility in CapCut only when a watermark or burned-in
+        # caption actually needs covering. The mask geometry is already in place.
+        segment["visible"] = False
         upsert_timerange(segment, microseconds(record["time_sec"]), max(200_000, microseconds(record["duration_sec"])))
         segment["ocr_mask_box"] = record["source_box"]
         segment["ocr_mask_zone"] = record["zone"]

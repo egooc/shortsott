@@ -306,7 +306,8 @@ const HIGHLIGHT_BEAT_SCHEMA_FIELDS = {
   // 9:16 crop of a wide source is anchored here - without it the deep crop can only
   // cut the frame center, which is rarely where the tool meets the material.
   work_center_x: { type: 'number' },
-  work_center_y: { type: 'number' }
+  work_center_y: { type: 'number' },
+  work_center_reason: { type: 'string' }
 };
 
 const OTTOGI_VARIANT_METADATA_SCHEMA = {
@@ -1425,7 +1426,10 @@ function highlightBeatFormulaPromptLines() {
     '- face_or_emotion_dominant: true when a face or reaction dominates. Such a window must not be nominated.',
     '- texture_strength: 1 to 10, how strongly the material reads at phone size.',
     '- macro_closeup and shallow_depth_of_field: true when the framing actually is that.',
-    '- work_center_x and work_center_y: the normalized position (0 to 1, measured from the top-left of the frame) of the point where the tool meets the material - the center of the actual work, averaged over the window. The vertical crop of a wide source is anchored on this point, so report where the action really is, never a default 0.5/0.5 unless the work truly is frame-center.',
+    '- work_center_x and work_center_y: the normalized position (0 to 1, measured from the top-left of the frame) of the point where the tool meets the material, averaged over the window. MEASURE this to 0.05 precision by looking at the frame - the vertical crop shows only the middle ~32% of a wide frame\'s width, so if the work sits off-center and you report 0.5, the crop shows the wrong part of the shot.',
+    '- Examples: a lathe on the left third of a wide workshop shot -> work_center_x 0.30; a press die on the right half -> 0.65; hands on a workbench low in frame -> work_center_y 0.65.',
+    '- A pair of exactly 0.5/0.5 is treated as "not measured" and the crop stays at frame center. Only report it when you measured and the contact point genuinely sits at frame center.',
+    '- work_center_reason: one short phrase naming what is at that point and where (e.g. "saw blade enters the pipe, lower-left of frame"). Writing it forces the measurement.',
     ''
   ];
 }
