@@ -486,13 +486,25 @@ function resolveAnalysisDurationSec(itemConfig = {}, refreshedItem = {}) {
 // item is reported and skipped instead of counted as a broken analysis.
 const METADATA_NO_CANDIDATES_STATUS = 'skipped_no_highlight_candidates';
 
+// A source this long is not highlight material: an hour of footage costs a full
+// Vision scan (plus a proxy encode) to extract at most five short cuts, and the one
+// time it was tried the pipeline fought upload ceilings and encode timeouts for 20
+// minutes before failing anyway. Aligned with ULTRA_LONGFORM_ANALYSIS_HORIZON_SEC in
+// processMetadataService. Such an item is reported and skipped, not failed.
+const HIGHLIGHT_MAX_SOURCE_DURATION_SEC = 1800;
+
 function isNoHighlightCandidatesCode(code = '') {
   return String(code || '') === 'OTTOGI_LONGFORM_HIGHLIGHT_CANDIDATES_REQUIRED';
+}
+
+function isSourceTooLongCode(code = '') {
+  return String(code || '') === 'OTTOGI_SOURCE_TOO_LONG_FOR_HIGHLIGHT';
 }
 
 function metadataFailureStatus(error = {}) {
   const code = error.code || error.errorCode || '';
   if (isNoHighlightCandidatesCode(code)) return METADATA_NO_CANDIDATES_STATUS;
+  if (isSourceTooLongCode(code)) return 'skipped_source_too_long';
   if (isMetadataValidationFailureCode(code)) return 'failed_validation';
   if (code === 'OTTOGI_METADATA_JSON_PARSE_ERROR') return 'failed_parse';
   return 'failed';
@@ -517,6 +529,22 @@ function summarizeMetadataFailure(error = {}) {
   const missing = Array.isArray(details?.missing) ? details.missing : [];
   const issues = Array.isArray(details?.issues) ? details.issues : [];
   const statusCode = Number(error.status || error.statusCode || details.statusCode || 0);
+
+  if (isSourceTooLongCode(code)) {
+    const minutes = Math.round(Number(details?.source_duration_sec || 0) / 60);
+    return {
+      category: 'source_too_long',
+      title: '소스 길이 초과 - 건너뜀',
+      user_message: `소스가 ${minutes || '?'}분으로 하이라이트 제한(${Math.round(HIGHLIGHT_MAX_SOURCE_DURATION_SEC / 60)}분)을 초과해 건너뜁니다.`,
+      recommended_action: '이 소재를 제외하거나 더 짧은 소스로 교체',
+      retry_stage: 'metadata_then_draft',
+      can_regenerate_draft_only: false,
+      detail_lines: [
+        '재시도해도 결과는 같습니다. 긴 영상은 하이라이트 대상에서 제외하세요.',
+        '선택: 소재 교체'
+      ]
+    };
+  }
 
   if (isNoHighlightCandidatesCode(code)) {
     const validCount = Number(details?.valid_hook_candidates_count ?? details?.hook_candidates_count ?? 0);
@@ -672,9 +700,11 @@ function isWarningItem(item = {}) {
 
 function isSkippedNoCandidatesItem(item = {}) {
   if (isDraftSuccess(item)) return false;
-  return item.metadata_status === METADATA_NO_CANDIDATES_STATUS
-    || item.analysis_status === METADATA_NO_CANDIDATES_STATUS
-    || item.draft_status === METADATA_NO_CANDIDATES_STATUS
+  // Any 'skipped_*' analysis outcome (no candidates, source too long). The bare
+  // 'skipped' draft status comes from the draft stage's own skip path.
+  return String(item.metadata_status || '').startsWith('skipped_')
+    || String(item.analysis_status || '').startsWith('skipped_')
+    || String(item.draft_status || '').startsWith('skipped_')
     || item.draft_status === 'skipped';
 }
 
@@ -828,34 +858,35 @@ function selectDraftItemsAfterMetadata(jobId, items = [], metadataResult = {}, o
     for (const item of blockedItems) {
       const itemIndex = items.findIndex((candidate) => candidate.item_id === item.item_id);
       const label = itemIndex >= 0 ? `${itemIndex + 1}/${items.length}` : item.item_id;
-      const noCandidates = metadataStatusByItemId.get(item.item_id) === METADATA_NO_CANDIDATES_STATUS;
+      const analysisStatus = String(metadataStatusByItemId.get(item.item_id) || '');
+      const analysisSkipped = analysisStatus.startsWith('skipped_');
       updateItemStatus(jobId, item.item_id, {
         stage: 'metadata',
-        draft_status: noCandidates ? 'skipped_no_highlight_candidates' : 'blocked_metadata_failed',
+        draft_status: analysisSkipped ? analysisStatus : 'blocked_metadata_failed',
         can_regenerate_draft_only: false,
         failure_retry_stage: 'metadata_then_draft',
-        failure_recommended_action: '재분석 후 드래프트 생성'
+        failure_recommended_action: analysisSkipped ? '소재 확인 후 재분석 또는 교체' : '재분석 후 드래프트 생성'
       });
       appendJobLog(
         jobId,
-        noCandidates
-          ? `${label} Gemini/Vision 하이라이트 후보가 없어 드래프트 생성을 건너뜁니다. 재분석하거나 다른 소재로 교체하세요.`
+        analysisSkipped
+          ? `${label} 분석 단계에서 건너뛴 소재라 드래프트를 생성하지 않습니다. (${analysisStatus})`
           : `${label} Gemini 분석 실패로 드래프트 생성을 건너뜁니다. 재분석 후 드래프트 생성을 실행하세요.`,
         'warning',
         item.item_id,
         {
           stage: 'draft',
-          blocked_by: noCandidates ? 'no_highlight_candidates' : 'metadata_failed',
+          blocked_by: analysisSkipped ? analysisStatus : 'metadata_failed',
           continued_from_metadata: options.continued_from_metadata === true
         }
       );
     }
     const noCandidateItemIds = blockedItems
       .map((item) => item.item_id)
-      .filter((itemId) => metadataStatusByItemId.get(itemId) === METADATA_NO_CANDIDATES_STATUS);
+      .filter((itemId) => String(metadataStatusByItemId.get(itemId) || '').startsWith('skipped_'));
     appendJobLog(
       jobId,
-      `드래프트 생성 제외 ${blockedItems.length}개 (하이라이트 후보 없음 ${noCandidateItemIds.length}개, Gemini 분석 실패 ${blockedItems.length - noCandidateItemIds.length}개)`,
+      `드래프트 생성 제외 ${blockedItems.length}개 (분석 단계 건너뜀 ${noCandidateItemIds.length}개, Gemini 분석 실패 ${blockedItems.length - noCandidateItemIds.length}개)`,
       'warning',
       '',
       {
@@ -1085,6 +1116,15 @@ async function runMetadataStage(jobId, items, options = {}) {
       const sourceUrl = String(itemConfig.source_url || '').trim();
       const sourceInfo = getAnalysisSourceInfo(refreshed.item_id, itemConfig);
       const durationSec = resolveAnalysisDurationSec(itemConfig, refreshed);
+      if (Number(durationSec) > HIGHLIGHT_MAX_SOURCE_DURATION_SEC) {
+        const tooLong = new Error(`source is ${Math.round(Number(durationSec) / 60)} minutes long; highlight sources are capped at ${Math.round(HIGHLIGHT_MAX_SOURCE_DURATION_SEC / 60)} minutes`);
+        tooLong.code = 'OTTOGI_SOURCE_TOO_LONG_FOR_HIGHLIGHT';
+        tooLong.details = {
+          source_duration_sec: Number(durationSec),
+          max_source_duration_sec: HIGHLIGHT_MAX_SOURCE_DURATION_SEC
+        };
+        throw tooLong;
+      }
       const sourceType = itemConfig.source_type || 'unknown';
       const sourceWorkflowMode = itemConfig.source_workflow_mode || 'unknown';
       const itemMetadataVariantMode = effectiveVariantModeForItem(metadataVariantMode, itemConfig);
@@ -1242,7 +1282,10 @@ async function runMetadataStage(jobId, items, options = {}) {
         throw error;
       }
       const failureRecord = recordMetadataAnalysisFailure(refreshed.item_id, itemConfig, error);
-      const isSkip = failureRecord.status === METADATA_NO_CANDIDATES_STATUS;
+      // 'skipped_*' statuses (no candidates, source too long) are reported outcomes,
+      // not pipeline failures. Note: the bare 'skipped' metadataAnalysis status means
+      // "existing analysis reused" and is unrelated.
+      const isSkip = String(failureRecord.status || '').startsWith('skipped_');
       if (isSkip) {
         skipped += 1;
       } else {

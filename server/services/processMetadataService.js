@@ -9270,7 +9270,10 @@ const execFileAsync = promisify(execFile);
 // ~1GB hour-long longform blows Node's 512MB string ceiling (ERR_STRING_TOO_LONG) in
 // the Vertex inline path. The Files API path survives but uploads the full gigabyte.
 const ANALYSIS_PROXY_MAX_SOURCE_BYTES = 300 * 1024 * 1024;
-const ANALYSIS_PROXY_TIMEOUT_MS = 20 * 60 * 1000;
+// An hour-long 1080p source at ultrafast/480p still takes real minutes on a busy
+// machine; the first cut of this feature used 20 minutes and a 60-minute source's
+// encode was killed mid-write.
+const ANALYSIS_PROXY_TIMEOUT_MS = 60 * 60 * 1000;
 
 // A downscaled analysis-only copy of an oversized source. Gemini reads content, not
 // pixels - 480p is plenty for candidate windows and beats - while the draft still cuts
@@ -9295,24 +9298,35 @@ async function ensureAnalysisSourceVideo(filePath, { onProgress = null, throwIfC
     phase: 'analysis_proxy',
     source_bytes: sourceStats.size
   });
+  // Encode to a temp file and rename on success. The first cut wrote the proxy path
+  // directly, so a killed encode left a half-written file that the freshness check
+  // above then trusted as a valid proxy on the next run.
+  const proxyTmpPath = `${proxyPath}.encoding.mp4`;
   const encodePasses = [
-    ['-vf', 'scale=-2:480', '-crf', '30'],
+    ['-vf', 'scale=-2:480', '-crf', '32'],
     // An extreme source can stay oversized at 480p; drop once more before giving up.
-    ['-vf', 'scale=-2:360', '-crf', '33']
+    ['-vf', 'scale=-2:360', '-crf', '35']
   ];
-  for (const passArgs of encodePasses) {
-    await execFileAsync(ffmpeg, [
-      '-y', '-i', filePath,
-      ...passArgs,
-      '-c:v', 'libx264', '-preset', 'veryfast',
-      '-c:a', 'aac', '-b:a', '64k', '-ac', '1',
-      '-movflags', '+faststart',
-      proxyPath
-    ], { timeout: ANALYSIS_PROXY_TIMEOUT_MS, maxBuffer: 64 * 1024 * 1024, windowsHide: true });
-    checkCancellation(throwIfCancelled);
-    if (fs.existsSync(proxyPath) && fs.statSync(proxyPath).size <= ANALYSIS_PROXY_MAX_SOURCE_BYTES) {
-      emitProgress(onProgress, `분석용 프록시 완료: ${Math.round(fs.statSync(proxyPath).size / 1024 / 1024)}MB`, { phase: 'analysis_proxy' });
-      return proxyPath;
+  try {
+    for (const passArgs of encodePasses) {
+      await execFileAsync(ffmpeg, [
+        '-y', '-i', filePath,
+        ...passArgs,
+        '-c:v', 'libx264', '-preset', 'ultrafast',
+        '-c:a', 'aac', '-b:a', '64k', '-ac', '1',
+        '-movflags', '+faststart',
+        proxyTmpPath
+      ], { timeout: ANALYSIS_PROXY_TIMEOUT_MS, maxBuffer: 64 * 1024 * 1024, windowsHide: true });
+      checkCancellation(throwIfCancelled);
+      if (fs.existsSync(proxyTmpPath) && fs.statSync(proxyTmpPath).size <= ANALYSIS_PROXY_MAX_SOURCE_BYTES) {
+        fs.renameSync(proxyTmpPath, proxyPath);
+        emitProgress(onProgress, `분석용 프록시 완료: ${Math.round(fs.statSync(proxyPath).size / 1024 / 1024)}MB`, { phase: 'analysis_proxy' });
+        return proxyPath;
+      }
+    }
+  } finally {
+    if (fs.existsSync(proxyTmpPath)) {
+      try { fs.unlinkSync(proxyTmpPath); } catch { /* best effort */ }
     }
   }
   throw createHttpError(413, 'ANALYSIS_SOURCE_TOO_LARGE', 'source video is too large for Gemini analysis even after proxy encoding', {
@@ -10431,7 +10445,13 @@ async function analyzeWithVertexAdc({ filePath, sourceUrl, durationSec, original
   let videoPartPromise = null;
   const ensureVideoPart = async () => {
     if (!videoPartPromise) {
-      videoPartPromise = buildVertexVideoPart({ filePath, sourceUrl, throwIfCancelled });
+      // A rejected promise must not stay memoized: the proxy encode can fail once
+      // (timeout, disk) and succeed on the phase retry, but a cached rejection made
+      // every later attempt re-throw the first failure instantly.
+      videoPartPromise = buildVertexVideoPart({ filePath, sourceUrl, throwIfCancelled }).catch((error) => {
+        videoPartPromise = null;
+        throw error;
+      });
     }
     return videoPartPromise;
   };

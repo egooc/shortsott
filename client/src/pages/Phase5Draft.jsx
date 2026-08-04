@@ -135,9 +135,10 @@ const NO_HIGHLIGHT_CANDIDATES_STATUS = 'skipped_no_highlight_candidates';
 // generated, but nothing broke either - the item is reported and skipped.
 function isSkippedNoCandidatesItem(item = {}) {
   if (isDraftSuccessItem(item)) return false;
-  return item.metadata_status === NO_HIGHLIGHT_CANDIDATES_STATUS
-    || item.analysis_status === NO_HIGHLIGHT_CANDIDATES_STATUS
-    || item.draft_status === NO_HIGHLIGHT_CANDIDATES_STATUS
+  // Any 'skipped_*' analysis outcome (no candidates, source too long, ...).
+  return String(item.metadata_status || '').startsWith('skipped_')
+    || String(item.analysis_status || '').startsWith('skipped_')
+    || String(item.draft_status || '').startsWith('skipped_')
     || item.draft_status === 'skipped'
     || item.highlight_status === 'skipped';
 }
@@ -153,11 +154,11 @@ function getServerItemDisplayStatus(item = {}) {
 function getFailureDecision(item = {}) {
   if (isSkippedNoCandidatesItem(item)) {
     return {
-      title: '하이라이트 후보 없음 - 건너뜀',
-      message: item.highlight_skip_reason
-        || item.failure_user_message
+      title: item.failure_title || '하이라이트 후보 없음 - 건너뜀',
+      message: item.failure_user_message
+        || item.highlight_skip_reason
         || 'Gemini/Vision이 쓸 수 있는 하이라이트 후보 구간을 내놓지 못해 이 소재는 건너뛰었습니다.',
-      action: '재분석 후 드래프트 생성 (또는 소재 교체)',
+      action: item.failure_recommended_action || '재분석 후 드래프트 생성 (또는 소재 교체)',
       tone: 'amber',
       details: Array.isArray(item.failure_detail_lines) && item.failure_detail_lines.length
         ? item.failure_detail_lines.filter(Boolean)
