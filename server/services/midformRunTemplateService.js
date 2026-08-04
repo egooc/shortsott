@@ -814,7 +814,12 @@ async function runMidformTemplateWorkflow(options = {}) {
         // The escalation is a second opinion, not the cut. The first pass already produced
         // complete drafts and gate results; failing the whole run here threw them away over a
         // Vertex 429 three times in a row. Keep the first pass and say what happened.
-        const escalationError = String(multimodalState?.failure_reason?.message || multimodalState?.error || 'external analysis error');
+        const failure = multimodalState?.failure_reason;
+        const escalationError = String(
+          (failure && typeof failure === 'object' ? failure.message || failure.code : failure)
+          || multimodalState?.error
+          || 'external analysis error'
+        );
         summary.analysis_run.auto_escalation.escalation_failed = true;
         summary.analysis_run.final_path = 'first_pass_after_escalation_failure';
         let fallbackSummary = finalSummaryFromQa(summary, qa, finalPipelineState, summary.analysis_run);
