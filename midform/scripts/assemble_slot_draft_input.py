@@ -753,6 +753,39 @@ def merge_short_units(units, segment=None, max_chars=CAPTION_MAX_CHARS, extended
     return units
 
 
+def caption_chunk_spans(segment, chunks):
+    """Split a line's SPOKEN window across its display chunks, in proportion to length.
+
+    Caption units carried no timing at all, so capcut_draft.py divided each clip evenly by chunk
+    count and laid the pieces end to end - which is why no two captions could ever share a
+    moment however many lanes existed. The spoken window (preserved before the video clips were
+    separated) is the right span: chunks of ONE line stay sequential inside it by construction,
+    while chunks of DIFFERENT lines are free to overlap.
+    """
+    adjustment = segment.get("dialogue_timing_adjustment") if isinstance(segment, dict) else None
+    span = (adjustment or {}).get("caption_speech_range_sec") if isinstance(adjustment, dict) else None
+    if not (isinstance(span, (list, tuple)) and len(span) >= 2):
+        return [None] * len(chunks)
+    try:
+        start_sec = float(span[0])
+        end_sec = float(span[1])
+    except (TypeError, ValueError):
+        return [None] * len(chunks)
+    total = end_sec - start_sec
+    if not chunks or total <= 0:
+        return [None] * len(chunks)
+    weights = [max(1, len(str(chunk or '').strip())) for chunk in chunks]
+    weight_total = float(sum(weights))
+    spans = []
+    cursor = start_sec
+    for position, weight in enumerate(weights):
+        share = total * (weight / weight_total)
+        chunk_end = end_sec if position == len(weights) - 1 else min(end_sec, cursor + share)
+        spans.append((round(cursor, 6), round(max(chunk_end, cursor + 0.05), 6)))
+        cursor = chunk_end
+    return spans
+
+
 def merge_short_dialogue_units_across_slots(units, segments_by_id, extended_chars=CAPTION_EXTENDED_CHARS, min_chars=CAPTION_MIN_CHARS, min_duration_sec=CAPTION_MIN_DURATION_SEC):
     merged = []
     index = 0
@@ -873,20 +906,29 @@ def build_timeline_units(segments):
             chunks = []
             for display_source in split_display_caption_sources(text, segment_type):
                 chunks.extend(merge_short_units(split_caption_text(display_source), segment=segment))
+            chunk_spans = caption_chunk_spans(segment, chunks)
             for order, chunk in enumerate(chunks, start=1):
                 caption_id = f"{safe_filename_stem(segment_id, f's{segment_index:02d}')}_cap_{order:03d}"
-                caption_units.append(
-                    {
-                        "caption_id": caption_id,
-                        "segment_id": segment_id,
-                        "segment_type": segment_type,
-                        "tts_enabled": False,
-                        "order": order,
-                        "text": sanitize_display_caption_text(chunk),
-                        "speaker": normalize_text(segment.get("speaker")),
-                        "source_segment_order": segment_index,
-                    }
-                )
+                unit = {
+                    "caption_id": caption_id,
+                    "segment_id": segment_id,
+                    "segment_type": segment_type,
+                    "tts_enabled": False,
+                    "order": order,
+                    "text": sanitize_display_caption_text(chunk),
+                    "speaker": normalize_text(segment.get("speaker")),
+                    "source_segment_order": segment_index,
+                }
+                span = chunk_spans[order - 1] if order - 1 < len(chunk_spans) else None
+                if span:
+                    # Where this chunk sits inside its clip, and how long it is spoken for.
+                    visual = (segment.get("dialogue_timing_adjustment") or {}).get("visual_range_sec")
+                    visual_start = float(visual[0]) if isinstance(visual, (list, tuple)) and visual else None
+                    unit["caption_speech_range_sec"] = [span[0], span[1]]
+                    unit["caption_duration_sec"] = round(span[1] - span[0], 6)
+                    if visual_start is not None:
+                        unit["caption_timeline_offset_sec"] = round(span[0] - visual_start, 6)
+                caption_units.append(unit)
     return merge_short_dialogue_units_across_slots(caption_units, segments_by_id), tts_units
 
 
