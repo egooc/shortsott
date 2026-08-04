@@ -7698,9 +7698,21 @@ function collectJapaneseCaptionIssues(guide = {}, options = {}) {
     const narrationConnectorCount = texts.filter((text) => isFullScriptNarrationConnector(text, korean)).length;
     const actionChecklistTexts = texts.filter((text) => isFullScriptActionChecklistLine(text, korean));
     const unseenResultClaimTexts = texts.filter((text) => isUnseenResultClaimCaption(text, korean));
+    // The non-Korean fallback must mirror every field koreanFullDraftStyleViolations
+    // returns. weakSentenceGroups was added to the real result but not here, so a
+    // Japanese Full script reached `koreanStyleViolations.weakSentenceGroups.length`
+    // on undefined - a TypeError that hasReusableMetadataReady rethrows, killing the
+    // whole job before the first item was analysed.
     const koreanStyleViolations = korean && !isMidform
       ? koreanFullDraftStyleViolations(texts)
-      : { exactBannedOpening: '', reportStyleEndings: [], consecutiveHamNidaRuns: [], decorativeOnlyRuns: [], sentenceEndinglessRuns: [] };
+      : {
+        exactBannedOpening: '',
+        reportStyleEndings: [],
+        consecutiveHamNidaRuns: [],
+        decorativeOnlyRuns: [],
+        sentenceEndinglessRuns: [],
+        weakSentenceGroups: []
+      };
     const hookPayoffOk = !korean || isMidform || hasHookPayoff({
       texts,
       detectedSubject: guide?.detected_subject || '',

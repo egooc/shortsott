@@ -436,6 +436,11 @@ function hasReusableMetadataReady(itemConfig = {}) {
     return true;
   } catch (error) {
     if (isInvalidOttogiMetadataError(error)) return false;
+    // This runs outside the per-item try block, so anything rethrown here kills the
+    // whole job before a single item is analysed - a TypeError in the validator once
+    // took down a 22-item batch. A validator that cannot judge stored metadata means
+    // "not reusable"; re-analysing costs a Gemini call, losing the batch costs the run.
+    if (error instanceof TypeError || !error.code) return false;
     throw error;
   }
 }

@@ -1002,6 +1002,38 @@ function testCandidateScanRequiresWholeSourceCoverage() {
   );
 }
 
+function testStyleViolationFallbackCoversEveryField() {
+  // A Japanese Full script takes the non-Korean fallback object in
+  // validateFullCaptionScript. That object was missing weakSentenceGroups, which the
+  // validator then read .length from - a TypeError that hasReusableMetadataReady
+  // rethrows, killing a whole 22-item job before the first item was analysed.
+  const metadataSource = fs.readFileSync(path.join(__dirname, '..', 'server', 'services', 'processMetadataService.js'), 'utf8');
+  const realFields = new Set();
+  const returnBlock = metadataSource.slice(metadataSource.indexOf('const weakSentenceGroups = []'));
+  const returnStart = returnBlock.indexOf('return {');
+  returnBlock.slice(returnStart, returnStart + 400).split('\n').forEach((line) => {
+    const match = line.match(/^\s{4}([A-Za-z][A-Za-z0-9_]*),?\s*$/);
+    if (match) realFields.add(match[1]);
+  });
+  assert(realFields.has('weakSentenceGroups'), 'koreanFullDraftStyleViolations must still return weakSentenceGroups');
+
+  const fallbackStart = metadataSource.indexOf('const koreanStyleViolations = korean && !isMidform');
+  const fallback = metadataSource.slice(fallbackStart, fallbackStart + 700);
+  realFields.forEach((field) => {
+    assert(fallback.includes(`${field}:`), `the non-Korean style-violation fallback must define ${field} or the validator reads .length of undefined`);
+  });
+}
+
+function testUnexpectedValidatorErrorsCannotKillTheJob() {
+  // hasReusableMetadataReady runs outside the per-item try block, so anything it
+  // rethrows takes down the entire batch before a single item is analysed.
+  const jobSource = fs.readFileSync(path.join(__dirname, '..', 'server', 'services', 'processJobService.js'), 'utf8');
+  assert(
+    jobSource.includes('if (error instanceof TypeError || !error.code) return false;'),
+    'a validator crash must mean "not reusable", never a dead job'
+  );
+}
+
 function testOcrBlurShipsHiddenForReview() {
   // The OCR/watermark blur ships in the draft but disabled, so nothing is blurred by
   // default and the reviewer enables it only when a watermark or burned-in caption
@@ -1504,6 +1536,8 @@ function main() {
   testWindowsCarryAComputedSceneLink();
   testHeldBeatsDoNotSpanCameraCuts();
   testCandidateScanRequiresWholeSourceCoverage();
+  testStyleViolationFallbackCoversEveryField();
+  testUnexpectedValidatorErrorsCannotKillTheJob();
   testOcrBlurShipsHiddenForReview();
   testGenericSceneExplanationDetector();
   testDuplicateCandidateMetadataBlocksGeneration();
