@@ -1165,6 +1165,74 @@ function isNonSpeechCaption(text) {
   return /^[[(][^\])]*[\])]$/.test(stripped);
 }
 
+// ---- Source case profiling (midform/docs/source-casebook.md) ----
+// The casebook's judgement, computed instead of remembered: how much of the source is spoken and
+// whether the most-replayed peak lands on speech decide the whole editing approach, so profile the
+// source once and feed the matched case's rules into every generation prompt.
+const SOURCE_CASE_SHORT_SEC = 240;
+const SOURCE_CASE_SPARSE_DENSITY = 0.35;
+const SOURCE_CASE_DENSE_DENSITY = 0.6;
+
+function profileSourceCase(transcript, metadata, heatmap) {
+  const durationSec = Number(metadata?.duration || 0);
+  const cues = (Array.isArray(transcript) ? transcript : [])
+    .filter((cue) => Number(cue?.end_sec) > Number(cue?.start_sec) && !isNonSpeechCaption(cue?.text));
+  const ranges = cues.map((cue) => [Number(cue.start_sec), Number(cue.end_sec)]).sort((a, b) => a[0] - b[0]);
+  let spoken = 0;
+  let currentStart = null;
+  let currentEnd = null;
+  for (const [start, end] of ranges) {
+    if (currentEnd === null || start > currentEnd) {
+      if (currentEnd !== null) spoken += currentEnd - currentStart;
+      currentStart = start;
+      currentEnd = end;
+    } else {
+      currentEnd = Math.max(currentEnd, end);
+    }
+  }
+  if (currentEnd !== null) spoken += currentEnd - currentStart;
+  const speechDensity = durationSec > 0 ? Math.min(1, roundSec(spoken / durationSec)) : 0;
+  const items = Array.isArray(heatmap?.items) ? heatmap.items : [];
+  const peak = items.reduce((best, item) => (best === null || Number(item?.score || 0) > Number(best?.score || 0) ? item : best), null);
+  const peakIsDialogue = peak
+    ? cues.some((cue) => Number(cue.end_sec) > Number(peak.start_sec) && Number(cue.start_sec) < Number(peak.end_sec))
+    : false;
+  const density = speechDensity <= SOURCE_CASE_SPARSE_DENSITY ? 'sparse_dialogue'
+    : (speechDensity >= SOURCE_CASE_DENSE_DENSITY ? 'dialogue_dense' : 'mixed_density');
+  const parts = [density, peakIsDialogue ? 'dialogue_peak' : 'action_peak'];
+  if (durationSec > 0 && durationSec < SOURCE_CASE_SHORT_SEC) parts.unshift('short_source');
+  return {
+    case_type: parts.join('+'),
+    duration_sec: durationSec,
+    speech_density: speechDensity,
+    peak_is_dialogue: peakIsDialogue
+  };
+}
+
+function buildSourceCaseGuidance(profile) {
+  if (!profile || !profile.case_type) return [];
+  const lines = [
+    '',
+    `SOURCE CASE (auto-profiled; casebook: midform/docs/source-casebook.md): ${profile.case_type} — `
+    + `speech covers ${Math.round(profile.speech_density * 100)}% of the source, `
+    + `${profile.peak_is_dialogue ? 'the most-replayed peak lands on dialogue' : 'the most-replayed peak is non-verbal'}.`
+  ];
+  if (profile.speech_density <= SOURCE_CASE_SPARSE_DENSITY) {
+    lines.push('- Sparse-dialogue source: a speech-forward structure is impossible here, and that is the footage, not a writing failure. Preserve every strong line that exists, accept a higher narration share at the seams, and treat pure action/visual beats with no dialogue as fully valid.');
+  } else if (profile.speech_density >= SOURCE_CASE_DENSE_DENSITY) {
+    lines.push('- Dialogue-dense source: the exchange itself is the video. Chain preserved dialogue back to back, keep narration to the seams only, and keep repeated lines that form a running pattern — the repetition is structure, not redundancy.');
+  }
+  if (profile.peak_is_dialogue) {
+    lines.push('- The peak moment is spoken: open on that dialogue as a captioned hook. Never open with an uncaptioned audio teaser over speech — the hook would play inaudible to the target audience.');
+  } else {
+    lines.push('- The peak moment is non-verbal: an uncaptioned source-audio teaser on the peak is the right opening; its energy carries the hook. Do not force a weak dialogue line into the hook instead.');
+  }
+  if (profile.duration_sec > 0 && profile.duration_sec < SOURCE_CASE_SHORT_SEC) {
+    lines.push('- Short source: completeness beats length. Few beats are expected; do not pad narration to stretch the runtime, and never drop a line of a running gag to save seconds.');
+  }
+  return lines;
+}
+
 function dedupeFocusLines(lines) {
   const output = [];
   for (const value of lines) {
@@ -4220,9 +4288,12 @@ async function runCompression(source, options = {}) {
   }
   const { transcript, transcriptPath, vttPath } = await extractTimedTranscript(sourceUrl, runDir);
   const { heatmap, heatmapPath } = extractHeatmap(metadata, runDir);
+  const sourceCase = profileSourceCase(transcript, metadata, heatmap);
+  writeJson(path.join(runDir, 'source_case.json'), sourceCase);
+  const caseGuidanceText = buildSourceCaseGuidance(sourceCase).join(String.fromCharCode(10));
 
   const beatsResult = await runJsonGeneration(
-    buildBeatsPrompt(transcript, metadata, targetSec),
+    buildBeatsPrompt(transcript, metadata, targetSec) + caseGuidanceText,
     MIDFORM_COMPRESSION_BEATS_SCHEMA_PATH,
     (parsed) => validateBeats(parsed, transcript)
   );
@@ -4233,7 +4304,7 @@ async function runCompression(source, options = {}) {
   let editPlanSource = 'codex';
   try {
     const editResult = await runJsonGeneration(
-      buildEditPlanPrompt(beatsResult.parsed.beats, heatmap, targetSec, metadata),
+      buildEditPlanPrompt(beatsResult.parsed.beats, heatmap, targetSec, metadata) + caseGuidanceText,
       MIDFORM_COMPRESSION_EDIT_PLAN_SCHEMA_PATH,
       (parsed) => validateEditPlanAgainstBeats(validateEditPlan(parsed, targetSec), beatsResult.parsed.beats)
     );
@@ -4294,7 +4365,10 @@ async function runCompressionApply(runIdOrPath, applyOptions = {}) {
   const movieTitle = (fs.existsSync(sourceInfoPath) ? (readJson(sourceInfoPath) || {}).title : '')
     || (fs.existsSync(applyManifestPath) ? (readJson(applyManifestPath) || {}).title : '') || '';
   const recapContext = resolveRecapContext(runDir, applyOptions.contextFile);
-  const slotFillsPrompt = buildSlotFillsPrompt(beatsObject.beats || [], finalizedEditPlan, movieTitle, recapContext.contextMarkdown);
+  const sourceCasePath = path.join(runDir, 'source_case.json');
+  const applySourceCase = fs.existsSync(sourceCasePath) ? readJson(sourceCasePath) : null;
+  const applyCaseGuidance = buildSourceCaseGuidance(applySourceCase).join(String.fromCharCode(10));
+  const slotFillsPrompt = buildSlotFillsPrompt(beatsObject.beats || [], finalizedEditPlan, movieTitle, recapContext.contextMarkdown) + applyCaseGuidance;
   const validateStructure = (parsed) => validateSlotFillsDialogueCaptions(
     reconcileDialogueCaptionCounts(normalizeSlotFillsForStyle(parsed, finalizedEditPlan), finalizedEditPlan),
     finalizedEditPlan
@@ -4508,6 +4582,8 @@ module.exports = {
     applyColdOpenVisualOverlapSafety,
     validateSlotFillsDialogueCaptions,
     resolveDialogueLineWindows,
+    profileSourceCase,
+    buildSourceCaseGuidance,
     separateOverlappingDialogueWindows,
     topUpTimelineToTargetRuntime,
     buildSlotQcReport,
