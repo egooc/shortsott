@@ -908,6 +908,25 @@ function testDeepCropAnchorsOnTheWorkCenter() {
     'sequence steps must run through the anchor/slack clamp');
 }
 
+function testHighlightTimelineCutsOnTheBeatPlan() {
+  // The beat plan is not just recorded - the assembler cuts the timeline on it.
+  // Segment boundaries land on the measured beat boundaries (beat_aligned mode wins
+  // over scene-change and fixed-interval splitting), each beat carries its character
+  // (action fast, result/emphasis calm and held), and a repeat_loop tail replays the
+  // opening cycle instead of running past the result.
+  const queueSource = fs.readFileSync(path.join(__dirname, '..', 'server', 'services', 'processQueueService.js'), 'utf8');
+  assert(
+    (queueSource.match(/beat_plan: buildHighlightBeatPlan\(window, window\.duration_sec\)/g) || []).length >= 3,
+    'both JP and KR highlight configs (and the manifest) must carry the beat plan'
+  );
+
+  const pySource = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'capcut_draft.py'), 'utf8');
+  assert(pySource.includes('"mode": "beat_aligned"'), 'the assembler must plan segments on beat boundaries');
+  assert(pySource.includes('is_beat_cut = plan_mode == "beat_aligned"'), 'beat segments must use explicit source ranges so cuts land on the measured beats');
+  assert(pySource.includes('"beat_emphasis"'), 'the emphasis beat must exist as its own segment character');
+  assert(pySource.includes('beat_tail_mode == "repeat_loop"'), 'a loopable tail must replay the opening cycle');
+}
+
 function testOcrBlurShipsHiddenForReview() {
   // The OCR/watermark blur ships in the draft but disabled, so nothing is blurred by
   // default and the reviewer enables it only when a watermark or burned-in caption
@@ -1406,6 +1425,7 @@ function main() {
   testSelectedHookWindowBorrowsMeasuredBeats();
   testWideLongformPresetFillsTheVerticalCanvas();
   testDeepCropAnchorsOnTheWorkCenter();
+  testHighlightTimelineCutsOnTheBeatPlan();
   testOcrBlurShipsHiddenForReview();
   testGenericSceneExplanationDetector();
   testDuplicateCandidateMetadataBlocksGeneration();

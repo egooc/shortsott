@@ -7264,7 +7264,67 @@ def create_process_draft(data):
                     remaining_video_us = max(0, video_duration_us - cursor_us)
                 scene_change_times = scene_detection_summary.get("scene_change_times") or []
                 segment_plans = []
-                if scene_change_times:
+                beat_plan = video_transform_preset.get("beat_plan") if isinstance(video_transform_preset.get("beat_plan"), dict) else None
+                beat_list = [b for b in (beat_plan.get("beats") if beat_plan and isinstance(beat_plan.get("beats"), list) else []) if isinstance(b, dict)]
+                if beat_list:
+                    # Highlight timeline follows the 0-1s action / 1-4s core change /
+                    # 4-8s result / 8s+ emphasis-or-loop plan: cuts land exactly on the
+                    # beat boundaries Gemini measured, long beats subdivide by the
+                    # preset unit to keep the motion pattern, and each beat carries its
+                    # own character (action fast, result/emphasis calm and held).
+                    beat_unit_us = max(microseconds(0.6), microseconds(safe_float(video_transform_preset.get("segment_unit_sec", video_transform_preset.get("interval_sec")), 1.15)))
+                    beat_behavior = {
+                        "action": {"speed": 1.08, "label": "beat_action"},
+                        "core_change": {"speed": 1.0, "label": "beat_core_change"},
+                        "result": {"speed": 0.95, "label": "beat_result", "hold": True},
+                        "emphasis": {"speed": 0.95, "label": "beat_emphasis", "hold": True},
+                    }
+                    beat_tail_mode = str(beat_plan.get("tail_mode") or "none")
+                    for beat in beat_list:
+                        beat_name = str(beat.get("beat") or "")
+                        behavior = beat_behavior.get(beat_name, {"speed": 1.0, "label": f"beat_{beat_name or 'segment'}"})
+                        beat_start_us = max(0, microseconds(safe_float(beat.get("start_sec"), 0.0)))
+                        beat_end_us = min(remaining_video_us, microseconds(safe_float(beat.get("end_sec"), 0.0)))
+                        span_us = beat_end_us - beat_start_us
+                        if span_us < 200_000:
+                            continue
+                        pieces = max(1, min(6, int(round(span_us / beat_unit_us)) or 1))
+                        piece_us = span_us // pieces
+                        # A loopable tail replays the opening action cycle instead of
+                        # running past the result - same timeline length, the clip just
+                        # returns to the top of the cycle so the action repeats.
+                        loop_tail = beat_name == "emphasis" and beat_tail_mode == "repeat_loop"
+                        for piece_index in range(pieces):
+                            piece_start_us = beat_start_us + piece_index * piece_us
+                            piece_duration_us = span_us - piece_index * piece_us if piece_index == pieces - 1 else piece_us
+                            if piece_duration_us < 200_000:
+                                continue
+                            source_start_us = (piece_index * piece_us) % max(1, remaining_video_us) if loop_tail else piece_start_us
+                            override = {
+                                "speed": behavior.get("speed", 1.0),
+                                "label": f"{behavior['label']}_loop" if loop_tail else behavior["label"],
+                            }
+                            if behavior.get("hold"):
+                                override["pan_x"] = 0.0
+                                override["pan_y"] = 0.0
+                                override["rotation"] = 0.0
+                            segment_plans.append(
+                                {
+                                    "mode": "beat_aligned",
+                                    "source_start_us": source_start_us,
+                                    "duration_us": piece_duration_us,
+                                    "beat": beat_name,
+                                    "scene_meta": {
+                                        "scene_id": f"beat_{beat_name}_{piece_index + 1}",
+                                        "focus_zone": "center",
+                                        "motion_intensity": "medium",
+                                        "video_transform_override": override,
+                                    },
+                                }
+                            )
+                if segment_plans:
+                    pass
+                elif scene_change_times:
                     boundaries_us = [0]
                     for scene_time in scene_change_times:
                         scene_us = microseconds(scene_time)
@@ -7310,24 +7370,40 @@ def create_process_draft(data):
                     scene_meta = segment_plan.get("scene_meta") if isinstance(segment_plan.get("scene_meta"), dict) else {}
                     step = apply_focus_to_transform_step(raw_step, scene_meta, segment_index)
                     step_duration_us = int(segment_plan.get("duration_us") or 0)
-                    is_scene_cut = segment_plan.get("mode") == "scene_change"
+                    plan_mode = str(segment_plan.get("mode") or "")
+                    is_scene_cut = plan_mode == "scene_change"
+                    is_beat_cut = plan_mode == "beat_aligned"
                     trim_us = min(tail_trim_us, max(0, int(step_duration_us * 0.25))) if is_scene_cut else 0
-                    target_step_duration_us = max(200_000, step_duration_us - trim_us)
-                    speed_value = max(0.1, safe_float(step.get("speed"), 1.0))
-                    source_duration_us = max(1, int(target_step_duration_us * speed_value))
-                    if material_duration_us > 0:
-                        if is_scene_cut:
-                            max_scene_duration_us = max(1, step_duration_us - trim_us)
-                            source_duration_us = min(source_duration_us, max_scene_duration_us, material_duration_us)
-                            source_start_us = int(segment_plan.get("source_start_us") or 0)
-                        else:
-                            source_duration_us = min(source_duration_us, material_duration_us)
-                            source_start_us = source_cursor_us
-                        max_start_us = max(0, material_duration_us - source_duration_us)
-                        if source_start_us > max_start_us:
-                            source_start_us = max_start_us
+                    if is_beat_cut:
+                        # The beat piece IS the source range: the cut must land on the
+                        # measured beat boundary, so speed derives the timeline length
+                        # from the fixed source span rather than stretching the source.
+                        beat_override = scene_meta.get("video_transform_override") if isinstance(scene_meta.get("video_transform_override"), dict) else {}
+                        speed_value = min(1.55, max(0.65, safe_float(beat_override.get("speed"), 1.0)))
+                        source_duration_us = max(1, min(step_duration_us, material_duration_us if material_duration_us > 0 else step_duration_us))
+                        target_step_duration_us = max(200_000, int(source_duration_us / speed_value))
+                        source_start_us = int(segment_plan.get("source_start_us") or 0)
+                        if material_duration_us > 0:
+                            max_start_us = max(0, material_duration_us - source_duration_us)
+                            if source_start_us > max_start_us:
+                                source_start_us = max_start_us
                     else:
-                        source_start_us = 0
+                        target_step_duration_us = max(200_000, step_duration_us - trim_us)
+                        speed_value = max(0.1, safe_float(step.get("speed"), 1.0))
+                        source_duration_us = max(1, int(target_step_duration_us * speed_value))
+                        if material_duration_us > 0:
+                            if is_scene_cut:
+                                max_scene_duration_us = max(1, step_duration_us - trim_us)
+                                source_duration_us = min(source_duration_us, max_scene_duration_us, material_duration_us)
+                                source_start_us = int(segment_plan.get("source_start_us") or 0)
+                            else:
+                                source_duration_us = min(source_duration_us, material_duration_us)
+                                source_start_us = source_cursor_us
+                            max_start_us = max(0, material_duration_us - source_duration_us)
+                            if source_start_us > max_start_us:
+                                source_start_us = max_start_us
+                        else:
+                            source_start_us = 0
 
                     script.add_segment(
                         cc.VideoSegment(
@@ -7351,7 +7427,7 @@ def create_process_draft(data):
                         )
                     video_track_count += 1
                     cursor_us += target_step_duration_us
-                    if not is_scene_cut:
+                    if not is_scene_cut and not is_beat_cut:
                         source_cursor_us += source_duration_us
                     step_index += 1
                     scene_focus_plan.append(scene_meta)

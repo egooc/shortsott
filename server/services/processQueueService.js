@@ -9830,7 +9830,12 @@ async function createHighlightDraftForItem({
     custom_bgm_path: queueConfig.highlight_custom_bgm_path || baseConfig.custom_bgm_path || '',
     custom_bgm_original_name: queueConfig.highlight_custom_bgm_original_name || '',
     bgm_volume: queueConfig.highlight_bgm_volume ?? baseConfig.bgm_volume,
-    video_transform_preset: buildHighlightHookZoomOutPreset(baseConfig.video_transform_preset, itemConfig, window),
+    // beat_plan rides on the preset so the assembler can cut the timeline on the
+    // measured beat boundaries instead of the uniform interval grid.
+    video_transform_preset: {
+      ...buildHighlightHookZoomOutPreset(baseConfig.video_transform_preset, itemConfig, window),
+      beat_plan: buildHighlightBeatPlan(window, window.duration_sec)
+    },
     capcut_template_draft_name: selectVariantCapcutTemplateDraftName(queueConfig, 'jp_highlight'),
     variant_policy_id: 'jp_highlight',
     caption_mode: 'long_bottom_explainer',
@@ -10617,7 +10622,10 @@ async function createKoreanHighlightDraftForItem({
     custom_bgm_path: queueConfig.korean_highlight_custom_bgm_path || queueConfig.korean_custom_bgm_path || queueConfig.highlight_custom_bgm_path || baseConfig.custom_bgm_path || '',
     custom_bgm_original_name: queueConfig.korean_highlight_custom_bgm_original_name || queueConfig.korean_custom_bgm_original_name || queueConfig.highlight_custom_bgm_original_name || baseConfig.custom_bgm_original_name || '',
     bgm_volume: queueConfig.korean_highlight_bgm_volume ?? queueConfig.korean_bgm_volume ?? baseConfig.bgm_volume,
-    video_transform_preset: buildHighlightHookZoomOutPreset(baseConfig.video_transform_preset, itemConfig, window),
+    video_transform_preset: {
+      ...buildHighlightHookZoomOutPreset(baseConfig.video_transform_preset, itemConfig, window),
+      beat_plan: buildHighlightBeatPlan(window, window.duration_sec)
+    },
     target_locale: 'ko-KR',
     explainer_blocks: [
       {
