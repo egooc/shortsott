@@ -1801,6 +1801,31 @@ function annotateNarrationSlotForQc(item) {
 // its English line is spoken (rather than being spread evenly across the whole window).
 // Returns per-line windows in the SAME order as `lines` (1:1 with caption_kr_dialogue),
 // each carrying the resolved coordinates used identically by transcript + slot_map + script.
+// Auto-caption cues often pack several lines into one cue — at 1:21 of the Anger Management
+// source a single 9s cue holds five ("...keeps ignore me when I ask calm down I am calm what is
+// it with you people..."). Every line matching that cue used to receive the WHOLE cue as its
+// window, so the windows collided in step 2 and all but one line was flagged and dropped. Slice
+// the cue by character position instead: caption timing is roughly linear in text, so a line's
+// offset in the cue text estimates its moment well enough for the later speech-trim to refine.
+function sliceCueForLine(cue, line) {
+  const cueText = String(cue?.text || '').toLowerCase().replace(/[^a-z0-9\s']/g, ' ').replace(/\s+/g, ' ').trim();
+  const lineText = String(line || '').toLowerCase().replace(/[^a-z0-9\s']/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!cueText || !lineText) return null;
+  if (lineText.length >= cueText.length * 0.85) return null; // the line IS the cue; nothing to slice
+  let offset = cueText.indexOf(lineText);
+  if (offset < 0) {
+    const head = lineText.slice(0, Math.max(10, Math.floor(lineText.length * 0.6)));
+    offset = cueText.indexOf(head);
+  }
+  if (offset < 0) return null;
+  const cueStart = Number(cue.start_sec);
+  const cueDur = Number(cue.end_sec) - cueStart;
+  if (!(cueDur > 0)) return null;
+  const startFrac = offset / cueText.length;
+  const endFrac = Math.min(1, (offset + lineText.length) / cueText.length);
+  return [roundSec(cueStart + cueDur * startFrac), roundSec(cueStart + cueDur * endFrac)];
+}
+
 function resolveDialogueLineWindows(transcript, windowStartSec, windowEndSec, lines, hardMaxSec, nextBoundarySec) {
   const start = Number(windowStartSec);
   const end = Number(windowEndSec);
@@ -1855,12 +1880,18 @@ function resolveDialogueLineWindows(transcript, windowStartSec, windowEndSec, li
       && Number(sortedCues[hi + 1].start_sec) - Number(sortedCues[hi].end_sec) <= CLUSTER_GAP_TOL_SEC) {
       hi += 1;
     }
+    let rawStart = Number(sortedCues[lo].start_sec);
+    let rawEnd = Number(sortedCues[hi].end_sec);
+    if (lo === hi) {
+      const slice = sliceCueForLine(sortedCues[bestIndex], line);
+      if (slice) { rawStart = slice[0]; rawEnd = slice[1]; }
+    }
     return {
       line,
       matched: true,
       score: roundSec(bestScore),
-      raw_start: Number(sortedCues[lo].start_sec),
-      raw_end: Number(sortedCues[hi].end_sec)
+      raw_start: rawStart,
+      raw_end: rawEnd
     };
   });
 
@@ -4475,6 +4506,7 @@ module.exports = {
     findNarrationNameplate,
     applyColdOpenVisualOverlapSafety,
     validateSlotFillsDialogueCaptions,
+    resolveDialogueLineWindows,
     separateOverlappingDialogueWindows,
     topUpTimelineToTargetRuntime,
     buildSlotQcReport,
