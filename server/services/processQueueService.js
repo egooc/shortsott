@@ -8027,6 +8027,57 @@ function getGeminiBestHighlightWindow(itemConfig = {}, maxDurationSec = 10) {
   return null;
 }
 
+const HIGHLIGHT_BEAT_FIELD_KEYS = [
+  'beat_core_change_sec',
+  'beat_result_visible_sec',
+  'has_result_reveal',
+  'loopable',
+  'process_is_subject',
+  'face_or_emotion_dominant',
+  'texture_strength',
+  'macro_closeup',
+  'shallow_depth_of_field'
+];
+
+// The hook-selection phase returns hook_clip_10s as a fresh object with no beat fields,
+// even when it picks exactly the window the candidate scan already described. Borrow the
+// beat data from the best-overlapping scanned candidate so the selected window scores
+// and plans on measured beats instead of falling back to the nominal formula.
+function borrowHighlightBeatFields(window = {}, itemConfig = {}) {
+  if (HIGHLIGHT_BEAT_FIELD_KEYS.some((key) => window[key] !== undefined && window[key] !== null)) {
+    return window;
+  }
+  const start = Number(window.start_sec);
+  const end = Number(window.end_sec ?? (start + Number(window.duration_sec || 0)));
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return window;
+
+  const guide = itemConfig.ottogi_guide_output || {};
+  const pool = [
+    ...(Array.isArray(guide.shortform_candidate_windows) ? guide.shortform_candidate_windows : []),
+    ...(Array.isArray(guide.hook_candidates) ? guide.hook_candidates : []),
+    ...(Array.isArray(guide.highlight_candidates) ? guide.highlight_candidates : [])
+  ];
+  let best = null;
+  let bestOverlap = 0;
+  for (const candidate of pool) {
+    if (!candidate || typeof candidate !== 'object') continue;
+    if (!HIGHLIGHT_BEAT_FIELD_KEYS.some((key) => candidate[key] !== undefined && candidate[key] !== null)) continue;
+    const overlap = Math.max(0, Math.min(end, Number(candidate.end_sec)) - Math.max(start, Number(candidate.start_sec)));
+    if (overlap > bestOverlap) {
+      bestOverlap = overlap;
+      best = candidate;
+    }
+  }
+  // Same real-overlap bar as withCandidateExplanation: borrowed beats from a different
+  // cut would describe the wrong footage.
+  if (!best || bestOverlap < Math.min(1, Math.max(0.1, (end - start) * 0.25))) return window;
+  const borrowed = { ...window };
+  for (const key of HIGHLIGHT_BEAT_FIELD_KEYS) {
+    if (best[key] !== undefined && best[key] !== null) borrowed[key] = best[key];
+  }
+  return borrowed;
+}
+
 function normalizeHighlightCandidateWindow(raw, itemConfig = {}, maxDurationSec = 10, reason = 'highlight_candidate_window') {
   if (!raw || typeof raw !== 'object') return null;
   // A window with no positional data at all is not a window. Without this
@@ -8040,7 +8091,7 @@ function normalizeHighlightCandidateWindow(raw, itemConfig = {}, maxDurationSec 
   if (!hasWindowData) return null;
   const sourceDuration = sourceDurationSecForItem(itemConfig);
   const longformSource = isLongformHighlightSource(itemConfig);
-  const normalized = normalizeGuideWindow(raw, sourceDuration || itemConfig.target_duration_sec || 0);
+  const normalized = normalizeGuideWindow(borrowHighlightBeatFields(raw, itemConfig), sourceDuration || itemConfig.target_duration_sec || 0);
   if (!normalized) return null;
   const selectedSceneIds = Array.isArray(normalized.selected_scene_ids) ? normalized.selected_scene_ids.filter(Boolean).slice(0, 1) : [];
   const selectedSceneIdSet = new Set(selectedSceneIds);

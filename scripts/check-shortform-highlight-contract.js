@@ -813,6 +813,34 @@ function testFaceLedWindowsAreDroppedNotJustDownranked() {
   );
 }
 
+function testSelectedHookWindowBorrowsMeasuredBeats() {
+  // The hook-selection phase returns hook_clip_10s as a fresh object with no beat
+  // fields even when it picks exactly the window the candidate scan described. The
+  // selected window must borrow those measured beats; otherwise the top cut of every
+  // source plans on the nominal formula while its siblings plan on measured beats.
+  const item = {
+    item_id: 'hook_borrow_case',
+    source_type: 'longform',
+    source_workflow_mode: 'longform_to_shorts',
+    target_duration_sec: 400,
+    video_metadata: { duration_sec: 400 },
+    source_classification: { duration_sec: 400 },
+    ottogi_guide_output: {
+      hook_clip_10s: { start_sec: 62, end_sec: 72, duration_sec: 10, visual_hook: 'torch bends the bamboo', why_this_clip: 'clean transformation' },
+      shortform_candidate_windows: [
+        { window_id: 'w1', start_sec: 62, end_sec: 72, hook_score: 8, visual_hook: 'torch bends the bamboo', why_this_clip: 'clean transformation', beat_core_change_sec: 64, beat_result_visible_sec: 67, has_result_reveal: true, process_is_subject: true, texture_strength: 9 }
+      ],
+      scene_transitions: []
+    }
+  };
+  const windows = queueTest.pickHighlightWindows(item, 24, 1);
+  assert(windows.length === 1, `expected one window, got ${windows.length}`);
+  const plan = queueTest.buildHighlightBeatPlan(windows[0], windows[0].duration_sec);
+  assert(plan.beat_times_from_gemini === true, 'the selected hook window must carry the measured beats of the matching scanned candidate');
+  assert(windows[0].beat_core_change_offset_sec === 2, `core-change offset must come from the scanned candidate, got ${windows[0].beat_core_change_offset_sec}`);
+  assert(queueTest.scoreHighlightBeatStructure(windows[0]) > 0, 'the selected window must score on the borrowed beats');
+}
+
 function testHighlightBeatPlanFollowsTheFormula() {
   const plan = queueTest.buildHighlightBeatPlan({
     start_sec: 100,
@@ -1275,6 +1303,7 @@ function main() {
   testHighlightBeatFormulaScoring();
   testFaceLedWindowsAreDroppedNotJustDownranked();
   testHighlightBeatPlanFollowsTheFormula();
+  testSelectedHookWindowBorrowsMeasuredBeats();
   testGenericSceneExplanationDetector();
   testDuplicateCandidateMetadataBlocksGeneration();
 
