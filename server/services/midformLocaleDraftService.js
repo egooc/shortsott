@@ -252,14 +252,22 @@ function normalizeDraftSpecSourceRanges(draftSpec, baseDraftInput = {}) {
       adjusted = true;
     }
     // Nudged past every reserved window and clamped at the source end, a closing slot can be
-    // left a 0.25s scrap (08:49.310-08:49.561) stretched under seconds of narration - a frozen,
-    // chopped-looking shot. A sliver is the same as nothing: replay the hook footage instead
-    // (user rule: when narration runs out of footage, bring the hook back).
-    if (end - start < 1.0 && reservedWindows.length) {
-      const [hookStart, hookEnd] = reservedWindows[0];
-      start = hookStart;
-      end = Math.min(hookEnd, hookStart + Math.max(duration, 1.0));
-      adjusted = true;
+    // left a 0.25s scrap stretched under seconds of narration. A sliver is the same as nothing.
+    // Replaying the hook fails the hybrid gate (b-roll may not sit on reserved dialogue), so
+    // take the LARGEST free gap between reserved windows instead - real footage, gate-safe.
+    if (end - start < 1.0 && sourceDurationSec > 0) {
+      let best = null;
+      let cursor = 0;
+      for (const [ws, we] of [...reservedWindows, [sourceDurationSec, sourceDurationSec]]) {
+        const gap = ws - cursor;
+        if (!best || gap > best[1] - best[0]) best = [cursor, ws];
+        cursor = Math.max(cursor, we);
+      }
+      if (best && best[1] - best[0] >= 1.0) {
+        start = best[0] + Math.max(0, (best[1] - best[0] - duration) / 2);
+        end = Math.min(best[1], start + Math.max(duration, 1.0));
+        adjusted = true;
+      }
     }
     const normalized = [Number(start.toFixed(3)), Number(end.toFixed(3))];
     lastEnd = Math.max(lastEnd, normalized[1]);
