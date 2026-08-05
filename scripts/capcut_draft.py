@@ -10003,6 +10003,12 @@ def create_draft(input_json_path):
     else:
         draft_timeline_units = [{"caption_unit": None, "tts": tts_item} for tts_item in tts_files if isinstance(tts_item, dict)]
 
+    # Chunks of one line must read as one line: chain each chunk to the end of the previous
+    # one. Per-chunk offsets were computed against the LINE start while placement also advanced
+    # per chunk, double-shifting: holes opened between chunks of one sentence and the last chunk
+    # was squeezed against its clip end to zero length (15.312-15.312).
+    prev_chunk_group = None
+    prev_chunk_end_us = 0
     for idx, timeline_item in enumerate(draft_timeline_units):
         caption_unit = timeline_item.get("caption_unit") if isinstance(timeline_item.get("caption_unit"), dict) else None
         tts = timeline_item.get("tts") if isinstance(timeline_item.get("tts"), dict) else None
@@ -10060,6 +10066,10 @@ def create_draft(input_json_path):
             video_timeline_start_us = current_time_us
             video_timeline_end_us = current_time_us + visual_duration_us
             timeline_start_us = min(video_timeline_end_us - 1, current_time_us + caption_offset_us) if visual_duration_us > 1 else current_time_us
+            chunk_order = int((caption_unit or {}).get("order") or 0)
+            chunk_group = str((caption_unit or {}).get("segment_id") or "")
+            if is_dialogue_caption and chunk_order > 1 and chunk_group and chunk_group == prev_chunk_group:
+                timeline_start_us = prev_chunk_end_us
             # Clamping the caption to its own clip end is what serialised every caption: the next
             # one starts where this clip stops, so nothing could ever share a moment. Let it run
             # its spoken length, spilling a bounded amount past the clip.
@@ -10092,6 +10102,8 @@ def create_draft(input_json_path):
                 timeline_end_us = min(caption_ceiling_us, video_timeline_end_us)
             timeline_end_us = max(timeline_end_us, min(video_timeline_end_us, timeline_start_us + 1))
             duration_us = max(1, timeline_end_us - timeline_start_us)
+            prev_chunk_group = chunk_group if is_dialogue_caption else None
+            prev_chunk_end_us = timeline_end_us
             # Video placement is untouched: the next clip still starts where this one ends.
             current_time_us = video_timeline_end_us
 
