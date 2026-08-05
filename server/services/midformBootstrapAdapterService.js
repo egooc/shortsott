@@ -588,6 +588,9 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
     }
     const chosen = free[0];
     // Every window cuts into speech; keep the largest rather than dropping the b-roll.
+    // Unless it is a sliver: a 0.25s scrap stretched over a 3s narration reads as a frozen,
+    // chopped-off shot. Too small to use is the same as nothing - let the caller fall back.
+    if (chosen[1] - chosen[0] < 1.0) return null;
     return [chosen[0], Math.min(chosen[1], chosen[0] + 30)];
   };
 
@@ -760,7 +763,7 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
         sourceScenes = [{ clip_id: `${slotId}_broll_clip`, scene_id: 'narration_broll', start: secondsToTimecode(broll[0]), end: secondsToTimecode(broll[1]), speed_multiplier: 1 }];
         assignedBrollRanges.push(broll);
       } else {
-        if (!(winEnd > winStart) && hookFallbackRange) {
+        if ((!(winEnd > winStart) || winEnd - winStart < 1.0) && hookFallbackRange) {
           warnings.push(`${slotId} (${role}) NARRATE window falls in the promo tail; replaying the hook footage instead`);
           sourceRange = [...hookFallbackRange];
           sourceScenes = [{ clip_id: `${slotId}_broll_clip`, scene_id: 'narration_broll', start: secondsToTimecode(hookFallbackRange[0]), end: secondsToTimecode(hookFallbackRange[1]), speed_multiplier: 1 }];
