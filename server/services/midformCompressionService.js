@@ -4373,7 +4373,10 @@ function validateEditPlan(editPlan, targetSec = 0) {
       if (focusQuotes.length < 1) throw new Error(`${item.slot_id} KEEP_DIALOGUE must include dialogue_focus_quotes`);
       // A dialogue slot may be long when the exchange earns it — the total runtime ceiling
       // is what keeps a cut from swallowing whole conversations, not a per-slot line count.
-      if (focusQuotes.length > 5) throw new Error(`${item.slot_id} KEEP_DIALOGUE must limit dialogue_focus_quotes to 5 lines`);
+      // 8, matching limitDialogueFocusLines. The cap was raised there when it started discarding
+      // recovered lines, but this validator kept rejecting at 5 - and adopted cues push a slot
+      // over it legitimately.
+      if (focusQuotes.length > 8) throw new Error(`${item.slot_id} KEEP_DIALOGUE must limit dialogue_focus_quotes to 8 lines`);
     }
   }
   return editPlan;
