@@ -1096,8 +1096,13 @@ export default function Phase5Draft() {
   };
 
   const retryMetadataWarningItems = async () => {
+    // Skipped items belong here too. A Vision candidate scan that comes up short is
+    // often just a bad roll - the same source re-analysed with no code change went
+    // from 1 usable candidate to 4 - and retrying is the user's call, not an automatic
+    // Gemini spend. Without this a skipped source had a card explaining itself and no
+    // way to act on it.
     const itemIds = Object.values(serverQueueJob?.item_statuses || {})
-      .filter((item) => isMetadataFailureItem(item) || isMidformPartialFailureItem(item))
+      .filter((item) => isMetadataFailureItem(item) || isMidformPartialFailureItem(item) || isSkippedNoCandidatesItem(item))
       .map((item) => item.item_id)
       .filter(Boolean);
     if (!itemIds.length) return;
@@ -3194,13 +3199,13 @@ const renderWorkflowGuide = () => (
             ) : null}
             {serverQueueBusy ? <button className="mt-3 w-full rounded-xl border border-red-400/40 bg-red-500/15 px-4 py-2 text-sm font-black text-red-100" onClick={cancelServerQueueJob}>현재 서버 작업 중지</button> : null}
             {serverQueueBusy ? <div className="mt-2 text-xs text-amber-100">현재 처리 중인 항목이 끝난 뒤 안전하게 중단됩니다.</div> : null}
-            {!serverQueueBusy && (failedServerJobItems.length || warningServerJobItems.length) ? (
+            {!serverQueueBusy && (failedServerJobItems.length || warningServerJobItems.length || skippedServerJobItems.length) ? (
               <div className="mt-3 grid gap-2 md:grid-cols-3">
                 {retryableFailedCount ? <button className="rounded-xl border border-rose-300/50 bg-rose-300/15 px-4 py-2 text-sm font-black text-rose-50 hover:brightness-110" onClick={runFailedVariantMetadataAndDraft}>실패 자동 분류 재시도 {retryableFailedCount}</button> : null}
                 {failedVariantItemIds.highlight?.length ? <button className="rounded-xl border border-amber-300/40 bg-amber-300/15 px-4 py-2 text-sm font-black text-amber-50 hover:brightness-110" onClick={() => runFailedVariantMetadataAndDraftForVariant('highlight')}>Highlight 실패 재시도 {failedVariantItemIds.highlight.length}</button> : null}
                 {failedVariantItemIds.full?.length ? <button className="rounded-xl border border-lime-300/40 bg-lime-300/15 px-4 py-2 text-sm font-black text-lime-50 hover:brightness-110" onClick={() => runFailedVariantMetadataAndDraftForVariant('full')}>Full 실패 재시도 {failedVariantItemIds.full.length}</button> : null}
                 {failedVariantItemIds.midform?.length ? <button className="rounded-xl border border-cyan-300/40 bg-cyan-300/15 px-4 py-2 text-sm font-black text-cyan-50 hover:brightness-110" onClick={() => runFailedVariantMetadataAndDraftForVariant('midform')}>Midform 실패 재시도 {failedVariantItemIds.midform.length}</button> : null}
-                {metadataFailedServerJobItems.length ? <button className="rounded-xl border border-rose-300/40 bg-rose-300/10 px-4 py-2 text-sm font-black text-rose-50 hover:brightness-110" onClick={retryMetadataWarningItems}>남은 분석 실패 전체 재시도</button> : null}
+                {metadataFailedServerJobItems.length || skippedServerJobItems.length ? <button className="rounded-xl border border-rose-300/40 bg-rose-300/10 px-4 py-2 text-sm font-black text-rose-50 hover:brightness-110" onClick={retryMetadataWarningItems}>분석 실패·건너뜀 재분석 {metadataFailedServerJobItems.length + skippedServerJobItems.length}</button> : null}
                 {failedServerJobItems.some((item) => item.draft_status === 'failed') ? <button className="rounded-xl border border-white/15 bg-white/8 px-4 py-2 text-sm font-black text-white hover:border-[#c8ff00]/50" onClick={regenerateFailedDraftItems}>드래프트 실패만 재생성</button> : null}
               </div>
             ) : null}

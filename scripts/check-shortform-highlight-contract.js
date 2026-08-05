@@ -1610,6 +1610,21 @@ function main() {
     'Failed-item classification must not depend on the whole job having failed.'
   );
 
+  // A short Vision candidate scan is often a bad roll - the same source re-analysed
+  // with no code change went from 1 usable candidate to 4 - so a skipped source has to
+  // be actionable. Retrying stays the user's call rather than an automatic spend.
+  assertContains(
+    phaseUi,
+    'isSkippedNoCandidatesItem(item)',
+    'Skipped items must be included in the metadata retry set.'
+  );
+
+  assertContains(
+    phaseUi,
+    'failedServerJobItems.length || warningServerJobItems.length || skippedServerJobItems.length',
+    'The retry actions must render when a job only skipped items, not just when it failed.'
+  );
+
   testShortformHighlightUsesSingleHookScene();
   testShortformHighlightRejectsFullCycleCandidates();
   testShortformHighlightValidationRequiresGeminiBestHook();
