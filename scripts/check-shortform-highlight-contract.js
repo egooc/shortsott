@@ -954,12 +954,13 @@ function testWindowsCarryAComputedSceneLink() {
   assert(inside.scene_link_source === 'computed_from_timestamps', 'a computed link must say so');
   assert(inside.crossed_scene_boundaries === 0, 'a window inside one scene crosses no boundary');
 
-  // A straddling window takes the scene it spends the most time in and records the cross.
+  // A straddling window is trimmed to one shot first, so what ships never crosses and
+  // links to the scene it was trimmed into (see testWindowsAreTrimmedToASingleCameraShot).
   const straddling = queueTest.normalizeHighlightCandidateWindow(
     { start_sec: 194, end_sec: 212, duration_sec: 18 }, item, 24, 'gemini_highlight_candidate_2'
   );
-  assert(straddling.crossed_scene_boundaries === 1, 'a window crossing a scene boundary must record it');
-  assert(straddling.selected_scene_ids[0] === 'scene_003', 'a straddling window takes the scene it mostly covers');
+  assert(straddling.crossed_scene_boundaries === 0, 'the shipped window must not cross a scene boundary');
+  assert(straddling.selected_scene_ids[0] === 'scene_003', 'the trimmed window links to the scene it kept');
 
   // A Gemini-provided link is authoritative and must not be overwritten.
   const explicit = queueTest.normalizeHighlightCandidateWindow(
@@ -1000,6 +1001,84 @@ function testCandidateScanRequiresWholeSourceCoverage() {
     metadataSource.includes('One scene per window:'),
     'the candidate scan must forbid windows that run across a camera cut'
   );
+}
+
+function testWindowsAreTrimmedToASingleCameraShot() {
+  // Asking Gemini to keep a window inside one shot did not hold: a 22-source batch
+  // still shipped 5 straddling windows out of 34. The trim is deterministic instead.
+  const item = {
+    item_id: 'scene_trim_case',
+    source_type: 'longform',
+    source_workflow_mode: 'longform_to_shorts',
+    target_duration_sec: 400,
+    video_metadata: { duration_sec: 400 },
+    source_classification: { duration_sec: 400 },
+    ottogi_guide_output: {
+      scene_transitions: [
+        { scene_id: 'scene_001', start_sec: 0, end_sec: 120, transition_at_sec: 60, visual_summary: 'setup' },
+        { scene_id: 'scene_002', start_sec: 120, end_sec: 200, transition_at_sec: 160, visual_summary: 'press' },
+        { scene_id: 'scene_003', start_sec: 200, end_sec: 400, transition_at_sec: 300, visual_summary: 'finish' }
+      ]
+    }
+  };
+  // 114~134 straddles the cut at 120; the longer side (120~134) survives.
+  const trimmed = queueTest.normalizeHighlightCandidateWindow(
+    { start_sec: 114, end_sec: 134, duration_sec: 20 }, item, 24, 'gemini_highlight_candidate_1'
+  );
+  assert(trimmed.crossed_scene_boundaries === 0, `the shipped window must not cross a cut, got ${trimmed.crossed_scene_boundaries}`);
+  assert(Math.abs(trimmed.start_sec - 120) < 0.5, `the window must start at the cut, got ${trimmed.start_sec}`);
+  assert(trimmed.scene_trim_applied, 'a trimmed window must record what it was trimmed from');
+
+  // Trimming that would leave less than the minimum is not worth doing - the window is
+  // left intact so the caller can reject it on its own terms.
+  const tooShort = queueTest.trimWindowToSingleScene(118, 124, item, 400, 6);
+  assert(tooShort === null, 'a trim that cannot leave a usable cut must not be applied');
+
+  // A window already inside one shot is untouched.
+  const clean = queueTest.normalizeHighlightCandidateWindow(
+    { start_sec: 130, end_sec: 142, duration_sec: 12 }, item, 24, 'gemini_highlight_candidate_2'
+  );
+  assert(clean.scene_trim_applied === undefined, 'a window inside one shot must not be trimmed');
+}
+
+function testResultlessWindowsAreRejected() {
+  // The format's payoff is watching a process finish. A scoring penalty alone let one
+  // source ship three cuts that never reach a result.
+  assert(queueTest.isResultlessHighlightWindow({ has_result_reveal: false }), 'an explicit no-result window must be rejected');
+  assert(!queueTest.isResultlessHighlightWindow({ has_result_reveal: true }), 'a window that reaches a result must ship');
+  assert(!queueTest.isResultlessHighlightWindow({}), 'an unreported flag must stay eligible so pre-contract guides still work');
+
+  const item = {
+    item_id: 'resultless_case',
+    source_type: 'longform',
+    source_workflow_mode: 'longform_to_shorts',
+    target_duration_sec: 400,
+    video_metadata: { duration_sec: 400 },
+    source_classification: { duration_sec: 400 },
+    ottogi_guide_output: {
+      shortform_candidate_windows: [
+        { window_id: 'w1', start_sec: 20, end_sec: 30, hook_score: 9, visual_hook: 'press', why_this_clip: 'x', has_result_reveal: false, process_is_subject: true },
+        { window_id: 'w2', start_sec: 60, end_sec: 70, hook_score: 8, visual_hook: 'cut', why_this_clip: 'x', has_result_reveal: true, process_is_subject: true },
+        { window_id: 'w3', start_sec: 120, end_sec: 130, hook_score: 8, visual_hook: 'grind', why_this_clip: 'x', has_result_reveal: true, process_is_subject: true },
+        { window_id: 'w4', start_sec: 200, end_sec: 210, hook_score: 7, visual_hook: 'polish', why_this_clip: 'x', has_result_reveal: true, process_is_subject: true }
+      ],
+      scene_transitions: []
+    }
+  };
+  const windows = queueTest.pickHighlightWindows(item, 24, 5);
+  assert(windows.length === 3, `the no-result window must not ship, got ${windows.length}`);
+  assert(!windows.some((w) => Math.abs(Number(w.start_sec) - 20) < 0.5), 'the 20~30s no-result window must be absent');
+}
+
+function testBeatFieldsAreRequiredOfGemini() {
+  // Left optional, Gemini omitted every beat field for one source while still filling
+  // work_center - that source scored with a zero beat delta and could not be screened.
+  const metadataSource = fs.readFileSync(path.join(__dirname, '..', 'server', 'services', 'processMetadataService.js'), 'utf8');
+  const start = metadataSource.indexOf('const LONGFORM_CANDIDATE_SCHEMA');
+  const block = metadataSource.slice(start, start + 3000);
+  ['beat_core_change_sec', 'beat_result_visible_sec', 'has_result_reveal', 'process_is_subject', 'work_center_x', 'work_center_y'].forEach((field) => {
+    assert(new RegExp(`'${field}'`).test(block), `${field} must be required of the longform candidate scan, not optional`);
+  });
 }
 
 function testStyleViolationFallbackCoversEveryField() {
@@ -1536,6 +1615,9 @@ function main() {
   testWindowsCarryAComputedSceneLink();
   testHeldBeatsDoNotSpanCameraCuts();
   testCandidateScanRequiresWholeSourceCoverage();
+  testWindowsAreTrimmedToASingleCameraShot();
+  testResultlessWindowsAreRejected();
+  testBeatFieldsAreRequiredOfGemini();
   testStyleViolationFallbackCoversEveryField();
   testUnexpectedValidatorErrorsCannotKillTheJob();
   testOcrBlurShipsHiddenForReview();

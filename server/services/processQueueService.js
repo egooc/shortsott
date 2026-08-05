@@ -8087,6 +8087,38 @@ function borrowHighlightBeatFields(window = {}, itemConfig = {}) {
 // computable from the window's own timestamps, so stamp it here rather than asking
 // Gemini for a link it does not reliably provide. A window that straddles a boundary
 // gets the scene it spends the most time in, and records that it crossed one.
+// Asking Gemini to keep a window inside one camera shot did not hold - a 22-source
+// batch still produced 5 straddling windows out of 34. A window that runs across a cut
+// shows two different shots and reads as a compilation, so it is trimmed to the side of
+// the cut that holds more of the action. Below the minimum highlight length the trim
+// would gut the cut, so the window is left intact for the caller to reject instead.
+function trimWindowToSingleScene(rawStart, rawEnd, itemConfig = {}, sourceDuration = 0, minDurationSec = 6) {
+  if (!Number.isFinite(rawStart) || !Number.isFinite(rawEnd) || rawEnd <= rawStart) return null;
+  const scenes = normalizeSceneTransitions(getItemSceneTransitions(itemConfig), sourceDuration);
+  if (!scenes.length) return null;
+  const cuts = scenes
+    .map((scene) => Number(scene.start_sec))
+    .filter((value) => Number.isFinite(value) && value > rawStart + 0.5 && value < rawEnd - 0.5)
+    .sort((a, b) => a - b);
+  if (!cuts.length) return null;
+
+  // Longest uninterrupted stretch between the window edges and the cuts inside it.
+  const bounds = [rawStart, ...cuts, rawEnd];
+  let bestStart = rawStart;
+  let bestEnd = rawEnd;
+  let bestSpan = 0;
+  for (let index = 0; index < bounds.length - 1; index += 1) {
+    const span = bounds[index + 1] - bounds[index];
+    if (span > bestSpan) {
+      bestSpan = span;
+      bestStart = bounds[index];
+      bestEnd = bounds[index + 1];
+    }
+  }
+  if (bestSpan < Math.max(1, Number(minDurationSec) || 6)) return null;
+  return { start_sec: bestStart, end_sec: bestEnd, trimmed_from: { start_sec: rawStart, end_sec: rawEnd }, cuts_removed: cuts.length };
+}
+
 function resolveWindowSceneLink(rawStart, rawEnd, itemConfig = {}, sourceDuration = 0) {
   if (!Number.isFinite(rawStart) || !Number.isFinite(rawEnd) || rawEnd <= rawStart) return null;
   const scenes = normalizeSceneTransitions(getItemSceneTransitions(itemConfig), sourceDuration);
@@ -8136,6 +8168,22 @@ function normalizeHighlightCandidateWindow(raw, itemConfig = {}, maxDurationSec 
   const selectedScene = transitions.find((scene) => selectedSceneIdSet.has(scene.scene_id));
   let rawStart = Number(normalized.start_sec || 0);
   let rawEnd = Number(normalized.end_sec || (rawStart + Number(normalized.duration_sec || 0)));
+  // Keep the window inside one camera shot before any other clamping runs, so the
+  // scene link, beat offsets and duration bounds below all describe the trimmed cut.
+  let sceneTrim = null;
+  if (longformSource) {
+    sceneTrim = trimWindowToSingleScene(
+      rawStart,
+      rawEnd,
+      itemConfig,
+      sourceDuration || itemConfig.target_duration_sec || 0,
+      Math.min(6, Math.max(1, rawEnd - rawStart))
+    );
+    if (sceneTrim) {
+      rawStart = sceneTrim.start_sec;
+      rawEnd = sceneTrim.end_sec;
+    }
+  }
   if (selectedScene && !longformSource) {
     const sceneStart = Number(selectedScene.start_sec || 0);
     const sceneEnd = Number(selectedScene.end_sec || selectedScene.transition_at_sec || sceneStart);
@@ -8164,8 +8212,15 @@ function normalizeHighlightCandidateWindow(raw, itemConfig = {}, maxDurationSec 
   // above can move the window's start. Pin them to offsets from the start Gemini
   // actually described, so a shifted window does not read as a broken beat structure.
   const beatAnchor = Number.isFinite(rawStart) ? rawStart : safeStart;
-  const beatCoreChange = Number(normalized.beat_core_change_sec);
-  const beatResultVisible = Number(normalized.beat_result_visible_sec);
+  // Beat times were measured against the window Gemini described. Trimming to a single
+  // shot can move the start past them, which would turn an offset negative and describe
+  // a beat before the clip begins. A beat outside the kept span is no longer a
+  // measurement of it, so it is dropped and the plan falls back to nominal timing.
+  const withinWindow = (value) => Number.isFinite(value) && value >= rawStart - 0.01 && value <= rawEnd + 0.01;
+  const rawCoreChange = Number(normalized.beat_core_change_sec);
+  const rawResultVisible = Number(normalized.beat_result_visible_sec);
+  const beatCoreChange = withinWindow(rawCoreChange) ? rawCoreChange : NaN;
+  const beatResultVisible = withinWindow(rawResultVisible) ? rawResultVisible : NaN;
   const sceneLink = selectedSceneIds.length
     ? null
     : resolveWindowSceneLink(safeStart, safeStart + duration, itemConfig, sourceDuration);
@@ -8180,7 +8235,13 @@ function normalizeHighlightCandidateWindow(raw, itemConfig = {}, maxDurationSec 
     scene_link_source: selectedSceneIds.length ? 'gemini' : (sceneLink ? 'computed_from_timestamps' : 'none'),
     scene_coverage_ratio: sceneLink ? sceneLink.coverage_ratio : undefined,
     crossed_scene_boundaries: sceneLink ? sceneLink.crossed_scene_boundaries : undefined,
+    scene_trim_applied: sceneTrim ? sceneTrim.trimmed_from : undefined,
     single_process_only: true,
+    // Both the absolute and the offset form are rewritten together: leaving the stale
+    // absolute value behind would let anything reading it (review, audits) compute a
+    // beat that sits before the trimmed clip starts.
+    beat_core_change_sec: Number.isFinite(beatCoreChange) ? beatCoreChange : undefined,
+    beat_result_visible_sec: Number.isFinite(beatResultVisible) ? beatResultVisible : undefined,
     beat_core_change_offset_sec: Number.isFinite(beatCoreChange)
       ? Number((beatCoreChange - beatAnchor).toFixed(3))
       : undefined,
@@ -8299,6 +8360,15 @@ function isFaceLedHighlightWindow(window = {}) {
   return window?.face_or_emotion_dominant === true && window?.process_is_subject === false;
 }
 
+// The format's payoff is watching a process finish. A window Gemini explicitly marked
+// as never reaching a visible result has no payoff, and the scoring penalty alone did
+// not stop it shipping - one source shipped three such cuts. Only an explicit false
+// rejects: an unreported flag stays eligible so guides analysed before this contract
+// are unaffected.
+function isResultlessHighlightWindow(window = {}) {
+  return window?.has_result_reveal === false;
+}
+
 function pickHighlightWindows(itemConfig = {}, maxDurationSec = 10, count = 1) {
   const requestedCount = Math.min(5, Math.max(1, Math.round(Number(count) || 1)));
   const longformSource = isLongformHighlightSource(itemConfig);
@@ -8307,7 +8377,8 @@ function pickHighlightWindows(itemConfig = {}, maxDurationSec = 10, count = 1) {
   const candidates = [primary, ...collectHighlightCandidateWindows(itemConfig, maxDurationSec)]
     .filter((candidate) => !(longformSource && isLocalOrFallbackLongformWindow(candidate)))
     .filter((candidate) => !longformSource || isGeminiNominatedHighlightWindow(candidate))
-    .filter((candidate) => !isFaceLedHighlightWindow(candidate));
+    .filter((candidate) => !isFaceLedHighlightWindow(candidate))
+    .filter((candidate) => !isResultlessHighlightWindow(candidate));
   const picked = [];
   const seenKeys = new Set();
 
@@ -11626,6 +11697,8 @@ module.exports = {
     scoreHighlightBeatStructure,
     buildHighlightBeatPlan,
     isFaceLedHighlightWindow,
+    isResultlessHighlightWindow,
+    trimWindowToSingleScene,
     regroupKoreanFullCaptionScript,
     simulateAnchoredSentencePlacement,
     sumTtsDurationSec,

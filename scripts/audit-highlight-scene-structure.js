@@ -8,6 +8,10 @@
 // window, and candidates spread across the whole source instead of the opening minutes.
 const fs = require('fs');
 const path = require('path');
+// Audit what actually ships, not the raw scan. Selection trims windows to one camera
+// shot and drops face-led and result-less candidates, so auditing the raw
+// shortform_candidate_windows reports defects that never reach a draft.
+const { __test: queueTest } = require('../server/services/processQueueService');
 
 const ROOT = path.resolve(__dirname, '..');
 const QUEUE_ROOT = path.join(ROOT, 'queue', 'process');
@@ -45,11 +49,17 @@ function auditItem(itemId) {
   const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
   const guide = config.ottogi_guide_output || {};
   const sourceDuration = Number(config.video_metadata?.duration_sec || config.source_classification?.duration_sec || 0);
-  const windows = (guide.shortform_candidate_windows || []).map((window) => ({
+  const shipped = queueTest.pickHighlightWindows(
+    config,
+    queueTest.highlightMaxDurationForItem ? queueTest.highlightMaxDurationForItem(config, 0) : 24,
+    queueTest.highlightOutputCountForItem(config)
+  );
+  const windows = shipped.map((window) => ({
     ...window,
     start: Number(window.start_sec),
     end: Number(window.end_sec)
   }));
+  const rawCount = (guide.shortform_candidate_windows || []).length;
   const scenes = (guide.scene_transitions || []).map((scene) => ({
     id: scene.scene_id,
     start: Number(scene.start_sec),
@@ -57,9 +67,9 @@ function auditItem(itemId) {
   }));
   const titles = (guide.highlight_metadata || {}).highlight_candidate_titles || [];
 
-  console.log(`\n=== ${itemId}  source ${Math.round(sourceDuration)}s  windows ${windows.length}  titles ${titles.length}  scenes ${scenes.length}`);
+  console.log(`\n=== ${itemId}  source ${Math.round(sourceDuration)}s  shipped ${windows.length} of ${rawCount} scanned  titles ${titles.length}  scenes ${scenes.length}`);
   if (!windows.length) {
-    record('WARN', itemId, 'no candidate windows to audit');
+    record('WARN', itemId, `nothing ships from ${rawCount} scanned candidates - this source is skipped`);
     return;
   }
 

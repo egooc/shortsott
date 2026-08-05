@@ -713,7 +713,25 @@ const LONGFORM_CANDIDATE_SCHEMA = {
           human_visibility: { type: 'string' },
           ...HIGHLIGHT_BEAT_SCHEMA_FIELDS
         },
-        required: ['start_sec', 'end_sec', 'duration_sec', 'visual_hook', 'reason']
+        // The beat fields drive selection, the beat plan and the crop anchor. Left
+        // optional, Gemini simply omitted all of them for one source while still
+        // filling work_center - that source then scored with a zero beat delta, planned
+        // on nominal beats, and could not be screened for a missing result. Required
+        // here only governs what Gemini must return; stored guides are read by plain
+        // field access and are unaffected.
+        required: [
+          'start_sec',
+          'end_sec',
+          'duration_sec',
+          'visual_hook',
+          'reason',
+          'beat_core_change_sec',
+          'beat_result_visible_sec',
+          'has_result_reveal',
+          'process_is_subject',
+          'work_center_x',
+          'work_center_y'
+        ]
       }
     },
     story_candidates: {
