@@ -2928,6 +2928,55 @@ const DUPLICATE_DIALOGUE_OVERLAP_RATIO = 0.5;
 // span down the middle, the same way clip padding already settles a shared gap.
 const DIALOGUE_WINDOW_MIN_KEEP_SEC = 0.4;
 
+// A cut spans from its first preserved line to its last, and the source keeps talking in
+// between: cues we never selected are audible with no caption on screen. Measured on the
+// Senseless cut, 13 of 112 seconds played that way. Adopt those cues as lines of the slot they
+// fall inside - the cut is already committed to showing them, so the only question is whether
+// the viewer can read them.
+const ADOPTED_CUE_MIN_SEC = 0.35;
+
+function fillUncaptionedCuesInsideCuts(timeline, transcript) {
+  const cues = (Array.isArray(transcript) ? transcript : [])
+    .filter((cue) => cue && Number(cue.end_sec) > Number(cue.start_sec) && !isNonSpeechCaption(cue.text));
+  if (!cues.length) return Array.isArray(timeline) ? timeline : [];
+  return (Array.isArray(timeline) ? timeline : []).map((item) => {
+    if (item?.decision !== 'KEEP_DIALOGUE') return item;
+    const windows = Array.isArray(item.dialogue_line_windows) ? item.dialogue_line_windows : [];
+    const matched = windows.filter((win) => win && win.matched === true);
+    if (matched.length < 2) return item;
+    const lo = Math.min(...matched.map((win) => Number(win.start_sec)));
+    const hi = Math.max(...matched.map((win) => Number(win.end_sec)));
+    const additions = [];
+    for (const cue of cues) {
+      const start = Number(cue.start_sec);
+      const end = Math.min(Number(cue.end_sec), hi);
+      if (end <= lo || start >= hi) continue;
+      if (end - start < ADOPTED_CUE_MIN_SEC) continue;
+      const overlapsExisting = [...matched, ...additions].some((win) => (
+        end > Number(win.start_sec) + 0.15 && start < Number(win.end_sec) - 0.15
+      ));
+      if (overlapsExisting) continue;
+      additions.push({
+        matched: true,
+        line: String(cue.text || '').replace(/\s+/g, ' ').trim(),
+        start_sec: roundSec(Math.max(start, lo)),
+        end_sec: roundSec(end),
+        adopted_from_cut: true
+      });
+    }
+    if (!additions.length) return item;
+    const nextWindows = [...windows, ...additions]
+      .sort((left, right) => Number(left.start_sec ?? Infinity) - Number(right.start_sec ?? Infinity));
+    return {
+      ...item,
+      dialogue_line_windows: nextWindows,
+      dialogue_focus_lines: nextWindows.filter((win) => win.matched === true).map((win) => win.line),
+      dialogue_focus_quotes: nextWindows.filter((win) => win.matched === true).map((win) => win.line),
+      adopted_cue_count: additions.length
+    };
+  });
+}
+
 function separateOverlappingDialogueWindows(timeline) {
   const items = (Array.isArray(timeline) ? timeline : []).map((item) => {
     if (item.decision !== 'KEEP_DIALOGUE' || !Array.isArray(item.dialogue_line_windows)) return item;
@@ -3580,7 +3629,10 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec) {
 
   const toppedUpTimeline = topUpTimelineToTargetRuntime(timeline, beats, transcript, targetSec);
   const interleavedTimeline = interleaveDialogueIntoNarrationRuns(toppedUpTimeline, beats, transcript);
-  const dedupedTimeline = separateOverlappingDialogueWindows(dropDuplicateDialogueSlots(interleavedTimeline));
+  // Adopt audible-but-uncaptioned cues BEFORE the windows are separated, so the new lines get
+  // the same overlap treatment as the rest.
+  const filledTimeline = fillUncaptionedCuesInsideCuts(dropDuplicateDialogueSlots(interleavedTimeline), transcript);
+  const dedupedTimeline = separateOverlappingDialogueWindows(filledTimeline);
   // Write the corrected measure back onto the slot. Fixing only realisticSlotDurationSec left
   // estimated_duration_sec holding the raw span - slot_02 still read 151.3s for four lines - so
   // every consumer that reads the field directly still saw the dead air between them.
@@ -4775,6 +4827,7 @@ module.exports = {
     buildSourceCaseGuidance,
     detectPromoTail,
     separateOverlappingDialogueWindows,
+    fillUncaptionedCuesInsideCuts,
     topUpTimelineToTargetRuntime,
     buildSlotQcReport,
     buildSlotFillEditorialGuide,
