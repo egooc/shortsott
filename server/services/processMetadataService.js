@@ -9835,6 +9835,28 @@ async function runLongformGeminiPipeline({ generateJson, sourceUrl, filename, du
       });
       checkCancellation(throwIfCancelled);
       emitProgress(onProgress, 'Gemini Highlight 3/5: create JP Highlight caption and metadata', { phase: 'longform_final_highlight' });
+      // The prompt enumerates the candidate windows and asks for one title entry each,
+      // but nothing checked the reply. Two sources came back with zero entries: every
+      // cut then fell back to a generic template caption, which the duplicate-body
+      // guard rejected at draft time - after the analysis spend. Validating here lets
+      // the phase retry while the video part is still loaded.
+      const expectedCandidateWindows = longformHighlightCandidateSummary({}, hookGuide, candidateGuideRaw)
+        .split('\n')
+        .filter((line) => /^\[\d+\]/.test(line)).length;
+      const validateHighlightTitles = (result) => {
+        if (!expectedCandidateWindows) return result;
+        const titles = result?.highlight_metadata?.highlight_candidate_titles;
+        const count = Array.isArray(titles) ? titles.length : 0;
+        if (count < Math.min(2, expectedCandidateWindows)) {
+          throw createHttpError(500, 'OTTOGI_HIGHLIGHT_CANDIDATE_TITLES_MISSING', `JP Highlight metadata returned ${count} candidate-title entries for ${expectedCandidateWindows} candidate windows`, {
+            phase: 'longform_final_highlight',
+            candidate_windows: expectedCandidateWindows,
+            candidate_titles: count,
+            recommended_action: 'Return one highlight_candidate_titles entry per listed candidate window.'
+          });
+        }
+        return result;
+      };
       highlightGuideRaw = await generateJson(
         // allCandidateGuide is the unnarrowed scan. selectedCandidateGuide() collapses
         // hook_candidates down to the single chosen window, so on its own it would ask
@@ -9850,6 +9872,7 @@ async function runLongformGeminiPipeline({ generateJson, sourceUrl, filename, du
           timeoutMs: GEMINI_REQUEST_TIMEOUT_MS
         }
       );
+      validateHighlightTitles(highlightGuideRaw);
     } catch (error) {
       const failureSummary = summarizeGeminiFailure(error);
       const previousHighlightMetadata = existingGuide?.highlight_metadata && typeof existingGuide.highlight_metadata === 'object'

@@ -8369,16 +8369,35 @@ function isResultlessHighlightWindow(window = {}) {
   return window?.has_result_reveal === false;
 }
 
+// trimWindowToSingleScene gives up when neither side of the cut is long enough to be a
+// highlight, leaving the window whole. Such a window still shows two shots, so it is
+// rejected here - the trim's own comment promised the caller would. A 6s window split
+// by a cut at its midpoint has no usable single-shot cut in it at all.
+function stillCrossesSceneBoundary(window = {}) {
+  return Number(window?.crossed_scene_boundaries || 0) > 0;
+}
+
 function pickHighlightWindows(itemConfig = {}, maxDurationSec = 10, count = 1) {
   const requestedCount = Math.min(5, Math.max(1, Math.round(Number(count) || 1)));
   const longformSource = isLongformHighlightSource(itemConfig);
   if (longformSource && isLocalOrFallbackLongformGuide(itemConfig.ottogi_guide_output || {})) return [];
   const primary = pickHighlightWindow(itemConfig, maxDurationSec);
-  const candidates = [primary, ...collectHighlightCandidateWindows(itemConfig, maxDurationSec)]
+  const preFilteredCandidates = [primary, ...collectHighlightCandidateWindows(itemConfig, maxDurationSec)]
     .filter((candidate) => !(longformSource && isLocalOrFallbackLongformWindow(candidate)))
     .filter((candidate) => !longformSource || isGeminiNominatedHighlightWindow(candidate))
     .filter((candidate) => !isFaceLedHighlightWindow(candidate))
     .filter((candidate) => !isResultlessHighlightWindow(candidate));
+  // A window the trim could not reduce to a single shot goes last rather than out.
+  // Dropping it outright cost a whole source: three good candidates minus one
+  // untrimmable window left two, under the longform minimum, so nothing shipped at
+  // all. Ranked last it is only ever used when there are not enough clean windows -
+  // and the audit still flags it for the visual review pass.
+  const candidates = longformSource
+    ? [
+      ...preFilteredCandidates.filter((candidate) => !stillCrossesSceneBoundary(candidate)),
+      ...preFilteredCandidates.filter((candidate) => stillCrossesSceneBoundary(candidate))
+    ]
+    : preFilteredCandidates;
   const picked = [];
   const seenKeys = new Set();
 

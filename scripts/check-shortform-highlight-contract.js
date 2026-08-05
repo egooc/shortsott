@@ -1039,6 +1039,28 @@ function testWindowsAreTrimmedToASingleCameraShot() {
     { start_sec: 130, end_sec: 142, duration_sec: 12 }, item, 24, 'gemini_highlight_candidate_2'
   );
   assert(clean.scene_trim_applied === undefined, 'a window inside one shot must not be trimmed');
+
+  // An untrimmable window is ranked last, not dropped: dropping it outright once cost a
+  // whole source, because three candidates minus one left two - under the longform
+  // minimum - and nothing shipped at all.
+  const withUntrimmable = {
+    ...item,
+    ottogi_guide_output: {
+      ...item.ottogi_guide_output,
+      shortform_candidate_windows: [
+        { window_id: 'w1', start_sec: 117, end_sec: 123, hook_score: 9, visual_hook: 'straddles the cut at 120', why_this_clip: 'x', has_result_reveal: true, process_is_subject: true },
+        { window_id: 'w2', start_sec: 130, end_sec: 142, hook_score: 8, visual_hook: 'clean press', why_this_clip: 'x', has_result_reveal: true, process_is_subject: true },
+        { window_id: 'w3', start_sec: 210, end_sec: 222, hook_score: 8, visual_hook: 'clean finish', why_this_clip: 'x', has_result_reveal: true, process_is_subject: true }
+      ]
+    }
+  };
+  const shipped = queueTest.pickHighlightWindows(withUntrimmable, 24, 5);
+  assert(shipped.length === 3, `an untrimmable window must not cost the whole source, got ${shipped.length}`);
+  const lastWindow = shipped[shipped.length - 1];
+  assert(
+    Number(lastWindow.crossed_scene_boundaries || 0) > 0,
+    'the still-crossing window must be ranked last, after every clean one'
+  );
 }
 
 function testResultlessWindowsAreRejected() {
