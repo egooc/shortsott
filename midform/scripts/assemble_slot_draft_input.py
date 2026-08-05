@@ -783,6 +783,10 @@ def caption_chunk_spans(segment, chunks):
         chunk_end = end_sec if position == len(weights) - 1 else min(end_sec, cursor + share)
         spans.append((round(cursor, 6), round(max(chunk_end, cursor + 0.05), 6)))
         cursor = chunk_end
+    # Each chunk runs until the next one starts. Sizing them to their share alone left holes
+    # between chunks of the SAME line, so a speaker stayed on screen with nothing to read.
+    for position in range(len(spans) - 1):
+        spans[position] = (spans[position][0], spans[position + 1][0])
     return spans
 
 
