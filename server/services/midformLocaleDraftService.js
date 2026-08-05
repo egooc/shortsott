@@ -30,9 +30,26 @@ function copyIfExists(sourcePath, destinationPath) {
   return destinationPath;
 }
 
-// CapCut holds the media of any draft the user has open, so rebuilding into the same folder
-// fails with EPERM mid-run — three times now, each losing the whole run. Move the locked folder
-// aside instead of deleting it: renaming a directory Windows has open files in still succeeds.
+// Returns where the draft should actually be written. CapCut holds the media of any draft the
+// user has open, and on Windows that blocks BOTH deleting and renaming the folder. When neither
+// works, build alongside it under a suffixed name rather than failing the run.
+function prepareDraftOutputPath(targetPath) {
+  if (!targetPath || !fs.existsSync(targetPath)) return targetPath;
+  try {
+    fs.rmSync(targetPath, { recursive: true, force: true });
+    return targetPath;
+  } catch (error) {
+    if (error?.code !== 'EPERM' && error?.code !== 'EBUSY') throw error;
+  }
+  try {
+    fs.renameSync(targetPath, `${targetPath}.locked_${Date.now()}`);
+    return targetPath;
+  } catch (error) {
+    if (error?.code !== 'EPERM' && error?.code !== 'EBUSY') throw error;
+  }
+  return `${targetPath}_new`;
+}
+
 function removeIfExists(targetPath) {
   if (!targetPath || !fs.existsSync(targetPath)) return;
   try {
@@ -376,9 +393,9 @@ function buildLocaleDraftInput(baseDraftInput, draftSpec, locale) {
 }
 
 async function generateLocaleDraftFromInput(locale, localeDraftInput, workspaceDir, sourceVideoPath, transcriptPath) {
-  const draftName = `draft_${locale}`;
   const outputBasePath = workspaceDir;
-  removeIfExists(path.join(outputBasePath, draftName));
+  const resolvedDraftPath = prepareDraftOutputPath(path.join(outputBasePath, `draft_${locale}`));
+  const draftName = path.basename(resolvedDraftPath);
   const result = await generateDraft(
     localeDraftInput.segments || [],
     localeDraftInput.ttsFiles || [],
