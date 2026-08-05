@@ -212,6 +212,7 @@ function normalizeDraftSpecSourceRanges(draftSpec, baseDraftInput = {}) {
     .filter((duration) => duration > 0)
     .reduce((sum, duration, remainingIndex) => sum + duration + (remainingIndex >= 0 ? PHYSICAL_SOURCE_GAP_SEC : 0), 0);
   let lastEnd = 0;
+  const packedRanges = [];
   next.clip_placement = placements.map((placement, index) => {
     const sourceRange = Array.isArray(placement?.source_range) ? placement.source_range.map(Number) : [];
     if (!(Number(sourceRange[1]) > Number(sourceRange[0]))) return placement;
@@ -258,7 +259,10 @@ function normalizeDraftSpecSourceRanges(draftSpec, baseDraftInput = {}) {
     if (end - start < 1.0 && sourceDurationSec > 0) {
       let best = null;
       let cursor = 0;
-      for (const [ws, we] of [...reservedWindows, [sourceDurationSec, sourceDurationSec]]) {
+      // Blockers are BOTH the reserved dialogue windows and every b-roll clip already packed:
+      // centring on a dialogue-free gap still collided with slot 2's packed clip by 0.272s.
+      const blockers = [...reservedWindows, ...packedRanges].sort((l, r) => l[0] - r[0]);
+      for (const [ws, we] of [...blockers, [sourceDurationSec, sourceDurationSec]]) {
         const gap = ws - cursor;
         if (!best || gap > best[1] - best[0]) best = [cursor, ws];
         cursor = Math.max(cursor, we);
@@ -270,6 +274,7 @@ function normalizeDraftSpecSourceRanges(draftSpec, baseDraftInput = {}) {
       }
     }
     const normalized = [Number(start.toFixed(3)), Number(end.toFixed(3))];
+    packedRanges.push(normalized);
     lastEnd = Math.max(lastEnd, normalized[1]);
     return adjusted
       ? {
