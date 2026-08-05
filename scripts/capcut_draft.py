@@ -10039,7 +10039,26 @@ def create_draft(input_json_path):
             # Clamping the caption to its own clip end is what serialised every caption: the next
             # one starts where this clip stops, so nothing could ever share a moment. Let it run
             # its spoken length, spilling a bounded amount past the clip.
-            caption_ceiling_us = video_timeline_end_us + MIDFORM_CAPTION_SPILL_MAX_US
+            #
+            # Dialogue only. Narration is the seam BETWEEN scenes, so a narration caption sharing
+            # the screen with a spoken line is just two things competing for the eye - it stays
+            # inside its own clip as before.
+            # A dialogue caption may also not spill across a narration that follows it: the seam
+            # line would land under a line still on screen.
+            next_item = draft_timeline_units[idx + 1] if idx + 1 < len(draft_timeline_units) else None
+            next_unit = (next_item or {}).get("caption_unit") if isinstance(next_item, dict) else None
+            next_segment_id = str((next_unit or {}).get("segment_id") or "").strip()
+            next_segment_type = str(
+                (next_unit or {}).get("segment_type")
+                or segment_type_map.get(next_segment_id)
+                or ""
+            ).strip()
+            next_is_dialogue = next_segment_type in ("dialogue_quote", "dialogue")
+            caption_ceiling_us = (
+                video_timeline_end_us + MIDFORM_CAPTION_SPILL_MAX_US
+                if is_dialogue_caption and (next_item is None or next_is_dialogue)
+                else video_timeline_end_us
+            )
             timeline_end_us = min(caption_ceiling_us, timeline_start_us + duration_us)
             timeline_end_us = max(timeline_end_us, min(video_timeline_end_us, timeline_start_us + 1))
             duration_us = max(1, timeline_end_us - timeline_start_us)
