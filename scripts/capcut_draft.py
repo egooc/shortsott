@@ -10084,6 +10084,12 @@ def create_draft(input_json_path):
                 else video_timeline_end_us
             )
             timeline_end_us = min(caption_ceiling_us, timeline_start_us + duration_us)
+            # Hold the caption until its own clip ends. A clip is cut with pre/post-roll around
+            # the line, so timing the caption to the spoken window alone left the speaker on
+            # screen, audible, with nothing to read - 13 of 112 seconds across 12 gaps, every one
+            # of them sitting on that line's own clip.
+            if is_dialogue_caption and video_timeline_end_us > timeline_end_us:
+                timeline_end_us = min(caption_ceiling_us, video_timeline_end_us)
             timeline_end_us = max(timeline_end_us, min(video_timeline_end_us, timeline_start_us + 1))
             duration_us = max(1, timeline_end_us - timeline_start_us)
             # Video placement is untouched: the next clip still starts where this one ends.
