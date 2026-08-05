@@ -1823,23 +1823,47 @@ def midform_caption_row_y(caption_kind, lane_index, base_y=MIDFORM_CAPTION_Y):
 
 
 def assign_midform_speaker_rows(entries):
-    """One lane index per caption entry.
+    """One lane index per caption entry, pinned to the SPEAKER.
 
-    Narration always takes lane 0. Within a run of dialogue the first speaker takes lane 1 and
-    the one who answers takes lane 0, so a reply never has to wait for the line it answers to
-    clear the screen. Consecutive lines from the same person keep their lane.
+    Lanes used to mean turn order - opener below, answerer on the narration line - so a person
+    moved between rows from one exchange to the next. The colour stayed right but the eye lost
+    them mid-conversation. A lane now belongs to a person for as long as they are in the scene:
+    position reinforces the colour instead of tracking who spoke first.
+
+    Narration always takes lane 0 and releases the pairing, so the next exchange starts fresh.
     """
     lanes = []
-    first_alias = None
+    lane_by_alias = {}
     for entry in entries or []:
         if str((entry or {}).get("caption_kind") or "").strip() != "dialogue":
             lanes.append(0)
-            first_alias = None
+            lane_by_alias.clear()
             continue
         alias = str((entry or {}).get("speaker_alias") or (entry or {}).get("speaker") or "").strip()
-        if first_alias is None:
-            first_alias = alias
-        lanes.append(1 if alias == first_alias else 0)
+        if alias not in lane_by_alias:
+            # First speaker of the exchange takes the lower row; the one who answers takes the
+            # narration line. A third voice reuses the row held by whoever spoke least recently.
+            if not lane_by_alias:
+                lane_by_alias[alias] = 1
+            elif 0 not in lane_by_alias.values():
+                lane_by_alias[alias] = 0
+            else:
+                # Both rows are taken and only two exist, so with three or more voices somebody
+                # must move. Minimise it by looking ahead: evict whoever speaks again LATEST (or
+                # not at all), so a person still active in the exchange keeps their row.
+                index = len(lanes)
+                def next_use(candidate):
+                    for ahead in range(index, len(entries)):
+                        ahead_entry = entries[ahead] or {}
+                        if str(ahead_entry.get("caption_kind") or "").strip() != "dialogue":
+                            break
+                        ahead_alias = str(ahead_entry.get("speaker_alias") or ahead_entry.get("speaker") or "").strip()
+                        if ahead_alias == candidate:
+                            return ahead
+                    return len(entries) + 1
+                evicted = max(lane_by_alias, key=next_use)
+                lane_by_alias[alias] = lane_by_alias.pop(evicted)
+        lanes.append(lane_by_alias[alias])
     return lanes
 MIDFORM_CROP_FINAL_SCALE_CAP = 2.4
 

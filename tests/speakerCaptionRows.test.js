@@ -32,12 +32,29 @@ const lanesFor = (aliases) => probe([
   'print(_j.dumps({"base": base, "lanes": lanes, "ys": ys, "laneCount": len(m.MIDFORM_CAPTION_LANE_OFFSETS)}))'
 ].join('\n'));
 
-test('narration shares its line with whoever answers, the opener sits below', () => {
+// Lanes used to mean turn order, so a person moved rows between exchanges: the colour stayed
+// right but the eye lost them mid-conversation. A lane belongs to a PERSON now.
+test('a two-hander keeps each speaker on their own row throughout', () => {
+  const r = lanesFor(['A', 'B', 'A', 'B', 'A']);
+  assert.equal(r.lanes[0], r.lanes[2], 'A never moves');
+  assert.equal(r.lanes[2], r.lanes[4]);
+  assert.equal(r.lanes[1], r.lanes[3], 'B never moves');
+  assert.notEqual(r.lanes[0], r.lanes[1], 'and they sit on different rows');
+});
+
+test('the speaker who opens an exchange takes the lower row', () => {
   const r = lanesFor([null, 'A', 'B']);
   assert.equal(r.ys[0], r.base, 'narration keeps its line');
-  assert.equal(r.lanes[1], 1, 'the first speaker of the exchange takes the lower lane');
-  assert.equal(r.lanes[2], 0, 'the reply shares the narration line');
-  assert.ok(r.ys[1] < r.base);
+  assert.equal(r.lanes[1], 1, 'the opener sits below');
+  assert.equal(r.lanes[2], 0, 'the answer shares the narration line');
+});
+
+test('with three voices only the one who returns latest gives up its row', () => {
+  // Two rows cannot hold three people, so somebody must move; look ahead so it is whoever
+  // speaks again last, never someone still active in the exchange.
+  const r = lanesFor(['A', 'B', 'C', 'C', 'B', 'A']);
+  assert.equal(r.lanes[2], r.lanes[3], 'C, who speaks twice in a row, does not move');
+  assert.equal(r.lanes[1], r.lanes[4], 'B keeps its row across the interruption');
 });
 
 test('only two lanes exist however many speakers there are', () => {
@@ -46,15 +63,3 @@ test('only two lanes exist however many speakers there are', () => {
   assert.equal(new Set(r.ys).size, 2, `captions must not walk down the frame: ${r.ys}`);
 });
 
-test('consecutive lines from one person keep their lane', () => {
-  const r = lanesFor(['A', 'A', 'B']);
-  assert.equal(r.lanes[0], r.lanes[1]);
-  assert.notEqual(r.lanes[1], r.lanes[2]);
-});
-
-test('narration resets the exchange so the next speaker opens again', () => {
-  const r = lanesFor(['A', 'B', null, 'B', 'A']);
-  assert.equal(r.lanes[2], 0, 'narration is always lane 0');
-  assert.equal(r.lanes[3], 1, 'the first speaker after narration opens the new exchange');
-  assert.equal(r.lanes[4], 0, 'and the next one answers on the narration line');
-});
