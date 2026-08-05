@@ -62,3 +62,24 @@ test('a single-line slot is untouched', () => {
   const [item] = fillUncaptionedCuesInsideCuts(single, cues);
   assert.equal(item.dialogue_line_windows.length, 1, 'there is no in-between to fill');
 });
+
+// Adopting audible cues is worth doing, but not at the cost of failing the run: the plan
+// validator rejects a slot with more than 8 focus quotes.
+test('adoption never pushes a slot past the validated line cap', () => {
+  const many = [];
+  for (let i = 0; i < 12; i += 1) many.push({ start_sec: 10 + i, end_sec: 10.8 + i, text: `line ${i}` });
+  const item = [{
+    slot_id: 'busy',
+    decision: 'KEEP_DIALOGUE',
+    dialogue_focus_lines: ['first', 'last'],
+    dialogue_focus_quotes: ['first', 'last'],
+    dialogue_line_windows: [
+      { matched: true, line: 'first', start_sec: 10.0, end_sec: 10.4 },
+      { matched: true, line: 'last', start_sec: 25.0, end_sec: 25.5 }
+    ]
+  }];
+  const [result] = fillUncaptionedCuesInsideCuts(item, many);
+  const lines = result.dialogue_line_windows.filter((w) => w.matched === true);
+  assert.ok(lines.length <= 8, `slot grew to ${lines.length} lines`);
+  assert.ok(lines.length > 2, 'but it still recovered what it could');
+});

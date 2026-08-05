@@ -2934,6 +2934,8 @@ const DIALOGUE_WINDOW_MIN_KEEP_SEC = 0.4;
 // fall inside - the cut is already committed to showing them, so the only question is whether
 // the viewer can read them.
 const ADOPTED_CUE_MIN_SEC = 0.35;
+// Must match limitDialogueFocusLines and the plan validator.
+const DIALOGUE_FOCUS_MAX_LINES = 8;
 
 function fillUncaptionedCuesInsideCuts(timeline, transcript) {
   const cues = (Array.isArray(transcript) ? transcript : [])
@@ -2964,7 +2966,17 @@ function fillUncaptionedCuesInsideCuts(timeline, transcript) {
         adopted_from_cut: true
       });
     }
-    if (!additions.length) return item;
+    // Never push a slot past the line cap the plan validates against: adopting audible cues is
+    // worth doing, but not at the cost of failing the whole run. Longest first, so the seconds
+    // that would otherwise play silent are the ones recovered.
+    const room = Math.max(0, DIALOGUE_FOCUS_MAX_LINES - matched.length);
+    if (!additions.length || room <= 0) return item;
+    const kept = additions
+      .slice()
+      .sort((left, right) => (Number(right.end_sec) - Number(right.start_sec)) - (Number(left.end_sec) - Number(left.start_sec)))
+      .slice(0, room);
+    additions.length = 0;
+    additions.push(...kept);
     const nextWindows = [...windows, ...additions]
       .sort((left, right) => Number(left.start_sec ?? Infinity) - Number(right.start_sec ?? Infinity));
     return {
