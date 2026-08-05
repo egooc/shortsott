@@ -2949,14 +2949,21 @@ def rebuild_midform_caption_track_from_template(draft_content_path, template_doc
         )
         if color_applied:
             summary["removed_effect_refs"] += preserve_glow_effect_layers_for_colored_caption(cloned_material, cloned_segment, draft_content)
-        # A lane owns a track, so order only has to hold within the lane. If two captions in
-        # the SAME lane still collide, spill to an overflow track rather than shifting either.
+        # A lane owns a track and a track owns a Y position. Spilling a same-lane collision to
+        # an overflow track rendered two captions at the SAME height at the same time - text on
+        # text, unreadable. Same height must never coexist: trim the earlier caption so it ends
+        # where the new one starts. Different lanes (different heights) still overlap freely.
         track_position = entry_lane
-        while track_position < len(caption_track_ends) and start_us < caption_track_ends[track_position]:
-            track_position += len(MIDFORM_CAPTION_LANE_OFFSETS)
         target_track = ensure_caption_track(track_position)
         while len(caption_track_ends) <= track_position:
             caption_track_ends.append(0)
+        if start_us < caption_track_ends[track_position] and target_track["segments"]:
+            prev_segment = target_track["segments"][-1]
+            prev_range = prev_segment.get("target_timerange") or {}
+            prev_start = int(prev_range.get("start") or 0)
+            trimmed = max(1, start_us - prev_start)
+            prev_range["duration"] = min(int(prev_range.get("duration") or trimmed), trimmed)
+            prev_segment["target_timerange"] = prev_range
         caption_track_ends[track_position] = start_us + duration_us
         cloned_segment["track_render_index"] = track_position
         target_track["segments"].append(cloned_segment)
