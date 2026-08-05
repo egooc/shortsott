@@ -10108,6 +10108,12 @@ def create_draft(input_json_path):
             if is_dialogue_caption and video_timeline_end_us > timeline_end_us:
                 timeline_end_us = min(caption_ceiling_us, video_timeline_end_us)
             timeline_end_us = max(timeline_end_us, min(video_timeline_end_us, timeline_start_us + 1))
+            # A chained chunk whose predecessors already consumed the ceiling would start AT the
+            # ceiling and get a non-positive span - the SRT filter then drops it and the text
+            # vanishes from the video entirely (악화시키네. was missing). Dropping text is worse
+            # than slightly exceeding the spill bound: guarantee every chunk a readable floor.
+            if is_dialogue_caption and timeline_end_us < timeline_start_us + 350_000:
+                timeline_end_us = timeline_start_us + 350_000
             duration_us = max(1, timeline_end_us - timeline_start_us)
             prev_chunk_group = chunk_group if is_dialogue_caption else None
             prev_chunk_end_us = timeline_end_us
