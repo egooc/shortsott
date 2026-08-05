@@ -563,6 +563,9 @@ function summarizeMetadataFailure(error = {}) {
       can_regenerate_draft_only: false,
       detail_lines: [
         minCount ? `유효 후보 ${validCount}개 / 필요 ${minCount}개` : '',
+        // Without these the card could only say "no candidates", never how close the
+        // source came or which check dropped them.
+        ...(Array.isArray(details?.rejected_hook_candidates) ? details.rejected_hook_candidates.slice(0, 6).map((line) => `제외: ${line}`) : []),
         '일반적/로컬 추정 구간은 하이라이트 후보로 쓰지 않습니다.',
         '선택: 재분석해도 후보가 안 나오면 다른 소재로 교체하세요.'
       ].filter(Boolean)

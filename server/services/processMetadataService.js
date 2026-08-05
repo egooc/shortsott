@@ -6986,13 +6986,25 @@ function validateLongformCandidateGuide(candidateGuide = {}, durationSec = 0, op
   const hookCandidates = Array.isArray(candidateGuide.hook_candidates) ? candidateGuide.hook_candidates : [];
   const storyCandidates = Array.isArray(candidateGuide.story_candidates) ? candidateGuide.story_candidates : [];
   const midformCandidates = Array.isArray(candidateGuide.midform_candidates) ? candidateGuide.midform_candidates : [];
+  // Why a candidate was dropped used to vanish into a bare `catch {}`, so a source
+  // rejecting 5 of 6 candidates reported only "got 1" - leaving the actual cause to be
+  // guessed at. The reasons are collected and reported with the error.
+  const hookRejections = [];
   const validHooks = hookCandidates
-    .map((candidate) => {
+    .map((candidate, index) => {
+      const where = `[${index + 1}] ${candidate?.start_sec}~${candidate?.end_sec}`;
       try {
-        if (strictHighlightCandidates && isLocalOrFallbackLongformCandidate(candidate)) return null;
-        if (strictHighlightCandidates && !hasConcreteLongformCandidateEvidence(candidate)) return null;
+        if (strictHighlightCandidates && isLocalOrFallbackLongformCandidate(candidate)) {
+          hookRejections.push(`${where} local/fallback candidate`);
+          return null;
+        }
+        if (strictHighlightCandidates && !hasConcreteLongformCandidateEvidence(candidate)) {
+          hookRejections.push(`${where} no concrete evidence: ${normalizeText(longformCandidateEvidenceText(candidate)).slice(0, 80) || '(empty)'}`);
+          return null;
+        }
         return assertWindowDuration(candidate, { label: 'hook_candidate', min: 4, max: 24.5, sourceDurationSec: sourceDuration });
-      } catch {
+      } catch (error) {
+        hookRejections.push(`${where} ${String(error?.message || 'invalid window').slice(0, 90)}`);
         return null;
       }
     })
@@ -7022,6 +7034,7 @@ function validateLongformCandidateGuide(candidateGuide = {}, durationSec = 0, op
       reason: 'vision_backed_scene_specific_candidates_required',
       hook_candidates_count: hookCandidates.length,
       valid_hook_candidates_count: validHooks.length,
+      rejected_hook_candidates: hookRejections,
       min_hook_candidates: minHookCandidates,
       fallback_windows_applied: [],
       schema_version: LONGFORM_VISION_CANDIDATE_SCHEMA_VERSION,
