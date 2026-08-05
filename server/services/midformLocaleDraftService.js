@@ -251,6 +251,16 @@ function normalizeDraftSpecSourceRanges(draftSpec, baseDraftInput = {}) {
       if (end <= start) end = Math.min(sourceDurationSec, start + 0.5);
       adjusted = true;
     }
+    // Nudged past every reserved window and clamped at the source end, a closing slot can be
+    // left a 0.25s scrap (08:49.310-08:49.561) stretched under seconds of narration - a frozen,
+    // chopped-looking shot. A sliver is the same as nothing: replay the hook footage instead
+    // (user rule: when narration runs out of footage, bring the hook back).
+    if (end - start < 1.0 && reservedWindows.length) {
+      const [hookStart, hookEnd] = reservedWindows[0];
+      start = hookStart;
+      end = Math.min(hookEnd, hookStart + Math.max(duration, 1.0));
+      adjusted = true;
+    }
     const normalized = [Number(start.toFixed(3)), Number(end.toFixed(3))];
     lastEnd = Math.max(lastEnd, normalized[1]);
     return adjusted
