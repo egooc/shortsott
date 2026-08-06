@@ -627,6 +627,21 @@ export default function OttogiUpload() {
   const selectedProfileVariant = variantForPurpose(selectedProfilePurpose);
   const uploadBusy = isActiveUploadJob(job?.status);
 
+  function profileVariantById(profileId) {
+    const profile = profiles.find((item) => item.id === profileId);
+    return variantForPurpose(profile?.purpose || profileDraftPurposes[profileId] || '');
+  }
+
+  function profileDisplayName(profileId) {
+    const profile = profiles.find((item) => item.id === profileId);
+    return profile?.name || profile?.channelTitle || profileId || '';
+  }
+
+  // 카드에 채널을 따로 지정하지 않으면 상단에서 선택한 채널을 따른다.
+  function effectiveProfileIdForCandidate(candidateId) {
+    return String(formMap[candidateId]?.uploadProfileId || '').trim() || selectedProfileId;
+  }
+
   const pendingVariantCounts = useMemo(() => files.filter(isVideoFile).reduce((acc, file) => {
     const variant = detectUploadVariantFromName(file.name);
     acc[variant] = (acc[variant] || 0) + 1;
@@ -653,20 +668,33 @@ export default function OttogiUpload() {
 
   const visibleCandidateDateGroups = useMemo(() => groupByUploadDate(visibleCandidates), [visibleCandidates]);
 
+  // 카드별 지정 채널이 있으면 그 채널 기준으로, 없으면 상단 선택 채널 기준으로 검사한다.
+  const selectedProfileGaps = useMemo(() => {
+    return selectedCandidates.filter((candidate) => {
+      const profileId = effectiveProfileIdForCandidate(candidate.id);
+      return !profileId || !profileVariantById(profileId);
+    });
+  }, [selectedCandidates, selectedProfileId, formMap, profiles, profileDraftPurposes]);
+
   const selectedVariantMismatches = useMemo(() => {
-    if (!selectedProfileVariant) return [];
-    return selectedCandidates.filter((candidate) => candidateVariant(candidate) !== selectedProfileVariant);
-  }, [selectedCandidates, selectedProfileVariant]);
+    return selectedCandidates.filter((candidate) => {
+      const effectiveVariant = profileVariantById(effectiveProfileIdForCandidate(candidate.id));
+      return Boolean(effectiveVariant) && candidateVariant(candidate) !== effectiveVariant;
+    });
+  }, [selectedCandidates, selectedProfileId, formMap, profiles, profileDraftPurposes]);
 
   const uploadBlockedReason = useMemo(() => {
     if (!selectedCandidates.length) return '업로드할 영상을 선택해주세요.';
-    if (!selectedProfileId) return '업로드할 YouTube 채널 프로필을 먼저 선택해주세요.';
-    if (!selectedProfileVariant) return '선택한 채널 프로필의 용도를 JP Full / JP Highlight / JP Midform / KR Full / KR Highlight 중 하나로 지정해주세요.';
+    if (selectedProfileGaps.length) {
+      return selectedProfileId
+        ? `채널 용도가 지정되지 않은 카드가 ${selectedProfileGaps.length}개 있습니다. 해당 채널 프로필의 용도를 JP Full / JP Highlight / JP Midform / KR Full / KR Highlight 중 하나로 지정해주세요.`
+        : '업로드할 YouTube 채널 프로필을 먼저 선택해주세요.';
+    }
     if (selectedVariantMismatches.length) {
-      return `선택 채널은 ${variantLabel(selectedProfileVariant)} 전용입니다. 맞지 않는 카드 ${selectedVariantMismatches.length}개를 해제해주세요.`;
+      return `채널 용도와 카드 포맷이 다른 카드 ${selectedVariantMismatches.length}개가 있습니다. 카드의 업로드 채널을 바꾸거나 선택을 해제해주세요.`;
     }
     return '';
-  }, [selectedCandidates.length, selectedProfileId, selectedProfileVariant, selectedVariantMismatches.length]);
+  }, [selectedCandidates.length, selectedProfileId, selectedProfileGaps.length, selectedVariantMismatches.length]);
 
   const uploadCardByKey = useMemo(() => {
     const map = new Map();
@@ -1064,7 +1092,7 @@ export default function OttogiUpload() {
         publishAt: form.publishAt || '',
         madeForKids: false,
         categoryId: form.categoryId || candidate.categoryId || '28',
-        uploadProfileId: selectedProfileId,
+        uploadProfileId: String(form.uploadProfileId || '').trim() || selectedProfileId,
         metadataTextPath: candidate.metadataTextPath || '',
         metadataOriginalName: candidate.metadataOriginalName || '',
         variant: candidateVariant(candidate),
@@ -1162,7 +1190,11 @@ export default function OttogiUpload() {
         const next = new Set();
         prev.forEach((id) => {
           const candidate = candidates.find((item) => item.id === id);
-          if (candidate && candidateVariant(candidate) === expectedVariant) next.add(id);
+          if (!candidate) return;
+          // 카드에 지정 채널이 있으면 그 채널 기준으로 유지 여부를 판단한다.
+          const overrideId = String(formMap[id]?.uploadProfileId || '').trim();
+          const effectiveVariant = overrideId ? profileVariantById(overrideId) : expectedVariant;
+          if (candidateVariant(candidate) === effectiveVariant) next.add(id);
         });
         return next;
       });
@@ -1504,20 +1536,8 @@ export default function OttogiUpload() {
       setMessage('이미 서버 업로드 작업이 진행 중입니다. 현재 작업 로그가 끝난 뒤 다시 시도해주세요.');
       return;
     }
-    if (!selectedCandidates.length) {
-      setMessage('업로드할 영상을 선택해주세요.');
-      return;
-    }
-    if (!selectedProfileId) {
-      setMessage('업로드할 YouTube 채널 프로필을 먼저 선택해주세요.');
-      return;
-    }
-    if (!selectedProfileVariant) {
-      setMessage('선택한 채널 프로필의 용도를 JP Full / JP Highlight / JP Midform / KR Full / KR Highlight 중 하나로 지정해주세요.');
-      return;
-    }
-    if (selectedVariantMismatches.length) {
-      setMessage(`선택 채널은 ${variantLabel(selectedProfileVariant)} 전용입니다. 맞지 않는 카드 ${selectedVariantMismatches.length}개를 해제해주세요.`);
+    if (uploadBlockedReason) {
+      setMessage(uploadBlockedReason);
       return;
     }
 
@@ -1965,7 +1985,10 @@ export default function OttogiUpload() {
                 const form = formMap[candidate.id] || {};
                 const checked = selected.has(candidate.id);
                 const variant = candidateVariant(candidate);
-                const profileMismatch = Boolean(selectedProfileVariant && variant !== selectedProfileVariant);
+                const cardProfileId = String(form.uploadProfileId || '').trim();
+                const effectiveProfileId = cardProfileId || selectedProfileId;
+                const effectiveProfileVariant = profileVariantById(effectiveProfileId);
+                const profileMismatch = Boolean(effectiveProfileVariant && variant !== effectiveProfileVariant);
                 const uploadState = getCandidateUploadState(candidate);
                 const uploadCard = uploadState.card;
                 const uploadJobItem = uploadState.jobItem;
@@ -2016,7 +2039,7 @@ export default function OttogiUpload() {
                         ) : null}
                         {profileMismatch ? (
                           <div className="rounded-lg border border-red-300/25 bg-red-500/10 px-3 py-2 text-xs font-bold text-red-100">
-                            현재 선택 채널은 {variantLabel(selectedProfileVariant)} 전용입니다. 이 카드는 {variantLabel(variant)}라서 업로드할 수 없습니다.
+                            이 카드의 업로드 채널({profileDisplayName(effectiveProfileId)})은 {variantLabel(effectiveProfileVariant)} 전용입니다. 이 카드는 {variantLabel(variant)}라서 업로드할 수 없습니다.
                           </div>
                         ) : null}
                         {uploadJobItem?.progress ? (
@@ -2048,6 +2071,21 @@ export default function OttogiUpload() {
                             <ReviewBlock review={candidate.review} />
                           </div>
                         </details>
+                        <label className="block space-y-1">
+                          <span className="text-xs font-bold text-slate-300">업로드 채널</span>
+                          <select
+                            className={`w-full rounded-lg border px-2 py-2 text-xs text-white outline-none focus:border-[#c8ff00]/60 ${profileMismatch ? 'border-red-400/50 bg-red-500/10' : 'border-white/10 bg-black/35'}`}
+                            value={cardProfileId}
+                            onChange={(event) => updateForm(candidate.id, { uploadProfileId: event.target.value })}
+                          >
+                            <option value="">선택 채널 따름{selectedProfileId ? ` (${profileDisplayName(selectedProfileId)})` : ''}</option>
+                            {profiles.map((profile) => (
+                              <option key={profile.id} value={profile.id}>
+                                {profileDisplayName(profile.id)} · {purposeLabel(profile.purpose || profileDraftPurposes[profile.id] || '')}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
                         <div className="grid gap-2 md:grid-cols-2">
                           <label className="space-y-1">
                             <span className="text-xs font-bold text-slate-300">공개 상태</span>
