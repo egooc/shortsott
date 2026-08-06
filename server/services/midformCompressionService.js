@@ -3313,6 +3313,14 @@ function dropWindowsPastUsableEnd(timeline, usableEndSec) {
   });
 }
 
+function readUsableEndSec(runDir) {
+  try {
+    const p = path.join(runDir, 'source_case.json');
+    if (fs.existsSync(p)) return Number((readJson(p) || {}).usable_end_sec || 0);
+  } catch { /* no profile, no limit */ }
+  return 0;
+}
+
 function finalizeEditPlan(editPlan, beats, transcript, targetSec, usableEndSec = 0) {
   const beatMap = new Map((Array.isArray(beats) ? beats : []).map((beat) => [String(beat?.beat_id || '').trim(), beat]));
   const sortedBeatStarts = (Array.isArray(beats) ? beats : []).map((b) => Number(b.start_sec)).filter((n) => Number.isFinite(n)).sort((a, b) => a - b);
@@ -4693,7 +4701,7 @@ async function runCompressionApply(runIdOrPath, applyOptions = {}) {
   const transcriptPath = path.join(runDir, 'transcript_timed.json');
   const transcript = fs.existsSync(transcriptPath) ? readJson(transcriptPath) : [];
   const targetSec = Number(editPlan?.duration_budget?.target_sec || DEFAULT_TARGET_SEC) || DEFAULT_TARGET_SEC;
-  const finalizedEditPlan = finalizeEditPlan(editPlan, beatsObject.beats || [], transcript, targetSec);
+  const finalizedEditPlan = finalizeEditPlan(editPlan, beatsObject.beats || [], transcript, targetSec, readUsableEndSec(runDir));
   const sourceInfoPath = path.join(runDir, 'source_info.json');
   const applyManifestPath = path.join(runDir, 'compression_manifest.json');
   const movieTitle = (fs.existsSync(sourceInfoPath) ? (readJson(sourceInfoPath) || {}).title : '')
@@ -4813,7 +4821,7 @@ function refreshCompressionPlan(runIdOrPath) {
   const metadata = fs.existsSync(metadataPath) ? readJson(metadataPath) : {};
   const heatmap = fs.existsSync(heatmapPath) ? readJson(heatmapPath) : { status: 'unavailable', items: [] };
   const targetSec = Number(currentPlan?.duration_budget?.target_sec || DEFAULT_TARGET_SEC) || DEFAULT_TARGET_SEC;
-  let refreshedPlan = finalizeEditPlan(currentPlan, beatsObject.beats || [], transcript, targetSec);
+  let refreshedPlan = finalizeEditPlan(currentPlan, beatsObject.beats || [], transcript, targetSec, readUsableEndSec(runDir));
   if (fs.existsSync(slotFillsPath)) {
     refreshedPlan = recalculateNarrationDurations(refreshedPlan, readJson(slotFillsPath), beatsObject.beats || [], transcript);
   }
