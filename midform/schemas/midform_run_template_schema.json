@@ -40,6 +40,10 @@
         },
         "scene_type": {
           "type": "string"
+        },
+        "promo_tail_sec": {
+          "type": "number",
+          "minimum": 0
         }
       }
     },

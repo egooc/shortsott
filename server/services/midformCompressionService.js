@@ -3280,7 +3280,40 @@ function trimTimelineToTargetRuntime(timeline, targetSec) {
   return items;
 }
 
-function finalizeEditPlan(editPlan, beats, transcript, targetSec) {
+// Windows starting inside the promo tail are cut from the plan itself: ad segments can carry
+// film-like preview dialogue that survives every text-based classifier ("show and tell's over"
+// was quoted from a Movieclips outro), so the declared boundary is the only reliable line.
+function dropWindowsPastUsableEnd(timeline, usableEndSec) {
+  const limit = Number(usableEndSec || 0);
+  if (!(limit > 0)) return timeline;
+  return timeline.map((item) => {
+    if (item.decision !== 'KEEP_DIALOGUE' || !Array.isArray(item.dialogue_line_windows)) return item;
+    const windows = item.dialogue_line_windows;
+    const survives = (index) => {
+      const win = windows[index];
+      if (!win || win.matched !== true) return true;
+      return Number(win.start_sec) < limit;
+    };
+    if (windows.every((_, index) => survives(index))) return item;
+    const kept = windows.filter((_, index) => survives(index));
+    const matched = kept.filter((win) => win && win.matched === true);
+    if (!matched.length) {
+      return { ...item, decision: 'DROP', estimated_duration_sec: 0, promo_tail_dropped: true,
+        reason: `${item.reason || ''} Dropped: its dialogue sits inside the source promo tail.`.trim() };
+    }
+    return {
+      ...item,
+      dialogue_line_windows: kept,
+      dialogue_focus_lines: Array.isArray(item.dialogue_focus_lines) ? item.dialogue_focus_lines.filter((_, index) => survives(index)) : item.dialogue_focus_lines,
+      dialogue_focus_quotes: Array.isArray(item.dialogue_focus_quotes) ? item.dialogue_focus_quotes.filter((_, index) => survives(index)) : item.dialogue_focus_quotes,
+      start_sec: roundSec(Math.min(...matched.map((win) => Number(win.start_sec)))),
+      end_sec: roundSec(Math.max(...matched.map((win) => Number(win.end_sec)))),
+      promo_tail_trimmed: true
+    };
+  });
+}
+
+function finalizeEditPlan(editPlan, beats, transcript, targetSec, usableEndSec = 0) {
   const beatMap = new Map((Array.isArray(beats) ? beats : []).map((beat) => [String(beat?.beat_id || '').trim(), beat]));
   const sortedBeatStarts = (Array.isArray(beats) ? beats : []).map((b) => Number(b.start_sec)).filter((n) => Number.isFinite(n)).sort((a, b) => a - b);
   const callbackPreparedTimeline = prepareColdOpenCallbackTimeline(
@@ -3648,7 +3681,7 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec) {
   // Write the corrected measure back onto the slot. Fixing only realisticSlotDurationSec left
   // estimated_duration_sec holding the raw span - slot_02 still read 151.3s for four lines - so
   // every consumer that reads the field directly still saw the dead air between them.
-  const measuredTimeline = clampColdOpenToTeaser(leadColdOpenWithStrongestLine(trimTimelineToTargetRuntime(dedupedTimeline, targetSec)));
+  const measuredTimeline = clampColdOpenToTeaser(leadColdOpenWithStrongestLine(dropWindowsPastUsableEnd(trimTimelineToTargetRuntime(dedupedTimeline, targetSec), usableEndSec)));
   const trimmedTimeline = measuredTimeline.map((item) => (
     item.decision === 'KEEP_DIALOGUE'
       ? { ...item, estimated_duration_sec: realisticSlotDurationSec(item) }
@@ -4609,7 +4642,7 @@ async function runCompression(source, options = {}) {
       MIDFORM_COMPRESSION_EDIT_PLAN_SCHEMA_PATH,
       (parsed) => validateEditPlanAgainstBeats(validateEditPlan(parsed, targetSec), beatsResult.parsed.beats)
     );
-    finalizedEditPlan = finalizeEditPlan(editResult.parsed, beatsResult.parsed.beats, transcript, targetSec);
+    finalizedEditPlan = finalizeEditPlan(editResult.parsed, beatsResult.parsed.beats, transcript, targetSec, sourceCase.usable_end_sec);
     validateEditPlanAgainstBeats(validateEditPlan(finalizedEditPlan), beatsResult.parsed.beats);
   } catch (_error) {
     finalizedEditPlan = buildFallbackEditPlan(beatsResult.parsed.beats, heatmap, targetSec, metadata, transcript);

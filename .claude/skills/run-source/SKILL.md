@@ -21,7 +21,7 @@ yt-dlp --js-runtimes node --no-playlist --skip-download --print "%(title)s | %(d
 
 `midform/skills/midform-run/templates/<소스명>_ko.md`. 확립된 구조:
 
-- frontmatter: `profile: production`, `source.url`, `output.target_length_sec`(소스의 ~절반 이하; 길이보다 완성도), **`review.pause_before_tts: true`** (원고 검수 게이트 — 항상 켠다), `subtitle_limits.max_chars: 16`
+- frontmatter: `profile: production`, **`source.promo_tail_sec: 30`** (Movieclips류 클립 채널은 항상 — 광고 구간의 예고편 대사가 자막 감지를 뚫는다), `source.url`, `output.target_length_sec`(소스의 ~절반 이하; 길이보다 완성도), **`review.pause_before_tts: true`** (원고 검수 게이트 — 항상 켠다), `subtitle_limits.max_chars: 16`
 - `must_keep`: **핵심 축 한 줄**("A → B → C" 형태) + 살릴 대사 유형 3~4개 (따옴표로 시작하는 YAML 항목 금지 — 파싱 깨짐)
 - `prohibitions`: 날조 금지, clip 밖 확장 금지, 웃음 포인트 선설명 금지, 감정 명명 금지, **인물 소개 나레이션 금지**, speaker-color mismatch 금지
 - 본문: 발화 중심 지침(keep_dialogue_policy: preserve_scene_force, micro_exchange, narration_density: low, 이음매 원칙), Fixed Facts(추측 금지 항목 포함), 콜드오픈 훅 방향, 러닝 개그가 있으면 셋업-페이오프 보존 명시

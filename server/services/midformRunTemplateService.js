@@ -158,7 +158,8 @@ function buildNormalizedRequest(parsedTemplate, cliOptions = {}) {
       mode: analysisMode
     },
     source: {
-      url: sourceUrl
+      url: sourceUrl,
+      promo_tail_sec: Number(data?.source?.promo_tail_sec || 0) || 0
     },
     output: {
       target_length_sec: targetLengthSec
@@ -631,7 +632,8 @@ async function runMidformTemplateWorkflow(options = {}) {
     let compressionRunDir = summary.internal.compression_run_dir || '';
     if (shouldRunStage(resumeStage, 'ingest') || !compressionRunId) {
       const compression = await runCompression(normalizedRequest.source.url, {
-        target: normalizedRequest.output.target_length_sec
+        target: normalizedRequest.output.target_length_sec,
+        promoTailSec: normalizedRequest.source.promo_tail_sec
       });
       compressionRunId = compression.runId;
       compressionRunDir = compression.paths.runDir;
