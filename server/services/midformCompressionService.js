@@ -2173,7 +2173,12 @@ function resolveDialogueLineWindows(transcript, windowStartSec, windowEndSec, li
     too_short: item.matched ? Boolean(item.too_short) : false
   }));
 
-  const ok = windows.every((w) => w.matched && !w.too_short && Number(w.end_sec) > Number(w.start_sec));
+  // ok judges the lines that will actually be cut. Requiring every INPUT line to match meant one
+  // unmatchable sliver ("what do you call this fella", a 0.2s cue) kept the slot not-ok forever,
+  // preflight rejected the fresh plan, and the run silently fell back to a stale one.
+  const matchedWindows = windows.filter((w) => w.matched);
+  const ok = matchedWindows.length > 0
+    && matchedWindows.every((w) => !w.too_short && Number(w.end_sec) > Number(w.start_sec));
   return { windows, warnings, ok };
 }
 
