@@ -891,6 +891,10 @@ export default function OttogiUpload() {
       setScheduleBase(defaultScheduleStart);
       setCandidateForms(nextCandidates, defaultScheduleStart, scheduleInterval);
       setWarnings(res.data.warnings || []);
+      // 채널 선택이 남겨둔 변형/날짜 필터가 방금 매칭된 다른 포맷(KH 등)
+      // 카드를 숨기지 않도록 매칭 결과는 항상 전체 보기로 연다.
+      setVariantFilter('all');
+      setDateFilter('all');
       await loadUploadLists();
 
       const matchedCount = nextCandidates.filter((candidate) => candidate.metadataOriginalName).length;
