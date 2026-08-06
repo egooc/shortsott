@@ -4630,6 +4630,17 @@ async function runCompression(source, options = {}) {
   const { transcript, transcriptPath, vttPath } = await extractTimedTranscript(sourceUrl, runDir);
   const { heatmap, heatmapPath } = extractHeatmap(metadata, runDir);
   const sourceCase = profileSourceCase(transcript, metadata, heatmap);
+  // A declared promo tail (template source.promo_tail_sec, measured by frame analysis) beats
+  // caption-based detection: preview dialogue defeats the text classifier in both directions.
+  const declaredTail = Number(options.promoTailSec || 0);
+  if (declaredTail > 0 && sourceCase.duration_sec > 0) {
+    const declaredEnd = roundSec(Math.max(0, sourceCase.duration_sec - declaredTail));
+    if (declaredEnd < sourceCase.usable_end_sec || !sourceCase.promo_tail_sec) {
+      sourceCase.usable_end_sec = declaredEnd;
+      sourceCase.promo_tail_sec = declaredTail;
+      sourceCase.promo_tail_declared = true;
+    }
+  }
   writeJson(path.join(runDir, 'source_case.json'), sourceCase);
   const caseGuidanceText = buildSourceCaseGuidance(sourceCase).join(String.fromCharCode(10));
 
