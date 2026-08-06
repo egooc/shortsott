@@ -454,6 +454,19 @@ function buildScriptPreviewMarkdown(script, slotMap, previewData, slotFillsPath,
     '검수 포인트: slot_fills를 수정한 뒤 resume 하면 텍스트 재검증 후 TTS/드래프트가 이어집니다.',
     ''
   ];
+  // Hoisted above the loop: this path only runs with pauseBeforeTts, which was hardcoded
+  // off until now - the use-before-declaration below had never executed.
+  const qualityCheck = script?.quality_check || {};
+  const endingRules = qualityCheck.ending_rules_check || {};
+  const deferredSlotFillErrors = Array.isArray(qualityCheck.deferred_slot_fill_errors) ? qualityCheck.deferred_slot_fill_errors : [];
+  const deferredBySlotId = new Map(
+    deferredSlotFillErrors
+      .map((message) => {
+        const match = String(message || '').match(/^(s\d+)/);
+        return [match ? match[1] : '', String(message || '')];
+      })
+      .filter(([slotId]) => Boolean(slotId))
+  );
   slots.forEach((slot, index) => {
     const slotId = String(slot?.slot_id || '');
     const slotType = String(slot?.type || '');
@@ -503,17 +516,6 @@ function buildScriptPreviewMarkdown(script, slotMap, previewData, slotFillsPath,
   const endings = endingStatsFromSegments(segments);
   const narrationSlots = slots.filter((slot) => slot?.type === 'narration').map((slot) => String(slot.slot_id || ''));
   const payoffSlots = narrationSlots.filter((slotId) => slotRole(slotMap, slotId) === 'payoff');
-  const qualityCheck = script?.quality_check || {};
-  const endingRules = qualityCheck.ending_rules_check || {};
-  const deferredSlotFillErrors = Array.isArray(qualityCheck.deferred_slot_fill_errors) ? qualityCheck.deferred_slot_fill_errors : [];
-  const deferredBySlotId = new Map(
-    deferredSlotFillErrors
-      .map((message) => {
-        const match = String(message || '').match(/^(s\d+)/);
-        return [match ? match[1] : '', String(message || '')];
-      })
-      .filter(([slotId]) => Boolean(slotId))
-  );
   lines.push('---');
   lines.push('');
   lines.push('## summary');

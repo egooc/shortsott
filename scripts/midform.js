@@ -162,8 +162,7 @@ async function main() {
     // TTS and the draft proceed. Credits are only spent from this point on.
     const { resumeRun } = require('../server/services/midformPipelineService');
     const state = await resumeRun(subcommand);
-    process.stdout.write(`resumed ${subcommand}: ${state?.status || 'running'}${'
-'}`);
+    process.stdout.write('resumed ' + subcommand + ': ' + (state && state.status ? state.status : 'running') + String.fromCharCode(10));
     return;
   }
   if (command === 'compress-apply') {
