@@ -726,12 +726,30 @@ async function runMidformTemplateWorkflow(options = {}) {
 
     let finalPipelineState = null;
     if (shouldRunStage(resumeStage, 'draft') || !fs.existsSync(path.join(workspace.workspaceDir, 'edit_manifest.json'))) {
-      const bootstrapRunId = summary.internal.bootstrap_source_run_id || compressionRunId;
-      const bootstrapRun = await runBootstrapToPipeline(bootstrapRunId, { preflightOnly: false, forceDownload: false, pauseBeforeTts: normalizedRequest.review?.pause_before_tts === true });
-      summary.internal.pipeline_run_id = bootstrapRun.pipelineRunId;
-      summary.internal.pipeline_run_dir = bootstrapRun.pipelineRunDir;
-      writeJson(workspace.summaryPath, summary);
-      finalPipelineState = await waitForPipelineRun(bootstrapRun.pipelineRunId);
+      const pauseBeforeTts = normalizedRequest.review?.pause_before_tts === true;
+      // With the review gate on, --resume draft must attach to the pipeline run the gate
+      // already paused (and the user reviewed/resumed) — launching a fresh run here would
+      // discard the reviewed script and pause for review all over again, forever.
+      let reviewedState = null;
+      if (pauseBeforeTts && summary.internal.pipeline_run_id) {
+        try {
+          const candidate = getRun(summary.internal.pipeline_run_id);
+          const status = String(candidate?.status || '');
+          if (status === 'paused_review' || status.startsWith('completed')) reviewedState = candidate;
+        } catch {
+          // unknown/deleted run: fall through to launching a new one
+        }
+      }
+      if (reviewedState) {
+        finalPipelineState = reviewedState;
+      } else {
+        const bootstrapRunId = summary.internal.bootstrap_source_run_id || compressionRunId;
+        const bootstrapRun = await runBootstrapToPipeline(bootstrapRunId, { preflightOnly: false, forceDownload: false, pauseBeforeTts });
+        summary.internal.pipeline_run_id = bootstrapRun.pipelineRunId;
+        summary.internal.pipeline_run_dir = bootstrapRun.pipelineRunDir;
+        writeJson(workspace.summaryPath, summary);
+        finalPipelineState = await waitForPipelineRun(bootstrapRun.pipelineRunId);
+      }
     } else {
       const existingPipelineRunId = requireSummaryField(summary, 'pipeline_run_id', resumeStage);
       finalPipelineState = await waitForPipelineRun(existingPipelineRunId);
