@@ -1613,6 +1613,24 @@ def apply_template_frame_overlay_layer(generated, template_doc, template_root, d
     return summary
 
 
+FRAME_LOCALE = "ko"
+FRAME_ASSETS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "midform", "assets", "frame")
+FRAME_BAND_STEMS = {"band_top", "band_bottom", "channel_logo"}
+
+
+def resolve_frame_band_override(source_path, frame_locale=None):
+    """Swap a template frame asset for its locale-specific file when one exists."""
+    locale = str(frame_locale or FRAME_LOCALE or "ko").strip().lower() or "ko"
+    stem = os.path.splitext(os.path.basename(str(source_path or "")))[0].strip().lower()
+    for known in FRAME_BAND_STEMS:
+        if stem == known or stem.startswith(known + "_"):
+            for candidate_name in (known + "_" + locale + ".png", known + ".png"):
+                candidate = os.path.join(FRAME_ASSETS_DIR, candidate_name)
+                if os.path.exists(candidate):
+                    return os.path.abspath(candidate)
+    return ""
+
+
 def is_template_passthrough_track(track):
     if not isinstance(track, dict):
         return False
@@ -1681,6 +1699,9 @@ def apply_template_overlay_passthrough(draft_content_path, template_doc, templat
         raw_path = material_media_path(cloned_material)
         if raw_path:
             source_path = resolve_template_media_path(template_root, raw_path)
+            band_override = resolve_frame_band_override(source_path or raw_path)
+            if band_override:
+                source_path = band_override
             if not source_path:
                 summary["missing_paths"].append(raw_path)
                 return ""
@@ -9633,6 +9654,15 @@ def apply_midform_dialogue_vad_guard(segment_map, segment_type_map, source_video
 
 def create_draft(input_json_path):
     data = load_json_file(input_json_path)
+    # Locale for frame band substitution: explicit field first, else inferred from the draft
+    # name (locale drafts are suffixed _ja / -ja). Bands live in midform/assets/frame.
+    global FRAME_LOCALE
+    declared_locale = str(data.get("frameLocale") or data.get("frame_locale") or "").strip().lower()
+    if declared_locale:
+        FRAME_LOCALE = declared_locale
+    else:
+        name_blob = " ".join(str(data.get(k) or "") for k in ("draftName", "draft_name", "outputName", "output_name", "title")).lower()
+        FRAME_LOCALE = "ja" if ("_ja" in name_blob or "-ja" in name_blob) else "ko"
 
     edit_mode = str(data.get("editMode") or "").strip().lower()
     if edit_mode in {"ultra_efficiency_process", "process_explainer"}:

@@ -433,6 +433,8 @@ async function generateLocaleDraftFromInput(locale, localeDraftInput, workspaceD
     localeDraftInput.gptScript || localeDraftInput.claudeScript || {},
     {
       draftName,
+      frameLocale: locale,
+      frame_locale: locale,
       output_base_path: outputBasePath,
       outputBasePath,
       draft_output_mode: 'folder_only',
