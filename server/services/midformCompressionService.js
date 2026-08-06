@@ -4206,8 +4206,12 @@ function validateSlotFillsDialogueCaptions(slotFills, editPlan, locale = 'ko') {
         fill?.narration, [...new Set(speakerNames)],
         String(fill?.slot_id || '').includes('closing')
       );
-      if (styleProblems.length) {
-        throw new Error(`${fill?.slot_id} narration breaks house style: ${styleProblems.join(' | ')}`);
+      // Person-name detection produced four false positives in a row (여자, 판사, 리더, 과학자):
+      // role nouns are an open set no list can close. It stays a detection for the review gate,
+      // where a human-grade eye tells 과학자 from 대릴 - but it no longer fails the generation.
+      const fatalProblems = styleProblems.filter((problem) => !/^person name/.test(problem));
+      if (fatalProblems.length) {
+        throw new Error(`${fill?.slot_id} narration breaks house style: ${fatalProblems.join(' | ')}`);
       }
       const reveal = findNarrationInventedReveal(fill?.narration, [...new Set(speakerNames)]);
       if (reveal) {
