@@ -4,7 +4,7 @@ analysis_mode: auto
 source:
   url: "https://www.youtube.com/watch?v=lX9SDbhnYYU"
   content_type: movie_midform_recap
-  promo_tail_sec: 30
+  promo_tail_sec: 11
 output:
   target_length_sec: 75
 review:
