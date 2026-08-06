@@ -14,9 +14,9 @@ Gemini 2.5 Pro가 쓴 원고를 사람 대신 Claude가 1차 검수한다. 파�
    - `script_preview.md` — 사람용 요약: 대사 인용, 나레이션 예산(gap 대비 추정 발화시간)
    - `slot_fills.json` — **편집 대상**. `slot_fills[]`의 `narration`(나레이션 슬롯)과 `caption_text`(대사 자막)
    - 근거 대조용: 해당 compress run의 `transcript_timed.json` (요약의 `internal.bootstrap_source_run_id`로 찾음)
-3. **검수** (아래 체크리스트). 문제가 있으면 `slot_fills.json`을 직접 수정한다.
-4. **재개 — 묻지 않는다**: 검수·수정 후 바로 `node scripts/midform.js review-resume <pipeline_run_id>` → 템플릿을 `--resume draft`로 재실행해 드래프트까지 완료한다. 이 스킬의 존재 이유가 사용자를 원고 승인 루프에서 빼는 것이다. 사용자에게는 **완료 후** 무엇을 왜 고쳤는지 표로 보고한다.
-5. **막혔을 때만 질문**: 날조인지 원작 지식인지 판단 불가한 서술처럼 검수 자체가 불가능한 경우에만 멈추고 묻는다. 표현 취향 수준은 하우스 스타일로 결정하고 진행한다.
+3. **1차 검수 — 자동, 재지시 불필요**: 실행이 게이트에 멈추면 Claude가 아래 체크리스트로 즉시 검수하고 `slot_fills.json`을 직접 보정한다. 사용자가 "검수해라"라고 다시 말할 필요가 없어야 한다.
+4. **사용자 검수 — 반드시 이 시점에**: 보정이 끝난 전체 원고(수정 표시 포함)를 사용자에게 보여주고 **여기서 멈춘다**. TTS 크레딧이 아직 0원인 유일한 시점이 여기다. 사용자가 고치라는 것을 고치고, 승인해야만 재개한다.
+5. **재개** (사용자 승인 후): `node scripts/midform.js review-resume <pipeline_run_id>` → 템플릿 `--resume draft`로 드래프트까지 완료.
 
 ## 검수 체크리스트 (이 프로젝트에서 실제 사고가 났던 순서)
 
