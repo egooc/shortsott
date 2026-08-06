@@ -3888,6 +3888,11 @@ function buildSlotFillsPrompt(beats, editPlan, movieTitle, recapContextMarkdown)
     '- Narration states ONLY what the transcript or the footage shows. Never invent an identity reveal, a hidden connection, or a cause: "옆자리에 앉았던 바로 그 사람이 판사였습니다" was written into a cut whose source says no such thing. A reveal that is not in the source is not a twist, it is a lie the viewer can catch.',
     '- ONE obligation among all these prohibitions: if there is a single fact without which the viewer cannot follow, laugh at, or feel the tension of what they are watching, state it once, in one short line, early. Not who someone is - WHAT IS HAPPENING TO THEM. A body losing its senses one by one, a man who cannot see straight, a room nobody may leave. Ask yourself what a first-time viewer would be confused by, and say only that. If the dialogue already carries it, say nothing.',
     '- Test the last scene against this: if a moment only works because of something established earlier, and neither the dialogue nor a seam line establishes it, the moment reads as random or as the character simply being unpleasant. That is the failure this obligation exists to prevent.',
+    '- STYLE (house guidebook, midform/docs/style-guide-ko.md): narration endings ~했습니다 60-70%, ~했죠 15-30%, ~했는데 for turns, ~버렸습니다 sparingly for shocks. BANNED endings: ~에요/~어요/~거든요/~네요. NEVER ask the viewer a question (~을까요?) - the ONE exception is a closing quip of the form "여러분 ...?" which isalmost  mandatory as the very last narration sentence.',
+    '- STYLE: zero translationese. Never ~에 따라/~을 통해/~에 의해/~에 대해. Recast abstract western phrasing as concrete Korean. Colloquial force is welcome (깜놀, 빡치다, 멘붕) where the scene earns it - natural beats forced slang.',
+    '- STYLE: no double reporting - never "말했습니다. ~라고요." Fold it: "~라고 말했습니다." Chain consecutive actions into one sentence; split only for deliberate impact ("그런데 바로 그때였습니다.").',
+    '- STYLE: narration uses NO person names - role nouns only (남자, 승무원, 판사), one consistent term per person. Dialogue captions keep names spoken IN the line itself.',
+    '- DEMONETIZATION-SAFE wording in ALL Korean text: 자살→스스로 세상을 등졌다, 죽이다→처리하다/정리하다, 죽음→생을 마감하다, 마약류→수상한 가루/이상한 약, 고문/처형→혹독한 고생, 테러→공격. Imply violence by reaction and cutaway, never by procedure.',
     '- Narration says only what the eye cannot: a jump in time, a change of place, or an event that happened off screen. If the scene shows it or the dialogue says it, write nothing.',
     '- The first narration after the cold open is the one most likely to go wrong: it must NOT lay out the premise. Do not introduce the protagonist, explain what the experiment or the job is, or summarise how things got here. Name only what the next scene needs — where we are, or who just walked in — in one sentence, and let the dialogue carry the rest.',
     '- If the context implies 사건 훅 먼저, the first bridge/body narration after the cold open must begin with the kidnapping, standoff, chase, attack, trap, or another live event, not with a standalone character-introduction sentence like a nameplate.',
@@ -4147,6 +4152,39 @@ function findNarrationInventedReveal(narration, names) {
   return '';
 }
 
+// House style, enforced (midform/docs/style-guide-ko.md). Prompt rules drift run to run; these
+// are the failures the guidebook calls out as fatal, so they are code.
+const NARRATION_BANNED_ENDING_RE = /(에요|어요|거든요|네요)[.!?…"”']?(\s|$)/;
+const NARRATION_VIEWER_QUESTION_RE = /(까요|나요|가요)\s*\?/;
+const NARRATION_DOUBLE_REPORT_RE = /(라고요|다고요)\s*[.!?…]/;
+const DEMONETIZATION_RE = /(자살|목숨을 끊|죽였|죽이[^지]|살인|시체|마약|코카인|헤로인|대마초|고문|처형|총살|참수|테러)/;
+
+function validateKoreanNarrationStyle(narration, speakerNames, isClosingSlot) {
+  const text = String(narration || '').trim();
+  if (!text) return [];
+  const problems = [];
+  const sentences = text.split(/(?<=[.!?…])\s+/).filter(Boolean);
+  sentences.forEach((sentence, index) => {
+    const isFinal = isClosingSlot && index === sentences.length - 1;
+    const isQuip = /^여러분/.test(sentence.trim());
+    if (NARRATION_VIEWER_QUESTION_RE.test(sentence) && !(isFinal && isQuip)) {
+      problems.push(`viewer question outside the closing 여러분-quip: "${sentence.trim()}"`);
+    }
+    if (NARRATION_BANNED_ENDING_RE.test(sentence)) {
+      problems.push(`banned ending (~에요/~어요/~거든요/~네요): "${sentence.trim()}"`);
+    }
+  });
+  if (NARRATION_DOUBLE_REPORT_RE.test(text)) problems.push('double reporting ("~라고요."): fold it into "~라고 말했습니다"');
+  if (DEMONETIZATION_RE.test(text)) problems.push('demonetization-risk word: use the safe wording table');
+  for (const rawName of Array.isArray(speakerNames) ? speakerNames : []) {
+    const name = String(rawName || '').trim();
+    if (name.length < 2) continue;
+    if (new RegExp(`^(?:${NARRATION_ROLE_NOUNS})$`).test(name)) continue;
+    if (text.includes(name)) problems.push(`person name in narration ("${name}"): use a role noun`);
+  }
+  return problems;
+}
+
 function validateSlotFillsDialogueCaptions(slotFills, editPlan, locale = 'ko') {
   // Structural checks apply to every locale; the wording checks below are Korean-specific.
   const isKorean = String(locale || 'ko') === 'ko';
@@ -4164,6 +4202,13 @@ function validateSlotFillsDialogueCaptions(slotFills, editPlan, locale = 'ko') {
       if (fill?.speaker) speakerNames.push(fill.speaker);
     }
     for (const fill of Array.isArray(slotFills?.slot_fills) ? slotFills.slot_fills : []) {
+      const styleProblems = validateKoreanNarrationStyle(
+        fill?.narration, [...new Set(speakerNames)],
+        String(fill?.slot_id || '').includes('closing')
+      );
+      if (styleProblems.length) {
+        throw new Error(`${fill?.slot_id} narration breaks house style: ${styleProblems.join(' | ')}`);
+      }
       const reveal = findNarrationInventedReveal(fill?.narration, [...new Set(speakerNames)]);
       if (reveal) {
         throw new Error(
@@ -4833,6 +4878,7 @@ module.exports = {
     leadColdOpenWithStrongestLine,
     findNarrationNameplate,
     findNarrationInventedReveal,
+    validateKoreanNarrationStyle,
     applyColdOpenVisualOverlapSafety,
     validateSlotFillsDialogueCaptions,
     resolveDialogueLineWindows,
