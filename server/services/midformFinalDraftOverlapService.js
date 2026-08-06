@@ -176,7 +176,15 @@ function compareFinalDraftClipChains(koChain, jaChain, thresholds = THRESHOLDS, 
   const openingClips = (chain) => chain.filter((clip) => Number(clip.timeline_range?.[0] || 0) < 15 && !isFixedWindowClip(clip));
   const koOpening = openingClips(koChain);
   const jaOpening = openingClips(jaChain);
-  const chainSimilarity = lcsSimilarity(koChain.map(signatureForClip), jaChain.map(signatureForClip));
+  // Chain similarity must only look at clips the locales were free to choose. Pinned
+  // dialogue/hook windows play in both locales in chronological order by design, so on a
+  // dialogue-heavy single-scene source they alone push LCS ~0.9 with no copying involved.
+  const freeClips = (chain) => chain.filter((clip) => !isFixedWindowClip(clip));
+  const koFree = freeClips(koChain);
+  const jaFree = freeClips(jaChain);
+  const chainSimilarity = koFree.length && jaFree.length
+    ? lcsSimilarity(koFree.map(signatureForClip), jaFree.map(signatureForClip))
+    : 0;
   const openingSimilarity = lcsSimilarity(koOpening.map(signatureForClip), jaOpening.map(signatureForClip));
   const overlapRatio = sourceRangeOverlapRatio(koChain, jaChain);
   const koTopHighlightOrder = topHighlightClusterOrdering(koChain);
