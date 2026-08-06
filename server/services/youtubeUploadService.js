@@ -1073,7 +1073,8 @@ function normalizeUploadTitleKey(name) {
     .replace(/^meta_[a-f0-9]+_/i, '')
     .replace(/_ko$/i, '')
     .replace(/\(\d+\)$/g, '')
-    .replace(/^\d{8}_\d{6}-\d{3}-[a-z]-/i, '')
+    .replace(/^\d{8}_\d{6}-\d{3}-[a-z]+-/i, '')
+    .replace(/^\d{8}-[a-z][a-z0-9]{0,2}-\d{6}-/i, '')
     .normalize('NFKC')
     .toLowerCase()
     .replace(/\s+/g, '')
@@ -1081,22 +1082,55 @@ function normalizeUploadTitleKey(name) {
     .replace(/[^\p{L}\p{N}]/gu, '');
 }
 
-function extractDraftMatchKey(name) {
+function normalizeDraftVariantCode(code, suffixIsKorean) {
+  let normalizedCode = String(code || '').toLowerCase();
+  if (suffixIsKorean && (normalizedCode === 'h' || normalizedCode === 'hl')) normalizedCode = 'kh';
+  if (suffixIsKorean && normalizedCode === 'f') normalizedCode = 'kf';
+  if (normalizedCode === 'krh' || normalizedCode === 'koh') normalizedCode = 'kh';
+  if (normalizedCode === 'krf' || normalizedCode === 'kof') normalizedCode = 'kf';
+  return normalizedCode;
+}
+
+// Draft folder naming has two generations:
+//  - legacy:  YYYYMMDD_HHMMSS-NNN-CODE-title      (NNN = batch item number)
+//  - current: YYYYMMDD-CODE-HHMMSS-title [Hnn]    (Hnn = highlight cut ordinal)
+// stampKey identifies the draft generation run (no variant code), prefixKey adds
+// the normalized variant code, and ordinal separates sibling highlight cuts that
+// share one draft folder.
+function parseDraftNameParts(name) {
   const stem = path.parse(repairOriginalName(name)).name
     .replace(/^upload_\d+_/i, '')
     .replace(/^meta_[a-f0-9]+_/i, '')
     .replace(/\(\d+\)$/g, '')
     .normalize('NFKC');
-  const match = stem.match(/^(\d{8}_\d{6}-\d{3})-([A-Za-z]+)/);
-  if (!match) return '';
   const suffixIsKorean = /_ko$/i.test(stem);
-  const code = String(match[2] || '').toLowerCase();
-  let normalizedCode = code;
-  if (suffixIsKorean && (code === 'h' || code === 'hl')) normalizedCode = 'kh';
-  if (suffixIsKorean && code === 'f') normalizedCode = 'kf';
-  if (code === 'krh' || code === 'koh') normalizedCode = 'kh';
-  if (code === 'krf' || code === 'kof') normalizedCode = 'kf';
-  return `${match[1]}-${normalizedCode}`.toLowerCase();
+  const legacy = stem.match(/^(\d{8}_\d{6}-\d{3})-([A-Za-z]+)/);
+  if (legacy) {
+    return {
+      stampKey: legacy[1].toLowerCase(),
+      prefixKey: `${legacy[1]}-${normalizeDraftVariantCode(legacy[2], suffixIsKorean)}`.toLowerCase(),
+      ordinal: ''
+    };
+  }
+  const current = stem.match(/^(\d{8})-([A-Za-z][A-Za-z0-9]{0,2})-(\d{6})-/);
+  if (!current) return { stampKey: '', prefixKey: '', ordinal: '' };
+  const ordinalMatch = stem.replace(/_ko$/i, '').match(/[\s_-]([A-Za-z]\d{1,3})$/);
+  const stampKey = `${current[1]}_${current[3]}`.toLowerCase();
+  return {
+    stampKey,
+    prefixKey: `${stampKey}-${normalizeDraftVariantCode(current[2], suffixIsKorean)}`,
+    ordinal: ordinalMatch ? ordinalMatch[1].toLowerCase() : ''
+  };
+}
+
+function extractDraftStampKey(name) {
+  return parseDraftNameParts(name).stampKey;
+}
+
+function extractDraftMatchKey(name) {
+  const { prefixKey, ordinal } = parseDraftNameParts(name);
+  if (!prefixKey) return '';
+  return ordinal ? `${prefixKey}-${ordinal}` : prefixKey;
 }
 
 function toUploadPreviewUrl(filePath) {
@@ -1131,8 +1165,14 @@ function findMatchingMetadata(originalName, metadataByBase, importedMetadata, us
   const titleKey = normalizeUploadTitleKey(originalName);
   if (!titleKey) return null;
 
+  const videoStampKey = extractDraftStampKey(originalName);
   const candidates = importedMetadata.filter((metadata) => {
     if (!isUsable(metadata)) return false;
+    // A generic title (e.g. 鍛造工程ができるまで H01) recurs across draft folders;
+    // when both names carry a draft stamp, disagreeing stamps mean different
+    // source videos, so a title match alone must not pair them.
+    const metadataStampKey = extractDraftStampKey(metadata.originalName || '');
+    if (videoStampKey && metadataStampKey && metadataStampKey !== videoStampKey) return false;
     const metadataTitleKey = normalizeUploadTitleKey(metadata.originalName || '');
     if (!metadataTitleKey) return false;
     if (metadataTitleKey === titleKey) return true;
@@ -1402,12 +1442,15 @@ function findKoreanReviewMetadata(originalName, videoVariant, importedMetadata) 
   const draftKey = extractDraftMatchKey(originalName);
   const koreanDraftKey = expectedKoreanDraftKey(draftKey, videoVariant);
   const titleKey = normalizeUploadTitleKey(originalName);
+  const videoStampKey = extractDraftStampKey(originalName);
 
   const candidates = importedMetadata.filter((metadata) => {
     if (!metadata?.path || normalizeUploadVariant(metadata.variant) !== reviewVariant) return false;
     if (metadata.baseKey === baseKey && /_ko(?:\.[^.]+)?$/i.test(metadata.originalName || '')) return true;
     if (koreanDraftKey && extractDraftMatchKey(metadata.originalName || '') === koreanDraftKey) return true;
 
+    const metadataStampKey = extractDraftStampKey(metadata.originalName || '');
+    if (videoStampKey && metadataStampKey && metadataStampKey !== videoStampKey) return false;
     const metadataTitleKey = normalizeUploadTitleKey(metadata.originalName || '');
     return Boolean(
       titleKey
@@ -2324,7 +2367,12 @@ module.exports = {
   __test: {
     assertUploadItemsMatchProfiles,
     detectUploadVariant,
+    extractDraftMatchKey,
+    extractDraftStampKey,
     extractVariantMetadataSection,
+    findMatchingMetadata,
+    normalizeBaseName,
+    normalizeUploadTitleKey,
     normalizeUploadVariant,
     parseMetadataText
   }
