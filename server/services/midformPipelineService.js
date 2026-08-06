@@ -313,9 +313,20 @@ function endingStatsFromSegments(segments) {
 }
 
 function buildEditableSlotFills(script) {
+  // Gemini-flow scripts carry slot_fills; bootstrap-flow scripts carry segments only, which
+  // left the review file EMPTY and resume validation failing 0 !== 42. Derive editable fills
+  // from the segments so the reviewer sees and edits the real narration/caption text.
+  const fills = Array.isArray(script?.slot_fills) && script.slot_fills.length
+    ? script.slot_fills
+    : (Array.isArray(script?.segments) ? script.segments : []).map((segment) => ({
+        slot_id: String(segment?.segment_id || ''),
+        segment_type: String(segment?.segment_type || ''),
+        narration: String(segment?.narration || ''),
+        caption_text: String(segment?.caption_text || '')
+      }));
   return {
     script_id: String(script?.script_id || '').trim(),
-    slot_fills: Array.isArray(script?.slot_fills) ? script.slot_fills : [],
+    slot_fills: fills,
     quality_check: {
       all_slots_filled: true,
       slot_order_preserved: true,
@@ -705,9 +716,31 @@ async function revalidateReviewedScript(state) {
     ? readJson(slotFillsPath)
     : buildEditableSlotFills(readJson(state.artifacts.scriptPath));
   const slotMap = readJson(state.artifacts.slotMapPath);
-  const gemini = readJson(state.artifacts.geminiAnalysisPath);
+  // Bootstrap-fed runs carry no Gemini analysis; the review path must not require one.
+  const gemini = readJsonIfExists(state.artifacts.geminiAnalysisPath);
   const transcript = readJson(state.artifacts.transcriptPath);
   const movieResearch = readJsonIfExists(state.artifacts.movieResearchPath);
+  if (!gemini) {
+    // Bootstrap-fed run: the gemini-flow validator and normalizer do not apply. Merge the
+    // reviewer's edits straight onto the script's segments and continue.
+    const script = readJson(state.artifacts.scriptPath);
+    const segmentsById = new Map((script.segments || []).map((segment) => [String(segment.segment_id || ''), segment]));
+    let merged = 0;
+    for (const fill of Array.isArray(slotFillScript?.slot_fills) ? slotFillScript.slot_fills : []) {
+      const segment = segmentsById.get(String(fill?.slot_id || ''));
+      if (!segment) continue;
+      if (typeof fill.narration === 'string' && fill.narration !== String(segment.narration || '')) { segment.narration = fill.narration; merged += 1; }
+      if (typeof fill.caption_text === 'string' && fill.caption_text !== String(segment.caption_text || '')) { segment.caption_text = fill.caption_text; merged += 1; }
+    }
+    writeJson(state.artifacts.scriptPath, script);
+    writeJson(path.join(state.runDir, SLOT_FILLS_FILE), buildEditableSlotFills(script));
+    writeJson(path.join(state.runDir, REVIEW_RESUME_VALIDATION_FILE), {
+      mode: 'bootstrap_direct_merge',
+      merged_fields: merged,
+      validatedAt: new Date().toISOString()
+    });
+    return;
+  }
   const validationOptions = buildValidationOptions(state, transcript, movieResearch);
   await validateSlotFills(slotFillScript, slotMap, gemini, validationOptions);
   const normalizedScript = await normalizeSlotFillsToScript(slotFillScript, slotMap, gemini, {
