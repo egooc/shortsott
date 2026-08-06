@@ -1112,7 +1112,7 @@ async function runBootstrapToPipeline(runIdOrPath, options = {}) {
     bootstrapScriptPath: assembled.paths.outScriptPath,
     movieTitle: options.movieTitle || assembled.script?.content_context?.content_guess || '',
     contentType: 'movie_midform_recap',
-    pauseBeforeTts: false
+    pauseBeforeTts: options.pauseBeforeTts === true
   });
   result.ok = true;
   result.rendered = true;

@@ -24,6 +24,8 @@ prohibitions:
   - 렌더 결과물의 speaker-color mismatch 금지
 subtitle_limits:
   max_chars: 16
+review:
+  pause_before_tts: true
 render:
   preview_frame_proof: true
   use_capcut_template: true

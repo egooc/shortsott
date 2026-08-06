@@ -175,6 +175,9 @@ function buildNormalizedRequest(parsedTemplate, cliOptions = {}) {
         max_units_per_segment: Number(data.subtitle_limits.max_units_per_segment || 0) || PROFILE_DEFAULTS[profile].subtitle_limits.max_units_per_segment
       } : { ...PROFILE_DEFAULTS[profile].subtitle_limits }
     },
+    review: {
+      pause_before_tts: data?.review?.pause_before_tts === true
+    },
     render: {
       preview_frame_proof: data?.render?.preview_frame_proof === true || (data?.render?.preview_frame_proof !== false && PROFILE_DEFAULTS[profile].preview_frame_proof),
       preview_limit: Number(data?.render?.preview_limit || PROFILE_DEFAULTS[profile].preview_limit),
@@ -724,7 +727,7 @@ async function runMidformTemplateWorkflow(options = {}) {
     let finalPipelineState = null;
     if (shouldRunStage(resumeStage, 'draft') || !fs.existsSync(path.join(workspace.workspaceDir, 'edit_manifest.json'))) {
       const bootstrapRunId = summary.internal.bootstrap_source_run_id || compressionRunId;
-      const bootstrapRun = await runBootstrapToPipeline(bootstrapRunId, { preflightOnly: false, forceDownload: false });
+      const bootstrapRun = await runBootstrapToPipeline(bootstrapRunId, { preflightOnly: false, forceDownload: false, pauseBeforeTts: normalizedRequest.review?.pause_before_tts === true });
       summary.internal.pipeline_run_id = bootstrapRun.pipelineRunId;
       summary.internal.pipeline_run_dir = bootstrapRun.pipelineRunDir;
       writeJson(workspace.summaryPath, summary);
@@ -734,6 +737,22 @@ async function runMidformTemplateWorkflow(options = {}) {
       finalPipelineState = await waitForPipelineRun(existingPipelineRunId);
     }
 
+    if (String(finalPipelineState?.status || '') === 'paused_review') {
+      // Script review gate (user request): the run stops HERE, before any TTS credit is spent.
+      // Edit the narration/captions in the pipeline run's script, then resume.
+      const pausedSummary = {
+        ...summary,
+        status: 'paused_for_script_review',
+        review: {
+          pipeline_run_id: finalPipelineState.runId,
+          script_preview_path: finalPipelineState?.review?.previewPath || '',
+          how_to_resume: `edit the script, then resume pipeline run ${finalPipelineState.runId} (scripts/midform.js review-resume ${finalPipelineState.runId}), and rerun the template with --resume draft`
+        },
+        failure_reason: null
+      };
+      writeJson(workspace.summaryPath, pausedSummary);
+      return pausedSummary;
+    }
     if (!finalPipelineState || !String(finalPipelineState.status || '').startsWith('completed')) {
       const failedSummary = buildPipelineFailureSummary(summary, finalPipelineState, 'draft');
       writeJson(workspace.summaryPath, failedSummary);

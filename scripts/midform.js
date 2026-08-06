@@ -157,6 +157,15 @@ async function main() {
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
     return;
   }
+  if (command === 'review-resume') {
+    // Continues a pipeline run paused for script review: revalidates the edited script, then
+    // TTS and the draft proceed. Credits are only spent from this point on.
+    const { resumeRun } = require('../server/services/midformPipelineService');
+    const state = await resumeRun(subcommand);
+    process.stdout.write(`resumed ${subcommand}: ${state?.status || 'running'}${'
+'}`);
+    return;
+  }
   if (command === 'compress-apply') {
     const result = await runCompressionApply(subcommand, { contextFile: options.contextFile });
     const lines = [
