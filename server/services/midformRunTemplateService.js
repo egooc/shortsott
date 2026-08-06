@@ -735,7 +735,13 @@ async function runMidformTemplateWorkflow(options = {}) {
         try {
           const candidate = getRun(summary.internal.pipeline_run_id);
           const status = String(candidate?.status || '');
-          if (status === 'paused_review' || status.startsWith('completed')) reviewedState = candidate;
+          // A completed run only counts as reviewed when the review gate actually ran on it:
+          // the gate enabled and a resume recorded. A run completed BEFORE the gate existed
+          // matches on status alone, and reusing it ships an unreviewed script while reporting
+          // success - exactly what the gate was added to prevent.
+          const review = candidate?.review || {};
+          const wentThroughReview = review.enabled === true && String(review.resumedAt || '') !== '';
+          if (status === 'paused_review' || (status.startsWith('completed') && wentThroughReview)) reviewedState = candidate;
         } catch {
           // unknown/deleted run: fall through to launching a new one
         }
