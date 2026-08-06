@@ -2149,7 +2149,12 @@ function resolveDialogueLineWindows(transcript, windowStartSec, windowEndSec, li
     }
     current.too_short = (lineEnd - lineStart) < MIN_LINE_SEC;
     if (current.too_short) {
-      warnings.push(`dialogue line window is ${roundSec(lineEnd - lineStart)}s (< ${MIN_LINE_SEC}s) even after extension, no room before the next line: "${current.line}"`);
+      // One unusable sliver used to poison the whole slot: a 0.2s cue ("what do you call this
+      // fella") flagged its slot not-ok, preflight rejected the fresh plan, and the run silently
+      // fell back to a stale one. Drop the line instead - the caption reconciliation removes its
+      // caption - and let the slot stand on the lines that are readable.
+      current.matched = false;
+      warnings.push(`dialogue line window is ${roundSec(lineEnd - lineStart)}s (< ${MIN_LINE_SEC}s) even after extension; line dropped, slot keeps its readable lines: "${current.line}"`);
     }
     prevEnd = lineEnd;
   }
