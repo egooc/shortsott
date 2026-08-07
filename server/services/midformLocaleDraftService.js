@@ -97,6 +97,16 @@ function shiftedSourceRange(range, shiftSec, sourceDurationSec = 0) {
   return [Number(start.toFixed(3)), Number((start + duration).toFixed(3))];
 }
 
+// The usable end of the FOOTAGE, not the file: the last ~10s of a clip-channel upload is the
+// channel's own promo reel. Locale packing used the full duration and pushed a closing b-roll
+// straight into the endcard. source_case.json carries the measured boundary.
+function readUsableEndSec(baseDraftInput) {
+  const candidates = [baseDraftInput?.usableEndSec, baseDraftInput?.usable_end_sec,
+    baseDraftInput?.sourceCase?.usable_end_sec, baseDraftInput?.source_case?.usable_end_sec]
+    .map(Number).filter((value) => Number.isFinite(value) && value > 0);
+  return candidates.length ? Math.min(...candidates) : 0;
+}
+
 function inferSourceDurationSec(baseDraftInput, draftSpec) {
   const baseClipEnds = (Array.isArray(baseDraftInput?.segments) ? baseDraftInput.segments : [])
     .flatMap((segment) => [...(Array.isArray(segment?.source_scenes) ? segment.source_scenes : []), ...(Array.isArray(segment?.source_clips) ? segment.source_clips : [])])
@@ -118,7 +128,10 @@ function inferSourceDurationSec(baseDraftInput, draftSpec) {
 function replanJaDraftSpecForFinalOverlap(draftSpec, finalOverlapReport, attempt, baseDraftInput = {}) {
   const next = cloneJson(draftSpec);
   const placements = Array.isArray(next?.clip_placement) ? next.clip_placement : [];
-  const sourceDurationSec = inferSourceDurationSec(baseDraftInput, next);
+  const usableEndSec = readUsableEndSec(baseDraftInput);
+  const sourceDurationSec = usableEndSec > 0
+    ? Math.min(usableEndSec, inferSourceDurationSec(baseDraftInput, next) || usableEndSec)
+    : inferSourceDurationSec(baseDraftInput, next);
   const overlappingClipIds = new Set((finalOverlapReport?.shared_contiguous_blocks || [])
     .flatMap((block) => Array.isArray(block.clips) ? block.clips : [])
     .map((clip) => String(clip.ja_clip_id || '').trim())
@@ -194,7 +207,10 @@ function collectFixedSourceWindowsBySlot(baseDraftInput) {
 function normalizeDraftSpecSourceRanges(draftSpec, baseDraftInput = {}) {
   const next = cloneJson(draftSpec);
   const placements = Array.isArray(next?.clip_placement) ? next.clip_placement : [];
-  const sourceDurationSec = inferSourceDurationSec(baseDraftInput, next);
+  const usableEndSec = readUsableEndSec(baseDraftInput);
+  const sourceDurationSec = usableEndSec > 0
+    ? Math.min(usableEndSec, inferSourceDurationSec(baseDraftInput, next) || usableEndSec)
+    : inferSourceDurationSec(baseDraftInput, next);
   const fixedWindowsBySlot = collectFixedSourceWindowsBySlot(baseDraftInput);
   const reservedWindows = [...fixedWindowsBySlot.values()].flat().sort((left, right) => left[0] - right[0]);
   const overlapsReserved = (start, end) => reservedWindows.find(([ws, we]) => start < we - 0.001 && end > ws + 0.001);
@@ -555,8 +571,10 @@ async function buildJapaneseBaseDraftInput({ workspaceDir, baseScriptPath, japan
   return { draftInputPath: outputPath, scriptPath: japaneseScriptPath, ttsDir };
 }
 
-async function generateLocaleDraftArtifacts({ workspaceDir, baseDraftInputPath, sourceVideoPath, transcriptPath, baseScriptPath, japaneseSlotFillsPath, draftGenerator = generateLocaleDraftFromInput }) {
+async function generateLocaleDraftArtifacts({ workspaceDir, baseDraftInputPath, sourceVideoPath, transcriptPath, baseScriptPath, japaneseSlotFillsPath, usableEndSec = 0, draftGenerator = generateLocaleDraftFromInput }) {
   const baseDraftInput = readJson(baseDraftInputPath);
+  // Stamp the measured footage end onto the input so every packing helper sees it.
+  if (Number(usableEndSec) > 0) baseDraftInput.usableEndSec = Number(usableEndSec);
   const localeResults = {};
   const outputPaths = {};
   // ja renders from its own assembled draft input (Japanese script + Japanese TTS); every

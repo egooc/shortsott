@@ -64,6 +64,10 @@ PARTICLE_END_RE = re.compile(r"(은|는|이|가|을|를|에|로|으로|에서|�
 PREDICATE_RE = re.compile(r"(습니다|했습니다|됐습니다|됩니다|였습니다|였죠|했죠|이죠|죠|버렸습니다|막았습니다|흔들렸습니다|돌렸습니다|가까웠죠|반박했습니다)$")
 ADVERB_WORDS = {"잠깐", "바로", "다시", "이미", "즉시", "천천히", "결국", "정반대로"}
 CONNECTOR_WORDS = {"그런데", "하지만", "그래서", "결국", "그러니까"}
+# A determiner or a lone modifier stranded at the end of a caption line reads as a stutter:
+# "하지만 이" / "정글 탐사대가 강을" both shipped that way. These may never end a line.
+DETERMINER_WORDS = {"이", "그", "저", "한", "두", "세", "네", "그런", "이런", "저런", "무슨", "어떤", "모든", "온", "첫", "다른", "새", "옛"}
+OBJECT_PARTICLE_RE = re.compile(r"(을|를)$")
 BOUND_NOUN_WORDS = {"거야", "겁니다", "것", "거", "수", "뿐", "때", "채", "줄"}
 AUXILIARY_START_WORDS = {"않자", "않고", "않아", "않았죠", "않았습니다", "않는데", "버렸죠", "버렸습니다", "버렸는데", "있었죠", "있었습니다", "있었는데"}
 DEPENDENT_NOUN_STARTS = {"쪽으로", "때문에", "뿐만"}
@@ -504,6 +508,14 @@ def is_forbidden_boundary(left_word, right_word):
         return True
     if left.endswith("의"):
         return True
+    if word_core(left) in DETERMINER_WORDS:
+        return True
+    if CONNECTOR_WORDS and word_core(left) in CONNECTOR_WORDS:
+        return True
+    # A one-syllable object ("강을", "말을") stranded before its verb reads badly, but only when
+    # the verb is short enough that keeping them together still fits a line.
+    if OBJECT_PARTICLE_RE.search(word_core(left)) and len(word_core(left)) <= 2 and visible_len(right) <= 6:
+        return True
     if left in ADVERB_WORDS and PREDICATE_RE.search(right):
         return True
     if left.endswith(("가", "이")) and PREDICATE_RE.search(right):
@@ -598,7 +610,33 @@ def balanced_partition_words(words, max_chars=CAPTION_MAX_CHARS, protected_chars
                 best = (score, chunks)
         if best is not None:
             return [" ".join(chunk) for chunk in best[1]]
-    return [" ".join(words)]
+    # Tightening the stranding rules can starve the candidate search, and returning the whole
+    # line unsplit puts a caption far over the width limit on screen. Fall back to a greedy
+    # fill that still refuses forbidden boundaries, so the worst case is a plainer split rather
+    # than an unreadable one.
+    chunks = []
+    current = []
+    for word in words:
+        candidate = current + [word]
+        if current and visible_len(" ".join(candidate)) > max_chars:
+            # Over the limit: cut at the LAST legal boundary in what we have, not just the one
+            # right here. A single legal seam early in the line is otherwise unreachable, and
+            # the caption ships one long unsplit row ("아무도 그의 말을 믿어주지 않았습니다").
+            cut = None
+            for index in range(len(current), 0, -1):
+                left = current[index - 1]
+                right = current[index] if index < len(current) else word
+                if not is_forbidden_boundary(left, right):
+                    cut = index
+                    break
+            if cut:
+                chunks.append(current[:cut])
+                current = current[cut:] + [word]
+                continue
+        current = candidate
+    if current:
+        chunks.append(current)
+    return [" ".join(chunk) for chunk in chunks] if chunks else [" ".join(words)]
 
 
 JAPANESE_KANA_RE = re.compile(r"[ぁ-んァ-ヴ]")

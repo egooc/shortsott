@@ -796,7 +796,9 @@ async function runMidformTemplateWorkflow(options = {}) {
       sourceVideoPath: finalPipelineState.artifacts?.sourceVideoPath || '',
       transcriptPath: finalPipelineState.artifacts?.transcriptPath || '',
       baseScriptPath: finalPipelineState.artifacts?.scriptPath || path.join(finalPipelineState.runDir, 'script.json'),
-      japaneseSlotFillsPath: fs.existsSync(japaneseSlotFillsPath) ? japaneseSlotFillsPath : ''
+      japaneseSlotFillsPath: fs.existsSync(japaneseSlotFillsPath) ? japaneseSlotFillsPath : '',
+      // The measured end of the film footage; locale packing must not reach into the promo tail.
+      usableEndSec: Number((readJsonIfExists(path.join(bootstrapSourceRunDir, 'source_case.json')) || {}).usable_end_sec || 0)
     });
     const localeAcceptancePaths = updateLocaleAcceptanceGatesWithFinalDraft(workspace.workspaceDir, localeDrafts.finalOverlapReport);
     summary.internal.locale_draft_artifacts = localeDrafts.outputPaths;
