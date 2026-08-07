@@ -1655,6 +1655,97 @@ def material_media_path(material):
     return ""
 
 
+def _png_size(path):
+    try:
+        with open(path, 'rb') as file:
+            head = file.read(26)
+        if head[:8] != bytes([137, 80, 78, 71, 13, 10, 26, 10]):
+            return (0, 0)
+        width = int.from_bytes(head[16:20], 'big')
+        height = int.from_bytes(head[20:24], 'big')
+        return (width, height)
+    except Exception:
+        return (0, 0)
+
+
+def inject_frame_band_tracks(draft_content_path, draft_path, total_duration_sec):
+    """Place the locale frame bands directly from midform/assets/frame - no template needed.
+
+    Each band becomes a full-duration photo segment: scale 1.0 width-fits a wide image to the
+    canvas, so y anchors the scaled image flush to the top/bottom edge. Runs after the template
+    overlay passthrough; skips quietly when the asset for this locale does not exist."""
+    summary = {'applied': [], 'missing': []}
+    try:
+        with open(draft_content_path, 'r', encoding='utf-8-sig') as file:
+            doc = json.load(file)
+    except Exception:
+        return summary
+    canvas = doc.get('canvas_config') or {}
+    canvas_w = float(canvas.get('width') or 1080)
+    canvas_h = float(canvas.get('height') or 1920)
+    total_us = int(max(0.0, float(total_duration_sec or 0)) * 1000000)
+    if total_us <= 0:
+        return summary
+    overlay_dir = os.path.join(draft_path or os.path.dirname(draft_content_path), 'overlay')
+    videos = ensure_material_category(doc, 'videos')
+    tracks = doc.setdefault('tracks', [])
+    specs = [('band_top', 'top', 11150), ('band_bottom', 'bottom', 11151), ('channel_logo', 'logo', 11152)]
+    for stem, anchor, render_index in specs:
+        asset = resolve_frame_band_override(stem + '.png')
+        if not asset:
+            summary['missing'].append(stem)
+            continue
+        img_w, img_h = _png_size(asset)
+        if not img_w or not img_h:
+            summary['missing'].append(stem + ' (unreadable)')
+            continue
+        os.makedirs(overlay_dir, exist_ok=True)
+        copied = os.path.abspath(os.path.join(overlay_dir, 'frame_' + os.path.basename(asset)))
+        shutil.copy2(asset, copied)
+        shown_h = img_h * (canvas_w / img_w)
+        if anchor == 'top':
+            transform = {'x': 0.0, 'y': (canvas_h - shown_h) / canvas_h}
+            scale = {'x': 1.0, 'y': 1.0}
+        elif anchor == 'bottom':
+            transform = {'x': 0.0, 'y': -((canvas_h - shown_h) / canvas_h)}
+            scale = {'x': 1.0, 'y': 1.0}
+        else:
+            logo_scale = (216.0 / canvas_w) / (img_w / canvas_w) if img_w else 1.0
+            transform = {'x': 0.741, 'y': 0.416}
+            scale = {'x': logo_scale, 'y': logo_scale}
+        material_id = new_capcut_id()
+        videos.append({
+            'id': material_id,
+            'type': 'photo',
+            'path': copied,
+            'local_path': copied,
+            'name': os.path.basename(copied),
+            'width': img_w,
+            'height': img_h,
+            'duration': 10800000000,
+        })
+        segment = {
+            'id': new_capcut_id(),
+            'material_id': material_id,
+            'visible': True,
+            'render_index': render_index,
+            'track_render_index': 0,
+            'target_timerange': {'start': 0, 'duration': total_us},
+            'source_timerange': {'start': 0, 'duration': total_us},
+            'clip': {'transform': transform, 'scale': scale, 'rotation': 0.0, 'flip': {'horizontal': False, 'vertical': False}, 'alpha': 1.0},
+        }
+        tracks.append({
+            'id': new_capcut_id(),
+            'type': 'video',
+            'name': 'frame_' + stem,
+            'segments': [segment],
+        })
+        summary['applied'].append(stem)
+    with open(draft_content_path, 'w', encoding='utf-8') as file:
+        json.dump(doc, file, ensure_ascii=False)
+    return summary
+
+
 def apply_template_overlay_passthrough(draft_content_path, template_doc, template_root, draft_path, total_duration_sec):
     summary = {
         "enabled": True,
@@ -11327,6 +11418,10 @@ def create_draft(input_json_path):
                 "reason": f"template overlay passthrough failed: {passthrough_error}",
             }
             warnings.append(template_overlay_passthrough_summary["reason"])
+        try:
+            frame_band_summary = inject_frame_band_tracks(generated_draft_content_path, draft_path, total_tts_duration_sec)
+        except Exception as band_error:
+            warnings.append(f"frame band injection failed: {band_error}")
 
     portrait_crop_summary = apply_midform_portrait_crops_to_draft(
         generated_draft_content_path,
