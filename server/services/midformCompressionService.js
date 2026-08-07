@@ -3426,6 +3426,13 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec, usableEndSec =
         cold.decision = 'KEEP_DIALOGUE';
         cold.visual_source_mode = 'source_dialogue_hook';
         if (cold.visual_source_beat_id) cold.beat_id = String(cold.visual_source_beat_id).trim();
+        // A non-verbal peak beat often carries no key_dialogue, so the flip must supply its
+        // own quotes - the spoken cues it just detected ARE the lines.
+        const spokenTexts = spoken.map((cue) => String(cue.text || '').replace(/\s+/g, ' ').trim()).filter(Boolean);
+        if (spokenTexts.length) {
+          cold.dialogue_focus_quotes = spokenTexts.slice(0, 2);
+          cold.dialogue_focus_lines = spokenTexts.slice(0, 2);
+        }
         cold.dialogue_focus_source = 'scene_hook_flipped_to_dialogue';
         cold.reason = `${cold.reason || ''} The teaser moment is spoken, so it opens as captioned dialogue rather than an uncaptioned scene hook.`.trim();
       }
@@ -3487,6 +3494,17 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec, usableEndSec =
         cold.dialogue_line_window_ok = lineResolution.ok;
         cold.dialogue_line_window_warnings = lineResolution.warnings;
         Object.assign(cold, annotateDialogueSlotForQc(cold, lineResolution, enriched.qc));
+      }
+      // If the flip's cue text could not be resolved to windows, a KEEP_DIALOGUE cold open
+      // with no quotes would fail the whole plan - fall back to the uncaptioned scene hook
+      // it was before, which is always valid.
+      if (cold.dialogue_focus_source === 'scene_hook_flipped_to_dialogue'
+        && !(Array.isArray(cold.dialogue_line_windows) && cold.dialogue_line_windows.some((win) => win && win.matched === true))) {
+        cold.decision = 'NARRATE';
+        cold.visual_source_mode = 'source_audio_teaser';
+        cold.dialogue_focus_quotes = [];
+        cold.dialogue_focus_lines = [];
+        delete cold.dialogue_line_windows;
       }
       cold.visual_source_mode = cold.visual_source_mode || 'source_dialogue_hook';
       cold.visual_source_beat_id = cold.visual_source_beat_id || String(cold.beat_id || '');
