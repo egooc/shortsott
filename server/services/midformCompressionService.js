@@ -2760,7 +2760,13 @@ function nextFreeSlotId(usedIds) {
 // came back anywhere from 38s to 132s). Rather than retrying until the model happens to
 // comply, fill the gap here: promote the strongest beats it left on the floor into short
 // narration slots, in story order, until the cut can actually reach its target.
-function topUpTimelineToTargetRuntime(timeline, beats, transcript, targetSec) {
+function topUpTimelineToTargetRuntime(timeline, beats, transcript, targetSec, usableEndSec = 0) {
+  // Promotions draw straight from the transcript, so the footage boundary has to be honoured
+  // here too - otherwise top-up refills the very endcard lines the filter just removed.
+  const limit = Number(usableEndSec || 0);
+  if (limit > 0) {
+    transcript = (Array.isArray(transcript) ? transcript : []).filter((cue) => Number(cue?.start_sec) < limit);
+  }
   const target = Number(targetSec || 0);
   const items = Array.isArray(timeline) ? [...timeline] : [];
   if (!(target > 0) || !items.length) return items;
@@ -3690,7 +3696,11 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec, usableEndSec =
     }));
   }
 
-  const toppedUpTimeline = topUpTimelineToTargetRuntime(timeline, beats, transcript, targetSec);
+  // Cut the promo tail BEFORE topping up. Filtering afterwards left the freed slots empty:
+  // the Anacondas cut used 6 of 12 usable cues and ran 54s against a 75s target, because the
+  // lines dropped for sitting in the endcard were never replaced.
+  const footageBoundTimeline = dropWindowsPastUsableEnd(timeline, usableEndSec);
+  const toppedUpTimeline = topUpTimelineToTargetRuntime(footageBoundTimeline, beats, transcript, targetSec, usableEndSec);
   const interleavedTimeline = interleaveDialogueIntoNarrationRuns(toppedUpTimeline, beats, transcript);
   // Adopt audible-but-uncaptioned cues BEFORE the windows are separated, so the new lines get
   // the same overlap treatment as the rest.

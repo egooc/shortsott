@@ -691,6 +691,17 @@ def split_japanese_caption(text, max_chars=CAPTION_MAX_CHARS_JA):
     if visible_len(text) <= max_chars:
         return [text]
     pieces = [piece for piece in JA_CLAUSE_BREAK_RE.split(text) if piece.strip()]
+    # A clause break after the FINAL punctuation leaves the mark alone as its own piece, and it
+    # shipped as a caption line reading just "。". Fold any punctuation-only piece back onto the
+    # text it belongs to.
+    folded = []
+    for piece in pieces:
+        stripped = piece.strip()
+        if folded and stripped and all(char in "、，。！？」』" for char in stripped):
+            folded[-1] = folded[-1] + stripped
+        else:
+            folded.append(stripped)
+    pieces = [piece for piece in folded if piece]
     chunks = []
     buffer = ""
     for piece in pieces:
@@ -712,7 +723,15 @@ def split_japanese_caption(text, max_chars=CAPTION_MAX_CHARS_JA):
             chunk = chunk[cut:]
         if chunk:
             wrapped.append(chunk)
-    return wrapped or [text]
+    # Hard wrapping can still strand a trailing mark on its own line; merge it back. One
+    # character over the limit reads far better than a line containing only "。".
+    merged = []
+    for piece in wrapped:
+        if merged and piece and all(char in "、，。！？」』" for char in piece):
+            merged[-1] = merged[-1] + piece
+        else:
+            merged.append(piece)
+    return merged or [text]
 
 
 def split_long_caption_by_eojeol(text, max_chars=CAPTION_MAX_CHARS, min_eojeol=1, extended_chars=CAPTION_EXTENDED_CHARS):
