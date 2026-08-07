@@ -5164,36 +5164,36 @@ function publicCandidateReason(window = {}) {
   return reason;
 }
 
-function buildCandidateReportDescription(block = '', window = {}, label = 'H01', candidateCount = 1, cueTitle = '', korean = false) {
+// Source-video second ranges, scene-type cues, and Gemini's selection rationale
+// (often English) are selector bookkeeping: the viewer watches a trimmed clip
+// where none of them mean anything. The public description is the cut's own
+// explainer plus the source-level production description Gemini wrote for
+// upload. publicCandidateReason stays as the guard for any path that still
+// surfaces window.reason.
+function buildCandidateReportDescription(block = '', window = {}, label = 'H01', candidateCount = 1, cueTitle = '', korean = false, baseDescription = '') {
+  void window;
   void label;
   void candidateCount;
-  const reason = publicCandidateReason(window);
+  void cueTitle;
+  const blockText = String(block || '').trim();
+  const detail = String(baseDescription || '').trim();
+  const detailIsUsable = Boolean(
+    detail
+    && !/하이라이트\s*개요|ハイライト\s*概要/u.test(detail)
+    && normalizeHighlightCompareText(detail) !== normalizeHighlightCompareText(blockText)
+  );
   if (korean) {
     return [
-      '## 1. 하이라이트 개요',
-      block,
-      '',
-      '## 2. 선택 장면',
-      [`${formatHighlightWindowRange(window, true)} 구간입니다.`, cueTitle ? `장면 유형: ${cueTitle}.` : '']
-        .filter(Boolean).join(' '),
-      reason,
-      '',
-      '## 3. 보는 포인트',
-      '전체 공정의 요약이 아니라, 이 컷에서 두드러지는 움직임과 변화에 집중한 하이라이트입니다.'
-    ].filter(Boolean).join('\n');
+      ['## 1. 하이라이트 개요', blockText].join('\n'),
+      ['## 2. 보는 포인트', '전체 공정의 요약이 아니라, 이 컷에서 두드러지는 움직임과 변화에 집중한 하이라이트입니다.'].join('\n'),
+      detailIsUsable ? ['## 3. 작업 상세', detail].join('\n') : ''
+    ].filter(Boolean).join('\n\n');
   }
   return [
-    '## 1. ハイライト概要',
-    block,
-    '',
-    '## 2. 選定シーン',
-    [`${formatHighlightWindowRange(window)}の区間です。`, cueTitle ? `シーンタイプ: ${cueTitle}。` : '']
-      .filter(Boolean).join(' '),
-    reason,
-    '',
-    '## 3. 見どころ',
-    '全体工程の要約ではなく、このカットで目立つ動きと変化に絞ったハイライトです。'
-  ].filter(Boolean).join('\n');
+    ['## 1. ハイライト概要', blockText].join('\n'),
+    ['## 2. 見どころ', '全体工程の要約ではなく、このカットで目立つ動きと変化に絞ったハイライトです。'].join('\n'),
+    detailIsUsable ? ['## 3. 作業詳細', detail].join('\n') : ''
+  ].filter(Boolean).join('\n\n');
 }
 
 function withCandidateTitleSuffix(title = '', label = 'H01') {
@@ -5283,7 +5283,7 @@ function buildHighlightCandidateGuide(baseGuide = {}, rawWindow = {}, highlightO
     short_description: blockJa,
     onscreen_caption_block: blockJa,
     onscreen_subtitles: [],
-    report_description: buildCandidateReportDescription(blockJa, window, label, candidateCount, titleCueJa, false),
+    report_description: buildCandidateReportDescription(blockJa, window, label, candidateCount, titleCueJa, false, baseMetadata.report_description || ''),
     recommended_titles: safeJapanesePublicRecommendedTitles(recommendedTitles, hashtags, title),
     hashtags,
     source_window: window,
@@ -5317,7 +5317,7 @@ function buildHighlightCandidateGuide(baseGuide = {}, rawWindow = {}, highlightO
     short_description: blockKo,
     onscreen_caption_block: blockKo,
     onscreen_subtitles: [],
-    report_description: buildCandidateReportDescription(blockKo, window, label, candidateCount, candidateCueTitle(cue, stage, true), true),
+    report_description: buildCandidateReportDescription(blockKo, window, label, candidateCount, candidateCueTitle(cue, stage, true), true, baseReview.report_description || ''),
     recommended_titles: koreanTitles,
     hashtags: []
   };
@@ -5435,27 +5435,15 @@ function formatMetadataReportDescription(value = '', korean = false) {
   // The highlight variants use their own section titles. They have to be listed here
   // too: this function collapses all whitespace first and only restores line breaks
   // in front of headings it recognises, so an unlisted heading set came out as one
-  // run-on paragraph in the uploaded description.
-  const headings = korean
-    ? [
-        ['1', '(?:작업\\s*개요|하이라이트\\s*개요)'],
-        ['2', '(?:사용\\s*재료\\s*및\\s*장비|선택\\s*장면)'],
-        ['3', '(?:시공\\s*절차|보는\\s*포인트)'],
-        ['4', '작업의\\s*중요성'],
-        ['5', '가이드라인\\s*준수\\s*및\\s*교육적\\s*목적']
-      ]
-    : [
-        ['1', '(?:作業\\s*概要|ハイライト\\s*概要)'],
-        ['2', '(?:使用\\s*材料\\s*と\\s*設備|選定\\s*シーン)'],
-        ['3', '(?:工程\\s*手順|作業\\s*手順|見どころ)'],
-        ['4', '作業\\s*の\\s*重要性'],
-        ['5', 'ガイドライン\\s*遵守\\s*と\\s*教育\\s*目的']
-      ];
-
-  headings.forEach(([number, label], index) => {
-    const pattern = new RegExp(`\\s*(?:#{1,6}\\s*)?(${number}\\.\\s*${label})\\s*`, 'u');
-    text = text.replace(pattern, `${index === 0 ? '' : '\n\n'}## $1\n`);
-  });
+  // run-on paragraph in the uploaded description. The highlight description embeds
+  // the source-level five-section description after its own numbered sections, so
+  // heading numbers repeat - match any known label with any single-digit number,
+  // every occurrence, instead of fixed number-to-label pairs.
+  const headingLabels = korean
+    ? '작업\\s*개요|하이라이트\\s*개요|사용\\s*재료\\s*및\\s*장비|선택\\s*장면|시공\\s*절차|보는\\s*포인트|작업\\s*상세|작업의\\s*중요성|가이드라인\\s*준수\\s*및\\s*교육적\\s*목적'
+    : '作業\\s*概要|ハイライト\\s*概要|使用\\s*材料\\s*と\\s*設備|選定\\s*シーン|工程\\s*手順|作業\\s*手順|見どころ|作業\\s*詳細|作業\\s*の\\s*重要性|ガイドライン\\s*遵守\\s*と\\s*教育\\s*目的';
+  const headingPattern = new RegExp(`\\s*(?:#{1,6}\\s*)?(\\d\\.\\s*(?:${headingLabels}))\\s*[:：]?\\s*`, 'gu');
+  text = text.replace(headingPattern, '\n\n## $1\n').replace(/^\n+/, '');
 
   return text
     .replace(/[ \t]+\n/g, '\n')
@@ -11734,6 +11722,8 @@ module.exports = {
     buildLongformHighlightTwoLayerPreset,
     highlightOutputCountForItem,
     candidateTitleForWindow,
+    buildCandidateReportDescription,
+    formatMetadataReportDescription,
     collectHighlightCandidateWindows,
     isProcessSpanHighlightCandidate,
     rankedTitleCandidate,

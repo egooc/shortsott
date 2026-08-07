@@ -1295,6 +1295,52 @@ function testPublicHighlightDescriptionHasNoInternalNotes() {
   );
 }
 
+function testHighlightReportDescriptionCarriesDetailWithoutInternalNotes() {
+  const window = { start_sec: 442, end_sec: 453, reason: 'Unique mechanical process with good visual tension.' };
+  const baseKo = '1. 작업 개요: 로드 연마 공정입니다. 2. 사용 재료 및 장비: 연마 숫돌과 냉각수 장치. 3. 시공 절차: 고정 후 연마합니다. 4. 작업의 중요성: 표면 품질을 좌우합니다. 5. 가이드라인 준수 및 교육적 목적: 전문 작업자가 수행합니다.';
+  const reportKo = queueTest.buildCandidateReportDescription('컷 전용 설명 문장입니다.', window, 'H01', 3, '후반 변화 순간', true, baseKo);
+  assert(
+    !/442|453|구간입니다|선택 장면|장면 유형/.test(reportKo),
+    'source-video seconds and scene-type cues must not reach the public description'
+  );
+  assert(
+    !/Unique mechanical/.test(reportKo),
+    "Gemini's English window-selection rationale must not reach the public description"
+  );
+  assert(reportKo.includes('컷 전용 설명 문장입니다.'), 'the cut explainer must lead the public description');
+  assert(reportKo.includes('작업의 중요성'), 'the source-level five-section description must be appended');
+
+  const restored = queueTest.formatMetadataReportDescription(reportKo, true);
+  assert(
+    restored.includes('## 2. 사용 재료 및 장비') && restored.includes('## 5. 가이드라인 준수 및 교육적 목적'),
+    'embedded five-section headings must get their line breaks restored even with repeated numbers'
+  );
+
+  const reportJa = queueTest.buildCandidateReportDescription(
+    'カット専用の説明です。',
+    window,
+    'H01',
+    3,
+    '後半の変化の瞬間',
+    false,
+    '1. 作業概要: 研磨工程です。 4. 作業の重要性: 表面品質を左右します。'
+  );
+  assert(
+    !/442|区間です|選定シーン|シーンタイプ/.test(reportJa),
+    'the Japanese description must not carry internal selector notes'
+  );
+  assert(
+    reportJa.includes('作業詳細') && reportJa.includes('作業の重要性'),
+    'the Japanese description must append the source-level detail'
+  );
+
+  const withoutBase = queueTest.buildCandidateReportDescription('컷 전용 설명 문장입니다.', window, 'H01', 3, '', true, '');
+  assert(
+    !withoutBase.includes('작업 상세'),
+    'without a source-level description there must be no empty detail section'
+  );
+}
+
 function testKoreanHighlightAlsoMatchesTitlesByWindow() {
   const base = {
     highlight_metadata: { recommended_titles: [{ category: 'hook', title: 'JA representative', hashtags: [] }], upload_title: 'JA representative', highlight_candidate_titles: [] },
@@ -1664,6 +1710,7 @@ function main() {
   testEachHighlightWindowGetsItsOwnTitle();
   testProcessSpanFilterOnlyRejectsRealWholeProcessWindows();
   testHighlightCaptionsUseGeminiPerWindowExplanations();
+  testHighlightReportDescriptionCarriesDetailWithoutInternalNotes();
   testKoreanHighlightAlsoMatchesTitlesByWindow();
   testItemUploadTitleComesFromTheLocaleHighlight();
   testSourceDurationDoesNotFallBackToOutputTarget();
