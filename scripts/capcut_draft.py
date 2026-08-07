@@ -11046,25 +11046,31 @@ def create_draft(input_json_path):
                                 segment_video_end_us = max(segment_video_end_us, repeat_end_us)
                                 remaining_us = 0
                         else:
-                            pad_mode = "repeat_last"
+                            # repeat_last replayed the clip from its start - the user watched
+                            # the same 1.8s tail loop SEVEN times, and even a small remainder
+                            # restarts the scene as a visible jump. Freeze the last frame
+                            # instead: a calm hold reads as an intentional beat.
+                            pad_mode = "freeze_last_frame"
                             segment_pad_modes.add(pad_mode)
-                            while remaining_us > 0:
-                                repeat_us = min(fill_ref["source_duration_us"], remaining_us)
-                                repeat_end_us = add_video_segment_with_manifest(
-                                    segment_id=segment_id,
-                                    clip_id=f"{fill_ref['clip_id']}_repeat",
-                                    source_start_tc="repeat_last",
-                                    source_end_tc="repeat_last",
-                                    source_start_us=fill_ref["source_start_us"],
-                                    source_duration_for_segment_us=repeat_us,
-                                    place_duration_us=repeat_us,
-                                    timeline_start_us=timeline_cursor_us,
-                                    tts_duration_us=tts_duration_us,
-                                    placement_warnings=["segment padded by repeating last source clip"],
-                                )
-                                timeline_cursor_us = repeat_end_us
-                                segment_video_end_us = max(segment_video_end_us, repeat_end_us)
-                                remaining_us -= repeat_us
+                            fps_value = max(1.0, safe_float(data.get("fps"), 30.0))
+                            frame_duration_us = max(1, int(round(1_000_000 / fps_value)))
+                            freeze_end_us = fill_ref["source_start_us"] + fill_ref["source_duration_us"]
+                            freeze_start_us = max(0, freeze_end_us - frame_duration_us)
+                            repeat_end_us = add_video_segment_with_manifest(
+                                segment_id=segment_id,
+                                clip_id=f"{fill_ref['clip_id']}_freeze",
+                                source_start_tc="freeze_last_frame",
+                                source_end_tc="freeze_last_frame",
+                                source_start_us=freeze_start_us,
+                                source_duration_for_segment_us=frame_duration_us,
+                                place_duration_us=remaining_us,
+                                timeline_start_us=timeline_cursor_us,
+                                tts_duration_us=tts_duration_us,
+                                placement_warnings=[f"segment padded by freezing last frame for {round(remaining_us / 1_000_000, 3)}s"],
+                            )
+                            timeline_cursor_us = repeat_end_us
+                            segment_video_end_us = max(segment_video_end_us, repeat_end_us)
+                            remaining_us = 0
                     else:
                         if source_duration_us > 0:
                             pad_mode = "placeholder"
