@@ -3430,6 +3430,14 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec, usableEndSec =
         // own quotes - the spoken cues it just detected ARE the lines.
         const spokenTexts = spoken.map((cue) => String(cue.text || '').replace(/\s+/g, ' ').trim()).filter(Boolean);
         if (spokenTexts.length) {
+          // The lead-in line usually lives OUTSIDE the peak beat, and beat-scoped resolution
+          // cannot see it - store the cue coordinates so the cold-open resolver can build
+          // windows directly.
+          cold.flip_cue_windows = spoken.slice(0, 2).map((cue) => ({
+            line: String(cue.text || '').replace(/\s+/g, ' ').trim(),
+            start_sec: Number(cue.start_sec),
+            end_sec: Math.min(Number(cue.end_sec), teaserEnd)
+          }));
           cold.dialogue_focus_quotes = spokenTexts.slice(0, 2);
           cold.dialogue_focus_lines = spokenTexts.slice(0, 2);
         }
@@ -3471,7 +3479,17 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec, usableEndSec =
           .slice(0, 2)
           .map((entry) => entry.quote)
         : modelQuotes;
-      const rawFocus = coldBeat ? collectDialogueFocus(coldBeat, transcript, preferredQuotes.length ? { quotes: preferredQuotes } : {}) : null;
+      // A flipped scene hook carries its own cue coordinates; build the focus from them
+      // directly - beat-scoped matching cannot see a lead-in line outside the peak beat.
+      const flipWindows = Array.isArray(cold.flip_cue_windows) ? cold.flip_cue_windows.filter((win) => Number(win?.end_sec) > Number(win?.start_sec)) : [];
+      const rawFocus = flipWindows.length
+        ? {
+            start_sec: roundSec(Math.min(...flipWindows.map((win) => Number(win.start_sec)))),
+            end_sec: roundSec(Math.max(...flipWindows.map((win) => Number(win.end_sec)))),
+            lines: flipWindows.map((win) => win.line),
+            matched_quotes: flipWindows.map((win) => win.line)
+          }
+        : (coldBeat ? collectDialogueFocus(coldBeat, transcript, preferredQuotes.length ? { quotes: preferredQuotes } : {}) : null);
       if (rawFocus) {
         const enriched = enrichDialogueFocusForCoherence(coldBeat, transcript, rawFocus);
         const focus = limitDialogueFocusLines(enriched.focus, preferredQuotes);
