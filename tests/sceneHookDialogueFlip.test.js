@@ -59,3 +59,37 @@ test('a teaser over a sound-effect caption does not flip', () => {
   const cold = finalized.timeline.find((item) => item.role === 'cold_open');
   assert.equal(cold.decision, 'NARRATE', 'a bell is not dialogue');
 });
+
+// The Anacondas teaser started 0.1s AFTER "...onto my shirt, what?!" ended, so the flip saw no
+// spoken cue and the hook shipped uncaptioned - while a 1.8s closing scrap looped seven times.
+test('a cue ending a breath before the teaser still flips it to captioned dialogue', () => {
+  const cues = [
+    { start_sec: 61.5, end_sec: 70.3, text: 'what are you doing why are you going onto my shirt what' },
+    { start_sec: 103.8, end_sec: 111.5, text: 'that thing bites you you would be paralyzed for two days' }
+  ];
+  const nearBeats = [
+    {
+      beat_id: 'b1', start_sec: 55, end_sec: 80, hook_potential: 5, dramatic_weight: 5, dialogue_quality: 'high',
+      key_dialogue: ['what are you doing why are you going onto my shirt what'],
+      anchor_dialogue: ['what are you doing why are you going onto my shirt what']
+    },
+    { beat_id: 'b2', start_sec: 100, end_sec: 120, hook_potential: 4, dramatic_weight: 4, dialogue_quality: 'high', key_dialogue: ['that thing bites you'], anchor_dialogue: ['that thing bites you'] }
+  ];
+  const plan = {
+    cold_open_selection: { beat_id: 'b1', source: 'heatmap_peak' },
+    timeline: [
+      {
+        slot_id: '1', beat_id: 'b1', role: 'cold_open', decision: 'NARRATE',
+        visual_source_mode: 'source_audio_teaser', visual_source_beat_id: 'b1',
+        visual_source_start_sec: 70.4, visual_source_end_sec: 75.0,
+        start_sec: 70.4, end_sec: 75.0, estimated_duration_sec: 4.6
+      },
+      { slot_id: '2', beat_id: 'b2', role: 'bridge', decision: 'NARRATE', start_sec: 100, end_sec: 120, estimated_duration_sec: 10 }
+    ],
+    duration_budget: { target_sec: 75 },
+    quality_check: {}
+  };
+  const finalized = _test.finalizeEditPlan(plan, nearBeats, cues, 75);
+  const cold = finalized.timeline.find((item) => item.role === 'cold_open');
+  assert.equal(cold.decision, 'KEEP_DIALOGUE', 'the lead-in line flips the teaser to captioned dialogue');
+});

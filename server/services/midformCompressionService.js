@@ -3415,8 +3415,12 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec, usableEndSec =
     if (isSceneHookCold && cold.decision === 'NARRATE') {
       const teaserStart = Number(cold.visual_source_start_sec);
       const teaserEnd = Number(cold.visual_source_end_sec);
+      // A cue ending a breath before the teaser starts is the line that LEADS INTO the peak
+      // (the Anacondas scream teaser started 0.1s after "...onto my shirt, what?!" ended and
+      // shipped uncaptioned). Reach a little earlier so that line joins the hook with captions.
+      const FLIP_NEAR_SEC = 1.5;
       const spoken = (Array.isArray(transcript) ? transcript : []).filter((cue) => (
-        Number(cue?.end_sec) > teaserStart && Number(cue?.start_sec) < teaserEnd && !isNonSpeechCaption(cue?.text)
+        Number(cue?.end_sec) > teaserStart - FLIP_NEAR_SEC && Number(cue?.start_sec) < teaserEnd && !isNonSpeechCaption(cue?.text)
       ));
       if (spoken.length) {
         cold.decision = 'KEEP_DIALOGUE';

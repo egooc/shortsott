@@ -272,7 +272,11 @@ function normalizeDraftSpecSourceRanges(draftSpec, baseDraftInput = {}) {
     // left a 0.25s scrap stretched under seconds of narration. A sliver is the same as nothing.
     // Replaying the hook fails the hybrid gate (b-roll may not sit on reserved dialogue), so
     // take the LARGEST free gap between reserved windows instead - real footage, gate-safe.
-    if (end - start < 1.0 && sourceDurationSec > 0) {
+    // Not just slivers: a 1.8s scrap under 11s of narration loops SEVEN times on screen - the
+    // same tail replaying with its leftover audio. Relocate whenever the clip covers well under
+    // the time it has to fill.
+    const placementNeed = rangeDuration(Array.isArray(placement?.timeline_range) ? placement.timeline_range.map(Number) : []);
+    if ((end - start < 1.0 || (placementNeed > 0 && end - start < placementNeed * 0.6)) && sourceDurationSec > 0) {
       let best = null;
       let cursor = 0;
       // Blockers are BOTH the reserved dialogue windows and every b-roll clip already packed:
