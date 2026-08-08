@@ -34,6 +34,7 @@ const {
   normalizePossiblyMojibakeFilename
 } = require('../utils/uploadFilename');
 const { canonicalSourceKey, markSourceProduced, normalizeTargetLocale } = require('./sourceDiscoveryLibrary');
+const { refineHighlightWindowEdges } = require('./highlightEdgeRefineService');
 const {
   SHORTFORM_FULL_DRAFT_SKIP_MAX_DURATION_SEC
 } = require('../utils/fullDraftRules');
@@ -11389,8 +11390,17 @@ async function generateQueue({ batch_name, item_ids, stop_on_error = false, draf
             row.warnings.push(row.highlight_skip_reason);
           } else {
           assertHighlightCandidateMetadataDistinct(itemConfig, highlightWindows);
+          // Approved edge refinement (2026-08-08): selection is done; only the
+          // chosen windows' edges may move, at most 0.35s each, onto silence
+          // troughs. Fail-open, bounded, recorded per window in the manifest.
+          const edgeRefinement = await refineHighlightWindowEdges({
+            videoPath: row.source_video,
+            windows: highlightWindows,
+            maxDurationSec: highlightMaxDurationForItem(itemConfig, queueConfig.highlight_duration_sec)
+          });
+          row.highlight_edge_refinement = edgeRefinement.summary;
           const highlightResults = [];
-          for (const [highlightIndex, highlightWindow] of highlightWindows.entries()) {
+          for (const [highlightIndex, highlightWindow] of edgeRefinement.windows.entries()) {
             const highlightFactory = isKoreanTargetLocale(itemConfig)
               ? createKoreanHighlightDraftForItem
               : createHighlightDraftForItem;

@@ -84,6 +84,14 @@ to be reverted line-by-line back to a known-good commit (see
 `docs/highlight-window-selector-revert-2026-07-21.md`). If a change to this
 path seems warranted, propose it and wait for confirmation before editing.
 
+Approved addition (2026-08-08, user sign-off): `highlightEdgeRefineService.js`
+runs AFTER window selection and may move each chosen window's edges at most
+0.35s onto a silence trough (fail-open, kill switch `HIGHLIGHT_EDGE_REFINE=0`,
+guarded by `check:highlight-edge-refine`). Its hard limits — no change to
+window count/order/strategy/scene ids, duration never over the cap nor more
+than 0.7s below the original — are part of the protected contract; loosening
+them needs the same explicit sign-off as the selection path itself.
+
 ## Isolate experimental code from production paths
 
 New research/experimental logic (e.g. the Highlight Pattern study in
