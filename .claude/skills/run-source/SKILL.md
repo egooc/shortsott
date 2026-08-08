@@ -11,7 +11,7 @@ description: 새 YouTube 소스로 midform 실행을 시작하는 표준 절차.
 yt-dlp --js-runtimes node --no-playlist --skip-download --print "%(title)s | %(duration)s sec" --list-subs <URL>
 ```
 
-파이프라인은 자막 큐 기반이다. **자동자막조차 없으면 실행 불가** — 같은 장면의 다른 업로드를 사용자에게 요청한다(STT 폴백은 스코프 밖). 제목·길이도 여기서 확보.
+해상도도 함께 확인: 720p 미만이면 compress가 차단한다(SOURCE_RESOLUTION_TOO_LOW), 1080p 미만이면 경고. 파이프라인은 자막 큐 기반이다. **자동자막조차 없으면 실행 불가** — 같은 장면의 다른 업로드를 사용자에게 요청한다(STT 폴백은 스코프 밖). 제목·길이도 여기서 확보.
 
 ## 2. 케이스북 대조
 
