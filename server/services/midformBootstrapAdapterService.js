@@ -608,6 +608,23 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
     return [chosen[0], Math.min(chosen[1], chosen[0] + 30)];
   };
 
+  // Dialogue-saturated fallback: when the slot's own window is fully reserved (a courtroom
+  // scene can be wall-to-wall speech), emitting the window as-is just fails the overlap gate.
+  // Search the WHOLE footage for the free gap nearest to the intended moment instead.
+  const pickNearestFreeGap = (prefStartRaw, needSec) => {
+    const limit = footageEndSec > 0 ? footageEndSec : 0;
+    if (!(limit > 1)) return null;
+    const gaps = subtractBusyRanges(0, limit, [...reservedDialogueRanges, ...assignedBrollRanges])
+      .filter(([gapStart, gapEnd]) => gapEnd - gapStart >= Math.max(1.0, Math.min(needSec, 4)));
+    if (!gaps.length) return null;
+    const prefStart = Math.max(0, Number(prefStartRaw) || 0);
+    gaps.sort((left, right) => Math.min(Math.abs(left[0] - prefStart), Math.abs(left[1] - prefStart))
+      - Math.min(Math.abs(right[0] - prefStart), Math.abs(right[1] - prefStart)));
+    const gap = gaps[0];
+    const capped = [gap[0], Math.min(gap[1], gap[0] + Math.max(needSec, 1.0) + 3)];
+    return snapOutOfSpeech(capped) || capped;
+  };
+
   for (const item of timeline) {
     const slotId = String(item.slot_id || '').trim();
     const role = String(item.role || '').trim();
@@ -817,9 +834,17 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
           sourceRange = [...hookFallbackRange];
           sourceScenes = [{ clip_id: `${slotId}_broll_clip`, scene_id: 'narration_broll', start: secondsToTimecode(hookFallbackRange[0]), end: secondsToTimecode(hookFallbackRange[1]), speed_multiplier: 1 }];
         } else {
-          warnings.push(`${slotId} (${role}) NARRATE found no free b-roll window in [${winStart},${winEnd}] (dialogue-saturated); using beat window as-is`);
-          sourceRange = [winStart, winEnd];
-          sourceScenes = (winEnd > winStart) ? [{ clip_id: `${slotId}_broll_clip`, scene_id: 'narration_broll', start: secondsToTimecode(winStart), end: secondsToTimecode(winEnd), speed_multiplier: 1 }] : [];
+          const globalGap = pickNearestFreeGap(winStart, Math.max(1.0, winEnd - winStart));
+          if (globalGap) {
+            warnings.push(`${slotId} (${role}) NARRATE window [${winStart},${winEnd}] is dialogue-saturated; using nearest free gap [${globalGap[0]},${globalGap[1]}]`);
+            sourceRange = globalGap;
+            sourceScenes = [{ clip_id: `${slotId}_broll_clip`, scene_id: 'narration_broll', start: secondsToTimecode(globalGap[0]), end: secondsToTimecode(globalGap[1]), speed_multiplier: 1 }];
+            assignedBrollRanges.push(globalGap);
+          } else {
+            warnings.push(`${slotId} (${role}) NARRATE found no free b-roll window in [${winStart},${winEnd}] (dialogue-saturated); using beat window as-is`);
+            sourceRange = [winStart, winEnd];
+            sourceScenes = (winEnd > winStart) ? [{ clip_id: `${slotId}_broll_clip`, scene_id: 'narration_broll', start: secondsToTimecode(winStart), end: secondsToTimecode(winEnd), speed_multiplier: 1 }] : [];
+          }
         }
       }
       sourceRangeHint = [sourceRange[0], sourceRange[0]]; // degenerate -> auto-picker declines

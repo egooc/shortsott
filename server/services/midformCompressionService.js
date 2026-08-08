@@ -3345,10 +3345,24 @@ function trimTimelineToTargetRuntime(timeline, targetSec) {
       .sort((left, right) => (Number(left.item.hook_potential || 0) + Number(left.item.dramatic_weight || 0))
         - (Number(right.item.hook_potential || 0) + Number(right.item.dramatic_weight || 0)));
     if (!shaveable.length) break;
-    const { item, index } = shaveable[0];
+    const anchorsOf = (entry) => new Set((Array.isArray(entry.item.dialogue_anchor_quotes) ? entry.item.dialogue_anchor_quotes : [])
+      .map((quote) => normalizeComparableText(quote)));
+    const pickRemovable = (entry) => {
+      const anchorSet = anchorsOf(entry);
+      const wins = entry.item.dialogue_line_windows;
+      for (let i = wins.length - 1; i >= 0; i -= 1) {
+        const win = wins[i];
+        if (!(win && win.matched === true)) continue;
+        if (anchorSet.has(normalizeComparableText(String(win.line || '')))) continue;
+        return i;
+      }
+      return -1;
+    };
+    const entryWithRemovable = shaveable.find((entry) => pickRemovable(entry) >= 0);
+    if (!entryWithRemovable) break;
+    const { item, index } = entryWithRemovable;
     const windows = item.dialogue_line_windows.slice();
-    let lastMatched = windows.length - 1;
-    while (lastMatched >= 0 && !(windows[lastMatched] && windows[lastMatched].matched === true)) lastMatched -= 1;
+    const lastMatched = pickRemovable(entryWithRemovable);
     windows.splice(lastMatched, 1);
     const kept = windows.filter((w) => w && w.matched === true);
     const starts = kept.map((w) => Number(w.start_sec)).filter(Number.isFinite);
@@ -3461,6 +3475,10 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec, usableEndSec =
         next.dialogue_focus_quotes = readable.focus.matched_quotes || readable.focus.lines;
         next.dialogue_focus_lines = readable.focus.lines;
         next.dialogue_line_windows = lineResolution.windows;
+        // The runtime shave must never remove an ANCHOR line: shaving one made the plan fail
+        // its own anchor-containment validator on dialogue-dense sources (You Can't Handle
+        // the Truth died twice on exactly this).
+        next.dialogue_anchor_quotes = requiredAnchors.slice();
         next.dialogue_line_window_ok = lineResolution.ok;
         next.dialogue_line_window_warnings = lineResolution.warnings;
         Object.assign(next, annotateDialogueSlotForQc(next, lineResolution, enriched.qc));
@@ -4096,6 +4114,10 @@ function buildSlotFillsPrompt(beats, editPlan, movieTitle, recapContextMarkdown)
     '- Read every caption back as a line a Korean actor would say. Three failures to avoid, all seen in real output: a term carried over that does not mean the same thing in Korean (an "intervention" is not 혜재); an ungrammatical form of address ("따님 아버님이라고요?"); and a line that only parses if you saw the screen. If a caption is confusing on its own, rewrite it so it lands.',
     '- Fix the Korean, not the meaning: keep the attitude and force the speaker had, and never soften a hostile or crude line into something polite.',
     '- caption_kr_dialogue must read as natural spoken Korean, not a literal/translationese rendering. Example: "What are they really?" -> "걔넨 대체 뭐야?", not "그들은 정말로 무엇입니까?".',
+    '- Translationese leaks at the SYNTAX level, not just word choice. Translate the speech act, never the English construction: noun-phrase idioms ("the luxury of not knowing" is NOT "모르는 호사를 누리는" - it is "몰라도 되니 편한 거야"), hedges ("I think I\'m entitled" is NOT "~라고 생각합니다" - Korean carries the attitude in the ending: "전 알 권리가 있습니다"), and address terms by RELATIONSHIP not dictionary ("Son" from a hostile superior is "애송이", never "젊은이").',
+    '- Re-assemble English mid-sentence insertions as Korean sentences instead of importing the commas: "And my existence - while grotesque to you - saves lives" becomes "내 존재가 기괴해 보이겠지. 그래도 그게 사람을 살려!", not a comma-spliced clone of the English word order.',
+    '- Fix each speaker\'s voice on their first line (반말/존대, roughness) from the on-screen power relationship, then keep it for every later line.',
+    '- Read-aloud test for every caption: would it pass as a line in a Korean drama, does it stand without the English, does the ending carry the speaker\'s attitude? If any answer is no, rewrite it.',
     '- Keep dialogue captions short. A long caption pulls the eye off the performance and drains the moment; if a line will not fit, cut it down to the part that carries the force rather than wrapping it.',
     '- caption_kr_dialogue must match the narration\'s tone for that scene and reuse the exact character names/forms of address the narration uses. Do not introduce a different name or honorific than the narration already established.',
     '- NARRATE slots should compress omitted story context clearly.',
