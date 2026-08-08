@@ -127,6 +127,13 @@ function normalizeProfile(profile) {
   return PROFILE_DEFAULTS[value] ? value : 'production';
 }
 
+// Extracts the timestamp baked into run/compress ids (run_20260807_123243, compress_20260807191103)
+// so staleness can be compared even for summaries written before pipeline_seeded_from existed.
+function runIdTimestamp(id) {
+  const match = String(id || '').match(/(\d{8})_?(\d{6})/);
+  return match ? Number(match[1] + match[2]) : 0;
+}
+
 function normalizeAnalysisMode(mode) {
   const value = normalizeText(mode || 'auto').toLowerCase();
   return ANALYSIS_MODES.has(value) ? value : 'auto';
@@ -743,7 +750,16 @@ async function runMidformTemplateWorkflow(options = {}) {
           // success - exactly what the gate was added to prevent.
           const review = candidate?.review || {};
           const wentThroughReview = review.enabled === true && String(review.resumedAt || '') !== '';
-          if (status === 'paused_review' || (status.startsWith('completed') && wentThroughReview)) reviewedState = candidate;
+          // A reviewed pipeline only counts when it was seeded from the plan this run just
+          // built. Reusing a pipeline older than the current compress run silently ships the
+          // OLD script while the new plan (and its review gate) is discarded - this exact
+          // failure recurred three times before this check existed.
+          const currentPlanId = String(summary.internal.bootstrap_source_run_id || compressionRunId || '');
+          const seededFrom = String(summary.internal.pipeline_seeded_from || '');
+          const planMatches = seededFrom
+            ? seededFrom === currentPlanId
+            : (!currentPlanId || runIdTimestamp(candidate?.runId || summary.internal.pipeline_run_id) >= runIdTimestamp(currentPlanId));
+          if (planMatches && (status === 'paused_review' || (status.startsWith('completed') && wentThroughReview))) reviewedState = candidate;
         } catch {
           // unknown/deleted run: fall through to launching a new one
         }
@@ -755,6 +771,7 @@ async function runMidformTemplateWorkflow(options = {}) {
         const bootstrapRun = await runBootstrapToPipeline(bootstrapRunId, { preflightOnly: false, forceDownload: false, pauseBeforeTts });
         summary.internal.pipeline_run_id = bootstrapRun.pipelineRunId;
         summary.internal.pipeline_run_dir = bootstrapRun.pipelineRunDir;
+        summary.internal.pipeline_seeded_from = String(bootstrapRunId || '');
         writeJson(workspace.summaryPath, summary);
         finalPipelineState = await waitForPipelineRun(bootstrapRun.pipelineRunId);
       }

@@ -204,6 +204,73 @@ function collectFixedSourceWindowsBySlot(baseDraftInput) {
   return bySlot;
 }
 
+// CapCut's "scene split" cuts at visual transitions instead of arbitrary timestamps (user
+// direction, 2026-08-07). Same principle here: detect shot boundaries once per source with
+// ffmpeg's scene filter and snap free b-roll edges to them, so packed clips start and end on
+// natural cuts instead of mid-shot. Dialogue windows stay pinned to speech and never snap.
+const SHOT_SNAP_MAX_SHIFT_SEC = 0.7;
+const SHOT_SCENE_THRESHOLD = 0.3;
+
+async function detectShotBoundaries(sourceVideoPath) {
+  if (!sourceVideoPath || !fs.existsSync(sourceVideoPath)) return [];
+  const cachePath = `${sourceVideoPath}.shot_boundaries.json`;
+  if (fs.existsSync(cachePath)) {
+    try {
+      const cached = readJson(cachePath);
+      if (Array.isArray(cached?.boundaries)) return cached.boundaries;
+    } catch { /* recompute */ }
+  }
+  try {
+    const stderr = await new Promise((resolve, reject) => {
+      execFile('ffmpeg', [
+        '-i', sourceVideoPath,
+        '-vf', `select='gt(scene,${SHOT_SCENE_THRESHOLD})',showinfo`,
+        '-an', '-f', 'null', '-'
+      ], { maxBuffer: 64 * 1024 * 1024 }, (error, _stdout, stderrText) => {
+        // ffmpeg exits 0 here; on error still try to parse what it printed.
+        if (error && !stderrText) reject(error);
+        else resolve(String(stderrText || ''));
+      });
+    });
+    const boundaries = [...stderr.matchAll(/pts_time:([0-9]+(?:\.[0-9]+)?)/g)]
+      .map((match) => Number(match[1]))
+      .filter((value) => Number.isFinite(value) && value > 0)
+      .sort((left, right) => left - right);
+    fs.writeFileSync(cachePath, `${JSON.stringify({ threshold: SHOT_SCENE_THRESHOLD, boundaries }, null, 2)}\n`, 'utf8');
+    return boundaries;
+  } catch {
+    return [];
+  }
+}
+
+function snapEdgeToShotBoundary(value, boundaries) {
+  let best = null;
+  for (const boundary of boundaries) {
+    const shift = Math.abs(boundary - value);
+    if (shift <= SHOT_SNAP_MAX_SHIFT_SEC && (!best || shift < Math.abs(best - value))) best = boundary;
+    if (boundary - value > SHOT_SNAP_MAX_SHIFT_SEC) break;
+  }
+  return best;
+}
+
+function snapRangeToShotBoundaries(start, end, boundaries, { minKeepSec, limitEndSec, overlapsReserved }) {
+  if (!Array.isArray(boundaries) || !boundaries.length) return [start, end];
+  const minLen = Math.max(1.0, Number(minKeepSec) || 0);
+  let nextStart = start;
+  let nextEnd = end;
+  const snappedStart = snapEdgeToShotBoundary(start, boundaries);
+  if (snappedStart != null && snappedStart >= 0 && nextEnd - snappedStart >= minLen
+    && !(overlapsReserved && overlapsReserved(snappedStart, nextEnd))) {
+    nextStart = snappedStart;
+  }
+  const snappedEnd = snapEdgeToShotBoundary(end, boundaries);
+  if (snappedEnd != null && (!(limitEndSec > 0) || snappedEnd <= limitEndSec) && snappedEnd - nextStart >= minLen
+    && !(overlapsReserved && overlapsReserved(nextStart, snappedEnd))) {
+    nextEnd = snappedEnd;
+  }
+  return [nextStart, nextEnd];
+}
+
 function normalizeDraftSpecSourceRanges(draftSpec, baseDraftInput = {}) {
   const next = cloneJson(draftSpec);
   const placements = Array.isArray(next?.clip_placement) ? next.clip_placement : [];
@@ -220,6 +287,12 @@ function normalizeDraftSpecSourceRanges(draftSpec, baseDraftInput = {}) {
     // timeline_range is how long this clip actually plays (narration length). The source
     // clip must cover at least that, or the draft repeat-pads it into a visible jump cut.
     const timelineNeed = rangeDuration(Array.isArray(placement?.timeline_range) ? placement.timeline_range.map(Number) : []);
+    // A placement pinned to fixed dialogue windows sits at its own source position and
+    // consumes NO forward packing space. Counting it here made remainingPackedDuration
+    // demand contiguous room for every dialogue slot after each b-roll, which back-shifted
+    // the b-roll off its scene (the spider reveal slid from 88.8s to 81.4s this way).
+    const slotKey = String(placement?.clip_id || '').replace(/^(ko|ja)_/, '') || String(placement?.slot_id || '');
+    if (fixedWindowsBySlot.has(slotKey)) return 0;
     const wanted = timelineNeed > 0 ? timelineNeed + CUT_HEADROOM_SEC : rangeDuration(sourceRange);
     return Math.max(timelineNeed, Math.min(wanted, MAX_PHYSICAL_SOURCE_CLIP_SEC));
   });
@@ -250,18 +323,49 @@ function normalizeDraftSpecSourceRanges(draftSpec, baseDraftInput = {}) {
     const duration = cappedDurations[index];
     const minStart = lastEnd > 0 ? lastEnd + PHYSICAL_SOURCE_GAP_SEC : 0;
     let start = Math.max(Number(sourceRange[0]), minStart);
+    // The reveal lives at the END of a narration window that leads into dialogue: the boot slam
+    // and the spider crawling out sat at 96.8-98.8 of an 88.8-102 window, and start-aligned
+    // packing cut away the very moment the narration set up. Align to the window END when the
+    // NEXT PLACEMENT IN PLAYBACK ORDER is a pinned dialogue starting right after this window
+    // (source-order proximity alone misfired on the bridge, whose window merely ends near the
+    // reordered cold open). Align by the PLAYED length, not the padded one - the assembler
+    // keeps the clip head, so padding at the tail is what got the reveal cut off.
+    const windowEndSec = Number(sourceRange[1]);
+    const playedSec = (() => {
+      const need = rangeDuration(Array.isArray(placement?.timeline_range) ? placement.timeline_range.map(Number) : []);
+      return need > 0 ? need : duration;
+    })();
+    const nextPlacement = placements[index + 1];
+    const nextKey = nextPlacement ? (String(nextPlacement?.clip_id || '').replace(/^(ko|ja)_/, '') || String(nextPlacement?.slot_id || '')) : '';
+    const nextFixed = nextKey ? fixedWindowsBySlot.get(nextKey) : null;
+    const nextDialogueStart = nextFixed && nextFixed.length ? Math.min(...nextFixed.map((window) => window[0])) : null;
+    const leadsIntoDialogue = nextDialogueStart != null && nextDialogueStart >= windowEndSec - 0.5 && nextDialogueStart - windowEndSec <= 4;
+    let alignedEndSec = null;
+    if (leadsIntoDialogue && playedSec > 0 && windowEndSec - playedSec > start) {
+      // The clip ends where the window does (bounded away from the dialogue it leads into);
+      // every later stage must reason with THIS end, not start+paddedDuration - the padded
+      // probe made the nudge loop shove an aligned clip past every reserved window.
+      alignedEndSec = Math.min(windowEndSec, nextDialogueStart - 0.1);
+      start = Math.max(minStart, alignedEndSec - playedSec);
+    }
+    if (process.env.MIDFORM_PACK_DEBUG) {
+      console.error(`[pack] ${placement.clip_id} win=[${sourceRange[0]},${sourceRange[1]}] dur=${duration} played=${playedSec} nextKey=${nextKey} nextFixed=${JSON.stringify(nextFixed)} leads=${leadsIntoDialogue} start=${start}`);
+    }
     if (sourceDurationSec > 0) {
       const latestStartToFitRest = sourceDurationSec - duration - remainingPackedDuration(index);
       if (start > latestStartToFitRest) start = Math.max(minStart, latestStartToFitRest);
     }
     // B-roll must not sit on top of reserved dialogue/scene-hook footage: those segments
     // keep their true source windows, so nudge the packed range forward past any overlap.
+    if (process.env.MIDFORM_PACK_DEBUG) console.error(`[pack:preNudge] ${placement.clip_id} start=${start}`);
     for (let guard = 0; guard < 32; guard += 1) {
-      const blocking = overlapsReserved(start, start + duration);
+      const blocking = overlapsReserved(start, alignedEndSec != null ? alignedEndSec : start + duration);
       if (!blocking) break;
       start = blocking[1] + PHYSICAL_SOURCE_GAP_SEC;
     }
-    let end = start + duration;
+    let end = alignedEndSec != null ? alignedEndSec : (start + duration);
+    if (process.env.MIDFORM_PACK_DEBUG) console.error(`[pack:postEndCap] ${placement.clip_id} start=${start} end=${typeof end!=='undefined'?end:'-'}`);
+
     let adjusted = start !== Number(sourceRange[0]) || duration !== originalDuration;
     if (sourceDurationSec > 0 && end > sourceDurationSec) {
       end = sourceDurationSec;
@@ -277,22 +381,49 @@ function normalizeDraftSpecSourceRanges(draftSpec, baseDraftInput = {}) {
     // the time it has to fill.
     const placementNeed = rangeDuration(Array.isArray(placement?.timeline_range) ? placement.timeline_range.map(Number) : []);
     if ((end - start < 1.0 || (placementNeed > 0 && end - start < placementNeed * 0.6)) && sourceDurationSec > 0) {
-      let best = null;
+      const gaps = [];
       let cursor = 0;
       // Blockers are BOTH the reserved dialogue windows and every b-roll clip already packed:
       // centring on a dialogue-free gap still collided with slot 2's packed clip by 0.272s.
       const blockers = [...reservedWindows, ...packedRanges].sort((l, r) => l[0] - r[0]);
       for (const [ws, we] of [...blockers, [sourceDurationSec, sourceDurationSec]]) {
-        const gap = ws - cursor;
-        if (!best || gap > best[1] - best[0]) best = [cursor, ws];
+        if (ws - cursor >= 1.0) gaps.push([cursor, ws]);
         cursor = Math.max(cursor, we);
       }
+      // Prefer the sufficient gap NEAREST to the slot's own window over the largest one:
+      // the largest gap sent a closing narration's b-roll into act-one removal footage, a
+      // scene mismatch. Distance to the intended scene beats raw size; largest is the
+      // fallback when nothing nearby can carry the clip.
+      const wantSec = Math.max(1.0, Math.min(duration, placementNeed > 0 ? placementNeed : duration));
+      const intendedStart = Number(sourceRange[0]);
+      const sufficient = gaps.filter(([gs, ge]) => ge - gs >= wantSec);
+      const byDistance = (gs, ge) => Math.min(Math.abs(gs - intendedStart), Math.abs(ge - intendedStart));
+      const pool = sufficient.length ? sufficient : gaps;
+      const best = pool.sort((l, r) => (sufficient.length
+        ? byDistance(l[0], l[1]) - byDistance(r[0], r[1])
+        : (r[1] - r[0]) - (l[1] - l[0])))[0] || null;
       if (best && best[1] - best[0] >= 1.0) {
         start = best[0] + Math.max(0, (best[1] - best[0] - duration) / 2);
         end = Math.min(best[1], start + Math.max(duration, 1.0));
         adjusted = true;
       }
     }
+    // Land the cut on natural shot boundaries when they are within reach: a clip that starts
+    // or ends mid-shot reads as a mistake, one that starts on a transition reads as editing.
+    const shotBoundaries = Array.isArray(baseDraftInput?.shotBoundaries) ? baseDraftInput.shotBoundaries : [];
+    if (shotBoundaries.length) {
+      const [snappedStart, snappedEnd] = snapRangeToShotBoundaries(start, end, shotBoundaries, {
+        minKeepSec: placementNeed,
+        limitEndSec: sourceDurationSec,
+        overlapsReserved
+      });
+      if (snappedStart !== start || snappedEnd !== end) {
+        start = snappedStart;
+        end = snappedEnd;
+        adjusted = true;
+      }
+    }
+    if (process.env.MIDFORM_PACK_DEBUG) console.error(`[pack:final] ${placement.clip_id} start=${start} end=${typeof end!=='undefined'?end:'-'}`);
     const normalized = [Number(start.toFixed(3)), Number(end.toFixed(3))];
     packedRanges.push(normalized);
     lastEnd = Math.max(lastEnd, normalized[1]);
@@ -575,22 +706,91 @@ async function buildJapaneseBaseDraftInput({ workspaceDir, baseScriptPath, japan
   return { draftInputPath: outputPath, scriptPath: japaneseScriptPath, ttsDir };
 }
 
+// Loudness auto-alignment (owner-approved fix for the "narration 14 LU louder than the film"
+// defect on quietly-mastered sources): measure TTS vs source-dialogue integrated loudness and
+// bake compensating volume gains into the draft - boost the source video (cap +10dB), shave
+// the narration (cap -6dB), aiming for narration ~3 LU above dialogue.
+function measureLufsSpawn(inputArgs) {
+  const ffmpeg = process.env.FFMPEG_PATH || 'ffmpeg';
+  const { spawnSync } = require('child_process');
+  const probe = spawnSync(ffmpeg, ['-hide_banner', '-nostats', ...inputArgs, '-af', 'ebur128=framelog=quiet', '-f', 'null', '-'], { encoding: 'utf8', timeout: 120000, maxBuffer: 32 * 1024 * 1024 });
+  const match = String(probe.stderr || '').match(/I:\s*(-?[\d.]+)\s*LUFS/);
+  return match ? Number(match[1]) : null;
+}
+
+function computeLoudnessAlignment(baseInput, sourceVideoPath) {
+  try {
+    const ttsPaths = (Array.isArray(baseInput?.ttsFiles) ? baseInput.ttsFiles : [])
+      .map((file) => file && (file.filepath || file.path))
+      .filter((filePath) => filePath && fs.existsSync(filePath))
+      .slice(0, 4);
+    const narrationValues = ttsPaths.map((filePath) => measureLufsSpawn(['-i', filePath])).filter(Number.isFinite);
+    const dialogueWindows = [];
+    for (const seg of (Array.isArray(baseInput?.segments) ? baseInput.segments : [])) {
+      const range = seg?.dialogue_speech_range_sec;
+      if (Array.isArray(range) && Number(range[1]) - Number(range[0]) > 0.8) dialogueWindows.push([Number(range[0]), Number(range[1])]);
+      if (dialogueWindows.length >= 4) break;
+    }
+    const dialogueValues = (sourceVideoPath && fs.existsSync(sourceVideoPath))
+      ? dialogueWindows.map(([start, end]) => measureLufsSpawn(['-ss', start.toFixed(3), '-t', (end - start).toFixed(3), '-i', sourceVideoPath, '-vn'])).filter(Number.isFinite)
+      : [];
+    if (!narrationValues.length || !dialogueValues.length) return null;
+    const mean = (values) => values.reduce((sum, value) => sum + value, 0) / values.length;
+    const narrationLufs = Number(mean(narrationValues).toFixed(1));
+    const dialogueLufs = Number(mean(dialogueValues).toFixed(1));
+    const needed = (narrationLufs - dialogueLufs) - 3;
+    const videoGainDb = needed > 1 ? Number(Math.min(10, needed).toFixed(1)) : 0;
+    const ttsCutDb = needed > 1 ? Number(Math.min(6, Math.max(0, needed - videoGainDb)).toFixed(1)) : 0;
+    return { narration_lufs: narrationLufs, dialogue_lufs: dialogueLufs, delta_lu: Number((narrationLufs - dialogueLufs).toFixed(1)), video_gain_db: videoGainDb, tts_cut_db: ttsCutDb };
+  } catch {
+    return null;
+  }
+}
+
+function applyLoudnessAlignment(draftContentPath, alignment) {
+  if (!alignment || !(alignment.video_gain_db > 0 || alignment.tts_cut_db > 0)) return false;
+  if (!draftContentPath || !fs.existsSync(draftContentPath)) return false;
+  const content = readJson(draftContentPath);
+  const videoFactor = 10 ** (alignment.video_gain_db / 20);
+  const ttsFactor = 10 ** (-alignment.tts_cut_db / 20);
+  let touched = 0;
+  for (const track of (Array.isArray(content?.tracks) ? content.tracks : [])) {
+    const name = String(track?.name || '');
+    const isSourceVideo = track?.type === 'video' && name === 'source_video';
+    const isTts = track?.type === 'audio' && name === 'tts';
+    if (!isSourceVideo && !isTts) continue;
+    for (const segment of (Array.isArray(track.segments) ? track.segments : [])) {
+      const current = Number(segment?.volume);
+      if (!Number.isFinite(current)) continue;
+      segment.volume = Number((current * (isSourceVideo ? videoFactor : ttsFactor)).toFixed(4));
+      touched += 1;
+    }
+  }
+  if (touched) writeJson(draftContentPath, content);
+  return touched > 0;
+}
+
 async function generateLocaleDraftArtifacts({ workspaceDir, baseDraftInputPath, sourceVideoPath, transcriptPath, baseScriptPath, japaneseSlotFillsPath, usableEndSec = 0, draftGenerator = generateLocaleDraftFromInput }) {
   const baseDraftInput = readJson(baseDraftInputPath);
   // Stamp the measured footage end onto the input so every packing helper sees it.
   if (Number(usableEndSec) > 0) baseDraftInput.usableEndSec = Number(usableEndSec);
+  // Shot boundaries ride on the base input so the sync packing helpers can snap to them.
+  const shotBoundaries = await detectShotBoundaries(sourceVideoPath);
+  if (shotBoundaries.length) baseDraftInput.shotBoundaries = shotBoundaries;
   const localeResults = {};
   const outputPaths = {};
   // ja renders from its own assembled draft input (Japanese script + Japanese TTS); every
   // other locale renders from the pipeline's base input.
   let japaneseBase = null;
   let japaneseSkippedReason = '';
+  let lastAlignment = null;
   if (japaneseSlotFillsPath && fs.existsSync(japaneseSlotFillsPath)) {
     try {
       const built = await buildJapaneseBaseDraftInput({
         workspaceDir, baseScriptPath, japaneseSlotFillsPath, sourceVideoPath, transcriptPath
       });
       japaneseBase = readJson(built.draftInputPath);
+      if (shotBoundaries.length) japaneseBase.shotBoundaries = shotBoundaries;
       outputPaths.script_ja = rel(built.scriptPath);
       outputPaths.draft_input_ja_base = rel(built.draftInputPath);
     } catch (error) {
@@ -615,6 +815,21 @@ async function generateLocaleDraftArtifacts({ workspaceDir, baseDraftInputPath, 
     const draftInputPath = path.join(workspaceDir, `draft_input.${locale}.json`);
     writeJson(draftInputPath, localeDraftInput);
     const generated = await draftGenerator(locale, localeDraftInput, workspaceDir, sourceVideoPath, transcriptPath);
+    // ja's own TTS set can fail to measure (different file layout); the source is the same
+    // video, so ko's measured gains are the correct fallback rather than shipping ja unaligned.
+    const alignment = computeLoudnessAlignment(localeBaseInput, sourceVideoPath)
+      || (locale !== 'ko' && lastAlignment ? { ...lastAlignment, fallback_from: 'ko' } : null);
+    if (alignment && locale === 'ko') lastAlignment = alignment;
+    if (alignment) {
+      const contentPaths = new Set([
+        generated?.draft_content_path,
+        generated?.draft_folder_path ? path.join(generated.draft_folder_path, 'draft_content.json') : ''
+      ].filter(Boolean));
+      let applied = false;
+      for (const contentPath of contentPaths) applied = applyLoudnessAlignment(contentPath, alignment) || applied;
+      writeJson(path.join(workspaceDir, `loudness_alignment.${locale}.json`), { ...alignment, applied });
+      generated.loudness_alignment = { ...alignment, applied };
+    }
     localeResults[locale] = generated;
     outputPaths[`draft_input_${locale}`] = rel(draftInputPath);
     outputPaths[`draft_content_${locale}`] = rel(generated.draft_content_path);

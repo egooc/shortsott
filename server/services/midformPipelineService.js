@@ -19,6 +19,7 @@ const SOURCE_INFO_FILE = 'source_info.json';
 const TRANSCRIPT_FILE = 'source_transcript.json';
 const PREFLIGHT_FILE = 'preflight_gate.json';
 const GEMINI_FILE = 'gemini_analysis.json';
+const SCENE_MAP_FILE = 'scene_map.json';
 const SLOT_MAP_FILE = 'slot_map.json';
 const SCRIPT_FILE = 'script.json';
 const SLOT_FILLS_FILE = 'slot_fills.json';
@@ -443,7 +444,61 @@ function computeNarrationPreviewBudget(slot, index, slots, geminiAnalysis, sourc
   };
 }
 
-function buildScriptPreviewMarkdown(script, slotMap, previewData, slotFillsPath, geminiAnalysis = {}, sourceVideoDurationSec = 0) {
+// The reviewer must see the same ground truth the planner saw: which vision scenes each slot
+// draws footage from, how the story walks through them, and which seen scenes the cut leaves
+// out entirely. A recap that skips its own visual peak (the leech attack) reads as fine in
+// text-only review - this table is what makes that hole visible before TTS money is spent.
+function buildSceneMapReviewSection(sceneMap, slotMap, script) {
+  const scenes = Array.isArray(sceneMap?.scenes) ? sceneMap.scenes : [];
+  if (!scenes.length) return [];
+  const slots = Array.isArray(slotMap?.slots) ? slotMap.slots : [];
+  const segments = Array.isArray(script?.segments) ? script.segments : [];
+  const segmentById = new Map(segments.map((segment) => [String(segment?.segment_id || ''), segment]));
+  const overlapSec = (aStart, aEnd, bStart, bEnd) => Math.max(0, Math.min(aEnd, bEnd) - Math.max(aStart, bStart));
+  const clip = (text, max) => {
+    const clean = normalizeText(text || '');
+    return clean.length > max ? `${clean.slice(0, max - 1)}…` : clean;
+  };
+  const usedSceneIds = new Set();
+  const lines = ['## scene_map_review (Gemini vision — 화면 근거)', ''];
+  lines.push('### 슬롯 → 장면 배치');
+  slots.forEach((slot) => {
+    const slotId = String(slot?.slot_id || '');
+    const range = Array.isArray(slot?.source_range) ? slot.source_range : [0, 0];
+    const start = Number(range[0] || 0);
+    const end = Number(range[1] || 0);
+    const hits = scenes.filter((scene) => overlapSec(start, end, Number(scene.start_sec), Number(scene.end_sec)) > 0.3);
+    hits.forEach((scene) => usedSceneIds.add(String(scene.scene_id)));
+    const segment = segmentById.get(slotId) || {};
+    const textHint = slot?.type === 'dialogue'
+      ? clip(slot.caption_source_text, 40)
+      : clip(segment.narration, 40);
+    const sceneText = hits.length
+      ? hits.map((scene) => `${scene.scene_id}(${formatSeconds(scene.start_sec)}-${formatSeconds(scene.end_sec)}) ${clip(scene.visible_action, 60)}`).join(' / ')
+      : '(장면 지도와 겹치는 장면 없음 ⚠)';
+    lines.push(`- ${slotId} [${slot?.type || ''}] ${formatSeconds(start)}-${formatSeconds(end)} — ${sceneText}`);
+    if (textHint) lines.push(`  - 원고: ${textHint}`);
+  });
+  lines.push('');
+  const unused = scenes.filter((scene) => !usedSceneIds.has(String(scene.scene_id)));
+  lines.push('### 사용되지 않은 장면');
+  if (!unused.length) {
+    lines.push('- (없음 — 모든 장면이 최소 한 슬롯에 걸림)');
+  } else {
+    unused.forEach((scene) => {
+      lines.push(`- ${scene.scene_id} ${formatSeconds(scene.start_sec)}-${formatSeconds(scene.end_sec)}: ${normalizeText(scene.visible_action || '')}`);
+    });
+  }
+  lines.push('');
+  lines.push('### 검수 포인트');
+  lines.push('- 위 "사용되지 않은 장면" 중 시각적 하이라이트(습격·액션·반전)가 버려지지 않았는지 확인.');
+  lines.push('- 각 나레이션이 말하는 사건과 그 슬롯이 걸친 장면의 visible_action이 일치하는지 확인.');
+  lines.push('- 장소·위협이 바뀌는 장면 경계를 원고가 이음매 없이 건너뛰지 않는지 확인.');
+  lines.push('');
+  return lines;
+}
+
+function buildScriptPreviewMarkdown(script, slotMap, previewData, slotFillsPath, geminiAnalysis = {}, sourceVideoDurationSec = 0, sceneMap = null) {
   const slots = Array.isArray(slotMap?.slots) ? slotMap.slots : [];
   const segments = Array.isArray(script?.segments) ? script.segments : [];
   const segmentById = new Map(segments.map((segment) => [String(segment?.segment_id || ''), segment]));
@@ -524,6 +579,12 @@ function buildScriptPreviewMarkdown(script, slotMap, previewData, slotFillsPath,
     }
     lines.push('');
   });
+  const sceneReviewLines = buildSceneMapReviewSection(sceneMap, slotMap, script);
+  if (sceneReviewLines.length) {
+    lines.push('---');
+    lines.push('');
+    lines.push(...sceneReviewLines);
+  }
   const endings = endingStatsFromSegments(segments);
   const narrationSlots = slots.filter((slot) => slot?.type === 'narration').map((slot) => String(slot.slot_id || ''));
   const payoffSlots = narrationSlots.filter((slotId) => slotRole(slotMap, slotId) === 'payoff');
@@ -581,7 +642,8 @@ async function generateScriptPreviewArtifacts(state) {
     }
   };
   writeJson(previewDataPath, previewData);
-  writeText(scriptPreviewPath, buildScriptPreviewMarkdown(script, slotMap, previewData, slotFillsPath, geminiAnalysis, sourceVideoDurationSec));
+  const sceneMap = readJsonIfExists(state.artifacts.sceneMapPath || path.join(state.runDir, SCENE_MAP_FILE));
+  writeText(scriptPreviewPath, buildScriptPreviewMarkdown(script, slotMap, previewData, slotFillsPath, geminiAnalysis, sourceVideoDurationSec, sceneMap));
   writeText(qualityWarningsPath, buildQualityWarningsMarkdown(state.qualityWarnings || [], previewData));
   state.artifacts.scriptPreviewDataPath = previewDataPath;
   state.artifacts.scriptPreviewPath = scriptPreviewPath;
@@ -609,6 +671,9 @@ async function bootstrapSeededRun(state, payload = {}) {
     transcriptPath: copyFileIntoRunIfPresent(payload.bootstrapTranscriptPath || payload.bootstrap_transcript_path, path.join(state.runDir, TRANSCRIPT_FILE), 'bootstrapTranscriptPath'),
     preflightPath: copyFileIntoRunIfPresent(payload.bootstrapPreflightPath || payload.bootstrap_preflight_path, path.join(state.runDir, PREFLIGHT_FILE), 'bootstrapPreflightPath'),
     geminiAnalysisPath: copyFileIntoRunIfPresent(payload.bootstrapGeminiAnalysisPath || payload.bootstrap_gemini_analysis_path, path.join(state.runDir, GEMINI_FILE), 'bootstrapGeminiAnalysisPath'),
+    // Vision scene map rides under its own filename: bootstrap-fed runs branch on the ABSENCE of
+    // GEMINI_FILE (revalidateReviewedScript), so the scene map must not masquerade as one.
+    sceneMapPath: copyFileIntoRunIfPresent(payload.bootstrapSceneMapPath || payload.bootstrap_scene_map_path, path.join(state.runDir, SCENE_MAP_FILE), 'bootstrapSceneMapPath'),
     movieResearchPath: copyFileIntoRunIfPresent(payload.bootstrapMovieResearchPath || payload.bootstrap_movie_research_path, path.join(state.runDir, MOVIE_RESEARCH_FILE), 'bootstrapMovieResearchPath'),
     slotMapPath: copyFileIntoRunIfPresent(payload.bootstrapSlotMapPath || payload.bootstrap_slot_map_path, path.join(state.runDir, SLOT_MAP_FILE), 'bootstrapSlotMapPath'),
     scriptPath: copyFileIntoRunIfPresent(payload.bootstrapScriptPath || payload.bootstrap_script_path, path.join(state.runDir, SCRIPT_FILE), 'bootstrapScriptPath'),

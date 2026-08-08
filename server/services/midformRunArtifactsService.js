@@ -162,6 +162,75 @@ function buildHumanQaReview({ normalizedRequest, gateResults, timing, colorEvide
   ].join('\n');
 }
 
+function parseTimecodeSec(value) {
+  const text = String(value || '').trim();
+  const parts = text.split(':');
+  if (parts.length === 3) return Number(parts[0]) * 3600 + Number(parts[1]) * 60 + Number(parts[2]);
+  return Number(text) || 0;
+}
+
+function measureIntegratedLufsLoose(ffmpeg, inputArgs) {
+  // ebur128 prints its summary on stderr and ffmpeg exits 0, so spawnSync + stderr parse is
+  // the only reliable read (execFileSync hides stderr unless the process throws).
+  const { spawnSync } = require('child_process');
+  const probe = spawnSync(ffmpeg, ['-hide_banner', '-nostats', ...inputArgs, '-af', 'ebur128=framelog=quiet', '-f', 'null', '-'], { encoding: 'utf8', timeout: 120000, maxBuffer: 32 * 1024 * 1024 });
+  const match = String(probe.stderr || '').match(/I:\s*(-?[\d.]+)\s*LUFS/);
+  return match ? Number(match[1]) : null;
+}
+
+// Loudness gate (OpenShorts, MIT - measured rationale: platforms normalize playback to about
+// -14 LUFS, so a narration mixed quieter than the film dialogue plays THIN in the feed; the
+// quiet track gets punished, not compensated. Measure both sides and flag the mismatch before
+// install instead of hearing it after upload.
+function measureNarrationDialogueLoudness(pipelineRunDir, editManifest) {
+  try {
+    const ffmpeg = process.env.FFMPEG_PATH || 'ffmpeg';
+    const ttsDir = path.join(pipelineRunDir, 'tts');
+    const ttsFiles = fs.existsSync(ttsDir)
+      ? fs.readdirSync(ttsDir).filter((name) => /\.(wav|mp3)$/i.test(name)).slice(0, 4).map((name) => path.join(ttsDir, name))
+      : [];
+    const sourceVideo = ['source.mp4', 'source.webm', 'source.mkv'].map((name) => path.join(pipelineRunDir, name)).find((candidate) => fs.existsSync(candidate));
+    const narrationValues = ttsFiles
+      .map((file) => measureIntegratedLufsLoose(ffmpeg, ['-i', file]))
+      .filter((value) => Number.isFinite(value));
+    const dialogueWindows = [];
+    const seen = new Set();
+    for (const segment of (Array.isArray(editManifest?.segments) ? editManifest.segments : [])) {
+      if (!/dialogue/.test(String(segment?.segment_type || ''))) continue;
+      const clip = (segment.source_clips || [])[0];
+      if (!clip) continue;
+      const start = parseTimecodeSec(clip.start);
+      const end = parseTimecodeSec(clip.end);
+      const key = `${start}-${end}`;
+      if (!(end > start + 0.5) || seen.has(key)) continue;
+      seen.add(key);
+      dialogueWindows.push([start, end]);
+      if (dialogueWindows.length >= 4) break;
+    }
+    const dialogueValues = sourceVideo
+      ? dialogueWindows
+        .map(([start, end]) => measureIntegratedLufsLoose(ffmpeg, ['-ss', start.toFixed(3), '-t', (end - start).toFixed(3), '-i', sourceVideo, '-vn']))
+        .filter((value) => Number.isFinite(value))
+      : [];
+    if (!narrationValues.length || !dialogueValues.length) {
+      return { status: 'not_measured', narration_samples: narrationValues.length, dialogue_samples: dialogueValues.length };
+    }
+    const mean = (values) => values.reduce((sum, value) => sum + value, 0) / values.length;
+    const narrationI = Number(mean(narrationValues).toFixed(1));
+    const dialogueI = Number(mean(dialogueValues).toFixed(1));
+    return {
+      status: 'measured',
+      narration_lufs: narrationI,
+      dialogue_lufs: dialogueI,
+      delta_lu: Number(Math.abs(narrationI - dialogueI).toFixed(1)),
+      narration_samples: narrationValues.length,
+      dialogue_samples: dialogueValues.length
+    };
+  } catch (error) {
+    return { status: 'error', message: String(error?.message || error) };
+  }
+}
+
 function collectRunArtifacts({
   workspaceDir,
   normalizedRequest,
@@ -196,6 +265,81 @@ function collectRunArtifacts({
   }, {
     readability: readability || {}
   });
+  // Structural guard (owner directive 2026-08-08): a later caption chunk of the SAME dialogue
+  // line must appear at reading pace after the previous one - never seconds late. This caught
+  // two separate mechanisms already (window-proportional spreading, and the hold-extended
+  // previous chunk pushing the chained start); the gate keeps any future mechanism from
+  // shipping unnoticed on any source.
+  function measureCaptionChunkLateness(draftContent) {
+    const issues = [];
+    try {
+      const texts = new Map(((draftContent?.materials || {}).texts || []).map((material) => {
+        let text = '';
+        const content = material?.content;
+        try { text = typeof content === 'string' && content.startsWith('{') ? (JSON.parse(content).text || '') : String(content || ''); } catch { text = String(content || ''); }
+        return [material.id, text];
+      }));
+      for (const track of (draftContent?.tracks || [])) {
+        if (track?.type !== 'text' || !/^subtitle/.test(String(track?.name || ''))) continue;
+        const segments = (track.segments || []).slice().sort((left, right) => Number(left?.target_timerange?.start || 0) - Number(right?.target_timerange?.start || 0));
+        for (let index = 1; index < segments.length; index += 1) {
+          const prev = segments[index - 1];
+          const curr = segments[index];
+          const prevText = texts.get(prev?.material_id) || '';
+          const gapSec = (Number(curr?.target_timerange?.start || 0) - Number(prev?.target_timerange?.start || 0)) / 1_000_000;
+          const readingSec = Math.max(0.6, prevText.length / 8);
+          if (prevText && gapSec > readingSec * 2 + 1.5 && gapSec < 30) {
+            // Same visual line-group heuristic: only flag when the previous chunk text does
+            // not end a sentence (a fragment whose continuation is late).
+            if (!/[.?!…]$/.test(prevText.trim())) {
+              issues.push({ prev_text: prevText.slice(0, 20), gap_sec: Number(gapSec.toFixed(2)), reading_sec: Number(readingSec.toFixed(2)) });
+            }
+          }
+        }
+      }
+    } catch { /* measurement is best-effort */ }
+    return issues;
+  }
+  const chunkLateness = measureCaptionChunkLateness(draftContent);
+  const loudness = measureNarrationDialogueLoudness(pipelineRunDir, editManifest);
+  // Draft-level volume gains (loudness auto-alignment) change what the viewer hears without
+  // changing the files this measurement reads, so judge the ALIGNED delta when gains exist.
+  const alignmentPath = path.join(workspaceDir, 'loudness_alignment.ko.json');
+  if (loudness.status === 'measured' && fs.existsSync(alignmentPath)) {
+    try {
+      const alignment = readJson(alignmentPath);
+      if (alignment && alignment.applied) {
+        loudness.raw_delta_lu = loudness.delta_lu;
+        loudness.video_gain_db = alignment.video_gain_db;
+        loudness.tts_cut_db = alignment.tts_cut_db;
+        loudness.delta_lu = Number(Math.abs(
+          (loudness.narration_lufs - Number(alignment.tts_cut_db || 0))
+          - (loudness.dialogue_lufs + Number(alignment.video_gain_db || 0))
+        ).toFixed(1));
+      }
+    } catch { /* unaligned measurement stands */ }
+  }
+  if (loudness.status === 'measured') {
+    const status = loudness.delta_lu > 6 ? 'fail' : (loudness.delta_lu > 3 ? 'warning' : 'pass');
+    gateResults.results.push({ id: 'narration_dialogue_loudness_delta', status, ...loudness });
+    if (status === 'fail' && !gateResults.failed.includes('narration_dialogue_loudness_delta')) {
+      gateResults.failed.push('narration_dialogue_loudness_delta');
+      gateResults.status = 'failed';
+    } else if (status === 'warning' && !gateResults.warnings.includes('narration_dialogue_loudness_delta')) {
+      gateResults.warnings.push('narration_dialogue_loudness_delta');
+      if (gateResults.status === 'passed') gateResults.status = 'passed_with_warnings';
+    }
+  } else {
+    gateResults.results.push({ id: 'narration_dialogue_loudness_delta', status: 'not_applicable', ...loudness });
+  }
+  {
+    const status = chunkLateness.length ? 'warning' : 'pass';
+    gateResults.results.push({ id: 'dialogue_caption_chunk_lateness', status, issue_count: chunkLateness.length, issues: chunkLateness.slice(0, 8) });
+    if (status === 'warning' && !gateResults.warnings.includes('dialogue_caption_chunk_lateness')) {
+      gateResults.warnings.push('dialogue_caption_chunk_lateness');
+      if (gateResults.status === 'passed') gateResults.status = 'passed_with_warnings';
+    }
+  }
   const acceptancePath = path.join(workspaceDir, 'acceptance_gates.json');
   writeJson(acceptancePath, gateResults);
   const previewProof = generatePreviewFrameProof({

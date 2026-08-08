@@ -1910,6 +1910,9 @@ def upsert_timerange(segment_obj, start_us, duration_us):
 
 
 MIDFORM_FIXED_TITLE_Y = 0.7004421221864953
+# Band title lines render a touch large for the 1080px top band (owner feedback 2026-08-08):
+# scale whatever size the CapCut template carries rather than pinning an absolute value.
+MIDFORM_TITLE_FONT_SCALE = 0.85
 MIDFORM_FIXED_SUBTITLE_Y = 0.5416639871382638
 MIDFORM_CAPTION_Y = -0.35
 # Two caption lanes, each with its own row and its own text track (user directive).
@@ -2366,6 +2369,29 @@ def apply_template_clone_mode(
         "TEMPLATE_MOVIE_TITLE": ["TEMPLATE_TITLE", "TEMPLATE_TITLE_SUBLINE", "TEMPLATE_SUBTITLE", "TEMPLATE_PRETITLE"],
     }
 
+    def scale_overlay_title_font(segment, factor):
+        material_id = segment.get("material_id") if isinstance(segment, dict) else None
+        if not material_id:
+            return
+        for material in (generated.get("materials", {}).get("texts") or []):
+            if material.get("id") != material_id:
+                continue
+            font_size = safe_float(material.get("font_size"), 0)
+            if font_size > 0:
+                material["font_size"] = round(font_size * factor, 2)
+            content = material.get("content")
+            if isinstance(content, str) and content.startswith("{"):
+                try:
+                    obj = json.loads(content)
+                    for style in obj.get("styles") or []:
+                        size_value = style.get("size")
+                        if isinstance(size_value, (int, float)) and size_value > 0:
+                            style["size"] = round(size_value * factor, 2)
+                    material["content"] = json.dumps(obj, ensure_ascii=False)
+                except (ValueError, TypeError):
+                    pass
+            return
+
     for role_name, marker_name, text_value, fixed_y in fixed_overlay_specs:
         base_marker_name, base_entry, used_fallback = pick_base_marker(marker_name, fallback_chain[marker_name])
         if base_entry is None:
@@ -2393,6 +2419,8 @@ def apply_template_clone_mode(
 
         overlay_segment = clone_segment_from_entry(base_entry, text_value, 0, total_tts_duration_us, fixed_y=fixed_y)
         if overlay_segment is not None:
+            if role_name in ("title", "subtitle"):
+                scale_overlay_title_font(overlay_segment, MIDFORM_TITLE_FONT_SCALE)
             role_track = get_or_create_role_template_track(role_name, base_entry)
             role_track["segments"] = [overlay_segment]
             fixed_overlay_texts[role_name]["text"] = text_value
@@ -3029,6 +3057,12 @@ def rebuild_midform_caption_track_from_template(draft_content_path, template_doc
         text_value = str(entry.get("text") or "").strip()
         start_us = microseconds(entry.get("start_sec", 0))
         end_us = microseconds(entry.get("end_sec", 0))
+        # Generation-time invariant: a caption shorter than 50ms is unreadable and used to
+        # slip through as a 1-microsecond segment. Refuse to emit it at all.
+        if end_us - start_us < 50_000:
+            summary.setdefault("skipped_degenerate_captions", 0)
+            summary["skipped_degenerate_captions"] += 1
+            continue
         duration_us = max(1, end_us - start_us)
         cloned_material = json.loads(json.dumps(source_material))
         old_material_id = cloned_material.get("id")
@@ -9937,7 +9971,17 @@ def create_draft(input_json_path):
                 clip = explicit_clips[0]
                 clip_start = parse_timecode_to_sec(clip.get("start"))
                 clip_end = parse_timecode_to_sec(clip.get("end"))
-                if str(clip.get("source") or "") == "locale_draft_spec" and clip_start is not None and clip_end is not None and clip_end > clip_start:
+                # A cold open may deliberately extend its last line's visual through the
+                # reaction that follows the words (marked upstream); replacing that clip with
+                # the bare utterance range is what kept cutting the shock reaction off screen.
+                reaction_tail = (
+                    str(clip.get("source") or "") == "utterance_plus_reaction_tail"
+                    and clip_start is not None and clip_end is not None
+                    and abs(clip_start - utterance["start"]) <= 1.0
+                    and clip_end >= utterance["end"] - 0.05
+                    and (clip_end - utterance["end"]) <= 12.0
+                )
+                if (str(clip.get("source") or "") == "locale_draft_spec" or reaction_tail) and clip_start is not None and clip_end is not None and clip_end > clip_start:
                     return [
                         {
                             "clip_id": str(clip.get("clip_id") or f"locale_{utt_id}"),
@@ -9946,7 +9990,7 @@ def create_draft(input_json_path):
                             "start": seconds_to_timecode(clip_start),
                             "end": seconds_to_timecode(clip_end),
                             "speed_multiplier": safe_float(clip.get("speed_multiplier"), 1.0) or 1.0,
-                            "source": "locale_draft_spec",
+                            "source": str(clip.get("source") or "locale_draft_spec"),
                         }
                     ]
                 if clip_start is not None and clip_end is not None and clip_start >= utterance["start"] - 0.05 and clip_end <= utterance["end"] + 0.05 and clip_end > clip_start:
@@ -10226,7 +10270,15 @@ def create_draft(input_json_path):
             # the line, so timing the caption to the spoken window alone left the speaker on
             # screen, audible, with nothing to read - 13 of 112 seconds across 12 gaps, every one
             # of them sitting on that line's own clip.
-            if is_dialogue_caption and video_timeline_end_us > timeline_end_us:
+            # The hold belongs to the LAST chunk of a line only: holding an earlier chunk to
+            # the clip end pushed the NEXT chunk's start seconds past its spoken moment (the
+            # chained start waits for the previous chunk to clear the lane).
+            next_is_same_line_chunk = bool(
+                next_unit
+                and str((next_unit or {}).get("segment_id") or "") == chunk_group
+                and int((next_unit or {}).get("order") or 0) > chunk_order
+            )
+            if is_dialogue_caption and video_timeline_end_us > timeline_end_us and not next_is_same_line_chunk:
                 timeline_end_us = min(caption_ceiling_us, video_timeline_end_us)
             timeline_end_us = max(timeline_end_us, min(video_timeline_end_us, timeline_start_us + 1))
             # A chained chunk whose predecessors already consumed the ceiling would start AT the

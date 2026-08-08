@@ -355,33 +355,41 @@ function detectSpeechRanges(sourceVideoPath, cues) {
     .filter(([start, end]) => Number.isFinite(start) && Number.isFinite(end) && end > start);
   if (!sourceVideoPath || !fs.existsSync(sourceVideoPath) || !windows.length) return windows;
 
+  // ONE silencedetect pass over the whole source (ClippyMe pattern, MIT), then intersect with
+  // the cue windows. The previous per-cue loop spawned one ffmpeg process per cue - hundreds
+  // of decodes for the same audio. Logic is equivalent; -26dB/0.20 stays (movie music bed,
+  // measured - do not import ClippyMe's -30dB).
   const ffmpeg = resolveTool('ffmpeg', { envKey: 'FFMPEG_PATH' });
+  // silencedetect reports on stderr even on success, so this has to be spawnSync: with
+  // execFileSync the log is only reachable from a thrown error, which made every cue
+  // look pause-free.
+  const probe = spawnSync(ffmpeg, [
+    '-hide_banner', '-nostats', '-y', '-i', sourceVideoPath,
+    '-vn',
+    '-af', 'silencedetect=noise=-26dB:d=0.20', '-f', 'null', '-'
+  ], { env: getToolEnv(), encoding: 'utf8', timeout: 10 * 60 * 1000, maxBuffer: 64 * 1024 * 1024 });
+  const log = String(probe.stderr || '');
+  if (!log) return windows;
+  const silences = [];
+  let openStart = null;
+  for (const match of log.matchAll(/silence_(start|end):\s*(-?[\d.]+)/g)) {
+    const value = Number(match[2]);
+    if (match[1] === 'start') openStart = value;
+    else if (openStart != null) { silences.push([openStart, value]); openStart = null; }
+  }
+  // An unterminated silence_start runs to EOF: close it far past any cue so the complement
+  // treats the tail as silent (ClippyMe drops it; closing it is equivalent for intersection).
+  if (openStart != null) silences.push([openStart, Number.MAX_SAFE_INTEGER]);
+  silences.sort((left, right) => left[0] - right[0]);
   const speech = [];
   for (const [cueStart, cueEnd] of windows) {
-    // silencedetect reports on stderr even on success, so this has to be spawnSync: with
-    // execFileSync the log is only reachable from a thrown error, which made every cue
-    // look pause-free.
-    const probe = spawnSync(ffmpeg, [
-      '-hide_banner', '-nostats', '-y',
-      '-ss', cueStart.toFixed(3), '-t', (cueEnd - cueStart).toFixed(3), '-i', sourceVideoPath,
-      // -32dB treats a scored action scene as continuous sound and finds no pauses at
-      // all; -26dB leans on dialogue sitting above the music bed.
-      '-af', 'silencedetect=noise=-26dB:d=0.20', '-f', 'null', '-'
-    ], { env: getToolEnv(), encoding: 'utf8', timeout: 60000, maxBuffer: 16 * 1024 * 1024 });
-    const log = String(probe.stderr || '');
-    if (!log) { speech.push([cueStart, cueEnd]); continue; }
-    const silences = [];
-    let openStart = null;
-    for (const match of log.matchAll(/silence_(start|end):\s*(-?[\d.]+)/g)) {
-      const value = Number(match[2]);
-      if (match[1] === 'start') openStart = value;
-      else if (openStart != null) { silences.push([cueStart + openStart, cueStart + value]); openStart = null; }
-    }
-    if (openStart != null) silences.push([cueStart + openStart, cueEnd]);
     let cursor = cueStart;
-    for (const [silenceStart, silenceEnd] of silences.sort((left, right) => left[0] - right[0])) {
-      if (silenceStart > cursor) speech.push([cursor, silenceStart]);
-      cursor = Math.max(cursor, silenceEnd);
+    for (const [silenceStart, silenceEnd] of silences) {
+      if (silenceEnd <= cursor) continue;
+      if (silenceStart >= cueEnd) break;
+      if (silenceStart > cursor) speech.push([cursor, Math.min(silenceStart, cueEnd)]);
+      cursor = Math.max(cursor, Math.min(silenceEnd, cueEnd));
+      if (cursor >= cueEnd) break;
     }
     if (cursor < cueEnd) speech.push([cursor, cueEnd]);
   }
@@ -393,6 +401,12 @@ const DIALOGUE_WINDOW_TRIM_MIN_GAIN_SEC = 0.4;
 // Unhurried conversational English, kept deliberately slow so the ceiling only catches
 // windows that are clearly impossible rather than trimming real delivery.
 const DIALOGUE_WORDS_PER_SEC = 2.2;
+// silencedetect marks the -26dB crossing as the speech edge, but a consonant's attack and a
+// vowel's release live BELOW that threshold - cutting exactly at the detected edge clips them
+// on every line. Land the cut inside the silence trough instead (ClippyMe technique, MIT):
+// open slightly before the detected onset, close slightly after the detected tail.
+const SPEECH_ATTACK_GUARD_SEC = 0.04;
+const SPEECH_RELEASE_GUARD_SEC = 0.06;
 const DIALOGUE_WORD_ESTIMATE_MARGIN_SEC = 1.2;
 
 function roundSec3(value) {
@@ -431,8 +445,8 @@ function trimDialogueWindowsToSpeech(editPlan, speechRanges, sourceDurationSec =
       }
       const inside = ranges.filter(([rangeStart, rangeEnd]) => rangeEnd > start + 0.05 && rangeStart < end - 0.05);
       if (!inside.length) continue;
-      const speechStart = Math.max(start, Math.min(...inside.map((range) => range[0])));
-      let speechEnd = Math.min(end, Math.max(...inside.map((range) => range[1])));
+      const speechStart = Math.max(start, Math.min(...inside.map((range) => range[0])) - SPEECH_ATTACK_GUARD_SEC);
+      let speechEnd = Math.min(end, Math.max(...inside.map((range) => range[1])) + SPEECH_RELEASE_GUARD_SEC);
       // Silence detection alone cannot find the pauses under a continuous score, so a line
       // can still come back far longer than anyone could have spoken it. The word count is
       // independent of both the audio and the cue timing, so use it as a ceiling.
@@ -611,12 +625,44 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
         .map((win, index) => ({ win, index }))
         .filter((entry) => entry.win && entry.win.matched === true)
         .sort((a, b) => Number(a.win.start_sec) - Number(b.win.start_sec));
+      // An unmatched planned line silently vanishes from the cut, and its surviving neighbour
+      // then opens mid-sentence on screen. Reviewers must see this at the gate, not in CapCut.
+      for (const win of windows) {
+        if (win && win.matched !== true) {
+          warnings.push(`${slotId} planned dialogue line did not match any cue and will be MISSING from the cut: "${String(win.line || '').slice(0, 60)}" - merge its text into the surviving caption at review or fix the window`);
+        }
+      }
       for (const { win, index } of orderedDialogueWindows) {
         const orderedIndex = orderedDialogueWindows.findIndex((entry) => entry.win === win && entry.index === index);
         const timing = buildDialogueTimingAdjustment(item, win, orderedDialogueWindows, orderedIndex, durationSec, paddingGuardRanges);
         const segId = `${slotId}_L${String(index + 1).padStart(2, '0')}`;
+        // A cold open that cuts on the line's last word discards the reaction the slot window
+        // was chosen FOR (the shirt-reveal shock ran 64.6-70.8 and never reached the screen).
+        // Extend the LAST line's visual to the slot window end - captions stay on speech, and
+        // the source audio carries the reaction.
+        let visualEndSec = timing.visual_range_sec[1];
+        if (role === 'cold_open' && orderedIndex === orderedDialogueWindows.length - 1) {
+          // Cap at the next slot's window start: plans overlap neighbouring windows by up to
+          // ~0.5s and an extension into that overlap trips the cross-segment gate.
+          const nextWindowStart = Math.min(...timeline
+            .filter((other) => other !== item && Number(other.start_sec) > visualEndSec)
+            .map((other) => Number(other.start_sec)), Number.MAX_SAFE_INTEGER);
+          const slotWindowEnd = Math.min(
+            Number(item.end_sec) || visualEndSec,
+            footageEndSec > 0 ? footageEndSec : Number.MAX_SAFE_INTEGER,
+            nextWindowStart - 0.1
+          );
+          if (slotWindowEnd > visualEndSec + 0.75) visualEndSec = roundSec3(slotWindowEnd);
+          // The caption must NOT ride the whole reaction tail: keep it near the spoken words
+          // (speech + 1.5s of read-out), while the video runs on through the reaction.
+          if (visualEndSec > timing.visual_range_sec[1] + 0.05 && Array.isArray(timing.caption_speech_range_sec)) {
+            const speechEnd = Number((timing.speech_range_sec || timing.caption_speech_range_sec)[1]);
+            timing.caption_speech_range_sec = [timing.caption_speech_range_sec[0], roundSec3(Math.min(speechEnd + 1.5, visualEndSec))];
+            timing.caption_duration_sec = roundSec3(timing.caption_speech_range_sec[1] - Number(timing.caption_speech_range_sec[0]));
+          }
+        }
         const startTc = secondsToTimecode(timing.visual_range_sec[0]);
-        const endTc = secondsToTimecode(timing.visual_range_sec[1]);
+        const endTc = secondsToTimecode(visualEndSec);
         const captionText = compressDialogueCaptionText(captionKr[index] || '');
         const speakerList = Array.isArray(fill.speakers) ? fill.speakers : [];
         const speaker = normalizeText(speakerList[index] || fill.speaker || '');
@@ -704,7 +750,10 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
             scene_id: '',
             start: startTc,
             end: endTc,
-            speed_multiplier: 1
+            speed_multiplier: 1,
+            // Marks a deliberate reaction-tail extension so the utterance-reference
+            // validator can tell it apart from timing drift.
+            ...(visualEndSec > timing.visual_range_sec[1] + 0.05 ? { source: 'utterance_plus_reaction_tail' } : {})
           }],
           edit_instruction: defaultEditInstruction('dialogue')
         });
@@ -811,8 +860,16 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
   const uploadText = slotFills?.upload_text && typeof slotFills.upload_text === 'object' ? slotFills.upload_text : {};
   const overlayTitle = uploadText.overlay_title && typeof uploadText.overlay_title === 'object' ? uploadText.overlay_title : {};
   const titleCandidates = Array.isArray(uploadText.title_candidates) ? uploadText.title_candidates.map((value) => normalizeText(value)).filter(Boolean) : [];
-  const overlayTop = normalizeText(overlayTitle.top).slice(0, 8);
-  const overlayBottom = normalizeText(overlayTitle.bottom).slice(0, 8);
+  // Word-boundary cap at ~12 chars: the old slice(0, 8) shipped hook phrases cut MID-WORD.
+  const trimOverlayLine = (value, maxChars = 12) => {
+    const text = normalizeText(value);
+    if (text.length <= maxChars) return text;
+    const clipped = text.slice(0, maxChars + 1);
+    const lastSpace = clipped.lastIndexOf(' ');
+    return (lastSpace >= 4 ? clipped.slice(0, lastSpace) : text.slice(0, maxChars)).trim();
+  };
+  const overlayTop = trimOverlayLine(overlayTitle.top);
+  const overlayBottom = trimOverlayLine(overlayTitle.bottom);
   const slotMap = {
     source_duration_sec: durationSec,
     composition_mode: 'compression_bootstrap',
@@ -899,6 +956,14 @@ function assembleBootstrapArtifacts(runIdOrPath, options = {}) {
   // their coordinates from the same numbers and must agree to within 0.05s.
   const speechRanges = detectSpeechRanges(sourceVideoPath, transcriptTimed);
   const promoTail = detectPromoTail(transcriptTimed, sourceDurationSec);
+  // A frame-measured tail declaration (source_case.json, promo_tail_declared) beats caption
+  // detection in both directions: the classifier read a dialogue-free ending as promo and
+  // pulled usable_end 25s early, so the climax landed "in the promo tail" and the hook
+  // got replayed over it.
+  const bootstrapSourceCasePath = path.join(runDir, 'source_case.json');
+  const bootstrapSourceCase = fs.existsSync(bootstrapSourceCasePath) ? readJson(bootstrapSourceCasePath) : null;
+  const declaredUsableEndSec = bootstrapSourceCase && bootstrapSourceCase.promo_tail_declared === true
+    && Number(bootstrapSourceCase.usable_end_sec) > 0 ? Number(bootstrapSourceCase.usable_end_sec) : 0;
   const dialogueTrim = trimDialogueWindowsToSpeech(editPlan, speechRanges, sourceDurationSec);
 
   const { transcript, stats: transcriptStats, warnings: tW } = buildBootstrapTranscript(editPlan, transcriptTimed);
@@ -907,7 +972,7 @@ function assembleBootstrapArtifacts(runIdOrPath, options = {}) {
     title: manifest.title || '',
     sourceDurationSec,
     speechRanges,
-    usableEndSec: promoTail.usable_end_sec,
+    usableEndSec: declaredUsableEndSec > 0 ? declaredUsableEndSec : promoTail.usable_end_sec,
     cueRanges: (Array.isArray(transcriptTimed) ? transcriptTimed : []).map((cue) => [Number(cue?.start_sec), Number(cue?.end_sec)])
   });
 
@@ -1110,6 +1175,10 @@ async function runBootstrapToPipeline(runIdOrPath, options = {}) {
     bootstrapTranscriptPath: assembled.paths.outTranscriptPath,
     bootstrapSlotMapPath: assembled.paths.outSlotMapPath,
     bootstrapScriptPath: assembled.paths.outScriptPath,
+    bootstrapSceneMapPath: (() => {
+      const sceneMapPath = path.join(assembled.runDir, 'vision_scene_map.json');
+      return fs.existsSync(sceneMapPath) ? sceneMapPath : '';
+    })(),
     movieTitle: options.movieTitle || assembled.script?.content_context?.content_guess || '',
     contentType: 'movie_midform_recap',
     pauseBeforeTts: options.pauseBeforeTts === true

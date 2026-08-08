@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { execFile } = require('child_process');
+const { execFile, spawnSync } = require('child_process');
 const { PROJECT_ROOT } = require('./pipelinePaths');
 const { resolveTool, getToolEnv } = require('../utils/toolPaths');
 const {
@@ -11,7 +11,7 @@ const {
   runCodexCli,
   extractJson
 } = require('./gptMidformCliService');
-const { generateVertexJson } = require('./geminiMidformService');
+const { generateVertexJson, analyzeMidformVideo } = require('./geminiMidformService');
 
 // compress LLM provider: 'vertex' (Gemini, default — off the Codex weekly quota) or 'codex' (kept
 // as fallback/opt-in). Model applies to the Vertex path only.
@@ -131,6 +131,17 @@ function writeText(filePath, text) {
   fs.writeFileSync(filePath, String(text), 'utf8');
 }
 
+// The band title box carries ~12 Korean chars per line; the old hard slice(0, 8) cut hook
+// phrases MID-WORD ("하나인 줄 알았는데" shipped as "하나인 줄 알았"). Cut at a word boundary
+// inside the budget instead, and never mid-syllable-block.
+function trimOverlayLine(value, maxChars = 12) {
+  const text = String(value || '').trim();
+  if (text.length <= maxChars) return text;
+  const clipped = text.slice(0, maxChars + 1);
+  const lastSpace = clipped.lastIndexOf(' ');
+  return (lastSpace >= 4 ? clipped.slice(0, lastSpace) : text.slice(0, maxChars)).trim();
+}
+
 function normalizeUploadText(uploadText) {
   const titleCandidates = Array.isArray(uploadText?.title_candidates)
     ? uploadText.title_candidates.map((value) => String(value || '').trim()).filter(Boolean)
@@ -141,8 +152,8 @@ function normalizeUploadText(uploadText) {
   return {
     title_candidates: titleCandidates,
     overlay_title: {
-      top: String(overlayTitle.top || '').trim().slice(0, 8),
-      bottom: String(overlayTitle.bottom || '').trim().slice(0, 8)
+      top: trimOverlayLine(overlayTitle.top),
+      bottom: trimOverlayLine(overlayTitle.bottom)
     },
     description: String(uploadText?.description || '').trim(),
     pinned_comment: String(uploadText?.pinned_comment || '').trim()
@@ -1245,6 +1256,10 @@ function profileSourceCase(transcript, metadata, heatmap) {
     duration_sec: durationSec,
     speech_density: speechDensity,
     peak_is_dialogue: peakIsDialogue,
+    // What the peak claim rests on: 'heatmap' when most-replayed data named it, later upgraded
+    // to 'energy' (measured signal) or downgraded to 'none' by runCompression. 'none' means the
+    // guidance must not assert a non-verbal peak it cannot locate.
+    peak_evidence: peak ? 'heatmap' : 'none',
     usable_end_sec: promo.usable_end_sec,
     promo_tail_sec: promo.promo_tail_sec
   };
@@ -1263,10 +1278,12 @@ function buildSourceCaseGuidance(profile) {
   } else if (profile.speech_density >= SOURCE_CASE_DENSE_DENSITY) {
     lines.push('- Dialogue-dense source: the exchange itself is the video. Chain preserved dialogue back to back, keep narration to the seams only, and keep repeated lines that form a running pattern — the repetition is structure, not redundancy.');
   }
-  if (profile.peak_is_dialogue) {
+  if (profile.peak_evidence === 'none') {
+    lines.push('- No peak evidence exists (no heatmap, no measured energy peak): do NOT assume a non-verbal action peak. Choose the hook from the strongest dialogue/beat instead.');
+  } else if (profile.peak_is_dialogue) {
     lines.push('- The peak moment is spoken: open on that dialogue as a captioned hook. Never open with an uncaptioned audio teaser over speech — the hook would play inaudible to the target audience.');
   } else {
-    lines.push('- The peak moment is non-verbal: an uncaptioned source-audio teaser on the peak is the right opening; its energy carries the hook. Do not force a weak dialogue line into the hook instead.');
+    lines.push(`- The peak moment is non-verbal${profile.peak_evidence === 'energy' ? ` (measured energy peak at ~${Math.round(Number(profile.action_peak_sec) || 0)}s)` : ''}: an uncaptioned source-audio teaser on the peak is the right opening; its energy carries the hook. Do not force a weak dialogue line into the hook instead.`);
   }
   if (Number(profile.promo_tail_sec) > 0) {
     lines.push(`- The source ends with about ${Math.round(profile.promo_tail_sec)}s of channel self-promotion (outro/subscribe reel). NOTHING may be cut from after ${profile.usable_end_sec}s - no beat, no slot, no b-roll. If narration needs footage and none is left, reuse the hook moment rather than reaching into the outro.`);
@@ -2596,7 +2613,34 @@ function bestColdOpenCallbackBeat(beats, transcript, preferredBeatId = '') {
     }))
     .filter((item) => item.focus && item.score > 0 && normalizeQcActionAction(item.teaser_scores?.required_support_action) !== 'downgrade_to_narrate')
     .sort((left, right) => right.score - left.score || Number(left.beat.start_sec || 0) - Number(right.beat.start_sec || 0));
-  return candidates[0] || null;
+  // Time-axis NMS (AI-Youtube-Shorts-Generator, MIT): the text-key dedupe upstream lets two
+  // differently-worded candidates point at the same seconds. Suppress a candidate when it
+  // overlaps a higher-scored survivor by more than half of ITS OWN length.
+  const survivors = [];
+  for (const candidate of candidates) {
+    const start = Number(candidate.focus.start_sec);
+    const end = Number(candidate.focus.end_sec);
+    const duration = Math.max(0.001, end - start);
+    const suppressed = survivors.some((kept) => {
+      const overlap = Math.min(end, Number(kept.focus.end_sec)) - Math.max(start, Number(kept.focus.start_sec));
+      return overlap > 0 && overlap > 0.5 * duration;
+    });
+    if (!suppressed) survivors.push(candidate);
+  }
+  const best = survivors[0] || null;
+  if (best) {
+    // Keep the losing candidates on the winner (top 8, compact): without this the selection
+    // is a black box - "why did THIS open the cut" cannot be answered after the fact.
+    best.runner_ups = survivors.slice(1, 8).map((item) => ({
+      beat_id: String(item.beat?.beat_id || ''),
+      source: item.source,
+      score: item.score,
+      start_sec: Number(item.focus.start_sec),
+      end_sec: Number(item.focus.end_sec),
+      lines: (item.focus.lines || []).slice(0, 2)
+    }));
+  }
+  return best;
 }
 
 function prepareColdOpenCallbackTimeline(timeline, editPlan, beats, transcript) {
@@ -2607,6 +2651,9 @@ function prepareColdOpenCallbackTimeline(timeline, editPlan, beats, transcript) 
   if (String(existingCold?.visual_source_mode || '').trim() === 'source_audio_teaser') return timeline;
   const selected = bestColdOpenCallbackBeat(beats, transcript, editPlan?.cold_open_selection?.beat_id);
   if (!selected) return timeline;
+  if (editPlan && editPlan.cold_open_selection && Array.isArray(selected.runner_ups)) {
+    editPlan.cold_open_selection.runner_ups = selected.runner_ups;
+  }
   const hookBeatId = String(selected.beat.beat_id || '').trim();
   const nextTimeline = (Array.isArray(timeline) ? timeline : []).map((item) => ({ ...item }));
   const coldIndex = nextTimeline.findIndex((item) => item.role === 'cold_open');
@@ -3232,15 +3279,40 @@ function trimTimelineToTargetRuntime(timeline, targetSec) {
   // body_peak belongs here too: validateEditPlan requires it to outlast the teaser, so
   // trimming it away leaves a plan its own validator rejects.
   const protectedRoles = new Set(['cold_open', 'bridge', 'body_peak', 'payoff', 'closing']);
+  // The house invariant is speech-driven cuts: preserved dialogue IS the video, narration is
+  // seam material. The runtime trim once evicted the anesthetic debate and the leader's exit
+  // line to make room for new visual coverage - the cut regressed into a narrated recap. So:
+  // anchored dialogue can NEVER be auto-dropped for runtime; narration shrinks first instead.
+  const hasAnchoredDialogue = (item) => item.decision === 'KEEP_DIALOGUE'
+    && (Array.isArray(item.dialogue_focus_quotes) ? item.dialogue_focus_quotes.filter(Boolean).length : 0) > 0;
   const droppable = () => items
     .map((item, index) => ({ item, index }))
-    .filter(({ item }) => item.decision !== 'DROP' && !protectedRoles.has(String(item.role || '').trim()))
+    .filter(({ item }) => item.decision !== 'DROP' && !protectedRoles.has(String(item.role || '').trim()) && !hasAnchoredDialogue(item))
     .sort((left, right) => {
       const weight = (entry) => Number(entry.item.hook_potential || 0) + Number(entry.item.dramatic_weight || 0);
       // Weakest first; on a tie drop the longest, so one cut buys the most room.
       return weight(left) - weight(right)
         || realisticSlotDurationSec(right.item) - realisticSlotDurationSec(left.item);
     });
+
+  // Stage A - narration shrinks before anything is dropped: shorter seams cost story nothing,
+  // dropped dialogue costs the house style everything.
+  const NARRATION_TRIM_FLOOR_SEC = 4;
+  let runtimePreShrink = realisticTimelineRuntimeSec(items);
+  while (runtimePreShrink > Number(target)) {
+    const shrinkable = items
+      .map((item, index) => ({ item, index }))
+      .filter(({ item }) => item.decision === 'NARRATE' && Number(item.estimated_duration_sec || 0) > NARRATION_TRIM_FLOOR_SEC)
+      .sort((left, right) => Number(right.item.estimated_duration_sec || 0) - Number(left.item.estimated_duration_sec || 0));
+    if (!shrinkable.length) break;
+    const { item, index } = shrinkable[0];
+    items[index] = {
+      ...item,
+      estimated_duration_sec: roundSec(Math.max(NARRATION_TRIM_FLOOR_SEC, Number(item.estimated_duration_sec || 0) - 1)),
+      runtime_narration_shrunk: true
+    };
+    runtimePreShrink = realisticTimelineRuntimeSec(items);
+  }
 
   // Both this trim and duration_budget now measure a dialogue slot by the lines it cuts, so the
   // one measure is authoritative. Taking the max with the raw estimate would reinstate the dead
@@ -3797,7 +3869,8 @@ function buildBeatsPrompt(transcript, metadata, targetSec) {
     '',
     'Rules:',
     '- Use only the provided timed transcript. Do not invent events, motives, or dialogue.',
-    '- Every beat start_sec/end_sec must stay inside the provided cue ranges.',
+    '- A movie clip is already cut at story boundaries: it carries ONE self-contained arc of its own. Find that arc. Some moments inside the clip are not part of it - they are fragments tying into the wider film (setup for later scenes, references to off-clip characters or stakes). Mark such beats by saying so in their summary, because the edit plan will subtract them rather than build story around them.',
+    '- Beats are bounded by the FOOTAGE, not the captions: a beat may span a stretch with no cues at all when the vision scene map or the measured energy peaks show something happening there. Dialogue quotes must still come from real cues.',
     '- Preserve source order.',
     ...(wantedBeats
       ? [`- Return at least ${wantedBeats} beats. The finished cut is built one slot per beat and a slot carries roughly 14 seconds, so fewer beats than this cannot reach the requested ${target}s runtime no matter how they are edited.`]
@@ -3829,6 +3902,8 @@ function buildEditPlanPrompt(beats, heatmap, targetSec, metadata) {
     'Return JSON only matching the schema. Do not use markdown.',
     '',
     'Editorial stance for this channel (this decides most of your choices):',
+    '- Subtraction, not construction (owner doctrine): the clip already contains one self-contained story - it was cut at story boundaries. Your job is to FIND that internal arc and subtract everything that is not it, especially fragments that only make sense through the wider film\'s plot (setup for later scenes, off-clip characters, unresolved stakes the clip never pays off). After subtraction, what remains in source order IS the recap. Do not manufacture a frame, a mystery, or connective tissue the clip does not contain. Reordering for a hook (cold open) is presentation and is fine; inventing story is not.',
+    '- Runtime is an output, not a quota: the coherent arc decides the length. A tight 60s cut from a 3-minute clip beats a padded 90s one; a 20-minute clip may legitimately yield 170s. Never exceed 180 seconds. Treat the requested target as a ceiling.',
     '- Scene-preserving and speech-driven cuts outperform explanatory recaps here. Let the scene carry the story: preserve the dialogue that creates the force of a moment and use narration only to recover the situation quickly between those moments.',
     '- Almost always KEEP_DIALOGUE for a line that declares, rebuts, flips an attitude, calls someone by name as a warning, or reverses who holds power. The test is not "can this be summarised" but "does this line make the scene work". If it makes the scene work, keep it.',
     '- NARRATE is for what cannot be seen or heard: who these people are, what just changed, what is at stake. Never narrate what the dialogue already says.',
@@ -4429,15 +4504,20 @@ function validateSlotFillsRuntime(slotFills, editPlan, targetSec) {
   return slotFills;
 }
 
-function validateBeats(beatsObject, transcript) {
+function validateBeats(beatsObject, transcript, footageEndSec = 0) {
   const beats = normalizeBeatAnchors(Array.isArray(beatsObject?.beats) ? beatsObject.beats : []);
   if (!beats.length) throw new Error('narrative beats output is empty');
-  const minStart = Math.min(...transcript.map((cue) => cue.start_sec));
-  const maxEnd = Math.max(...transcript.map((cue) => cue.end_sec));
+  // Beats are bounded by the FOOTAGE, not the transcript. Clamping to cue range made every
+  // non-speech act legally un-beatable: on the leech source the first cue sits at 61.46s, so
+  // the entire first act (discovery, screams, removal - the measured energy peaks) could never
+  // become a beat, which is the structural root of "the leech recap had no leeches". Vision
+  // scenes and energy peaks now ground visual beats that captions cannot see.
+  const maxCueEnd = Math.max(...transcript.map((cue) => cue.end_sec));
+  const maxEnd = Math.max(Number(footageEndSec) || 0, maxCueEnd);
   for (const beat of beats) {
     if (!String(beat.beat_id || '').trim()) throw new Error('beat_id is required');
     if (!(Number(beat.end_sec) > Number(beat.start_sec))) throw new Error(`${beat.beat_id} has invalid time range`);
-    if (Number(beat.start_sec) < minStart - 0.5 || Number(beat.end_sec) > maxEnd + 0.5) throw new Error(`${beat.beat_id} is outside transcript range`);
+    if (Number(beat.start_sec) < -0.5 || Number(beat.end_sec) > maxEnd + 0.5) throw new Error(`${beat.beat_id} is outside the footage range`);
     const anchors = Array.isArray(beat.anchor_dialogue) ? beat.anchor_dialogue : [];
     const maxAnchors = maxAnchorsForBeat(beat);
     // A pure action/visual beat legitimately has no dialogue — anchors are only required
@@ -4660,6 +4740,231 @@ function buildNarrativeBeatsMarkdown({ runId, metadata, heatmap, beatsObject, ed
   ].join('\n');
 }
 
+const VISION_SCENE_MAP_FILE = 'vision_scene_map.json';
+
+function transcriptCuesToUtterances(transcript) {
+  const cues = Array.isArray(transcript) ? transcript : (Array.isArray(transcript?.cues) ? transcript.cues : []);
+  return {
+    utterances: cues
+      .map((cue, index) => ({
+        utt_id: `u${String(index + 1).padStart(3, '0')}`,
+        start: Number(cue.start_sec),
+        end: Number(cue.end_sec),
+        text: String(cue.text || '').trim()
+      }))
+      .filter((utterance) => Number.isFinite(utterance.start) && Number.isFinite(utterance.end)
+        && utterance.end > utterance.start && utterance.text)
+  };
+}
+
+// The planner used to infer what was on screen from caption text alone, which shipped a
+// "Bloodsucking Leeches" recap without a single frame of the leech attack: the transcript
+// goes silent exactly where the visual peak is. This runs the Gemini multimodal pass (the
+// only component that actually watches the video) once per source and caches the scene map,
+// so every replan grounds its visual claims in seen footage instead of prose.
+async function ensureVisionSceneMap(runDir, metadata, transcript, options = {}) {
+  const outPath = path.join(runDir, VISION_SCENE_MAP_FILE);
+  if (fs.existsSync(outPath)) return readJson(outPath);
+  const videoId = String(metadata?.id || '').trim();
+  const cacheDir = path.join(COMPRESS_RUNS_DIR, '.vision_scene_cache');
+  const cachePath = videoId ? path.join(cacheDir, `${videoId}.json`) : '';
+  if (cachePath && fs.existsSync(cachePath)) {
+    fs.copyFileSync(cachePath, outPath);
+    return readJson(outPath);
+  }
+  const download = await downloadCompressionSourceVideo(runDir);
+  const analysis = await analyzeMidformVideo(download.sourceVideoPath, options.contentType || 'movie_midform_recap', {
+    transcript: transcriptCuesToUtterances(transcript)
+  });
+  const sceneMap = {
+    source_id: videoId || path.basename(runDir),
+    generated_at: new Date().toISOString(),
+    analyzer: 'gemini_vertex_multimodal',
+    scenes: Array.isArray(analysis?.scenes) ? analysis.scenes : [],
+    story_context: analysis?.story_context || null,
+    characters: Array.isArray(analysis?.characters) ? analysis.characters : []
+  };
+  if (!sceneMap.scenes.length) {
+    throw new Error('Vision scene analysis returned no scenes - refusing to plan without seen footage');
+  }
+  writeJson(outPath, sceneMap);
+  if (cachePath) {
+    fs.mkdirSync(cacheDir, { recursive: true });
+    writeJson(cachePath, sceneMap);
+  }
+  return sceneMap;
+}
+
+function buildVisionSceneSection(sceneMap) {
+  const scenes = Array.isArray(sceneMap?.scenes) ? sceneMap.scenes : [];
+  if (!scenes.length) return '';
+  const compact = scenes.map((scene) => ({
+    scene_id: scene.scene_id,
+    start_sec: scene.start_sec,
+    end_sec: scene.end_sec,
+    visible_action: scene.visible_action,
+    shot_type: scene.shot_type || ''
+  }));
+  return [
+    '',
+    '',
+    '## Vision scene map (a multimodal model watched the video - ground truth for what is on screen)',
+    '- The transcript tells you what is SAID; only this scene map tells you what is SEEN. Never infer on-screen visuals from dialogue text.',
+    '- When a beat, window, or narration claims a visual event (an attack, a reveal, an action peak), its time range must overlap a scene whose visible_action actually shows that event.',
+    '- High-drama visual scenes with little or no dialogue are prime footage: cover them with NARRATE windows instead of skipping them. Silence in the transcript is not absence of story.',
+    '- A dialogue line belongs to the scene the map places it in. Do not carry it into a neighboring scene\'s context: if the location or the threat changes between scenes, the story needs a seam, not a blur.',
+    JSON.stringify(compact, null, 2)
+  ].join('\n');
+}
+
+const ENERGY_PROFILE_FILE = 'energy_profile.json';
+
+function zScore(values) {
+  if (!values.length) return [];
+  const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+  const std = Math.sqrt(values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / values.length) || 1e-8;
+  return values.map((value) => (value - mean) / std);
+}
+
+function movingAverage(values, windowSize) {
+  const window = Math.max(1, Math.round(windowSize));
+  const output = new Array(values.length).fill(0);
+  let sum = 0;
+  for (let index = 0; index < values.length; index += 1) {
+    sum += values[index];
+    if (index >= window) sum -= values[index - window];
+    output[index] = sum / Math.min(index + 1, window);
+  }
+  return output;
+}
+
+// Measured non-verbal energy (AutoShorts approach, MIT — reimplemented on ffmpeg only, with
+// their three known defects fixed: mean instead of sum, per-signal timebase normalization,
+// smoothing windows in explicit seconds). The transcript is silent exactly where the visual
+// peaks are; this gives the planner a MEASURED signal for those moments at zero token cost.
+function computeEnergyProfile(videoPath) {
+  const ffmpeg = resolveTool('ffmpeg', { envKey: 'FFMPEG_PATH' });
+  // Audio RMS: mono 16k s16le, frame 1024 / hop 256 (=64ms/16ms, 62.5Hz feature rate).
+  const audioProbe = spawnSync(ffmpeg, [
+    '-hide_banner', '-nostats', '-i', videoPath, '-vn', '-ac', '1', '-ar', '16000', '-f', 's16le', '-'
+  ], { env: getToolEnv(), timeout: 10 * 60 * 1000, maxBuffer: 512 * 1024 * 1024 });
+  const pcm = audioProbe.stdout;
+  const rms = [];
+  if (pcm && pcm.length > 4096) {
+    const frame = 1024;
+    const hop = 256;
+    const samples = Math.floor(pcm.length / 2);
+    for (let start = 0; start + frame <= samples; start += hop) {
+      let acc = 0;
+      for (let index = 0; index < frame; index += 1) {
+        const value = pcm.readInt16LE((start + index) * 2) / 32768;
+        acc += value * value;
+      }
+      rms.push(Math.sqrt(acc / frame));
+    }
+  }
+  const audioHz = 16000 / 256;
+  const rmsZ = movingAverage(zScore(rms), 0.25 * audioHz);
+
+  // Frame motion: 6fps, 256px gray, mean absolute frame difference (their decord/torch path
+  // reproduced with tblend+signalstats).
+  const motionProbe = spawnSync(ffmpeg, [
+    '-hide_banner', '-nostats', '-i', videoPath,
+    '-vf', "fps=6,scale=256:-2,format=gray,tblend=all_mode=difference,signalstats,metadata=print:key=lavfi.signalstats.YAVG:file=-",
+    '-f', 'null', '-'
+  ], { env: getToolEnv(), encoding: 'utf8', timeout: 10 * 60 * 1000, maxBuffer: 64 * 1024 * 1024 });
+  const motionTimes = [];
+  const motionValues = [];
+  let pendingTime = null;
+  for (const line of String(motionProbe.stdout || '').split(/\r?\n/)) {
+    const timeMatch = line.match(/pts_time:([0-9.]+)/);
+    if (timeMatch) { pendingTime = Number(timeMatch[1]); continue; }
+    const valueMatch = line.match(/lavfi\.signalstats\.YAVG=([0-9.]+)/);
+    if (valueMatch && pendingTime != null) {
+      motionTimes.push(pendingTime);
+      motionValues.push(Number(valueMatch[1]));
+      pendingTime = null;
+    }
+  }
+  const motionZ = movingAverage(zScore(motionValues), 1.0 * 6);
+
+  return { audioHz, rmsZ, motionHz: 6, motionTimes, motionZ };
+}
+
+function pickEnergyPeaks(profile, usableEndSec = 0) {
+  const grid = 0.5;
+  const audioDuration = profile.rmsZ.length / profile.audioHz;
+  const motionDuration = profile.motionTimes.length ? profile.motionTimes[profile.motionTimes.length - 1] : 0;
+  const totalSec = Math.max(audioDuration, motionDuration);
+  if (!(totalSec > 4)) return [];
+  const points = [];
+  for (let t = 0; t < totalSec; t += grid) {
+    const audioIndex = Math.min(profile.rmsZ.length - 1, Math.round(t * profile.audioHz));
+    const motionIndex = Math.min(profile.motionZ.length - 1, Math.round(t * profile.motionHz));
+    const audioValue = profile.rmsZ.length ? profile.rmsZ[Math.max(0, audioIndex)] : 0;
+    const motionValue = profile.motionZ.length ? profile.motionZ[Math.max(0, motionIndex)] : 0;
+    points.push({ t, score: 0.45 * audioValue + 0.55 * motionValue });
+  }
+  const windowSec = 4;
+  const windowPoints = Math.round(windowSec / grid);
+  const windows = [];
+  for (let index = 0; index + windowPoints <= points.length; index += 1) {
+    const slice = points.slice(index, index + windowPoints);
+    const mean = slice.reduce((sum, point) => sum + point.score, 0) / slice.length;
+    const start = points[index].t;
+    if (usableEndSec > 0 && start + windowSec > usableEndSec) continue;
+    windows.push({ start_sec: roundSec(start), end_sec: roundSec(start + windowSec), score: Number(mean.toFixed(3)) });
+  }
+  windows.sort((left, right) => right.score - left.score);
+  const picked = [];
+  for (const candidate of windows) {
+    if (picked.length >= 8) break;
+    if (candidate.score < 0.2) break;
+    if (picked.some((peak) => Math.abs(peak.start_sec - candidate.start_sec) < 6)) continue;
+    picked.push(candidate);
+  }
+  return picked.map((peak, index) => ({ ...peak, rank: index + 1 }));
+}
+
+async function ensureEnergyProfile(runDir, metadata, usableEndSec = 0) {
+  const outPath = path.join(runDir, ENERGY_PROFILE_FILE);
+  if (fs.existsSync(outPath)) return readJson(outPath);
+  const videoId = String(metadata?.id || '').trim();
+  const cacheDir = path.join(COMPRESS_RUNS_DIR, '.energy_cache');
+  const cachePath = videoId ? path.join(cacheDir, `${videoId}.json`) : '';
+  if (cachePath && fs.existsSync(cachePath)) {
+    fs.copyFileSync(cachePath, outPath);
+    return readJson(outPath);
+  }
+  const download = await downloadCompressionSourceVideo(runDir);
+  const raw = computeEnergyProfile(download.sourceVideoPath);
+  const artifact = {
+    source_id: videoId || path.basename(runDir),
+    generated_at: new Date().toISOString(),
+    method: 'ffmpeg rms(64ms/16ms z-smoothed 0.25s) + motion(6fps gray framediff z-smoothed 1s), combined 0.45*audio+0.55*motion, 4s mean windows',
+    peaks: pickEnergyPeaks(raw, usableEndSec)
+  };
+  writeJson(outPath, artifact);
+  if (cachePath) {
+    fs.mkdirSync(cacheDir, { recursive: true });
+    writeJson(cachePath, artifact);
+  }
+  return artifact;
+}
+
+function buildEnergySection(energyProfile) {
+  const peaks = Array.isArray(energyProfile?.peaks) ? energyProfile.peaks : [];
+  if (!peaks.length) return '';
+  return [
+    '',
+    '',
+    '## Measured non-verbal energy peaks (audio RMS + frame motion, computed from the signal — NOT inferred from text)',
+    '- These are MEASURED moments of high audio/visual energy in the source. When the most-replayed heatmap is unavailable, treat the top peaks here with the same authority as heatmap peaks.',
+    '- Every peak below must fall inside some beat. A peak that no beat covers means the beats missed a visual event — screams, impacts and action read as silence in the transcript.',
+    JSON.stringify(peaks, null, 2)
+  ].join('\n');
+}
+
 async function runCompression(source, options = {}) {
   const sourceUrl = normalizeSourceUrl(source);
   let targetSec = Number(options.target || options.targetSec || DEFAULT_TARGET_SEC) || DEFAULT_TARGET_SEC;
@@ -4672,6 +4977,19 @@ async function runCompression(source, options = {}) {
   }
 
   const { metadata, metadataPath } = await loadYoutubeMetadata(sourceUrl, runDir);
+  // Source resolution scout (OpenShorts quality_probe, MIT): a 360p source silently produces a
+  // blurry draft after the full pipeline spend. Refuse below 720p, warn below 1080p, before any
+  // expensive work starts.
+  const maxSourceHeight = Math.max(0, ...(Array.isArray(metadata?.formats) ? metadata.formats : [])
+    .filter((format) => format && format.vcodec && format.vcodec !== 'none' && String(format.ext || '') !== 'mhtml')
+    .map((format) => Number(format.height) || 0));
+  if (maxSourceHeight > 0 && maxSourceHeight < 720) {
+    const blocked = { status: 'blocked', code: 'SOURCE_RESOLUTION_TOO_LOW', message: `최대 해상도 ${maxSourceHeight}p — 720p 미만 소스는 드래프트 품질이 성립하지 않습니다. 다른 업로드를 찾아주세요.` };
+    writeJson(statePath, blocked);
+    throw Object.assign(new Error(blocked.message), { code: blocked.code, details: { maxSourceHeight } });
+  }
+  const sourceResolutionWarning = maxSourceHeight > 0 && maxSourceHeight < 1080
+    ? `source max resolution ${maxSourceHeight}p (below 1080p)` : '';
   // The target follows the source (user directive): a 90s ask against a 163s clip chased length
   // the footage cannot carry — burning retries and warnings over a number nobody needs. A recap
   // is a compression, so cap the target at half the source and let completeness decide the rest.
@@ -4694,20 +5012,53 @@ async function runCompression(source, options = {}) {
   // caption-based detection: preview dialogue defeats the text classifier in both directions.
   const declaredTail = Number(options.promoTailSec || 0);
   if (declaredTail > 0 && sourceCase.duration_sec > 0) {
-    const declaredEnd = roundSec(Math.max(0, sourceCase.duration_sec - declaredTail));
-    if (declaredEnd < sourceCase.usable_end_sec || !sourceCase.promo_tail_sec) {
-      sourceCase.usable_end_sec = declaredEnd;
-      sourceCase.promo_tail_sec = declaredTail;
-      sourceCase.promo_tail_declared = true;
+    // A frame-measured declaration beats caption detection in BOTH directions. Taking only the
+    // smaller end let the text classifier misread a dialogue-free ending as promo (last cue at
+    // 182s, real footage to 209s) and the bite close-up landed "in the promo tail" - the hook
+    // got replayed over the climax.
+    sourceCase.usable_end_sec = roundSec(Math.max(0, sourceCase.duration_sec - declaredTail));
+    sourceCase.promo_tail_sec = declaredTail;
+    sourceCase.promo_tail_declared = true;
+  }
+  const visionSceneMap = await ensureVisionSceneMap(runDir, metadata, transcript, { contentType: options.contentType });
+  const visionSceneSection = buildVisionSceneSection(visionSceneMap);
+  const energyProfile = await ensureEnergyProfile(runDir, metadata, sourceCase.usable_end_sec);
+  const energySection = buildEnergySection(energyProfile);
+  // Peak evidence (fixes the groundless action_peak claim): without a heatmap the profiler used
+  // to declare "non-verbal peak, open on it" while nobody knew where that peak was. Now the
+  // measured energy peak fills in, and with no evidence at all the claim is withdrawn.
+  if (sourceCase.peak_evidence !== 'heatmap') {
+    const topPeak = (energyProfile?.peaks || [])[0] || null;
+    if (topPeak) {
+      sourceCase.peak_evidence = 'energy';
+      sourceCase.action_peak_sec = topPeak.start_sec;
+      sourceCase.peak_is_dialogue = transcript.some((cue) => Number(cue.end_sec) > topPeak.start_sec && Number(cue.start_sec) < topPeak.end_sec);
+      sourceCase.case_type = sourceCase.case_type.replace(/(dialogue_peak|action_peak)/, sourceCase.peak_is_dialogue ? 'dialogue_peak' : 'action_peak');
+    } else {
+      sourceCase.peak_evidence = 'none';
     }
   }
   writeJson(path.join(runDir, 'source_case.json'), sourceCase);
   const caseGuidanceText = buildSourceCaseGuidance(sourceCase).join(String.fromCharCode(10));
 
   const beatsResult = await runJsonGeneration(
-    buildBeatsPrompt(transcript, metadata, targetSec) + caseGuidanceText,
+    buildBeatsPrompt(transcript, metadata, targetSec) + caseGuidanceText + visionSceneSection + energySection,
     MIDFORM_COMPRESSION_BEATS_SCHEMA_PATH,
-    (parsed) => validateBeats(parsed, transcript)
+    (parsed) => {
+      const validated = validateBeats(parsed, transcript, sourceCase.usable_end_sec);
+      // Prompt-level "every peak must be inside a beat" was ignored on the first live run:
+      // the model dropped the entire first act (neck-leech screams, energy ranks 1-2) again.
+      // Measured peaks are enforced, not suggested - the retry feedback names the hole.
+      // Top-2 enforced: rank 1-2 are the must-have visual moments; requiring rank 3 as well
+      // proved brittle against beat-sampling variance (a run died on a 4s build-up window).
+      for (const peak of (energyProfile?.peaks || []).slice(0, 2)) {
+        const covered = (validated.beats || []).some((beat) => Number(beat.start_sec) < peak.end_sec && Number(beat.end_sec) > peak.start_sec);
+        if (!covered) {
+          throw new Error(`measured energy peak ${peak.start_sec}-${peak.end_sec}s (rank ${peak.rank}) is not covered by any beat - screams and action read as silence in the transcript, so add a beat spanning that moment`);
+        }
+      }
+      return validated;
+    }
   );
   beatsResult.parsed.beats = completeBeatDialogueFromCues(beatsResult.parsed.beats, transcript);
   const beatsPath = path.join(runDir, 'narrative_beats.json');
@@ -4717,7 +5068,7 @@ async function runCompression(source, options = {}) {
   let editPlanSource = 'codex';
   try {
     const editResult = await runJsonGeneration(
-      buildEditPlanPrompt(beatsResult.parsed.beats, heatmap, targetSec, metadata) + caseGuidanceText,
+      buildEditPlanPrompt(beatsResult.parsed.beats, heatmap, targetSec, metadata) + caseGuidanceText + visionSceneSection + energySection,
       MIDFORM_COMPRESSION_EDIT_PLAN_SCHEMA_PATH,
       (parsed) => validateEditPlanAgainstBeats(validateEditPlan(parsed, targetSec), beatsResult.parsed.beats)
     );
@@ -4751,8 +5102,12 @@ async function runCompression(source, options = {}) {
     title: metadata?.title || '',
     createdAt: new Date().toISOString(),
     pipelineBootstrapConnected: false,
-    paths: { runDir, metadataPath, transcriptPath, vttPath, heatmapPath, beatsPath, editPlanPath, markdownPath },
+    paths: { runDir, metadataPath, transcriptPath, vttPath, heatmapPath, beatsPath, editPlanPath, markdownPath, visionSceneMapPath: path.join(runDir, VISION_SCENE_MAP_FILE), energyProfilePath: path.join(runDir, ENERGY_PROFILE_FILE) },
+    visionSceneCount: Array.isArray(visionSceneMap?.scenes) ? visionSceneMap.scenes.length : 0,
+    energyPeakCount: Array.isArray(energyProfile?.peaks) ? energyProfile.peaks.length : 0,
     heatmapStatus: heatmap.status,
+    maxSourceHeight,
+    ...(sourceResolutionWarning ? { sourceResolutionWarning } : {}),
     coldOpenSelection: finalizedEditPlan.cold_open_selection || null,
     editPlanSource,
     llmProvider: compressLlmProvider()
@@ -4781,7 +5136,9 @@ async function runCompressionApply(runIdOrPath, applyOptions = {}) {
   const sourceCasePath = path.join(runDir, 'source_case.json');
   const applySourceCase = fs.existsSync(sourceCasePath) ? readJson(sourceCasePath) : null;
   const applyCaseGuidance = buildSourceCaseGuidance(applySourceCase).join(String.fromCharCode(10));
-  const slotFillsPrompt = buildSlotFillsPrompt(beatsObject.beats || [], finalizedEditPlan, movieTitle, recapContext.contextMarkdown) + applyCaseGuidance;
+  const applySceneMapPath = path.join(runDir, VISION_SCENE_MAP_FILE);
+  const applyVisionSection = fs.existsSync(applySceneMapPath) ? buildVisionSceneSection(readJson(applySceneMapPath)) : '';
+  const slotFillsPrompt = buildSlotFillsPrompt(beatsObject.beats || [], finalizedEditPlan, movieTitle, recapContext.contextMarkdown) + applyCaseGuidance + applyVisionSection;
   const validateStructure = (parsed) => validateSlotFillsDialogueCaptions(
     reconcileDialogueCaptionCounts(normalizeSlotFillsForStyle(parsed, finalizedEditPlan), finalizedEditPlan),
     finalizedEditPlan
@@ -4813,7 +5170,7 @@ async function runCompressionApply(runIdOrPath, applyOptions = {}) {
   let japaneseSlotFillsPath = '';
   if (applyOptions.generateJapanese !== false) {
     const japaneseResult = await runJsonGeneration(
-      buildJapaneseSlotFillsPrompt(beatsObject.beats || [], finalizedEditPlan, movieTitle, recapContext.contextMarkdown),
+      buildJapaneseSlotFillsPrompt(beatsObject.beats || [], finalizedEditPlan, movieTitle, recapContext.contextMarkdown) + applyVisionSection,
       MIDFORM_SLOT_FILLS_SCHEMA_PATH,
       (parsed) => validateJapaneseSlotFills(
         validateSlotFillsDialogueCaptions(parsed, finalizedEditPlan, 'ja'),

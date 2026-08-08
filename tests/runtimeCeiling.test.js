@@ -74,15 +74,32 @@ test('a plan already inside the ceiling is untouched', () => {
   assert.ok(trimmed.every((item) => !item.runtime_trimmed));
 });
 
-test('droppable slots are still dropped before protected ones are shortened', () => {
+// Owner invariant (2026-08-08): anchored dialogue is the house style and can NEVER be
+// auto-dropped for runtime - the trim once evicted the anesthetic debate for new b-roll and
+// the cut regressed into a narrated recap. Overflow is absorbed by shaving lines instead.
+test('an anchored dialogue slot is never dropped for runtime, only shaved', () => {
   const timeline = [
     dialogueSlot('cold', 'cold_open', 1, 6, 9),
     dialogueSlot('filler', 'body', 4, 14, 1),
     dialogueSlot('peak', 'body_peak', 3, 12, 9)
   ];
   const trimmed = trimTimelineToTargetRuntime(timeline, 60);
-  assert.equal(trimmed.find((i) => i.slot_id === 'filler').decision, 'DROP');
-  assert.ok(runtimeOf(trimmed) <= 60);
+  assert.equal(trimmed.find((i) => i.slot_id === 'filler').decision, 'KEEP_DIALOGUE', 'anchored dialogue must survive the trim');
+  const fillerKept = trimmed.find((i) => i.slot_id === 'filler').dialogue_line_windows.filter((w) => w.matched === true);
+  assert.ok(fillerKept.length >= 1 && fillerKept.length < 4, 'the weak slot pays with lines, not with existence');
+  assert.ok(runtimeOf(trimmed) < runtimeOf(timeline), 'the trim must still buy runtime back');
+});
+
+// A slot with NO anchored quotes carries no house-style protection and may still be dropped.
+test('an unanchored slot is still droppable for runtime', () => {
+  const narrate = { slot_id: 'seam', role: 'body', decision: 'NARRATE', start_sec: 300, end_sec: 340, estimated_duration_sec: 3, hook_potential: 1, dramatic_weight: 1 };
+  const timeline = [
+    dialogueSlot('cold', 'cold_open', 1, 6, 9),
+    narrate,
+    dialogueSlot('peak', 'body_peak', 2, 10, 9)
+  ];
+  const trimmed = trimTimelineToTargetRuntime(timeline, 20);
+  assert.equal(trimmed.find((i) => i.slot_id === 'seam').decision, 'DROP', 'unanchored seams go first');
 });
 
 // Matching whole slot spans only caught exact repeats. With twelve dialogue slots instead of

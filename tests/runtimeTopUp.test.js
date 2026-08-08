@@ -189,7 +189,8 @@ test('a cut that would run past its target is trimmed back under it', () => {
     `the cut must stay inside its ceiling, got ${finalized.duration_budget.estimated_total_sec}s`);
   // The shape of the cut survives the trim; only body slots are candidates.
   assert.ok(roles.includes('cold_open') && roles.includes('bridge') && roles.includes('payoff'));
-  // The weakest body slot goes first.
-  const dropped = finalized.timeline.filter((item) => item.runtime_trimmed).map((item) => item.slot_id);
-  assert.ok(dropped.includes('5'), `expected the weakest slot dropped first, dropped ${dropped.join(',')}`);
+  // Narration shrinks before anything is dropped (owner invariant, 2026-08-08): with an
+  // all-NARRATE fixture the ceiling is reachable by shortening seams alone.
+  const touched = finalized.timeline.filter((item) => item.runtime_narration_shrunk || item.runtime_trimmed);
+  assert.ok(touched.length > 0, 'the trim must leave a visible mark on what it changed');
 });

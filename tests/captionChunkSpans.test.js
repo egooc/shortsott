@@ -30,13 +30,20 @@ const spansFor = (chunks, span) => probe([
   'print(_j.dumps(m.caption_chunk_spans(seg, chunks)))'
 ].join('\n'));
 
-test('a line spreads across its chunks in proportion to length', () => {
+// Owner doctrine (2026-08-08): chunk STARTS follow reading pace from the moment the line
+// begins - never spread proportionally across the window, because auto-caption cues run far
+// longer than the words and the later chunk then appears seconds after the voice stopped.
+// The window length only bounds the tail: the LAST chunk holds to the window end.
+test('chunk starts follow reading pace; the window only feeds the final hold', () => {
   const spans = spansFor(['첫 조각입니다', '두 번째 조각', '셋'], [10.0, 13.0]);
   assert.equal(spans.length, 3);
   assert.equal(spans[0][0], 10.0, 'the first chunk starts when the line does');
   assert.equal(spans[2][1], 13.0, 'the last chunk ends when the line does');
   assert.ok(spans[0][1] > spans[1][0] - 1e-6 && spans[0][1] <= spans[1][0] + 1e-6, 'chunks are contiguous');
-  assert.ok(spans[0][1] - spans[0][0] > spans[2][1] - spans[2][0], 'a longer chunk gets more time');
+  const readingSec = (text) => Math.max(0.6, text.length / 8);
+  assert.ok(Math.abs(spans[1][0] - (10.0 + readingSec('첫 조각입니다'))) < 0.35,
+    `second chunk must appear at reading pace, got ${spans[1][0]}`);
+  assert.ok(spans[2][1] - spans[2][0] >= 0.6, 'the final chunk holds the remaining window');
 });
 
 test('chunks of one line never overlap each other', () => {

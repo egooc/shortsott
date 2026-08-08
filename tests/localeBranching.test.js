@@ -92,23 +92,26 @@ test('locale evidence pack merges full-auto supplemental reaction and coverage s
   assert.deepEqual(artifacts.evidencePack.evidence_coverage, { comments: true, retention: true, heatmap: true, transcript: true });
 });
 
-test('locale edit plans produce different opening chains and pass overlap guard', () => {
+// Story order is sacred for BOTH locales (owner doctrine, 2026-08-08): the ja reorder used to
+// shuffle buildup after payoff and dropped the climax from the ja cut. Locale difference now
+// comes from window shifts and scripts; plan-shape similarity is advisory, and the FINAL-draft
+// free-b-roll overlap gates remain the real enforcement.
+test('both locales keep the base plan story order; ja differs by window shifts', () => {
   const inputs = sampleInputs();
   const artifacts = buildLocaleBranchArtifacts(inputs);
-  const koOpening = artifacts.editPlans.ko.opening_window.map((clip) => clip.slot_id);
-  const jaOpening = artifacts.editPlans.ja.opening_window.map((clip) => clip.slot_id);
-
-  assert.notDeepEqual(koOpening, jaOpening);
-  assert.notDeepEqual(artifacts.editPlans.ko.highlight_order, artifacts.editPlans.ja.highlight_order);
+  const orderOf = (plan) => plan.clip_chain.map((clip) => clip.slot_id);
+  assert.deepEqual(orderOf(artifacts.editPlans.ko), orderOf(artifacts.editPlans.ja), 'story order must match the base plan in both locales');
+  const koRanges = artifacts.editPlans.ko.clip_chain.map((clip) => clip.source_range.join('-'));
+  const jaRanges = artifacts.editPlans.ja.clip_chain.map((clip) => clip.source_range.join('-'));
+  assert.notDeepEqual(koRanges, jaRanges, 'ja must still differ from ko via shifted source windows');
   assert.equal(artifacts.overlapReport.final_status, 'pass');
-  assert.ok(artifacts.overlapReport.opening_similarity_score <= artifacts.overlapReport.thresholds.opening_similarity_score);
   assert.equal(artifacts.acceptanceGates.ko.status, 'passed');
   assert.equal(artifacts.acceptanceGates.ja.status, 'passed');
   assert.equal(artifacts.draftSpecs.ko.subtitle_layout, 'fast_compact_center_bottom');
   assert.equal(artifacts.draftSpecs.ja.subtitle_layout, 'measured_two_line_bottom_safe');
 });
 
-test('overlap guard fails identical locale clip chains', () => {
+test('plan-shape similarity is reported as advisory, never as a hard fail', () => {
   const inputs = sampleInputs();
   const strategy = buildLocaleEditorialStrategy('ko', { artifact_type: 'midform_locale_evidence_pack' });
   const artifacts = buildLocaleBranchArtifacts(inputs);
@@ -122,8 +125,8 @@ test('overlap guard fails identical locale clip chains', () => {
   };
   const report = compareLocaleEditPlans(artifacts.editPlans.ko, cloned);
 
-  assert.equal(report.final_status, 'fail');
-  assert.ok(report.failed_gates.includes('top_three_highlight_order_identical'));
-  assert.ok(report.failed_gates.includes('three_shot_chain_threshold'));
+  assert.equal(report.final_status, 'pass', 'identical plan shape is advisory, not fatal');
+  assert.ok(report.advisory_failed_gates.includes('top_three_highlight_order_identical'));
+  assert.ok(report.advisory_failed_gates.includes('three_shot_chain_threshold'));
   assert.ok(report.pairwise_overlap_score > report.thresholds.pairwise_overlap_score);
 });

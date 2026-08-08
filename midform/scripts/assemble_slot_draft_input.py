@@ -471,6 +471,12 @@ def validate_dialogue_utterance_references(segments, transcript):
         # drift more than 1.0s past the padded window.
         contains_speech = start <= utterance["start"] + 0.05 and end >= utterance["end"] - 0.05 and end > start
         padding_bounded = (utterance["start"] - start) <= 1.0 and (end - utterance["end"]) <= 1.0
+        # A cold open may deliberately extend its LAST line's visual through the reaction that
+        # follows the words (marked upstream) - the caption still rides the speech range, so
+        # only the start must stay pinned; the tail is the point.
+        reaction_tail = str(clip.get("source") or "") == "utterance_plus_reaction_tail"
+        if reaction_tail and contains_speech and (utterance["start"] - start) <= 1.0 and (end - utterance["end"]) <= 12.0:
+            continue
         if not (within_utterance or (contains_speech and padding_bounded)):
             errors.append(
                 f"{segment_id}: source clip {start:.3f}-{end:.3f} does not match {utt_id} "
@@ -828,22 +834,51 @@ def caption_chunk_spans(segment, chunks):
         end_sec = float(span[1])
     except (TypeError, ValueError):
         return [None] * len(chunks)
+    # Chunk STARTS must follow the moment the words are actually SPOKEN. The readability
+    # extension stretches caption_speech_range past the speech (extra read time), and spreading
+    # chunks proportionally over that stretched window made every later chunk appear seconds
+    # after its line had ended. Distribute over the true speech range instead, and give the
+    # readability tail to the LAST chunk's display end only.
+    readable_end_sec = end_sec
+    speech = (adjustment or {}).get("speech_range_sec") if isinstance(adjustment, dict) else None
+    try:
+        speech_start = float(speech[0])
+        speech_end = float(speech[1])
+        if speech_end > speech_start:
+            start_sec = max(start_sec, speech_start)
+            end_sec = min(end_sec, max(speech_end, start_sec + 0.4))
+    except (TypeError, ValueError, IndexError):
+        pass
     total = end_sec - start_sec
     if not chunks or total <= 0:
         return [None] * len(chunks)
     weights = [max(1, len(str(chunk or '').strip())) for chunk in chunks]
-    weight_total = float(sum(weights))
+    # READING-RATE pacing, not window-proportional: the English cue for a line can span far
+    # longer than the words (auto-captions pack lines; music defeats silence detection), and
+    # spreading chunks across that span put the second Korean line seconds after the voice
+    # stopped. A viewer reads at a steady pace from the moment the line starts - pace chunk
+    # starts by reading time, clamped into the window; the window length only sets the ceiling.
+    read_cps = 8.0
+    reading = [max(0.6, weight / read_cps) for weight in weights]
+    if sum(reading) > total:
+        scale = total / sum(reading)
+        reading = [duration * scale for duration in reading]
     spans = []
     cursor = start_sec
-    for position, weight in enumerate(weights):
-        share = total * (weight / weight_total)
-        chunk_end = end_sec if position == len(weights) - 1 else min(end_sec, cursor + share)
+    for position, duration in enumerate(reading):
+        chunk_end = end_sec if position == len(reading) - 1 else min(end_sec, cursor + duration)
         spans.append((round(cursor, 6), round(max(chunk_end, cursor + 0.05), 6)))
         cursor = chunk_end
     # Each chunk runs until the next one starts. Sizing them to their share alone left holes
     # between chunks of the SAME line, so a speaker stayed on screen with nothing to read.
+    # Generation-time invariant (OpenShorts subtitles pattern, MIT): a zero/negative caption
+    # span must be impossible to EMIT here, not merely caught later by draft-verify.
     for position in range(len(spans) - 1):
-        spans[position] = (spans[position][0], spans[position + 1][0])
+        next_start = spans[position + 1][0]
+        spans[position] = (spans[position][0], max(next_start, spans[position][0] + 0.05))
+    # The readability extension belongs to the FINAL chunk's display end only.
+    if spans and readable_end_sec > spans[-1][1]:
+        spans[-1] = (spans[-1][0], round(readable_end_sec, 6))
     return spans
 
 
