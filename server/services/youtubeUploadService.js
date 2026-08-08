@@ -4,6 +4,7 @@ const path = require('path');
 const { OAuth2Client } = require('google-auth-library');
 const { maskSecret } = require('./envService');
 const { PROJECT_ROOT, readJsonIfExists } = require('./pipelinePaths');
+const { normalizeUploadLoudness } = require('./uploadLoudnessService');
 
 const QUEUE_CONFIG_PATH = path.join(PROJECT_ROOT, 'queue', 'process', 'queue_config.json');
 const JOBS_DIR = path.join(PROJECT_ROOT, 'server', 'data', 'youtube_upload_jobs');
@@ -1627,7 +1628,15 @@ async function uploadVideoToYouTube(item, onProgress = () => {}) {
     throw error;
   }
 
-  const size = fs.statSync(filePath).size;
+  // CapCut exports run ~-7 LUFS with clipping-range true peaks; normalize the
+  // audio to the platform reference before upload. Fail-open: any error keeps
+  // the original file, this must never block an upload.
+  onProgress({ message: 'Checking audio loudness before upload' });
+  const loudness = await normalizeUploadLoudness(filePath, (message) => onProgress({ message }));
+  const uploadFilePath = loudness.path;
+  try {
+
+  const size = fs.statSync(uploadFilePath).size;
   const uploadProfileId = resolveUploadProfileId(item.uploadProfileId || item.profileId || '');
   item.uploadProfileId = uploadProfileId;
   const accessToken = await getAccessToken(uploadProfileId);
@@ -1669,7 +1678,7 @@ async function uploadVideoToYouTube(item, onProgress = () => {}) {
       'Content-Length': String(size),
       'Content-Type': 'video/mp4'
     },
-    body: fs.readFileSync(filePath)
+    body: fs.readFileSync(uploadFilePath)
   });
 
   const uploadText = await uploadResponse.text();
@@ -1686,8 +1695,17 @@ async function uploadVideoToYouTube(item, onProgress = () => {}) {
     videoId: uploadData.id || '',
     url: uploadData.id ? `https://www.youtube.com/watch?v=${uploadData.id}` : '',
     response: uploadData,
-    resource
+    resource,
+    loudness: {
+      applied: loudness.applied,
+      measured: loudness.measured || null,
+      error: loudness.error || null
+    }
   };
+
+  } finally {
+    loudness.cleanup();
+  }
 }
 
 function tryParseJson(value) {
