@@ -13,6 +13,8 @@ yt-dlp --js-runtimes node --no-playlist --skip-download --print "%(title)s | %(d
 
 해상도도 함께 확인: 720p 미만이면 compress가 차단한다(SOURCE_RESOLUTION_TOO_LOW), 1080p 미만이면 경고. 파이프라인은 자막 큐 기반이다. **자동자막조차 없으면 실행 불가** — 같은 장면의 다른 업로드를 사용자에게 요청한다(STT 폴백은 스코프 밖). 제목·길이도 여기서 확보.
 
+예외: **게임 영상**은 자막이 없는 게 정상 — frontmatter에 `source.kind: game`을 선언하면 자막 없이 진행된다 (비전+에너지 구조, 전량 나레이션). 첫 실행 전 `midform/docs/game-branch-plan.md`를 읽을 것 — 브랜치는 배관만 완료 상태다.
+
 ## 2. 케이스북 대조
 
 `midform/docs/source-casebook.md`를 읽고 가장 가까운 사례를 찾는다. 판별 축: 발화 밀도(대략), 히트맵 피크가 대사인지 액션인지, 길이. 사례의 "접근"과 "주의"를 템플릿에 반영한다.

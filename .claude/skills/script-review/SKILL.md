@@ -40,6 +40,13 @@ ffmpeg -v error -i a.png -i b.png ... -filter_complex "[0][1]...hstack=N" -y mon
 - 판정: 화면이 나레이션·장면 지도의 주장과 일치하는가. 불일치나 의심 프레임은 계획서에 이미지 근거와 함께 명시.
 - 계획서의 장면 사용표에 프레임 검증 결과 열(✓/✗)을 넣는다. Claude는 정지 프레임만 보므로 모션·오디오 판단은 비전 지도와 원음 큐에 맡긴다.
 
+## 콜드오픈 선택 근거 (2026-08-09 신설)
+
+edit_plan.json의 `cold_open_selection`에 `selection_mode`(deterministic_argmax | listwise_rerank)와
+`rerank.why`(LLM 상대평가의 한 줄 근거), `runner_ups`(탈락 후보)가 기록된다. 계획서의 콜드오픈
+섹션에 **선택 근거와 차점 후보 1~2개**를 함께 서술한다 — 사용자가 "왜 이 훅인가"를 대체안과
+비교해 판단할 수 있어야 한다. `rerank.applied: false` + error가 있으면 argmax 폴백이었다는 뜻.
+
 ## JA 검수 체크리스트 (2026-08-09 신설 — ja는 검수 사각지대였다)
 
 - **배열 정렬**: slot별 `caption_ja_dialogue`(또는 caption_kr_dialogue 키) 개수 == 그 슬롯 대사 줄 수, `speakers` 개수 일치. ko에서 줄을 이식/삭제했으면 ja 배열도 같이 — 어긋나면 ja가 통째로 스킵되거나 자막이 밀린다 (실사고 2회: Anacondas 빈 자막, AFGM 스킵).

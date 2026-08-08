@@ -30,7 +30,7 @@
 
 ## 2차 묶음 (M급)
 
-- **콜드오픈 listwise rerank** (Clips Studio 구조 독립구현): 결정론 점수로 상위 K=5~6 컷 → LLM 1회 상대평가(점수 숨김) → 실패 시 현행 argmax 폴백. 현행 `+120` LLM 편향·`hook<4` 절단 제거. + 3턴 마이크로 익스체인지 후보 (ClipsAI 다중 해상도 발상)
+- ✅ (2026-08-09 이식) **콜드오픈 listwise rerank** (Clips Studio 구조 독립구현): 결정론 점수로 상위 K=5~6 컷 → LLM 1회 상대평가(점수 숨김) → 실패 시 현행 argmax 폴백. 현행 `+120` LLM 편향·`hook<4` 절단 제거. + 3턴 마이크로 익스체인지 후보 (ClipsAI 다중 해상도 발상)
 - **샷 경계 최소 길이 병합**(0.4s 미만 마이크로샷 제거) + 스냅 실패 명시 로깅 — "0.25초 조각"의 상류 원인 제거 (OpenShorts)
 - **프레임 증빙 자동 판정**: preview proof에 mean<16(블랙)/std<6(동결) — 육안 검증 일부 자동화 (OpenShorts)
 - non-speech 마스킹(대사 라우드니스 오탐 제거) + cumsum 슬라이딩 윈도 피크 픽커 (AutoShorts — sum→mean 보정 필수)

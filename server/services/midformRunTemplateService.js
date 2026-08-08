@@ -166,7 +166,10 @@ function buildNormalizedRequest(parsedTemplate, cliOptions = {}) {
     },
     source: {
       url: sourceUrl,
-      promo_tail_sec: Number(data?.source?.promo_tail_sec || 0) || 0
+      promo_tail_sec: Number(data?.source?.promo_tail_sec || 0) || 0,
+      // 'movie' (default) or 'game': game footage has no subtitle track, so the compress stage
+      // must not hard-block on SUBTITLE_NOT_FOUND and beats build from vision+energy instead.
+      kind: String(data?.source?.kind || 'movie').trim().toLowerCase() === 'game' ? 'game' : 'movie'
     },
     output: {
       target_length_sec: targetLengthSec
@@ -655,7 +658,8 @@ async function runMidformTemplateWorkflow(options = {}) {
     if (shouldRunStage(resumeStage, 'ingest') || !compressionRunId) {
       const compression = await runCompression(normalizedRequest.source.url, {
         target: normalizedRequest.output.target_length_sec,
-        promoTailSec: normalizedRequest.source.promo_tail_sec
+        promoTailSec: normalizedRequest.source.promo_tail_sec,
+        sourceKind: normalizedRequest.source.kind
       });
       compressionRunId = compression.runId;
       compressionRunDir = compression.paths.runDir;

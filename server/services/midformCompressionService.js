@@ -576,7 +576,7 @@ async function loadYoutubeMetadata(sourceUrl, runDir) {
   return { metadata, metadataPath };
 }
 
-async function extractTimedTranscript(sourceUrl, runDir) {
+async function extractTimedTranscript(sourceUrl, runDir, options = {}) {
   const ytDlp = resolveTool('yt-dlp', { envKey: 'YT_DLP_PATH' });
   const subtitleDir = path.join(runDir, 'subtitles_raw');
   ensureDir(subtitleDir);
@@ -593,12 +593,19 @@ async function extractTimedTranscript(sourceUrl, runDir) {
   ], { timeout: 15 * 60 * 1000 });
   const vttPath = findVttFile(subtitleDir);
   if (!vttPath) {
+    // A game source has no subtitle track BY NATURE — the branch narrates over vision+energy
+    // structure instead of preserving dialogue, so an empty transcript is a valid input there.
+    if (options.sourceKind === 'game') {
+      const transcriptPath = path.join(runDir, 'transcript_timed.json');
+      writeJson(transcriptPath, []);
+      return { transcript: [], transcriptPath, vttPath: '' };
+    }
     const blocked = { status: 'blocked', code: 'SUBTITLE_NOT_FOUND', message: '자막 없음: 이번 스코프에서는 STT fallback을 수행하지 않습니다.' };
     writeJson(path.join(runDir, 'compress_state.json'), blocked);
     throw Object.assign(new Error(blocked.message), { code: blocked.code, details: blocked });
   }
   const transcript = parseVtt(fs.readFileSync(vttPath, 'utf8'));
-  if (!transcript.length) throw Object.assign(new Error('Timed subtitle file did not contain usable cues'), { code: 'SUBTITLE_PARSE_EMPTY', details: { vttPath } });
+  if (!transcript.length && options.sourceKind !== 'game') throw Object.assign(new Error('Timed subtitle file did not contain usable cues'), { code: 'SUBTITLE_PARSE_EMPTY', details: { vttPath } });
   const transcriptPath = path.join(runDir, 'transcript_timed.json');
   writeJson(transcriptPath, transcript);
   return { transcript, transcriptPath, vttPath };
@@ -861,10 +868,10 @@ function focusDurationForBeat(beat, transcript) {
   return roundSec(Math.max(4, Number(focus.end_sec) - Number(focus.start_sec)));
 }
 
-function coldOpenDialogueFocusForBeat(beat, transcript) {
+function coldOpenDialogueFocusForBeat(beat, transcript, minHook = 4) {
   const hook = Number(beat?.hook_potential || 0);
   const quality = String(beat?.dialogue_quality || '').trim();
-  if (quality !== 'high' || hook < 4) return null;
+  if (quality !== 'high' || hook < minHook) return null;
   const anchors = Array.isArray(beat?.anchor_dialogue) ? beat.anchor_dialogue.map((value) => String(value || '').trim()).filter(Boolean) : [];
   const teaserQuote = pickTeaserQuote(beat);
   // The anchors were taken in the order the beat listed them, so the opening line was whichever
@@ -909,7 +916,10 @@ function coldOpenMicroExchangeFocusesForBeat(beat, transcript) {
 
 function coldOpenFocusCandidatesForBeat(beat, transcript) {
   const candidates = [];
-  const anchorFocus = coldOpenDialogueFocusForBeat(beat, transcript);
+  // The candidate POOL admits near-miss hooks (hook_potential >= 2): the listwise rerank judges
+  // candidates against each other, and a hard hook<4 cutoff here silenced moments the model
+  // rated conservatively. Deterministic single-beat paths keep the strict cutoff.
+  const anchorFocus = coldOpenDialogueFocusForBeat(beat, transcript, 2);
   if (anchorFocus) candidates.push({ focus: { ...anchorFocus, focus_source: 'anchor_dialogue' }, source: 'anchor_dialogue' });
   for (const focus of coldOpenMicroExchangeFocusesForBeat(beat, transcript)) {
     candidates.push({ focus, source: 'micro_exchange_candidate' });
@@ -2116,6 +2126,28 @@ function resolveDialogueLineWindows(transcript, windowStartSec, windowEndSec, li
       const slice = sliceCueForLine(sortedCues[bestIndex], line);
       if (slice) { rawStart = slice[0]; rawEnd = slice[1]; }
     }
+    // Sentence-boundary extension (ClippyMe pattern): a line split across a cue boundary leaves
+    // its tail in the cue AFTER the cluster — the whole-line score against that cue is too weak
+    // for cluster growth, so the window used to cut the sentence mid-word. If the next contiguous
+    // cue BEGINS with the line's unconsumed tail, extend the end proportionally into it.
+    const clusterText = normalizeComparableText(sortedCues.slice(lo, hi + 1).map((cue) => cue.text).join(' '));
+    const normLineWords = normalizeComparableText(line).split(' ').filter(Boolean);
+    if (hi + 1 < sortedCues.length && normLineWords.length >= 2 && !clusterText.includes(normLineWords.join(' '))) {
+      const nextCue = sortedCues[hi + 1];
+      const gap = Number(nextCue.start_sec) - Number(sortedCues[hi].end_sec);
+      const nextText = normalizeComparableText(nextCue.text);
+      if (gap <= 0.35 && nextText) {
+        for (let take = Math.min(6, normLineWords.length - 1); take >= 1; take -= 1) {
+          const tail = normLineWords.slice(-take).join(' ');
+          if (nextText === tail || nextText.startsWith(`${tail} `)) {
+            const nextDur = Number(nextCue.end_sec) - Number(nextCue.start_sec);
+            const frac = Math.min(1, tail.length / Math.max(1, nextText.length));
+            rawEnd = roundSec(Number(nextCue.start_sec) + Math.max(0, nextDur) * frac);
+            break;
+          }
+        }
+      }
+    }
     return {
       line,
       matched: true,
@@ -2134,18 +2166,45 @@ function resolveDialogueLineWindows(transcript, windowStartSec, windowEndSec, li
     .filter((entry) => entry.item.matched)
     .sort((a, b) => a.item.raw_start - b.item.raw_start || a.index - b.index);
 
+  // Half-gap lead-in/out (ClippyMe pattern): the fixed pre/post-roll used to bite into the
+  // NEIGHBOURING cue's speech whenever the silence gap was smaller than the roll. Claim at most
+  // half of the actual silence between cues; a cue that SPANS the boundary (packed cue slice)
+  // means speech runs right up to it, so claim nothing.
+  const preRollBudget = (t) => {
+    let prevCueEnd = null;
+    for (const cue of sortedCues) {
+      const cueStart = Number(cue.start_sec);
+      const cueEnd = Number(cue.end_sec);
+      if (cueStart < t - 0.01 && cueEnd > t + 0.01) return 0; // speech spans the boundary
+      if (cueEnd <= t + 0.01 && (prevCueEnd == null || cueEnd > prevCueEnd)) prevCueEnd = cueEnd;
+    }
+    if (prevCueEnd == null) return DIALOGUE_CONTEXT_PRE_ROLL_SEC;
+    return Math.min(DIALOGUE_CONTEXT_PRE_ROLL_SEC, Math.max(0, (t - prevCueEnd) / 2));
+  };
+  const postRollBudget = (t) => {
+    let nextCueStart = null;
+    for (const cue of sortedCues) {
+      const cueStart = Number(cue.start_sec);
+      const cueEnd = Number(cue.end_sec);
+      if (cueStart < t - 0.01 && cueEnd > t + 0.01) return 0;
+      if (cueStart >= t - 0.01 && (nextCueStart == null || cueStart < nextCueStart)) nextCueStart = cueStart;
+    }
+    if (nextCueStart == null) return DIALOGUE_CONTEXT_POST_ROLL_SEC;
+    return Math.min(DIALOGUE_CONTEXT_POST_ROLL_SEC, Math.max(0, (nextCueStart - t) / 2));
+  };
+
   let prevEnd = start;
   for (let position = 0; position < matchedOrder.length; position += 1) {
     const current = matchedOrder[position].item;
     const next = position + 1 < matchedOrder.length ? matchedOrder[position + 1].item : null;
-    const lineStart = Math.max(start, current.raw_start - DIALOGUE_CONTEXT_PRE_ROLL_SEC, prevEnd);
+    const lineStart = Math.max(start, current.raw_start - preRollBudget(current.raw_start), prevEnd);
     // ceiling = how far this line may occupy. Interior lines stop at the next line start.
     // The LAST line may extend to its real transcript cue end even PAST the beat boundary — a beat
     // boundary landing on a spoken line (cue starting at beat.end) would otherwise clamp it to ~0s.
     const ceiling = next
       ? Math.min(hardMax, Number(next.raw_start))
       : Math.min(Math.max(hardMax, Number(current.raw_end)), lastLineCeiling);
-    const naturalEnd = Math.min(current.raw_end + DIALOGUE_CONTEXT_POST_ROLL_SEC, ceiling);
+    const naturalEnd = Math.min(current.raw_end + postRollBudget(current.raw_end), ceiling);
     // extend short windows toward a readable minimum, but never past the ceiling or the max cap.
     const desiredEnd = Math.max(naturalEnd, lineStart + MIN_DISPLAY_SEC);
     let lineEnd = Math.min(desiredEnd, ceiling, lineStart + MAX_LINE_SEC);
@@ -2589,7 +2648,7 @@ function buildColdOpenCallbackMetadata(timeline, editPlan, beats, transcript = [
   };
 }
 
-function bestColdOpenCallbackBeat(beats, transcript, preferredBeatId = '') {
+function bestColdOpenCallbackBeat(beats, transcript, preferredBeatId = '', rerankChoice = null) {
   const preferredId = String(preferredBeatId || '').trim();
   const candidates = (Array.isArray(beats) ? beats : [])
     .flatMap((beat) => coldOpenFocusCandidatesForBeat(beat, transcript).map((candidate) => {
@@ -2602,7 +2661,9 @@ function bestColdOpenCallbackBeat(beats, transcript, preferredBeatId = '') {
       const selectionScore = teaserScores.total
         + supportActionSelectionWeight(supportAction)
         + (candidate.source === 'micro_exchange_candidate' ? 14 : 0);
-      const preferredSelectionScore = selectionScore + (isPreferredBeat && (supportAction !== 'bridge_required' || hasRepairablePreferredDialogue) ? 120 : 0);
+      // The +120 planner-preference bias only applies while no listwise rerank has spoken: the
+      // rerank IS an LLM opinion over the same candidates, and stacking both double-counts it.
+      const preferredSelectionScore = selectionScore + (!rerankChoice && isPreferredBeat && (supportAction !== 'bridge_required' || hasRepairablePreferredDialogue) ? 120 : 0);
       return {
         beat,
         focus: candidate.focus,
@@ -2627,11 +2688,24 @@ function bestColdOpenCallbackBeat(beats, transcript, preferredBeatId = '') {
     });
     if (!suppressed) survivors.push(candidate);
   }
-  const best = survivors[0] || null;
+  // A stored rerank choice (listwise LLM pass over the candidate pool) pins the winner: match by
+  // beat and window so a later refresh replays the same selection deterministically with no
+  // second LLM call. No match (pool drifted) -> fall through to the deterministic argmax.
+  let best = null;
+  let selectionMode = 'deterministic_argmax';
+  if (rerankChoice && rerankChoice.beat_id) {
+    best = survivors.find((item) => (
+      String(item.beat?.beat_id || '').trim() === String(rerankChoice.beat_id).trim()
+      && Math.abs(Number(item.focus.start_sec) - Number(rerankChoice.start_sec)) <= 0.9
+    )) || null;
+    if (best) selectionMode = 'listwise_rerank';
+  }
+  if (!best) best = survivors[0] || null;
   if (best) {
+    best.selection_mode = selectionMode;
     // Keep the losing candidates on the winner (top 8, compact): without this the selection
     // is a black box - "why did THIS open the cut" cannot be answered after the fact.
-    best.runner_ups = survivors.slice(1, 8).map((item) => ({
+    best.runner_ups = survivors.filter((item) => item !== best).slice(0, 7).map((item) => ({
       beat_id: String(item.beat?.beat_id || ''),
       source: item.source,
       score: item.score,
@@ -2649,10 +2723,16 @@ function prepareColdOpenCallbackTimeline(timeline, editPlan, beats, transcript) 
   // dialogue callback hook — the peak moment IS the hook.
   const existingCold = (Array.isArray(timeline) ? timeline : []).find((item) => item?.role === 'cold_open');
   if (String(existingCold?.visual_source_mode || '').trim() === 'source_audio_teaser') return timeline;
-  const selected = bestColdOpenCallbackBeat(beats, transcript, editPlan?.cold_open_selection?.beat_id);
+  const selected = bestColdOpenCallbackBeat(
+    beats,
+    transcript,
+    editPlan?.cold_open_selection?.beat_id,
+    editPlan?.cold_open_selection?.rerank_choice || null
+  );
   if (!selected) return timeline;
   if (editPlan && editPlan.cold_open_selection && Array.isArray(selected.runner_ups)) {
     editPlan.cold_open_selection.runner_ups = selected.runner_ups;
+    editPlan.cold_open_selection.selection_mode = selected.selection_mode || 'deterministic_argmax';
   }
   const hookBeatId = String(selected.beat.beat_id || '').trim();
   const nextTimeline = (Array.isArray(timeline) ? timeline : []).map((item) => ({ ...item }));
@@ -3423,7 +3503,7 @@ function readUsableEndSec(runDir) {
   return 0;
 }
 
-function finalizeEditPlan(editPlan, beats, transcript, targetSec, usableEndSec = 0) {
+function finalizeEditPlan(editPlan, beats, transcript, targetSec, usableEndSec = 0, wordTimestamps = null) {
   const beatMap = new Map((Array.isArray(beats) ? beats : []).map((beat) => [String(beat?.beat_id || '').trim(), beat]));
   const sortedBeatStarts = (Array.isArray(beats) ? beats : []).map((b) => Number(b.start_sec)).filter((n) => Number.isFinite(n)).sort((a, b) => a - b);
   const callbackPreparedTimeline = prepareColdOpenCallbackTimeline(
@@ -3835,7 +3915,10 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec, usableEndSec =
   // Adopt audible-but-uncaptioned cues BEFORE the windows are separated, so the new lines get
   // the same overlap treatment as the rest.
   const filledTimeline = fillUncaptionedCuesInsideCuts(dropDuplicateDialogueSlots(interleavedTimeline), transcript);
-  const dedupedTimeline = separateOverlappingDialogueWindows(filledTimeline);
+  // Word snap runs BEFORE separation so both the clip windows and the caption coordinates the
+  // separation stamps inherit word-accurate edges.
+  const wordSnappedTimeline = snapDialogueWindowsToWords(filledTimeline, wordTimestamps);
+  const dedupedTimeline = separateOverlappingDialogueWindows(wordSnappedTimeline);
   // Write the corrected measure back onto the slot. Fixing only realisticSlotDurationSec left
   // estimated_duration_sec holding the raw span - slot_02 still read 151.3s for four lines - so
   // every consumer that reads the field directly still saw the dead air between them.
@@ -4647,6 +4730,100 @@ function validateEditPlan(editPlan, targetSec = 0) {
   return editPlan;
 }
 
+// Listwise rerank (Clips Studio pattern, independent implementation): the deterministic score is
+// good at filtering junk but poor at ordering the top handful — its weights were tuned on three
+// sources. One blind LLM pass over the surviving candidates (scores hidden, so the model cannot
+// parrot them) picks the opener; any failure falls back to the deterministic argmax that already
+// shipped three sources. The choice is pinned into the plan as cold_open_selection.rerank_choice,
+// so refresh/apply replay it deterministically with no second LLM call.
+async function rerankColdOpenSelection(finalizedPlan, rawEditPlan, beats, transcript, targetSec, usableEndSec, wordTimestamps = null) {
+  if (process.env.MIDFORM_DISABLE_RERANK === '1') return finalizedPlan;
+  try {
+    const selection = finalizedPlan?.cold_open_selection || {};
+    if (selection.rerank_choice) return finalizedPlan; // already reranked (refresh path)
+    const cold = (Array.isArray(finalizedPlan?.timeline) ? finalizedPlan.timeline : []).find((item) => item?.role === 'cold_open');
+    const runnerUps = Array.isArray(selection.runner_ups) ? selection.runner_ups : [];
+    // The flip path (scene hook -> dialogue) builds no candidate pool; nothing to rank there.
+    if (!cold || cold.decision !== 'KEEP_DIALOGUE' || !runnerUps.length) return finalizedPlan;
+    const beatMap = new Map((Array.isArray(beats) ? beats : []).map((beat) => [String(beat?.beat_id || '').trim(), beat]));
+    const candidates = [
+      {
+        id: 'c1',
+        beat_id: String(cold.beat_id || ''),
+        start_sec: Number(cold.start_sec),
+        end_sec: Number(cold.end_sec),
+        lines: (Array.isArray(cold.dialogue_focus_lines) ? cold.dialogue_focus_lines : []).slice(0, 4)
+      },
+      ...runnerUps.map((item, index) => ({
+        id: `c${index + 2}`,
+        beat_id: String(item.beat_id || ''),
+        start_sec: Number(item.start_sec),
+        end_sec: Number(item.end_sec),
+        lines: Array.isArray(item.lines) ? item.lines : []
+      }))
+    ].slice(0, 6);
+    if (candidates.length < 2) return finalizedPlan;
+    const candidateBlock = candidates.map((candidate) => {
+      const beat = beatMap.get(candidate.beat_id.trim());
+      const summary = String(beat?.summary || '').slice(0, 160);
+      const duration = roundSec(Math.max(0, candidate.end_sec - candidate.start_sec));
+      return `${candidate.id} (${duration}s)${summary ? ` — scene: ${summary}` : ''}\n${candidate.lines.map((line) => `  "${line}"`).join('\n')}`;
+    }).join('\n\n');
+    const prompt = [
+      'You are choosing the COLD OPEN for a 1-3 minute movie-clip recap: the very first seconds a viewer sees, before any context.',
+      'Below are candidate dialogue moments from the same source clip. Pick the ONE that works best as the opener.',
+      '',
+      'Judge them against each other on:',
+      '1. Instant comprehension — the line must land with ZERO context (no unresolved pronouns or references).',
+      '2. Curiosity gap — it should demand an answer the viewer must stay for.',
+      '3. Force — confrontation, threat, reversal, or emotional intensity beats pleasantry.',
+      '4. It must not give away the final payoff by itself.',
+      '',
+      candidateBlock,
+      '',
+      'Respond with JSON: {"winner_id": "<id>", "why": "<one sentence>"}.'
+    ].join('\n');
+    const responseSchema = {
+      type: 'object',
+      properties: { winner_id: { type: 'string' }, why: { type: 'string' } },
+      required: ['winner_id', 'why']
+    };
+    const outputText = await generateVertexJson({ prompt, responseSchema, model: compressVertexModel() });
+    const parsed = extractJson(outputText);
+    const winner = candidates.find((candidate) => candidate.id === String(parsed?.winner_id || '').trim());
+    if (!winner) return finalizedPlan;
+    const rerankMeta = {
+      applied: true,
+      winner_beat_id: winner.beat_id,
+      winner_start_sec: winner.start_sec,
+      winner_end_sec: winner.end_sec,
+      why: String(parsed?.why || '').slice(0, 300),
+      candidate_count: candidates.length
+    };
+    if (winner.id === 'c1') {
+      finalizedPlan.cold_open_selection = { ...selection, rerank: { ...rerankMeta, changed: false } };
+      return finalizedPlan;
+    }
+    const pinnedPlan = {
+      ...rawEditPlan,
+      cold_open_selection: {
+        ...(rawEditPlan?.cold_open_selection || {}),
+        rerank_choice: { beat_id: winner.beat_id, start_sec: winner.start_sec, end_sec: winner.end_sec }
+      }
+    };
+    const refinalized = finalizeEditPlan(pinnedPlan, beats, transcript, targetSec, usableEndSec, wordTimestamps);
+    validateEditPlanAgainstBeats(validateEditPlan(refinalized), beats);
+    refinalized.cold_open_selection = { ...(refinalized.cold_open_selection || {}), rerank: { ...rerankMeta, changed: true } };
+    return refinalized;
+  } catch (error) {
+    finalizedPlan.cold_open_selection = {
+      ...(finalizedPlan.cold_open_selection || {}),
+      rerank: { applied: false, error: String(error?.message || error).slice(0, 200) }
+    };
+    return finalizedPlan;
+  }
+}
+
 async function runJsonGeneration(prompt, outputSchemaPath, validator) {
   const provider = compressLlmProvider();
   let feedback = '';
@@ -4974,6 +5151,102 @@ async function ensureEnergyProfile(runDir, metadata, usableEndSec = 0) {
   return artifact;
 }
 
+const WORD_TIMESTAMPS_FILE = 'word_timestamps.json';
+
+// Word-level timestamps (faster-whisper, opt-in via MIDFORM_WHISPER_WORDS=1): auto-caption cues
+// are 2-9s blocks, so cue-derived cut edges can clip the first word or drag past the last. The
+// word grid lets dialogue windows snap to the actual spoken word. Everything degrades to the
+// pre-existing cue-boundary behaviour when the flag is off, the package is missing, or the
+// extraction fails — word timing is a refinement, never a dependency.
+async function ensureWordTimestamps(runDir, metadata) {
+  if (process.env.MIDFORM_WHISPER_WORDS !== '1') return null;
+  const outPath = path.join(runDir, WORD_TIMESTAMPS_FILE);
+  if (fs.existsSync(outPath)) return readJson(outPath);
+  const videoId = String(metadata?.id || '').trim();
+  const cacheDir = path.join(COMPRESS_RUNS_DIR, '.word_cache');
+  const cachePath = videoId ? path.join(cacheDir, `${videoId}.json`) : '';
+  if (cachePath && fs.existsSync(cachePath)) {
+    fs.copyFileSync(cachePath, outPath);
+    return readJson(outPath);
+  }
+  try {
+    const download = await downloadCompressionSourceVideo(runDir);
+    const python = resolveTool('python', { envKey: 'PYTHON_PATH' });
+    const script = path.join(PROJECT_ROOT, 'midform', 'scripts', 'extract_word_timestamps.py');
+    const result = spawnSync(python, [script, '--audio', download.sourceVideoPath, '--out', outPath], {
+      cwd: PROJECT_ROOT,
+      env: getToolEnv(),
+      encoding: 'utf8',
+      timeout: 30 * 60 * 1000
+    });
+    if (result.status !== 0 || !fs.existsSync(outPath)) {
+      console.warn(`[midform] word timestamps unavailable (exit ${result.status}): ${String(result.stderr || '').slice(0, 200)}`);
+      return null;
+    }
+    const artifact = readJson(outPath);
+    if (cachePath) {
+      fs.mkdirSync(cacheDir, { recursive: true });
+      writeJson(cachePath, artifact);
+    }
+    return artifact;
+  } catch (error) {
+    console.warn(`[midform] word timestamp extraction failed: ${String(error?.message || error).slice(0, 200)}`);
+    return null;
+  }
+}
+
+function readWordTimestamps(runDir) {
+  if (process.env.MIDFORM_WHISPER_WORDS !== '1') return null;
+  const outPath = path.join(runDir, WORD_TIMESTAMPS_FILE);
+  return fs.existsSync(outPath) ? readJson(outPath) : null;
+}
+
+// Snap each matched dialogue window edge to the nearest word boundary within tolerance: the
+// start moves to the first word's onset (minus a small attack guard), the end to the last
+// word's offset (plus a release guard). Runs BEFORE window separation so captions inherit the
+// corrected coordinates too. A window whose edges sit nowhere near a word keeps its cue timing.
+function snapDialogueWindowsToWords(timeline, wordTimestamps, toleranceSec = 0.35) {
+  const words = Array.isArray(wordTimestamps?.words) ? wordTimestamps.words : [];
+  if (!words.length) return timeline;
+  const ATTACK_GUARD = 0.04;
+  const RELEASE_GUARD = 0.06;
+  const nearestStart = (t) => {
+    let best = null;
+    for (const word of words) {
+      const s = Number(word.start_sec);
+      if (!Number.isFinite(s)) continue;
+      if (best == null || Math.abs(s - t) < Math.abs(best - t)) best = s;
+    }
+    return best != null && Math.abs(best - t) <= toleranceSec ? best : null;
+  };
+  const nearestEnd = (t) => {
+    let best = null;
+    for (const word of words) {
+      const e = Number(word.end_sec);
+      if (!Number.isFinite(e)) continue;
+      if (best == null || Math.abs(e - t) < Math.abs(best - t)) best = e;
+    }
+    return best != null && Math.abs(best - t) <= toleranceSec ? best : null;
+  };
+  return (Array.isArray(timeline) ? timeline : []).map((item) => {
+    if (item?.decision !== 'KEEP_DIALOGUE' || !Array.isArray(item.dialogue_line_windows)) return item;
+    const nextWindows = item.dialogue_line_windows.map((win) => {
+      if (!win || win.matched !== true) return win;
+      const start = Number(win.start_sec);
+      const end = Number(win.end_sec);
+      if (!(end > start)) return win;
+      const snappedStart = nearestStart(start);
+      const snappedEnd = nearestEnd(end);
+      const nextStart = snappedStart != null ? roundSec(Math.max(0, snappedStart - ATTACK_GUARD)) : start;
+      const nextEnd = snappedEnd != null ? roundSec(snappedEnd + RELEASE_GUARD) : end;
+      if (!(nextEnd > nextStart + 0.2)) return win; // snapping must never collapse a window
+      if (nextStart === start && nextEnd === end) return win;
+      return { ...win, start_sec: nextStart, end_sec: nextEnd, word_snapped: true };
+    });
+    return { ...item, dialogue_line_windows: nextWindows };
+  });
+}
+
 function buildEnergySection(energyProfile) {
   const peaks = Array.isArray(energyProfile?.peaks) ? energyProfile.peaks : [];
   if (!peaks.length) return '';
@@ -5027,9 +5300,10 @@ async function runCompression(source, options = {}) {
       });
     }
   }
-  const { transcript, transcriptPath, vttPath } = await extractTimedTranscript(sourceUrl, runDir);
+  const { transcript, transcriptPath, vttPath } = await extractTimedTranscript(sourceUrl, runDir, { sourceKind: options.sourceKind });
   const { heatmap, heatmapPath } = extractHeatmap(metadata, runDir);
   const sourceCase = profileSourceCase(transcript, metadata, heatmap);
+  if (options.sourceKind === 'game') sourceCase.case_type = 'game_no_dialogue';
   // A declared promo tail (template source.promo_tail_sec, measured by frame analysis) beats
   // caption-based detection: preview dialogue defeats the text classifier in both directions.
   const declaredTail = Number(options.promoTailSec || 0);
@@ -5045,6 +5319,7 @@ async function runCompression(source, options = {}) {
   const visionSceneMap = await ensureVisionSceneMap(runDir, metadata, transcript, { contentType: options.contentType });
   const visionSceneSection = buildVisionSceneSection(visionSceneMap);
   const energyProfile = await ensureEnergyProfile(runDir, metadata, sourceCase.usable_end_sec);
+  const wordTimestamps = await ensureWordTimestamps(runDir, metadata);
   const energySection = buildEnergySection(energyProfile);
   // Peak evidence (fixes the groundless action_peak claim): without a heatmap the profiler used
   // to declare "non-verbal peak, open on it" while nobody knew where that peak was. Now the
@@ -5094,8 +5369,11 @@ async function runCompression(source, options = {}) {
       MIDFORM_COMPRESSION_EDIT_PLAN_SCHEMA_PATH,
       (parsed) => validateEditPlanAgainstBeats(validateEditPlan(parsed, targetSec), beatsResult.parsed.beats)
     );
-    finalizedEditPlan = finalizeEditPlan(editResult.parsed, beatsResult.parsed.beats, transcript, targetSec, sourceCase.usable_end_sec);
+    finalizedEditPlan = finalizeEditPlan(editResult.parsed, beatsResult.parsed.beats, transcript, targetSec, sourceCase.usable_end_sec, wordTimestamps);
     validateEditPlanAgainstBeats(validateEditPlan(finalizedEditPlan), beatsResult.parsed.beats);
+    finalizedEditPlan = await rerankColdOpenSelection(
+      finalizedEditPlan, editResult.parsed, beatsResult.parsed.beats, transcript, targetSec, sourceCase.usable_end_sec, wordTimestamps
+    );
   } catch (_error) {
     finalizedEditPlan = buildFallbackEditPlan(beatsResult.parsed.beats, heatmap, targetSec, metadata, transcript);
     editPlanSource = 'local_fallback';
@@ -5149,7 +5427,7 @@ async function runCompressionApply(runIdOrPath, applyOptions = {}) {
   const transcriptPath = path.join(runDir, 'transcript_timed.json');
   const transcript = fs.existsSync(transcriptPath) ? readJson(transcriptPath) : [];
   const targetSec = Number(editPlan?.duration_budget?.target_sec || DEFAULT_TARGET_SEC) || DEFAULT_TARGET_SEC;
-  const finalizedEditPlan = finalizeEditPlan(editPlan, beatsObject.beats || [], transcript, targetSec, readUsableEndSec(runDir));
+  const finalizedEditPlan = finalizeEditPlan(editPlan, beatsObject.beats || [], transcript, targetSec, readUsableEndSec(runDir), readWordTimestamps(runDir));
   const sourceInfoPath = path.join(runDir, 'source_info.json');
   const applyManifestPath = path.join(runDir, 'compression_manifest.json');
   const movieTitle = (fs.existsSync(sourceInfoPath) ? (readJson(sourceInfoPath) || {}).title : '')
@@ -5271,7 +5549,7 @@ function refreshCompressionPlan(runIdOrPath) {
   const metadata = fs.existsSync(metadataPath) ? readJson(metadataPath) : {};
   const heatmap = fs.existsSync(heatmapPath) ? readJson(heatmapPath) : { status: 'unavailable', items: [] };
   const targetSec = Number(currentPlan?.duration_budget?.target_sec || DEFAULT_TARGET_SEC) || DEFAULT_TARGET_SEC;
-  let refreshedPlan = finalizeEditPlan(currentPlan, beatsObject.beats || [], transcript, targetSec, readUsableEndSec(runDir));
+  let refreshedPlan = finalizeEditPlan(currentPlan, beatsObject.beats || [], transcript, targetSec, readUsableEndSec(runDir), readWordTimestamps(runDir));
   if (fs.existsSync(slotFillsPath)) {
     refreshedPlan = recalculateNarrationDurations(refreshedPlan, readJson(slotFillsPath), beatsObject.beats || [], transcript);
   }
@@ -5401,6 +5679,9 @@ module.exports = {
     evaluateDialogueTimingQc,
     buildMicroExchangeCandidates,
     buildDialogueUnitMetadata,
-    buildTeaserSuitabilityScore
+    buildTeaserSuitabilityScore,
+    bestColdOpenCallbackBeat,
+    rerankColdOpenSelection,
+    snapDialogueWindowsToWords
   }
 };
