@@ -16,6 +16,8 @@ description: 완성된 midform 드래프트를 고정 지표로 측정·검증�
 
 ## 1. 측정 (KO/JA 각각)
 
+JA는 KO와 **동일 지표로** 측정한다 — 특히 핵심 장면 커버(리빌·클라이맥스)가 KO와 동급인지. ja 창 시프트는 다음 대사 창을 넘지 못하게 코드 강제(2026-08-09)되어 있으므로, ja 커버 0은 회귀 신호다.
+
 워크스페이스: 최신 `midform/test_runs/template_runs/<템플릿>_*/`. `run_summary.json`의 status와 failure_reason 먼저.
 
 `draft_content.json`의 텍스트 트랙(`subtitle`, `subtitle_*`)에서 세그먼트(start, end, clip.transform.y, 텍스트)를 모아:

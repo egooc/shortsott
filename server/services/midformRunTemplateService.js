@@ -6,7 +6,7 @@ const matter = require('gray-matter');
 const Ajv = require('ajv');
 
 const { PROJECT_ROOT } = require('./pipelinePaths');
-const { runCompression, runCompressionApply, refreshCompressionPlan } = require('./midformCompressionService');
+const { runCompression, runCompressionApply, refreshCompressionPlan, resolveCompressionRunDir } = require('./midformCompressionService');
 const { runBootstrapToPipeline } = require('./midformBootstrapAdapterService');
 const { getRun, startRun } = require('./midformPipelineService');
 const { collectRunArtifacts, copyIfExists, ensureDir, rel, writeJson, writeText } = require('./midformRunArtifactsService');
@@ -637,6 +637,21 @@ async function runMidformTemplateWorkflow(options = {}) {
 
     let compressionRunId = summary.internal.compression_run_id || '';
     let compressionRunDir = summary.internal.compression_run_dir || '';
+    // --bootstrap-run <compressRunId>: pin the whole lineage to one compress run and drop any
+    // remembered pipeline. This replaces the hand-edited summary surgery that every gate-level
+    // window/text fix used to require (pin ids, clear pointers, resume bootstrap).
+    if (options.bootstrapRun) {
+      const pinnedDir = resolveCompressionRunDir(String(options.bootstrapRun));
+      if (!fs.existsSync(pinnedDir)) throw new Error(`--bootstrap-run: compress run not found: ${options.bootstrapRun}`);
+      compressionRunId = path.basename(pinnedDir);
+      compressionRunDir = pinnedDir;
+      summary.internal.compression_run_id = compressionRunId;
+      summary.internal.compression_run_dir = compressionRunDir;
+      summary.internal.bootstrap_source_run_id = compressionRunId;
+      summary.internal.bootstrap_source_run_dir = compressionRunDir;
+      for (const key of ['pipeline_run_id', 'pipeline_run_dir', 'pipeline_seeded_from', 'bootstrap_fallback_run_id', 'bootstrap_fallback_run_dir', 'bootstrap_fallback_rejected']) delete summary.internal[key];
+      writeJson(workspace.summaryPath, summary);
+    }
     if (shouldRunStage(resumeStage, 'ingest') || !compressionRunId) {
       const compression = await runCompression(normalizedRequest.source.url, {
         target: normalizedRequest.output.target_length_sec,
@@ -726,8 +741,10 @@ async function runMidformTemplateWorkflow(options = {}) {
         writeJson(workspace.summaryPath, failedSummary);
         return failedSummary;
       }
-      summary.internal.bootstrap_source_run_id = bootstrapSourceRunId;
-      summary.internal.bootstrap_source_run_dir = bootstrapSourceRunDir;
+      // Stamp from the assemble's OWN runDir - the input variable lied once when a resume
+      // path recorded a different id than the artifacts actually consumed.
+      summary.internal.bootstrap_source_run_id = preflight.runDir ? path.basename(preflight.runDir) : bootstrapSourceRunId;
+      summary.internal.bootstrap_source_run_dir = preflight.runDir || bootstrapSourceRunDir;
       writeJson(workspace.summaryPath, summary);
       copyIfExists(path.join(bootstrapSourceRunDir, 'bootstrap_slot_map.json'), path.join(workspace.workspaceDir, 'slot_map.json'));
       copyIfExists(path.join(bootstrapSourceRunDir, 'bootstrap_script.json'), path.join(workspace.workspaceDir, 'script.json'));

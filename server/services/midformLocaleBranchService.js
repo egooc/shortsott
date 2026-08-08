@@ -285,6 +285,18 @@ function buildLocaleEditPlan(baseEditPlan, strategy, evidencePack, attempt = 0) 
     let shift = shiftBase;
     if (locale === 'ja' && decision === 'NARRATE') shift += 3.0 + index * 0.45;
     if (locale === 'ja' && role === 'cold_open') shift += 3.5;
+    // A ja shift must not push a narration window PAST the dialogue it leads into: crossing
+    // that boundary broke the reveal end-alignment for ja (spider reveal coverage 0 while ko
+    // had it) and put the b-roll on the wrong scene. Cap the shift so the window end stays
+    // just short of the next slot's source start whenever the base window did.
+    if (locale === 'ja' && decision === 'NARRATE' && shift > 0) {
+      const nextSlot = reordered[index + 1];
+      const nextStart = nextSlot ? Number(rangeForSlot(nextSlot)[0]) : 0;
+      const baseEnd = Number(range[1]);
+      if (nextStart > 0 && baseEnd <= nextStart + 0.5) {
+        shift = Math.max(0, Math.min(shift, (nextStart - 0.1) - baseEnd));
+      }
+    }
     const nextRange = shiftedRange(range, shift, sourceDurationSec);
     return {
       ...applyRangeToSlot(slot, nextRange),

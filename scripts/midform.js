@@ -54,6 +54,7 @@ function parseArgs(argv) {
     if (flag === '--analysis-mode') options.analysisMode = nextValue;
     if (flag === '--template') options.template = nextValue;
     if (flag === '--resume') options.resume = nextValue;
+    if (flag === '--bootstrap-run') options.bootstrapRun = nextValue;
     if (flag === '--csv') options.csv = nextValue;
     if (flag === '--context-file') options.contextFile = nextValue;
     if (flag === '--out') options.out = nextValue;
@@ -152,6 +153,7 @@ async function main() {
       analysisMode: options.analysisMode,
       source: options.source,
       resume: options.resume,
+      bootstrapRun: options.bootstrapRun,
       target: options.target
     });
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
