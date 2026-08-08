@@ -5,6 +5,7 @@ const dotenv = require('dotenv');
 const { ensureProjectFolders } = require('./services/pipelinePaths');
 const { recoverProcessJobsOnStartup } = require('./services/processJobService');
 const { recoverOnStartup: recoverHighlightPatternsOnStartup } = require('./services/highlightPatternService');
+const { runRetentionSweep } = require('./services/retentionCleanupService');
 
 const settingsRoutes = require('./routes/settings');
 const virloRoutes = require('./routes/virlo');
@@ -71,6 +72,10 @@ function runStartupRecoveryOnce() {
   recoveryHasRun = true;
   recoveredProcessJobs = recoverProcessJobsOnStartup();
   recoverHighlightPatternsOnStartup();
+  const sweep = runRetentionSweep();
+  if (sweep.enabled && (sweep.removed_draft_dirs || sweep.trimmed_backups)) {
+    console.log(`Retention sweep: removed ${sweep.removed_draft_dirs} stale staging drafts, ${sweep.trimmed_backups} config backups (${Math.round(sweep.freed_bytes / (1024 * 1024))}MB freed)`);
+  }
   return recoveredProcessJobs;
 }
 

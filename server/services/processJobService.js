@@ -20,6 +20,7 @@ const {
   selectKoreanFullHookType
 } = require('./processMetadataService');
 const { requireApiKey } = require('../middleware/auth');
+const { runRetentionSweep } = require('./retentionCleanupService');
 const {
   DB_PATH,
   upsertJob,
@@ -1754,6 +1755,19 @@ async function runJob(jobId) {
     });
     appendJobLog(jobId, status === 'cancelled' ? '\uC11C\uBC84 \uC791\uC5C5\uC774 \uCDE8\uC18C\uB418\uC5C8\uC2B5\uB2C8\uB2E4.' : '\uC11C\uBC84 \uC791\uC5C5 \uC2E4\uD328: ' + error.message, status === 'cancelled' ? 'warning' : 'error');
   } finally {
+    try {
+      const sweep = runRetentionSweep();
+      if (sweep.enabled && (sweep.removed_draft_dirs || sweep.trimmed_backups)) {
+        const freedMb = Math.round(sweep.freed_bytes / (1024 * 1024));
+        appendJobLog(
+          jobId,
+          `보관 정리: 오래된 스테이징 드래프트 ${sweep.removed_draft_dirs}개, 설정 백업 ${sweep.trimmed_backups}개 삭제 (${freedMb}MB 확보)`,
+          'info',
+          '',
+          { retention_sweep: sweep }
+        );
+      }
+    } catch { /* fail-open: retention must never affect job outcome */ }
     const latest = readJob(jobId);
     const lane = String(latest.lane || getJobLaneFromStages(latest.stages || []));
     activeJobs.delete(jobId);
