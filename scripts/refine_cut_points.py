@@ -221,7 +221,7 @@ def detect_silences(media_path, noise_db=-30.0, min_dur=0.08, timeout=180):
             ["ffmpeg", "-hide_banner", "-nostats", "-i", media_path, "-vn",
              "-af", f"silencedetect=noise={noise_db}dB:d={min_dur}",
              "-f", "null", "-"],
-            capture_output=True, text=True, timeout=timeout
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout
         )
         return parse_silencedetect(proc.stderr)
     except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
@@ -233,7 +233,7 @@ def measure_mean_volume(media_path, timeout=180):
         proc = subprocess.run(
             ["ffmpeg", "-hide_banner", "-nostats", "-i", media_path, "-vn",
              "-af", "volumedetect", "-f", "null", "-"],
-            capture_output=True, text=True, timeout=timeout
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout
         )
         match = _MEAN_VOLUME_RE.search(proc.stderr)
         return float(match.group(1)) if match else None
@@ -364,7 +364,7 @@ def probe_duration(video_path):
         out = subprocess.run(
             ["ffprobe", "-v", "error", "-show_entries", "format=duration",
              "-of", "default=noprint_wrappers=1:nokey=1", video_path],
-            capture_output=True, text=True, check=True, timeout=60
+            capture_output=True, text=True, encoding="utf-8", errors="replace", check=True, timeout=60
         ).stdout.strip()
         return float(out)
     except (subprocess.SubprocessError, ValueError, OSError):

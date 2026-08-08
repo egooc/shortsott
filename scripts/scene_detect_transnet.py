@@ -54,7 +54,7 @@ def probe_fps(video_path):
         ["ffprobe", "-v", "error", "-select_streams", "v:0",
          "-show_entries", "stream=avg_frame_rate",
          "-of", "default=noprint_wrappers=1:nokey=1", video_path],
-        capture_output=True, text=True, check=True, timeout=60
+        capture_output=True, text=True, encoding="utf-8", errors="replace", check=True, timeout=60
     ).stdout.strip()
     try:
         num, den = out.split("/")

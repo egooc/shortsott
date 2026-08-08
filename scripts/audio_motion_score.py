@@ -43,7 +43,7 @@ def run_ffprobe(video_path):
         ["ffprobe", "-v", "error", "-select_streams", "v:0",
          "-show_entries", "stream=width,height:format=duration",
          "-of", "json", video_path],
-        capture_output=True, text=True, check=True, timeout=60
+        capture_output=True, text=True, encoding="utf-8", errors="replace", check=True, timeout=60
     ).stdout
     info = json.loads(out)
     stream = (info.get("streams") or [{}])[0]
