@@ -85,10 +85,14 @@ to be reverted line-by-line back to a known-good commit (see
 path seems warranted, propose it and wait for confirmation before editing.
 
 Approved addition (2026-08-08, user sign-off; scene-cut upgrade approved
-same day): `highlightEdgeRefineService.js` runs AFTER window selection and
-settles each chosen window's edges onto a natural boundary — per edge a
-TransNetV2 scene cut wins when one is in budget, else a silence trough
-(fail-open; scene detection failure degrades to silence-only; kill switches
+same day; ffmpeg-probe engine swap approved 2026-08-09):
+`highlightEdgeRefineService.js` runs AFTER window selection and settles each
+chosen window's edges onto a natural boundary — per edge a scene cut wins
+when one is in budget, else a silence trough. Scene cuts come from ffmpeg's
+scene-score filter probed only around each window's edges; whole-video /
+neural detection (TransNetV2) must never return to this path — it took
+~18min per source and never fit the production timeout (fail-open; scene
+probe failure degrades to silence-only; kill switches
 `HIGHLIGHT_EDGE_REFINE=0` and `HIGHLIGHT_EDGE_REFINE_SCENES=0`, guarded by
 `check:highlight-edge-refine`). Its hard limits — no change to window
 count/order/strategy/scene ids; silence may move an edge at most 0.35s, a

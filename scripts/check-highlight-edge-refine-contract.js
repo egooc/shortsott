@@ -39,6 +39,14 @@ assert(
   serviceSource.includes('HIGHLIGHT_EDGE_REFINE'),
   'the kill switch env var must exist'
 );
+assert(
+  serviceSource.includes('ffmpeg_scene_score'),
+  'scene cuts must come from the ffmpeg scene-score probe'
+);
+assert(
+  !serviceSource.includes('scene_detect_transnet'),
+  'whole-video neural scene detection must not return to the production path (took ~18min per source, never fit the timeout)'
+);
 
 // --- behavior: bounded movement ---------------------------------------------
 
@@ -115,16 +123,13 @@ assert(r.start === 10 && r.end === 15,
     { start_sec: 30, end_sec: 36, selection_strategy: 'gemini_highlight_candidate_1', selected_scene_ids: ['s3'] },
     { start_sec: 10, end_sec: 16, selection_strategy: 'gemini_single_process_visual_hook_window', selected_scene_ids: ['s1'] }
   ];
-  // Nonexistent video: detection fails -> fail-open, original windows back.
-  // Scene stage disabled here so verify stays fast (no python cold start);
-  // its own failure path degrades to cuts: [] inside detectSceneCuts.
-  process.env.HIGHLIGHT_EDGE_REFINE_SCENES = '0';
+  // Nonexistent video: silence detection fails first -> fail-open with the
+  // original windows back; the scene probe is never reached.
   const failOpen = await refineHighlightWindowEdges({
     videoPath: path.join(root, 'nonexistent_source.mp4'),
     windows,
     maxDurationSec: 24
   });
-  delete process.env.HIGHLIGHT_EDGE_REFINE_SCENES;
   assert(failOpen.windows.length === 2, 'fail-open must keep the window count');
   assert(failOpen.windows[0].start_sec === 30 && failOpen.windows[1].start_sec === 10,
     'fail-open must keep the original order and values');

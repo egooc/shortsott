@@ -1,16 +1,23 @@
 // Bounded edge refinement for already-selected highlight windows.
 //
 // Approved production change (2026-08-08, user sign-off in session; scene-cut
-// upgrade approved same day): the selection path keeps choosing the windows;
-// this service only settles each chosen window's edges onto a natural boundary.
-// Per edge, a TransNetV2 scene cut wins when one is in budget (the visual
-// boundary is what a viewer perceives); otherwise a silence trough is used.
+// upgrade approved same day; ffmpeg-probe engine swap approved 2026-08-09):
+// the selection path keeps choosing the windows; this service only settles
+// each chosen window's edges onto a natural boundary. Per edge, a scene cut
+// wins when one is in budget (the visual boundary is what a viewer
+// perceives); otherwise a silence trough is used.
 // Measured need: window starts already land on scene cuts (0.03-0.17s) but
 // ends sit 0.8-1.6s mid-shot, and this catalog's continuous machine audio has
 // no silence troughs near the chosen windows
 // (docs/opensource-adoption-analysis-2026-08-08.md). Silence-snap math adapted
-// from ClippyMe cut_ops.py (MIT); scene cuts come from
-// scripts/scene_detect_transnet.py (adapted from openshorts, MIT).
+// from ClippyMe cut_ops.py (MIT).
+// Scene cuts come from ffmpeg's scene-score filter probed ONLY in small
+// neighborhoods around each window edge - the snap budget is at most 1.6s,
+// so whole-video detection is never needed. The first engine (whole-video
+// TransNetV2 torch CPU inference via the P1 research script) took ~18min for
+// an 8.6min source, always exceeded its production timeout, and never
+// actually ran; do not bring whole-video/neural detection back to this path
+// - research scripts may keep using it offline.
 //
 // Hard limits - these are the contract, guarded by check:highlight-edge-refine:
 //   - silence may move an edge at most 0.35s; a scene cut may move the START
@@ -21,16 +28,12 @@
 //     on a scene cut, and never below 4s
 //   - windows are clamped in time order against already-refined neighbors so
 //     refinement cannot create overlap
-//   - any failure (python/torch missing, ffmpeg error) degrades gracefully:
-//     scene detection failure falls back to silence-only, full failure returns
-//     the original windows untouched (fail-open)
+//   - any failure degrades gracefully: scene probe failure falls back to
+//     silence-only, full failure returns the original windows untouched
+//     (fail-open)
 // Kill switch: HIGHLIGHT_EDGE_REFINE=0. Scene stage only: HIGHLIGHT_EDGE_REFINE_SCENES=0.
 
 const { execFile } = require('child_process');
-const crypto = require('crypto');
-const fs = require('fs');
-const os = require('os');
-const path = require('path');
 const { resolveTool } = require('../utils/toolPaths');
 
 const EDGE_BUDGET_SEC = 0.35;             // silence snap, both edges
@@ -43,7 +46,9 @@ const MAX_SHRINK_SEC = 0.7;               // silence-only moves
 const SCENE_MAX_SHRINK_SEC = 2.0;         // when a scene cut moved an edge
 const MIN_DURATION_FLOOR_SEC = 4;
 const MEASURE_TIMEOUT_MS = 180000;
-const SCENE_DETECT_TIMEOUT_MS = 900000;
+const SCENE_PROBE_TIMEOUT_MS = 30000;     // per edge-neighborhood ffmpeg probe
+const SCENE_SCORE_THRESHOLD = 0.3;        // ffmpeg scene filter, 0..1
+const SCENE_PROBE_MARGIN_SEC = 0.5;       // probe reach beyond the snap budget
 
 const SILENCE_START_RE = /silence_start:\s*(-?\d+(?:\.\d+)?)/g;
 const SILENCE_END_RE = /silence_end:\s*(-?\d+(?:\.\d+)?)/g;
@@ -104,33 +109,61 @@ async function detectSilences(videoPath) {
   return { silences: parseSilences(silenceText), noiseDb };
 }
 
-// TransNetV2 via the P1 research script; the boundary list is every scene
-// start except the first (a scene start IS a cut). Fail-open to [].
-async function detectSceneCuts(videoPath) {
+// The snap budgets only ever look 0.35s (start) / 1.6s (end) from an edge,
+// so each window needs two tiny probe ranges, merged when they overlap.
+function sceneProbeRanges(spans) {
+  const ranges = [];
+  for (const span of spans) {
+    ranges.push([
+      span.start - SCENE_START_BUDGET_SEC - SCENE_PROBE_MARGIN_SEC,
+      span.start + SCENE_START_BUDGET_SEC + SCENE_PROBE_MARGIN_SEC
+    ]);
+    ranges.push([
+      span.end - SCENE_END_BUDGET_SEC - SCENE_PROBE_MARGIN_SEC,
+      span.end + SCENE_END_BUDGET_SEC + SCENE_PROBE_MARGIN_SEC
+    ]);
+  }
+  ranges.sort((a, b) => a[0] - b[0]);
+  const merged = [];
+  for (const [rawStart, rawEnd] of ranges) {
+    const start = Math.max(0, rawStart);
+    const last = merged[merged.length - 1];
+    if (last && start <= last[1] + 0.01) {
+      last[1] = Math.max(last[1], rawEnd);
+    } else {
+      merged.push([start, rawEnd]);
+    }
+  }
+  return merged;
+}
+
+// ffmpeg scene-score filter over the edge neighborhoods only. select keeps
+// just the frames whose scene score crosses the threshold, so every surviving
+// pts_time IS a cut (relative to the -ss seek point). Fail-open to [].
+async function detectSceneCutsNearWindows(videoPath, spans) {
   if (flagDisabled('HIGHLIGHT_EDGE_REFINE_SCENES')) {
     return { cuts: [], engine: 'disabled' };
   }
-  const scriptPath = path.join(__dirname, '..', '..', 'scripts', 'scene_detect_transnet.py');
-  const tmpPath = path.join(os.tmpdir(), `scenes_${crypto.randomBytes(4).toString('hex')}.json`);
   try {
-    await new Promise((resolve, reject) => {
-      execFile(
-        resolveTool('python', { envKey: 'PYTHON_PATH' }),
-        [scriptPath, videoPath, '--json', tmpPath],
-        { timeout: SCENE_DETECT_TIMEOUT_MS, maxBuffer: 4 * 1024 * 1024, windowsHide: true },
-        (error) => (error ? reject(error) : resolve())
+    const cuts = [];
+    for (const [rangeStart, rangeEnd] of sceneProbeRanges(spans)) {
+      const stderrText = await runFfmpegStderr(
+        ['-ss', rangeStart.toFixed(3), '-t', (rangeEnd - rangeStart).toFixed(3),
+         '-i', videoPath, '-an',
+         '-vf', `select='gt(scene,${SCENE_SCORE_THRESHOLD})',metadata=print`,
+         '-f', 'null', '-'],
+        SCENE_PROBE_TIMEOUT_MS
       );
-    });
-    const parsed = JSON.parse(fs.readFileSync(tmpPath, 'utf8'));
-    const scenes = Array.isArray(parsed.scenes) ? parsed.scenes : [];
-    const cuts = scenes.slice(1)
-      .map((scene) => Number(scene.start_sec))
-      .filter((value) => Number.isFinite(value) && value > 0);
-    return { cuts, engine: parsed.engine || 'transnetv2' };
+      for (const match of String(stderrText).matchAll(/pts_time:(\d+(?:\.\d+)?)/g)) {
+        const cutSec = rangeStart + Number(match[1]);
+        if (Number.isFinite(cutSec) && cutSec > 0) cuts.push(Number(cutSec.toFixed(3)));
+      }
+    }
+    cuts.sort((a, b) => a - b);
+    const unique = cuts.filter((value, i) => i === 0 || value - cuts[i - 1] > 0.02);
+    return { cuts: unique, engine: 'ffmpeg_scene_score' };
   } catch (error) {
     return { cuts: [], engine: `unavailable: ${String(error.message || error).slice(0, 120)}` };
-  } finally {
-    try { fs.rmSync(tmpPath, { force: true }); } catch { /* best effort */ }
   }
 }
 
@@ -248,7 +281,10 @@ async function refineHighlightWindowEdges({ videoPath, windows = [], maxDuration
       }
     };
   }
-  const sceneDetection = await detectSceneCuts(videoPath);
+  const spans = windows
+    .map((window) => ({ start: Number(window.start_sec), end: Number(window.end_sec) }))
+    .filter((span) => Number.isFinite(span.start) && Number.isFinite(span.end) && span.end > span.start);
+  const sceneDetection = await detectSceneCutsNearWindows(videoPath, spans);
 
   const { silences, noiseDb } = silenceDetection;
   const sceneCuts = sceneDetection.cuts;
