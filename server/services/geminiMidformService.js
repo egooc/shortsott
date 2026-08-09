@@ -561,18 +561,31 @@ async function analyzeMidformVideoChunked({ videoPath, contentType, options, dur
   for (const chunk of chunks) {
     const chunkVideoPath = await extractChunkVideo(videoPath, chunk, videoDir);
     const chunkTranscript = transcriptForChunk(options.transcript || options.sourceTranscript || null, chunk);
-    const result = await analyzeMidformVideoSingle({
-      videoPath: chunkVideoPath,
-      contentType,
-      options: { ...options, transcript: chunkTranscript, sourceTranscript: chunkTranscript },
-      token,
-      endpoint,
-      chunkContext: {
-        ...chunk,
-        total_chunks: chunks.length,
-        total_duration_sec: roundSec(durationSec)
+    // A truncated response (model stops mid-JSON) is stochastic: one bad chunk used to kill the
+    // whole vision map and with it the run (Shelter chunk_6 died mid-string). Retry the chunk
+    // itself before giving up.
+    let result = null;
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      try {
+        result = await analyzeMidformVideoSingle({
+          videoPath: chunkVideoPath,
+          contentType,
+          options: { ...options, transcript: chunkTranscript, sourceTranscript: chunkTranscript },
+          token,
+          endpoint,
+          chunkContext: {
+            ...chunk,
+            total_chunks: chunks.length,
+            total_duration_sec: roundSec(durationSec)
+          }
+        });
+        break;
+      } catch (error) {
+        const retryable = String(error?.code || '') === 'GEMINI_MIDFORM_JSON_PARSE_ERROR';
+        if (!retryable || attempt === 3) throw error;
+        await sleep(2000 * attempt);
       }
-    });
+    }
     const logPath = path.join(logsDir, `chunk_${String(chunk.index).padStart(2, '0')}_response.json`);
     fs.writeFileSync(logPath, `${JSON.stringify({ chunk, result }, null, 2)}\n`, 'utf8');
     chunkResults.push({ chunk, result, logPath, chunkVideoPath });

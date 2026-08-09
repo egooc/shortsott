@@ -31,7 +31,10 @@ def main() -> int:
     parser.add_argument("--model", default="medium")
     parser.add_argument("--language", default="en")
     parser.add_argument("--max-no-speech-prob", type=float, default=0.5)
-    parser.add_argument("--min-avg-logprob", type=float, default=-1.0)
+    # -1.35, not -1.0: on the Shelter scout, real lines shouted over the action mix ("Find this
+    # fucker" -1.22, "Who is that?" -1.26) sit below -1.0. The review gate frame-verifies every
+    # line anyway, so err toward keeping.
+    parser.add_argument("--min-avg-logprob", type=float, default=-1.35)
     args = parser.parse_args()
 
     try:

@@ -4,6 +4,7 @@ analysis_mode: auto
 source:
   url: "https://www.youtube.com/watch?v=U9XwGlu0FO4"
   content_type: movie_midform_recap
+  promo_tail_sec: 16.4
 output:
   target_length_sec: 100
 review:
@@ -40,6 +41,7 @@ render:
 - source audio language: English
 - subtitle source: **STT 폴백 (faster-whisper)** — 이 업로드는 수동/자동자막이 전혀 없음. 큐는 기계가 들은 것이므로 검수 게이트에서 전 줄 재검증 필수
 - speech density: 극희소 (~8줄/325s, 사전 정찰 실측) — Anacondas·Cirque보다도 낮음
+- promo tail: 308.9s부터 순수 블랙 16.4s (blackdetect 실측, 프로모 카드 아님) — usable_end ≈ 308.9
 
 # Editorial Preferences
 - keep_dialogue_policy: preserve_scene_force — 숨기라는 지시, 발각 외침, 수색 지시는 무조건 살린다

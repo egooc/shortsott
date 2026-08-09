@@ -621,21 +621,38 @@ async function extractTimedTranscript(sourceUrl, runDir, options = {}) {
 
 async function transcribeWithSttFallback(runDir) {
   try {
-    const download = await downloadCompressionSourceVideo(runDir);
-    const python = resolveTool('python', { envKey: 'PYTHON_PATH' });
-    const script = path.join(PROJECT_ROOT, 'midform', 'scripts', 'stt_transcribe.py');
+    // Cross-run cache keyed by video id: a rerun after a mid-compress failure must not redo
+    // minutes of CPU transcription — and a HAND-VERIFIED transcript placed here (gate review
+    // correcting machine-heard lines) survives into every later rerun of the same source.
+    const sourceInfoPath = path.join(runDir, 'source_info.json');
+    const videoId = String((fs.existsSync(sourceInfoPath) ? readJson(sourceInfoPath) : {})?.id || '').trim();
+    const cacheDir = path.join(COMPRESS_RUNS_DIR, '.stt_cache');
+    const cachePath = videoId ? path.join(cacheDir, `${videoId}.json`) : '';
     const rawPath = path.join(runDir, 'stt_transcript_raw.json');
-    const result = spawnSync(python, [script, '--audio', download.sourceVideoPath, '--out', rawPath], {
-      cwd: PROJECT_ROOT,
-      env: getToolEnv(),
-      encoding: 'utf8',
-      timeout: 45 * 60 * 1000
-    });
-    if (result.status !== 0 || !fs.existsSync(rawPath)) {
-      console.warn(`[midform] STT fallback failed (exit ${result.status}): ${String(result.stderr || '').slice(0, 300)}`);
-      return null;
+    let raw = null;
+    if (cachePath && fs.existsSync(cachePath)) {
+      raw = readJson(cachePath);
+      writeJson(rawPath, raw);
+    } else {
+      const download = await downloadCompressionSourceVideo(runDir);
+      const python = resolveTool('python', { envKey: 'PYTHON_PATH' });
+      const script = path.join(PROJECT_ROOT, 'midform', 'scripts', 'stt_transcribe.py');
+      const result = spawnSync(python, [script, '--audio', download.sourceVideoPath, '--out', rawPath], {
+        cwd: PROJECT_ROOT,
+        env: getToolEnv(),
+        encoding: 'utf8',
+        timeout: 45 * 60 * 1000
+      });
+      if (result.status !== 0 || !fs.existsSync(rawPath)) {
+        console.warn(`[midform] STT fallback failed (exit ${result.status}): ${String(result.stderr || '').slice(0, 300)}`);
+        return null;
+      }
+      raw = readJson(rawPath);
+      if (cachePath) {
+        fs.mkdirSync(cacheDir, { recursive: true });
+        writeJson(cachePath, raw);
+      }
     }
-    const raw = readJson(rawPath);
     const transcript = (Array.isArray(raw?.cues) ? raw.cues : [])
       .filter((cue) => Number(cue.end_sec) > Number(cue.start_sec) && String(cue.text || '').trim());
     if (!transcript.length) {
