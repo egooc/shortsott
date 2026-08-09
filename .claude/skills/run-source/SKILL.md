@@ -11,7 +11,13 @@ description: 새 YouTube 소스로 midform 실행을 시작하는 표준 절차.
 yt-dlp --js-runtimes node --no-playlist --skip-download --print "%(title)s | %(duration)s sec" --list-subs <URL>
 ```
 
-해상도도 함께 확인: 720p 미만이면 compress가 차단한다(SOURCE_RESOLUTION_TOO_LOW), 1080p 미만이면 경고. 파이프라인은 자막 큐 기반이다. **자동자막조차 없으면 실행 불가** — 같은 장면의 다른 업로드를 사용자에게 요청한다(STT 폴백은 스코프 밖). 제목·길이도 여기서 확보.
+해상도도 함께 확인: 720p 미만이면 compress가 차단한다(SOURCE_RESOLUTION_TOO_LOW), 1080p 미만이면 경고. 파이프라인은 자막 큐 기반이다. 자막이 전혀 없으면 **STT 폴백**이 자동 발동한다(2026-08-09 사용자 승인, faster-whisper medium, `MIDFORM_DISABLE_STT_FALLBACK=1`로 끔). 단 STT 큐는 기계가 들은 것 — 발동 시 다음이 의무다:
+- 실행 전 오디오 정찰로 발화 밀도 실측 (VAD 켠 정찰은 액션 믹스에서 대사를 삼킨다 — vad_filter=False로)
+- 템플릿에 subtitle source: STT 폴백 명기 + "확신 없는 줄은 나레이션 강등" 지침
+- 검수 게이트에서 **전 줄 프레임 대조** (환각 루프·오인 이름 소거) — 화자는 비전+프레임으로만
+- 대사 밀집 소스는 STT 부적합 — 그때는 자막 있는 다른 업로드를 요청한다
+
+제목·길이도 여기서 확보.
 
 예외: **게임 영상**은 자막이 없는 게 정상 — frontmatter에 `source.kind: game`을 선언하면 자막 없이 진행된다 (비전+에너지 구조, 전량 나레이션). 첫 실행 전 `midform/docs/game-branch-plan.md`를 읽을 것 — 브랜치는 배관만 완료 상태다.
 

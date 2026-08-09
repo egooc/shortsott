@@ -600,7 +600,15 @@ async function extractTimedTranscript(sourceUrl, runDir, options = {}) {
       writeJson(transcriptPath, []);
       return { transcript: [], transcriptPath, vttPath: '' };
     }
-    const blocked = { status: 'blocked', code: 'SUBTITLE_NOT_FOUND', message: '자막 없음: 이번 스코프에서는 STT fallback을 수행하지 않습니다.' };
+    // STT fallback (scope opened 2026-08-09, user-approved): a subtitle-less movie upload gets
+    // faster-whisper cues instead of a hard block. Built for sparse-dialogue action sources —
+    // the extraction script filters hallucination loops and interjections, and the review gate
+    // still checks every resolved line before TTS. Disable with MIDFORM_DISABLE_STT_FALLBACK=1.
+    if (process.env.MIDFORM_DISABLE_STT_FALLBACK !== '1') {
+      const sttTranscript = await transcribeWithSttFallback(runDir);
+      if (sttTranscript) return sttTranscript;
+    }
+    const blocked = { status: 'blocked', code: 'SUBTITLE_NOT_FOUND', message: '자막 없음: STT 폴백도 실패했거나 비활성 상태입니다.' };
     writeJson(path.join(runDir, 'compress_state.json'), blocked);
     throw Object.assign(new Error(blocked.message), { code: blocked.code, details: blocked });
   }
@@ -609,6 +617,44 @@ async function extractTimedTranscript(sourceUrl, runDir, options = {}) {
   const transcriptPath = path.join(runDir, 'transcript_timed.json');
   writeJson(transcriptPath, transcript);
   return { transcript, transcriptPath, vttPath };
+}
+
+async function transcribeWithSttFallback(runDir) {
+  try {
+    const download = await downloadCompressionSourceVideo(runDir);
+    const python = resolveTool('python', { envKey: 'PYTHON_PATH' });
+    const script = path.join(PROJECT_ROOT, 'midform', 'scripts', 'stt_transcribe.py');
+    const rawPath = path.join(runDir, 'stt_transcript_raw.json');
+    const result = spawnSync(python, [script, '--audio', download.sourceVideoPath, '--out', rawPath], {
+      cwd: PROJECT_ROOT,
+      env: getToolEnv(),
+      encoding: 'utf8',
+      timeout: 45 * 60 * 1000
+    });
+    if (result.status !== 0 || !fs.existsSync(rawPath)) {
+      console.warn(`[midform] STT fallback failed (exit ${result.status}): ${String(result.stderr || '').slice(0, 300)}`);
+      return null;
+    }
+    const raw = readJson(rawPath);
+    const transcript = (Array.isArray(raw?.cues) ? raw.cues : [])
+      .filter((cue) => Number(cue.end_sec) > Number(cue.start_sec) && String(cue.text || '').trim());
+    if (!transcript.length) {
+      console.warn('[midform] STT fallback produced no usable cues');
+      return null;
+    }
+    const transcriptPath = path.join(runDir, 'transcript_timed.json');
+    writeJson(transcriptPath, transcript);
+    // The state carries the provenance so the review gate and casebook can see the cues are
+    // machine-heard, not author-provided — reviewers verify these lines, not trust them.
+    const statePath = path.join(runDir, 'compress_state.json');
+    if (fs.existsSync(statePath)) {
+      writeJson(statePath, { ...readJson(statePath), transcript_source: 'stt_faster_whisper', stt_model: raw?.model || '' });
+    }
+    return { transcript, transcriptPath, vttPath: '' };
+  } catch (error) {
+    console.warn(`[midform] STT fallback errored: ${String(error?.message || error).slice(0, 300)}`);
+    return null;
+  }
 }
 
 function extractHeatmap(metadata, runDir) {
