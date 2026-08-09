@@ -292,7 +292,10 @@ function buildLocaleEditPlan(baseEditPlan, strategy, evidencePack, attempt = 0) 
     // ko takes the strongest peak inside the window, ja the second-strongest when one exists
     // (locale differentiation through WHICH action moment screens, not through sliding off it).
     let peakAnchored = false;
-    if (decision === 'NARRATE' && role !== 'cold_open' && energyPeaks.length) {
+    // An action beat (source_audio_action) IS a pinned peak already — never re-anchor or
+    // shift it; sliding it would play the wrong seconds of the fight in one locale.
+    if (normalizeText(slot.visual_source_mode) === 'source_audio_action') peakAnchored = true;
+    else if (decision === 'NARRATE' && role !== 'cold_open' && energyPeaks.length) {
       const needSec = Math.max(4, slotDuration(slot) || 4);
       const inside = energyPeaks
         .filter((peak) => peak.end_sec > range[0] + 0.5 && peak.start_sec < range[1] - 0.5)

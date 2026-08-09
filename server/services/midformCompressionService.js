@@ -3566,7 +3566,98 @@ function readUsableEndSec(runDir) {
   return 0;
 }
 
-function finalizeEditPlan(editPlan, beats, transcript, targetSec, usableEndSec = 0, wordTimestamps = null) {
+// Original-audio action beats (owner directive 2026-08-10 "전투 돌아왔다고 할수있나?"): on an
+// action source the fight IS the content, but visuals could only exist under TTS narration or
+// dialogue windows — so a 325s fight compressed to 49s of mostly talk. Uncovered top energy
+// peaks become first-class scene_hook slots that play their own action audio, spending the
+// remaining target budget. The runtime stays a RESULT; the target stays a ceiling.
+const ACTION_BEAT_MAX_SLOTS = 3;
+function insertActionBeatSlots(timeline, energyPeaks, targetSec, usableEndSec, beats) {
+  const peaks = (Array.isArray(energyPeaks) ? energyPeaks : [])
+    .map((peak) => ({ rank: Number(peak?.rank) || 0, start: Number(peak?.start_sec), end: Number(peak?.end_sec), score: Number(peak?.score) || 0 }))
+    .filter((peak) => Number.isFinite(peak.start) && peak.end > peak.start)
+    .sort((left, right) => (left.rank || 99) - (right.rank || 99));
+  if (!peaks.length) return timeline;
+  // Idempotent under refresh: strip previously inserted action beats and re-derive, so a stale
+  // slot can never survive a rule change (slot_action_4 outlived the dialogue-span guard).
+  const items = timeline
+    .filter((item) => String(item?.visual_source_mode || '') !== 'source_audio_action')
+    .map((item) => ({ ...item }));
+  const target = Number(targetSec || 0);
+  const usable = Number(usableEndSec) > 0 ? Number(usableEndSec) : Infinity;
+  const totalEst = () => items.filter((item) => item.decision !== 'DROP')
+    .reduce((sum, item) => sum + Number(item.estimated_duration_sec || 0), 0);
+  // What already screens: dialogue line windows verbatim; a narration slot plays roughly
+  // [visual start, start + narration need] after the TTS clamp.
+  const screened = [];
+  for (const item of items) {
+    if (item.decision === 'DROP') continue;
+    if (item.decision === 'KEEP_DIALOGUE') {
+      for (const win of Array.isArray(item.dialogue_line_windows) ? item.dialogue_line_windows : []) {
+        if (win && win.matched === true) screened.push([Number(win.start_sec), Number(win.end_sec)]);
+      }
+    } else {
+      const start = Number(item.visual_source_start_sec ?? item.start_sec);
+      const need = Math.max(4, Number(item.narration_estimated_duration_sec || item.estimated_duration_sec || 0));
+      if (Number.isFinite(start)) screened.push([start, start + need]);
+    }
+  }
+  let inserted = 0;
+  for (const peak of peaks) {
+    if (inserted >= ACTION_BEAT_MAX_SLOTS) break;
+    const winStart = Math.max(0, peak.start - 1.5);
+    const winEnd = Math.min(usable, peak.end + 1.5);
+    const duration = winEnd - winStart;
+    if (duration < 3) continue;
+    if (target > 0 && totalEst() + duration > target) continue;
+    if (screened.some(([busyStart, busyEnd]) => Math.min(busyEnd, winEnd) - Math.max(busyStart, winStart) > 0.75)) continue;
+    // A peak INSIDE a dialogue slot's narrative span (even between its lines) cannot be
+    // appended after it without a backward source jump — the monotonicity gate rejects that,
+    // and editorially the beat would play after the scream that follows it.
+    const insideDialogueSpan = items.some((item) => item.decision === 'KEEP_DIALOGUE'
+      && Number(item.start_sec) < winEnd && Number(item.end_sec) > winStart);
+    if (insideDialogueSpan) continue;
+    const beat = (Array.isArray(beats) ? beats : []).find((candidate) => Number(candidate.start_sec) <= peak.start && Number(candidate.end_sec) >= peak.end) || null;
+    const slot = {
+      slot_id: `slot_action_${peak.rank || inserted + 1}`,
+      beat_id: String(beat?.beat_id || ''),
+      role: 'action_beat',
+      decision: 'NARRATE',
+      start_sec: roundSec(winStart),
+      end_sec: roundSec(winEnd),
+      estimated_duration_sec: roundSec(duration),
+      narration_estimated_duration_sec: 0,
+      visual_source_mode: 'source_audio_action',
+      visual_source_beat_id: String(beat?.beat_id || ''),
+      visual_source_start_sec: roundSec(winStart),
+      visual_source_end_sec: roundSec(winEnd),
+      visual_source_center_sec: roundSec((winStart + winEnd) / 2),
+      reason: `Measured energy peak rank ${peak.rank} plays with its own action audio — the fight itself is content, not background.`,
+      spoiler_policy: 'action only; no reveal',
+      repeat_policy: 'none',
+      dialogue_focus_source: 'none',
+      dialogue_focus_lines: [],
+      dialogue_focus_quotes: [],
+      replay_of_slot_id: '',
+      replay_mode: ''
+    };
+    // Chronological insert by source start, never before the cold open (the hook stays first
+    // even when it comes from later footage).
+    let position = items.length;
+    for (let index = 1; index < items.length; index += 1) {
+      const candidate = items[index];
+      if (candidate.role === 'cold_open') continue;
+      const candidateStart = Number(candidate.start_sec);
+      if (Number.isFinite(candidateStart) && candidateStart > winStart) { position = index; break; }
+    }
+    items.splice(position, 0, slot);
+    screened.push([winStart, winEnd]);
+    inserted += 1;
+  }
+  return items;
+}
+
+function finalizeEditPlan(editPlan, beats, transcript, targetSec, usableEndSec = 0, wordTimestamps = null, energyPeaks = null) {
   const beatMap = new Map((Array.isArray(beats) ? beats : []).map((beat) => [String(beat?.beat_id || '').trim(), beat]));
   const sortedBeatStarts = (Array.isArray(beats) ? beats : []).map((b) => Number(b.start_sec)).filter((n) => Number.isFinite(n)).sort((a, b) => a - b);
   const callbackPreparedTimeline = prepareColdOpenCallbackTimeline(
@@ -3991,7 +4082,10 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec, usableEndSec =
       ? { ...item, estimated_duration_sec: realisticSlotDurationSec(item) }
       : item
   ));
-  let finalizedTimeline = trimmedTimeline.map((item) => {
+  // AFTER the realistic-duration correction: the budget guard must see what the cut actually
+  // runs (a dialogue slot's raw span can be 47s for 7s of lines), or every peak gets skipped.
+  const actionTimeline = insertActionBeatSlots(trimmedTimeline, energyPeaks, targetSec, usableEndSec, beats);
+  let finalizedTimeline = actionTimeline.map((item) => {
     if (item.decision === 'KEEP_DIALOGUE') return annotateDialogueSlotForQc(item, { windows: item.dialogue_line_windows || [] }, item);
     return annotateNarrationSlotForQc(item);
   });
@@ -4282,6 +4376,7 @@ function buildSlotFillsPrompt(beats, editPlan, movieTitle, recapContextMarkdown)
     '- Do not repeat a preserved dialogue line in narration with the same informational content. If KEEP_DIALOGUE already says the core beat, narration must add setup, consequence, stakes, or interpretation instead of paraphrasing the same line.',
     '- If cold_open is NARRATE, its narration must plant a question and must not reveal the answer.',
     '- EXCEPTION: if the cold_open slot rule shows visual_source_mode "source_audio_teaser" (heatmap scene hook), set narration to an empty string and leave caption_kr and caption_units empty — the original action audio of the peak moment IS the hook, and any voiceover would smother it.',
+    '- EXCEPTION: any slot with visual_source_mode "source_audio_action" (role action_beat) is a measured action peak that plays its OWN action audio. Set narration to an empty string and leave caption_kr, caption_units and caption_kr_dialogue empty for these slots — no voiceover, no captions.',
     '- If cold_open is NARRATE, write a single hook sentence only: one question or reversal, no explanation, no setup, no answer.',
     '- If cold_open is NARRATE, keep it roughly 20-30 Korean characters excluding spaces (~4-6 seconds of speech). Do not write two sentences.',
     '- If cold_open is KEEP_DIALOGUE, leave narration and caption_units empty and make caption_kr_dialogue carry the hook with punchy Korean spoken captions.',
@@ -4647,7 +4742,8 @@ function validateSlotFillsRuntime(slotFills, editPlan, targetSec) {
   const shortSlots = [];
   for (const item of Array.isArray(editPlan?.timeline) ? editPlan.timeline : []) {
     if (item?.decision === 'DROP') continue;
-    if (item?.decision === 'KEEP_DIALOGUE') {
+    if (item?.decision === 'KEEP_DIALOGUE' || String(item?.visual_source_mode || '') === 'source_audio_action') {
+      // Dialogue and original-audio action beats carry fixed source seconds, not TTS.
       totalSec += Number(item.estimated_duration_sec || 0);
       continue;
     }
@@ -4799,7 +4895,7 @@ function validateEditPlan(editPlan, targetSec = 0) {
 // parrot them) picks the opener; any failure falls back to the deterministic argmax that already
 // shipped three sources. The choice is pinned into the plan as cold_open_selection.rerank_choice,
 // so refresh/apply replay it deterministically with no second LLM call.
-async function rerankColdOpenSelection(finalizedPlan, rawEditPlan, beats, transcript, targetSec, usableEndSec, wordTimestamps = null) {
+async function rerankColdOpenSelection(finalizedPlan, rawEditPlan, beats, transcript, targetSec, usableEndSec, wordTimestamps = null, energyPeaks = null) {
   if (process.env.MIDFORM_DISABLE_RERANK === '1') return finalizedPlan;
   try {
     const selection = finalizedPlan?.cold_open_selection || {};
@@ -4874,7 +4970,7 @@ async function rerankColdOpenSelection(finalizedPlan, rawEditPlan, beats, transc
         rerank_choice: { beat_id: winner.beat_id, start_sec: winner.start_sec, end_sec: winner.end_sec }
       }
     };
-    const refinalized = finalizeEditPlan(pinnedPlan, beats, transcript, targetSec, usableEndSec, wordTimestamps);
+    const refinalized = finalizeEditPlan(pinnedPlan, beats, transcript, targetSec, usableEndSec, wordTimestamps, energyPeaks);
     validateEditPlanAgainstBeats(validateEditPlan(refinalized), beats);
     refinalized.cold_open_selection = { ...(refinalized.cold_open_selection || {}), rerank: { ...rerankMeta, changed: true } };
     return refinalized;
@@ -5432,10 +5528,10 @@ async function runCompression(source, options = {}) {
       MIDFORM_COMPRESSION_EDIT_PLAN_SCHEMA_PATH,
       (parsed) => validateEditPlanAgainstBeats(validateEditPlan(parsed, targetSec), beatsResult.parsed.beats)
     );
-    finalizedEditPlan = finalizeEditPlan(editResult.parsed, beatsResult.parsed.beats, transcript, targetSec, sourceCase.usable_end_sec, wordTimestamps);
+    finalizedEditPlan = finalizeEditPlan(editResult.parsed, beatsResult.parsed.beats, transcript, targetSec, sourceCase.usable_end_sec, wordTimestamps, energyProfile?.peaks || []);
     validateEditPlanAgainstBeats(validateEditPlan(finalizedEditPlan), beatsResult.parsed.beats);
     finalizedEditPlan = await rerankColdOpenSelection(
-      finalizedEditPlan, editResult.parsed, beatsResult.parsed.beats, transcript, targetSec, sourceCase.usable_end_sec, wordTimestamps
+      finalizedEditPlan, editResult.parsed, beatsResult.parsed.beats, transcript, targetSec, sourceCase.usable_end_sec, wordTimestamps, energyProfile?.peaks || []
     );
   } catch (_error) {
     finalizedEditPlan = buildFallbackEditPlan(beatsResult.parsed.beats, heatmap, targetSec, metadata, transcript);
@@ -5490,7 +5586,9 @@ async function runCompressionApply(runIdOrPath, applyOptions = {}) {
   const transcriptPath = path.join(runDir, 'transcript_timed.json');
   const transcript = fs.existsSync(transcriptPath) ? readJson(transcriptPath) : [];
   const targetSec = Number(editPlan?.duration_budget?.target_sec || DEFAULT_TARGET_SEC) || DEFAULT_TARGET_SEC;
-  const finalizedEditPlan = finalizeEditPlan(editPlan, beatsObject.beats || [], transcript, targetSec, readUsableEndSec(runDir), readWordTimestamps(runDir));
+  const applyEnergyProfilePath = path.join(runDir, 'energy_profile.json');
+  const applyEnergyPeaks = fs.existsSync(applyEnergyProfilePath) ? ((readJson(applyEnergyProfilePath) || {}).peaks || []) : [];
+  const finalizedEditPlan = finalizeEditPlan(editPlan, beatsObject.beats || [], transcript, targetSec, readUsableEndSec(runDir), readWordTimestamps(runDir), applyEnergyPeaks);
   const sourceInfoPath = path.join(runDir, 'source_info.json');
   const applyManifestPath = path.join(runDir, 'compression_manifest.json');
   const movieTitle = (fs.existsSync(sourceInfoPath) ? (readJson(sourceInfoPath) || {}).title : '')
@@ -5612,7 +5710,9 @@ function refreshCompressionPlan(runIdOrPath) {
   const metadata = fs.existsSync(metadataPath) ? readJson(metadataPath) : {};
   const heatmap = fs.existsSync(heatmapPath) ? readJson(heatmapPath) : { status: 'unavailable', items: [] };
   const targetSec = Number(currentPlan?.duration_budget?.target_sec || DEFAULT_TARGET_SEC) || DEFAULT_TARGET_SEC;
-  let refreshedPlan = finalizeEditPlan(currentPlan, beatsObject.beats || [], transcript, targetSec, readUsableEndSec(runDir), readWordTimestamps(runDir));
+  const refreshEnergyProfilePath = path.join(runDir, 'energy_profile.json');
+  const refreshEnergyPeaks = fs.existsSync(refreshEnergyProfilePath) ? ((readJson(refreshEnergyProfilePath) || {}).peaks || []) : [];
+  let refreshedPlan = finalizeEditPlan(currentPlan, beatsObject.beats || [], transcript, targetSec, readUsableEndSec(runDir), readWordTimestamps(runDir), refreshEnergyPeaks);
   if (fs.existsSync(slotFillsPath)) {
     refreshedPlan = recalculateNarrationDurations(refreshedPlan, readJson(slotFillsPath), beatsObject.beats || [], transcript);
   }
@@ -5745,6 +5845,7 @@ module.exports = {
     buildTeaserSuitabilityScore,
     bestColdOpenCallbackBeat,
     rerankColdOpenSelection,
-    snapDialogueWindowsToWords
+    snapDialogueWindowsToWords,
+    insertActionBeatSlots
   }
 };

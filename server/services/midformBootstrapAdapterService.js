@@ -540,6 +540,18 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
     }
   }
   const assignedBrollRanges = [];
+  // Action beats carry FIXED peak windows (source_audio_action). Reserve them before any
+  // narration b-roll is picked: the peak-anchored picker would otherwise anchor a narration
+  // slot on the very peak an action beat plays, and the two collide in the overlap gate
+  // regardless of which one the timeline reaches first.
+  for (const item of timeline) {
+    if (normalizeText(item.visual_source_mode) !== 'source_audio_action') continue;
+    const actionStart = Number(item.visual_source_start_sec);
+    const actionEnd = Number(item.visual_source_end_sec);
+    if (Number.isFinite(actionStart) && Number.isFinite(actionEnd) && actionEnd > actionStart) {
+      assignedBrollRanges.push([actionStart, actionEnd]);
+    }
+  }
   const subtractBusyRanges = (rangeStart, rangeEnd, blocks) => {
     const busy = blocks.map((b) => [Number(b[0]), Number(b[1])]).filter((b) => b[1] > rangeStart && b[0] < rangeEnd).sort((a, b) => a[0] - b[0]);
     const free = [];
@@ -808,8 +820,11 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
     // NARRATE (cold_open / bridge / body / payoff narration).
     const isColdOpen = role === 'cold_open';
     // Scene hook: heatmap-peak cold open that plays its original action audio — no TTS,
-    // no captions, and the source clip keeps full volume downstream.
-    const isSceneHook = isColdOpen && normalizeText(item.visual_source_mode) === 'source_audio_teaser';
+    // no captions, and the source clip keeps full volume downstream. Action beats
+    // (visual_source_mode source_audio_action) are the same mechanism promoted to the body:
+    // measured energy peaks playing their own fight audio between narration/dialogue slots.
+    const isActionBeat = normalizeText(item.visual_source_mode) === 'source_audio_action';
+    const isSceneHook = (isColdOpen && normalizeText(item.visual_source_mode) === 'source_audio_teaser') || isActionBeat;
     const narration = isSceneHook ? '' : normalizeText(fill.narration || '');
     const captionKr = isSceneHook ? '' : normalizeText(fill.caption_kr || '');
     if (!narration && !isSceneHook) warnings.push(`${slotId} (${role}) NARRATE has empty narration`);
@@ -820,11 +835,11 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
     let sourceRange;
     let sourceScenes;
     let sourceRangeHint;
-    if (isColdOpen && Number.isFinite(teaserStart) && Number.isFinite(teaserEnd) && teaserEnd > teaserStart) {
+    if ((isColdOpen || isActionBeat) && Number.isFinite(teaserStart) && Number.isFinite(teaserEnd) && teaserEnd > teaserStart) {
       sourceRange = [teaserStart, teaserEnd];
       sourceScenes = [{
-        clip_id: `${slotId}_teaser_clip`,
-        scene_id: 'cold_open_teaser',
+        clip_id: isActionBeat ? `${slotId}_action_clip` : `${slotId}_teaser_clip`,
+        scene_id: isActionBeat ? 'action_beat' : 'cold_open_teaser',
         start: secondsToTimecode(teaserStart),
         end: secondsToTimecode(teaserEnd),
         speed_multiplier: 1
@@ -832,8 +847,8 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
       // Degenerate hint (end==start) makes parse_story_anchor_range bail, so the auto-picker
       // leaves our explicit muted-teaser source_scenes untouched.
       sourceRangeHint = [teaserStart, teaserStart];
-      assignedBrollRanges.push([teaserStart, teaserEnd]);
-      hookFallbackRange = [teaserStart, teaserEnd];
+      if (!isActionBeat) assignedBrollRanges.push([teaserStart, teaserEnd]); // action beats pre-reserved above
+      if (isColdOpen) hookFallbackRange = [teaserStart, teaserEnd];
     } else {
       // Non-cold-open narration: pick explicit NON-OVERLAPPING b-roll from the beat window (free of
       // dialogue clips and other narration b-roll), with a degenerate hint so the picker declines.
