@@ -283,6 +283,9 @@ function copyCompressionArtifacts(compressionRunDir, workspaceDir) {
   copyIfExists(path.join(compressionRunDir, 'slot_qc_report.json'), path.join(workspaceDir, 'slot_qc_report.json'));
   copyIfExists(path.join(compressionRunDir, 'compression_slot_fills.json'), path.join(workspaceDir, 'slot_fills.generated.json'));
   copyIfExists(path.join(compressionRunDir, 'upload_text.md'), path.join(workspaceDir, 'upload_text.md'));
+  // The energy-peak coverage gate reads these at draft level (the truth after all clamping).
+  copyIfExists(path.join(compressionRunDir, 'energy_profile.json'), path.join(workspaceDir, 'energy_profile.json'));
+  copyIfExists(path.join(compressionRunDir, 'source_case.json'), path.join(workspaceDir, 'source_case.json'));
 }
 
 function writeLocaleBranchArtifacts(workspaceDir, normalizedRequest, compressionRunDir, supplementalEvidence = {}) {
@@ -290,6 +293,10 @@ function writeLocaleBranchArtifacts(workspaceDir, normalizedRequest, compression
   const editPlan = readJsonIfExists(path.join(compressionRunDir, 'edit_plan.json')) || {};
   const transcript = readJsonIfExists(path.join(compressionRunDir, 'transcript_timed.json')) || [];
   const compressionManifest = readJsonIfExists(path.join(compressionRunDir, 'compression_manifest.json')) || {};
+  // Measured energy peaks ride along so the locale planner can anchor narration b-roll on the
+  // action instead of the front of the beat window (the Shelter fight shipped at 0.0s coverage).
+  const energyProfile = readJsonIfExists(path.join(compressionRunDir, 'energy_profile.json')) || {};
+  supplementalEvidence = { ...supplementalEvidence, energyPeaks: Array.isArray(energyProfile.peaks) ? energyProfile.peaks : [] };
   const artifacts = buildLocaleBranchArtifacts({
     normalizedRequest,
     beatsObject,

@@ -340,6 +340,46 @@ function collectRunArtifacts({
       if (gateResults.status === 'passed') gateResults.status = 'passed_with_warnings';
     }
   }
+  // Energy-peak coverage (owner directive 2026-08-10): beats are FORCED to cover the measured
+  // top-2 energy peaks, but nothing below them was — on Shelter the final cut shipped with the
+  // fight's rank-1/2 peaks at 0.0s because narration b-roll picked the largest (quietest) gap.
+  // The draft is the truth after every clamp, so the gate measures here.
+  {
+    const energyProfilePath = path.join(workspaceDir, 'energy_profile.json');
+    const sourceCasePath = path.join(workspaceDir, 'source_case.json');
+    const energyProfile = fs.existsSync(energyProfilePath) ? readJson(energyProfilePath) : null;
+    const sourceCase = fs.existsSync(sourceCasePath) ? readJson(sourceCasePath) : null;
+    const peaks = (energyProfile?.peaks || []).slice(0, 2);
+    if (peaks.length) {
+      const clips = [];
+      for (const segment of editManifest?.segments || []) {
+        for (const clip of segment.source_clips || []) {
+          const start = parseTimecodeSec(clip.start);
+          const end = parseTimecodeSec(clip.end);
+          if (Number.isFinite(start) && Number.isFinite(end) && end > start) clips.push([start, end]);
+        }
+      }
+      const coverage = peaks.map((peak) => ({
+        rank: peak.rank,
+        start_sec: peak.start_sec,
+        end_sec: peak.end_sec,
+        covered_sec: Number(clips.reduce((sum, [clipStart, clipEnd]) => sum
+          + Math.max(0, Math.min(clipEnd, peak.end_sec) - Math.max(clipStart, peak.start_sec)), 0).toFixed(3))
+      }));
+      const uncovered = coverage.filter((peak) => peak.covered_sec < 0.5);
+      const actionSource = String(sourceCase?.case_type || '').includes('action_peak');
+      const status = uncovered.length === 0 ? 'pass'
+        : (actionSource && uncovered.length === coverage.length ? 'fail' : 'warning');
+      gateResults.results.push({ id: 'energy_peak_coverage', status, coverage, case_type: sourceCase?.case_type || '' });
+      if (status === 'fail') {
+        gateResults.failed.push('energy_peak_coverage');
+        gateResults.status = 'failed';
+      } else if (status === 'warning' && !gateResults.warnings.includes('energy_peak_coverage')) {
+        gateResults.warnings.push('energy_peak_coverage');
+        if (gateResults.status === 'passed') gateResults.status = 'passed_with_warnings';
+      }
+    }
+  }
   const acceptancePath = path.join(workspaceDir, 'acceptance_gates.json');
   writeJson(acceptancePath, gateResults);
   const previewProof = generatePreviewFrameProof({

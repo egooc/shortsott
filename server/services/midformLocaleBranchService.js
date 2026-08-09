@@ -139,6 +139,9 @@ function buildEvidencePack({ normalizedRequest = {}, beatsObject = {}, editPlan 
     })),
     must_keep_dialogue_candidates: dialogueCandidates,
     must_keep_visual_candidates: visualCandidates,
+    energy_peaks: (Array.isArray(supplementalEvidence?.energyPeaks) ? supplementalEvidence.energyPeaks : [])
+      .map((peak) => ({ rank: Number(peak?.rank) || 0, start_sec: round3(peak?.start_sec), end_sec: round3(peak?.end_sec), score: Number(peak?.score) || 0 }))
+      .filter((peak) => peak.end_sec > peak.start_sec),
     comment_reaction_summary: commentReactionSummary,
     retention_signals: retentionSignals,
     heatmap_signals: heatmapSignals,
@@ -278,13 +281,36 @@ function buildLocaleEditPlan(baseEditPlan, strategy, evidencePack, attempt = 0) 
   // the ja cut. Locale difference comes from window shifts and scripts, never from order.
   const reordered = active.slice();
   const shiftBase = locale === 'ja' ? Number(strategy.source_range_shift_sec || 0) + attempt * 4.0 : 0;
+  const energyPeaks = Array.isArray(evidencePack.energy_peaks) ? evidencePack.energy_peaks : [];
   const timeline = reordered.map((slot, index) => {
-    const range = rangeForSlot(slot);
+    let range = rangeForSlot(slot);
     const role = normalizeText(slot.role);
     const decision = normalizeText(slot.decision);
+    // Anchor narration b-roll on the measured action instead of the front of the beat window:
+    // capcut plays the clip from its start for the TTS duration, and "start of a long window"
+    // is statistically the quietest footage — the Shelter fight peaks shipped at 0.0s coverage.
+    // ko takes the strongest peak inside the window, ja the second-strongest when one exists
+    // (locale differentiation through WHICH action moment screens, not through sliding off it).
+    let peakAnchored = false;
+    if (decision === 'NARRATE' && role !== 'cold_open' && energyPeaks.length) {
+      const needSec = Math.max(4, slotDuration(slot) || 4);
+      const inside = energyPeaks
+        .filter((peak) => peak.end_sec > range[0] + 0.5 && peak.start_sec < range[1] - 0.5)
+        .sort((left, right) => right.score - left.score);
+      const chosen = locale === 'ja' && inside.length > 1 ? inside[1] : inside[0];
+      if (chosen) {
+        const lead = locale === 'ja' ? 1.5 : 1.0;
+        const start = Math.min(Math.max(range[0], chosen.start_sec - lead), Math.max(range[0], range[1] - needSec));
+        range = [round3(start), range[1]];
+        peakAnchored = true;
+      }
+    }
     let shift = shiftBase;
     if (locale === 'ja' && decision === 'NARRATE') shift += 3.0 + index * 0.45;
     if (locale === 'ja' && role === 'cold_open') shift += 3.5;
+    // A peak-anchored window already sits exactly where it must — a ja shift would slide it
+    // straight off the action it was anchored to.
+    if (peakAnchored) shift = 0;
     // A ja shift must not push a narration window PAST the dialogue it leads into: crossing
     // that boundary broke the reveal end-alignment for ja (spider reveal coverage 0 while ko
     // had it) and put the b-roll on the wrong scene. Cap the shift so the window end stays

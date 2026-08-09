@@ -583,7 +583,18 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
     ? [reservedDialogueRanges[0][0], Math.min(reservedDialogueRanges[0][1], reservedDialogueRanges[0][0] + 6)]
     : null;
 
-  const pickNarrationBroll = (prefStartRaw, prefEndRaw) => {
+  // Measured energy peaks (audio RMS + motion) from the compress run. Narration b-roll used to
+  // pick the LARGEST free gap — on an action source the largest gap is the quietest stretch, so
+  // the fight's rank-1/2 peaks shipped with 0.0s coverage (Shelter). Peaks now outrank size.
+  const energyPeaks = (Array.isArray(options.energyPeaks) ? options.energyPeaks : [])
+    .map((peak) => ({ start: Number(peak?.start_sec), end: Number(peak?.end_sec), score: Number(peak?.score) || 0 }))
+    .filter((peak) => Number.isFinite(peak.start) && Number.isFinite(peak.end) && peak.end > peak.start);
+  const peakOverlapScore = (start, end) => energyPeaks.reduce((sum, peak) => {
+    const overlap = Math.min(end, peak.end) - Math.max(start, peak.start);
+    return overlap > 0 ? sum + overlap * Math.max(0.1, peak.score) : sum;
+  }, 0);
+
+  const pickNarrationBroll = (prefStartRaw, prefEndRaw, needSecRaw = 0) => {
     // The preferred range follows the slot, which can run past the end of the footage: a closing
     // recap asked for b-roll ending at 531.280s of a 529.561s source and the clip was emitted
     // as-is, failing source_duration_covers_timestamps.
@@ -592,20 +603,36 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
     if (!(prefEnd > prefStart)) return null;
     const free = subtractBusyRanges(prefStart, prefEnd, [...reservedDialogueRanges, ...assignedBrollRanges]);
     if (!free.length) return null;
-    free.sort((a, b) => (b[1] - b[0]) - (a[1] - a[0]));
-    for (const candidate of free) {
+    // Rank free gaps by covered peak energy first, size second. capcut plays the clip from its
+    // START for the TTS duration, so a gap is scored on the window that will actually screen:
+    // anchored just ahead of its strongest peak when it has one.
+    const needSec = Math.max(2, Number(needSecRaw) || 0);
+    const anchored = free.map(([gapStart, gapEnd]) => {
+      let start = gapStart;
+      if (energyPeaks.length) {
+        const inside = energyPeaks
+          .filter((peak) => peak.end > gapStart && peak.start < gapEnd)
+          .sort((left, right) => right.score - left.score)[0];
+        if (inside) {
+          // 1s of lead-in before the impact, bounded so the played window stays inside the gap.
+          start = Math.min(Math.max(gapStart, inside.start - 1.0), Math.max(gapStart, gapEnd - needSec));
+        }
+      }
+      const playedEnd = Math.min(gapEnd, start + Math.max(needSec, 4));
+      return { range: [start, Math.min(gapEnd, start + 30)], size: gapEnd - gapStart, score: peakOverlapScore(start, playedEnd) };
+    }).sort((left, right) => right.score - left.score || right.size - left.size);
+    for (const candidate of anchored) {
       // Cap before snapping: trimming to the 30s ceiling afterwards would drop a fresh
       // boundary back into the middle of a sentence. capcut trims further to the TTS.
-      const capped = [candidate[0], Math.min(candidate[1], candidate[0] + 30)];
-      const snapped = snapOutOfSpeech(capped);
+      const snapped = snapOutOfSpeech(candidate.range);
       if (snapped) return snapped;
     }
-    const chosen = free[0];
-    // Every window cuts into speech; keep the largest rather than dropping the b-roll.
+    const chosen = anchored[0].range;
+    // Every window cuts into speech; keep the best rather than dropping the b-roll.
     // Unless it is a sliver: a 0.25s scrap stretched over a 3s narration reads as a frozen,
     // chopped-off shot. Too small to use is the same as nothing - let the caller fall back.
     if (chosen[1] - chosen[0] < 1.0) return null;
-    return [chosen[0], Math.min(chosen[1], chosen[0] + 30)];
+    return chosen;
   };
 
   // Dialogue-saturated fallback: when the slot's own window is fully reserved (a courtroom
@@ -823,7 +850,8 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
         winEnd = Math.min(winEnd, footageEndSec);
         winStart = Math.min(winStart, winEnd);
       }
-      const broll = (winEnd > winStart) ? pickNarrationBroll(winStart, winEnd) : null;
+      const narrationNeedSec = Number(item.narration_estimated_duration_sec || item.estimated_duration_sec || 0);
+      const broll = (winEnd > winStart) ? pickNarrationBroll(winStart, winEnd, narrationNeedSec) : null;
       if (broll) {
         sourceRange = broll;
         sourceScenes = [{ clip_id: `${slotId}_broll_clip`, scene_id: 'narration_broll', start: secondsToTimecode(broll[0]), end: secondsToTimecode(broll[1]), speed_multiplier: 1 }];
@@ -992,13 +1020,18 @@ function assembleBootstrapArtifacts(runIdOrPath, options = {}) {
   const dialogueTrim = trimDialogueWindowsToSpeech(editPlan, speechRanges, sourceDurationSec);
 
   const { transcript, stats: transcriptStats, warnings: tW } = buildBootstrapTranscript(editPlan, transcriptTimed);
+  const energyProfilePath = path.join(runDir, 'energy_profile.json');
+  const energyPeaks = fs.existsSync(energyProfilePath)
+    ? ((readJson(energyProfilePath) || {}).peaks || [])
+    : [];
   const { slotMap, script, warnings: sW } = buildBootstrapSlotMapAndScript(editPlan, slotFills, {
     scriptId: manifest.runId || path.basename(runDir),
     title: manifest.title || '',
     sourceDurationSec,
     speechRanges,
     usableEndSec: declaredUsableEndSec > 0 ? declaredUsableEndSec : promoTail.usable_end_sec,
-    cueRanges: (Array.isArray(transcriptTimed) ? transcriptTimed : []).map((cue) => [Number(cue?.start_sec), Number(cue?.end_sec)])
+    cueRanges: (Array.isArray(transcriptTimed) ? transcriptTimed : []).map((cue) => [Number(cue?.start_sec), Number(cue?.end_sec)]),
+    energyPeaks
   });
 
   const outTranscriptPath = path.join(runDir, 'bootstrap_source_transcript.json');
