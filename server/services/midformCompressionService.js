@@ -4451,7 +4451,12 @@ function readHookPatterns() {
   // the prompt's general curiosity rules still apply.
   try {
     const parsed = readJson(MIDFORM_HOOK_PATTERNS_PATH);
-    return { patterns: parsed.patterns || [], scoring: parsed.scoring || {} };
+    return {
+      patterns: parsed.patterns || [],
+      scoring: parsed.scoring || {},
+      scene_type_hints: parsed.scene_type_hints || {},
+      overlay_title_rules: parsed.overlay_title_rules || {}
+    };
   } catch {
     return { patterns: [], scoring: {} };
   }
@@ -4565,13 +4570,14 @@ function buildSlotFillsPrompt(beats, editPlan, movieTitle, recapContextMarkdown)
     '- caption_kr should be a concise Korean caption line for the narration; empty for dialogue-only slots.',
     '- upload_text.title_candidates: use the NARRATIVE HOOK process below. Plot-summary titles are rejected.',
     '  TITLE STEP 1 - extract narrative hook elements from the beats/plan (threat, secret, reversal, betrayal, impossible_situation, moral_dilemma, time_pressure, power_gap, abnormal_action, discovery, consequence, false_premise, identity). Only elements the CLIP actually shows - never invent one.',
-    '  TITLE STEP 2 - from the hook pattern library below, pick the 3-5 patterns whose "needs" match the elements you extracted.',
+    '  TITLE STEP 2 - from the hook pattern library below, pick the 3-5 patterns whose "needs" match the elements you extracted. When the library has scene_type_hints for this scene type, weight those patterns first (two-stage ranking: classify, then rank within type).',
     '  TITLE STEP 3 - write 2-3 Korean title candidates per chosen pattern following its skeleton, then score each: curiosity_gap 20, narrative_tension 20, specificity 15, emotional_stakes 15, instant_clarity 10, novelty 10, brevity 10; penalties: content_mismatch -40, ending_spoiled -15, abstract_wording -10, generic_clickbait -10.',
     '  TITLE STEP 4 - output ONLY the top 3 by score as title_candidates. Each must still read like a movie moment (비밀·위험·반전·금지·배신·선택·시간제한·정체·결과), never like an info-listicle ("~하는 5가지 방법" 류 금지). Question-shaped endings or answer-promising noun endings both work; the movie title itself is never the hook.',
     '  Hook pattern library:',
     JSON.stringify(readHookPatterns(), null, 0),
     '- upload_text.overlay_title is required and must be separate from YouTube title_candidates. It must be an object with top and bottom strings, each 8 Korean characters or fewer excluding spaces where possible. This is for the on-screen CapCut title overlay, so it can be shorter than the YouTube title.',
     '- upload_text.overlay_title must preserve curiosity but fit two compact lines. Example: {"top":"쫓던 보안관이","bottom":"미끼가 된 날"}.',
+    '- overlay_title must NOT duplicate the chosen YouTube title wording: the title carries the promise, the overlay carries a CONTRAST PAIR (쫓던/쫓기는, 지키는 자/빼앗는 자, 약속/대가) — top and bottom lines should sit in tension with each other.',
     '- Avoid overclaiming causation or hidden plans in upload_text.title_candidates. If the provided facts do not explicitly say someone orchestrated the trap, do not write titles like "계략" or "자작극" or other mastermind wording.',
     '- upload_text.description must be plain Korean prose for the description box: include the verified movie title/year/one-line premise from the provided context when available, then add 1-2 short lines on why this clip is worth watching.',
     '- upload_text.pinned_comment must be a concise Korean pinned comment containing the movie title and any verified creator/cast information provided in the context. If director/cast are not provided, do not invent them; include only verified details.',
