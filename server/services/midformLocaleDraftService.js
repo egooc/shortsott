@@ -301,7 +301,11 @@ function normalizeDraftSpecSourceRanges(draftSpec, baseDraftInput = {}) {
     : inferSourceDurationSec(baseDraftInput, next);
   const fixedWindowsBySlot = collectFixedSourceWindowsBySlot(baseDraftInput);
   const reservedWindows = [...fixedWindowsBySlot.values()].flat().sort((left, right) => left[0] - right[0]);
-  const overlapsReserved = (start, end) => reservedWindows.find(([ws, we]) => start < we - 0.001 && end > ws + 0.001);
+  // Reserved dialogue windows AND already-packed b-roll: the nudge/end-align paths consulted
+  // only the former, so a later slot (closing) sat straight on an earlier slot's multi-part
+  // clip and the hybrid gate killed the draft.
+  const overlapsReserved = (start, end) => reservedWindows.find(([ws, we]) => start < we - 0.001 && end > ws + 0.001)
+    || packedRanges.find(([ws, we]) => start < we - 0.001 && end > ws + 0.001);
   const cappedDurations = placements.map((placement) => {
     const sourceRange = Array.isArray(placement?.source_range) ? placement.source_range.map(Number) : [];
     if (!(Number(sourceRange[1]) > Number(sourceRange[0]))) return 0;
@@ -519,7 +523,9 @@ function normalizeDraftSpecSourceRanges(draftSpec, baseDraftInput = {}) {
     const sceneBoundaries = Array.isArray(baseDraftInput?.sceneBoundaries) ? baseDraftInput.sceneBoundaries : [];
     const cutBoundaries = [...shotBoundaries, ...sceneBoundaries].sort((l, r) => l - r);
     if (narrationNeedSec > 0 && cutBoundaries.length) {
-      const floor = start + Math.max(2.0, narrationNeedSec * 0.55);
+      // 0.3, not 0.55: multi-part continuation fills what the scene cut removes, so cutting
+      // at the TRUE scene boundary (110.8, 3.2s into a 7.2s narration) must be allowed.
+      const floor = start + Math.max(2.0, narrationNeedSec * 0.3);
       let snapDown = null;
       for (const boundary of cutBoundaries) {
         if (boundary > end + 0.05) break;
@@ -530,10 +536,55 @@ function normalizeDraftSpecSourceRanges(draftSpec, baseDraftInput = {}) {
         adjusted = true;
       }
     }
+    // Scene-following montage (owner direction: the SENTENCE was right, the SCENE was wrong):
+    // when the scene cut leaves the clip shorter than the narration, CONTINUE with the next
+    // free scene-snapped chunk inside the window instead of freezing - the narration's later
+    // sentences get the later scene ('사투가 이어집니다' gets the struggle at 127.6-130.1).
+    const extraRanges = [];
+    if (narrationNeedSec > 0 && (end - start) < narrationNeedSec - 0.4) {
+      let remainingSec = narrationNeedSec - (end - start);
+      let cursor = end + PHYSICAL_SOURCE_GAP_SEC;
+      // Prefer footage AFTER the reserved action beats inside this window: the beat will show
+      // the adjacent footage (fall/explosion) as its own original-audio content, so the
+      // narration continuing straight into it both previews the beat and mismatches the
+      // sentence ('사투' got the fall again). Post-beat footage (the struggle) is the
+      // narration's own material.
+      const reservedInside = reservedWindows
+        .filter(([rs, re]) => rs >= cursor - 0.5 && rs < semanticEnd)
+        .sort((l, r) => r[1] - l[1]);
+      if (reservedInside.length) {
+        const postReservedStart = reservedInside[0][1] + PHYSICAL_SOURCE_GAP_SEC;
+        if (semanticEnd - postReservedStart >= 1.5) cursor = postReservedStart;
+      }
+      for (let part = 0; part < 2 && remainingSec > 0.6; part += 1) {
+        for (let guard = 0; guard < 16; guard += 1) {
+          const blocking = overlapsReserved(cursor, cursor + Math.min(remainingSec, 2.0));
+          if (!blocking) break;
+          cursor = blocking[1] + PHYSICAL_SOURCE_GAP_SEC;
+        }
+        if (cursor >= semanticEnd - 0.8) break;
+        let partEnd = Math.min(semanticEnd, cursor + remainingSec + 0.3);
+        const partBlock = overlapsReserved(cursor, partEnd);
+        if (partBlock) partEnd = Math.min(partEnd, partBlock[0] - PHYSICAL_SOURCE_GAP_SEC);
+        for (const boundary of cutBoundaries) {
+          if (boundary > partEnd + 0.05) break;
+          if (boundary >= cursor + 1.0 && boundary < partEnd - 0.3) partEnd = boundary;
+        }
+        if (partEnd - cursor >= 1.0) {
+          extraRanges.push([Number(cursor.toFixed(3)), Number(partEnd.toFixed(3))]);
+          remainingSec -= (partEnd - cursor);
+          cursor = partEnd + PHYSICAL_SOURCE_GAP_SEC;
+        } else {
+          cursor += 1.0;
+        }
+      }
+    }
     if (process.env.MIDFORM_PACK_DEBUG) console.error(`[pack:final] ${placement.clip_id} start=${start} end=${typeof end!=='undefined'?end:'-'}`);
     const normalized = [Number(start.toFixed(3)), Number(end.toFixed(3))];
     packedRanges.push(normalized);
+    for (const range of extraRanges) packedRanges.push(range);
     lastEnd = Math.max(lastEnd, normalized[1]);
+    if (extraRanges.length) placement.source_ranges = [normalized, ...extraRanges];
     return adjusted
       ? {
           ...placement,
@@ -594,25 +645,26 @@ function applyDraftSpecToSegment(segment, placement) {
       locale_clip_id: placement.clip_id || ''
     };
   }
-  const sourceScene = {
-    clip_id: `${placement.clip_id || segment.segment_id}_locale_clip`,
-    scene_id: `${placement.visual_role || 'locale'}_${placement.clip_id || segment.segment_id}`,
-    start: secondsToTimecode(sourceRange[0]),
-    end: secondsToTimecode(sourceRange[1]),
+  // Scene-following montage: a narration slot may carry SEVERAL scene-snapped parts so its
+  // later sentences play over their own scene instead of freezing on the first one.
+  const ranges = Array.isArray(placement.source_ranges) && placement.source_ranges.length
+    ? placement.source_ranges
+    : [sourceRange];
+  const sourceScenes = ranges.map((range, partIndex) => ({
+    clip_id: `${placement.clip_id || segment.segment_id}_locale_clip${partIndex ? `_p${partIndex + 1}` : ''}`,
+    scene_id: `${placement.visual_role || 'locale'}_${placement.clip_id || segment.segment_id}${partIndex ? `_p${partIndex + 1}` : ''}`,
+    start: secondsToTimecode(range[0]),
+    end: secondsToTimecode(range[1]),
     speed_multiplier: 1
-  };
+  }));
+  const sourceScene = sourceScenes[0];
   return {
     ...segment,
     locale_source_override: true,
     locale_clip_id: placement.clip_id || '',
     ...(isDialogue ? {} : { narration_background: true, source_audio_ducking: 0 }),
-    source_scenes: [sourceScene],
-    source_clips: [
-      {
-        ...sourceScene,
-        source: 'locale_draft_spec'
-      }
-    ],
+    source_scenes: sourceScenes,
+    source_clips: sourceScenes.map((scene) => ({ ...scene, source: 'locale_draft_spec' })),
     story_anchor: {
       ...(segment.story_anchor || {}),
       // Degenerate hint (end==start): the locale placement already provides explicit

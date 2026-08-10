@@ -9,7 +9,7 @@ const { PROJECT_ROOT } = require('./pipelinePaths');
 const { runCompression, runCompressionApply, refreshCompressionPlan, resolveCompressionRunDir } = require('./midformCompressionService');
 const { runBootstrapToPipeline } = require('./midformBootstrapAdapterService');
 const { getRun, startRun } = require('./midformPipelineService');
-const { collectRunArtifacts, copyIfExists, ensureDir, rel, writeJson, writeText } = require('./midformRunArtifactsService');
+const { collectRunArtifacts, evaluateFinalLocaleGates, copyIfExists, ensureDir, rel, writeJson, writeText } = require('./midformRunArtifactsService');
 const { generateLocaleDraftArtifacts } = require('./midformLocaleDraftService');
 const { buildLocaleBranchArtifacts } = require('./midformLocaleBranchService');
 
@@ -549,12 +549,12 @@ function updateLocaleAcceptanceGatesWithFinalDraft(workspaceDir, finalOverlapRep
   return outputPaths;
 }
 
-function collectQaForPipeline({ workspace, normalizedRequest, pipelineState }) {
+async function collectQaForPipeline({ workspace, normalizedRequest, pipelineState }) {
   const pipelineRunDir = pipelineState.runDir;
   const draftRoot = pipelineState.artifacts?.draft?.draftPath || pipelineState.artifacts?.draft?.draft_root || '';
   if (!pipelineRunDir || !draftRoot) throw new Error('Final pipeline artifacts are missing draft paths');
   const editorialContext = readEditorialContextForQa(workspace.workspaceDir, normalizedRequest);
-  return collectRunArtifacts({
+  return await collectRunArtifacts({
     workspaceDir: workspace.workspaceDir,
     normalizedRequest,
     profile: normalizedRequest.profile,
@@ -640,7 +640,7 @@ async function runMidformTemplateWorkflow(options = {}) {
         writeJson(workspace.summaryPath, failedSummary);
         return failedSummary;
       }
-      const qa = collectQaForPipeline({ workspace, normalizedRequest, pipelineState: multimodalState });
+      const qa = await collectQaForPipeline({ workspace, normalizedRequest, pipelineState: multimodalState });
       const finalSummary = finalSummaryFromQa(summary, qa, multimodalState, summary.analysis_run);
       writeJson(workspace.summaryPath, finalSummary);
       return finalSummary;
@@ -862,6 +862,19 @@ async function runMidformTemplateWorkflow(options = {}) {
       usableEndSec: Number((readJsonIfExists(path.join(bootstrapSourceRunDir, 'source_case.json')) || {}).usable_end_sec || 0)
     });
     const localeAcceptancePaths = updateLocaleAcceptanceGatesWithFinalDraft(workspace.workspaceDir, localeDrafts.finalOverlapReport);
+    // Machine eye on the FINAL locale drafts: narration frames judged against narration text.
+    const visualMatch = await evaluateFinalLocaleGates({
+      workspaceDir: workspace.workspaceDir,
+      pipelineRunDir: finalPipelineState.runDir,
+      sourceVideoPath: finalPipelineState.artifacts?.sourceVideoPath
+        || path.join(bootstrapSourceRunDir, 'source.mp4')
+    });
+    summary.internal.narration_visual_match = visualMatch;
+    if (visualMatch.status === 'fail') {
+      throw Object.assign(new Error(`narration_visual_match failed: ${JSON.stringify(visualMatch.issues.slice(0, 3))}`), {
+        stage: 'acceptance_gates', code: 'MIDFORM_ACCEPTANCE_FAILED'
+      });
+    }
     summary.internal.locale_draft_artifacts = localeDrafts.outputPaths;
     summary.internal.final_draft_overlap = localeDrafts.finalOverlapReport;
     summary.output_paths = {
@@ -871,7 +884,7 @@ async function runMidformTemplateWorkflow(options = {}) {
     };
     writeJson(workspace.summaryPath, summary);
 
-    const qa = collectQaForPipeline({ workspace, normalizedRequest, pipelineState: finalPipelineState });
+    const qa = await collectQaForPipeline({ workspace, normalizedRequest, pipelineState: finalPipelineState });
     const autoDecision = normalizedRequest.analysis.mode === 'auto'
       ? buildAutoEscalationDecision({ gateResults: qa.gateResults, pipelineState: finalPipelineState })
       : {
@@ -941,7 +954,7 @@ async function runMidformTemplateWorkflow(options = {}) {
         writeJson(workspace.summaryPath, fallbackSummary);
         return fallbackSummary;
       }
-      const multimodalQa = collectQaForPipeline({ workspace, normalizedRequest, pipelineState: multimodalState });
+      const multimodalQa = await collectQaForPipeline({ workspace, normalizedRequest, pipelineState: multimodalState });
       summary.analysis_run.auto_escalation.final_pass_status = multimodalQa.gateResults.status;
       const escalatedSummary = finalSummaryFromQa(summary, multimodalQa, multimodalState, summary.analysis_run);
       writeJson(workspace.summaryPath, escalatedSummary);

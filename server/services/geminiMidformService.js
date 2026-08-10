@@ -689,8 +689,47 @@ async function generateVertexJson({ prompt, responseSchema, model, temperature =
   return extractVertexResponseText(data);
 }
 
+// Narration-visual match judge (owner directive 2026-08-10 '이걸 왜 코드에서 못잡아?'):
+// every prior gate measured proxies - position, length, boundaries - while the defect class
+// is SEMANTIC. This is the machine version of the human eye check: frames from the actually
+// played window, judged against the narration sentence.
+async function judgeFramesAgainstText({ framePaths, text }) {
+  const config = getVertexConfig();
+  if (!config.project) throw createError(400, 'GOOGLE_CLOUD_PROJECT_REQUIRED', 'GOOGLE_CLOUD_PROJECT is required');
+  const token = await getVertexAccessToken();
+  const endpoint = buildVertexEndpoint(config);
+  const parts = framePaths.map((framePath) => ({
+    inlineData: { mimeType: 'image/png', data: fs.readFileSync(framePath).toString('base64') }
+  }));
+  parts.push({ text: [
+    'These frames are what plays ON SCREEN while a Korean narration line is heard.',
+    `Narration: "${String(text || '').slice(0, 300)}"`,
+    'Judge STRICTLY whether the frames show what the narration describes at this moment.',
+    'A mismatch example: narration says "the monster charges again" while the frames show it already falling down a shaft, or an explosion, or a kiss.',
+    'IMPORTANT nuance: a narration stating that something is GONE, disappeared, defeated, or "could not return" MATCHES aftermath footage where that thing is absent (e.g., survivors embracing after the monster is gone). Absence of the subject is not a mismatch for an absence statement. Mismatch requires the frames to show something that CONTRADICTS the sentence.',
+    'Respond JSON: {"match": true|false, "on_screen": "<one short sentence: what the frames actually show>", "reason": "<one short sentence>"}'
+  ].join('\n') });
+  const body = {
+    contents: [{ role: 'user', parts }],
+    generationConfig: {
+      responseMimeType: 'application/json',
+      responseSchema: { type: 'object', properties: { match: { type: 'boolean' }, on_screen: { type: 'string' }, reason: { type: 'string' } }, required: ['match', 'on_screen'] },
+      temperature: 0
+    }
+  };
+  const response = await fetchVertexWithRateBackoff(endpoint, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw createError(response.status, 'VERTEX_FRAME_JUDGE_FAILED', 'frame judgement failed', { status: response.status });
+  return extractJson(extractVertexResponseText(data));
+}
+
 module.exports = {
   analyzeMidformVideo,
+  judgeFramesAgainstText,
   buildChunkPlan,
   loadMidformPrompt,
   loadMidformResponseSchema,

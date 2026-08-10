@@ -333,7 +333,10 @@ function buildLocaleEditPlan(baseEditPlan, strategy, evidencePack, attempt = 0) 
     // Semantic era (plans with action beats): the differentiation shift may reframe a
     // narration window, never move it to a DIFFERENT scene — the escalating shift walked
     // ja slot_07 off its charge scene while the narration still described the charge.
-    if (locale === 'ja' && decision === 'NARRATE' && planHasActionBeats) shift = Math.min(shift, 3.0);
+    // 0, not 3: a 3s offset put ja's narration start exactly on a scene change (the charge
+    // scene was only 3s long). With per-locale REAL-TTS length caps the clips differ by end
+    // anyway, so the start offset bought nothing but scene drift.
+    if (locale === 'ja' && decision === 'NARRATE' && planHasActionBeats) shift = 0;
     const nextRange = shiftedRange(range, shift, sourceDurationSec);
     return {
       ...applyRangeToSlot(slot, nextRange),

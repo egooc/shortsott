@@ -163,9 +163,13 @@ function buildHumanQaReview({ normalizedRequest, gateResults, timing, colorEvide
 }
 
 function parseTimecodeSec(value) {
+  if (typeof value === 'number') return value;
   const text = String(value || '').trim();
   const parts = text.split(':');
+  // mm:ss.fff is the manifest's native form - the two-part case returned NaN and the
+  // semantic gates silently judged nothing (NaN compares false both ways).
   if (parts.length === 3) return Number(parts[0]) * 3600 + Number(parts[1]) * 60 + Number(parts[2]);
+  if (parts.length === 2) return Number(parts[0]) * 60 + Number(parts[1]);
   return Number(text) || 0;
 }
 
@@ -231,7 +235,7 @@ function measureNarrationDialogueLoudness(pipelineRunDir, editManifest) {
   }
 }
 
-function collectRunArtifacts({
+async function collectRunArtifacts({
   workspaceDir,
   normalizedRequest,
   profile,
@@ -438,6 +442,82 @@ function collectRunArtifacts({
       }
     }
   }
+  // Narration-visual MATCH gate runs POST-LOCALE (evaluateFinalLocaleGates) - at collect time
+  // the locale drafts do not exist yet and judging stale folders lies in both directions.
+  if (false) {
+    try {
+      const { judgeFramesAgainstText } = require('./geminiMidformService');
+      const { spawnSync: spawnSyncJudge } = require('child_process');
+      const sourceVideo = ['source.mp4', 'source.webm', 'source.mkv'].map((name) => path.join(pipelineRunDir, name)).find((candidate) => fs.existsSync(candidate));
+      const judgeIssues = [];
+      let judged = 0;
+      if (sourceVideo) {
+        for (const locale of ['ko', 'ja']) {
+          const localeManifestPath = path.join(workspaceDir, `draft_${locale}`, 'edit_manifest.json');
+          if (!fs.existsSync(localeManifestPath)) continue;
+          const localeManifest = readJson(localeManifestPath);
+          const slotNarr = new Map();
+          const slotText = new Map();
+          for (const segment of localeManifest.segments || []) {
+            if (segment.segment_type !== 'recap') continue;
+            const key = String(segment.segment_id || '');
+            slotNarr.set(key, (slotNarr.get(key) || 0) + Number(segment.duration_sec || 0));
+            if (!slotText.has(key)) slotText.set(key, String(segment.narration || segment.caption_text || ''));
+          }
+          const seenSlots = new Set();
+          for (const segment of localeManifest.segments || []) {
+            if (segment.segment_type !== 'recap') continue;
+            const key = String(segment.segment_id || '');
+            if (seenSlots.has(key)) continue;
+            seenSlots.add(key);
+            const clips = segment.source_clips || [];
+            if (!clips.length) continue;
+            const narrSec = slotNarr.get(key) || 0;
+            // frames across the PLAYED span of the clip sequence (first clip start .. narration end)
+            const firstStart = parseTimecodeSec(clips[0].start);
+            let budget = narrSec;
+            const sampleTimes = [];
+            for (const clip of clips) {
+              const cs = parseTimecodeSec(clip.start);
+              const ce = parseTimecodeSec(clip.end);
+              const played = Math.max(0, Math.min(ce - cs, budget));
+              if (played <= 0) break;
+              sampleTimes.push(cs + Math.min(0.5, played / 2));
+              if (played > 2.5) sampleTimes.push(cs + played / 2);
+              sampleTimes.push(cs + Math.max(played - 0.4, played * 0.8));
+              budget -= played;
+            }
+            const framePaths = [];
+            for (const [sampleIndex, sampleSec] of sampleTimes.slice(0, 4).entries()) {
+              const framePath = path.join(workspaceDir, `.judge_${locale}_${key}_${sampleIndex}.png`);
+              const probe = spawnSyncJudge(process.env.FFMPEG_PATH || 'ffmpeg', ['-y', '-loglevel', 'error', '-ss', String(sampleSec), '-i', sourceVideo, '-frames:v', '1', '-vf', 'scale=400:-1', framePath], { encoding: 'utf8', timeout: 60000 });
+              if (probe.status === 0 && fs.existsSync(framePath)) framePaths.push(framePath);
+            }
+            if (!framePaths.length) continue;
+            try {
+              const verdict = await judgeFramesAgainstText({ framePaths, text: slotText.get(key) });
+              judged += 1;
+              if (verdict && verdict.match === false) {
+                judgeIssues.push({ locale, segment_id: key, on_screen: String(verdict.on_screen || '').slice(0, 160), reason: String(verdict.reason || '').slice(0, 160) });
+              }
+            } catch (judgeError) {
+              gateResults.warnings.push(`narration_visual_match_judge_error:${key}`);
+            } finally {
+              for (const framePath of framePaths) { try { fs.unlinkSync(framePath); } catch { /* temp */ } }
+            }
+          }
+        }
+      }
+      const status = judged === 0 ? 'not_applicable' : (judgeIssues.length ? 'fail' : 'pass');
+      gateResults.results.push({ id: 'narration_visual_match', status, judged, issue_count: judgeIssues.length, issues: judgeIssues });
+      if (status === 'fail') {
+        gateResults.failed.push('narration_visual_match');
+        gateResults.status = 'failed';
+      }
+    } catch (outerError) {
+      gateResults.results.push({ id: 'narration_visual_match', status: 'error', error: String(outerError?.message || outerError).slice(0, 200) });
+    }
+  }
   const acceptancePath = path.join(workspaceDir, 'acceptance_gates.json');
   writeJson(acceptancePath, gateResults);
   const previewProof = generatePreviewFrameProof({
@@ -478,7 +558,89 @@ function collectRunArtifacts({
   };
 }
 
+// Post-locale semantic evaluation (owner directive: the machine must catch narration-visual
+// mismatch, not the human). Runs AFTER locale drafts exist: frames from each recap slot's
+// actually played window, judged against its narration by the vision model. Updates
+// acceptance_gates.json in place and returns the verdict.
+async function evaluateFinalLocaleGates({ workspaceDir, pipelineRunDir, sourceVideoPath = '' }) {
+  const acceptanceFile = path.join(workspaceDir, 'acceptance_gates.json');
+  const gates = fs.existsSync(acceptanceFile) ? readJson(acceptanceFile) : { status: 'passed', failed: [], warnings: [], results: [] };
+  gates.results = (gates.results || []).filter((entry) => entry.id !== 'narration_visual_match');
+  gates.failed = (gates.failed || []).filter((id) => id !== 'narration_visual_match');
+  const issues = [];
+  let judged = 0;
+  if (process.env.MIDFORM_DISABLE_VISUAL_JUDGE !== '1') {
+    const { judgeFramesAgainstText } = require('./geminiMidformService');
+    const { spawnSync } = require('child_process');
+    const sourceVideo = (sourceVideoPath && fs.existsSync(sourceVideoPath) ? sourceVideoPath : null)
+      || ['source.mp4', 'source.webm', 'source.mkv'].map((name) => path.join(pipelineRunDir || '', name)).find((candidate) => fs.existsSync(candidate));
+    if (sourceVideo) {
+      for (const locale of ['ko', 'ja']) {
+        const manifestPath = path.join(workspaceDir, `draft_${locale}`, 'edit_manifest.json');
+        if (!fs.existsSync(manifestPath)) continue;
+        const manifest = readJson(manifestPath);
+        const slotNarr = new Map();
+        const slotText = new Map();
+        for (const segment of manifest.segments || []) {
+          if (segment.segment_type !== 'recap') continue;
+          const key = String(segment.segment_id || '');
+          slotNarr.set(key, (slotNarr.get(key) || 0) + Number(segment.duration_sec || 0));
+          if (!slotText.has(key) && (segment.narration || segment.caption_text)) slotText.set(key, String(segment.narration || segment.caption_text));
+        }
+        const seen = new Set();
+        for (const segment of manifest.segments || []) {
+          if (segment.segment_type !== 'recap') continue;
+          const key = String(segment.segment_id || '');
+          if (seen.has(key)) continue;
+          seen.add(key);
+          const clips = segment.source_clips || [];
+          if (!clips.length || !slotText.get(key)) continue;
+          let budget = slotNarr.get(key) || 0;
+          const sampleTimes = [];
+          for (const clip of clips) {
+            const cs = parseTimecodeSec(clip.start);
+            const ce = parseTimecodeSec(clip.end);
+            const played = Math.max(0, Math.min(ce - cs, budget));
+            if (played <= 0) break;
+            sampleTimes.push(cs + Math.min(0.5, played / 2));
+            if (played > 2.5) sampleTimes.push(cs + played / 2);
+            sampleTimes.push(cs + Math.max(played - 0.4, played * 0.8));
+            budget -= played;
+          }
+          const framePaths = [];
+          for (const [sampleIndex, sampleSec] of sampleTimes.slice(0, 5).entries()) {
+            const framePath = path.join(workspaceDir, `.judge_${locale}_${key}_${sampleIndex}.png`);
+            const probe = spawnSync(process.env.FFMPEG_PATH || 'ffmpeg', ['-y', '-loglevel', 'error', '-ss', String(sampleSec), '-i', sourceVideo, '-frames:v', '1', '-vf', 'scale=400:-1', framePath], { encoding: 'utf8', timeout: 60000 });
+            if (probe.status === 0 && fs.existsSync(framePath)) framePaths.push(framePath);
+          }
+          if (!framePaths.length) continue;
+          try {
+            const verdict = await judgeFramesAgainstText({ framePaths, text: slotText.get(key) });
+            judged += 1;
+            if (verdict && verdict.match === false) {
+              issues.push({ locale, segment_id: key, on_screen: String(verdict.on_screen || '').slice(0, 160), reason: String(verdict.reason || '').slice(0, 160) });
+            }
+          } catch {
+            gates.warnings = [...new Set([...(gates.warnings || []), `narration_visual_match_judge_error:${key}`])];
+          } finally {
+            for (const framePath of framePaths) { try { fs.unlinkSync(framePath); } catch { /* temp */ } }
+          }
+        }
+      }
+    }
+  }
+  const status = judged === 0 ? 'not_applicable' : (issues.length ? 'fail' : 'pass');
+  gates.results.push({ id: 'narration_visual_match', status, judged, issue_count: issues.length, issues });
+  if (status === 'fail') {
+    gates.failed.push('narration_visual_match');
+    gates.status = 'failed';
+  }
+  writeJson(acceptanceFile, gates);
+  return { status, judged, issues };
+}
+
 module.exports = {
+  evaluateFinalLocaleGates,
   collectRunArtifacts,
   copyIfExists,
   ensureDir,

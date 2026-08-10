@@ -11,7 +11,7 @@ const CAPCUT_DRAFT_SCRIPT = path.join(PROJECT_ROOT, 'scripts', 'capcut_draft.py'
 const { _test: capcutTest } = require('../server/services/capcutService');
 const { collectRunArtifacts } = require('../server/services/midformRunArtifactsService');
 
-test('CapCut draft payload defaults to folder-only output', () => {
+test('CapCut draft payload defaults to folder-only output', async () => {
   const payload = capcutTest.buildDraftPayloadOverrides({ outputBasePath: 'server/output/drafts' });
 
   assert.equal(payload.draft_output_mode, 'folder_only');
@@ -20,14 +20,14 @@ test('CapCut draft payload defaults to folder-only output', () => {
   assert.equal(payload.packageZip, false);
 });
 
-test('CapCut draft payload allows zip only when explicitly requested', () => {
+test('CapCut draft payload allows zip only when explicitly requested', async () => {
   const payload = capcutTest.buildDraftPayloadOverrides({ package_zip: true });
 
   assert.equal(payload.draft_output_mode, 'folder_and_zip');
   assert.equal(payload.package_zip, true);
 });
 
-test('Python draft output policy keeps zip disabled by default', () => {
+test('Python draft output policy keeps zip disabled by default', async () => {
   const python = `
 import importlib.util, json, sys, types
 cc = types.ModuleType("pyCapCut")
@@ -49,7 +49,7 @@ print(json.dumps({
   assert.deepEqual(output.explicit, { mode: 'folder_and_zip', create_zip: true });
 });
 
-test('run artifact collection reports draft folder without requiring zip', () => {
+test('run artifact collection reports draft folder without requiring zip', async () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'midform-folder-only-'));
   const workspaceDir = path.join(tempRoot, 'workspace');
   const pipelineRunDir = path.join(tempRoot, 'pipeline');
@@ -61,7 +61,7 @@ test('run artifact collection reports draft folder without requiring zip', () =>
   fs.writeFileSync(path.join(draftRoot, 'edit_manifest.json'), `${JSON.stringify({ segments: [], caption_units: [] }, null, 2)}\n`, 'utf8');
   fs.writeFileSync(path.join(draftRoot, 'draft_content.json'), `${JSON.stringify({ tracks: [], materials: { texts: [] } }, null, 2)}\n`, 'utf8');
 
-  const qa = collectRunArtifacts({
+  const qa = await collectRunArtifacts({
     workspaceDir,
     normalizedRequest: {
       profile: 'production',
