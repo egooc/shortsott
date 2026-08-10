@@ -107,12 +107,16 @@ function beatChecks(window) {
   const end = Number(window.end_sec);
   const core = Number(window.beat_core_change_sec);
   const result = Number(window.beat_result_visible_sec);
+  // A window sitting exactly on its duration cap (24s longform / 10s shortform)
+  // is the signature of an arc that was clipped to fit - its closure is suspect.
+  const cap = window.longform_highlight_rule ? 24 : 10;
   return {
     reveal_claimed: window.has_result_reveal === true,
     core_offset_sec: Number.isFinite(core) ? Number((core - start).toFixed(1)) : null,
     result_offset_sec: Number.isFinite(result) ? Number((result - start).toFixed(1)) : null,
     tail_after_result_sec: Number.isFinite(result) ? Number((end - result).toFixed(1)) : null,
-    snap_path: window.edge_refinement ? window.edge_refinement.snap_path : null
+    snap_path: window.edge_refinement ? window.edge_refinement.snap_path : null,
+    at_duration_cap: end - start >= cap - 0.05
   };
 }
 
@@ -128,6 +132,7 @@ function verdictFor(motion, beats) {
   if (!beats.reveal_claimed) reasons.push('no_result_reveal');
   if (beats.result_offset_sec === null) reasons.push('beats_missing');
   else if (beats.tail_after_result_sec !== null && beats.tail_after_result_sec < 1) reasons.push('result_truncated');
+  if (beats.at_duration_cap) reasons.push('at_duration_cap');
   return { verdict: reasons.length ? 'review' : 'ok', reasons };
 }
 
