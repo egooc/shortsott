@@ -6649,6 +6649,9 @@ function importYoutubeSourceQueueItems({ items, videos, urls, text, batch_mode }
       source_url: url,
       canonical_source_key: sourceKey,
       target_locale: row.target_locale,
+      // Marks daily-harvest imports so the eligibility gate applies only to
+      // them; human-curated imports never carry this flag.
+      source_harvested: row?.harvested === true,
       target_duration_sec: 30,
       upload_title: title,
       upload_description: String(row?.description || ''),

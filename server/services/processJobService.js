@@ -21,6 +21,7 @@ const {
 } = require('./processMetadataService');
 const { requireApiKey } = require('../middleware/auth');
 const { runRetentionSweep } = require('./retentionCleanupService');
+const { evaluateSourceEligibility } = require('./sourceEligibilityService');
 const {
   DB_PATH,
   upsertJob,
@@ -507,10 +508,15 @@ function isSourceTooLongCode(code = '') {
   return String(code || '') === 'OTTOGI_SOURCE_TOO_LONG_FOR_HIGHLIGHT';
 }
 
+function isSourceIneligibleCode(code = '') {
+  return String(code || '') === 'OTTOGI_SOURCE_INELIGIBLE';
+}
+
 function metadataFailureStatus(error = {}) {
   const code = error.code || error.errorCode || '';
   if (isNoHighlightCandidatesCode(code)) return METADATA_NO_CANDIDATES_STATUS;
   if (isSourceTooLongCode(code)) return 'skipped_source_too_long';
+  if (isSourceIneligibleCode(code)) return 'skipped_source_ineligible';
   if (isMetadataValidationFailureCode(code)) return 'failed_validation';
   if (code === 'OTTOGI_METADATA_JSON_PARSE_ERROR') return 'failed_parse';
   return 'failed';
@@ -549,6 +555,22 @@ function summarizeMetadataFailure(error = {}) {
         '재시도해도 결과는 같습니다. 긴 영상은 하이라이트 대상에서 제외하세요.',
         '선택: 소재 교체'
       ]
+    };
+  }
+
+  if (isSourceIneligibleCode(code)) {
+    return {
+      category: 'source_ineligible',
+      title: '소스 부적격 - 건너뜀 (자동 수집 게이트)',
+      user_message: `자동 수집 소스가 적격성 신호 검사를 통과하지 못했습니다: ${(details?.reasons || []).join(' / ') || '기준 미달'}`,
+      recommended_action: '부적격 소스는 제외됩니다. 오탐이라 판단되면 수동으로 재큐잉하세요 (수동 큐잉은 게이트 미적용).',
+      retry_stage: 'metadata_then_draft',
+      can_regenerate_draft_only: false,
+      detail_lines: [
+        ...(Array.isArray(details?.reasons) ? details.reasons : []),
+        details?.signals ? `signals: speech=${details.signals.speech_ratio} face_dom=${details.signals.face_dominant_ratio} static=${details.signals.static_ratio}` : '',
+        '게이트는 자동 수집(harvested) 소스에만 적용됩니다.'
+      ].filter(Boolean)
     };
   }
 
@@ -1133,6 +1155,25 @@ async function runMetadataStage(jobId, items, options = {}) {
           max_source_duration_sec: HIGHLIGHT_MAX_SOURCE_DURATION_SEC
         };
         throw tooLong;
+      }
+      // Auto-harvested sources pass the local eligibility gate before spending
+      // a Gemini analysis; human-curated items are trusted and never gated
+      // (approved 2026-08-10, see sourceEligibilityService.js).
+      if (itemConfig.source_harvested === true) {
+        const eligibility = await evaluateSourceEligibility({ videoPath: sourceInfo.sourcePath });
+        appendJobLog(
+          jobId,
+          `${label} 적격성 게이트(${eligibility.gate}): ${eligibility.eligible ? '통과' : '부적격'}${eligibility.reasons.length ? ` - ${eligibility.reasons.join(' / ')}` : ''}`,
+          eligibility.eligible ? 'info' : 'warning',
+          refreshed.item_id,
+          { source_eligibility: { gate: eligibility.gate, reasons: eligibility.reasons, signals: eligibility.signals } }
+        );
+        if (!eligibility.eligible) {
+          const ineligible = new Error(`harvested source failed the eligibility gate: ${eligibility.reasons.join(' / ')}`);
+          ineligible.code = 'OTTOGI_SOURCE_INELIGIBLE';
+          ineligible.details = { reasons: eligibility.reasons, signals: eligibility.signals };
+          throw ineligible;
+        }
       }
       const sourceType = itemConfig.source_type || 'unknown';
       const sourceWorkflowMode = itemConfig.source_workflow_mode || 'unknown';

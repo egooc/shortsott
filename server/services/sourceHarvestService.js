@@ -1,0 +1,236 @@
+// Daily longform source harvest (approved plan 2026-08-10,
+// docs/daily-auto-pipeline-plan-2026-08-10.md H1).
+//
+// Searches YouTube (yt-dlp metadata only, nothing downloaded here) with the
+// curated category query pool, filters to longform 240-1800s, dedupes against
+// a permanent ledger (every URL ever queued, seeded from the job DB + queue),
+// ranks by Most-Replayed heatmap peak + views, imports the top N into the
+// queue with harvested:true (which is what the eligibility gate keys on), and
+// returns the imported items for the caller to start a batch job with.
+//
+// Locale plan lives in server/data/harvest_config.json - current approved
+// plan: JP 12/day; KR ramps 6 -> 12 later by editing that file, no code
+// change needed.
+
+const { execFile } = require('child_process');
+const fs = require('fs');
+const path = require('path');
+const { PROJECT_ROOT, readJsonIfExists, writeJsonWithBackup } = require('./pipelinePaths');
+const { resolveTool } = require('../utils/toolPaths');
+
+const CONFIG_PATH = path.join(PROJECT_ROOT, 'server', 'data', 'harvest_config.json');
+const LEDGER_PATH = path.join(PROJECT_ROOT, 'server', 'data', 'source_harvest_history.json');
+const JOBS_DB_PATH = path.join(PROJECT_ROOT, 'server', 'data', 'process_jobs.db');
+const QUEUE_ROOT = path.join(PROJECT_ROOT, 'queue', 'process');
+
+const SEARCH_TIMEOUT_MS = 480000;
+const MIN_DURATION_SEC = 240;
+const MAX_DURATION_SEC = 1800;
+
+const DEFAULT_CONFIG = {
+  daily_count: 12,
+  per_query_results: 15,
+  queries_per_day: 5,
+  // locale_plan is consumed in order until daily_count is filled.
+  locale_plan: [{ locale: 'ja-JP', count: 12 }],
+  queries: [
+    '金属加工 工場 製造工程',
+    '食品工場 大量生産 製造過程',
+    '職人 伝統工芸 製作過程',
+    '工場 機械 組立工程',
+    'ガラス 製造 工場 工程',
+    '収穫 加工 農業機械',
+    '금속가공 공장 제조과정',
+    '식품공장 대량생산 제조과정',
+    '장인 공예 제작과정',
+    '수확 가공 농기계',
+    'mass production process factory',
+    'how its made manufacturing process',
+    '台灣工廠 製造 過程'
+  ]
+};
+
+function loadHarvestConfig() {
+  const existing = readJsonIfExists(CONFIG_PATH);
+  if (existing) return { ...DEFAULT_CONFIG, ...existing };
+  writeJsonWithBackup(CONFIG_PATH, DEFAULT_CONFIG);
+  return { ...DEFAULT_CONFIG };
+}
+
+function extractYoutubeVideoId(url = '') {
+  const match = String(url).match(/(?:v=|youtu\.be\/|shorts\/|embed\/)([A-Za-z0-9_-]{6,})/);
+  return match ? match[1] : '';
+}
+
+function loadLedger() {
+  const ledger = readJsonIfExists(LEDGER_PATH);
+  if (ledger && ledger.video_ids) return ledger;
+  // First run: seed with every source URL the pipeline has ever touched so the
+  // harvest never re-imports something a past batch already processed.
+  const videoIds = {};
+  const seedUrl = (url, origin) => {
+    const videoId = extractYoutubeVideoId(url);
+    if (videoId && !videoIds[videoId]) videoIds[videoId] = { url, origin, seen_at: new Date().toISOString() };
+  };
+  try {
+    const db = require('better-sqlite3')(JOBS_DB_PATH, { readonly: true });
+    for (const row of db.prepare('select status_json from process_job_items').all()) {
+      try { seedUrl(JSON.parse(row.status_json).source_url || '', 'job_history'); } catch { /* skip */ }
+    }
+    db.close();
+  } catch { /* db missing is fine */ }
+  try {
+    for (const name of fs.readdirSync(QUEUE_ROOT)) {
+      const config = readJsonIfExists(path.join(QUEUE_ROOT, name, 'item_config.json'));
+      if (config?.source_url) seedUrl(config.source_url, 'queue');
+    }
+  } catch { /* queue missing is fine */ }
+  const seeded = { created_at: new Date().toISOString(), video_ids: videoIds };
+  writeJsonWithBackup(LEDGER_PATH, seeded);
+  return seeded;
+}
+
+function saveLedger(ledger) {
+  writeJsonWithBackup(LEDGER_PATH, ledger);
+}
+
+function todaysQueries(config, now = new Date()) {
+  const dayIndex = Math.floor(now.getTime() / 86400000);
+  const pool = config.queries;
+  const perDay = Math.max(1, Math.min(config.queries_per_day, pool.length));
+  const start = (dayIndex * perDay) % pool.length;
+  return Array.from({ length: perDay }, (_, i) => pool[(start + i) % pool.length]);
+}
+
+function searchOnce(query, count) {
+  return new Promise((resolve) => {
+    execFile(
+      resolveTool('yt-dlp', { envKey: 'YT_DLP_PATH' }),
+      [`ytsearch${count}:${query}`, '--skip-download', '--dump-json', '--no-warnings',
+       '--ignore-errors', '--socket-timeout', '15',
+       '--match-filter', `duration>=${MIN_DURATION_SEC} & duration<=${MAX_DURATION_SEC}`],
+      { timeout: SEARCH_TIMEOUT_MS, maxBuffer: 128 * 1024 * 1024, encoding: 'utf8', windowsHide: true },
+      (error, stdout) => {
+        const videos = [];
+        for (const line of String(stdout || '').split('\n')) {
+          const trimmed = line.trim();
+          if (!trimmed.startsWith('{')) continue;
+          try { videos.push(JSON.parse(trimmed)); } catch { /* skip bad line */ }
+        }
+        resolve(videos);
+      }
+    );
+  });
+}
+
+function heatmapPeak(video) {
+  const heatmap = Array.isArray(video.heatmap) ? video.heatmap : [];
+  return heatmap.reduce((peak, seg) => Math.max(peak, Number(seg?.value) || 0), 0);
+}
+
+function rankCandidates(videos) {
+  const byId = new Map();
+  for (const video of videos) {
+    const videoId = video.id || extractYoutubeVideoId(video.webpage_url || video.original_url || '');
+    if (!videoId || byId.has(videoId)) continue;
+    const peak = heatmapPeak(video);
+    byId.set(videoId, {
+      video_id: videoId,
+      url: video.webpage_url || `https://www.youtube.com/watch?v=${videoId}`,
+      title: video.title || '',
+      duration_sec: Number(video.duration) || 0,
+      views: Number(video.view_count) || 0,
+      published_at: video.upload_date || '',
+      creator: video.uploader || video.channel || '',
+      heatmap_peak: Number(peak.toFixed(3)),
+      // Heatmap presence means the audience already marked highlight moments;
+      // it outranks raw popularity on purpose.
+      score: Number((peak * 10 + Math.log10((Number(video.view_count) || 0) + 1)).toFixed(3))
+    });
+  }
+  return [...byId.values()].sort((a, b) => b.score - a.score);
+}
+
+function assignLocales(candidates, config) {
+  const rows = [];
+  let cursor = 0;
+  for (const plan of config.locale_plan) {
+    for (let i = 0; i < plan.count && cursor < candidates.length; i += 1, cursor += 1) {
+      rows.push({ ...candidates[cursor], target_locale: plan.locale });
+    }
+  }
+  return rows;
+}
+
+// Importer is injected so this service never requires processQueueService
+// (keeps the dependency direction one-way). dryRun skips the import AND the
+// ledger write so a rehearsal never consumes candidates.
+async function harvestDailySources({ importItems, now = new Date(), dryRun = false } = {}) {
+  const config = loadHarvestConfig();
+  const ledger = loadLedger();
+  const queries = todaysQueries(config, now);
+
+  const found = [];
+  const perQuery = [];
+  for (const query of queries) {
+    const videos = await searchOnce(query, config.per_query_results);
+    perQuery.push({ query, results: videos.length });
+    found.push(...videos);
+  }
+
+  const ranked = rankCandidates(found);
+  const fresh = ranked.filter((candidate) => !ledger.video_ids[candidate.video_id]);
+  const selected = assignLocales(fresh, config).slice(0, config.daily_count);
+
+  const importRows = selected.map((candidate) => ({
+    url: candidate.url,
+    title: candidate.title,
+    target_locale: candidate.target_locale,
+    durationSec: candidate.duration_sec,
+    views: candidate.views,
+    creator: candidate.creator,
+    publishedAt: candidate.published_at,
+    harvested: true
+  }));
+
+  let importResult = { imported: [], skipped: [], failed: [] };
+  if (!dryRun && importRows.length && typeof importItems === 'function') {
+    importResult = importItems(importRows);
+  }
+
+  if (!dryRun) {
+    for (const candidate of selected) {
+      ledger.video_ids[candidate.video_id] = {
+        url: candidate.url,
+        origin: 'harvest',
+        seen_at: now.toISOString(),
+        score: candidate.score,
+        heatmap_peak: candidate.heatmap_peak,
+        target_locale: candidate.target_locale
+      };
+    }
+    saveLedger(ledger);
+  }
+
+  return {
+    queries: perQuery,
+    found_count: found.length,
+    unique_count: ranked.length,
+    fresh_count: fresh.length,
+    selected,
+    import_result: importResult
+  };
+}
+
+module.exports = {
+  harvestDailySources,
+  loadHarvestConfig,
+  __test: {
+    extractYoutubeVideoId,
+    todaysQueries,
+    rankCandidates,
+    assignLocales,
+    heatmapPeak,
+    DEFAULT_CONFIG
+  }
+};
