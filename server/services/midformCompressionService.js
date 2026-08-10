@@ -3091,6 +3091,11 @@ function interleaveDialogueIntoNarrationRuns(timeline, beats, transcript) {
     if (runSec <= MAX_NARRATION_RUN_SEC) continue;
     // The opening hook stays whatever it was chosen to be.
     if (item.role === 'cold_open') continue;
+    // An original-audio action beat is PINNED content, not a narration run to break up: the
+    // interleave once converted slot_action_6 into a dialogue slot, stealing the kiss line
+    // from the slot that owned it (dedupe then dropped the original as a duplicate). Action
+    // beats also break the run rhythm on their own, so reset the counter instead.
+    if (String(item.visual_source_mode || '') === 'source_audio_action') { runSec = 0; continue; }
     // The stretch between a teaser and its callback is load-bearing: the callback has to land in
     // its 20-35s window. Tightening narration runs to 12s started converting a slot inside that
     // stretch, which both broke the pattern and stole the callback role at 5.9s.
