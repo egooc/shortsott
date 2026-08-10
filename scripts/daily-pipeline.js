@@ -30,7 +30,7 @@ function dateStamp(date = new Date()) {
 
 function runScorecardForLastJob() {
   try {
-    const finished = (listJobs() || []).filter((job) => job.finished_at);
+    const finished = (listJobs()?.jobs || []).filter((job) => job.finished_at);
     if (!finished.length) return { ran: false, note: 'no finished job' };
     const last = finished.sort((a, b) => String(b.finished_at).localeCompare(String(a.finished_at)))[0];
     execFileSync('node', [path.join(ROOT, 'scripts', 'highlight-arc-scorecard.js'), last.job_id], {
