@@ -702,12 +702,13 @@ async function judgeFramesAgainstText({ framePaths, text }) {
     inlineData: { mimeType: 'image/png', data: fs.readFileSync(framePath).toString('base64') }
   }));
   parts.push({ text: [
-    'These frames are what plays ON SCREEN while a Korean narration line is heard.',
+    'These frames are CHRONOLOGICAL samples of what plays ON SCREEN while a narration line is heard.',
     `Narration: "${String(text || '').slice(0, 300)}"`,
     'Judge STRICTLY whether the frames show what the narration describes at this moment.',
+    'Judge the SEQUENCE, not each still in isolation: motion is implied by what changes between frames (a figure with flailing arms whose position drops across frames is FALLING even if a single still looks like standing and screaming). A sentence describing an event arc (A tries X, then falls) matches when the frames cover any parts of that arc.',
     'A mismatch example: narration says "the monster charges again" while the frames show it already falling down a shaft, or an explosion, or a kiss.',
-    'IMPORTANT nuance: a narration stating that something is GONE, disappeared, defeated, or "could not return" MATCHES aftermath footage where that thing is absent (e.g., survivors embracing after the monster is gone). Absence of the subject is not a mismatch for an absence statement. Mismatch requires the frames to show something that CONTRADICTS the sentence.',
-    'Same for FORESHADOWING: a narration teasing that something is approaching, following, or waiting OFF-SCREEN (e.g., "something was climbing up after them") MATCHES frames of characters who cannot see it yet - the unseen subject does not need to be on screen. Only flag it if the frames actively contradict the tease (e.g., the thing is already there, or already dealt with).',
+    'IMPORTANT nuance: a narration stating that something is GONE, disappeared, defeated, or "could not return" MATCHES aftermath footage where that thing is absent (e.g., survivors embracing after the monster is gone). Absence of the subject is not a mismatch for an absence statement - "no monster visible" is exactly what "the monster never came back up" looks like. Example: narration "the monster never came up again" over frames of survivors climbing with no monster in sight = MATCH. Other characters doing the action the absent subject cannot do (people climbing up) does NOT contradict it. Mismatch requires the frames to show something that CONTRADICTS the sentence.',
+    'Same for FORESHADOWING: a narration teasing that something is approaching, following, or waiting OFF-SCREEN (e.g., "something was climbing up after them") MATCHES frames of characters who cannot see it yet - the unseen subject does not need to be on screen. "Nothing is visible below the characters" is NOT a mismatch for a pursuit tease - the pursuer being out of frame is the point. Example: narration "something that should not be there was climbing up after them" over frames of two people climbing a ladder = MATCH. Only flag it if the frames actively contradict the tease (e.g., the pursuer is already on screen doing something else, or already dealt with).',
     'Respond JSON: {"match": true|false, "on_screen": "<one short sentence: what the frames actually show>", "reason": "<one short sentence>"}'
   ].join('\n') });
   const body = {

@@ -318,6 +318,20 @@ function buildLocaleEditPlan(baseEditPlan, strategy, evidencePack, attempt = 0) 
     // A peak-anchored window already sits exactly where it must — a ja shift would slide it
     // straight off the action it was anchored to.
     if (peakAnchored) shift = 0;
+    if (locale === 'ja' && normalizeText(slot.visual_source_mode) === 'source_audio_action') {
+      // Same beat, different slice (owner directive 2026-08-11): ko keeps the wind-up, ja
+      // slides toward the follow-through. Bounded to a quarter of the window (max 3s) and
+      // clamped so the window never crosses the next slot's footage or the source end.
+      const windowLen = Math.max(0, Number(range[1]) - Number(range[0]));
+      let backShift = Math.min(3, windowLen * 0.25);
+      const laterStarts = reordered
+        .filter((other) => other !== slot)
+        .map((other) => Number(rangeForSlot(other)[0]))
+        .filter((value) => Number.isFinite(value) && value >= Number(range[1]) - 0.25);
+      if (laterStarts.length) backShift = Math.min(backShift, Math.max(0, (Math.min(...laterStarts) - 0.1) - Number(range[1])));
+      if (sourceDurationSec > 0) backShift = Math.min(backShift, Math.max(0, sourceDurationSec - Number(range[1])));
+      if (backShift >= 0.8) range = [round3(Number(range[0]) + backShift), round3(Number(range[1]) + backShift)];
+    }
     // A ja shift must not push a narration window PAST the dialogue it leads into: crossing
     // that boundary broke the reveal end-alignment for ja (spider reveal coverage 0 while ko
     // had it) and put the b-roll on the wrong scene. Cap the shift so the window end stays
@@ -330,16 +344,29 @@ function buildLocaleEditPlan(baseEditPlan, strategy, evidencePack, attempt = 0) 
         shift = Math.max(0, Math.min(shift, (nextStart - 0.1) - baseEnd));
       }
     }
-    // Semantic era (plans with action beats): the differentiation shift may reframe a
-    // narration window, never move it to a DIFFERENT scene — the escalating shift walked
-    // ja slot_07 off its charge scene while the narration still described the charge.
-    // 0, not 3: a 3s offset put ja's narration start exactly on a scene change (the charge
-    // scene was only 3s long). With per-locale REAL-TTS length caps the clips differ by end
-    // anyway, so the start offset bought nothing but scene drift.
-    if (locale === 'ja' && decision === 'NARRATE' && planHasActionBeats) shift = 0;
+    // Semantic era (plans with action beats): the differentiation shift is a REFRAME within
+    // the same scene, never a move off it. It was pinned to 0 when nothing verified frames;
+    // now the packer snaps ends to scene cuts, splits montage parts on sentence boundaries,
+    // and the sentence-level machine eye judges every build - with those rails a bounded
+    // shift buys real visual differentiation (owner directive 2026-08-11: ja and ko should
+    // not screen the same seconds).
+    // The FIRST narration slot is the establishing shot - its sentence NAMES what is on
+    // screen ('エレベーターシャフトの非常はしご'), so shifting it off the establish footage
+    // put fire-below/face close-ups under the location line. It stays pinned; the later
+    // slots and the action beats carry the visual differentiation.
+    const firstNarrateIndex = reordered.findIndex((entry) => normalizeText(entry.decision) === 'NARRATE'
+      && normalizeText(entry.visual_source_mode) !== 'source_audio_action');
+    if (locale === 'ja' && decision === 'NARRATE' && planHasActionBeats) {
+      shift = index === firstNarrateIndex ? 0 : Math.min(3.5, Math.max(0, shift));
+    }
     const nextRange = shiftedRange(range, shift, sourceDurationSec);
     return {
       ...applyRangeToSlot(slot, nextRange),
+      // The pre-differentiation plan window is the slot's SEMANTIC identity - the packer
+      // clamps any locale reframe against it (same-scene rule), so it must survive the shift.
+      semantic_origin_range: Array.isArray(slot.semantic_origin_range) && slot.semantic_origin_range.length >= 2
+        ? slot.semantic_origin_range
+        : rangeForSlot(slot),
       locale,
       locale_strategy_applied: strategy.strategy_version,
       locale_variation_note: locale === 'ja'

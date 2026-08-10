@@ -307,6 +307,21 @@ function normalizeDraftSpecSourceRanges(draftSpec, baseDraftInput = {}) {
     ? Math.min(usableEndSec, inferSourceDurationSec(baseDraftInput, next) || usableEndSec)
     : inferSourceDurationSec(baseDraftInput, next);
   const fixedWindowsBySlot = collectFixedSourceWindowsBySlot(baseDraftInput);
+  // Action beats are locale-shiftable (ko wind-up / ja follow-through, owner directive
+  // 2026-08-11). Dialogue windows stay pinned to speech forever, but a scene_hook's window
+  // comes from the LOCALE plan when it provides one - both for the pinned playback range
+  // and for the reserved-obstacle map the b-roll packs around.
+  const actionSlotKeys = new Set((Array.isArray(baseDraftInput?.segments) ? baseDraftInput.segments : [])
+    .filter((segment) => String(segment?.segment_type || '').trim() === 'scene_hook')
+    .map((segment) => String(segment?.parent_slot_id || segment?.segment_id || '').trim())
+    .filter(Boolean));
+  for (const placement of placements) {
+    const placementKey = String(placement?.clip_id || '').replace(/^(ko|ja)_/, '') || String(placement?.slot_id || '');
+    const placementRange = Array.isArray(placement?.source_range) ? placement.source_range.map(Number) : [];
+    if (actionSlotKeys.has(placementKey) && fixedWindowsBySlot.has(placementKey) && Number(placementRange[1]) > Number(placementRange[0])) {
+      fixedWindowsBySlot.set(placementKey, [[Number(placementRange[0]), Number(placementRange[1])]]);
+    }
+  }
   const reservedWindows = [...fixedWindowsBySlot.values()].flat().sort((left, right) => left[0] - right[0]);
   // Reserved dialogue windows AND already-packed b-roll: the nudge/end-align paths consulted
   // only the former, so a later slot (closing) sat straight on an earlier slot's multi-part
@@ -417,6 +432,21 @@ function normalizeDraftSpecSourceRanges(draftSpec, baseDraftInput = {}) {
     const semanticEnd = sourceDurationSec > 0
       ? Math.min(sourceDurationSec, Number(semanticOrigin[1]) + 8)
       : Number(semanticOrigin[1]) + 8;
+    // A locale reframe shift is only a REFRAME while it stays in the SAME vision scene as
+    // its plan origin: a 3.5s shift off a 3.2s grab scene put the fall under '掴もうとした'
+    // (machine-eye catch, 2026-08-11). Scene boundaries are only known here at pack time -
+    // if a scene cut sits between the origin start and the shifted start, revert to the
+    // origin start (unless packing itself pushed the start, which minStart preserves).
+    {
+      const sceneBoundariesEarly = Array.isArray(baseDraftInput?.sceneBoundaries) ? baseDraftInput.sceneBoundaries : [];
+      const originStart = Number(semanticOrigin[0]);
+      if (sceneBoundariesEarly.length && Number.isFinite(originStart) && start > originStart + 0.05) {
+        const crossed = sceneBoundariesEarly.some((boundary) => boundary > originStart + 0.05 && boundary <= start + 0.05);
+        const reverted = Math.max(originStart, minStart);
+        const revertCrossed = sceneBoundariesEarly.some((boundary) => boundary > originStart + 0.05 && boundary <= reverted + 0.05);
+        if (crossed && !revertCrossed) start = reverted;
+      }
+    }
     let forceRelocate = false;
     let frontTrimmedEnd = null;
     for (let guard = 0; guard < 32; guard += 1) {
@@ -555,7 +585,7 @@ function normalizeDraftSpecSourceRanges(draftSpec, baseDraftInput = {}) {
       const cums = sentenceCumSecBySlot.get(placementSlotKey) || [];
       let snapCum = null;
       for (const cum of cums) {
-        if (cum >= 1.0 && cum <= (end - start) && (end - start) - cum <= 1.2) snapCum = cum;
+        if (cum >= 1.0 && cum <= (end - start) && (end - start) - cum <= 1.5) snapCum = cum;
       }
       if (snapCum != null && snapCum < (end - start) - 0.05) {
         end = start + Number(snapCum.toFixed(3));
@@ -657,12 +687,41 @@ function applyDraftSpecToSegment(segment, placement) {
   const isDialogue = ['dialogue_quote', 'dialogue'].includes(segmentType)
     || String(segment?.caption_kind || '').trim() === 'dialogue'
     || Boolean(String(segment?.utt_id || segment?.source_utterance_id || '').trim());
-  if (isDialogue || segmentType === 'scene_hook') {
+  if (isDialogue) {
     // Dialogue lines are locked to their source utterance windows. A slot-level locale
     // placement covers the whole parent slot, so applying it to each sibling line would
-    // duplicate the same source range (hybrid overlap) and can cut into speech. The same
-    // holds for a scene_hook: its heatmap-peak window plays original audio and must not be
-    // remapped. Keep the original clips; the locale spec still controls ordering.
+    // duplicate the same source range (hybrid overlap) and can cut into speech.
+    // Keep the original clips; the locale spec still controls ordering.
+    return {
+      ...segment,
+      locale_clip_id: placement.clip_id || ''
+    };
+  }
+  if (segmentType === 'scene_hook') {
+    // A beat window may be locale-shifted (ko keeps the wind-up, ja the follow-through -
+    // owner directive 2026-08-11). Unlike dialogue there are no sibling lines and no speech
+    // to cut, so the slot-level locale range replaces the window: original audio simply
+    // plays the shifted seconds of the same fight. Audio policy fields stay untouched.
+    if (Array.isArray(sourceRange) && Number(sourceRange[1]) > Number(sourceRange[0])) {
+      const beatScene = {
+        clip_id: `${placement.clip_id || segment.segment_id}_locale_clip`,
+        scene_id: `${placement.visual_role || 'locale'}_${placement.clip_id || segment.segment_id}`,
+        start: secondsToTimecode(sourceRange[0]),
+        end: secondsToTimecode(sourceRange[1]),
+        speed_multiplier: 1
+      };
+      return {
+        ...segment,
+        locale_source_override: true,
+        locale_clip_id: placement.clip_id || '',
+        source_scenes: [beatScene],
+        source_clips: [{ ...beatScene, source: 'locale_draft_spec' }],
+        story_anchor: {
+          ...(segment.story_anchor || {}),
+          source_range_hint: [sourceRange[0], sourceRange[0]]
+        }
+      };
+    }
     return {
       ...segment,
       locale_clip_id: placement.clip_id || ''

@@ -602,6 +602,13 @@ async function evaluateFinalLocaleGates({ workspaceDir, pipelineRunDir, sourceVi
   gates.failed = (gates.failed || []).filter((id) => id !== 'narration_visual_match');
   const issues = [];
   let judged = 0;
+  // Verdict cache: the judge re-rolls borderline stills on every rebuild - a (sentence,
+  // played-seconds) pair that PASSED once flip-flopped to fail on unchanged content two
+  // builds later. A pass verdict for identical content is durable; fails are never cached
+  // so a fixed sentence or prompt always gets a fresh judgment.
+  const judgeCachePath = path.join(workspaceDir, '.judge_verdict_cache.json');
+  let judgeCache = {};
+  try { judgeCache = fs.existsSync(judgeCachePath) ? readJson(judgeCachePath) || {} : {}; } catch { judgeCache = {}; }
   if (process.env.MIDFORM_DISABLE_VISUAL_JUDGE !== '1') {
     const { judgeFramesAgainstText } = require('./geminiMidformService');
     const { spawnSync } = require('child_process');
@@ -662,13 +669,25 @@ async function evaluateFinalLocaleGates({ workspaceDir, pipelineRunDir, sourceVi
           const sentenceSamples = [];
           let cursorSec = 0;
           for (const row of rows) {
-            sentenceSamples.push({ text: row.text, times: [atOffset(cursorSec + Math.min(0.4, row.sec / 2)), atOffset(cursorSec + row.sec * 0.7)] });
+            // Three chronological samples, not two: a falling monster frozen mid-frame reads
+            // as "standing and screaming" on a single still - the end-of-sentence frame
+            // (monster far below) is what disambiguates the motion.
+            sentenceSamples.push({ text: row.text, times: [...new Set([
+              atOffset(cursorSec + Math.min(0.4, row.sec / 2)),
+              atOffset(cursorSec + row.sec * 0.55),
+              atOffset(cursorSec + Math.max(row.sec - 0.5, row.sec * 0.8))
+            ])] });
             cursorSec += row.sec;
           }
           const sampleTimes = sentenceSamples.length ? [] : [atOffset(0.4), atOffset((slotNarr.get(key) || 1) * 0.7)];
           // per-sentence judging replaces the slot-level pass below when rows exist
           if (sentenceSamples.length) {
             for (const sample of sentenceSamples) {
+              const cacheKey = `${locale}|${key}|${sample.text}|${sample.times.map((t) => Number(t).toFixed(1)).join(',')}`;
+              if (judgeCache[cacheKey] && judgeCache[cacheKey].match === true) {
+                judged += 1;
+                continue;
+              }
               const framePaths = [];
               for (const [sampleIndex, sampleSec] of sample.times.entries()) {
                 const framePath = path.join(workspaceDir, `.judge_${locale}_${key}_s${judged}_${sampleIndex}.png`);
@@ -681,6 +700,8 @@ async function evaluateFinalLocaleGates({ workspaceDir, pipelineRunDir, sourceVi
                 judged += 1;
                 if (verdict && verdict.match === false) {
                   issues.push({ locale, segment_id: key, sentence: sample.text.slice(0, 60), on_screen: String(verdict.on_screen || '').slice(0, 160), reason: String(verdict.reason || '').slice(0, 160) });
+                } else if (verdict && verdict.match === true) {
+                  judgeCache[cacheKey] = { match: true, judged_at: new Date().toISOString() };
                 }
               } catch {
                 gates.warnings = [...new Set([...(gates.warnings || []), `narration_visual_match_judge_error:${key}`])];
@@ -712,6 +733,7 @@ async function evaluateFinalLocaleGates({ workspaceDir, pipelineRunDir, sourceVi
       }
     }
   }
+  try { writeJson(judgeCachePath, judgeCache); } catch { /* cache is best-effort */ }
   const status = judged === 0 ? 'not_applicable' : (issues.length ? 'fail' : 'pass');
   gates.results.push({ id: 'narration_visual_match', status, judged, issue_count: issues.length, issues });
   if (status === 'fail') {
