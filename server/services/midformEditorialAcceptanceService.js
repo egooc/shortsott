@@ -131,8 +131,24 @@ function evaluateEditorialAcceptance(input = {}, options = {}) {
   }
 
   if (editorialPattern === 'cold_open_callback') {
-    const ok = callbackStart != null && callbackStart <= 35;
-    add('callback_strength', ok ? 'pass' : 'fail', { callback_dialogue_start_sec: callbackStart, limit_sec: 35 });
+    // The 35s rule exists so NARRATION cannot delay the payoff. Original-audio action beats
+    // (scene_hook) before the callback are retention content, not explanatory drag — their
+    // seconds do not count against the clock (an inserted 7s fight beat pushed a healthy
+    // callback to 35.5s and failed the whole run).
+    // Raw input.segments, not activeTimeline: scene hooks carry no text and activeTimeline
+    // filters text-less segments out entirely.
+    const sceneHookSecBeforeCallback = (Array.isArray(input.segments) ? input.segments : [])
+      .filter((segment) => segment.segment_type === 'scene_hook'
+        && callbackStart != null && Number(segment.timeline_end_sec || 0) <= callbackStart + 0.001)
+      .reduce((sum, segment) => sum + Math.max(0, Number(segment.timeline_end_sec || 0) - Number(segment.timeline_start_sec || 0)), 0);
+    const effectiveStart = callbackStart == null ? null : Number((callbackStart - sceneHookSecBeforeCallback).toFixed(3));
+    const ok = effectiveStart != null && effectiveStart <= 35;
+    add('callback_strength', ok ? 'pass' : 'fail', {
+      callback_dialogue_start_sec: callbackStart,
+      scene_hook_sec_excluded: Number(sceneHookSecBeforeCallback.toFixed(3)),
+      effective_start_sec: effectiveStart,
+      limit_sec: 35
+    });
   } else {
     add('callback_strength', 'not_applicable', { editorial_pattern: editorialPattern });
   }

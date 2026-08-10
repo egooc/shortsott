@@ -3139,7 +3139,10 @@ const DIALOGUE_WINDOW_MIN_KEEP_SEC = 0.4;
 // Senseless cut, 13 of 112 seconds played that way. Adopt those cues as lines of the slot they
 // fall inside - the cut is already committed to showing them, so the only question is whether
 // the viewer can read them.
-const ADOPTED_CUE_MIN_SEC = 0.35;
+// 1.2 (was 0.35): a 0.42s fragment ("right") got adopted as a whole extra line, the caption
+// reconciliation had nothing to caption it with, and a BLANK dialogue subtitle shipped. A
+// cue below readable display time is a fragment of its neighbour, not a line.
+const ADOPTED_CUE_MIN_SEC = 1.2;
 // Must match limitDialogueFocusLines and the plan validator.
 const DIALOGUE_FOCUS_MAX_LINES = 8;
 
@@ -3184,7 +3187,10 @@ function fillUncaptionedCuesInsideCuts(timeline, transcript) {
     additions.length = 0;
     additions.push(...kept);
     const nextWindows = [...windows, ...additions]
-      .sort((left, right) => Number(left.start_sec ?? Infinity) - Number(right.start_sec ?? Infinity));
+      // null start (unmatched line) must sort LAST: Number(null) === 0 floated an unmatched
+      // entry into the middle of the list, shifting every caption index behind it.
+      .sort((left, right) => (Number.isFinite(Number(left.start_sec)) && left.start_sec != null ? Number(left.start_sec) : Infinity)
+        - (Number.isFinite(Number(right.start_sec)) && right.start_sec != null ? Number(right.start_sec) : Infinity));
     return {
       ...item,
       dialogue_line_windows: nextWindows,
@@ -3591,15 +3597,24 @@ function measuredActionShare(speechRatio) {
 function speechRatioOfFootage(transcript, footageEndSec) {
   const cues = Array.isArray(transcript) ? transcript : [];
   if (!cues.length) return null;
+  // UNION of cue intervals, not their sum: rolling auto-captions repeat each line across two
+  // or three overlapping cues, and summing double-counted speech (~2x on Cirque) which starved
+  // the action pie on exactly the sources that use auto-captions.
+  const intervals = cues
+    .map((cue) => [Number(cue?.start_sec), Number(cue?.end_sec)])
+    .filter(([start, end]) => Number.isFinite(start) && Number.isFinite(end) && end > start)
+    .sort((left, right) => left[0] - right[0]);
+  if (!intervals.length) return null;
   let speechSec = 0;
+  let [curStart, curEnd] = intervals[0];
   let maxEnd = 0;
-  for (const cue of cues) {
-    const start = Number(cue?.start_sec);
-    const end = Number(cue?.end_sec);
-    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) continue;
-    speechSec += end - start;
-    maxEnd = Math.max(maxEnd, end);
+  for (const [start, end] of intervals.slice(1)) {
+    if (start <= curEnd) { curEnd = Math.max(curEnd, end); continue; }
+    speechSec += curEnd - curStart;
+    curStart = start; curEnd = end;
   }
+  speechSec += curEnd - curStart;
+  for (const [, end] of intervals) maxEnd = Math.max(maxEnd, end);
   const denom = Math.max(Number(footageEndSec) || 0, maxEnd);
   return denom > 0 ? Math.min(1, speechSec / denom) : null;
 }
@@ -3654,8 +3669,23 @@ function insertActionBeatSlots(timeline, energyPeaks, targetSec, usableEndSec, b
     }
     const duration = winEnd - winStart;
     if (duration < 3 || winStart > peak.start + 0.5 || winEnd < peak.end - 0.5) continue;
-    if (target > 0 && totalEst() + duration > target) continue;
-    if (actionBudgetSec != null && actionSec + duration > actionBudgetSec + 1.0) continue;
+    // A small pie must still admit its top peak: shrink the padding toward the peak core
+    // instead of skipping outright when the remaining budget is tight.
+    if (actionBudgetSec != null) {
+      const remaining = actionBudgetSec + 1.0 - actionSec;
+      if (remaining < Math.max(3.5, peak.end - peak.start)) continue;
+      if (winEnd - winStart > remaining) {
+        const excess = (winEnd - winStart) - remaining;
+        const frontPad = Math.max(0, peak.start - winStart);
+        const trimFront = Math.min(frontPad - 0.3, excess / 2 + Math.max(0, excess / 2 - Math.max(0, winEnd - peak.end - 0.3)));
+        winStart = Math.min(peak.start - 0.3, winStart + Math.max(0, trimFront));
+        winEnd = Math.max(peak.end + 0.3, winStart + remaining);
+        winEnd = Math.min(winEnd, usable);
+      }
+    }
+    if (target > 0 && totalEst() + (winEnd - winStart) > target) continue;
+    const finalDuration = winEnd - winStart;
+    if (finalDuration < 3) continue;
     if (screened.some(([busyStart, busyEnd]) => Math.min(busyEnd, winEnd) - Math.max(busyStart, winStart) > 0.75)) continue;
     // A peak CORE inside a dialogue slot's narrative span (between its lines) cannot be
     // appended after it without a backward source jump — the monotonicity gate rejects that,
@@ -3672,7 +3702,7 @@ function insertActionBeatSlots(timeline, energyPeaks, targetSec, usableEndSec, b
       decision: 'NARRATE',
       start_sec: roundSec(winStart),
       end_sec: roundSec(winEnd),
-      estimated_duration_sec: roundSec(duration),
+      estimated_duration_sec: roundSec(finalDuration),
       narration_estimated_duration_sec: 0,
       visual_source_mode: 'source_audio_action',
       visual_source_beat_id: String(beat?.beat_id || ''),
@@ -3699,7 +3729,7 @@ function insertActionBeatSlots(timeline, energyPeaks, targetSec, usableEndSec, b
     }
     items.splice(position, 0, slot);
     screened.push([winStart, winEnd]);
-    actionSec += duration;
+    actionSec += finalDuration;
     inserted += 1;
   }
   // Adjacent action beats with a sub-second source gap play as one continuous flurry instead
@@ -4128,11 +4158,37 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec, usableEndSec =
   // the Anacondas cut used 6 of 12 usable cues and ran 54s against a 75s target, because the
   // lines dropped for sitting in the endcard were never replaced.
   const footageBoundTimeline = dropWindowsPastUsableEnd(timeline, usableEndSec);
-  const toppedUpTimeline = topUpTimelineToTargetRuntime(footageBoundTimeline, beats, transcript, targetSec, usableEndSec);
+  // Allocation order (owner directive 2026-08-10): dialogue is fixed and first, the ACTION PIE
+  // is reserved second, and narration top-up only gets what remains. Topping narration up to
+  // the full target left the pie permanently zero on every source whose plan reached it -
+  // action was allocated from leftovers, and there were never any.
+  const finalizeSpeechRatio = speechRatioOfFootage(transcript, usableEndSec);
+  // Reserve only what can actually be spent: without measured peaks the pie has no place to
+  // go, and reserving it would just shorten the cut and stretch the narration runs.
+  const hasEnergyPeaks = Array.isArray(energyPeaks) && energyPeaks.length > 0;
+  const actionShare = hasEnergyPeaks ? measuredActionShare(finalizeSpeechRatio) : 0;
+  const actionBudgetSec = roundSec(Math.max(0, Number(targetSec) || 0) * actionShare);
+  const narrationCeilingSec = Math.max(0, (Number(targetSec) || 0) - actionBudgetSec);
+  const toppedUpTimeline = topUpTimelineToTargetRuntime(footageBoundTimeline, beats, transcript, narrationCeilingSec, usableEndSec);
   const interleavedTimeline = interleaveDialogueIntoNarrationRuns(toppedUpTimeline, beats, transcript);
   // Adopt audible-but-uncaptioned cues BEFORE the windows are separated, so the new lines get
   // the same overlap treatment as the rest.
-  const filledTimeline = fillUncaptionedCuesInsideCuts(dropDuplicateDialogueSlots(interleavedTimeline), transcript);
+  // Purge previously ADOPTED windows that no longer clear the adoption floor: they persist in
+  // stored plans across refreshes, and an unmatched sub-second leftover shifts every caption
+  // index behind it (Anacondas shipped a blank L04 and lost L02 to exactly this).
+  const adoptionCleanTimeline = interleavedTimeline.map((item) => {
+    if (item.decision !== 'KEEP_DIALOGUE' || !Array.isArray(item.dialogue_line_windows)) return item;
+    const kept = item.dialogue_line_windows.filter((win) => !(win && win.adopted_from_cut === true
+      && (win.matched !== true || !(Number(win.end_sec) - Number(win.start_sec) >= ADOPTED_CUE_MIN_SEC))));
+    if (kept.length === item.dialogue_line_windows.length) return item;
+    return {
+      ...item,
+      dialogue_line_windows: kept,
+      dialogue_focus_lines: kept.filter((win) => win.matched === true).map((win) => win.line),
+      dialogue_focus_quotes: kept.filter((win) => win.matched === true).map((win) => win.line)
+    };
+  });
+  const filledTimeline = fillUncaptionedCuesInsideCuts(dropDuplicateDialogueSlots(adoptionCleanTimeline), transcript);
   // Word snap runs BEFORE separation so both the clip windows and the caption coordinates the
   // separation stamps inherit word-accurate edges.
   const wordSnappedTimeline = snapDialogueWindowsToWords(filledTimeline, wordTimestamps);
@@ -4140,7 +4196,7 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec, usableEndSec =
   // Write the corrected measure back onto the slot. Fixing only realisticSlotDurationSec left
   // estimated_duration_sec holding the raw span - slot_02 still read 151.3s for four lines - so
   // every consumer that reads the field directly still saw the dead air between them.
-  const measuredTimeline = clampColdOpenToTeaser(leadColdOpenWithStrongestLine(dropWindowsPastUsableEnd(trimTimelineToTargetRuntime(dedupedTimeline, targetSec), usableEndSec)));
+  const measuredTimeline = clampColdOpenToTeaser(leadColdOpenWithStrongestLine(dropWindowsPastUsableEnd(trimTimelineToTargetRuntime(dedupedTimeline, narrationCeilingSec), usableEndSec)));
   const trimmedTimeline = measuredTimeline.map((item) => (
     item.decision === 'KEEP_DIALOGUE'
       ? { ...item, estimated_duration_sec: realisticSlotDurationSec(item) }
@@ -4148,9 +4204,6 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec, usableEndSec =
   ));
   // AFTER the realistic-duration correction: the budget guard must see what the cut actually
   // runs (a dialogue slot's raw span can be 47s for 7s of lines), or every peak gets skipped.
-  const finalizeSpeechRatio = speechRatioOfFootage(transcript, usableEndSec);
-  const actionShare = measuredActionShare(finalizeSpeechRatio);
-  const actionBudgetSec = roundSec(Math.max(0, Number(targetSec) || 0) * actionShare);
   const actionTimeline = insertActionBeatSlots(trimmedTimeline, energyPeaks, targetSec, usableEndSec, beats, actionBudgetSec);
   // Safety net: a KEEP_DIALOGUE slot with NO resolved line windows whose lines are ALL
   // already carried by other slots' matched windows is a duplicate that can never resolve

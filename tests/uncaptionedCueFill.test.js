@@ -67,7 +67,7 @@ test('a single-line slot is untouched', () => {
 // validator rejects a slot with more than 8 focus quotes.
 test('adoption never pushes a slot past the validated line cap', () => {
   const many = [];
-  for (let i = 0; i < 12; i += 1) many.push({ start_sec: 10 + i, end_sec: 10.8 + i, text: `line ${i}` });
+  for (let i = 0; i < 12; i += 1) many.push({ start_sec: 10 + i * 2, end_sec: 11.5 + i * 2, text: `line ${i}` });
   const item = [{
     slot_id: 'busy',
     decision: 'KEEP_DIALOGUE',
