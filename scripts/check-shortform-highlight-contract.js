@@ -686,6 +686,38 @@ function testLongformShipsOnlyGeminiNominatedWindows() {
   );
 }
 
+function testLongformOverCapArcIsDroppedNotClipped() {
+  // Approved 2026-08-10: a longform arc longer than the duration cap used to get
+  // its END clipped to fit, which cut the hook->process->end closure off. Such a
+  // candidate must be dropped instead; shortform keeps the clip behavior.
+  const longformItem = {
+    source_type: 'longform',
+    source_workflow_mode: 'longform_to_shorts',
+    video_metadata: { duration_sec: 750 },
+    source_classification: { duration_sec: 750 }
+  };
+  const overCap = queueTest.normalizeHighlightCandidateWindow(
+    { start_sec: 100, end_sec: 130, visual_hook: 'arc longer than the cap' },
+    longformItem, 24, 'gemini_highlight_candidate_1'
+  );
+  assert(overCap === null, `a longform arc over the 24s cap must be dropped, got ${JSON.stringify(overCap && { start: overCap.start_sec, end: overCap.end_sec })}`);
+
+  const inCap = queueTest.normalizeHighlightCandidateWindow(
+    { start_sec: 100, end_sec: 121, visual_hook: 'complete arc inside the cap' },
+    longformItem, 24, 'gemini_highlight_candidate_1'
+  );
+  assert(inCap && Math.abs((inCap.end_sec - inCap.start_sec) - 21) < 0.01,
+    'an in-cap longform arc must keep its full duration');
+
+  const shortformItem = { video_metadata: { duration_sec: 20 }, source_classification: { duration_sec: 20 } };
+  const shortClipped = queueTest.normalizeHighlightCandidateWindow(
+    { start_sec: 2, end_sec: 16, visual_hook: 'shortform over cap' },
+    shortformItem, 10, 'gemini_highlight_candidate_1'
+  );
+  assert(shortClipped && Math.abs((shortClipped.end_sec - shortClipped.start_sec) - 10) < 0.01,
+    'shortform must keep clipping to its 10s cap, not drop');
+}
+
 function testDuplicateGuardCatchesIdenticalCaptionBlocks() {
   // report_description carries the window's time range, so two byte-identical caption
   // blocks still produced two different joined strings and the guard passed them.
@@ -1686,6 +1718,7 @@ function main() {
   testMultipleHighlightMetadataDiffersBySceneWindow();
   testHighlightDuplicateGuardRejectsLabelTimeOnlyDifference();
   testLongformShipsOnlyGeminiNominatedWindows();
+  testLongformOverCapArcIsDroppedNotClipped();
   testDuplicateGuardCatchesIdenticalCaptionBlocks();
   testLongformCandidateTitlesCarryPerWindowCaptions();
   testHighlightBeatFormulaScoring();

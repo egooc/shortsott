@@ -8193,6 +8193,14 @@ function normalizeHighlightCandidateWindow(raw, itemConfig = {}, maxDurationSec 
   const safeMin = Math.min(safeMax, Math.max(1, Math.min(longformSource ? 6 : 3, sourceDuration || safeMax)));
   const start = Math.max(0, rawStart);
   const rawDuration = Number(rawEnd - start || normalized.duration_sec || safeMax);
+  // Approved 2026-08-10 (user sign-off): a longform candidate whose arc runs
+  // past the duration cap is dropped, not end-clipped. Clipping the end cuts
+  // the arc's closure off - a hook->process->end window without its ending
+  // must never ship. Shortform keeps the clip behavior: dropping there can
+  // zero out the whole item, and its 10s cap makes over-length arcs common.
+  if (longformSource && rawDuration > safeMax + 0.05) {
+    return null;
+  }
   const duration = Math.min(safeMax, Math.max(safeMin, rawDuration));
   const rawCenter = start + Math.max(0.1, rawDuration) / 2;
   const expandedStart = rawDuration < duration ? rawCenter - duration / 2 : start;
