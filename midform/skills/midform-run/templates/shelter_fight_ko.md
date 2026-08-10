@@ -6,7 +6,7 @@ source:
   content_type: movie_midform_recap
   promo_tail_sec: 16.4
 output:
-  target_length_sec: 100
+  target_length_sec: 120
 review:
   pause_before_tts: true
 subtitle_limits:
@@ -36,7 +36,7 @@ render:
 
 # Source
 - clip url: https://www.youtube.com/watch?v=U9XwGlu0FO4
-- target length: 100s (상한 - 클립 내부 아크가 길이를 정한다)
+- target length: 120s (상한 - 클립 내부 아크가 길이를 정한다; 액션 비트 예산 포함)
 - title: Jason Statham Vs Elite Special Ops Team (2026) Fight Scene | Shelter - Action Movie Clip 4K
 - source audio language: English
 - subtitle source: **STT 폴백 (faster-whisper)** — 이 업로드는 수동/자동자막이 전혀 없음. 큐는 기계가 들은 것이므로 검수 게이트에서 전 줄 재검증 필수

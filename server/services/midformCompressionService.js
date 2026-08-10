@@ -3571,7 +3571,7 @@ function readUsableEndSec(runDir) {
 // dialogue windows — so a 325s fight compressed to 49s of mostly talk. Uncovered top energy
 // peaks become first-class scene_hook slots that play their own action audio, spending the
 // remaining target budget. The runtime stays a RESULT; the target stays a ceiling.
-const ACTION_BEAT_MAX_SLOTS = 3;
+const ACTION_BEAT_MAX_SLOTS = 5;
 function insertActionBeatSlots(timeline, energyPeaks, targetSec, usableEndSec, beats) {
   const peaks = (Array.isArray(energyPeaks) ? energyPeaks : [])
     .map((peak) => ({ rank: Number(peak?.rank) || 0, start: Number(peak?.start_sec), end: Number(peak?.end_sec), score: Number(peak?.score) || 0 }))
@@ -3605,17 +3605,25 @@ function insertActionBeatSlots(timeline, energyPeaks, targetSec, usableEndSec, b
   let inserted = 0;
   for (const peak of peaks) {
     if (inserted >= ACTION_BEAT_MAX_SLOTS) break;
-    const winStart = Math.max(0, peak.start - 1.5);
-    const winEnd = Math.min(usable, peak.end + 1.5);
+    let winStart = Math.max(0, peak.start - 1.5);
+    let winEnd = Math.min(usable, peak.end + 1.5);
+    // The window PADDING may graze a screened range without the peak itself being contested —
+    // trim the padded side back instead of throwing the whole peak away.
+    for (const [busyStart, busyEnd] of screened) {
+      if (Math.min(busyEnd, winEnd) - Math.max(busyStart, winStart) <= 0) continue;
+      if (busyEnd <= peak.start) winStart = Math.max(winStart, busyEnd + 0.1);
+      else if (busyStart >= peak.end) winEnd = Math.min(winEnd, busyStart - 0.1);
+    }
     const duration = winEnd - winStart;
-    if (duration < 3) continue;
+    if (duration < 3 || winStart > peak.start + 0.5 || winEnd < peak.end - 0.5) continue;
     if (target > 0 && totalEst() + duration > target) continue;
     if (screened.some(([busyStart, busyEnd]) => Math.min(busyEnd, winEnd) - Math.max(busyStart, winStart) > 0.75)) continue;
-    // A peak INSIDE a dialogue slot's narrative span (even between its lines) cannot be
+    // A peak CORE inside a dialogue slot's narrative span (between its lines) cannot be
     // appended after it without a backward source jump — the monotonicity gate rejects that,
-    // and editorially the beat would play after the scream that follows it.
+    // and editorially the beat would play after the scream that follows it. Splitting the
+    // dialogue slot at the gap (split_part slots) is how such a peak gets admitted.
     const insideDialogueSpan = items.some((item) => item.decision === 'KEEP_DIALOGUE'
-      && Number(item.start_sec) < winEnd && Number(item.end_sec) > winStart);
+      && Number(item.start_sec) < peak.end && Number(item.end_sec) > peak.start);
     if (insideDialogueSpan) continue;
     const beat = (Array.isArray(beats) ? beats : []).find((candidate) => Number(candidate.start_sec) <= peak.start && Number(candidate.end_sec) >= peak.end) || null;
     const slot = {
@@ -3654,6 +3662,22 @@ function insertActionBeatSlots(timeline, energyPeaks, targetSec, usableEndSec, b
     screened.push([winStart, winEnd]);
     inserted += 1;
   }
+  // Adjacent action beats with a sub-second source gap play as one continuous flurry instead
+  // of three clips with visible micro-jumps.
+  for (let index = items.length - 2; index >= 0; index -= 1) {
+    const current = items[index];
+    const next = items[index + 1];
+    if (String(current?.visual_source_mode) !== 'source_audio_action') continue;
+    if (String(next?.visual_source_mode) !== 'source_audio_action') continue;
+    const gap = Number(next.visual_source_start_sec) - Number(current.visual_source_end_sec);
+    if (gap < 0 || gap > 1.0) continue;
+    current.end_sec = next.end_sec;
+    current.visual_source_end_sec = next.visual_source_end_sec;
+    current.estimated_duration_sec = roundSec(Number(current.visual_source_end_sec) - Number(current.visual_source_start_sec));
+    current.visual_source_center_sec = roundSec((Number(current.visual_source_start_sec) + Number(current.visual_source_end_sec)) / 2);
+    current.reason = `${current.reason} Merged with the adjacent peak into one continuous run.`;
+    items.splice(index + 1, 1);
+  }
   return items;
 }
 
@@ -3675,7 +3699,7 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec, usableEndSec =
   const timeline = anchorAdjustedTimeline.map((item) => {
     const beat = beatMap.get(String(item?.beat_id || '').trim());
     const next = { ...item };
-    if (next.decision === 'KEEP_DIALOGUE' && beat) {
+    if (next.decision === 'KEEP_DIALOGUE' && beat && next.split_part !== true) {
       const plannedQuotes = Array.isArray(next.dialogue_focus_quotes)
         ? next.dialogue_focus_quotes.map((value) => String(value || '').trim()).filter(Boolean)
         : [];
@@ -4085,7 +4109,38 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec, usableEndSec =
   // AFTER the realistic-duration correction: the budget guard must see what the cut actually
   // runs (a dialogue slot's raw span can be 47s for 7s of lines), or every peak gets skipped.
   const actionTimeline = insertActionBeatSlots(trimmedTimeline, energyPeaks, targetSec, usableEndSec, beats);
-  let finalizedTimeline = actionTimeline.map((item) => {
+  // Safety net: a KEEP_DIALOGUE slot with NO resolved line windows whose lines are ALL
+  // already carried by other slots' matched windows is a duplicate that can never resolve
+  // (the interleave kept re-promoting the cold open's own line window-less every pass, and
+  // the dialogue_line_window_ok preflight killed the run). A window-less slot with FRESH
+  // lines is a legitimate mid-promotion — the next finalize pass resolves it — so it stays.
+  const carriedLineWindows = new Map();
+  for (const item of actionTimeline) {
+    for (const win of Array.isArray(item.dialogue_line_windows) ? item.dialogue_line_windows : []) {
+      if (win && win.matched === true && win.line) {
+        const key = normalizeComparableText(win.line);
+        if (!carriedLineWindows.has(key)) carriedLineWindows.set(key, []);
+        carriedLineWindows.get(key).push([Number(win.start_sec), Number(win.end_sec)]);
+      }
+    }
+  }
+  const windowSafeTimeline = actionTimeline.map((item) => {
+    if (item.decision !== 'KEEP_DIALOGUE' || item.split_part === true || item.role === 'cold_open') return item;
+    const hasMatched = (Array.isArray(item.dialogue_line_windows) ? item.dialogue_line_windows : [])
+      .some((win) => win && win.matched === true);
+    if (hasMatched) return item;
+    // Duplicate means same line AND same moment: a repeated line elsewhere in the source
+    // (running gags) is legitimate content, so the carrier's window must overlap THIS slot's
+    // span before the slot counts as an unresolvable copy.
+    const slotStart = Number(item.start_sec);
+    const slotEnd = Number(item.end_sec);
+    const lines = (Array.isArray(item.dialogue_focus_lines) ? item.dialogue_focus_lines : []).map((line) => normalizeComparableText(line)).filter(Boolean);
+    const allDuplicates = lines.length > 0 && lines.every((line) => (carriedLineWindows.get(line) || [])
+      .some(([winStart, winEnd]) => winEnd > slotStart - 0.5 && winStart < slotEnd + 0.5));
+    if (!allDuplicates) return item;
+    return { ...item, decision: 'DROP', estimated_duration_sec: 0, dialogue_focus_lines: [], dialogue_focus_quotes: [], reason: `${item.reason || ''} Dropped: window-less dialogue duplicate — every line is already carried by another slot.`.trim() };
+  });
+  let finalizedTimeline = windowSafeTimeline.map((item) => {
     if (item.decision === 'KEEP_DIALOGUE') return annotateDialogueSlotForQc(item, { windows: item.dialogue_line_windows || [] }, item);
     return annotateNarrationSlotForQc(item);
   });
@@ -4809,6 +4864,9 @@ function validateEditPlanAgainstBeats(editPlan, beats) {
     if (hookTeaser) {
       continue;
     }
+    // A split dialogue slot (action beat admitted between its line clusters) holds only its
+    // share of the beat's lines; the sibling part carries the rest, including anchors.
+    if (item?.split_part === true) continue;
     for (const anchor of anchors) {
       if (!focusQuotes.has(anchor)) {
         throw new Error(`${item.slot_id} KEEP_DIALOGUE must include beat anchor: ${anchor}`);

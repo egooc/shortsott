@@ -787,7 +787,22 @@ async function runMidformTemplateWorkflow(options = {}) {
           const planMatches = seededFrom
             ? seededFrom === currentPlanId
             : (!currentPlanId || runIdTimestamp(candidate?.runId || summary.internal.pipeline_run_id) >= runIdTimestamp(currentPlanId));
-          if (planMatches && (status === 'paused_review' || (status.startsWith('completed') && wentThroughReview))) reviewedState = candidate;
+          // Same compress-run ID is NOT enough: the plan inside that dir changes across
+          // refresh+surgery cycles while the id (and its timestamp) stays fixed, so a pipeline
+          // reviewed for the OLD plan matched forever and the reworked cut silently never
+          // shipped (Shelter action-beat expansion built new bootstrap artifacts at 10:38 and
+          // the 02:59 pipeline was still reused). The pipeline must postdate the bootstrap
+          // script it claims to carry.
+          let pipelinePostdatesBootstrap = true;
+          const bootstrapScriptPath = path.join(String(summary.internal.bootstrap_source_run_dir || compressionRunDir || ''), 'bootstrap_script.json');
+          if (fs.existsSync(bootstrapScriptPath)) {
+            const scriptDate = new Date(fs.statSync(bootstrapScriptPath).mtimeMs);
+            const pad = (value) => String(value).padStart(2, '0');
+            const scriptStamp = Number(`${scriptDate.getFullYear()}${pad(scriptDate.getMonth() + 1)}${pad(scriptDate.getDate())}${pad(scriptDate.getHours())}${pad(scriptDate.getMinutes())}${pad(scriptDate.getSeconds())}`);
+            pipelinePostdatesBootstrap = runIdTimestamp(candidate?.runId || summary.internal.pipeline_run_id) >= scriptStamp;
+          }
+          if (planMatches && pipelinePostdatesBootstrap
+            && (status === 'paused_review' || (status.startsWith('completed') && wentThroughReview))) reviewedState = candidate;
         } catch {
           // unknown/deleted run: fall through to launching a new one
         }
