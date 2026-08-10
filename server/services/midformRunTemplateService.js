@@ -286,6 +286,7 @@ function copyCompressionArtifacts(compressionRunDir, workspaceDir) {
   // The energy-peak coverage gate reads these at draft level (the truth after all clamping).
   copyIfExists(path.join(compressionRunDir, 'energy_profile.json'), path.join(workspaceDir, 'energy_profile.json'));
   copyIfExists(path.join(compressionRunDir, 'source_case.json'), path.join(workspaceDir, 'source_case.json'));
+  copyIfExists(path.join(compressionRunDir, 'vision_scene_map.json'), path.join(workspaceDir, 'vision_scene_map.json'));
 }
 
 function writeLocaleBranchArtifacts(workspaceDir, normalizedRequest, compressionRunDir, supplementalEvidence = {}) {

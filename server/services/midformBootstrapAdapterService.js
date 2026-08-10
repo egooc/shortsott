@@ -884,7 +884,14 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
         winStart = Math.min(winStart, winEnd);
       }
       const narrationNeedSec = Number(item.narration_estimated_duration_sec || item.estimated_duration_sec || 0);
-      const broll = (winEnd > winStart) ? pickNarrationBroll(winStart, winEnd, narrationNeedSec) : null;
+      let broll = (winEnd > winStart) ? pickNarrationBroll(winStart, winEnd, narrationNeedSec) : null;
+      // The clip may not outlast the narration it plays under (the layers below fit the whole
+      // clip into the slot): cap at the estimated need - the base draft is pre-TTS, so the
+      // estimate is the best truth available here, and the locale packer re-caps with the
+      // measured TTS.
+      if (broll && narrationNeedSec > 0 && broll[1] - broll[0] > narrationNeedSec + 0.5) {
+        broll = [broll[0], roundSec3 ? roundSec3(broll[0] + narrationNeedSec + 0.5) : Number((broll[0] + narrationNeedSec + 0.5).toFixed(3))];
+      }
       if (broll) {
         sourceRange = broll;
         sourceScenes = [{ clip_id: `${slotId}_broll_clip`, scene_id: 'narration_broll', start: secondsToTimecode(broll[0]), end: secondsToTimecode(broll[1]), speed_multiplier: 1 }];

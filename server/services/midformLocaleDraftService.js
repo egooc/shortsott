@@ -284,6 +284,15 @@ function snapRangeToShotBoundaries(start, end, boundaries, { minKeepSec, limitEn
 }
 
 function normalizeDraftSpecSourceRanges(draftSpec, baseDraftInput = {}) {
+  // REAL TTS seconds per slot (ttsFiles carry measured duration_sec): the spec's estimate ran
+  // 9.1s where the synthesized narration was 7.2s, and the estimate-capped clip still put 2s
+  // of the wrong scene on screen.
+  const realTtsSecBySlot = new Map();
+  for (const file of Array.isArray(baseDraftInput?.ttsFiles) ? baseDraftInput.ttsFiles : []) {
+    const slotKey = String(file?.segment_id || '').trim();
+    const sec = Number(file?.duration_sec || 0);
+    if (slotKey && sec > 0) realTtsSecBySlot.set(slotKey, (realTtsSecBySlot.get(slotKey) || 0) + sec);
+  }
   const next = cloneJson(draftSpec);
   const placements = Array.isArray(next?.clip_placement) ? next.clip_placement : [];
   const usableEndSec = readUsableEndSec(baseDraftInput);
@@ -332,7 +341,17 @@ function normalizeDraftSpecSourceRanges(draftSpec, baseDraftInput = {}) {
       };
     }
     const originalDuration = rangeDuration(sourceRange);
-    const duration = cappedDurations[index];
+    // THE invariant this whole defect class reduces to: a narration clip may not be LONGER
+    // than the narration that plays over it. CapCut fits the whole clip into the slot, so a
+    // 12.1s clip under 7.2s of narration played EVERYTHING at 1.7x - charge, fall AND
+    // explosion under '다시 달려듭니다', three user reports in a row. Cut the excess at the
+    // source instead of trusting any later stage to trim it.
+    const placementSlotKey = String(placement?.clip_id || '').replace(/^(ko|ja)_/, '') || String(placement?.slot_id || '');
+    const estimatedNeedSec = rangeDuration(Array.isArray(placement?.timeline_range) ? placement.timeline_range.map(Number) : []);
+    const narrationNeedSec = realTtsSecBySlot.get(placementSlotKey) || estimatedNeedSec;
+    const duration = narrationNeedSec > 0
+      ? Math.min(cappedDurations[index], narrationNeedSec + 0.5)
+      : cappedDurations[index];
     const minStart = lastEnd > 0 ? lastEnd + PHYSICAL_SOURCE_GAP_SEC : 0;
     let start = Math.max(Number(sourceRange[0]), minStart);
     // The reveal lives at the END of a narration window that leads into dialogue: the boot slam
@@ -483,6 +502,31 @@ function normalizeDraftSpecSourceRanges(draftSpec, baseDraftInput = {}) {
       if (snappedStart !== start || snappedEnd !== end) {
         start = snappedStart;
         end = snappedEnd;
+        adjusted = true;
+      }
+    }
+    // The shot snap may stretch the end back out; the narration-length invariant wins over
+    // a prettier cut point (slot_07 came back 9.6s under 7.2s of narration - 2s of the fall
+    // returned to the screen).
+    if (narrationNeedSec > 0 && end - start > narrationNeedSec + 0.5) {
+      end = start + narrationNeedSec + 0.5;
+      adjusted = true;
+    }
+    // And the end must land ON a cut, downward: a differentiated (later) start left the played
+    // window crossing the scene boundary mid-shot - ja's 7.7s from 110.6 ran 3s into the fall.
+    // Ending at the last shot cut inside the window keeps the clip on ONE scene; the freeze
+    // path covers the shortfall, which beats seconds of the wrong scene.
+    const sceneBoundaries = Array.isArray(baseDraftInput?.sceneBoundaries) ? baseDraftInput.sceneBoundaries : [];
+    const cutBoundaries = [...shotBoundaries, ...sceneBoundaries].sort((l, r) => l - r);
+    if (narrationNeedSec > 0 && cutBoundaries.length) {
+      const floor = start + Math.max(2.0, narrationNeedSec * 0.55);
+      let snapDown = null;
+      for (const boundary of cutBoundaries) {
+        if (boundary > end + 0.05) break;
+        if (boundary >= floor) snapDown = boundary;
+      }
+      if (snapDown != null && snapDown < end - 0.3) {
+        end = snapDown;
         adjusted = true;
       }
     }
@@ -840,6 +884,18 @@ async function generateLocaleDraftArtifacts({ workspaceDir, baseDraftInputPath, 
   // Shot boundaries ride on the base input so the sync packing helpers can snap to them.
   const shotBoundaries = await detectShotBoundaries(sourceVideoPath);
   if (shotBoundaries.length) baseDraftInput.shotBoundaries = shotBoundaries;
+  // Vision SCENE boundaries too: a fall is continuous motion with no hard cut, so shot
+  // detection has no boundary at the semantic scene change - only the vision map knows
+  // where '달려든다' ends and '떨어진다' begins.
+  try {
+    const visionPath = path.join(workspaceDir, 'vision_scene_map.json');
+    if (fs.existsSync(visionPath)) {
+      const scenes = (readJson(visionPath) || {}).scenes || [];
+      const sceneBoundaries = [...new Set(scenes.flatMap((scene) => [Number(scene.start_sec), Number(scene.end_sec)])
+        .filter((value) => Number.isFinite(value) && value > 0))].sort((left, right) => left - right);
+      if (sceneBoundaries.length) baseDraftInput.sceneBoundaries = sceneBoundaries;
+    }
+  } catch { /* scene boundaries are an enhancement, not a dependency */ }
   const localeResults = {};
   const outputPaths = {};
   // ja renders from its own assembled draft input (Japanese script + Japanese TTS); every
@@ -854,6 +910,7 @@ async function generateLocaleDraftArtifacts({ workspaceDir, baseDraftInputPath, 
       });
       japaneseBase = readJson(built.draftInputPath);
       if (shotBoundaries.length) japaneseBase.shotBoundaries = shotBoundaries;
+      if (Array.isArray(baseDraftInput.sceneBoundaries)) japaneseBase.sceneBoundaries = baseDraftInput.sceneBoundaries;
       // ja packs from its OWN base input; without the usable end it walked b-roll straight
       // into the Movieclips endcard (157.6-167 on a 159.1-usable source).
       if (Number(usableEndSec) > 0) japaneseBase.usableEndSec = Number(usableEndSec);

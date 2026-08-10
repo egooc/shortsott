@@ -399,6 +399,15 @@ function collectRunArtifacts({
         if (fs.existsSync(localeManifestPath)) manifestsToCheck.push([locale, readJson(localeManifestPath)]);
       }
       for (const [manifestLabel, manifest] of manifestsToCheck) {
+      // The clip belongs to the SLOT while durations sit on its caption units - aggregate
+      // narration seconds per slot before judging clip length.
+      const slotNarrationSec = new Map();
+      for (const segment of manifest?.segments || []) {
+        if (segment.segment_type !== 'recap') continue;
+        const slotKey = String(segment.segment_id || '');
+        slotNarrationSec.set(slotKey, (slotNarrationSec.get(slotKey) || 0) + Number(segment.duration_sec || 0));
+      }
+      const slotSeen = new Set();
       for (const segment of manifest?.segments || []) {
         if (segment.segment_type !== 'recap') continue;
         const span = spans.get(String(segment.segment_id || ''));
@@ -407,6 +416,12 @@ function collectRunArtifacts({
           const clipStart = parseTimecodeSec(clip.start);
           const clipEnd = parseTimecodeSec(clip.end);
           if (!(clipEnd > clipStart)) continue;
+          const narrationSec = Number(slotNarrationSec.get(String(segment.segment_id || '')) || 0);
+          const slotOnceKey = `${manifestLabel}:${segment.segment_id}`;
+          if (!slotSeen.has(slotOnceKey) && narrationSec > 0 && (clipEnd - clipStart) > narrationSec + 2.5) {
+            slotSeen.add(slotOnceKey);
+            issues.push({ manifest: manifestLabel, segment_id: segment.segment_id, clip: [Number(clipStart.toFixed(2)), Number(clipEnd.toFixed(2))], narration_sec: Number(narrationSec.toFixed(2)), kind: 'overlong_clip_speedup' });
+          }
           if (clipStart < span[0] - 8.5 || clipEnd > span[1] + 8.5) {
             issues.push({ manifest: manifestLabel, segment_id: segment.segment_id, clip: [Number(clipStart.toFixed(2)), Number(clipEnd.toFixed(2))], plan_window: span, kind: 'outside_scene' });
           } else if (usableEnd > 0 && clipEnd > usableEnd + 0.25) {
