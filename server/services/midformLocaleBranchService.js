@@ -294,8 +294,12 @@ function buildLocaleEditPlan(baseEditPlan, strategy, evidencePack, attempt = 0) 
     let peakAnchored = false;
     // An action beat (source_audio_action) IS a pinned peak already — never re-anchor or
     // shift it; sliding it would play the wrong seconds of the fight in one locale.
+    // And when a plan HAS action beats, narration slots stop peak-anchoring entirely: the
+    // beats carry the energy, and anchoring narration onto "the loudest moment" put the
+    // explosion under '다시 달려듭니다' — narration b-roll follows its beat's story order.
+    const planHasActionBeats = reordered.some((entry) => normalizeText(entry.visual_source_mode) === 'source_audio_action');
     if (normalizeText(slot.visual_source_mode) === 'source_audio_action') peakAnchored = true;
-    else if (decision === 'NARRATE' && role !== 'cold_open' && energyPeaks.length) {
+    else if (!planHasActionBeats && decision === 'NARRATE' && role !== 'cold_open' && energyPeaks.length) {
       const needSec = Math.max(4, slotDuration(slot) || 4);
       const inside = energyPeaks
         .filter((peak) => peak.end_sec > range[0] + 0.5 && peak.start_sec < range[1] - 0.5)
@@ -326,6 +330,10 @@ function buildLocaleEditPlan(baseEditPlan, strategy, evidencePack, attempt = 0) 
         shift = Math.max(0, Math.min(shift, (nextStart - 0.1) - baseEnd));
       }
     }
+    // Semantic era (plans with action beats): the differentiation shift may reframe a
+    // narration window, never move it to a DIFFERENT scene — the escalating shift walked
+    // ja slot_07 off its charge scene while the narration still described the charge.
+    if (locale === 'ja' && decision === 'NARRATE' && planHasActionBeats) shift = Math.min(shift, 3.0);
     const nextRange = shiftedRange(range, shift, sourceDurationSec);
     return {
       ...applyRangeToSlot(slot, nextRange),

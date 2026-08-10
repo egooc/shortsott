@@ -612,7 +612,11 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
   // Measured energy peaks (audio RMS + motion) from the compress run. Narration b-roll used to
   // pick the LARGEST free gap — on an action source the largest gap is the quietest stretch, so
   // the fight's rank-1/2 peaks shipped with 0.0s coverage (Shelter). Peaks now outrank size.
-  const energyPeaks = (Array.isArray(options.energyPeaks) ? options.energyPeaks : [])
+  // With action beats in the timeline the peaks are already CONTENT; narration b-roll then
+  // reverts to chronological in-window picking so the footage follows the narration's story
+  // order instead of jumping to the loudest moment.
+  const timelineHasActionBeats = timeline.some((item) => normalizeText(item.visual_source_mode) === 'source_audio_action');
+  const energyPeaks = (timelineHasActionBeats ? [] : (Array.isArray(options.energyPeaks) ? options.energyPeaks : []))
     .map((peak) => ({ start: Number(peak?.start_sec), end: Number(peak?.end_sec), score: Number(peak?.score) || 0 }))
     .filter((peak) => Number.isFinite(peak.start) && Number.isFinite(peak.end) && peak.end > peak.start);
   const peakOverlapScore = (start, end) => energyPeaks.reduce((sum, peak) => {

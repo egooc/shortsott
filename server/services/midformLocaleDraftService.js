@@ -149,9 +149,17 @@ function replanJaDraftSpecForFinalOverlap(draftSpec, finalOverlapReport, attempt
     if (!shouldShift || !(Number(sourceRange[1]) > Number(sourceRange[0]))) return placement;
     const role = String(placement?.visual_role || '').toLowerCase();
     const roleBonus = role === 'cold_open' ? 2.5 : (role === 'payoff' ? 1.5 : 0);
+    // Semantic cap: replan differentiation may reframe a clip, never move it to another
+    // scene — the escalating shift (4 + attempt*3) walked ja slot_07 from its charge scene
+    // onto the kiss scene while the narration still described the charge. 8s matches the
+    // packer's scene tolerance.
+    const replanShift = Math.min(8, shiftBase + roleBonus + (index * 0.35));
     return {
       ...placement,
-      source_range: shiftedSourceRange(sourceRange, shiftBase + roleBonus + (index * 0.35), sourceDurationSec),
+      // The packer's scene bounds must anchor to the ORIGINAL window: re-basing them on the
+      // replanned range let +8 replan and +8 packer tolerance compound into 25s of drift.
+      semantic_origin_range: Array.isArray(placement.semantic_origin_range) ? placement.semantic_origin_range : sourceRange,
+      source_range: shiftedSourceRange(sourceRange, replanShift, sourceDurationSec),
       final_draft_replan_reason: overlappingClipIds.size ? 'shared_contiguous_overlap' : 'final_overlap_threshold',
       final_draft_replan_attempt: attempt
     };
@@ -361,22 +369,43 @@ function normalizeDraftSpecSourceRanges(draftSpec, baseDraftInput = {}) {
     }
     // B-roll must not sit on top of reserved dialogue/scene-hook footage: those segments
     // keep their true source windows, so nudge the packed range forward past any overlap.
+    // A closing slot narrates the beat's OUTCOME ("괴물은 사라졌습니다"), so its b-roll
+    // end-aligns to the window instead of starting at the front (which shows the outcome's
+    // build-up under a result sentence).
+    if (String(placement.role || placement.slot_id || '').includes('closing')) {
+      const endAlignedStart = Math.min(semanticEnd - Math.max(duration, 1.0), Number(sourceRange[1]) - Math.max(duration, 1.0));
+      if (Number.isFinite(endAlignedStart) && endAlignedStart > start) start = Math.max(Number(sourceRange[0]), endAlignedStart);
+    }
     if (process.env.MIDFORM_PACK_DEBUG) console.error(`[pack:preNudge] ${placement.clip_id} start=${start}`);
     // SEMANTIC BOUNDS: a narration clip must show its own scene. The nudge loop and the
     // relocation below used to wander the whole footage - "뒤엉켜 싸운다" narration shipped
     // over the kiss scene 50s away. B-roll may drift at most ~8s around its slot's window.
-    const semanticStart = Math.max(0, Number(sourceRange[0]) - 8);
+    const semanticOrigin = Array.isArray(placement?.semantic_origin_range) && placement.semantic_origin_range.length >= 2
+      ? placement.semantic_origin_range
+      : sourceRange;
+    const semanticStart = Math.max(0, Number(semanticOrigin[0]) - 8);
     const semanticEnd = sourceDurationSec > 0
-      ? Math.min(sourceDurationSec, Number(sourceRange[1]) + 8)
-      : Number(sourceRange[1]) + 8;
+      ? Math.min(sourceDurationSec, Number(semanticOrigin[1]) + 8)
+      : Number(semanticOrigin[1]) + 8;
     let forceRelocate = false;
+    let frontTrimmedEnd = null;
     for (let guard = 0; guard < 32; guard += 1) {
       const blocking = overlapsReserved(start, alignedEndSec != null ? alignedEndSec : start + duration);
       if (!blocking) break;
+      // Narration describes the FRONT of its window (story order). When a reserved range sits
+      // mid-window, keep the front and trim at the blocker instead of nudging forward onto the
+      // tail scene - the nudge put ja's charge narration over the rescue shot at the window
+      // tail. The freeze-frame path covers the shortfall.
+      const placementNeedEarly = rangeDuration(Array.isArray(placement?.timeline_range) ? placement.timeline_range.map(Number) : []);
+      const frontSpan = Number(blocking[0]) - PHYSICAL_SOURCE_GAP_SEC - start;
+      if (alignedEndSec == null && frontSpan >= Math.max(3.0, placementNeedEarly * 0.5)) {
+        frontTrimmedEnd = Number(blocking[0]) - PHYSICAL_SOURCE_GAP_SEC;
+        break;
+      }
       start = blocking[1] + PHYSICAL_SOURCE_GAP_SEC;
       if (start > semanticEnd - 1.0) { forceRelocate = true; break; }
     }
-    let end = alignedEndSec != null ? alignedEndSec : (start + duration);
+    let end = alignedEndSec != null ? alignedEndSec : (frontTrimmedEnd != null ? Math.min(frontTrimmedEnd, start + duration) : (start + duration));
     // The END must respect the scene bounds too: a nudge chain left the start just inside
     // the boundary while the clip ran 9s past it into the next scene (slot_07 135.5-147.1
     // against a 138.1 bound - the kiss played under '재돌진' narration).
