@@ -106,3 +106,35 @@ test('insertActionBeatSlots never inserts before the cold open and skips covered
   assert.ok(action, 'peak at 20s is outside the played narration window (30-38) and gets promoted');
   assert.ok(result.indexOf(action) > 0);
 });
+
+test('measuredActionShare scales the action pie by speech ratio', () => {
+  // near-silent fight: big pie
+  assert.ok(Math.abs(_test.measuredActionShare(0.05) - 0.394) < 0.01);
+  // creature source with a silent first act: moderate pie for its attack peaks
+  assert.ok(Math.abs(_test.measuredActionShare(0.3) - 0.113) < 0.01);
+  // wall-to-wall courtroom: zero pie
+  assert.equal(_test.measuredActionShare(0.4), 0);
+  assert.equal(_test.measuredActionShare(0.9), 0);
+  // no cues at all (game / silent action): action-led default
+  assert.equal(_test.measuredActionShare(null), 0.35);
+});
+
+test('the action budget stops insertion even when the runtime target has room', () => {
+  const timeline = [
+    { slot_id: 'slot_01', role: 'cold_open', decision: 'KEEP_DIALOGUE', start_sec: 5, end_sec: 8, estimated_duration_sec: 3, dialogue_line_windows: [{ matched: true, start_sec: 5, end_sec: 8 }] },
+    { slot_id: 'slot_02', role: 'bridge', decision: 'NARRATE', start_sec: 10, end_sec: 20, estimated_duration_sec: 6, narration_estimated_duration_sec: 6, visual_source_start_sec: 10 }
+  ];
+  const peaks = [
+    { rank: 1, start_sec: 40, end_sec: 44, score: 2.0 },
+    { rank: 2, start_sec: 60, end_sec: 64, score: 1.8 },
+    { rank: 3, start_sec: 80, end_sec: 84, score: 1.5 }
+  ];
+
+  const capped = _test.insertActionBeatSlots(timeline, peaks, 300, 300, [], 8);
+  const cappedActions = capped.filter((slot) => slot.visual_source_mode === 'source_audio_action');
+  assert.equal(cappedActions.length, 1, 'an 8s pie admits one 7s beat, not three');
+
+  const open = _test.insertActionBeatSlots(timeline, peaks, 300, 300, [], null);
+  const openActions = open.filter((slot) => slot.visual_source_mode === 'source_audio_action');
+  assert.equal(openActions.length, 3, 'null budget keeps the runtime-target-only behaviour');
+});

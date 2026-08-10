@@ -3572,7 +3572,39 @@ function readUsableEndSec(runDir) {
 // peaks become first-class scene_hook slots that play their own action audio, spending the
 // remaining target budget. The runtime stays a RESULT; the target stays a ceiling.
 const ACTION_BEAT_MAX_SLOTS = 5;
-function insertActionBeatSlots(timeline, energyPeaks, targetSec, usableEndSec, beats) {
+// How big should the action pie be? MEASURED, per source: the speech ratio sets the share
+// (dialogue-first is inviolable - action only competes with silence and padding), and the
+// energy peaks decide where it goes. A wall-to-wall courtroom gets ~0; a near-silent fight
+// gets up to 45% of the target. MIDFORM_ACTION_SHARE overrides for manual control.
+function measuredActionShare(speechRatio) {
+  const override = Number(process.env.MIDFORM_ACTION_SHARE);
+  if (Number.isFinite(override) && override >= 0 && override <= 0.6) return override;
+  if (speechRatio == null) return 0.35; // no cues at all: action-led source (game/silent action)
+  // Zero point at 40% speech-of-footage: a courtroom (0.9) gets nothing, a creature source
+  // (~0.3) keeps a small pie for its attack peaks, a near-silent fight (<0.1) gets the max.
+  return Math.max(0, Math.min(0.45, 0.45 * (1 - speechRatio * 2.5)));
+}
+
+// Speech share of the FOOTAGE, not of the cue span: a silent first act carries no cues, and
+// dividing by the cue span made a creature source look like wall-to-wall dialogue (the same
+// footage-vs-cues distortion validateBeats had to fix).
+function speechRatioOfFootage(transcript, footageEndSec) {
+  const cues = Array.isArray(transcript) ? transcript : [];
+  if (!cues.length) return null;
+  let speechSec = 0;
+  let maxEnd = 0;
+  for (const cue of cues) {
+    const start = Number(cue?.start_sec);
+    const end = Number(cue?.end_sec);
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) continue;
+    speechSec += end - start;
+    maxEnd = Math.max(maxEnd, end);
+  }
+  const denom = Math.max(Number(footageEndSec) || 0, maxEnd);
+  return denom > 0 ? Math.min(1, speechSec / denom) : null;
+}
+
+function insertActionBeatSlots(timeline, energyPeaks, targetSec, usableEndSec, beats, actionBudgetSec = null) {
   const peaks = (Array.isArray(energyPeaks) ? energyPeaks : [])
     .map((peak) => ({ rank: Number(peak?.rank) || 0, start: Number(peak?.start_sec), end: Number(peak?.end_sec), score: Number(peak?.score) || 0 }))
     .filter((peak) => Number.isFinite(peak.start) && peak.end > peak.start)
@@ -3602,6 +3634,12 @@ function insertActionBeatSlots(timeline, energyPeaks, targetSec, usableEndSec, b
       if (Number.isFinite(start)) screened.push([start, start + need]);
     }
   }
+  // Original-audio seconds already in the cut (scene-hook cold open) count against the pie.
+  let actionSec = items.reduce((sum, item) => (
+    String(item?.visual_source_mode || '') === 'source_audio_teaser' && item.decision !== 'DROP'
+      ? sum + Math.max(0, Number(item.visual_source_end_sec) - Number(item.visual_source_start_sec) || 0)
+      : sum
+  ), 0);
   let inserted = 0;
   for (const peak of peaks) {
     if (inserted >= ACTION_BEAT_MAX_SLOTS) break;
@@ -3617,6 +3655,7 @@ function insertActionBeatSlots(timeline, energyPeaks, targetSec, usableEndSec, b
     const duration = winEnd - winStart;
     if (duration < 3 || winStart > peak.start + 0.5 || winEnd < peak.end - 0.5) continue;
     if (target > 0 && totalEst() + duration > target) continue;
+    if (actionBudgetSec != null && actionSec + duration > actionBudgetSec + 1.0) continue;
     if (screened.some(([busyStart, busyEnd]) => Math.min(busyEnd, winEnd) - Math.max(busyStart, winStart) > 0.75)) continue;
     // A peak CORE inside a dialogue slot's narrative span (between its lines) cannot be
     // appended after it without a backward source jump — the monotonicity gate rejects that,
@@ -3660,6 +3699,7 @@ function insertActionBeatSlots(timeline, energyPeaks, targetSec, usableEndSec, b
     }
     items.splice(position, 0, slot);
     screened.push([winStart, winEnd]);
+    actionSec += duration;
     inserted += 1;
   }
   // Adjacent action beats with a sub-second source gap play as one continuous flurry instead
@@ -4108,7 +4148,10 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec, usableEndSec =
   ));
   // AFTER the realistic-duration correction: the budget guard must see what the cut actually
   // runs (a dialogue slot's raw span can be 47s for 7s of lines), or every peak gets skipped.
-  const actionTimeline = insertActionBeatSlots(trimmedTimeline, energyPeaks, targetSec, usableEndSec, beats);
+  const finalizeSpeechRatio = speechRatioOfFootage(transcript, usableEndSec);
+  const actionShare = measuredActionShare(finalizeSpeechRatio);
+  const actionBudgetSec = roundSec(Math.max(0, Number(targetSec) || 0) * actionShare);
+  const actionTimeline = insertActionBeatSlots(trimmedTimeline, energyPeaks, targetSec, usableEndSec, beats, actionBudgetSec);
   // Safety net: a KEEP_DIALOGUE slot with NO resolved line windows whose lines are ALL
   // already carried by other slots' matched windows is a duplicate that can never resolve
   // (the interleave kept re-promoting the cold open's own line window-less every pass, and
@@ -4165,6 +4208,14 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec, usableEndSec =
     },
     timeline: finalizedTimeline,
     dialogue_timing_qc: dialogueTimingQc,
+    action_mix: {
+      speech_ratio: finalizeSpeechRatio == null ? null : roundSec(finalizeSpeechRatio),
+      share_target: roundSec(actionShare),
+      budget_sec: actionBudgetSec,
+      inserted_sec: roundSec(finalizedTimeline
+        .filter((item) => String(item?.visual_source_mode || '') === 'source_audio_action' && item.decision !== 'DROP')
+        .reduce((sum, item) => sum + Number(item.estimated_duration_sec || 0), 0))
+    },
     duration_budget: recalculateDurationBudget(finalizedTimeline, targetSec)
   };
 }
@@ -5899,6 +5950,8 @@ module.exports = {
     validateEditPlanAgainstBeats,
     evaluateDialogueTimingQc,
     buildMicroExchangeCandidates,
+    measuredActionShare,
+    speechRatioOfFootage,
     buildDialogueUnitMetadata,
     buildTeaserSuitabilityScore,
     bestColdOpenCallbackBeat,

@@ -47,6 +47,13 @@ edit_plan.json의 `cold_open_selection`에 `selection_mode`(deterministic_argmax
 섹션에 **선택 근거와 차점 후보 1~2개**를 함께 서술한다 — 사용자가 "왜 이 훅인가"를 대체안과
 비교해 판단할 수 있어야 한다. `rerank.applied: false` + error가 있으면 argmax 폴백이었다는 뜻.
 
+## 편성 믹스 (2026-08-10 신설)
+
+edit_plan.json `action_mix`에 측정 발화 비율(`speech_ratio`, footage 분모), 액션 파이 목표
+(`share_target`), 실제 삽입 초(`inserted_sec`)가 기록된다. 계획서에 **믹스 한 줄**(대사 n줄 /
+나레이션 n문장 / 원음 액션 n초 — 목표 대비)을 서술한다. 액션 소스인데 inserted가 budget의
+절반 미만이면 왜인지(피크 부족? 대사 스팬 충돌?) 설명할 것. 수동 조정: MIDFORM_ACTION_SHARE.
+
 ## JA 검수 체크리스트 (2026-08-09 신설 — ja는 검수 사각지대였다)
 
 - **배열 정렬**: slot별 `caption_ja_dialogue`(또는 caption_kr_dialogue 키) 개수 == 그 슬롯 대사 줄 수, `speakers` 개수 일치. ko에서 줄을 이식/삭제했으면 ja 배열도 같이 — 어긋나면 ja가 통째로 스킵되거나 자막이 밀린다 (실사고 2회: Anacondas 빈 자막, AFGM 스킵).
