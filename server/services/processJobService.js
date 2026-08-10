@@ -1166,23 +1166,45 @@ async function runMetadataStage(jobId, items, options = {}) {
           source_classification: itemConfig.source_classification || null
         }
       );
-      const guide = await analyzeOttogiProcessMetadata({
-        filePath: sourceInfo.sourcePath,
-        sourceUrl,
-        apiKey,
-        durationSec,
-        originalFilename: sourceInfo.filename,
-        sourceType,
-        sourceWorkflowMode,
-        metadataVariantMode: itemMetadataVariantMode,
-        existingGuide: force ? null : (itemConfig.ottogi_guide_output || null),
-        assignedHookType,
-        fullDraftStagesDir: path.join(QUEUE_ROOT, refreshed.item_id, 'full_draft_stages'),
-        throwIfCancelled: () => assertNotCancelled(jobId),
-        onProgress: (message, data = {}) => {
-          appendJobLog(jobId, label + ' ' + message, 'info', refreshed.item_id, data);
+      // Approved 2026-08-10: "no usable candidates" is substantially analysis
+      // variance, not a stable source property - re-running the same 26 sources
+      // flipped 7 verdicts, and 3 skipped sources came back with full highlight
+      // sets on the second pass. One in-batch retry per item, fresh analysis
+      // (no cached guide); a second identical verdict is accepted as the skip.
+      let guide;
+      for (let analysisAttempt = 1; ; analysisAttempt += 1) {
+        try {
+          guide = await analyzeOttogiProcessMetadata({
+            filePath: sourceInfo.sourcePath,
+            sourceUrl,
+            apiKey,
+            durationSec,
+            originalFilename: sourceInfo.filename,
+            sourceType,
+            sourceWorkflowMode,
+            metadataVariantMode: itemMetadataVariantMode,
+            existingGuide: (force || analysisAttempt > 1) ? null : (itemConfig.ottogi_guide_output || null),
+            assignedHookType,
+            fullDraftStagesDir: path.join(QUEUE_ROOT, refreshed.item_id, 'full_draft_stages'),
+            throwIfCancelled: () => assertNotCancelled(jobId),
+            onProgress: (message, data = {}) => {
+              appendJobLog(jobId, label + ' ' + message, 'info', refreshed.item_id, data);
+            }
+          });
+          break;
+        } catch (analysisError) {
+          const retryable = analysisAttempt === 1
+            && isNoHighlightCandidatesCode(analysisError.code || analysisError.errorCode || '');
+          if (!retryable) throw analysisError;
+          appendJobLog(
+            jobId,
+            `${label} 하이라이트 후보 없음 - 같은 배치 안에서 1회 재분석합니다 (분석 분산 회수).`,
+            'warning',
+            refreshed.item_id,
+            { retry_reason: 'no_highlight_candidates', attempt: analysisAttempt + 1 }
+          );
         }
-      });
+      }
       let applied = applyOttogiGuideToItem(refreshed.item_id, guide, sourceUrl);
       let title = applied.item_config?.upload_title || '';
       let guideOutput = applied.item_config?.ottogi_guide_output || {};
