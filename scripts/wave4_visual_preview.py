@@ -189,8 +189,21 @@ def main():
         output_path = out_dir / f"{index:02d}_{segment_id}.png"
         status = "passed"
         reason = ""
+        frame_stats = {}
         try:
             frame = sample_frame(source_video, sample_sec)
+            # Auto-judgement (owner backlog): a black frame (mean < 16) or a frozen/flat frame
+            # (std < 6) means the sampled moment shows nothing - the eye check that used to be
+            # manual. Flagged as warning, not failure: a night scene can legitimately be dark.
+            mean_v = float(frame.mean())
+            std_v = float(frame.std())
+            frame_stats = {"mean": round(mean_v, 2), "std": round(std_v, 2)}
+            if mean_v < 16:
+                status = "warning"
+                reason = f"near-black frame (mean {mean_v:.1f})"
+            elif std_v < 6:
+                status = "warning"
+                reason = f"flat/frozen frame (std {std_v:.1f})"
             render_preview(frame, text, color, output_path, f"{speaker or 'speaker?'} {color} @ {sample_sec:.3f}s")
         except Exception as error:  # pragma: no cover
             status = "failed"
@@ -204,6 +217,7 @@ def main():
             "preview_path": str(output_path.relative_to(PROJECT_ROOT)).replace("\\", "/") if output_path.exists() else "",
             "status": status,
             "reason": reason,
+            **({"frame_stats": frame_stats} if frame_stats else {}),
         })
 
     write_json(args.proof, {

@@ -47,6 +47,15 @@ edit_plan.json의 `cold_open_selection`에 `selection_mode`(deterministic_argmax
 섹션에 **선택 근거와 차점 후보 1~2개**를 함께 서술한다 — 사용자가 "왜 이 훅인가"를 대체안과
 비교해 판단할 수 있어야 한다. `rerank.applied: false` + error가 있으면 argmax 폴백이었다는 뜻.
 
+## 제목 검수 (2026-08-10 후킹 구조 도입)
+
+제목은 서사 후킹 프로세스(추출→패턴 매칭→생성→점수화, `midform/config/hook_patterns.json`)로
+생성된다. 검수 기준:
+- **내용 일치가 최우선** (불일치 −40): 제목이 약속한 비밀/반전/위기가 클립 안에 실재하는가.
+  유튜브 정책상 CTR만 높은 낚시는 추천에 불리 — 답이 콘텐츠 안에 있어야 한다.
+- 줄거리 요약형·정보성 냄새("~하는 N가지") 반려. 정답 노출(스포일러형) 반려.
+- 계획서에 채택 제목 3개와 **각각 어떤 후킹 패턴인지** 명기.
+
 ## 편성 믹스 (2026-08-10 신설)
 
 edit_plan.json `action_mix`에 측정 발화 비율(`speech_ratio`, footage 분모), 액션 파이 목표

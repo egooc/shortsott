@@ -67,3 +67,16 @@ test('a segment with no timing falls back to the old behaviour', () => {
   ].join('\n'));
   assert.deepEqual(result, [null, null]);
 });
+
+test('a one-syllable modifier stays attached to its phrase when splitting', () => {
+  const chunks = probe([
+    'import json as _j',
+    'print(_j.dumps(m.split_caption_text("\\ub300\\ud559\\uc5d0\\uc11c \\uc900 \\uc2e4\\ud5d8\\uc6a9 \\uc57d\\ubb3c \\ub54c\\ubb38\\uc5d0 \\uac10\\uac01\\uc774 \\ud558\\ub098\\uc529 \\uc0ac\\ub77c\\uc9d1\\ub2c8\\ub2e4")))'
+  ].join('\n'));
+  // the reported defect was ['대학에서', '준 실험용 약물 때문에', ...]: the modifier 준 torn
+  // from 대학에서. No chunk may now END with 대학에서 while the next STARTS with 준.
+  for (let i = 0; i + 1 < chunks.length; i += 1) {
+    assert.ok(!(chunks[i].endsWith('대학에서') && chunks[i + 1].startsWith('준')),
+      `modifier torn from its phrase: ${JSON.stringify(chunks)}`);
+  }
+});

@@ -24,6 +24,7 @@ function compressVertexModel() {
 
 const RECAP_CONTEXT_TEMPLATE_PATH = path.join(PROJECT_ROOT, 'midform', 'templates', 'recap_context_template.md');
 const MIDFORM_TTS_CONFIG_PATH = path.join(PROJECT_ROOT, 'midform', 'config', 'tts.json');
+const MIDFORM_HOOK_PATTERNS_PATH = path.join(PROJECT_ROOT, 'midform', 'config', 'hook_patterns.json');
 
 // Resolves the human-authored recap context for a run. Explicit --context-file must exist
 // (fail loudly); otherwise auto-detect <runDir>/context.md. A context.md still identical to
@@ -3577,7 +3578,9 @@ function readUsableEndSec(runDir) {
 // dialogue windows — so a 325s fight compressed to 49s of mostly talk. Uncovered top energy
 // peaks become first-class scene_hook slots that play their own action audio, spending the
 // remaining target budget. The runtime stays a RESULT; the target stays a ceiling.
-const ACTION_BEAT_MAX_SLOTS = 5;
+// 8 (was 5): the measured action budget is the real governor now; the count is only a
+// runaway guard. 5 blocked Shelter's barn-trap extension (r7) with budget still unspent.
+const ACTION_BEAT_MAX_SLOTS = 8;
 // How big should the action pie be? MEASURED, per source: the speech ratio sets the share
 // (dialogue-first is inviolable - action only competes with silence and padding), and the
 // energy peaks decide where it goes. A wall-to-wall courtroom gets ~0; a near-silent fight
@@ -4442,6 +4445,18 @@ function buildSlotFillEditorialGuide(editPlan = {}) {
   };
 }
 
+function readHookPatterns() {
+  // Movie-recap hook pattern library (independent implementation; concept classes informed by
+  // public research on curiosity-gap headlines). Missing file degrades to an empty library -
+  // the prompt's general curiosity rules still apply.
+  try {
+    const parsed = readJson(MIDFORM_HOOK_PATTERNS_PATH);
+    return { patterns: parsed.patterns || [], scoring: parsed.scoring || {} };
+  } catch {
+    return { patterns: [], scoring: {} };
+  }
+}
+
 function buildSlotFillsPrompt(beats, editPlan, movieTitle, recapContextMarkdown) {
   const title = String(movieTitle || '').trim();
   const context = String(recapContextMarkdown || '').trim();
@@ -4548,7 +4563,13 @@ function buildSlotFillsPrompt(beats, editPlan, movieTitle, recapContextMarkdown)
     '- body_peak should let original dialogue carry the answer when decision is KEEP_DIALOGUE.',
     '- The closing should NOT fully summarize the story. Keep it to 2 or 3 very short beats at most. Leave one unresolved threat or dangling consequence and end on that. Good style: "경고는 현실이 됐습니다. 그 혼란을 틈타, 제드는 아들과 함께 사라졌죠. 아들은 아직, 저들 손에 있습니다."',
     '- caption_kr should be a concise Korean caption line for the narration; empty for dialogue-only slots.',
-    '- upload_text.title_candidates must contain exactly 3 Korean title options. Every title must open a curiosity gap, either question-shaped ("~일까?", "왜 ~했을까?", "어쩌다 ~됐을까?") or ending on a noun that promises the answer without giving it ("~한 이유", "~의 정체", "~의 비밀", "~의 결말", "~한 순간"). A flat declarative summary is rejected. Do not use the movie title itself as the hook.',
+    '- upload_text.title_candidates: use the NARRATIVE HOOK process below. Plot-summary titles are rejected.',
+    '  TITLE STEP 1 - extract narrative hook elements from the beats/plan (threat, secret, reversal, betrayal, impossible_situation, moral_dilemma, time_pressure, power_gap, abnormal_action, discovery, consequence, false_premise, identity). Only elements the CLIP actually shows - never invent one.',
+    '  TITLE STEP 2 - from the hook pattern library below, pick the 3-5 patterns whose "needs" match the elements you extracted.',
+    '  TITLE STEP 3 - write 2-3 Korean title candidates per chosen pattern following its skeleton, then score each: curiosity_gap 20, narrative_tension 20, specificity 15, emotional_stakes 15, instant_clarity 10, novelty 10, brevity 10; penalties: content_mismatch -40, ending_spoiled -15, abstract_wording -10, generic_clickbait -10.',
+    '  TITLE STEP 4 - output ONLY the top 3 by score as title_candidates. Each must still read like a movie moment (비밀·위험·반전·금지·배신·선택·시간제한·정체·결과), never like an info-listicle ("~하는 5가지 방법" 류 금지). Question-shaped endings or answer-promising noun endings both work; the movie title itself is never the hook.',
+    '  Hook pattern library:',
+    JSON.stringify(readHookPatterns(), null, 0),
     '- upload_text.overlay_title is required and must be separate from YouTube title_candidates. It must be an object with top and bottom strings, each 8 Korean characters or fewer excluding spaces where possible. This is for the on-screen CapCut title overlay, so it can be shorter than the YouTube title.',
     '- upload_text.overlay_title must preserve curiosity but fit two compact lines. Example: {"top":"쫓던 보안관이","bottom":"미끼가 된 날"}.',
     '- Avoid overclaiming causation or hidden plans in upload_text.title_candidates. If the provided facts do not explicitly say someone orchestrated the trap, do not write titles like "계략" or "자작극" or other mastermind wording.',
@@ -5323,7 +5344,11 @@ function buildVisionSceneSection(sceneMap) {
     start_sec: scene.start_sec,
     end_sec: scene.end_sec,
     visible_action: scene.visible_action,
-    shot_type: scene.shot_type || ''
+    shot_type: scene.shot_type || '',
+    // Optional fields (schema 2026-08-10): frame-judged intensity 1-5 and dominant moment
+    // type - zero extra API cost, and beats/plan can rank visual moments without guessing.
+    ...(scene.visual_intensity != null ? { visual_intensity: scene.visual_intensity } : {}),
+    ...(scene.moment_type ? { moment_type: scene.moment_type } : {})
   }));
   return [
     '',

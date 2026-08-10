@@ -289,6 +289,21 @@ function buildVertexEndpoint(config) {
   return `${host}/v1/projects/${config.project}/locations/${config.location}/publishers/google/models/${config.model}:generateContent`;
 }
 
+// 429 handling (owner backlog: immediate honest backoff instead of failing the run or
+// hammering): honor Retry-After when Vertex sends it, else back off 20s/40s/80s. Only 429
+// retries here - every other status still surfaces immediately.
+async function fetchVertexWithRateBackoff(endpoint, options, attempts = 4) {
+  let response = await fetch(endpoint, options);
+  for (let attempt = 1; response.status === 429 && attempt < attempts; attempt += 1) {
+    const retryAfter = Number(response.headers?.get?.('retry-after'));
+    const waitMs = (Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : 20 * (2 ** (attempt - 1))) * 1000;
+    console.warn(`[midform] Vertex 429 - backing off ${Math.round(waitMs / 1000)}s (attempt ${attempt}/${attempts - 1})`);
+    await sleep(waitMs);
+    response = await fetch(endpoint, options);
+  }
+  return response;
+}
+
 async function requestVertexMidformAnalysis({ videoPath, prompt, token, endpoint }) {
   const config = getVertexConfig();
   if (!config.project) {
@@ -318,7 +333,7 @@ async function requestVertexMidformAnalysis({ videoPath, prompt, token, endpoint
 
   let response;
   try {
-    response = await fetch(endpoint, {
+    response = await fetchVertexWithRateBackoff(endpoint, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
@@ -655,7 +670,7 @@ async function generateVertexJson({ prompt, responseSchema, model, temperature =
   };
   let response;
   try {
-    response = await fetch(endpoint, {
+    response = await fetchVertexWithRateBackoff(endpoint, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(body)

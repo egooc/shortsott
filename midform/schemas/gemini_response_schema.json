@@ -109,7 +109,9 @@
           },
           "utt_refs": {
             "type": "array",
-            "items": { "type": "string" }
+            "items": {
+              "type": "string"
+            }
           },
           "shot_type": {
             "type": "string",
@@ -170,6 +172,24 @@
           },
           "vertical_crop_note": {
             "type": "string"
+          },
+          "visual_intensity": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5,
+            "description": "How visually intense this scene is: 1 static/talking, 3 movement/tension, 5 peak action (fight, explosion, chase, scream). Judge from the FRAMES, not the dialogue."
+          },
+          "moment_type": {
+            "type": "string",
+            "enum": [
+              "dialogue",
+              "action",
+              "reaction",
+              "establishing",
+              "transition",
+              "reveal"
+            ],
+            "description": "Dominant visual moment type of the scene."
           }
         },
         "required": [

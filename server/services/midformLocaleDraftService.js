@@ -232,10 +232,14 @@ async function detectShotBoundaries(sourceVideoPath) {
         else resolve(String(stderrText || ''));
       });
     });
-    const boundaries = [...stderr.matchAll(/pts_time:([0-9]+(?:\.[0-9]+)?)/g)]
+    const rawBoundaries = [...stderr.matchAll(/pts_time:([0-9]+(?:\.[0-9]+)?)/g)]
       .map((match) => Number(match[1]))
       .filter((value) => Number.isFinite(value) && value > 0)
       .sort((left, right) => left - right);
+    // Merge micro-shots: two boundaries under 0.4s apart describe a flash cut no snap target
+    // should land between - snapping onto either edge of a 0.25s sliver is what shipped the
+    // frozen 0.25s closing clip. Keep the FIRST boundary of each cluster.
+    const boundaries = rawBoundaries.filter((value, index) => index === 0 || value - rawBoundaries[index - 1] >= 0.4);
     fs.writeFileSync(cachePath, `${JSON.stringify({ threshold: SHOT_SCENE_THRESHOLD, boundaries }, null, 2)}\n`, 'utf8');
     return boundaries;
   } catch {

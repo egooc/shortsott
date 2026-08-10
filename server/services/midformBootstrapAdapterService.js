@@ -360,13 +360,27 @@ function detectSpeechRanges(sourceVideoPath, cues) {
   // of decodes for the same audio. Logic is equivalent; -26dB/0.20 stays (movie music bed,
   // measured - do not import ClippyMe's -30dB).
   const ffmpeg = resolveTool('ffmpeg', { envKey: 'FFMPEG_PATH' });
+  // RELATIVE floor (owner backlog): -26dB fixed assumed one mix level. A quiet mix (mean -35)
+  // had speech swallowed as "silence"; a loud one detected none. Measure the source's mean
+  // volume once and set the floor 12dB under it, clamped to the -40..-22 band the fixed value
+  // was tuned in.
+  let noiseFloorDb = -26;
+  const volumeProbe = spawnSync(ffmpeg, [
+    '-hide_banner', '-nostats', '-y', '-i', sourceVideoPath,
+    '-vn', '-af', 'volumedetect', '-f', 'null', '-'
+  ], { env: getToolEnv(), encoding: 'utf8', timeout: 10 * 60 * 1000, maxBuffer: 64 * 1024 * 1024 });
+  const meanMatch = String(volumeProbe.stderr || '').match(/mean_volume:\s*(-?[\d.]+) dB/);
+  if (meanMatch) {
+    const mean = Number(meanMatch[1]);
+    if (Number.isFinite(mean)) noiseFloorDb = Math.round(Math.max(-40, Math.min(-22, mean - 12)));
+  }
   // silencedetect reports on stderr even on success, so this has to be spawnSync: with
   // execFileSync the log is only reachable from a thrown error, which made every cue
   // look pause-free.
   const probe = spawnSync(ffmpeg, [
     '-hide_banner', '-nostats', '-y', '-i', sourceVideoPath,
     '-vn',
-    '-af', 'silencedetect=noise=-26dB:d=0.20', '-f', 'null', '-'
+    '-af', `silencedetect=noise=${noiseFloorDb}dB:d=0.20`, '-f', 'null', '-'
   ], { env: getToolEnv(), encoding: 'utf8', timeout: 10 * 60 * 1000, maxBuffer: 64 * 1024 * 1024 });
   const log = String(probe.stderr || '');
   if (!log) return windows;

@@ -528,6 +528,20 @@ def is_forbidden_boundary(left_word, right_word):
         return True
     if left.endswith("가로채") and right.startswith("막"):
         return True
+    # A ONE-SYLLABLE word with a ㄴ/ㄹ final is almost always a verbal modifier (준/본/한/될/간)
+    # or a noun that reads as one; tearing it from its neighbour produced "대학에서 | 준 실험용".
+    # Forbid the boundary on BOTH sides of such a word so the partition routes around it.
+    def _single_syllable_modifier(word):
+        core = word_core(word)
+        if len(core) != 1:
+            return False
+        code = ord(core) - 0xAC00
+        if code < 0 or code > 11171:
+            return False
+        final = code % 28
+        return final in (4, 8)  # ㄴ, ㄹ
+    if _single_syllable_modifier(right) or _single_syllable_modifier(left):
+        return True
     return False
 
 

@@ -1,0 +1,46 @@
+{
+  "version": "2026-08-10",
+  "note": "무비리캡 전용 서사 후킹 패턴 라이브러리. 외부 자료의 심리 구조 분류를 참고하되 패턴·문구는 독자 작성 (개인사용 라이선스 코드 미사용). 제목은 반드시 클립이 실제로 보여주는 것에 근거해야 한다 — 내용 불일치는 최대 감점.",
+  "narrative_elements": [
+    "protagonist", "goal", "threat", "secret", "reversal", "betrayal",
+    "impossible_situation", "moral_dilemma", "time_pressure", "power_gap",
+    "abnormal_action", "discovery", "consequence", "false_premise", "identity"
+  ],
+  "patterns": [
+    { "id": "info_gap", "name": "정보 공백", "needs": ["secret", "identity"], "skeleton": "아무도 몰랐던 {대상}의 진짜 {정체/이유}", "avoid": "답을 제목에서 절반이라도 말하면 죽는다" },
+    { "id": "forbidden", "name": "금지/규칙 위반", "needs": ["abnormal_action", "threat"], "skeleton": "절대 {하면 안 되는 것}을 해버린 {인물}", "avoid": "클립에 금지 규칙이 실재해야 함" },
+    { "id": "interrupted_action", "name": "행동 중단", "needs": ["abnormal_action", "discovery"], "skeleton": "{행동}하려던 순간, {인물}은 {이상한 것}을 본다", "avoid": "중단의 이유를 말하지 말 것" },
+    { "id": "result_first", "name": "결과 선공개", "needs": ["consequence"], "skeleton": "단 한 번의 {행동}으로 {큰 결과}", "avoid": "결과가 클립 안에서 실제로 보여야 함" },
+    { "id": "impossible", "name": "불가능 상황", "needs": ["impossible_situation"], "skeleton": "{출구 없는 상황}에서 살아남는 방법은 하나였다", "avoid": "그 '하나'를 제목에서 밝히지 말 것" },
+    { "id": "hidden_identity", "name": "숨겨진 정체", "needs": ["identity", "secret"], "skeleton": "{평범한 겉모습}인 줄 알았는데, 모두가 속고 있었다", "avoid": "정체 자체를 쓰면 스포일러 감점" },
+    { "id": "role_reversal", "name": "역할 역전", "needs": ["reversal", "power_gap"], "skeleton": "{쫓던/잡으러 온} {A}가 오히려 {당하는 처지}가 됐다", "avoid": "" },
+    { "id": "betrayal", "name": "배신", "needs": ["betrayal"], "skeleton": "{N년간} 믿었던 {관계}가 사실 {모든 일의 시작}이었다", "avoid": "클립이 배신을 실제로 보여줄 때만" },
+    { "id": "moral_dilemma", "name": "도덕적 딜레마", "needs": ["moral_dilemma", "consequence"], "skeleton": "{소중한 것}을 지키려면 {끔찍한 대가}를 치러야 한다", "avoid": "" },
+    { "id": "countdown", "name": "카운트다운", "needs": ["time_pressure", "threat"], "skeleton": "{N분} 안에 {과제} 못 하면 {결과}", "avoid": "클립에 실제 시간 압박이 있을 때만" },
+    { "id": "power_gap", "name": "능력 격차", "needs": ["power_gap", "identity"], "skeleton": "아무도 몰랐던 {하찮아 보이는 인물}의 미친 {능력}", "avoid": "" },
+    { "id": "false_premise", "name": "잘못된 전제", "needs": ["false_premise", "reversal"], "skeleton": "모두가 {X}라고 생각했다. 그런데 아니었다", "avoid": "진짜 답을 이어 쓰지 말 것" },
+    { "id": "unexplained_cause", "name": "원인 미공개", "needs": ["abnormal_action", "secret"], "skeleton": "{구체적 시간/장소}마다 {이상한 일}이 벌어지는 이유", "avoid": "이유를 쓰면 죽는다" },
+    { "id": "abnormal_behavior", "name": "이상 행동", "needs": ["abnormal_action"], "skeleton": "{인물}은 매일 {이해 불가능한 행동}을 했다", "avoid": "행동은 구체적으로, 이유는 비공개" },
+    { "id": "price_paid", "name": "대가/희생", "needs": ["consequence", "goal"], "skeleton": "{얻은 것}의 대가는 생각보다 끔찍했다", "avoid": "" },
+    { "id": "forced_choice", "name": "선택의 함정", "needs": ["moral_dilemma", "impossible_situation"], "skeleton": "둘 중 하나를 골라야만 살아남는다", "avoid": "" },
+    { "id": "underdog", "name": "약자 반전", "needs": ["power_gap", "reversal"], "skeleton": "모두가 무시하던 {약자}가 {강자 집단}을 혼자 상대했다", "avoid": "" },
+    { "id": "discovery", "name": "발견", "needs": ["discovery"], "skeleton": "{장소} 뒤에서 발견한 {것} 하나가 모든 걸 바꿨다", "avoid": "발견물의 정체는 비공개" },
+    { "id": "relation_reversal", "name": "관계 반전", "needs": ["reversal", "identity", "betrayal"], "skeleton": "{적대 행동을 하는 사람}이 사실 {뜻밖의 관계}였다", "avoid": "클립이 관계를 확정할 때만 — 추측 금지" },
+    { "id": "causal_reversal", "name": "인과 역전", "needs": ["consequence", "goal"], "skeleton": "{좋은 의도의 행동}이 오히려 {정반대 결과}를 불렀다", "avoid": "" }
+  ],
+  "scoring": {
+    "curiosity_gap": 20,
+    "narrative_tension": 20,
+    "specificity": 15,
+    "emotional_stakes": 15,
+    "instant_clarity": 10,
+    "novelty": 10,
+    "brevity": 10,
+    "penalties": {
+      "content_mismatch": -40,
+      "ending_spoiled": -15,
+      "abstract_wording": -10,
+      "generic_clickbait": -10
+    }
+  }
+}
