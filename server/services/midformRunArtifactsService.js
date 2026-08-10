@@ -440,6 +440,39 @@ async function collectRunArtifacts({
         gateResults.failed.push('narration_broll_semantic_bounds');
         gateResults.status = 'failed';
       }
+      // Speaker colour gate: the 2026-08-11 ja build shipped with EVERY dialogue caption
+      // white - metadata warnings existed but nothing failed the run. A dialogue row with no
+      // caption_color, or two speakers collapsed onto one colour, is a hard fail.
+      {
+        const colorIssues = [];
+        for (const [manifestLabel, manifest] of manifestsToCheck) {
+          const colorByAlias = new Map();
+          for (const segment of manifest?.segments || []) {
+            if (!['dialogue_quote', 'dialogue'].includes(String(segment.segment_type || ''))) continue;
+            const alias = String(segment.speaker_alias || segment.speaker || '').trim();
+            const color = String(segment.caption_color || '').trim();
+            if (!color) {
+              colorIssues.push({ manifest: manifestLabel, segment_id: segment.segment_id, kind: 'dialogue_caption_color_missing', speaker: alias });
+              continue;
+            }
+            if (alias) {
+              if (!colorByAlias.has(alias)) colorByAlias.set(alias, color);
+              else if (colorByAlias.get(alias) !== color) colorIssues.push({ manifest: manifestLabel, segment_id: segment.segment_id, kind: 'speaker_color_inconsistent', speaker: alias });
+            }
+          }
+          const distinctAliases = colorByAlias.size;
+          const distinctColors = new Set(colorByAlias.values()).size;
+          if (distinctAliases >= 2 && distinctColors < 2) {
+            colorIssues.push({ manifest: manifestLabel, kind: 'speaker_colors_collapsed', speakers: [...colorByAlias.keys()] });
+          }
+        }
+        const colorStatus = colorIssues.length ? 'fail' : 'pass';
+        gateResults.results.push({ id: 'dialogue_caption_colors', status: colorStatus, issue_count: colorIssues.length, issues: colorIssues.slice(0, 8) });
+        if (colorStatus === 'fail') {
+          gateResults.failed.push('dialogue_caption_colors');
+          gateResults.status = 'failed';
+        }
+      }
     }
   }
   // Narration-visual MATCH gate runs POST-LOCALE (evaluateFinalLocaleGates) - at collect time

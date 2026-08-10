@@ -106,9 +106,10 @@ test('latest Steve Jobs draft has material-level colors matching dialogue manife
 test('CapCut reusable midform preset keeps 9:16 layout and dialogue glow inheritance', () => {
   const source = fs.readFileSync(CAPCUT_DRAFT_SCRIPT, 'utf8');
 
-  assert.match(source, /MIDFORM_FIXED_TITLE_Y = 0\.7004421221864953/);
-  assert.match(source, /MIDFORM_FIXED_SUBTITLE_Y = 0\.5416639871382638/);
-  assert.match(source, /MIDFORM_CAPTION_Y = -0\.35/);
+  assert.match(source, /MIDFORM_FIXED_TITLE_Y = 0\.6713/);
+  assert.match(source, /MIDFORM_FIXED_SUBTITLE_Y = 0\.5125/);
+  assert.match(source, /MIDFORM_CAPTION_Y = -0\.44/);
+  assert.match(source, /MIDFORM_CAPTION_LANE_OFFSETS = \(0\.0, 0\.10\)/);
   assert.match(source, /preserve_glow_effect_layers_for_colored_caption/);
   assert.doesNotMatch(source, /ref_type in \{"text_effect", "bloom"\}/);
   assert.match(source, /material\["use_effect_default_color"\] = False/);

@@ -237,6 +237,30 @@ def apply_text_material_fill_color(material, hex_color):
     return True
 
 
+def apply_text_material_font_size(material, size_value):
+    """Set the font size on every style range of a caption material (ja narration runs
+    smaller than ko at the same size, owner directive 2026-08-11: ja narration = 9)."""
+    if not isinstance(material, dict):
+        return False
+    content_json = parse_json_text_content(material.get("content"))
+    if not isinstance(content_json, dict):
+        return False
+    styles = content_json.get("styles")
+    if not isinstance(styles, list) or not styles:
+        styles = [{"range": [0, len(str(content_json.get("text") or ""))]}]
+        content_json["styles"] = styles
+    for style_item in styles:
+        if isinstance(style_item, dict):
+            style_item["size"] = size_value
+    material["content"] = json.dumps(content_json, ensure_ascii=False)
+    if "font_size" in material:
+        material["font_size"] = size_value
+    return True
+
+
+MIDFORM_JA_NARRATION_FONT_SIZE = 9
+
+
 def preserve_glow_effect_layers_for_colored_caption(material, segment, draft_doc):
     """Keep template glow/effect refs while letting speaker fill color drive dialogue text.
 
@@ -1909,20 +1933,27 @@ def upsert_timerange(segment_obj, start_us, duration_us):
         segment_obj["render_timerange"] = {"start": int(start_us), "duration": int(duration_us)}
 
 
-MIDFORM_FIXED_TITLE_Y = 0.7004421221864953
+# Title block centered in the PERCEIVED screen box (owner feedback 2026-08-11): the box glow
+# tops out at canvas ~154px and the frame below runs to ~620px, so the visual center sits
+# ~28px lower than the geometric dark-area center the old values targeted.
+MIDFORM_FIXED_TITLE_Y = 0.6713
 # Band title lines render a touch large for the 1080px top band (owner feedback 2026-08-08):
 # scale whatever size the CapCut template carries rather than pinning an absolute value.
 MIDFORM_TITLE_FONT_SCALE = 0.85
-MIDFORM_FIXED_SUBTITLE_Y = 0.5416639871382638
-MIDFORM_CAPTION_Y = -0.35
+MIDFORM_FIXED_SUBTITLE_Y = 0.5125
+# Caption base line (라인2) hugs the bottom band's bright frame line (canvas y≈1427):
+# center 1382px puts the glyph bottoms ~11px above it (owner feedback 2026-08-11).
+MIDFORM_CAPTION_Y = -0.44
 # Two caption lanes, each with its own row and its own text track (user directive).
-#   lane 0 - narration's line: narration and the SECOND speaker of an exchange
-#   lane 1 - the row beneath it: the FIRST speaker of an exchange
+#   lane 0 (라인2) - the BASE line just above the frame's bright line: narration is pinned
+#                    here, and the second speaker of an exchange shares it
+#   lane 1 (라인1) - the row ABOVE it: the first speaker, and any dialogue that runs
+#                    concurrently with narration (owner directive 2026-08-11)
 # Captions used to run strictly serially on one track: 42 segments, zero overlaps, 41 of them
 # butted end to end. Two rows changed nothing because nothing was ever simultaneous. With a
 # track per lane, order only has to hold WITHIN a lane, so back-to-back speech from two people
 # can share a moment instead of pushing each other later.
-MIDFORM_CAPTION_LANE_OFFSETS = (0.0, -0.10)
+MIDFORM_CAPTION_LANE_OFFSETS = (0.0, 0.10)
 # A caption may outlive its own video clip so two speakers can share the screen: the clips stay
 # disjoint for the capcut gates while the captions overlap on their lanes. Bounded so a line
 # cannot linger indefinitely over later footage.
@@ -1949,15 +1980,30 @@ def assign_midform_speaker_rows(entries):
     """
     lanes = []
     lane_by_alias = {}
+    # Narration owns lane 0 (the base line). A dialogue caption that OVERLAPS a narration
+    # caption in time must therefore ride lane 1 - narration stays put, speech goes above
+    # (owner directive 2026-08-11).
+    narration_spans = [
+        (safe_float((e or {}).get("start_sec"), 0.0), safe_float((e or {}).get("end_sec"), 0.0))
+        for e in entries or []
+        if str((e or {}).get("caption_kind") or "").strip() != "dialogue"
+    ]
+    def overlaps_narration(entry):
+        es = safe_float((entry or {}).get("start_sec"), 0.0)
+        ee = safe_float((entry or {}).get("end_sec"), 0.0)
+        return any(es < ne - 0.01 and ee > ns + 0.01 for ns, ne in narration_spans)
     for entry in entries or []:
         if str((entry or {}).get("caption_kind") or "").strip() != "dialogue":
             lanes.append(0)
             lane_by_alias.clear()
             continue
+        if overlaps_narration(entry):
+            lanes.append(1)
+            continue
         alias = str((entry or {}).get("speaker_alias") or (entry or {}).get("speaker") or "").strip()
         if alias not in lane_by_alias:
-            # First speaker of the exchange takes the lower row; the one who answers takes the
-            # narration line. A third voice reuses the row held by whoever spoke least recently.
+            # First speaker of the exchange takes the upper row; the one who answers takes the
+            # base line. A third voice reuses the row held by whoever spoke least recently.
             if not lane_by_alias:
                 lane_by_alias[alias] = 1
             elif 0 not in lane_by_alias.values():
@@ -3073,6 +3119,10 @@ def rebuild_midform_caption_track_from_template(draft_content_path, template_doc
         color_applied = bool(caption_color and apply_text_material_fill_color(cloned_material, caption_color))
         if color_applied:
             summary["colored_segments"] += 1
+        # ja narration reads larger than ko at the same nominal size (CJK glyph density):
+        # owner directive 2026-08-11 pins ja narration to size 9. Dialogue keeps template size.
+        if FRAME_LOCALE == "ja" and str(entry.get("caption_kind") or "").strip() != "dialogue":
+            apply_text_material_font_size(cloned_material, MIDFORM_JA_NARRATION_FONT_SIZE)
         ensure_material_category(draft_content, "texts").append(cloned_material)
         if isinstance(old_material_id, str) and old_material_id:
             source_to_target_id_map[old_material_id] = new_material_id
@@ -10181,6 +10231,10 @@ def create_draft(input_json_path):
     # was squeezed against its clip end to zero length (15.312-15.312).
     prev_chunk_group = None
     prev_chunk_end_us = 0
+    # Last-resort speaker palette: the 2026-08-11 ja build shipped every dialogue caption WHITE
+    # because the locale branch dropped speaker metadata and no layer below re-resolved it.
+    # First-appearance order over the fallback palette keeps speakers distinct up to its size.
+    fallback_color_by_alias = {}
     for idx, timeline_item in enumerate(draft_timeline_units):
         caption_unit = timeline_item.get("caption_unit") if isinstance(timeline_item.get("caption_unit"), dict) else None
         tts = timeline_item.get("tts") if isinstance(timeline_item.get("tts"), dict) else None
@@ -10207,6 +10261,14 @@ def create_draft(input_json_path):
                 warnings.append(f"{caption_id}: dialogue caption is missing speaker metadata")
             if not caption_color:
                 warnings.append(f"{caption_id}: dialogue caption has no resolved speaker color")
+                alias_key = normalize_text_value(speaker_alias or speaker) or "speaker_unknown"
+                if alias_key not in fallback_color_by_alias:
+                    palette = [v for v in (caption_color_config.get("fallback_roles") or {}).values()
+                               if str(v).startswith("#")] or ["#B48CFF", "#4DDCCB", "#FF8A5C", "#D3E84C"]
+                    used = set(fallback_color_by_alias.values())
+                    available = [v for v in palette if v not in used] or palette
+                    fallback_color_by_alias[alias_key] = available[0]
+                caption_color = fallback_color_by_alias[alias_key]
         else:
             caption_color = ""
         source_clips = get_segment_source_clips(segment_info)
