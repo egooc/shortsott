@@ -707,6 +707,7 @@ async function judgeFramesAgainstText({ framePaths, text }) {
     'Judge STRICTLY whether the frames show what the narration describes at this moment.',
     'A mismatch example: narration says "the monster charges again" while the frames show it already falling down a shaft, or an explosion, or a kiss.',
     'IMPORTANT nuance: a narration stating that something is GONE, disappeared, defeated, or "could not return" MATCHES aftermath footage where that thing is absent (e.g., survivors embracing after the monster is gone). Absence of the subject is not a mismatch for an absence statement. Mismatch requires the frames to show something that CONTRADICTS the sentence.',
+    'Same for FORESHADOWING: a narration teasing that something is approaching, following, or waiting OFF-SCREEN (e.g., "something was climbing up after them") MATCHES frames of characters who cannot see it yet - the unseen subject does not need to be on screen. Only flag it if the frames actively contradict the tease (e.g., the thing is already there, or already dealt with).',
     'Respond JSON: {"match": true|false, "on_screen": "<one short sentence: what the frames actually show>", "reason": "<one short sentence>"}'
   ].join('\n') });
   const body = {

@@ -587,6 +587,17 @@ async function evaluateFinalLocaleGates({ workspaceDir, pipelineRunDir, sourceVi
           slotNarr.set(key, (slotNarr.get(key) || 0) + Number(segment.duration_sec || 0));
           if (!slotText.has(key) && (segment.narration || segment.caption_text)) slotText.set(key, String(segment.narration || segment.caption_text));
         }
+        // SENTENCE-level judging: a slot-level verdict over mixed frames let '달려듭니다'
+        // pass over falling footage - the exact miss the human kept catching. Each manifest
+        // row is one sentence with its own duration; map each sentence to ITS seconds within
+        // the clip sequence and judge that pair.
+        const slotRows = new Map();
+        for (const segment of manifest.segments || []) {
+          if (segment.segment_type !== 'recap') continue;
+          const key = String(segment.segment_id || '');
+          if (!slotRows.has(key)) slotRows.set(key, []);
+          slotRows.get(key).push({ text: String(segment.caption_text || segment.narration || ''), sec: Number(segment.duration_sec || 0) });
+        }
         const seen = new Set();
         for (const segment of manifest.segments || []) {
           if (segment.segment_type !== 'recap') continue;
@@ -595,17 +606,56 @@ async function evaluateFinalLocaleGates({ workspaceDir, pipelineRunDir, sourceVi
           seen.add(key);
           const clips = segment.source_clips || [];
           if (!clips.length || !slotText.get(key)) continue;
+          // flatten the played timeline of the clip sequence into absolute source seconds
+          const playedSpans = [];
           let budget = slotNarr.get(key) || 0;
-          const sampleTimes = [];
           for (const clip of clips) {
             const cs = parseTimecodeSec(clip.start);
             const ce = parseTimecodeSec(clip.end);
             const played = Math.max(0, Math.min(ce - cs, budget));
             if (played <= 0) break;
-            sampleTimes.push(cs + Math.min(0.5, played / 2));
-            if (played > 2.5) sampleTimes.push(cs + played / 2);
-            sampleTimes.push(cs + Math.max(played - 0.4, played * 0.8));
+            playedSpans.push([cs, cs + played]);
             budget -= played;
+          }
+          const atOffset = (offsetSec) => {
+            let remaining = offsetSec;
+            for (const [ps, pe] of playedSpans) {
+              if (remaining <= pe - ps) return ps + remaining;
+              remaining -= (pe - ps);
+            }
+            return playedSpans.length ? playedSpans[playedSpans.length - 1][1] - 0.2 : 0;
+          };
+          const rows = (slotRows.get(key) || []).filter((row) => row.sec > 0 && row.text);
+          const sentenceSamples = [];
+          let cursorSec = 0;
+          for (const row of rows) {
+            sentenceSamples.push({ text: row.text, times: [atOffset(cursorSec + Math.min(0.4, row.sec / 2)), atOffset(cursorSec + row.sec * 0.7)] });
+            cursorSec += row.sec;
+          }
+          const sampleTimes = sentenceSamples.length ? [] : [atOffset(0.4), atOffset((slotNarr.get(key) || 1) * 0.7)];
+          // per-sentence judging replaces the slot-level pass below when rows exist
+          if (sentenceSamples.length) {
+            for (const sample of sentenceSamples) {
+              const framePaths = [];
+              for (const [sampleIndex, sampleSec] of sample.times.entries()) {
+                const framePath = path.join(workspaceDir, `.judge_${locale}_${key}_s${judged}_${sampleIndex}.png`);
+                const probe = spawnSync(process.env.FFMPEG_PATH || 'ffmpeg', ['-y', '-loglevel', 'error', '-ss', String(sampleSec), '-i', sourceVideo, '-frames:v', '1', '-vf', 'scale=400:-1', framePath], { encoding: 'utf8', timeout: 60000 });
+                if (probe.status === 0 && fs.existsSync(framePath)) framePaths.push(framePath);
+              }
+              if (!framePaths.length) continue;
+              try {
+                const verdict = await judgeFramesAgainstText({ framePaths, text: sample.text });
+                judged += 1;
+                if (verdict && verdict.match === false) {
+                  issues.push({ locale, segment_id: key, sentence: sample.text.slice(0, 60), on_screen: String(verdict.on_screen || '').slice(0, 160), reason: String(verdict.reason || '').slice(0, 160) });
+                }
+              } catch {
+                gates.warnings = [...new Set([...(gates.warnings || []), `narration_visual_match_judge_error:${key}`])];
+              } finally {
+                for (const framePath of framePaths) { try { fs.unlinkSync(framePath); } catch { /* temp */ } }
+              }
+            }
+            continue;
           }
           const framePaths = [];
           for (const [sampleIndex, sampleSec] of sampleTimes.slice(0, 5).entries()) {

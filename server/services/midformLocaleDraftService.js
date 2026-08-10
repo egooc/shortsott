@@ -288,10 +288,17 @@ function normalizeDraftSpecSourceRanges(draftSpec, baseDraftInput = {}) {
   // 9.1s where the synthesized narration was 7.2s, and the estimate-capped clip still put 2s
   // of the wrong scene on screen.
   const realTtsSecBySlot = new Map();
+  // Cumulative per-sentence offsets (ttsFiles are one file per sentence, in order): montage
+  // part cuts snap to these so a sentence never straddles a part boundary.
+  const sentenceCumSecBySlot = new Map();
   for (const file of Array.isArray(baseDraftInput?.ttsFiles) ? baseDraftInput.ttsFiles : []) {
     const slotKey = String(file?.segment_id || '').trim();
     const sec = Number(file?.duration_sec || 0);
-    if (slotKey && sec > 0) realTtsSecBySlot.set(slotKey, (realTtsSecBySlot.get(slotKey) || 0) + sec);
+    if (slotKey && sec > 0) {
+      realTtsSecBySlot.set(slotKey, (realTtsSecBySlot.get(slotKey) || 0) + sec);
+      if (!sentenceCumSecBySlot.has(slotKey)) sentenceCumSecBySlot.set(slotKey, []);
+      sentenceCumSecBySlot.get(slotKey).push(realTtsSecBySlot.get(slotKey));
+    }
   }
   const next = cloneJson(draftSpec);
   const placements = Array.isArray(next?.clip_placement) ? next.clip_placement : [];
@@ -540,19 +547,35 @@ function normalizeDraftSpecSourceRanges(draftSpec, baseDraftInput = {}) {
     // when the scene cut leaves the clip shorter than the narration, CONTINUE with the next
     // free scene-snapped chunk inside the window instead of freezing - the narration's later
     // sentences get the later scene ('사투가 이어집니다' gets the struggle at 127.6-130.1).
+    // A montage cut must also land on a SENTENCE boundary: the ja closing's first part ran
+    // 1s past its first sentence, so '互いを抱きしめたまま' opened on aftermath footage
+    // before the jump to the embrace. Trim small overhangs down to the nearest cumulative
+    // sentence offset so each sentence opens on its own part.
+    if (narrationNeedSec > 0 && (end - start) < narrationNeedSec - 0.4) {
+      const cums = sentenceCumSecBySlot.get(placementSlotKey) || [];
+      let snapCum = null;
+      for (const cum of cums) {
+        if (cum >= 1.0 && cum <= (end - start) && (end - start) - cum <= 1.2) snapCum = cum;
+      }
+      if (snapCum != null && snapCum < (end - start) - 0.05) {
+        end = start + Number(snapCum.toFixed(3));
+        adjusted = true;
+      }
+    }
     const extraRanges = [];
     if (narrationNeedSec > 0 && (end - start) < narrationNeedSec - 0.4) {
       let remainingSec = narrationNeedSec - (end - start);
       let cursor = end + PHYSICAL_SOURCE_GAP_SEC;
-      // Prefer footage AFTER the reserved action beats inside this window: the beat will show
-      // the adjacent footage (fall/explosion) as its own original-audio content, so the
-      // narration continuing straight into it both previews the beat and mismatches the
-      // sentence ('사투' got the fall again). Post-beat footage (the struggle) is the
-      // narration's own material.
+      // Continuation FIRST: the free footage right across the scene cut is the same action
+      // continuing (grab attempt at 107.6-110.8 → the fall at 110.8+), which is exactly what
+      // a frame-true sentence describes. Jumping ahead is only right when that continuation
+      // is itself reserved beat footage ('사투' previewing the beat's fall) - so jump past
+      // the reserved beats ONLY when the immediate continuation is blocked.
+      const continuationBlocked = Boolean(overlapsReserved(cursor, cursor + Math.min(Math.max(remainingSec, 1.0), 1.5)));
       const reservedInside = reservedWindows
         .filter(([rs, re]) => rs >= cursor - 0.5 && rs < semanticEnd)
         .sort((l, r) => r[1] - l[1]);
-      if (reservedInside.length) {
+      if (continuationBlocked && reservedInside.length) {
         const postReservedStart = reservedInside[0][1] + PHYSICAL_SOURCE_GAP_SEC;
         if (semanticEnd - postReservedStart >= 1.5) cursor = postReservedStart;
       }
