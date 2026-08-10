@@ -45,7 +45,7 @@ node scripts/midform.js run --template <경로>   (백그라운드, ~10분 예�
 2. compress run의 `source_case.json` — 자동 프로파일이 케이스북 판단과 일치하는지
 3. 이후 `/script-review` → 사용자 승인 → `review-resume` → `/draft-verify`
 
-실패 시 `/run-diagnose`.
+실패 시 `run_summary.json`의 failure_reason.details.checks에서 ok:false 항목부터 읽는다. 수정 후 재구축은 `/rebuild-loop`.
 
 ## 5. 완료 후 케이스북 갱신 (잊기 쉬움 — 필수)
 
