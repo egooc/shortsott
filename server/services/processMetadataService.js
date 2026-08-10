@@ -54,7 +54,9 @@ const LONGFORM_VISION_CANDIDATE_SCHEMA_VERSION = 'longform_vision_candidates_v1'
 // Matches LONGFORM_HIGHLIGHT_MIN_OUTPUT_COUNT in processQueueService: draft
 // generation ships a longform source with 3 or more distinct real windows, so the
 // analysis gate must not reject a source before it gets there.
-const LONGFORM_MIN_PRODUCTION_HOOK_CANDIDATES = 3;
+// Kept in sync with LONGFORM_HIGHLIGHT_MIN_OUTPUT_COUNT in processQueueService.
+// Approved 2026-08-10 (user sign-off): one complete arc is worth shipping.
+const LONGFORM_MIN_PRODUCTION_HOOK_CANDIDATES = 1;
 const SHORT_DESCRIPTION_SOFT_MAX = 260;
 const MIDFORM_CAPTION_MIN_ITEMS_120S = 30;
 const MIDFORM_CAPTION_MAX_ITEMS_120S = 45;

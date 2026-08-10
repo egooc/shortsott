@@ -80,7 +80,11 @@ const YOUTUBE_IMPORT_DELAY_MAX_MS = 35_000;
 const MAX_LONGFORM_HIGHLIGHT_CANDIDATES = Number.POSITIVE_INFINITY;
 // A longform source aims for 5 highlights but ships as few as 3 distinct real
 // windows. Fewer than this and the item is skipped rather than padded out.
-const LONGFORM_HIGHLIGHT_MIN_OUTPUT_COUNT = 3;
+// Approved 2026-08-10 (user sign-off): one complete hook->process->end arc is
+// worth shipping - was 3, which silently discarded sources with 1-2 real arcs.
+// LONGFORM_MIN_PRODUCTION_HOOK_CANDIDATES in processMetadataService.js must
+// stay in sync (the analysis gate rejects sources below it before drafts).
+const LONGFORM_HIGHLIGHT_MIN_OUTPUT_COUNT = 1;
 const SHORTFORM_HIGHLIGHT_MAX_DURATION_SEC = 10;
 const LONGFORM_HIGHLIGHT_MAX_DURATION_SEC = 24;
 const LONGFORM_HIGHLIGHT_DEFAULT_DURATION_SEC = 16;
@@ -8425,9 +8429,9 @@ function pickHighlightWindows(itemConfig = {}, maxDurationSec = 10, count = 1) {
   }
 
   if (longformSource) {
-    // A longform source ships whatever distinct, real windows it actually found.
-    // Below LONGFORM_HIGHLIGHT_MIN_OUTPUT_COUNT the set is too thin to be worth a
-    // draft, so it returns nothing and the item is reported and skipped - it is
+    // A longform source ships whatever distinct, real windows it actually found -
+    // a single complete arc is enough (LONGFORM_HIGHLIGHT_MIN_OUTPUT_COUNT).
+    // With none it returns nothing and the item is reported and skipped - it is
     // never topped up with generic or evenly spaced fallback windows.
     const minimumWindows = Math.min(requestedCount, LONGFORM_HIGHLIGHT_MIN_OUTPUT_COUNT);
     if (picked.length < minimumWindows) return [];
