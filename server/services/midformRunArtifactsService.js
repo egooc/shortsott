@@ -380,6 +380,49 @@ function collectRunArtifacts({
       }
     }
   }
+  // Narration b-roll semantic bounds (owner report 2026-08-10: '뒤엉켜 싸운다' narration over
+  // the kiss scene, closing b-roll inside the endcard). Every recap clip must sit within its
+  // slot's PLAN window +-8s and inside the usable footage. Fail, not warn - it shipped twice.
+  {
+    const planPath = path.join(workspaceDir, 'edit_plan.json');
+    const sourceCasePath2 = path.join(workspaceDir, 'source_case.json');
+    const plan = fs.existsSync(planPath) ? readJson(planPath) : null;
+    const usableEnd = Number((fs.existsSync(sourceCasePath2) ? readJson(sourceCasePath2) : {})?.usable_end_sec || 0);
+    if (plan) {
+      const spans = new Map((plan.timeline || []).map((slot) => [String(slot.slot_id || ''), [Number(slot.start_sec), Number(slot.end_sec)]]));
+      const issues = [];
+      // Measure the LOCALE manifests as well - the base draft passed while both locale
+      // packers had wandered (the exact blind spot the energy gate had).
+      const manifestsToCheck = [['base', editManifest]];
+      for (const locale of ['ko', 'ja']) {
+        const localeManifestPath = path.join(workspaceDir, `draft_${locale}`, 'edit_manifest.json');
+        if (fs.existsSync(localeManifestPath)) manifestsToCheck.push([locale, readJson(localeManifestPath)]);
+      }
+      for (const [manifestLabel, manifest] of manifestsToCheck) {
+      for (const segment of manifest?.segments || []) {
+        if (segment.segment_type !== 'recap') continue;
+        const span = spans.get(String(segment.segment_id || ''));
+        if (!span || !Number.isFinite(span[0])) continue;
+        for (const clip of segment.source_clips || []) {
+          const clipStart = parseTimecodeSec(clip.start);
+          const clipEnd = parseTimecodeSec(clip.end);
+          if (!(clipEnd > clipStart)) continue;
+          if (clipStart < span[0] - 8.5 || clipEnd > span[1] + 8.5) {
+            issues.push({ manifest: manifestLabel, segment_id: segment.segment_id, clip: [Number(clipStart.toFixed(2)), Number(clipEnd.toFixed(2))], plan_window: span, kind: 'outside_scene' });
+          } else if (usableEnd > 0 && clipEnd > usableEnd + 0.25) {
+            issues.push({ manifest: manifestLabel, segment_id: segment.segment_id, clip: [Number(clipStart.toFixed(2)), Number(clipEnd.toFixed(2))], usable_end_sec: usableEnd, kind: 'past_usable_end' });
+          }
+        }
+      }
+      }
+      const status = issues.length ? 'fail' : 'pass';
+      gateResults.results.push({ id: 'narration_broll_semantic_bounds', status, issue_count: issues.length, issues: issues.slice(0, 8) });
+      if (status === 'fail') {
+        gateResults.failed.push('narration_broll_semantic_bounds');
+        gateResults.status = 'failed';
+      }
+    }
+  }
   const acceptancePath = path.join(workspaceDir, 'acceptance_gates.json');
   writeJson(acceptancePath, gateResults);
   const previewProof = generatePreviewFrameProof({

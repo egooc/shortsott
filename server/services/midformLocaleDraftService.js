@@ -362,15 +362,33 @@ function normalizeDraftSpecSourceRanges(draftSpec, baseDraftInput = {}) {
     // B-roll must not sit on top of reserved dialogue/scene-hook footage: those segments
     // keep their true source windows, so nudge the packed range forward past any overlap.
     if (process.env.MIDFORM_PACK_DEBUG) console.error(`[pack:preNudge] ${placement.clip_id} start=${start}`);
+    // SEMANTIC BOUNDS: a narration clip must show its own scene. The nudge loop and the
+    // relocation below used to wander the whole footage - "뒤엉켜 싸운다" narration shipped
+    // over the kiss scene 50s away. B-roll may drift at most ~8s around its slot's window.
+    const semanticStart = Math.max(0, Number(sourceRange[0]) - 8);
+    const semanticEnd = sourceDurationSec > 0
+      ? Math.min(sourceDurationSec, Number(sourceRange[1]) + 8)
+      : Number(sourceRange[1]) + 8;
+    let forceRelocate = false;
     for (let guard = 0; guard < 32; guard += 1) {
       const blocking = overlapsReserved(start, alignedEndSec != null ? alignedEndSec : start + duration);
       if (!blocking) break;
       start = blocking[1] + PHYSICAL_SOURCE_GAP_SEC;
+      if (start > semanticEnd - 1.0) { forceRelocate = true; break; }
     }
     let end = alignedEndSec != null ? alignedEndSec : (start + duration);
+    // The END must respect the scene bounds too: a nudge chain left the start just inside
+    // the boundary while the clip ran 9s past it into the next scene (slot_07 135.5-147.1
+    // against a 138.1 bound - the kiss played under '재돌진' narration).
+    let endClampedToScene = false;
+    if (end > semanticEnd) {
+      end = semanticEnd;
+      endClampedToScene = true;
+      if (end - start < 1.0) forceRelocate = true;
+    }
     if (process.env.MIDFORM_PACK_DEBUG) console.error(`[pack:postEndCap] ${placement.clip_id} start=${start} end=${typeof end!=='undefined'?end:'-'}`);
 
-    let adjusted = start !== Number(sourceRange[0]) || duration !== originalDuration;
+    let adjusted = start !== Number(sourceRange[0]) || duration !== originalDuration || endClampedToScene;
     if (sourceDurationSec > 0 && end > sourceDurationSec) {
       end = sourceDurationSec;
       if (end <= start) end = Math.min(sourceDurationSec, start + 0.5);
@@ -384,7 +402,7 @@ function normalizeDraftSpecSourceRanges(draftSpec, baseDraftInput = {}) {
     // same tail replaying with its leftover audio. Relocate whenever the clip covers well under
     // the time it has to fill.
     const placementNeed = rangeDuration(Array.isArray(placement?.timeline_range) ? placement.timeline_range.map(Number) : []);
-    if ((end - start < 1.0 || (placementNeed > 0 && end - start < placementNeed * 0.6)) && sourceDurationSec > 0) {
+    if ((forceRelocate || end - start < 1.0 || (placementNeed > 0 && end - start < placementNeed * 0.6)) && sourceDurationSec > 0) {
       const gaps = [];
       let cursor = 0;
       // Blockers are BOTH the reserved dialogue windows and every b-roll clip already packed:
@@ -400,15 +418,27 @@ function normalizeDraftSpecSourceRanges(draftSpec, baseDraftInput = {}) {
       // fallback when nothing nearby can carry the clip.
       const wantSec = Math.max(1.0, Math.min(duration, placementNeed > 0 ? placementNeed : duration));
       const intendedStart = Number(sourceRange[0]);
-      const sufficient = gaps.filter(([gs, ge]) => ge - gs >= wantSec);
+      // Only gaps that intersect the slot's semantic neighbourhood may carry its b-roll;
+      // a too-short in-scene clip (the freeze-frame path covers the shortfall) beats a
+      // full-length clip of the WRONG scene.
+      const inBounds = gaps
+        .map(([gs, ge]) => [Math.max(gs, semanticStart), Math.min(ge, semanticEnd)])
+        .filter(([gs, ge]) => ge - gs >= 1.0);
+      const sufficient = inBounds.filter(([gs, ge]) => ge - gs >= wantSec);
       const byDistance = (gs, ge) => Math.min(Math.abs(gs - intendedStart), Math.abs(ge - intendedStart));
-      const pool = sufficient.length ? sufficient : gaps;
+      const pool = sufficient.length ? sufficient : inBounds;
       const best = pool.sort((l, r) => (sufficient.length
         ? byDistance(l[0], l[1]) - byDistance(r[0], r[1])
         : (r[1] - r[0]) - (l[1] - l[0])))[0] || null;
       if (best && best[1] - best[0] >= 1.0) {
         start = best[0] + Math.max(0, (best[1] - best[0] - duration) / 2);
         end = Math.min(best[1], start + Math.max(duration, 1.0));
+        adjusted = true;
+      } else if (forceRelocate) {
+        // Nothing free inside the scene: fall back to the slot's own window and let the
+        // overlap gate judge it - a visible failure beats a silent scene mismatch.
+        start = Math.max(semanticStart, Number(sourceRange[0]));
+        end = Math.min(semanticEnd, start + Math.max(duration, 1.0));
         adjusted = true;
       }
     }
@@ -795,6 +825,9 @@ async function generateLocaleDraftArtifacts({ workspaceDir, baseDraftInputPath, 
       });
       japaneseBase = readJson(built.draftInputPath);
       if (shotBoundaries.length) japaneseBase.shotBoundaries = shotBoundaries;
+      // ja packs from its OWN base input; without the usable end it walked b-roll straight
+      // into the Movieclips endcard (157.6-167 on a 159.1-usable source).
+      if (Number(usableEndSec) > 0) japaneseBase.usableEndSec = Number(usableEndSec);
       outputPaths.script_ja = rel(built.scriptPath);
       outputPaths.draft_input_ja_base = rel(built.draftInputPath);
     } catch (error) {
