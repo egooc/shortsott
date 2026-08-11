@@ -152,7 +152,7 @@
 
 | 배급사 | 결과 | 근거 |
 |---|---|---|
-| Sony Pictures | **차단 (BLOCK)** — 소스 제외 | Hollow Man 2026-08-11: 0:02-1:20 시청각 클레임, 전 국가 차단, "길이 제한 초과". 영상 지문 매칭이라 나레이션 덮어도 무효 |
+| Sony Pictures 계열 전체 (Columbia, Screen Gems, TriStar 포함) | **사용 금지 — 소유주 확정 결정 2026-08-11** | Hollow Man 차단 사고 후 소유주 지시: "sony 계열사는 사용안할게." 기존 소스 중 해당: Hollow Man, Anger Management(Columbia), Anacondas(Screen Gems), A Few Good Men(Columbia) — 발행 금지 |
 
 - 새 소스 실행 전 이 표를 확인하고, 업로드 결과(무클레임/수익화 클레임/차단)를 반드시 추가할 것.
 - 클레임 구간이 전체를 덮은 이유: 리캡 구조상 화면의 대부분이 원본 푸티지 — 편집 레버가 아니라 **소스 선정 레버**로 대응한다.
