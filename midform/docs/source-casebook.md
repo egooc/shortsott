@@ -159,3 +159,16 @@
 
 - 새 소스 실행 전 이 표를 확인하고, 업로드 결과(무클레임/수익화 클레임/차단)를 반드시 추가할 것.
 - 클레임 구간이 전체를 덮은 이유: 리캡 구조상 화면의 대부분이 원본 푸티지 — 편집 레버가 아니라 **소스 선정 레버**로 대응한다.
+
+### 옛 원고 재생성 5소스 배치 (2026-08-11~12) — 데이터 계층·앵커 스미어 교훈
+
+Fruitvale·Breaking Dawn·Halloween·Now You See Me·John Wick 4를 오늘 파이프라인으로 신규 생성하며 굳어진 함정들(전부 코드/케이스북 반영):
+
+1. **텍스트 권위 = compress run의 compression_slot_fills.json**. pipeline run의 slot_fills/script/draft_input을 고쳐도 bootstrap resume가 compress에서 재생성하며 덮는다. 옛 소스 문장 수술은 반드시 compress부터.
+2. **화자 색은 draft가 config(caption_colors.json)에서 이름으로 재계산** → speaker_color_key 지정은 무시됨. 미등록 인물은 fallback 해시 충돌로 collapse(제이콥·세스 둘 다 초록). 새 소스 등장인물은 config에 먼저 등록.
+3. **앵커 스미어 4소스 연속**: 자동자막이 명대사를 여러 큐로 쪼개(반복·접두어·중간 말줄임) beat anchor와 exact 매칭 실패 → KEEP_DIALOGUE 검증 deadlock. 대응: transcript 큐를 앵커 텍스트로 재구성, 안 되면 anchor 완화(key_dialogue로 대사 유지). **STT 후처리에 앵커 자동 병합 넣을 근본 후보.**
+4. **말줄임표 조각 캡션**은 렌더에서 material 없이 떨어져 색 게이트 1개 fail → 대사 병합으로 제거(sub-500ms 슬리버 드롭 코드도 추가됨).
+5. **극조용 대사**(-41 LUFS 병동 속삭임)는 기본 음량 캡(+10/-6=16LU)으로 부족 → MIDFORM_MAX_VIDEO_GAIN_DB/MAX_TTS_CUT_DB로 소스별 상향.
+6. **Vertex 자정 429 폭풍**: 청크 결과 캐시로 진행 누적, global 엔드포인트·480p·페이싱·network 재시도로 완주. 분리 프로세스+에포크 감시자 패턴.
+7. **구조 게이트 어휘**: 총격·연행·심판·처형·대가 등 장르 어휘가 conflict lexicon에 없으면 정상 도입이 fail → lexicon 확장(전 소스 재사용).
+8. **클로징/도입 나레이션이 화면과 자주 어긋남**: 기계 눈이 문장별로 잡음. 걷는 장면에 "우정이 끝났다"→"마지막 동행이었습니다" 식으로 화면 사실화가 정답(발명 금지).
