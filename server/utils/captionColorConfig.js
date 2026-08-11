@@ -177,6 +177,9 @@ function resolveCaptionColor({ speakerAlias = '', speakerColorKey = '' } = {}, c
   const mapped = normalizeText(speakers[alias]);
   if (mapped.startsWith('#')) return mapped;
   if (mapped && String(roles[mapped] || '').startsWith('#')) return roles[mapped];
+  // A speaker mapped to a fallback-palette role (우두머리 -> 기타1) resolves through
+  // fallback_roles; keeping 기타N out of `roles` avoids colliding with generated colors.
+  if (mapped && String(fallbackRoles[mapped] || '').startsWith('#')) return fallbackRoles[mapped];
   if (String(roles[alias] || '').startsWith('#')) return roles[alias];
   const fallbackKey = fallbackSpeakerColorKey(alias, config);
   if (fallbackKey && String(fallbackRoles[fallbackKey] || '').startsWith('#')) return fallbackRoles[fallbackKey];

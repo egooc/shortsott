@@ -162,12 +162,18 @@ def caption_color_for_speaker(speaker, config):
         return ""
     speakers = config.get("speakers") if isinstance(config.get("speakers"), dict) else {}
     roles = config.get("roles") if isinstance(config.get("roles"), dict) else {}
+    fallback_roles = config.get("fallback_roles") if isinstance(config.get("fallback_roles"), dict) else {}
     mapped = normalize_text_value(speakers.get(speaker_key))
     if mapped.startswith("#"):
         return mapped
     role_color = normalize_text_value(roles.get(mapped))
     if role_color.startswith("#"):
         return role_color
+    # A speaker mapped to a fallback-palette role (우두머리 -> 기타1) resolves through
+    # fallback_roles; 기타N is kept out of `roles` to avoid colliding with generated colors.
+    fb_color = normalize_text_value(fallback_roles.get(mapped))
+    if fb_color.startswith("#"):
+        return fb_color
     direct_role_color = normalize_text_value(roles.get(speaker_key))
     if direct_role_color.startswith("#"):
         return direct_role_color
@@ -182,7 +188,11 @@ def caption_color_for_key(speaker_color_key, config):
         return key
     roles = config.get("roles") if isinstance(config.get("roles"), dict) else {}
     role_color = normalize_text_value(roles.get(key))
-    return role_color if role_color.startswith("#") else ""
+    if role_color.startswith("#"):
+        return role_color
+    fallback_roles = config.get("fallback_roles") if isinstance(config.get("fallback_roles"), dict) else {}
+    fb_color = normalize_text_value(fallback_roles.get(key))
+    return fb_color if fb_color.startswith("#") else ""
 
 
 def resolve_caption_color_for_dialogue(speaker, speaker_color_key, config):

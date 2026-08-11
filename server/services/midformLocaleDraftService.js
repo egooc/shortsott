@@ -894,15 +894,14 @@ function buildJapaneseScript(baseScript, japaneseSlotFills) {
     }
     if (['dialogue_quote', 'dialogue'].includes(segmentType)) {
       const lines = Array.isArray(fill.caption_kr_dialogue) ? fill.caption_kr_dialogue : [];
-      const idx = dialogueLineIndexForSegment(segment);
-      const text = String(lines[idx] || '').trim();
-      // ja legitimately translates a ko multi-chunk line into FEWER chunks (a long ko line
-      // split into L01/L02/L03 may be two ja sentences). A trailing chunk past the end of the
-      // ja array is not missing data - the full translation lives in the earlier chunks - so
-      // emit it as a blank caption (the renderer drops sub-500ms/empty segments) instead of
-      // skipping the whole ja locale. Only a HOLE inside the array (idx < length but empty) is
-      // a real translation gap.
-      if (!text && idx < lines.length) missing.push(String(segment?.segment_id || ''));
+      const text = String(lines[dialogueLineIndexForSegment(segment)] || '').trim();
+      // The ko script itself can carry empty dialogue segments (the pipeline splits a slot
+      // into L01..L0N but only fills the lines that have text; slot_10_L03..L05 shipped ko-
+      // empty on Breaking Dawn). A ja blank is only MISSING when the ko line HAS text - then
+      // an untranslated ja slot would leave Korean in the ja cut. When ko is empty too, ja
+      // empty is correct and must not skip the whole locale.
+      const koText = String(segment?.caption_text || segment?.translated_caption_ko || '').trim();
+      if (!text && koText) missing.push(String(segment?.segment_id || ''));
       return { ...segment, translated_caption_ko: text, caption_text: text, tts_enabled: text ? segment?.tts_enabled : false };
     }
     if (segmentType === 'scene_hook') return { ...segment };
