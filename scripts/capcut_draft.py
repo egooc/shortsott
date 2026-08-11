@@ -3172,8 +3172,15 @@ def rebuild_midform_caption_track_from_template(draft_content_path, template_doc
             prev_range = prev_segment.get("target_timerange") or {}
             prev_start = int(prev_range.get("start") or 0)
             trimmed = max(1, start_us - prev_start)
-            prev_range["duration"] = min(int(prev_range.get("duration") or trimmed), trimmed)
-            prev_segment["target_timerange"] = prev_range
+            # A trim that leaves less than half a second is a flash frame, not a caption
+            # (a 48ms sliver shipped on Fruitvale) - drop the earlier caption entirely.
+            if trimmed < 500_000:
+                target_track["segments"].pop()
+                summary.setdefault("dropped_collision_slivers", 0)
+                summary["dropped_collision_slivers"] += 1
+            else:
+                prev_range["duration"] = min(int(prev_range.get("duration") or trimmed), trimmed)
+                prev_segment["target_timerange"] = prev_range
         caption_track_ends[track_position] = start_us + duration_us
         cloned_segment["track_render_index"] = track_position
         target_track["segments"].append(cloned_segment)
