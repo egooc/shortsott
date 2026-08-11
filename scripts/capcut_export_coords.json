@@ -1,0 +1,12 @@
+{
+  "_comment": "CapCut screen-automation coordinates per display resolution (maximized window, 100% scale). Missing resolutions fall back to proportional scaling from reference_resolution - always verify with a real calibration run on a new machine.",
+  "reference_resolution": "2880x1800",
+  "profiles": {
+    "2880x1800": {
+      "search_icon": [2236, 1428],
+      "first_row": [620, 1580],
+      "export_button": [2566, 35],
+      "export_confirm": [1894, 1460]
+    }
+  }
+}

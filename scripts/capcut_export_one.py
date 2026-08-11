@@ -37,17 +37,38 @@ pyautogui.FAILSAFE = True  # mouse to top-left corner aborts
 
 CAPCUT_EXE_DEFAULT = os.path.expandvars(r"%LOCALAPPDATA%\CapCut\9.2.0.3931\CapCut.exe")
 
-# Calibrated 2026-08-11 on 2880x1800, CapCut maximized (see session notes).
 HOME_LOAD_SEC = 20
-COORD_SEARCH_ICON = (2236, 1428)
-COORD_FIRST_ROW = (620, 1580)
 EDITOR_LOAD_SEC = 15
-COORD_EXPORT_BUTTON = (2566, 35)
 EXPORT_DIALOG_SEC = 4
-COORD_EXPORT_CONFIRM = (1894, 1460)
 EXPORT_TIMEOUT_SEC = 420
 SIZE_STABLE_CHECKS = 3
 SIZE_STABLE_INTERVAL_SEC = 2
+
+COORDS_CONFIG = os.path.join(os.path.dirname(__file__), "capcut_export_coords.json")
+
+
+def load_coords():
+    """Per-resolution coordinate profiles (capcut_export_coords.json).
+
+    An unknown resolution falls back to proportional scaling from the
+    reference profile with a warning - calibrate and add a real profile for
+    every machine that runs this unattended.
+    """
+    with open(COORDS_CONFIG, encoding="utf-8") as fh:
+        config = json.load(fh)
+    width, height = pyautogui.size()
+    key = f"{width}x{height}"
+    profiles = config["profiles"]
+    if key in profiles:
+        return profiles[key], key, False
+    ref_key = config["reference_resolution"]
+    ref = profiles[ref_key]
+    ref_w, ref_h = (int(v) for v in ref_key.split("x"))
+    scaled = {name: (round(x * width / ref_w), round(y * height / ref_h))
+              for name, (x, y) in ref.items()}
+    print(f"WARNING: no coordinate profile for {key}; proportionally scaled "
+          f"from {ref_key} - verify with a supervised run", file=sys.stderr)
+    return scaled, key, True
 
 
 def kill_capcut():
@@ -121,6 +142,9 @@ def main():
     started = time.time()
     result = {"status": "error", "draft_name": args.draft_name, "output_path": ""}
     try:
+        coords, resolution_key, scaled = load_coords()
+        result["resolution"] = resolution_key
+        result["coords_scaled_fallback"] = scaled
         before = snapshot_dir(args.export_dir)
         kill_capcut()
         subprocess.Popen([args.capcut_exe])
@@ -128,18 +152,18 @@ def main():
 
         # Search filters the project list to exactly our draft; paste via
         # clipboard because the names carry CJK that pyautogui cannot type.
-        pyautogui.click(*COORD_SEARCH_ICON)
+        pyautogui.click(*coords["search_icon"])
         time.sleep(1.5)
         set_clipboard(args.draft_name)
         pyautogui.hotkey("ctrl", "v")
         time.sleep(2.5)
 
-        pyautogui.doubleClick(*COORD_FIRST_ROW)
+        pyautogui.doubleClick(*coords["first_row"])
         time.sleep(EDITOR_LOAD_SEC)
 
-        pyautogui.click(*COORD_EXPORT_BUTTON)
+        pyautogui.click(*coords["export_button"])
         time.sleep(EXPORT_DIALOG_SEC)
-        pyautogui.click(*COORD_EXPORT_CONFIRM)
+        pyautogui.click(*coords["export_confirm"])
 
         output_path = wait_for_new_export(args.export_dir, before, EXPORT_TIMEOUT_SEC)
         if output_path:

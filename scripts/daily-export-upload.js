@@ -103,8 +103,11 @@ function exportDraft(draftName) {
   }
 }
 
-function publishAtIso(index) {
-  const at = new Date(Date.now() + (FIRST_PUBLISH_DELAY_MIN + index * PUBLISH_INTERVAL_MIN) * 60 * 1000);
+// Slots are PER CHANNEL: each channel independently publishes its first video
+// at +60min and one every 120min after - 12/day/channel fits exactly in 24h,
+// and JP/KR channels never compete for slots (approved 2026-08-11).
+function publishAtIso(indexInChannel) {
+  const at = new Date(Date.now() + (FIRST_PUBLISH_DELAY_MIN + indexInChannel * PUBLISH_INTERVAL_MIN) * 60 * 1000);
   return at.toISOString();
 }
 
@@ -194,12 +197,18 @@ async function main() {
     const connected = candidates.find((profile) => profile.channelTitle || profile.channel_title || profile.channel);
     return (connected || candidates[0])?.id || '';
   };
-  const items = importResult.candidates.map((candidate, index) => ({
-    ...candidate,
-    uploadProfileId: profileForVariant(candidate.variant),
-    privacyStatus: 'private',
-    publishAt: publishAtIso(index)
-  }));
+  const channelCounters = new Map();
+  const items = importResult.candidates.map((candidate) => {
+    const channelKey = candidate.variant === 'ko_highlight' ? 'ko' : 'ja';
+    const indexInChannel = channelCounters.get(channelKey) || 0;
+    channelCounters.set(channelKey, indexInChannel + 1);
+    return {
+      ...candidate,
+      uploadProfileId: profileForVariant(candidate.variant),
+      privacyStatus: 'private',
+      publishAt: publishAtIso(indexInChannel)
+    };
+  });
   const missingProfile = items.filter((item) => !item.uploadProfileId);
   if (missingProfile.length) {
     throw new Error(`no channel profile for variant(s): ${[...new Set(missingProfile.map((item) => item.variant))].join(', ')}`);
