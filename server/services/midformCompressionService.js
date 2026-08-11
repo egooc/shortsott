@@ -4680,6 +4680,9 @@ function validateJapaneseSlotFills(slotFills, editPlan) {
   const checkText = (label, value) => {
     const text = String(value || '').trim();
     if (!text) return;
+    // Punctuation/ellipsis-only lines are language-neutral: '음...' legitimately becomes
+    // '…' in Japanese (a held silence), and rejecting it deadlocked the Halloween run.
+    if (/^[\s.…‥、。！？!?~ー-]+$/.test(text)) return;
     if (KOREAN_SCRIPT_RE.test(text)) offenders.push(`${label} contains Korean: ${text.slice(0, 40)}`);
     else if (!JAPANESE_SCRIPT_RE.test(text)) offenders.push(`${label} is not Japanese: ${text.slice(0, 40)}`);
   };
