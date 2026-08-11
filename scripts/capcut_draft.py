@@ -56,8 +56,12 @@ FULL_CUT_CAPTION_SAFE_MAX_CHARS_KO = 12
 # full-draft one-line cut captions so the forced visibility pass does not turn a
 # paragraph into an off-screen single-line box.
 HIGHLIGHT_EXPLAINER_X = 0.0
-HIGHLIGHT_EXPLAINER_Y = -0.6
-HIGHLIGHT_EXPLAINER_FONT_SIZE = 9.0
+# Approved 2026-08-11 (user sign-off): longform sources carry no burned-in
+# captions to collide with, so the explainer hugs the bottom edge at a smaller
+# size (was y=-0.6 / size 9). -0.88 keeps a ~5-line size-5 block fully
+# on-screen (CapCut y: -1 = bottom edge, text anchored at block center).
+HIGHLIGHT_EXPLAINER_Y = -0.88
+HIGHLIGHT_EXPLAINER_FONT_SIZE = 5.0
 HIGHLIGHT_EXPLAINER_FIXED_WIDTH = 720.0
 HIGHLIGHT_EXPLAINER_ANIMATION_RATIO = 0.5
 HIGHLIGHT_EXPLAINER_MIN_ANIMATION_US = 140_000
@@ -513,8 +517,9 @@ def apply_process_caption_style_profile(material, segment, style_profile):
         }
 
     if profile == "highlight_explainer":
-        original_font_size = safe_float(material.get("font_size"), HIGHLIGHT_EXPLAINER_FONT_SIZE)
-        material["font_size"] = original_font_size if original_font_size > 0 else HIGHLIGHT_EXPLAINER_FONT_SIZE
+        # Forced (not template-fallback) since 2026-08-11: the approved size
+        # must win even when the template text object carries its own size.
+        material["font_size"] = HIGHLIGHT_EXPLAINER_FONT_SIZE
         material["text_color"] = material.get("text_color") or "#FFF2A6"
         material["text_alpha"] = 1.0
         material["global_alpha"] = 1.0
@@ -6870,6 +6875,13 @@ def apply_process_template_clone_mode(generated_draft_content_path, template_doc
         profile = str(style_profile or "").strip()
         if font_size <= 0:
             font_size = HIGHLIGHT_EXPLAINER_FONT_SIZE if profile == "highlight_explainer" else FULL_CUT_CAPTION_FONT_SIZE
+        # Approved 2026-08-11 (user sign-off): explainer size/position are
+        # pipeline policy, not template look. The highlight explainer always
+        # uses the constants (size 5, bottom-edge anchor) even when the
+        # template text object carries its own; colors/effects stay
+        # template-driven.
+        if profile == "highlight_explainer":
+            font_size = HIGHLIGHT_EXPLAINER_FONT_SIZE
 
         clip = segment.get("clip") if isinstance(segment.get("clip"), dict) else {}
         transform = clip.get("transform") if isinstance(clip.get("transform"), dict) else {}
@@ -6881,8 +6893,10 @@ def apply_process_template_clone_mode(generated_draft_content_path, template_doc
             "template_material_id": material.get("id", ""),
             "template_segment_id": segment.get("id", ""),
             "font_size": font_size,
-            "x": safe_float(transform.get("x"), HIGHLIGHT_EXPLAINER_X if profile == "highlight_explainer" else FULL_CUT_CAPTION_X),
-            "y": safe_float(transform.get("y"), HIGHLIGHT_EXPLAINER_Y if profile == "highlight_explainer" else FULL_CUT_CAPTION_Y),
+            "x": HIGHLIGHT_EXPLAINER_X if profile == "highlight_explainer"
+                else safe_float(transform.get("x"), FULL_CUT_CAPTION_X),
+            "y": HIGHLIGHT_EXPLAINER_Y if profile == "highlight_explainer"
+                else safe_float(transform.get("y"), FULL_CUT_CAPTION_Y),
             "scale_x": safe_float(scale.get("x"), 1.0),
             "scale_y": safe_float(scale.get("y"), 1.0),
         }
