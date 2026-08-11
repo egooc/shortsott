@@ -990,8 +990,14 @@ function computeLoudnessAlignment(baseInput, sourceVideoPath) {
     const narrationLufs = Number(mean(narrationValues).toFixed(1));
     const dialogueLufs = Number(mean(dialogueValues).toFixed(1));
     const needed = (narrationLufs - dialogueLufs) - 3;
-    const videoGainDb = needed > 1 ? Number(Math.min(10, needed).toFixed(1)) : 0;
-    const ttsCutDb = needed > 1 ? Number(Math.min(6, Math.max(0, needed - videoGainDb)).toFixed(1)) : 0;
+    // Caps default to +10/-6 (16 LU total). Extremely quietly-mastered dialogue (a psych-ward
+    // whisper measured -41 LUFS, 20.7 LU of correction needed) leaves a residual delta at the
+    // default cap; MIDFORM_MAX_VIDEO_GAIN_DB / MIDFORM_MAX_TTS_CUT_DB raise it per source
+    // (owner-approved trade-off: background ambience rises with the dialogue).
+    const maxVideoGain = Number(process.env.MIDFORM_MAX_VIDEO_GAIN_DB) > 0 ? Number(process.env.MIDFORM_MAX_VIDEO_GAIN_DB) : 10;
+    const maxTtsCut = Number(process.env.MIDFORM_MAX_TTS_CUT_DB) > 0 ? Number(process.env.MIDFORM_MAX_TTS_CUT_DB) : 6;
+    const videoGainDb = needed > 1 ? Number(Math.min(maxVideoGain, needed).toFixed(1)) : 0;
+    const ttsCutDb = needed > 1 ? Number(Math.min(maxTtsCut, Math.max(0, needed - videoGainDb)).toFixed(1)) : 0;
     return { narration_lufs: narrationLufs, dialogue_lufs: dialogueLufs, delta_lu: Number((narrationLufs - dialogueLufs).toFixed(1)), video_gain_db: videoGainDb, tts_cut_db: ttsCutDb };
   } catch {
     return null;
