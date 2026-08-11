@@ -9027,6 +9027,23 @@ async function validateOrRepairJapaneseCaptions({ guide, generateRepairJson, sou
       // demands; when the lane is lenient, fix the labels mechanically
       // instead of burning a Gemini retry on a relabel.
       if (validationOptions.lenientKoreanFullGates && Array.isArray(normalizedCurrent?.full_caption_script_ko) && normalizedCurrent.full_caption_script_ko.length >= 2) {
+        // Gemini sometimes returns the same script repeated verbatim 2-3x
+        // (observed live: 11 good sentences x3 = 33 items / 399 chars ->
+        // budget failure -> repair destroyed the good register). Collapse
+        // exact repeated cycles before validating.
+        const cycleItems = normalizedCurrent.full_caption_script_ko;
+        const cycleTexts = cycleItems.map((item) => String(item?.text || '').trim());
+        for (let period = 2; period <= Math.floor(cycleItems.length / 2); period += 1) {
+          if (cycleItems.length % period !== 0) continue;
+          if (cycleTexts.every((text, index) => text === cycleTexts[index % period])) {
+            normalizedCurrent.full_caption_script_ko = cycleItems.slice(0, period);
+            emitProgress(onProgress, `KR Full 원고 반복 사이클 정규화: ${cycleItems.length}개 → ${period}개 (동일 원고 ${cycleItems.length / period}회 반복 감지)`, {
+              phase: 'kr_full_cycle_collapse',
+              attempt
+            });
+            break;
+          }
+        }
         const scriptItems = normalizedCurrent.full_caption_script_ko;
         if (scriptItems[0] && scriptItems[0].role !== 'hook') scriptItems[0] = { ...scriptItems[0], role: 'hook' };
         const lastIndex = scriptItems.length - 1;
