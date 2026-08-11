@@ -31,6 +31,7 @@
     "audit:highlight-scenes": "node scripts/audit-highlight-scene-structure.js",
     "scorecard:highlight-arc": "node scripts/highlight-arc-scorecard.js",
     "daily:pipeline": "node scripts/daily-pipeline.js",
+    "daily:export-upload": "node scripts/daily-export-upload.js",
     "check:source-eligibility-gate": "node scripts/check-source-eligibility-gate.js"
   },
   "build": {
