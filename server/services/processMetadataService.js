@@ -9076,7 +9076,22 @@ async function validateOrRepairJapaneseCaptions({ guide, generateRepairJson, sou
               });
             }
             const regeneratedFullScriptKo = extractRepairScriptArray(regeneratedFullScript, 'full_caption_script_ko');
-            const regenerationGateIssues = collectKoreanFullRepairGateIssues(regeneratedFullScriptKo);
+            // kr_full lane leniency (approved 2026-08-11): gate findings are
+            // stylistic - discarding the rewrite here left the script array
+            // empty forever (runs 10-11). Accept with a warning instead.
+            const regenerationGateIssues = validationOptions.lenientKoreanFullGates
+              ? []
+              : collectKoreanFullRepairGateIssues(regeneratedFullScriptKo);
+            if (validationOptions.lenientKoreanFullGates) {
+              const softGate = collectKoreanFullRepairGateIssues(regeneratedFullScriptKo);
+              if (softGate.length) {
+                emitProgress(onProgress, `KR Full 레인 관용: 재생성 게이트 이슈 ${softGate.length}건 경고 처리 (${softGate[0].reason})`, {
+                  phase: 'full_caption_script_regeneration_gate_lenient',
+                  attempt,
+                  gate_issues: softGate
+                });
+              }
+            }
             if (regenerationGateIssues.length) {
               if (Array.isArray(regeneratedFullScriptKo) && regeneratedFullScriptKo.length) {
                 lastRejectedFullCaptionScriptKo = regeneratedFullScriptKo;
@@ -9173,7 +9188,19 @@ async function validateOrRepairJapaneseCaptions({ guide, generateRepairJson, sou
             });
           }
           const repairFullScriptKo = extractRepairScriptArray(fullScriptRepair, 'full_caption_script_ko');
-          const repairGateIssues = collectKoreanFullRepairGateIssues(repairFullScriptKo);
+          const repairGateIssues = validationOptions.lenientKoreanFullGates
+            ? []
+            : collectKoreanFullRepairGateIssues(repairFullScriptKo);
+          if (validationOptions.lenientKoreanFullGates) {
+            const softGate = collectKoreanFullRepairGateIssues(repairFullScriptKo);
+            if (softGate.length) {
+              emitProgress(onProgress, `KR Full 레인 관용: repair 게이트 이슈 ${softGate.length}건 경고 처리 (${softGate[0].reason})`, {
+                phase: 'full_caption_script_repair_gate_lenient',
+                attempt,
+                gate_issues: softGate
+              });
+            }
+          }
           if (repairGateIssues.length) {
             if (Array.isArray(repairFullScriptKo) && repairFullScriptKo.length) {
               lastRejectedFullCaptionScriptKo = repairFullScriptKo;
