@@ -5005,7 +5005,7 @@ function validateEditPlanAgainstBeats(editPlan, beats) {
     if (item?.split_part === true) continue;
     for (const anchor of anchors) {
       if (!focusQuotes.has(anchor)) {
-        throw new Error(`${item.slot_id} KEEP_DIALOGUE must include beat anchor: ${anchor}`);
+        throw new Error(`${item.slot_id} KEEP_DIALOGUE must include beat anchor: ${anchor} | slot quotes: ${JSON.stringify([...focusQuotes]).slice(0, 400)}`);
       }
     }
   }
