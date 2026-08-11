@@ -1,0 +1,71 @@
+{
+  "_doc": "플랫폼별 발행 패키지 스펙 (크로스포스트 불사용 — 채널별 개별 작성). hook_carrier = 그 플랫폼에서 후킹을 실어 나르는 필드. fold_chars = 접힘(더보기) 전에 보이는 대략 글자수 — 첫 줄 승부 구간.",
+  "locales": {
+    "ko": ["youtube", "tiktok", "naver_clip", "instagram", "facebook", "threads"],
+    "ja": ["youtube", "tiktok", "instagram", "facebook", "threads"]
+  },
+  "platforms": {
+    "youtube": {
+      "label": "YouTube Shorts",
+      "has_title": true,
+      "title_max": 100,
+      "title_hook_zone": 30,
+      "caption_max": 5000,
+      "caption_role": "검색 보조 - 첫 줄에 핵심 키워드, 2-3줄이면 충분",
+      "hashtags": { "min": 3, "max": 3, "where": "설명 끝 (제목 위에 최대 3개 노출)" },
+      "hook_carrier": "title",
+      "notes": "제목이 전부. 모바일에서 앞 ~30자만 보이므로 후킹 어절을 앞으로."
+    },
+    "tiktok": {
+      "label": "TikTok",
+      "has_title": false,
+      "caption_max": 4000,
+      "fold_chars": 40,
+      "caption_role": "첫 줄(접힘 전 ~40자)이 제목 역할 - 후킹 문장 단독",
+      "hashtags": { "min": 3, "max": 5, "where": "캡션 끝" },
+      "hook_carrier": "caption_first_line",
+      "notes": "틱톡은 검색엔진처럼 쓰임 - 캡션 본문에 검색 키워드 자연 포함."
+    },
+    "naver_clip": {
+      "label": "네이버 클립",
+      "has_title": true,
+      "title_max": 50,
+      "title_hook_zone": 25,
+      "caption_max": 500,
+      "caption_role": "한두 문장 설명 - 네이버 검색 키워드 포함",
+      "hashtags": { "min": 5, "max": 10, "where": "본문 하단 태그란" },
+      "hook_carrier": "title+hashtags",
+      "notes": "네이버는 태그 검색 노출 비중이 큼 - 작품명/배우/장르 태그 폭넓게."
+    },
+    "instagram": {
+      "label": "Instagram Reels",
+      "has_title": false,
+      "caption_max": 2200,
+      "fold_chars": 125,
+      "caption_role": "접힘 전 ~125자가 승부 - 첫 문장 후킹, 둘째 문장 맥락",
+      "hashtags": { "min": 3, "max": 5, "where": "캡션 끝" },
+      "hook_carrier": "caption_first_line",
+      "notes": "해시태그는 3-5개가 공식 권장 - 도배 금지."
+    },
+    "facebook": {
+      "label": "Facebook Reels",
+      "has_title": false,
+      "caption_max": 2200,
+      "fold_chars": 80,
+      "caption_role": "첫 문장이 전부 - 짧게 1-2줄, 대화 유발형",
+      "hashtags": { "min": 1, "max": 3, "where": "캡션 끝" },
+      "hook_carrier": "caption_first_line",
+      "notes": "FB는 해시태그 영향이 작음 - 문장 후킹과 공유 유발이 핵심."
+    },
+    "threads": {
+      "label": "Threads",
+      "has_title": false,
+      "caption_max": 500,
+      "fold_chars": 500,
+      "caption_role": "텍스트가 전부 - 반응/댓글을 부르는 한두 문장 + 영상",
+      "hashtags": { "min": 0, "max": 1, "where": "본문 내 토픽 태그 1개만 허용" },
+      "hook_carrier": "text",
+      "notes": "제목 없음, 태그 1개 제한. 질문형/논쟁형 문장이 잘 돎."
+    }
+  }
+}

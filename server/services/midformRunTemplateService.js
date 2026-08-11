@@ -875,6 +875,23 @@ async function runMidformTemplateWorkflow(options = {}) {
         stage: 'acceptance_gates', code: 'MIDFORM_ACCEPTANCE_FAILED'
       });
     }
+    // Publish packages per platform/locale (owner directive 2026-08-11): each channel is
+    // posted individually - the .txt rides inside the draft folder to the install. Failure
+    // here must not kill an otherwise green build; it surfaces as a warning instead.
+    try {
+      const { buildSocialPosts } = require('./midformSocialPostService');
+      summary.internal.social_posts = {};
+      for (const socialLocale of ['ko', 'ja']) {
+        const built = await buildSocialPosts({
+          workspaceDir: workspace.workspaceDir,
+          compressionRunDir: bootstrapSourceRunDir,
+          locale: socialLocale
+        });
+        summary.internal.social_posts[socialLocale] = rel(built.path);
+      }
+    } catch (socialError) {
+      summary.warnings = [...new Set([...(summary.warnings || []), `social_posts_failed: ${socialError.message}`.slice(0, 160)])];
+    }
     summary.internal.locale_draft_artifacts = localeDrafts.outputPaths;
     summary.internal.final_draft_overlap = localeDrafts.finalOverlapReport;
     summary.output_paths = {
