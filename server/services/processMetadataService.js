@@ -4050,6 +4050,10 @@ function normalizeFullCaptionScript(value = [], scenes = [], language = 'ja', fa
   const source = Array.isArray(value) ? value : [];
   const fallback = Array.isArray(fallbackLines) ? fallbackLines : [];
   const allowSceneFallback = options.allowSceneFallback !== false;
+  // Screen-phrase-era scripts were 20-24 chunks; the KR Full sentence
+  // standard (2026-08-12) produces 5-10 complete sentences. Callers on that
+  // lane pass minItems so a valid short script is not erased into [].
+  const minItems = Number(options.minItems) > 0 ? Number(options.minItems) : 20;
   const sourceHasRepairResult = source.some((item) => isProtectedKoreanFullScriptSourceBasis((item && typeof item === 'object' ? item.source_basis : '') || ''));
   const normalizedScenes = Array.isArray(scenes) ? scenes : [];
   const sceneIds = normalizedScenes.map((scene, index) => normalizeText(scene?.scene_id || `scene_${String(index + 1).padStart(3, '0')}`));
@@ -4118,10 +4122,10 @@ function normalizeFullCaptionScript(value = [], scenes = [], language = 'ja', fa
     if (sourceHasRepairResult && korean && limited.length >= 12) {
       return expandRepairedKoreanFullScriptItems(limited);
     }
-    if (limited.length >= 20 && weakRatio < 0.35) {
+    if (limited.length >= minItems && weakRatio < 0.35) {
       return limited;
     }
-    if (limited.length >= 20) {
+    if (limited.length >= minItems) {
       // Keep Gemini's paid result intact. Later validation/repair can reject or
       // rewrite weak manuscript rhythm, but normalization must not erase a
       // complete script and turn it into a misleading "missing subtitles" error.
@@ -4130,7 +4134,7 @@ function normalizeFullCaptionScript(value = [], scenes = [], language = 'ja', fa
   }
 
   const rewrittenSourceResult = normalizeRewrittenFullScriptItems(source, korean);
-  if (rewrittenSourceResult.length >= 20) {
+  if (rewrittenSourceResult.length >= minItems) {
     return rewrittenSourceResult;
   }
 
@@ -5969,7 +5973,9 @@ function normalizeLongformRecoverableFields(guide = {}, sourceUrl = '', duration
     sceneTransitions,
     'ko',
     [],
-    { allowSceneFallback: false }
+    // KR Full sentence standard: 5-10 complete sentences are a VALID script;
+    // the default 20-item screen-phrase minimum erased them (2026-08-12).
+    { allowSceneFallback: false, minItems: 3 }
   );
   const hook = clampLongformHighlightWindow(
     next.hook_clip_10s || next.recommended_highlight_window,
@@ -6371,7 +6377,9 @@ function normalizeGuide(guide = {}, sourceUrl = '', durationSec = 0) {
     sceneTransitions,
     'ko',
     [],
-    { allowSceneFallback: false }
+    // KR Full sentence standard (2026-08-12): 5-10 complete sentences are a
+    // valid script; the default 20-item screen-phrase minimum erased them.
+    { allowSceneFallback: false, minItems: 3 }
   );
   let midformCaptionScriptJa = normalizeFullCaptionScript(
     guide.midform_caption_script_ja,
@@ -11262,6 +11270,8 @@ async function matchAuxScenesToMain({ mainScenes = [], auxScenes = [], apiKey = 
 }
 
 module.exports = {
+  normalizeLongformRecoverableFields,
+  normalizeFullCaptionScript,
   analyzeOttogiProcessMetadata,
   analyzeAuxSceneTransitions,
   matchAuxScenesToMain,
