@@ -102,6 +102,35 @@ def set_clipboard(text):
         user32.CloseClipboard()
 
 
+def teal_at(x, y):
+    """CapCut's primary action buttons are bright teal (~(0,193,205)); the
+    editor/home chrome under them is dark. A teal pixel is how we verify a UI
+    state actually changed - clicks are occasionally swallowed by CapCut's QML
+    window (observed 2026-08-11/12), so every step must be verified, not
+    assumed."""
+    r, g, b = pyautogui.pixel(x, y)
+    return g > 140 and b > 120 and r < 110
+
+
+def export_dialog_open(coords):
+    return teal_at(*coords["export_confirm"])
+
+
+def editor_open(coords):
+    # The editor's own export button is teal; on the home screen this spot is
+    # dark window chrome.
+    return teal_at(*coords["export_button"])
+
+
+def wait_for(predicate, timeout_sec, interval_sec=0.5):
+    deadline = time.time() + timeout_sec
+    while time.time() < deadline:
+        if predicate():
+            return True
+        time.sleep(interval_sec)
+    return False
+
+
 def snapshot_dir(export_dir):
     try:
         return {name: os.path.getsize(os.path.join(export_dir, name))
@@ -158,11 +187,30 @@ def main():
         pyautogui.hotkey("ctrl", "v")
         time.sleep(2.5)
 
-        pyautogui.doubleClick(*coords["first_row"])
-        time.sleep(EDITOR_LOAD_SEC)
+        # Double-clicks get swallowed sometimes - verify the editor actually
+        # opened (its export button turns teal) and retry if not.
+        opened = False
+        for _ in range(3):
+            pyautogui.doubleClick(*coords["first_row"])
+            if wait_for(lambda: editor_open(coords), EDITOR_LOAD_SEC + 10):
+                opened = True
+                break
+        if not opened:
+            raise RuntimeError("editor did not open after 3 double-click attempts")
+        time.sleep(3)  # let the editor finish layout before poking export
 
-        pyautogui.click(*coords["export_button"])
-        time.sleep(EXPORT_DIALOG_SEC)
+        # Export click can also be swallowed, AND a click outside an already-
+        # open dialog dismisses it - so never click export while the dialog is
+        # up; poll for the dialog instead of a fixed sleep.
+        dialog_open = False
+        for _ in range(3):
+            if not export_dialog_open(coords):
+                pyautogui.click(*coords["export_button"])
+            if wait_for(lambda: export_dialog_open(coords), 10):
+                dialog_open = True
+                break
+        if not dialog_open:
+            raise RuntimeError("export dialog did not open after 3 attempts")
         pyautogui.click(*coords["export_confirm"])
 
         output_path = wait_for_new_export(args.export_dir, before, EXPORT_TIMEOUT_SEC)
