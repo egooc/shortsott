@@ -154,13 +154,24 @@ function calculateKoreanFullSpeechBudget({
   targetDurationSec = 0,
   prerollSec = 0,
   marginSec = KOREAN_FULL_SPEECH_DEFAULT_MARGIN_SEC,
-  sentenceCount = KOREAN_FULL_SPEECH_DEFAULT_SENTENCE_COUNT
+  sentenceCount = null
 } = {}) {
   const targetDuration = Math.max(0, Number(targetDurationSec || 0));
   const preroll = Math.max(0, Number(prerollSec || 0));
   const margin = Math.max(0, Number(marginSec || 0));
   const availableSec = Math.max(0, targetDuration - preroll - margin);
   const targetChars = Math.max(1, Math.floor(availableSec * KOREAN_FULL_SPEECH_CHARS_PER_SEC * KOREAN_FULL_SPEECH_SAFETY_RATIO));
+  // The phrase count must scale with the char budget - the fixed 22-sentence
+  // default with a short concat budget is self-contradictory (observed live:
+  // "write 20-24 phrases" + 73-char cap -> Gemini wrote 21 phrases / 154
+  // chars and validation held the script). ~8 visible chars per phrase.
+  const scaledSentenceCount = Math.max(3, Math.min(
+    KOREAN_FULL_SPEECH_DEFAULT_SENTENCE_COUNT,
+    Math.round(targetChars / 8)
+  ));
+  const effectiveSentenceCount = Number(sentenceCount) > 0
+    ? Math.round(Number(sentenceCount))
+    : scaledSentenceCount;
   return {
     target_duration_sec: roundSeconds(targetDuration),
     preroll_sec: roundSeconds(preroll),
@@ -171,8 +182,15 @@ function calculateKoreanFullSpeechBudget({
     target_chars: targetChars,
     min_chars: Math.max(1, Math.floor(targetChars * 0.75)),
     max_chars: Math.max(1, Math.floor(targetChars * 1.10)),
-    target_sentence_count: Math.max(1, Math.round(Number(sentenceCount || KOREAN_FULL_SPEECH_DEFAULT_SENTENCE_COUNT)))
+    target_sentence_count: Math.max(1, effectiveSentenceCount)
   };
+}
+
+// Phrase-count text for prompts, scaled with the speech budget - a fixed
+// "20 to 24" against a short-concat char budget is self-contradictory.
+function koreanFullScriptCountRange(budget = {}) {
+  const count = Math.max(3, Number(budget?.target_sentence_count) || KOREAN_FULL_SPEECH_DEFAULT_SENTENCE_COUNT);
+  return `${Math.max(2, count - 2)} to ${count}`;
 }
 
 function durationFromWindow(value = {}) {
@@ -2167,7 +2185,7 @@ function buildMetadataPrompt({ sourceUrl, filename, durationSec, sceneGuide, sou
     ] : []),
     'Priority deliverable: full_caption_script_ko',
     `- ${OUTPUT_CONFIG.full_draft.scriptKey} is a first-class required output, not optional metadata support text. If it is missing, empty, or shorter than 20 items, the whole response is invalid.`,
-    `- Before writing metadata prose, fully draft ${OUTPUT_CONFIG.full_draft.scriptKey} as 20 to 24 Korean caption objects with scene_id, role, text, and source_basis.`,
+    `- Before writing metadata prose, fully draft ${OUTPUT_CONFIG.full_draft.scriptKey} as ${koreanFullScriptCountRange(speechBudget)} Korean caption objects with scene_id, role, text, and source_basis.`,
     '- Do not treat Korean Full script as something to infer later from metadata. Write it now in the same response.',
     '- Follow this structure pattern exactly, while changing the actual content to match the source footage:',
     JSON.stringify([
@@ -2208,7 +2226,7 @@ function buildMetadataPrompt({ sourceUrl, filename, durationSec, sceneGuide, sou
     '- The next 2 to 4 captions must answer what is being made and why this process exists. Split long thoughts into short connected phrases, not isolated labels.',
     '- Use natural Korean connector ideas when needed, such as 사실은, 여기서 중요한 건, 그래서, 이 정밀함이, 사람의 손으로, 기계의 힘으로, 조금씩, 마지막에는.',
     '- Scene labels are only raw material. Place scene_observation captions only at the strongest planned key moments, well spread across the script, not clustered and not one per scene.',
-    `- Write ${OUTPUT_CONFIG.full_draft.scriptKey} as 20 to 24 short connected Korean screen-phrase items. Each item.scene_id must be one of the real scene_transitions IDs such as scene_01, scene_02, scene_03; never invent script_001 IDs. Reuse a scene_id for multiple nearby caption chunks when needed.`,
+    `- Write ${OUTPUT_CONFIG.full_draft.scriptKey} as ${koreanFullScriptCountRange(speechBudget)} short connected Korean screen-phrase items. Each item.scene_id must be one of the real scene_transitions IDs such as scene_01, scene_02, scene_03; never invent script_001 IDs. Reuse a scene_id for multiple nearby caption chunks when needed.`,
     '- Each full_caption_script item must have role: hook, process_purpose, technical_context, emotional_expression, scene_observation, method, quality_reason, progress, or closing.',
     '- The scene_observation captions mark key moments only. Do not describe every visible cut, and keep natural sentence flow and the timing budget.',
     '- Most Full script items must explain the whole process purpose, method, material change, quality reason, and emotional meaning. Scene labels are supporting material only.',
@@ -2234,7 +2252,7 @@ function buildMetadataPrompt({ sourceUrl, filename, durationSec, sceneGuide, sou
     '- Full onscreen_subtitles items must be short spoken captions readable in 1 to 2 seconds, but they should follow the same technical/educational process arc as full_caption_script_*.',
     '- Japanese Full onscreen_subtitles must stay within 14 visible characters per item when used.',
     '- Korean Full onscreen_subtitles must stay within 12 visible characters per item when used.',
-    '- Full onscreen_subtitles should usually contain 20 to 24 items and mirror the full_caption_script_ko rhythm.',
+    `- Full onscreen_subtitles should usually contain ${koreanFullScriptCountRange(speechBudget)} items and mirror the full_caption_script_ko rhythm.`,
     '- Do not put one report-like paragraph in Full onscreen_subtitles.',
     '- Bad Japanese Full onscreen_subtitles: ["職人技が光る無塗装の鉄鍋製造工程。真っ赤に溶けた鉄が型に注がれ、見事な中華鍋が形作られる様子をご覧ください。"].',
     '- Good Korean Full onscreen_subtitles: copy the same manuscript rhythm as full_caption_script_ko, for example ["순서가 중요한 이유는", "건물을 받치는", "철근을 만들고", "먼저 길이를", "기준에 맞춰", "각도까지 휘어요"].',
@@ -2282,6 +2300,7 @@ function buildMetadataPrompt({ sourceUrl, filename, durationSec, sceneGuide, sou
 
 function buildReviewPrompt({ sourceUrl, filename, durationSec, draftGuide, sourceType = 'unknown', sourceWorkflowMode = 'unknown', assignedHookType = null, metadataVariantMode = 'all' }) {
   const normalizedMetadataVariantMode = normalizeMetadataVariantMode(metadataVariantMode);
+  const speechBudget = koreanFullSpeechBudgetFromGuide(draftGuide, durationSec);
   const wantsFull = ['all', 'full_highlight_only', 'full_only'].includes(normalizedMetadataVariantMode);
   if (!wantsFull) {
     return [
@@ -2323,7 +2342,7 @@ function buildReviewPrompt({ sourceUrl, filename, durationSec, draftGuide, sourc
     '- Core test: when the Full caption items are read in order, they must sound like one connected spoken script. If each item feels like an independent scene label, rewrite it.',
     '- Full caption script must not be fragmented by raw character count. Rewrite into natural Korean screen phrases first.',
     '- Full caption script structure must be: curiosity hook -> whole-process purpose/explanation -> technical process explanation -> scene mention around 25 percent -> process/emotional explanation -> scene mention around 50 percent -> process/emotional explanation -> scene mention around 75 percent -> emotional closing.',
-    '- Full caption script quota: use scene_observation only 4 to 6 times in a 20 to 24 item script. All other items must explain what is being made, why the step matters, how it works, or why precision/quality matters.',
+    `- Full caption script quota: use scene_observation only ${(Number(speechBudget?.target_sentence_count) || 22) <= 12 ? '1 to 3' : '4 to 6'} times in a ${koreanFullScriptCountRange(speechBudget)} item script. All other items must explain what is being made, why the step matters, how it works, or why precision/quality matters.`,
     ...koreanFullHookPromptLines(assignedHookType, {
       seed: `${sourceUrl || ''}:${filename || ''}`,
       sourceUrl,
@@ -2636,7 +2655,7 @@ function buildFullCaptionScriptRepairPrompt({ sourceUrl, filename, durationSec, 
     'You must create ordered screen-caption scripts for Full Draft video subtitles.',
     '',
     'Required output fields:',
-    `- ${OUTPUT_CONFIG.full_draft.scriptKey}: 20 to 24 objects. Full Draft production language is ${OUTPUT_CONFIG.full_draft.lang.toUpperCase()} only.`,
+    `- ${OUTPUT_CONFIG.full_draft.scriptKey}: ${koreanFullScriptCountRange(speechBudget)} objects. Full Draft production language is ${OUTPUT_CONFIG.full_draft.lang.toUpperCase()} only.`,
     '- Each object must contain scene_id, role, text, source_basis.',
     '- scene_id must be copied from Existing metadata context.scene_summary[].scene_id, for example scene_01. Do not output script_001 IDs.',
     '',
@@ -2714,7 +2733,7 @@ function buildInitialFullCaptionScriptSeedPrompt({ sourceUrl, filename, duration
     `The metadata response omitted ${OUTPUT_CONFIG.full_draft.scriptKey}, so you must write it now as a required production field.`,
     '',
     'Required output fields:',
-    `- ${OUTPUT_CONFIG.full_draft.scriptKey}: 20 to 24 objects. Korean only.`,
+    `- ${OUTPUT_CONFIG.full_draft.scriptKey}: ${koreanFullScriptCountRange(speechBudget)} objects. Korean only.`,
     '- Each object must contain scene_id, role, text, source_basis.',
     '- scene_id must be copied from Existing context.scene_summary[].scene_id. Do not output script_001 IDs.',
     '- source_basis must be "initial_full_caption_script_seed" for every item.',
@@ -2795,7 +2814,7 @@ function buildKoreanFullCaptionScriptRegenerationPrompt({ sourceUrl, filename, d
     '- This must be a fresh Korean narration rewrite, not a local text repair.',
     '',
     'Required output fields:',
-    `- ${OUTPUT_CONFIG.full_draft.scriptKey}: 20 to 24 objects. Korean only.`,
+    `- ${OUTPUT_CONFIG.full_draft.scriptKey}: ${koreanFullScriptCountRange(speechBudget)} objects. Korean only.`,
     '- Each object must contain scene_id, role, text, source_basis.',
     '- scene_id must be copied from Existing context.scene_summary[].scene_id, for example scene_01. Do not output script_001 IDs.',
     '- Do not return full_caption_script_ja or any Japanese Full fields.',
@@ -4521,9 +4540,8 @@ function buildLongformVariantFinalPrompt({ variant, sourceUrl, filename, duratio
   // storyDurationSec here demanded thousands of chars (600s window / 1155s
   // source) and Gemini answered with an empty script - every one of the 41
   // queue items shows zero full_caption_script_ko pieces before this fix.
-  const fullSpeechBudgetLines = koreanFullSpeechBudgetPromptLines(
-    koreanFullSpeechBudgetFromGuide(candidateGuide, durationSec)
-  );
+  const fullSpeechBudget = koreanFullSpeechBudgetFromGuide(candidateGuide, durationSec);
+  const fullSpeechBudgetLines = koreanFullSpeechBudgetPromptLines(fullSpeechBudget);
   const variantConfig = {
     full: {
       phaseName: 'KR Full',
@@ -4550,7 +4568,7 @@ function buildLongformVariantFinalPrompt({ variant, sourceUrl, filename, duratio
         '- Avoid bare label chunks such as "모터의 심장부", "정밀 기계가", "작은 오차도" unless they continue naturally into the next phrase.',
         '- Prefer connected Korean phrasing such as "모터의 심장부예요", "정밀 기계가 움직이고", "작은 오차도 그냥 넘기지 않고".',
         '- Do not leave English fallback phrases like "material transformation" inside Korean Full fields. Rewrite them into natural Korean.',
-        '- full_caption_script_ko should be 20 to 24 short Korean connected narration phrases for the selected highlight-candidate-backed core-process window.',
+        `- full_caption_script_ko should be ${koreanFullScriptCountRange(fullSpeechBudget)} short Korean connected narration phrases for the selected highlight-candidate-backed core-process window.`,
         '- Each full_caption_script_ko item.scene_id must be copied from the selected scene_transitions real IDs such as scene_01, scene_02, scene_03. Reuse a scene ID for multiple nearby caption chunks when needed; never output script_001 IDs.',
         ...fullSpeechBudgetLines,
         ...koreanFullSceneSpeechBudgetPromptLines(storyGuide?.scene_transitions || candidateGuide?.scene_transitions || []),
