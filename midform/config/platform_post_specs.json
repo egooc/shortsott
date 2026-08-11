@@ -4,6 +4,35 @@
     "ko": ["youtube", "tiktok", "naver_clip", "instagram", "facebook", "threads"],
     "ja": ["youtube", "tiktok", "instagram", "facebook", "threads"]
   },
+  "upload_guide": {
+    "ko": {
+      "slot": "09:00 KST",
+      "slot_note": "YouTube / TikTok 동일 시각 예약",
+      "devices": "PC(KO 브라우저 프로필) + 폰1",
+      "steps": [
+        "PC   1) YouTube Shorts   — 네이티브 예약, SLOT",
+        "     2) TikTok           — 네이티브 예약, SLOT (YouTube와 동시각 필수)",
+        "     3) Facebook Reels   — 비즈니스 스위트 직접, ☐ 크로스포스트 체크 해제",
+        "폰1  4) Instagram Reels  — 앱 직접 업로드 (서드파티 스케줄러 금지)",
+        "     5) 네이버 클립       — 앱 직접, 정보태그 필수",
+        "     6) Threads          — 앱 직접"
+      ],
+      "warnings": "※ 폰2(JA) 로그인 절대 금지. PC에서 Instagram 웹 세션 열지 말 것."
+    },
+    "ja": {
+      "slot": "10:00 JST",
+      "slot_note": "YouTube / TikTok 동일 시각 예약 (KO 슬롯과 별개)",
+      "devices": "PC(JA 브라우저 프로필) + 폰2",
+      "steps": [
+        "PC   1) YouTube Shorts   — 네이티브 예약, SLOT",
+        "     2) TikTok           — 네이티브 예약, SLOT (YouTube와 동시각 필수)",
+        "     3) Facebook Reels   — 비즈니스 스위트 직접, ☐ 크로스포스트 체크 해제",
+        "폰2  4) Instagram Reels  — 앱 직접 업로드, 일본 트렌드 음원",
+        "     5) Threads          — 앱 직접"
+      ],
+      "warnings": "※ 네이버 클립 블록 없음(일본어 미지원). 폰1(KO) 로그인 절대 금지."
+    }
+  },
   "platforms": {
     "youtube": {
       "label": "YouTube Shorts",
@@ -24,6 +53,7 @@
       "caption_role": "첫 줄(접힘 전 ~40자)이 제목 역할 - 후킹 문장 단독",
       "hashtags": { "min": 3, "max": 5, "where": "캡션 끝" },
       "hook_carrier": "caption_first_line",
+      "sound_field": true,
       "notes": "틱톡은 검색엔진처럼 쓰임 - 캡션 본문에 검색 키워드 자연 포함."
     },
     "naver_clip": {
@@ -35,7 +65,8 @@
       "caption_role": "한두 문장 설명 - 네이버 검색 키워드 포함",
       "hashtags": { "min": 5, "max": 10, "where": "본문 하단 태그란" },
       "hook_carrier": "title+hashtags",
-      "notes": "네이버는 태그 검색 노출 비중이 큼 - 작품명/배우/장르 태그 폭넓게."
+      "info_tag": true,
+      "notes": "네이버는 태그 검색 노출 비중이 큼 - 작품명/배우/장르 태그 폭넓게. 정보태그(작품)는 검색 유입의 핵심."
     },
     "instagram": {
       "label": "Instagram Reels",
@@ -45,6 +76,7 @@
       "caption_role": "접힘 전 ~125자가 승부 - 첫 문장 후킹, 둘째 문장 맥락",
       "hashtags": { "min": 3, "max": 5, "where": "캡션 끝" },
       "hook_carrier": "caption_first_line",
+      "sound_field": true,
       "notes": "해시태그는 3-5개가 공식 권장 - 도배 금지."
     },
     "facebook": {

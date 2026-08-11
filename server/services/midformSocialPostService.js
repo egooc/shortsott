@@ -135,13 +135,16 @@ function buildPrompt({ locale, facts, specDoc, platformIds }) {
     '- Put hashtags ONLY in the hashtags array, never inside the caption text. No indentation in captions.',
     '- No emoji spam: at most 1-2 emoji where the platform culture expects it (TikTok/IG ok, YouTube title none).',
     '',
-    'Return JSON: {"posts":[{"platform":"<id>","title":"<string or empty>","caption":"<string>","hashtags":["#..."]}]} with one entry per platform id in this exact order: ' + platformIds.join(', ')
+    'Also return "film_title_local": the film\'s release title in this locale\'s language (for the info tag and film hashtag).',
+    'Actor/franchise name hashtags ARE allowed (discovery metadata, not plot claims) - e.g. the lead actors\' names in this locale\'s spelling - but never let film trivia leak into caption TEXT.',
+    'Return JSON: {"film_title_local":"<string>","posts":[{"platform":"<id>","title":"<string or empty>","caption":"<string>","hashtags":["#..."]}]} with one entry per platform id in this exact order: ' + platformIds.join(', ')
   ].filter(Boolean).join('\n');
 }
 
 const RESPONSE_SCHEMA = {
   type: 'object',
   properties: {
+    film_title_local: { type: 'string' },
     posts: {
       type: 'array',
       items: {
@@ -159,17 +162,44 @@ const RESPONSE_SCHEMA = {
   required: ['posts']
 };
 
-function renderTxt({ locale, specDoc, platformIds, posts, facts }) {
+function formatLength(totalSec) {
+  if (!(totalSec > 0)) return '—';
+  const minutes = Math.floor(totalSec / 60);
+  const seconds = Math.round(totalSec - minutes * 60);
+  return `${minutes}:${String(seconds).padStart(2, '0')}`;
+}
+
+function renderTxt({ locale, specDoc, platformIds, posts, facts, videoMeta, filmTitleLocal }) {
+  const guide = (specDoc.upload_guide || {})[locale] || {};
+  const bar = '='.repeat(46);
   const lines = [];
   lines.push(`# ${locale.toUpperCase()} 발행 패키지 — ${facts.fullTitle}`);
   lines.push(`# 생성 규칙: 크로스포스트 없음, 플랫폼별 개별 작성. 길이는 코드로 검증됨.`);
   lines.push('');
+  lines.push(bar);
+  lines.push('[영상 드래프트]');
+  lines.push(bar);
+  lines.push(`FILE       : ${videoMeta.fileName}`);
+  lines.push(`LENGTH     : ${formatLength(videoMeta.lengthSec)}`);
+  lines.push('RATIO      : 9:16 / 1080x1920');
+  lines.push('FILE_FB90  : —              ← 페북 90초 캡 계정으로 확인되면 별도 컷 경로 기입');
+  lines.push(`SLOT       : ${guide.slot || '—'}      ← ${guide.slot_note || ''}`.trimEnd());
+  lines.push('');
+  lines.push(bar);
+  lines.push(`[업로드 순서]  기기: ${guide.devices || '—'}`);
+  lines.push(bar);
+  for (const step of guide.steps || []) lines.push(step);
+  lines.push('');
+  if (guide.warnings) {
+    lines.push(guide.warnings);
+    lines.push('');
+  }
   for (const id of platformIds) {
     const spec = specDoc.platforms[id];
     const post = posts.find((p) => String(p.platform) === id) || {};
-    lines.push('='.repeat(46));
+    lines.push(bar);
     lines.push(`[${spec.label}]  후킹 캐리어: ${spec.hook_carrier}`);
-    lines.push('='.repeat(46));
+    lines.push(bar);
     if (spec.has_title) {
       lines.push(`(제목, ${String(post.title || '').length}/${spec.title_max}자)`);
       lines.push(post.title || '');
@@ -178,9 +208,19 @@ function renderTxt({ locale, specDoc, platformIds, posts, facts }) {
     lines.push(`(캡션, ${String(post.caption || '').length}/${spec.caption_max}자${spec.fold_chars && spec.fold_chars < spec.caption_max ? ` — 접힘 전 ~${spec.fold_chars}자` : ''})`);
     lines.push(post.caption || '');
     lines.push('');
+    if (spec.info_tag) {
+      lines.push('(정보태그 — 필수, 검색 유입의 핵심)');
+      lines.push(filmTitleLocal ? `영화 <${filmTitleLocal}>` : '영화 <          >  ← 작품명 기입');
+      lines.push('');
+    }
     lines.push(`(해시태그 ${post.hashtags?.length || 0}개 — 권장 ${spec.hashtags.min}~${spec.hashtags.max})`);
     lines.push((post.hashtags || []).join(' '));
     lines.push('');
+    if (spec.sound_field) {
+      lines.push('(SOUND)');
+      lines.push(locale === 'ja' && id === 'instagram' ? '—              ← 일본 트렌드 음원' : '—');
+      lines.push('');
+    }
   }
   return lines.join('\n');
 }
@@ -244,7 +284,17 @@ async function buildSocialPosts({ workspaceDir, compressionRunDir, locale }) {
       hashtags: normalizeHashtags(raw.hashtags, spec)
     });
   }
-  const txt = renderTxt({ locale, specDoc, platformIds, posts, facts });
+  // video meta from the shipped manifest: file naming {yymmdd}_{locale}_01.mp4, length mm:ss
+  let lengthSec = 0;
+  const manifestForMeta = readJsonSafe(path.join(workspaceDir || '', `draft_${locale}`, 'edit_manifest.json')) || {};
+  for (const segment of manifestForMeta.segments || []) {
+    lengthSec = Math.max(lengthSec, Number(segment.video_timeline_end_sec || 0));
+  }
+  const now = new Date();
+  const yymmdd = `${String(now.getFullYear()).slice(2)}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+  const videoMeta = { fileName: `${yymmdd}_${locale}_01.mp4`, lengthSec };
+  const filmTitleLocal = String(result.film_title_local || facts.releaseTitle || '').trim();
+  const txt = renderTxt({ locale, specDoc, platformIds, posts, facts, videoMeta, filmTitleLocal });
   const outPath = path.join(workspaceDir, `social_posts.${locale}.txt`);
   fs.writeFileSync(outPath, `${txt}\n`, 'utf8');
   // travels with the CapCut draft on install
