@@ -164,13 +164,15 @@ function calculateKoreanFullSpeechBudget({
   const margin = Math.max(0, Number(marginSec || 0));
   const availableSec = Math.max(0, targetDuration - preroll - margin);
   const targetChars = Math.max(1, Math.floor(availableSec * KOREAN_FULL_SPEECH_CHARS_PER_SEC * KOREAN_FULL_SPEECH_SAFETY_RATIO));
-  // The phrase count must scale with the char budget - the fixed 22-sentence
-  // default with a short concat budget is self-contradictory (observed live:
-  // "write 20-24 phrases" + 73-char cap -> Gemini wrote 21 phrases / 154
-  // chars and validation held the script). ~8 visible chars per phrase.
+  // The sentence count must scale with the char budget. Items are COMPLETE
+  // spoken sentences (~20 visible chars each; midform: 15s of narration =
+  // 4-5 sentences), NOT 8-char screen fragments - the old /8 divisor forced
+  // Gemini into fragment enumeration ("값진 재료 변신. 틀에 부어져요.",
+  // observed 2026-08-12). Screen-caption splitting is code's job now
+  // (koCaptionBalancedPartition), not the manuscript's.
   const scaledSentenceCount = Math.max(3, Math.min(
     KOREAN_FULL_SPEECH_DEFAULT_SENTENCE_COUNT,
-    Math.round(targetChars / 8)
+    Math.round(targetChars / 20)
   ));
   const effectiveSentenceCount = Number(sentenceCount) > 0
     ? Math.round(Number(sentenceCount))
@@ -4586,7 +4588,8 @@ function buildLongformVariantFinalPrompt({ variant, sourceUrl, filename, duratio
         '- Korean Full must sound like natural spoken Korean for curious viewers, not like translated Japanese or noun-only labels.',
         '- Avoid bare label chunks such as "모터의 심장부", "정밀 기계가", "작은 오차도" unless they continue naturally into the next phrase.',
         '- Do not leave English fallback phrases like "material transformation" inside Korean Full fields. Rewrite them into natural Korean.',
-        `- full_caption_script_ko should be ${koreanFullScriptCountRange(fullSpeechBudget)} short Korean connected narration phrases for the selected highlight-candidate-backed core-process window.`,
+        `- full_caption_script_ko must be ${koreanFullScriptCountRange(fullSpeechBudget)} items where EACH ITEM IS ONE COMPLETE SPOKEN SENTENCE of roughly 15-25 Korean characters (e.g. "여기서 1초만 늦으면 전부 버려집니다."). Do NOT pre-fragment into short screen chunks - the system splits screen captions from your sentences automatically. An item like "값진 재료 변신." or "틀에 부어져요." is invalid fragment style.`,
+        '- Item roles: the FIRST item must have role "hook" and the LAST item must have role "closing". Middle items use technical_context, method, quality_reason, emotional_expression, or scene_observation.',
         '- Each full_caption_script_ko item.scene_id must be copied from the selected scene_transitions real IDs such as scene_01, scene_02, scene_03. Reuse a scene ID for multiple nearby caption chunks when needed; never output script_001 IDs.',
         ...fullSpeechBudgetLines,
         ...koreanFullSceneSpeechBudgetPromptLines(storyGuide?.scene_transitions || candidateGuide?.scene_transitions || []),
@@ -9001,6 +9004,15 @@ async function validateOrRepairJapaneseCaptions({ guide, generateRepairJson, sou
     }
     try {
       const normalizedCurrent = enforcePublicMetadataLanguage(normalizeGuide(current, sourceUrl, durationSec));
+      // First/last role labels are structural bookkeeping the validator
+      // demands; when the lane is lenient, fix the labels mechanically
+      // instead of burning a Gemini retry on a relabel.
+      if (validationOptions.lenientKoreanFullGates && Array.isArray(normalizedCurrent?.full_caption_script_ko) && normalizedCurrent.full_caption_script_ko.length >= 2) {
+        const scriptItems = normalizedCurrent.full_caption_script_ko;
+        if (scriptItems[0] && scriptItems[0].role !== 'hook') scriptItems[0] = { ...scriptItems[0], role: 'hook' };
+        const lastIndex = scriptItems.length - 1;
+        if (scriptItems[lastIndex] && scriptItems[lastIndex].role !== 'closing') scriptItems[lastIndex] = { ...scriptItems[lastIndex], role: 'closing' };
+      }
       current = normalizedCurrent;
       validateGuide(normalizedCurrent, validationOptions);
       return normalizedCurrent;
