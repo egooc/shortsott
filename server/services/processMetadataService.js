@@ -247,6 +247,19 @@ function koreanFullSpeechBudgetFromGuide(guide = {}, durationSec = 0) {
       sentenceCount: existing.target_sentence_count || existing.sentenceCount || KOREAN_FULL_SPEECH_DEFAULT_SENTENCE_COUNT
     });
   }
+  // kr_full 롱폼 (approved 2026-08-11): the Full draft's video is the <=60s
+  // CONCATENATION of the Vision hook-candidate windows, never the raw source.
+  // Budgeting speech against the source length asked for thousands of chars
+  // (a 19min source demanded 7,391) and Gemini returned an empty script -
+  // budget against the actual upcoming concat timeline instead.
+  const candidateConcatSec = (Array.isArray(guide?.hook_candidates) ? guide.hook_candidates : [])
+    .reduce((sum, candidate) => {
+      const span = Number(candidate?.end_sec) - Number(candidate?.start_sec);
+      return sum + (Number.isFinite(span) && span > 0 ? span : 0);
+    }, 0);
+  if (Number(durationSec) > 90 && candidateConcatSec > 0) {
+    return calculateKoreanFullSpeechBudget({ targetDurationSec: Math.min(60, candidateConcatSec) });
+  }
   const targetDurationSec = durationFromWindow(guide?.story_clip_40s)
     || durationFromWindow(guide?.recommended_full_window)
     || durationFromWindow(guide?.full_source_window)
