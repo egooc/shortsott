@@ -124,6 +124,18 @@ async function main() {
   const lines = [`# 내보내기+업로드 리포트 ${new Date().toISOString()}`, `- job: ${jobId}`, ''];
 
   let targets = folders.filter((folder) => fs.existsSync(folder));
+  // HOLD (2026-08-12, user directive): KR Full (F/KF) drafts must NOT be
+  // auto-exported/uploaded until the user confirms the draft quality in
+  // CapCut. Highlights (H) keep flowing. Flip to false after confirmation.
+  const HOLD_KR_FULL_EXPORT = true;
+  if (HOLD_KR_FULL_EXPORT) {
+    const held = targets.filter((folder) => /-K?F-/.test(path.basename(folder)));
+    if (held.length) {
+      lines.push(`- KR Full 보류(드래프트 컨펌 대기): ${held.length}건`, ...held.map((folder) => `  - ${path.basename(folder)}`), '');
+      console.log(`KR Full hold: ${held.length} draft(s) skipped pending user confirmation`);
+    }
+    targets = targets.filter((folder) => !/-K?F-/.test(path.basename(folder)));
+  }
   // The scorecard only judges highlight arcs; Full (F/KF) drafts bypass it.
   if (okSet) {
     targets = targets.filter((folder) =>
