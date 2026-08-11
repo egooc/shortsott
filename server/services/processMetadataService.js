@@ -9729,8 +9729,15 @@ function allRequestedLongformVariantsFailed(guide = {}, variants = []) {
 }
 
 async function runLongformGeminiPipeline({ generateJson, sourceUrl, filename, durationSec, sourceType, sourceWorkflowMode, sourceContext = {}, metadataVariantMode = 'all', existingGuide = null, assignedHookType = null, onProgress, throwIfCancelled = null, fullDraftStagesDir = '', phaseRawResponses = null }) {
-  void metadataVariantMode;
-  const normalizedMetadataVariantMode = activePhase2MetadataVariantMode();
+  // Approved 2026-08-11 (kr_full lane): the pinned Phase 2 policy forced
+  // longform analysis to highlight_only, silently skipping the Full 4/5+5/5
+  // generation phases for EVERY item ever analyzed (all 41 queue items carry
+  // zero full_caption_script_ko). An explicit 'full_only' request from the
+  // kr_full lane is honored; everything else keeps the pinned policy.
+  const requestedLongformMode = normalizeMetadataVariantMode(metadataVariantMode);
+  const normalizedMetadataVariantMode = requestedLongformMode === 'full_only'
+    ? 'full_only'
+    : activePhase2MetadataVariantMode();
   const effectiveLongformVariantMode = normalizedMetadataVariantMode === 'midform_only'
     ? 'full_highlight_only'
     : normalizedMetadataVariantMode;
