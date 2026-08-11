@@ -63,8 +63,8 @@ function maxNarrationRunBeforeDialogue(segments) {
 // keyword between them. Detect the moves instead, and keep the old nouns as one signal among many.
 const CONFLICT_QUESTION_RE = /(왜|무슨|뭐|뭔|무엇|누가|누구|어떻게|어쩌다|어째서)/;
 const CONFLICT_DENIAL_RE = /(아니|않았|안 했|안 한|적 없|없는데|못 했|그런 거 아니|그게 아니)/;
-const CONFLICT_COMMAND_RE = /(마세요|마요|하지 마|그만|진정|용납|경고|비키|나가)/;
-const CONFLICT_ACCUSATION_RE = /(무시|탓|책임|잘못|거짓|속였|배신|훔쳤|때렸|폭행|차별|바람)/;
+const CONFLICT_COMMAND_RE = /(마세요|마요|하지 마|그만|진정|용납|경고|비키|나가|꿇어|붙어|손 빼|내리라|물러|치워)/;
+const CONFLICT_ACCUSATION_RE = /(무시|탓|책임|잘못|거짓|속였|배신|훔쳤|때렸|폭행|차별|바람|쐈|쏘았|쏘지)/;
 const CONFLICT_STAKES_RE = /(죽|끝|미끼|인질|사냥|위험|표적|의무|해고|광고|빼내|뒤집|진실|상처|사라|쫓|보호|유죄|무죄|체포|고소)/;
 
 function hasConflictCue(text) {
