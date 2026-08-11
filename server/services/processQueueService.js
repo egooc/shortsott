@@ -10517,7 +10517,10 @@ function buildKoreanFullDraftConfig({ itemId, itemConfig, queueConfig, baseConfi
     : narrativeBlocks;
   const sceneBlocksWithHook = applyFullPrerollHookToBlocks(sceneBlocks, itemConfig, queueConfig, 'ko');
   const koreanTargetDuration = Number((sourceDuration + sceneBlocksWithHook.hookDurationSec).toFixed(3));
+  // KR Full is the only Korean lane in production (2026-08-12): it carries the
+  // KR highlight channel's logo so the channel brand stays consistent.
   const channelAsset = selectQueueAsset(
+    queueConfig.korean_highlight_channel_asset,
     queueConfig.korean_channel_asset,
     queueConfig.channel_asset,
     baseConfig.channel_asset
@@ -10662,7 +10665,7 @@ async function createKoreanFullDraftForItem({
       `- Auto Full Video Transform Preset: ${koreanConfig.full_draft_video_transform_analysis?.selected_preset_id || koreanConfig.video_transform_preset || 'unknown'}`,
       `- Full Transform Reason: ${koreanConfig.full_draft_video_transform_analysis?.reason || 'unknown'}`,
       `- Korean BGM: ${queueConfig.korean_custom_bgm_original_name || queueConfig.korean_custom_bgm_path || 'default/full BGM'}`,
-      `- Korean Logo: ${queueConfig.korean_channel_asset?.original_name || queueConfig.korean_channel_asset?.path || 'default logo'}`,
+      `- Korean Logo: ${koreanConfig.channel_asset?.original_name || koreanConfig.channel_asset?.path || 'default logo'} (kr_highlight logo preferred)`,
       ...buildVariantStrategyNoteLines(itemConfig, 'kr_full'),
       ''
     ].join('\n'),

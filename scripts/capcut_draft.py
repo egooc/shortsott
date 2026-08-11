@@ -7521,6 +7521,12 @@ def create_process_draft(data):
     bgm_source_path = find_bgm_file_from_preset(bgm_preset) if coerce_bool(process_config.get("use_bgm"), True) else ""
     draft_bgm_path = ""
     bgm_track_count = 0
+    # The manifest's bgm_volume was historically never applied to the CapCut
+    # draft, so BGM played at 1.0 and drowned the TTS narration. Clamp to a
+    # sane range and pass it to every BGM segment.
+    bgm_volume = safe_float(process_config.get("bgm_volume"), 0.18)
+    if not 0.0 <= bgm_volume <= 1.0:
+        bgm_volume = 0.18
     if coerce_bool(process_config.get("use_bgm"), True):
         if bgm_source_path:
             draft_bgm_path = os.path.abspath(os.path.join(audio_dir, os.path.basename(bgm_source_path)))
@@ -7537,6 +7543,7 @@ def create_process_draft(data):
                             material=bgm_material,
                             source_timerange=cc.Timerange(start=0, duration=segment_duration_us),
                             target_timerange=cc.Timerange(start=cursor_us, duration=segment_duration_us),
+                            volume=bgm_volume,
                         ),
                         track_name="bgm",
                     )
@@ -7587,6 +7594,7 @@ def create_process_draft(data):
                     material=tts_material,
                     source_timerange=cc.Timerange(start=0, duration=tts_duration_us),
                     target_timerange=cc.Timerange(start=tts_cursor_us, duration=tts_duration_us),
+                    volume=1.0,
                 ),
                 track_name="tts",
             )
@@ -7870,6 +7878,7 @@ def create_process_draft(data):
         "bgm_source_path": bgm_source_path,
         "bgm_draft_path": draft_bgm_path,
         "bgm_track_count": bgm_track_count,
+        "bgm_volume_applied": bgm_volume,
         "channel_frame_overlay": channel_frame_summary,
         "channel_asset_overlay": channel_asset_summary,
         "video_transform_preset_id": video_transform_preset.get("preset_id") or "",
