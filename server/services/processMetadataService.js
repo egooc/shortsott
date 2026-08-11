@@ -9068,6 +9068,27 @@ async function validateOrRepairJapaneseCaptions({ guide, generateRepairJson, sou
           return /report-style|non-sentence|scene_observation|must follow hook|speech_budget_over|speech budget|banned|문체|forbidden|scene_id must be an existing|Legacy script_|어미|repeats stiff formal endings/i.test(reason);
         };
         const hardIssues = issues.filter((issue) => !isSoftIssue(issue));
+        // Invented scene ids (scene_001_02) are a soft finding here, but the
+        // downstream normalizeLongformRecoverableFields DROPS such items -
+        // an accepted script then silently dies on the very next line of the
+        // pipeline (observed live: clip kept 7 pieces, item_config got 0).
+        // Remap them onto real scene_transitions ids before returning.
+        if (Array.isArray(current?.full_caption_script_ko) && current.full_caption_script_ko.length) {
+          const validSceneIds = sceneTransitionIdSet(current);
+          if (validSceneIds.size) {
+            const fallbackSceneId = [...validSceneIds][0];
+            current = {
+              ...current,
+              full_caption_script_ko: current.full_caption_script_ko.map((piece) => {
+                const sceneId = String(piece?.scene_id || '').trim();
+                if (validSceneIds.has(sceneId)) return piece;
+                const prefixMatch = sceneId.match(/^(scene_\d+)/);
+                const remapped = prefixMatch && validSceneIds.has(prefixMatch[1]) ? prefixMatch[1] : fallbackSceneId;
+                return { ...piece, scene_id: remapped };
+              })
+            };
+          }
+        }
         const laneScript = Array.isArray(current?.full_caption_script_ko) ? current.full_caption_script_ko : [];
         const laneVisibleChars = laneScript.reduce((sum, piece) => sum + String(piece?.text || '').replace(/\s/g, '').length, 0);
         const laneMaxChars = Number(current?.korean_full_speech_budget?.max_chars) || 0;
