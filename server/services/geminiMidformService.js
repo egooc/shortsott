@@ -62,13 +62,29 @@ function loadMidformResponseSchema() {
 
 function getVertexConfig() {
   return {
+    // MIDFORM_PROVIDER=genai routes every Gemini call through the AI Studio REST API
+    // (separate quota pool from Vertex) - the escape hatch for project-level Vertex 429s.
+    provider: String(process.env.MIDFORM_PROVIDER || '').trim() === 'genai' ? 'genai' : 'vertex',
+    apiKey: String(process.env.GEMINI_API_KEY || '').trim(),
     project: String(process.env.GOOGLE_CLOUD_PROJECT || process.env.GCLOUD_PROJECT || '').trim(),
     location: String(process.env.GOOGLE_CLOUD_LOCATION || DEFAULT_VERTEX_LOCATION).trim(),
     model: String(process.env.VERTEX_GEMINI_MODEL || GEMINI_MODEL).trim()
   };
 }
 
+function vertexAuthHeaders(token) {
+  const config = getVertexConfig();
+  if (config.provider === 'genai') return { 'x-goog-api-key': config.apiKey };
+  return { Authorization: `Bearer ${token}` };
+}
+
 async function getVertexAccessToken() {
+  if (getVertexConfig().provider === 'genai') {
+    if (!getVertexConfig().apiKey) {
+      throw createError(400, 'GEMINI_API_KEY_REQUIRED', 'MIDFORM_PROVIDER=genai requires GEMINI_API_KEY');
+    }
+    return '';
+  }
   const auth = new GoogleAuth({
     scopes: ['https://www.googleapis.com/auth/cloud-platform']
   });
@@ -204,9 +220,14 @@ async function extractChunkVideo(sourcePath, chunk, outputDir) {
   const ffmpeg = resolveTool('ffmpeg', { envKey: 'FFMPEG_PATH' });
   const outputPath = path.join(outputDir, `chunk_${String(chunk.index).padStart(2, '0')}_${Math.round(chunk.start_sec * 1000)}_${Math.round(chunk.end_sec * 1000)}.mp4`);
   const baseArgs = ['-y', '-ss', String(chunk.start_sec), '-to', String(chunk.end_sec), '-i', sourcePath];
-  const copyArgs = [...baseArgs, '-c', 'copy', '-avoid_negative_ts', 'make_zero', outputPath];
+  // MIDFORM_CHUNK_SCALE=480 forces a downscaled transcode - required for the genai
+  // provider whose inline payload cap (~20MB) a stream-copied 1080p chunk can exceed.
+  const chunkScale = Number(process.env.MIDFORM_CHUNK_SCALE) || 0;
+  const copyArgs = chunkScale > 0
+    ? [...baseArgs, '-vf', `scale=-2:${chunkScale}`, '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '28', '-c:a', 'aac', '-b:a', '96k', outputPath]
+    : [...baseArgs, '-c', 'copy', '-avoid_negative_ts', 'make_zero', outputPath];
   try {
-    await execFileAsync(ffmpeg, copyArgs, { timeout: 120_000, env: getToolEnv() });
+    await execFileAsync(ffmpeg, copyArgs, { timeout: 240_000, env: getToolEnv() });
   } catch (copyError) {
     const transcodeArgs = [...baseArgs, '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '22', '-c:a', 'aac', '-b:a', '128k', outputPath];
     try {
@@ -287,6 +308,9 @@ function validateRequiredTopLevelFields(parsed) {
 function buildVertexEndpoint(config) {
   const override = String(process.env.GEMINI_VERTEX_ENDPOINT_OVERRIDE || '').trim();
   if (override) return override;
+  if (config.provider === 'genai') {
+    return `https://generativelanguage.googleapis.com/v1beta/models/${config.model}:generateContent`;
+  }
   const host = config.location === 'global'
     ? 'https://aiplatform.googleapis.com'
     : `https://${config.location}-aiplatform.googleapis.com`;
@@ -353,7 +377,7 @@ async function requestVertexMidformAnalysis({ videoPath, prompt, token, endpoint
     response = await fetchVertexWithRateBackoff(endpoint, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${token}`,
+        ...vertexAuthHeaders(token),
         'Content-Type': 'application/json'
       },
       body: JSON.stringify(body)
@@ -689,7 +713,7 @@ async function generateVertexJson({ prompt, responseSchema, model, temperature =
   try {
     response = await fetchVertexWithRateBackoff(endpoint, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      headers: { ...vertexAuthHeaders(token), 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     });
   } catch (error) {
@@ -738,7 +762,7 @@ async function judgeFramesAgainstText({ framePaths, text }) {
   };
   const response = await fetchVertexWithRateBackoff(endpoint, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    headers: { ...vertexAuthHeaders(token), 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   });
   const data = await response.json().catch(() => ({}));
