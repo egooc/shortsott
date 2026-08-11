@@ -60,22 +60,33 @@ async function ttsRequest(text, voiceId, modelId, apiKey) {
   return Buffer.from(arrayBuffer);
 }
 
-async function ttsRequestWithMeta(text, voiceId, modelId, apiKey) {
-  const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+async function ttsRequestWithMeta(text, voiceId, modelId, apiKey, options = {}) {
+  // options.voiceSettings overrides the legacy defaults (the KR Full lane
+  // pins stability/style/speed; before 2026-08-12 its settings never reached
+  // the API). options.previousText/nextText feed ElevenLabs request context
+  // so consecutive per-sentence calls keep one prosody line instead of
+  // resetting at every full stop.
+  const body = {
+    text,
+    model_id: modelId || 'eleven_v3',
+    voice_settings: options.voiceSettings && typeof options.voiceSettings === 'object'
+      ? options.voiceSettings
+      : {
+          stability: 0.5,
+          similarity_boost: 0.75
+        }
+  };
+  if (options.previousText) body.previous_text = String(options.previousText);
+  if (options.nextText) body.next_text = String(options.nextText);
+  const outputFormatQuery = options.outputFormat ? `?output_format=${encodeURIComponent(options.outputFormat)}` : '';
+  const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}${outputFormatQuery}`, {
     method: 'POST',
     headers: {
       'xi-api-key': apiKey,
       'Content-Type': 'application/json',
       Accept: 'audio/mpeg'
     },
-    body: JSON.stringify({
-      text,
-      model_id: modelId || 'eleven_v3',
-      voice_settings: {
-        stability: 0.5,
-        similarity_boost: 0.75
-      }
-    })
+    body: JSON.stringify(body)
   });
 
   const contentType = response.headers.get('content-type') || '';
@@ -150,7 +161,7 @@ function buildFailure(captionId, segmentId, reason, attempts, message) {
   };
 }
 
-async function synthesizeCaptionWithRetry(unit, voiceId, modelId, apiKey, outputDir) {
+async function synthesizeCaptionWithRetry(unit, voiceId, modelId, apiKey, outputDir, options = {}) {
   const captionId = unit.caption_id || unit.captionId || `${unit.segment_id || unit.segmentId || 'caption'}_${Date.now()}`;
   const segmentId = unit.segment_id || unit.segmentId || '';
   const narration = unit.text || unit.narration || '';
@@ -173,7 +184,7 @@ async function synthesizeCaptionWithRetry(unit, voiceId, modelId, apiKey, output
   for (let retry = 0; retry <= MAX_RETRIES; retry += 1) {
     const attempts = retry + 1;
     try {
-      const ttsResult = await ttsRequestWithMeta(narrationCheck.text, voiceId, modelId, apiKey);
+      const ttsResult = await ttsRequestWithMeta(narrationCheck.text, voiceId, modelId, apiKey, options);
 
       if (!ttsResult.ok || ttsResult.status !== 200) {
         lastFailure = buildFailure(
@@ -283,13 +294,23 @@ async function synthesizeCaptionWithRetry(unit, voiceId, modelId, apiKey, output
   };
 }
 
-async function generateAllTTS(segments, voiceId, modelId, apiKey, outputDir) {
+async function generateAllTTS(segments, voiceId, modelId, apiKey, outputDir, options = {}) {
   const files = [];
   const failedSegments = [];
   const warnings = [];
 
-  for (const seg of segments) {
-    const segmentResult = await synthesizeCaptionWithRetry(seg, voiceId, modelId, apiKey, outputDir);
+  const segmentList = Array.isArray(segments) ? segments : [];
+  for (let index = 0; index < segmentList.length; index += 1) {
+    const seg = segmentList[index];
+    const callOptions = { voiceSettings: options.voiceSettings };
+    if (options.stitchContext) {
+      const previousText = segmentList.slice(Math.max(0, index - 2), index)
+        .map((piece) => String(piece?.text || '')).join(' ').trim();
+      const nextText = String(segmentList[index + 1]?.text || '').trim();
+      if (previousText) callOptions.previousText = previousText;
+      if (nextText) callOptions.nextText = nextText;
+    }
+    const segmentResult = await synthesizeCaptionWithRetry(seg, voiceId, modelId, apiKey, outputDir, callOptions);
     if (segmentResult.success) {
       files.push(segmentResult.file);
     } else if (segmentResult.failedSegment) {

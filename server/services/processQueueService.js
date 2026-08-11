@@ -290,7 +290,11 @@ const FULL_DRAFT_ANCHOR_MAX_DELAY_SEC = 1.5;
 const FULL_DRAFT_ANCHOR_CUMULATIVE_DELAY_SEC = 3.0;
 const KOREAN_FULL_SRT_DELIVERY_MODE = 'srt_only_external';
 const KOREAN_FULL_TTS_DELIVERY_MODE = 'tts_audio_caption_units';
-const KOREAN_FULL_SPEECH_CHARS_PER_SEC = 7.12;
+// Measured 6.03775 chars/sec in the midform repo with the SAME voice
+// (jB1Cifc2UQbq1gR3wnb0) and SAME settings (stability 1.0, speed 1.1,
+// mp3_44100_128) - adopted 2026-08-12 when those settings actually started
+// reaching the ElevenLabs API here (they were silently dropped before).
+const KOREAN_FULL_SPEECH_CHARS_PER_SEC = 6.03775;
 const KOREAN_FULL_TTS_VOICE_ID = 'jB1Cifc2UQbq1gR3wnb0';
 const KOREAN_FULL_TTS_MODEL_ID = 'eleven_multilingual_v2';
 const KOREAN_FULL_TTS_OUTPUT_FORMAT = 'mp3_44100_128';
@@ -1617,7 +1621,11 @@ async function generateKoreanFullDraftTtsAssets({ itemId, itemConfig = {}, draft
   try {
     generation = await generateAllTTS(plan.sentenceUnits, voiceId, modelId, apiKey, dir, {
       voiceSettings: KOREAN_FULL_TTS_VOICE_SETTINGS,
-      outputFormat: KOREAN_FULL_TTS_OUTPUT_FORMAT
+      outputFormat: KOREAN_FULL_TTS_OUTPUT_FORMAT,
+      // Feed neighbouring sentences as ElevenLabs request context so the
+      // per-sentence calls read as one continuous narration instead of
+      // resetting prosody at every full stop (user feedback 2026-08-12).
+      stitchContext: true
     });
   } catch (error) {
     fs.rmSync(dir, { recursive: true, force: true });

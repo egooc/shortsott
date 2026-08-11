@@ -61,7 +61,10 @@ const SHORT_DESCRIPTION_SOFT_MAX = 260;
 const MIDFORM_CAPTION_MIN_ITEMS_120S = 30;
 const MIDFORM_CAPTION_MAX_ITEMS_120S = 45;
 const MIDFORM_CAPTION_SPLIT_COUNT = 2;
-const KOREAN_FULL_SPEECH_CHARS_PER_SEC = 7.12;
+// Measured 6.03775 chars/sec in the midform repo with the SAME voice and
+// SAME voice settings (stability 1.0, speed 1.1, mp3_44100_128) - adopted
+// 2026-08-12 together with the settings actually reaching the API.
+const KOREAN_FULL_SPEECH_CHARS_PER_SEC = 6.03775;
 const KOREAN_FULL_SPEECH_SAFETY_RATIO = 0.90;
 const KOREAN_FULL_SPEECH_DEFAULT_MARGIN_SEC = 1.5;
 const KOREAN_FULL_SPEECH_DEFAULT_SENTENCE_COUNT = 22;
