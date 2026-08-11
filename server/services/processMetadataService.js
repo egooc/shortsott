@@ -9070,6 +9070,20 @@ async function validateOrRepairJapaneseCaptions({ guide, generateRepairJson, sou
             const appliedGuide = applyMetadataFieldRepair(current, regeneratedFullScript, {
               fullKoreanScriptSourceBasis: 'full_caption_script_regeneration'
             });
+            // Style regeneration replaces TEXT only - the model routinely
+            // returns script_### ids and reshuffled roles, which then fail
+            // the scene-id and observation-quota validation even when the
+            // rewritten text is clean (observed live 2026-08-11). On a 1:1
+            // count match, keep each original item's scene_id and role.
+            const previousScriptItems = Array.isArray(current.full_caption_script_ko) ? current.full_caption_script_ko : [];
+            const regeneratedScriptItems = Array.isArray(appliedGuide.full_caption_script_ko) ? appliedGuide.full_caption_script_ko : [];
+            if (previousScriptItems.length && previousScriptItems.length === regeneratedScriptItems.length) {
+              appliedGuide.full_caption_script_ko = regeneratedScriptItems.map((item, index) => ({
+                ...item,
+                scene_id: previousScriptItems[index]?.scene_id || item.scene_id,
+                role: previousScriptItems[index]?.role || item.role
+              }));
+            }
           const appliedKoCount = Array.isArray(appliedGuide.full_caption_script_ko) ? appliedGuide.full_caption_script_ko.length : 0;
           const normalizedGuide = normalizeGuide(appliedGuide, sourceUrl, durationSec);
           const normalizedKoCount = Array.isArray(normalizedGuide.full_caption_script_ko) ? normalizedGuide.full_caption_script_ko.length : 0;
