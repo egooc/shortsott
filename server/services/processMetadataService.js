@@ -4516,13 +4516,14 @@ function longformHighlightCandidateSummary(candidateGuide = {}, hookGuide = {}, 
 }
 
 function buildLongformVariantFinalPrompt({ variant, sourceUrl, filename, durationSec, candidateGuide, allCandidateGuide = null, hookGuide, storyGuide, midformGuide, assignedHookType = null, sourceContext = {} }) {
-  const storyDurationSec = durationFromWindow(storyGuide?.story_clip_40s)
-    || durationFromWindow(candidateGuide?.story_clip_40s)
-    || durationFromWindow(candidateGuide?.recommended_full_window)
-    || durationSec;
-  const fullSpeechBudgetLines = koreanFullSpeechBudgetPromptLines(calculateKoreanFullSpeechBudget({
-    targetDurationSec: storyDurationSec
-  }));
+  // koreanFullSpeechBudgetFromGuide clamps to the hook-candidate concat for
+  // longform (the Full draft's real video length); budgeting on
+  // storyDurationSec here demanded thousands of chars (600s window / 1155s
+  // source) and Gemini answered with an empty script - every one of the 41
+  // queue items shows zero full_caption_script_ko pieces before this fix.
+  const fullSpeechBudgetLines = koreanFullSpeechBudgetPromptLines(
+    koreanFullSpeechBudgetFromGuide(candidateGuide, durationSec)
+  );
   const variantConfig = {
     full: {
       phaseName: 'KR Full',
@@ -10116,11 +10117,12 @@ async function runLongformGeminiPipeline({ generateJson, sourceUrl, filename, du
   const safeStoryGuide = asPlainObject(storyGuide);
   const safeHookGuide = asPlainObject(hookGuide);
   const safeMidformGuide = asPlainObject(midformGuide);
-  const koreanFullSpeechBudget = calculateKoreanFullSpeechBudget({
-    targetDurationSec: durationFromWindow(safeStoryGuide.story_clip_40s)
-      || durationFromWindow(candidateGuide.recommended_full_window)
-      || durationSec
-  });
+  // Persist the same concat-aware budget the prompt/validation use - the old
+  // window/source fallback stamped 600s-1155s budgets into the guide.
+  const koreanFullSpeechBudget = koreanFullSpeechBudgetFromGuide(
+    { ...asPlainObject(candidateGuide), korean_full_speech_budget: null },
+    durationSec
+  );
   const baseGuide = normalizeGuide({
     ...(existingGuide && typeof existingGuide === 'object' ? existingGuide : {}),
     source_type: sourceType,
