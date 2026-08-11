@@ -9061,7 +9061,11 @@ async function validateOrRepairJapaneseCaptions({ guide, generateRepairJson, sou
       if (validationOptions.lenientKoreanFullGates) {
         const isSoftIssue = (issue) => {
           const reason = String(issue?.reason || issue || '');
-          return /report-style|non-sentence|scene_observation|must follow hook|speech_budget_over|speech budget|banned|문체|forbidden|scene_id must be an existing|Legacy script_|어미/i.test(reason);
+          // "repeats stiff formal endings" is the screen-phrase-era rhythm
+          // validator - it demands what the 2026-08-12 sentence standard
+          // forbids (~합니다 60-70% IS the standard now), so it can only be
+          // advisory on this lane.
+          return /report-style|non-sentence|scene_observation|must follow hook|speech_budget_over|speech budget|banned|문체|forbidden|scene_id must be an existing|Legacy script_|어미|repeats stiff formal endings/i.test(reason);
         };
         const hardIssues = issues.filter((issue) => !isSoftIssue(issue));
         const laneScript = Array.isArray(current?.full_caption_script_ko) ? current.full_caption_script_ko : [];
