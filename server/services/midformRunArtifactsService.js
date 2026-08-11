@@ -434,7 +434,16 @@ async function collectRunArtifacts({
         }
       }
       }
-      const status = issues.length ? 'fail' : 'pass';
+      // The locale manifests are what ships; the base manifest is an intermediate that a
+      // surgical resume (edit paused fills -> review-resume -> draft) legitimately leaves
+      // stale. When locale manifests were checked, base-only issues demote to warnings.
+      const checkedLocales = manifestsToCheck.some(([label]) => label !== 'base');
+      const hardIssues = checkedLocales ? issues.filter((issue) => issue.manifest !== 'base') : issues;
+      const baseOnlyIssues = issues.filter((issue) => issue.manifest === 'base');
+      if (checkedLocales && baseOnlyIssues.length) {
+        gateResults.warnings = [...new Set([...(gateResults.warnings || []), 'narration_broll_semantic_bounds_base_stale'])];
+      }
+      const status = hardIssues.length ? 'fail' : 'pass';
       gateResults.results.push({ id: 'narration_broll_semantic_bounds', status, issue_count: issues.length, issues: issues.slice(0, 8) });
       if (status === 'fail') {
         gateResults.failed.push('narration_broll_semantic_bounds');

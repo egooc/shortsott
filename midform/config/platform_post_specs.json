@@ -9,22 +9,32 @@
       "slot": "09:00 KST",
       "slot_note": "YouTube / TikTok 동일 시각 예약",
       "devices": "PC(KO 브라우저 프로필) + 폰1",
+      "preflight": [
+        "☐ 저작권 프리플라이트 (Hollow Man/Sony 전체차단 사고 2026-08-11):",
+        "   1) YouTube에 먼저 **비공개** 업로드 → '검사(Checks)' 완료 대기 → 소유권 주장 탭 확인",
+        "   2) 클레임 없음 → 예약 공개 전환 / 수익화 클레임 → 게시 여부 판단 / **차단 → 게시 중단, 케이스북에 스튜디오 기록**",
+        "   3) 차단 스튜디오(Sony 등) 소스는 이후 선정 단계에서 제외"
+      ],
       "steps": [
-        "PC   1) YouTube Shorts   — 네이티브 예약, SLOT",
+        "PC   1) YouTube Shorts   — 비공개 업로드 → 검사 통과 확인 → SLOT 예약 전환",
         "     2) TikTok           — 네이티브 예약, SLOT (YouTube와 동시각 필수)",
         "     3) Facebook Reels   — 비즈니스 스위트 직접, ☐ 크로스포스트 체크 해제",
         "폰1  4) Instagram Reels  — 앱 직접 업로드 (서드파티 스케줄러 금지)",
         "     5) 네이버 클립       — 앱 직접, 정보태그 필수",
         "     6) Threads          — 앱 직접"
       ],
-      "warnings": "※ 폰2(JA) 로그인 절대 금지. PC에서 Instagram 웹 세션 열지 말 것."
+      "warnings": "※ 폰2(JA) 로그인 절대 금지. PC에서 Instagram 웹 세션 열지 말 것. YouTube 차단 시 타 플랫폼은 별도 판정이므로 개별 판단."
     },
     "ja": {
       "slot": "10:00 JST",
       "slot_note": "YouTube / TikTok 동일 시각 예약 (KO 슬롯과 별개)",
       "devices": "PC(JA 브라우저 프로필) + 폰2",
+      "preflight": [
+        "☐ 저작권 프리플라이트: YouTube **비공개** 업로드 → 검사 완료 → 소유권 주장 확인 → 클레임 없을 때만 SLOT 예약",
+        "   (KO 채널에서 이미 차단된 소스면 JA도 게시 중단)"
+      ],
       "steps": [
-        "PC   1) YouTube Shorts   — 네이티브 예약, SLOT",
+        "PC   1) YouTube Shorts   — 비공개 업로드 → 검사 통과 확인 → SLOT 예약 전환",
         "     2) TikTok           — 네이티브 예약, SLOT (YouTube와 동시각 필수)",
         "     3) Facebook Reels   — 비즈니스 스위트 직접, ☐ 크로스포스트 체크 해제",
         "폰2  4) Instagram Reels  — 앱 직접 업로드, 일본 트렌드 음원",

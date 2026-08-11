@@ -632,6 +632,16 @@ function normalizeDraftSpecSourceRanges(draftSpec, baseDraftInput = {}) {
         }
       }
     }
+    // UNIVERSAL invariant, last line of defense: no clip may cross the usable end (the
+    // endcard). A ja closing spec carried a pre-correction window (132.93-135.44 vs usable
+    // 132.4) and every upstream clamp missed it because the START itself sat past the
+    // boundary. Shift the window back instead of truncating to a sliver.
+    if (usableEndSec > 0 && end > usableEndSec + 0.05) {
+      const overflow = end - usableEndSec;
+      start = Math.max(0, start - overflow);
+      end = usableEndSec;
+      adjusted = true;
+    }
     if (process.env.MIDFORM_PACK_DEBUG) console.error(`[pack:final] ${placement.clip_id} start=${start} end=${typeof end!=='undefined'?end:'-'}`);
     const normalized = [Number(start.toFixed(3)), Number(end.toFixed(3))];
     packedRanges.push(normalized);

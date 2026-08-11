@@ -185,6 +185,13 @@ function renderTxt({ locale, specDoc, platformIds, posts, facts, videoMeta, film
   lines.push('FILE_FB90  : —              ← 페북 90초 캡 계정으로 확인되면 별도 컷 경로 기입');
   lines.push(`SLOT       : ${guide.slot || '—'}      ← ${guide.slot_note || ''}`.trimEnd());
   lines.push('');
+  if ((guide.preflight || []).length) {
+    lines.push(bar);
+    lines.push('[프리플라이트 — 공개 전 필수]');
+    lines.push(bar);
+    for (const step of guide.preflight) lines.push(step);
+    lines.push('');
+  }
   lines.push(bar);
   lines.push(`[업로드 순서]  기기: ${guide.devices || '—'}`);
   lines.push(bar);
