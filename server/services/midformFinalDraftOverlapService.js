@@ -187,8 +187,11 @@ function compareFinalDraftClipChains(koChain, jaChain, thresholds = THRESHOLDS, 
     : 0;
   const openingSimilarity = lcsSimilarity(koOpening.map(signatureForClip), jaOpening.map(signatureForClip));
   const overlapRatio = sourceRangeOverlapRatio(koChain, jaChain);
-  const koTopHighlightOrder = topHighlightClusterOrdering(koChain);
-  const jaTopHighlightOrder = topHighlightClusterOrdering(jaChain);
+  // Same principle as chain similarity: pinned dialogue/hook windows play in both locales
+  // in story order BY DESIGN - on a dialogue-heavy source they ARE the top highlights and
+  // pushed ordering similarity to 1.0 with no copying involved. Order only the free picks.
+  const koTopHighlightOrder = topHighlightClusterOrdering(koFree);
+  const jaTopHighlightOrder = topHighlightClusterOrdering(jaFree);
   const topHighlightSimilarity = lcsSimilarity(koTopHighlightOrder.map((clip) => clip.signature), jaTopHighlightOrder.map((clip) => clip.signature));
   const blocks = sharedContiguousBlocks(koChain, jaChain, excludedWindows);
   const maxBlockSec = round3(blocks[0]?.duration_sec || 0);
