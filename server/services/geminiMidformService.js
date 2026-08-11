@@ -16,8 +16,12 @@ const MIDFORM_CHUNK_TARGET_SEC = 35;
 const MIDFORM_CHUNK_OVERLAP_SEC = 2;
 const MIDFORM_CHUNK_SNAP_WINDOW_SEC = 6;
 const MIDFORM_MIN_FINAL_CHUNK_SEC = 12;
-const MIDFORM_CHUNK_DELAY_MIN_MS = 3000;
-const MIDFORM_CHUNK_DELAY_MAX_MS = 5000;
+// Long sources (6-8min = 12-15 chunks of ~35s inline video) blow the per-minute token
+// quota at the default 3-5s spacing - MIDFORM_CHUNK_DELAY_MS spreads the burst out.
+const MIDFORM_CHUNK_DELAY_MIN_MS = Number(process.env.MIDFORM_CHUNK_DELAY_MS) > 0
+  ? Number(process.env.MIDFORM_CHUNK_DELAY_MS)
+  : 3000;
+const MIDFORM_CHUNK_DELAY_MAX_MS = MIDFORM_CHUNK_DELAY_MIN_MS + 2000;
 const execFileAsync = promisify(execFile);
 
 function createError(status, code, message, details = {}) {
