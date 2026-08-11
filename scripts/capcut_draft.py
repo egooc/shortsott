@@ -1944,6 +1944,18 @@ MIDFORM_FIXED_SUBTITLE_Y = 0.5125
 # Caption base line (라인2) hugs the bottom band's bright frame line (canvas y≈1427):
 # center 1382px puts the glyph bottoms ~11px above it (owner feedback 2026-08-11).
 MIDFORM_CAPTION_Y = -0.44
+# The ja band art is a DIFFERENT drawing (curtains + audience): its band top sits at canvas
+# ~1281 and its light row at ~1433-1460, so the ko base line crowded the lights. ja rides
+# higher with a tighter lane gap matched to the 9/11 font pair (owner feedback 2026-08-11).
+MIDFORM_JA_CAPTION_Y = -0.405
+MIDFORM_JA_CAPTION_LANE_OFFSETS = (0.0, 0.085)
+MIDFORM_JA_DIALOGUE_FONT_SIZE = 11
+
+
+def midform_caption_base_y(caption_y=None):
+    if caption_y is not None:
+        return caption_y
+    return MIDFORM_JA_CAPTION_Y if FRAME_LOCALE == "ja" else MIDFORM_CAPTION_Y
 # Two caption lanes, each with its own row and its own text track (user directive).
 #   lane 0 (라인2) - the BASE line just above the frame's bright line: narration is pinned
 #                    here, and the second speaker of an exchange shares it
@@ -1961,10 +1973,11 @@ MIDFORM_CAPTION_SPILL_MAX_US = 2_000_000
 
 
 def midform_caption_row_y(caption_kind, lane_index, base_y=MIDFORM_CAPTION_Y):
-    """Lane 0 sits on the narration line; lane 1 sits one row below it."""
+    """Lane 0 sits on the base (narration) line; lane 1 sits one row above it."""
     if lane_index is None or lane_index < 0:
         return base_y
-    offset = MIDFORM_CAPTION_LANE_OFFSETS[lane_index % len(MIDFORM_CAPTION_LANE_OFFSETS)]
+    offsets = MIDFORM_JA_CAPTION_LANE_OFFSETS if FRAME_LOCALE == "ja" else MIDFORM_CAPTION_LANE_OFFSETS
+    offset = offsets[lane_index % len(offsets)]
     return round(base_y + offset, 6)
 
 
@@ -3119,10 +3132,11 @@ def rebuild_midform_caption_track_from_template(draft_content_path, template_doc
         color_applied = bool(caption_color and apply_text_material_fill_color(cloned_material, caption_color))
         if color_applied:
             summary["colored_segments"] += 1
-        # ja narration reads larger than ko at the same nominal size (CJK glyph density):
-        # owner directive 2026-08-11 pins ja narration to size 9. Dialogue keeps template size.
-        if FRAME_LOCALE == "ja" and str(entry.get("caption_kind") or "").strip() != "dialogue":
-            apply_text_material_font_size(cloned_material, MIDFORM_JA_NARRATION_FONT_SIZE)
+        # ja reads larger than ko at the same nominal size (CJK glyph density): owner
+        # directive 2026-08-11 pins ja narration to 9 and ja dialogue to 11.
+        if FRAME_LOCALE == "ja":
+            is_dialogue_entry = str(entry.get("caption_kind") or "").strip() == "dialogue"
+            apply_text_material_font_size(cloned_material, MIDFORM_JA_DIALOGUE_FONT_SIZE if is_dialogue_entry else MIDFORM_JA_NARRATION_FONT_SIZE)
         ensure_material_category(draft_content, "texts").append(cloned_material)
         if isinstance(old_material_id, str) and old_material_id:
             source_to_target_id_map[old_material_id] = new_material_id
@@ -11479,14 +11493,14 @@ def create_draft(input_json_path):
     script.save()
 
     generated_draft_content_path = os.path.join(draft_path, "draft_content.json")
-    caption_track_normalization_summary = normalize_midform_caption_text_track(generated_draft_content_path, MIDFORM_CAPTION_Y)
+    caption_track_normalization_summary = normalize_midform_caption_text_track(generated_draft_content_path, midform_caption_base_y())
     caption_track_template_rebuild_summary = {"applied": False, "reason": "template not loaded"}
     if template_draft_content and srt_entries:
         caption_track_template_rebuild_summary = rebuild_midform_caption_track_from_template(
             generated_draft_content_path,
             template_draft_content,
             srt_entries,
-            MIDFORM_CAPTION_Y,
+            midform_caption_base_y(),
         )
     hybrid_audio_policy_summary = {"enabled": False}
     if midform_hybrid_mode and os.path.exists(generated_draft_content_path):
