@@ -134,11 +134,17 @@ function heatmapPeak(video) {
   return heatmap.reduce((peak, seg) => Math.max(peak, Number(seg?.value) || 0), 0);
 }
 
+const MIN_SOURCE_HEIGHT = 720;
+
 function rankCandidates(videos) {
   const byId = new Map();
   for (const video of videos) {
     const videoId = video.id || extractYoutubeVideoId(video.webpage_url || video.original_url || '');
     if (!videoId || byId.has(videoId)) continue;
+    // Refuse sub-720p sources before spending download/analysis on them
+    // (midform adoption B, 2026-08-11). Unknown height passes (fail-open).
+    const height = Number(video.height) || 0;
+    if (height > 0 && height < MIN_SOURCE_HEIGHT) continue;
     const peak = heatmapPeak(video);
     byId.set(videoId, {
       video_id: videoId,

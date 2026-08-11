@@ -7140,6 +7140,10 @@ def create_process_draft(data):
     script.add_track(cc.TrackType.video, "channel_asset_overlay", relative_index=2)
     script.add_track(cc.TrackType.video, "ocr_mask_overlay", relative_index=3)
     script.add_track(cc.TrackType.text, "process_explainer", relative_index=4)
+    # KR Full lane (2026-08-11): narration audio gets its own track. Before
+    # this, generated ElevenLabs mp3s only drove caption timing and the draft
+    # shipped SILENT - fatal for a lane whose purpose is a Korean audio signal.
+    script.add_track(cc.TrackType.audio, "tts", relative_index=5)
     os.makedirs(audio_dir, exist_ok=True)
     os.makedirs(video_dir, exist_ok=True)
     os.makedirs(subtitle_dir, exist_ok=True)
@@ -7543,6 +7547,58 @@ def create_process_draft(data):
         else:
             warnings.append("bgm file not found under assets/bgm/process; continuing without BGM")
 
+    # KR Full narration: place each sentence mp3 end-to-end from t=0 - the
+    # exact layout buildKoreanFullTtsCaptionUnits used for the caption
+    # timeline, so audio and captions stay in lockstep by construction.
+    tts_files_input = data.get("ttsFiles", []) if isinstance(data.get("ttsFiles", []), list) else []
+    process_tts_summary = {
+        "enabled": False,
+        "track": "tts",
+        "files_count": len(tts_files_input),
+        "placed_count": 0,
+        "total_duration_sec": 0.0,
+        "warnings": [],
+    }
+    if tts_files_input and coerce_bool(process_config.get("use_tts"), False):
+        process_tts_summary["enabled"] = True
+        tts_audio_dir = os.path.join(audio_dir, "tts")
+        os.makedirs(tts_audio_dir, exist_ok=True)
+        ordered_tts = sorted(
+            tts_files_input,
+            key=lambda entry: str(entry.get("caption_id") or entry.get("segment_id") or ""),
+        )
+        tts_cursor_us = 0
+        for tts_entry in ordered_tts:
+            source_path = str(tts_entry.get("filepath") or tts_entry.get("path") or "")
+            label = str(tts_entry.get("caption_id") or os.path.basename(source_path) or "?")
+            if not source_path or not os.path.exists(source_path):
+                process_tts_summary["warnings"].append(f"tts file missing: {label}")
+                continue
+            draft_tts_path = os.path.abspath(os.path.join(tts_audio_dir, os.path.basename(source_path)))
+            shutil.copy2(source_path, draft_tts_path)
+            tts_material = cc.AudioMaterial(draft_tts_path)
+            tts_duration_us = int(tts_material.duration or 0)
+            if tts_duration_us <= 0:
+                process_tts_summary["warnings"].append(f"tts material duration invalid: {label}")
+                continue
+            script.add_material(tts_material)
+            script.add_segment(
+                cc.AudioSegment(
+                    material=tts_material,
+                    source_timerange=cc.Timerange(start=0, duration=tts_duration_us),
+                    target_timerange=cc.Timerange(start=tts_cursor_us, duration=tts_duration_us),
+                ),
+                track_name="tts",
+            )
+            process_tts_summary["placed_count"] += 1
+            tts_cursor_us += tts_duration_us
+        process_tts_summary["total_duration_sec"] = round(tts_cursor_us / 1_000_000, 3)
+        if process_tts_summary["placed_count"] != len(tts_files_input):
+            warnings.append(
+                f"tts narration incomplete: placed {process_tts_summary['placed_count']}"
+                f"/{len(tts_files_input)} files"
+            )
+
     channel_frame_asset = {}
     channel_frame_summary = {
         "enabled": False,
@@ -7808,6 +7864,7 @@ def create_process_draft(data):
         "actual_timeline_duration_sec": auxiliary_timeline_trim.get("video_end_sec", target_duration_sec),
         "draft_duration_normalized": bool(auxiliary_timeline_trim.get("draft_duration_updated")),
         "use_tts": bool(process_config.get("use_tts")),
+        "process_tts": process_tts_summary,
         "use_bgm": bool(process_config.get("use_bgm", True)),
         "bgm_preset": process_config.get("bgm_preset") or bgm_preset.get("preset_id", ""),
         "bgm_source_path": bgm_source_path,

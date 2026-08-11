@@ -1565,7 +1565,13 @@ function buildKoreanFullTtsExplainerBlocks(captionUnits = []) {
 }
 
 async function generateKoreanFullDraftTtsAssets({ itemId, itemConfig = {}, draftConfig = {} }) {
-  assertKoreanFullScriptReviewApproved(itemConfig, itemId);
+  // kr_full lane runs unattended (approved 2026-08-11): validation-passed
+  // scripts skip the manual review approval; held scripts never reach here.
+  const krFullLaneAutoTts = itemConfig.production_lane === 'kr_full'
+    && itemConfig.ottogi_guide_output?.full_generation_status !== 'held';
+  if (!krFullLaneAutoTts) {
+    assertKoreanFullScriptReviewApproved(itemConfig, itemId);
+  }
   const plan = buildKoreanFullDraftTtsPlan({ itemId, itemConfig, draftConfig });
   if (!draftConfig.korean_full_actual_video_timeline_sec) {
     draftConfig.korean_full_actual_video_timeline_sec = await computeDraftActualVideoTimelineSecForPreflight(draftConfig);
@@ -10463,7 +10469,14 @@ function selectKoreanCapcutTemplateDraftName(queueConfig = {}) {
 function buildKoreanFullDraftConfig({ itemId, itemConfig, queueConfig, baseConfig }) {
   const actualSourceDuration = getSourceVideoDurationSec(resolveItemSourcePath(itemConfig), itemConfig);
   const sourceDuration = Number(actualSourceDuration || sourceDurationSecForItem(itemConfig) || baseConfig.target_duration_sec || 30);
-  const scriptReviewApprovedForTts = String(itemConfig.script_review?.status || '').trim() === 'approved_for_tts';
+  // Approved 2026-08-11 (user sign-off, "어설퍼도 차라리"): the automated
+  // kr_full lane runs unattended, so a script that PASSED validation (not
+  // held) goes to TTS without the manual review approval. Held scripts still
+  // stop for human review; manually queued items keep the approval gate.
+  const krFullLaneAutoTts = itemConfig.production_lane === 'kr_full'
+    && itemConfig.ottogi_guide_output?.full_generation_status !== 'held';
+  const scriptReviewApprovedForTts = krFullLaneAutoTts
+    || String(itemConfig.script_review?.status || '').trim() === 'approved_for_tts';
   const titleInfo = selectKoreanTitle(itemConfig, 'full');
   const koreanReview = itemConfig.korean_review || {};
   const koreanFullMetadata = getVariantReviewMetadata(itemConfig.ottogi_guide_output || {}, 'full');
