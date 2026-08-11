@@ -9013,6 +9013,27 @@ async function validateOrRepairJapaneseCaptions({ guide, generateRepairJson, sou
           });
           return current;
         }
+        // Gemini persistently overshoots the speech budget ~3x on this lane even
+        // after retries; the sentences themselves are usually fine. Rather than
+        // hold the item, keep whole sentences from the front until the budget is
+        // reached — narration then fits the video's available speech window.
+        if (!hardIssues.length && laneScript.length && laneMaxChars && laneVisibleChars > laneMaxChars * 1.5) {
+          const clippedScript = [];
+          let clippedChars = 0;
+          for (const piece of laneScript) {
+            const pieceChars = String(piece?.text || '').replace(/\s/g, '').length;
+            if (clippedScript.length >= 3 && clippedChars + pieceChars > laneMaxChars) break;
+            clippedScript.push(piece);
+            clippedChars += pieceChars;
+          }
+          current = { ...current, full_caption_script_ko: clippedScript };
+          emitProgress(onProgress, `KR Full 레인 관용 클립: 예산 초과 원고를 문장 단위로 절단 (${laneScript.length}문구/${laneVisibleChars}자 → ${clippedScript.length}문구/${clippedChars}자, max ${laneMaxChars}자)`, {
+            phase: 'kr_full_lenient_clip',
+            attempt,
+            soft_issues: summarizeCaptionIssuesForLog(issues, 6)
+          });
+          return current;
+        }
       }
       if (attempt >= 3) {
         summarizeCaptionIssuesForLog(issues, 10).forEach((line) => {
