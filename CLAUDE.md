@@ -46,7 +46,8 @@ This repo currently contains **two overlapping pipeline generations**. Know whic
 - Design intent is 4 channel variants per source (`JP Full`, `JP Highlight`, `KR Full`, `KR Highlight`), each with its own script/subtitles/title/description/hashtags/BGM/logo — never copies with only the language swapped.
   - Full: process-explanation video, one short caption per cut, subtitle timing matches cut timeline.
   - Highlight: strongest visual-hook moment, single ~200-char explainer block (not per-cut captions).
-- **What actually generates today is Highlight only.** `generateQueue` hardcodes `const wantsFullDraft = false;` and `const wantsMidformDraft = false;` — both are asserted by `check:shortform-highlight`, so do not "fix" the 4-variant text above by re-enabling Full without asking. Each queue item produces highlights in its own `target_locale`, not both languages.
+- **What actually generates today: Highlight, plus the KR Full lane (approved 2026-08-11).** Items marked `production_lane: 'kr_full'` (daily harvest routes 4/day, `harvest_config.json` locale_plan `lane` field) produce the Korean TTS-narrated Full draft — the KR channel retarget needs a Korean AUDIO signal that voiceless highlights cannot give. Every other item stays highlight-only: `effectiveDraftVariantModeForItem` returns `'full_only'` only for that lane, `wantsFullDraft` derives from it, `wantsMidformDraft` stays hardcoded false — all asserted by `check:shortform-highlight`. Each queue item produces drafts in its own `target_locale`, not both languages.
+- Upload profile purposes gate at the **channel language level** (ko_* item on ko_* profile passes; cross-language is a hard error) — the KR channel takes ko_full uploads while its stored purpose is still ko_highlight.
 - Highlight count per source (`highlightOutputCountForItem`): longform 5, shortform 2 when the source is 24s or longer, otherwise 1. Duration caps: shortform `SHORTFORM_HIGHLIGHT_MAX_DURATION_SEC` 10s, longform `LONGFORM_HIGHLIGHT_MAX_DURATION_SEC` 24s (default 16s).
 - Longform highlight rules (`pickHighlightWindows`):
   - Arc completion beats duration (approved 2026-08-10, user sign-off): a longform candidate whose arc runs past the duration cap is **dropped, not end-clipped** (`normalizeHighlightCandidateWindow`) — a hook→process→end window without its ending must never ship. Shortform keeps the clip behavior. Guarded by `check:shortform-highlight`.
@@ -106,6 +107,17 @@ scene cut at most 0.35s (start) / 1.6s (end); duration never over the cap,
 shrink at most 0.7s (silence-only) / 2.0s (scene move), never below 4s —
 are part of the protected contract; loosening them needs the same explicit
 sign-off as the selection path itself.
+
+## Sibling reference repo — movie recap pipeline
+
+`C:\Users\sejun\Documents\Codex\2026-05-26\midform` is a separate,
+**midform-only movie-recap pipeline** (own AGENTS.md; longform source
+analysis + TTS already complete; `midform-stable-runner` is its runner
+build). It is the destination genre for the channel-warmup strategy —
+read it for reference when designing recap-related features, but never
+import code across repos without explicit direction. The midform drafts
+in the CapCut output folder (breaking-dawn/anger/anacondas/hollowman
+JA/KO) come from that repo, not this one.
 
 ## Isolate experimental code from production paths
 

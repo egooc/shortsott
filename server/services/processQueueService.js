@@ -228,7 +228,12 @@ function normalizeDraftVariantMode(value = 'all') {
 
 function effectiveDraftVariantModeForItem(draftVariantMode = 'all', itemConfig = {}) {
   void draftVariantMode;
-  void itemConfig;
+  // Approved 2026-08-11 (user sign-off): the KR Full lane is the ONLY path
+  // that escapes the highlight-only policy. Harvested items marked
+  // production_lane 'kr_full' produce the Korean TTS-narrated Full draft -
+  // the KR channel retarget needs a Korean AUDIO language signal that
+  // voiceless highlights cannot give. Everything else stays highlight-only.
+  if (itemConfig?.production_lane === 'kr_full') return 'full_only';
   return 'highlight_only';
 }
 
@@ -6652,6 +6657,8 @@ function importYoutubeSourceQueueItems({ items, videos, urls, text, batch_mode }
       // Marks daily-harvest imports so the eligibility gate applies only to
       // them; human-curated imports never carry this flag.
       source_harvested: row?.harvested === true,
+      // 'kr_full' routes the item to the Korean TTS Full draft lane.
+      production_lane: row?.production_lane || '',
       target_duration_sec: 30,
       upload_title: title,
       upload_description: String(row?.description || ''),
@@ -11082,7 +11089,9 @@ async function generateQueue({ batch_name, item_ids, stop_on_error = false, draf
       }
 
       const itemDraftVariantMode = effectiveDraftVariantModeForItem(normalizedDraftVariantMode, itemConfig);
-      const wantsFullDraft = false;
+      // Full drafts only for the approved KR Full lane (2026-08-11); the
+      // variant mode gate above is the single source of that decision.
+      const wantsFullDraft = itemDraftVariantMode === 'full_only';
       const wantsHighlightDraft = ['all', 'full_highlight_only'].includes(itemDraftVariantMode)
         ? queueConfig.create_highlight_draft === true
         : itemDraftVariantMode === 'highlight_only';

@@ -922,14 +922,21 @@ function assertUploadItemsMatchProfiles(items = []) {
       continue;
     }
 
-    if (itemVariant !== expectedVariant) {
+    // Approved 2026-08-11: purposes gate at the CHANNEL LANGUAGE level, not
+    // the exact format. The KR channel's diet is switching from highlights to
+    // KR Full (Korean TTS) while its stored purpose is still ko_highlight -
+    // a ko_full item on a ko_* profile is intentional, never a routing error.
+    // Cross-language uploads (ko item to a jp profile or vice versa) remain
+    // hard errors.
+    const languageOf = (variant) => (String(variant).startsWith('ko') ? 'ko' : 'ja');
+    if (languageOf(itemVariant) !== languageOf(expectedVariant)) {
       errors.push({
         title: item.title || item.originalName || item.id || '',
         profileId,
         profilePurpose: profile.purpose || '',
         expectedVariant,
         itemVariant,
-        reason: `Profile purpose ${profile.purpose} only accepts ${expectedVariant} uploads`
+        reason: `Profile purpose ${profile.purpose} only accepts ${languageOf(expectedVariant)} uploads`
       });
     }
   }

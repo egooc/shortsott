@@ -1542,10 +1542,18 @@ function main() {
     'Phase 2 Highlight button must keep requesting the highlight-only mode.'
   );
 
+  // Approved 2026-08-11: the KR Full lane (production_lane 'kr_full') is the
+  // ONLY escape from highlight-only policy - Korean TTS Full drafts for the
+  // KR channel retarget. Everything else must still land on highlight_only.
+  assertContains(
+    queueService,
+    "if (itemConfig?.production_lane === 'kr_full') return 'full_only';",
+    'The KR Full lane must be scoped strictly to production_lane kr_full items.'
+  );
   assertContains(
     queueService,
     "return 'highlight_only';",
-    'Active Phase 2 draft variant mode must stay JP Highlight-only and must not promote longform into Full generation.'
+    'Every non-kr_full item must stay JP Highlight-only; longform must not promote into Full generation.'
   );
 
   assertContains(
@@ -1604,8 +1612,16 @@ function main() {
 
   assertContains(
     queueService,
-    'const wantsFullDraft = false;',
-    'Full Draft generation must remain inactive in active Phase 2 queue generation.'
+    "const wantsFullDraft = itemDraftVariantMode === 'full_only';",
+    'Full Draft generation must be driven ONLY by the kr_full lane variant mode, never unconditionally on.'
+  );
+  assert(
+    queueTest.effectiveDraftVariantModeForItem('all', {}) === 'highlight_only',
+    'an unmarked item must stay highlight_only'
+  );
+  assert(
+    queueTest.effectiveDraftVariantModeForItem('all', { production_lane: 'kr_full' }) === 'full_only',
+    'a kr_full-lane item must produce the Full draft mode'
   );
 
   assertContains(

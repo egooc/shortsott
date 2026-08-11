@@ -67,9 +67,13 @@ function collectShippedDrafts(jobId) {
   const visit = (node) => {
     if (!node || typeof node !== 'object') return;
     if (Array.isArray(node)) { node.forEach(visit); return; }
-    const folder = node.highlight_output_folder || node.output_folder;
+    const folder = node.highlight_output_folder || node.output_folder
+      || node.korean_full_output_folder;
     const window = node.highlight_source_window || node.source_window;
-    if (typeof folder === 'string' && folder && window && !byFolder.has(folder)) {
+    // Highlight rows carry a source window; Full (F/KF) rows are recognized
+    // by their folder code instead.
+    const isFullFolder = typeof folder === 'string' && /-K?F-/.test(path.basename(folder));
+    if (typeof folder === 'string' && folder && (window || isFullFolder) && !byFolder.has(folder)) {
       byFolder.set(folder, true);
     }
     for (const list of [node.highlight_metadata_export_files, node.metadata_export_files, node.metadata_files]) {
@@ -120,7 +124,11 @@ async function main() {
   const lines = [`# 내보내기+업로드 리포트 ${new Date().toISOString()}`, `- job: ${jobId}`, ''];
 
   let targets = folders.filter((folder) => fs.existsSync(folder));
-  if (okSet) targets = targets.filter((folder) => okSet.has(path.basename(folder)));
+  // The scorecard only judges highlight arcs; Full (F/KF) drafts bypass it.
+  if (okSet) {
+    targets = targets.filter((folder) =>
+      /-K?F-/.test(path.basename(folder)) || okSet.has(path.basename(folder)));
+  }
   // Anything already moved to uploaded/ has been published - never redo it.
   // CapCut truncates long export names (H03 once lost its " Hnn" suffix), so
   // match by prefix in either direction instead of exact name.
@@ -192,14 +200,22 @@ async function main() {
   const profileStore = JSON.parse(fs.readFileSync(path.join(ROOT, 'server', 'data', 'youtube_upload_profiles.json'), 'utf8'));
   const profileList = Array.isArray(profileStore.profiles) ? profileStore.profiles : Object.values(profileStore.profiles || {});
   const profileForVariant = (variant) => {
-    const purpose = variant === 'ko_highlight' ? 'ko_highlight' : 'jp_highlight';
-    const candidates = profileList.filter((profile) => (profile.purpose || '') === purpose);
-    const connected = candidates.find((profile) => profile.channelTitle || profile.channel_title || profile.channel);
-    return (connected || candidates[0])?.id || '';
+    // Exact purpose first (ko_full -> ko_full profile); fall back to the
+    // same-language channel so KR Full still reaches the KR channel while its
+    // profile purpose is ko_highlight.
+    const isKorean = String(variant).startsWith('ko');
+    const wanted = isKorean ? (variant === 'ko_full' ? ['ko_full', 'ko_highlight'] : ['ko_highlight', 'ko_full']) : ['jp_highlight', 'jp_full'];
+    for (const purpose of wanted) {
+      const candidates = profileList.filter((profile) => (profile.purpose || '') === purpose);
+      const connected = candidates.find((profile) => profile.channelTitle || profile.channel_title || profile.channel);
+      const chosen = (connected || candidates[0])?.id;
+      if (chosen) return chosen;
+    }
+    return '';
   };
   const channelCounters = new Map();
   const items = importResult.candidates.map((candidate) => {
-    const channelKey = candidate.variant === 'ko_highlight' ? 'ko' : 'ja';
+    const channelKey = String(candidate.variant).startsWith('ko') ? 'ko' : 'ja';
     const indexInChannel = channelCounters.get(channelKey) || 0;
     channelCounters.set(channelKey, indexInChannel + 1);
     return {

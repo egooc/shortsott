@@ -31,8 +31,14 @@ const DEFAULT_CONFIG = {
   daily_count: 12,
   per_query_results: 15,
   queries_per_day: 5,
-  // locale_plan is consumed in order until daily_count is filled.
-  locale_plan: [{ locale: 'ja-JP', count: 12 }],
+  // locale_plan is consumed in order until daily_count is filled. An entry's
+  // optional lane ('kr_full') routes those items to the Korean TTS Full
+  // draft pipeline instead of highlights (approved 2026-08-11: 4/day Korean
+  // audio signal for the KR channel retarget).
+  locale_plan: [
+    { locale: 'ja-JP', count: 12 },
+    { locale: 'ko-KR', count: 4, lane: 'kr_full' }
+  ],
   queries: [
     '金属加工 工場 製造工程',
     '食品工場 大量生産 製造過程',
@@ -156,7 +162,11 @@ function assignLocales(candidates, config) {
   let cursor = 0;
   for (const plan of config.locale_plan) {
     for (let i = 0; i < plan.count && cursor < candidates.length; i += 1, cursor += 1) {
-      rows.push({ ...candidates[cursor], target_locale: plan.locale });
+      rows.push({
+        ...candidates[cursor],
+        target_locale: plan.locale,
+        production_lane: plan.lane || ''
+      });
     }
   }
   return rows;
@@ -190,7 +200,8 @@ async function harvestDailySources({ importItems, now = new Date(), dryRun = fal
     views: candidate.views,
     creator: candidate.creator,
     publishedAt: candidate.published_at,
-    harvested: true
+    harvested: true,
+    production_lane: candidate.production_lane || ''
   }));
 
   let importResult = { imported: [], skipped: [], failed: [] };

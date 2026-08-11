@@ -150,8 +150,18 @@ function testAuxSourceDoesNotBleedIntoHighlightOrMidform() {
 }
 
 function testFullDraftGenerationIsPolicyDisabled() {
+  // Approved 2026-08-11: Full drafts exist ONLY through the kr_full lane
+  // (Korean TTS audio signal for the KR channel); the unconditional-off
+  // policy became lane-scoped. Anything outside the lane must stay off.
   const queueSource = fs.readFileSync(path.join(__dirname, '..', 'server', 'services', 'processQueueService.js'), 'utf8');
-  assert(queueSource.includes('const wantsFullDraft = false;'), 'Active Phase 2 batch generation must not request Full drafts');
+  assert(
+    queueSource.includes("const wantsFullDraft = itemDraftVariantMode === 'full_only';"),
+    'Full drafts must be requested only via the kr_full lane variant mode'
+  );
+  assert(
+    !queueSource.includes('const wantsFullDraft = true'),
+    'Full draft generation must never be unconditionally enabled'
+  );
   assert(queueSource.includes('Full Draft generation is policy-disabled'), 'Full disabled status must be explicit in batch reports');
 }
 
