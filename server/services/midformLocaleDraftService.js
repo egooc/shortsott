@@ -894,9 +894,16 @@ function buildJapaneseScript(baseScript, japaneseSlotFills) {
     }
     if (['dialogue_quote', 'dialogue'].includes(segmentType)) {
       const lines = Array.isArray(fill.caption_kr_dialogue) ? fill.caption_kr_dialogue : [];
-      const text = String(lines[dialogueLineIndexForSegment(segment)] || '').trim();
-      if (!text) missing.push(String(segment?.segment_id || ''));
-      return { ...segment, translated_caption_ko: text, caption_text: text };
+      const idx = dialogueLineIndexForSegment(segment);
+      const text = String(lines[idx] || '').trim();
+      // ja legitimately translates a ko multi-chunk line into FEWER chunks (a long ko line
+      // split into L01/L02/L03 may be two ja sentences). A trailing chunk past the end of the
+      // ja array is not missing data - the full translation lives in the earlier chunks - so
+      // emit it as a blank caption (the renderer drops sub-500ms/empty segments) instead of
+      // skipping the whole ja locale. Only a HOLE inside the array (idx < length but empty) is
+      // a real translation gap.
+      if (!text && idx < lines.length) missing.push(String(segment?.segment_id || ''));
+      return { ...segment, translated_caption_ko: text, caption_text: text, tts_enabled: text ? segment?.tts_enabled : false };
     }
     if (segmentType === 'scene_hook') return { ...segment };
     const narration = String(fill.narration || '').trim();

@@ -3116,6 +3116,14 @@ def rebuild_midform_caption_track_from_template(draft_content_path, template_doc
         text_value = str(entry.get("text") or "").strip()
         start_us = microseconds(entry.get("start_sec", 0))
         end_us = microseconds(entry.get("end_sec", 0))
+        # An empty caption is a locale that translated a ko multi-chunk line into fewer chunks:
+        # the trailing chunk carries no ja text (the full translation is in an earlier chunk).
+        # Emit nothing rather than a blank box - dropping it here is what lets the ja locale
+        # survive a chunk-count mismatch instead of being skipped wholesale.
+        if not text_value:
+            summary.setdefault("skipped_empty_captions", 0)
+            summary["skipped_empty_captions"] += 1
+            continue
         # Generation-time invariant: a caption shorter than 50ms is unreadable and used to
         # slip through as a 1-microsecond segment. Refuse to emit it at all.
         if end_us - start_us < 50_000:
