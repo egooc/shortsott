@@ -293,14 +293,27 @@ function buildVertexEndpoint(config) {
 // hammering): honor Retry-After when Vertex sends it, else back off 20s/40s/80s. Only 429
 // retries here - every other status still surfaces immediately.
 async function fetchVertexWithRateBackoff(endpoint, options, attempts = 4) {
-  let response = await fetch(endpoint, options);
-  for (let attempt = 1; response.status === 429 && attempt < attempts; attempt += 1) {
+  // Network-level fetch failures (undici TypeError: fetch failed - DNS blip, reset socket,
+  // large-payload hiccup) killed a whole 15-minute analysis run that a 10s retry would have
+  // saved. Treat them like a retryable 429, not a crash.
+  const fetchOnce = async () => {
+    try {
+      return await fetch(endpoint, options);
+    } catch (networkError) {
+      return { status: -1, networkError };
+    }
+  };
+  let response = await fetchOnce();
+  for (let attempt = 1; (response.status === 429 || response.status === -1) && attempt < attempts; attempt += 1) {
     const retryAfter = Number(response.headers?.get?.('retry-after'));
-    const waitMs = (Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : 20 * (2 ** (attempt - 1))) * 1000;
-    console.warn(`[midform] Vertex 429 - backing off ${Math.round(waitMs / 1000)}s (attempt ${attempt}/${attempts - 1})`);
+    const waitMs = response.status === -1
+      ? 10_000 * attempt
+      : (Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : 20 * (2 ** (attempt - 1))) * 1000;
+    console.warn(`[midform] Vertex ${response.status === -1 ? 'network failure' : '429'} - backing off ${Math.round(waitMs / 1000)}s (attempt ${attempt}/${attempts - 1})`);
     await sleep(waitMs);
-    response = await fetch(endpoint, options);
+    response = await fetchOnce();
   }
+  if (response.status === -1) throw response.networkError;
   return response;
 }
 
