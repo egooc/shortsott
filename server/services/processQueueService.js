@@ -1976,6 +1976,52 @@ function assertKoreanFullTtsFitsVideoTimeline({ itemId = '', itemConfig = {}, dr
   return evidence;
 }
 
+// Post-build inspection for KR Full TTS drafts (2026-08-12, after shipping a
+// draft whose captions/video/narration ran on three different timelines): read
+// the GENERATED draft_content.json back and assert the three tracks share one
+// timeline. A draft that fails this must fail the item - never ship silently.
+function verifyKoreanFullDraftTimelineAlignment(draftPath, { bgmVolume = null } = {}) {
+  const report = { ok: false, checks: {}, values: {} };
+  const contentPath = path.join(draftPath, 'draft_content.json');
+  const doc = readJsonIfExists(contentPath);
+  if (!doc) {
+    report.checks.draft_content_readable = false;
+    return report;
+  }
+  report.checks.draft_content_readable = true;
+  const tracks = Array.isArray(doc.tracks) ? doc.tracks : [];
+  const trackEnd = (track) => (track?.segments || []).reduce(
+    (end, seg) => Math.max(end, (Number(seg?.target_timerange?.start) || 0) + (Number(seg?.target_timerange?.duration) || 0)),
+    0
+  ) / 1e6;
+  const ttsTrack = tracks.find((track) => track.name === 'tts');
+  const textTrack = tracks.find((track) => track.name === 'process_explainer');
+  const videoTrack = tracks.find((track) => track.type === 'video' && track.name === 'source_video');
+  const bgmTrack = tracks.find((track) => track.name === 'bgm');
+  const ttsEnd = trackEnd(ttsTrack);
+  const captionEnd = trackEnd(textTrack);
+  const videoEnd = trackEnd(videoTrack);
+  report.values = {
+    tts_segments: ttsTrack?.segments?.length || 0,
+    tts_end_sec: Number(ttsEnd.toFixed(3)),
+    caption_segments: textTrack?.segments?.length || 0,
+    caption_end_sec: Number(captionEnd.toFixed(3)),
+    video_end_sec: Number(videoEnd.toFixed(3)),
+    bgm_volumes: (bgmTrack?.segments || []).map((seg) => Number(seg?.volume))
+  };
+  report.checks.tts_track_present = Boolean(ttsTrack && report.values.tts_segments > 0);
+  // Captions must live inside the narration window, and end with it.
+  report.checks.captions_within_narration = Boolean(textTrack) && captionEnd <= ttsEnd + 0.5
+    && (textTrack.segments || []).every((seg) => (Number(seg?.target_timerange?.start) || 0) / 1e6 <= ttsEnd);
+  report.checks.caption_end_matches_narration = Math.abs(captionEnd - ttsEnd) <= 1.0;
+  // Video must end with the narration (small tail allowed), not run on silent.
+  report.checks.video_matches_narration = videoEnd >= ttsEnd - 0.5 && videoEnd <= ttsEnd + 3.0;
+  report.checks.bgm_volume_applied = bgmVolume === null
+    || report.values.bgm_volumes.every((volume) => Number.isFinite(volume) && Math.abs(volume - Number(bgmVolume)) < 0.005);
+  report.ok = Object.values(report.checks).every(Boolean);
+  return report;
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -11286,6 +11332,22 @@ async function generateQueue({ batch_name, item_ids, stop_on_error = false, draf
             srtFile: koreanFullTtsAssets.srtPath
           });
 
+          if (koreanFullConfig.use_tts === true) {
+            const alignment = verifyKoreanFullDraftTimelineAlignment(result.draftPath, {
+              bgmVolume: koreanFullConfig.use_bgm === false ? null : koreanFullConfig.bgm_volume
+            });
+            row.korean_full_draft_alignment = alignment;
+            if (!alignment.ok) {
+              const failedChecks = Object.entries(alignment.checks)
+                .filter(([, passed]) => !passed)
+                .map(([name]) => name);
+              const error = new Error(`KR Full draft failed timeline-alignment inspection: ${failedChecks.join(', ')} (${JSON.stringify(alignment.values)})`);
+              error.code = 'OTTOGI_KR_FULL_DRAFT_MISALIGNED';
+              error.details = alignment;
+              throw error;
+            }
+          }
+
           const itemWorkingDir = copyDraftToGeneratingFolder(result.draftPath, itemOutDir);
           const finalCaptionNormalization = normalizeFinalDraftCaptions(itemWorkingDir);
           const fullManifest = readJsonIfExists(path.join(itemWorkingDir, 'edit_manifest.json')) || {};
@@ -11702,6 +11764,7 @@ module.exports = {
   QUEUE_ROOT,
   QUEUE_CONFIG_PATH,
   BATCH_OUTPUT_ROOT,
+  verifyKoreanFullDraftTimelineAlignment,
   defaultQueueConfig,
   defaultItemConfig,
   validateOutputRoot,

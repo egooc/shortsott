@@ -15,8 +15,29 @@ KR Full 경로를 파일:라인 단위로 맵핑한 결과. midform은 내레이
    kr_full 레인 & 검증 통과(not held) 아이템은 승인 없이 TTS 진행
    ("어설퍼도 차라리" 사인오프). held는 여전히 사람 리뷰로 정지.
 
+## P0-후속 — 타임라인 정합 (2026-08-12 커밋됨)
+
+3. **자막/영상/내레이션 3중 타임라인 분리 버그**: 자막 유닛은 TTS 실측
+   길이로 만들어졌지만 파이썬 `sync_full_caption_segments_to_video_timeline`이
+   컷 타임라인으로 재배치했고(구 Full 설계용), 영상은 예산(후보 concat
+   기반 21초)과 무관하게 45~62초로 조립되어 내레이션 종료 후 20초 무음.
+   수정: TTS 모드에서 캡션 재배치 스킵(내레이션 타임라인 유지) + 영상
+   트랙을 내레이션 끝+1.5초에서 트림(`trim_video_track_to_narration`) →
+   BGM/로고/이펙트는 기존 aux 트림이 자동 정렬.
+4. **드래프트 출고 게이트**: `verifyKoreanFullDraftTimelineAlignment` —
+   생성된 draft_content.json을 되읽어 tts 트랙 존재, 자막⊆내레이션,
+   자막 끝=내레이션 끝(±1s), 영상 끝=내레이션 끝(+0.5~3s), BGM 볼륨
+   적용을 검사. 실패 시 아이템 실패(OTTOGI_KR_FULL_DRAFT_MISALIGNED),
+   조용한 출고 금지.
+
 ## P1 — 이번 주 (품질/비용, 저위험)
 
+0. **발화 예산을 실제 영상 타임라인 기준으로 재보정**: 현재 예산은
+   후보 concat(min(60, Σhook_candidates)) 기반이라 실제 조립 영상
+   (45~62초)의 절반만 내레이션됨 → 트림 가드로 영상이 ~내레이션 길이로
+   잘려 출고 중. 예산 산정을 preflight 실측 타임라인
+   (`computeDraftActualVideoTimelineSecForPreflight`)으로 바꾸면 조립
+   영상 전체를 내레이션이 커버.
 1. **ElevenLabs 설정 실적용 + 발화속도 재보정**: `generateAllTTS`가 5개
    인자만 받아 `KOREAN_FULL_TTS_VOICE_SETTINGS`(stability 1.0, speed 1.1,
    mp3_44100_128)가 통째로 버려지고 있음(기본 0.5/0.75로 발화). midform은

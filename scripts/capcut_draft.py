@@ -5260,6 +5260,81 @@ def apply_caption_blur_effect_to_draft(draft_content_path, template_doc, warning
     return summary
 
 
+def trim_video_track_to_narration(draft_content_path, narration_end_us, tail_us=1_500_000):
+    """KR Full TTS drafts: the assembled video timeline can run far past the
+    narration (speech budget is estimated at metadata time, the video edit is
+    assembled independently). Cut the source_video track at narration end +
+    tail so the video finishes with the voice instead of trailing silent for
+    tens of seconds. Auxiliary tracks (bgm/logo/captions) are re-trimmed to
+    the video timeline by trim_auxiliary_tracks_to_video_timeline right after
+    this runs."""
+    summary = {
+        "applied": False,
+        "reason": "not run",
+        "narration_end_sec": round(narration_end_us / 1_000_000, 3),
+        "limit_sec": round((narration_end_us + tail_us) / 1_000_000, 3),
+        "previous_video_end_sec": 0,
+        "dropped_segments": 0,
+        "shortened_segments": 0,
+    }
+    if narration_end_us <= 0:
+        summary["reason"] = "no narration"
+        return summary
+    if not draft_content_path or not os.path.exists(draft_content_path):
+        summary["reason"] = "draft_content.json not found"
+        return summary
+    limit_us = int(narration_end_us + tail_us)
+
+    with open(draft_content_path, "r", encoding="utf-8-sig") as file:
+        draft_content = json.load(file)
+
+    video_track = None
+    for track in draft_content.get("tracks", []):
+        if isinstance(track, dict) and track.get("type") == "video" and track.get("name") == "source_video":
+            video_track = track
+            break
+    if not video_track:
+        summary["reason"] = "source_video track not found"
+        return summary
+
+    segments = [seg for seg in (video_track.get("segments") or []) if isinstance(seg, dict)]
+    video_end_us = 0
+    for segment in segments:
+        target = segment.get("target_timerange") or {}
+        video_end_us = max(video_end_us, int(target.get("start") or 0) + int(target.get("duration") or 0))
+    summary["previous_video_end_sec"] = round(video_end_us / 1_000_000, 3)
+    if video_end_us <= limit_us:
+        summary["reason"] = "video already within narration limit"
+        return summary
+
+    kept_segments = []
+    for segment in segments:
+        target = segment.get("target_timerange") or {}
+        start_us = int(target.get("start") or 0)
+        duration_us = int(target.get("duration") or 0)
+        if start_us >= limit_us:
+            summary["dropped_segments"] += 1
+            continue
+        if start_us + duration_us > limit_us:
+            new_duration_us = limit_us - start_us
+            source = segment.get("source_timerange") or {}
+            source_duration_us = int(source.get("duration") or 0)
+            if source_duration_us > 0 and duration_us > 0:
+                source["duration"] = max(1, int(source_duration_us * new_duration_us / duration_us))
+                segment["source_timerange"] = source
+            target["duration"] = new_duration_us
+            segment["target_timerange"] = target
+            summary["shortened_segments"] += 1
+        kept_segments.append(segment)
+    video_track["segments"] = kept_segments
+    summary["applied"] = True
+    summary["reason"] = "video trimmed to narration end"
+
+    with open(draft_content_path, "w", encoding="utf-8") as file:
+        json.dump(draft_content, file, ensure_ascii=False)
+    return summary
+
+
 def trim_auxiliary_tracks_to_video_timeline(draft_content_path):
     summary = {
         "applied": False,
@@ -7758,12 +7833,32 @@ def create_process_draft(data):
     if ocr_mask_pre_summary.get("mask_video_path") and not ocr_mask_overlay_summary.get("mask_video_path"):
         ocr_mask_overlay_summary["mask_video_path"] = ocr_mask_pre_summary.get("mask_video_path")
 
-    caption_timeline_sync = sync_full_caption_segments_to_video_timeline(
-        generated_draft_content_path,
-        explainer_blocks,
-    )
-    if caption_timeline_sync.get("synced_explainer_blocks"):
-        explainer_blocks = caption_timeline_sync["synced_explainer_blocks"]
+    # KR Full TTS drafts: captions were timed from the real narration mp3
+    # durations (single timeline shared with the tts audio track). Re-timing
+    # them to the video cut timeline would desync captions from the voice, and
+    # the video must end with the narration - so trim the video to the
+    # narration instead of stretching captions over silent video.
+    tts_narration_active = bool(process_tts_summary.get("enabled")) and process_tts_summary.get("placed_count", 0) > 0
+    video_narration_trim_summary = {"applied": False, "reason": "no tts narration"}
+    if tts_narration_active:
+        narration_end_us = int(round(float(process_tts_summary.get("total_duration_sec") or 0) * 1_000_000))
+        video_narration_trim_summary = trim_video_track_to_narration(
+            generated_draft_content_path,
+            narration_end_us,
+        )
+        caption_timeline_sync = {
+            "enabled": False,
+            "applied": False,
+            "reason": "skipped: tts caption units keep the narration timeline",
+            "caption_unit_mode": "tts_caption_unit",
+        }
+    else:
+        caption_timeline_sync = sync_full_caption_segments_to_video_timeline(
+            generated_draft_content_path,
+            explainer_blocks,
+        )
+        if caption_timeline_sync.get("synced_explainer_blocks"):
+            explainer_blocks = caption_timeline_sync["synced_explainer_blocks"]
     caption_visibility_summary = force_process_caption_visibility(
         generated_draft_content_path,
         template_doc=template_draft_content,
@@ -7950,6 +8045,7 @@ def create_process_draft(data):
         },
         "caption_visibility": caption_visibility_summary,
         "caption_blur_background": caption_blur_background_summary,
+        "video_narration_trim": video_narration_trim_summary,
         "auxiliary_timeline_trim": auxiliary_timeline_trim,
         "chapter05_strategy_applied": chapter05_strategy_applied,
         "manual_or_pending_transform_items": manual_pending,
