@@ -193,6 +193,21 @@ function calculateKoreanFullSpeechBudget({
 
 // Phrase-count text for prompts, scaled with the speech budget - a fixed
 // "20 to 24" against a short-concat char budget is self-contradictory.
+// Shared sentence-item standard for EVERY prompt that writes or repairs
+// full_caption_script_ko (2026-08-12). The initial, review, repair, seed and
+// regeneration builders must all say the same thing - a repair prompt that
+// still asks for "screen-phrase items" or allows ~요 endings will re-fragment
+// a script the initial prompt got right (observed live: repair produced
+// "평범한 모래가 / 특별한 가치를 지닌 / ...과정이에요").
+function koreanFullSentenceItemRuleLines(budget = {}) {
+  return [
+    `- full_caption_script_ko must be ${koreanFullScriptCountRange(budget)} items where EACH ITEM IS ONE COMPLETE SPOKEN SENTENCE of roughly 15-25 Korean visible characters. Do NOT pre-fragment into short screen chunks - screen-caption splitting happens automatically downstream.`,
+    '- Invalid fragment style (never output as items): "값진 재료 변신.", "틀에 부어져요.", "평범한 모래가". Valid item: "여기서 1초만 늦으면 전부 버려집니다."',
+    '- Sentence endings: ~합니다/했습니다 for 60-70% of items, ~하죠/했죠 for 15-30%, an occasional noun-ending fragment for impact only. BANNED endings: ~에요, ~어요, ~예요, ~해요, ~돼요, ~거든요, ~네요. Never ask the viewer a question.',
+    '- The FIRST item must have role "hook" and the LAST item must have role "closing".'
+  ];
+}
+
 function koreanFullScriptCountRange(budget = {}) {
   const count = Math.max(3, Number(budget?.target_sentence_count) || KOREAN_FULL_SPEECH_DEFAULT_SENTENCE_COUNT);
   return `${Math.max(2, count - 2)} to ${count}`;
@@ -2231,7 +2246,8 @@ function buildMetadataPrompt({ sourceUrl, filename, durationSec, sceneGuide, sou
     '- The next 2 to 4 captions must answer what is being made and why this process exists. Split long thoughts into short connected phrases, not isolated labels.',
     '- Use natural Korean connector ideas when needed, such as 사실은, 여기서 중요한 건, 그래서, 이 정밀함이, 사람의 손으로, 기계의 힘으로, 조금씩, 마지막에는.',
     '- Scene labels are only raw material. Place scene_observation captions only at the strongest planned key moments, well spread across the script, not clustered and not one per scene.',
-    `- Write ${OUTPUT_CONFIG.full_draft.scriptKey} as ${koreanFullScriptCountRange(speechBudget)} short connected Korean screen-phrase items. Each item.scene_id must be one of the real scene_transitions IDs such as scene_01, scene_02, scene_03; never invent script_001 IDs. Reuse a scene_id for multiple nearby caption chunks when needed.`,
+    ...koreanFullSentenceItemRuleLines(speechBudget),
+    '- Each item.scene_id must be one of the real scene_transitions IDs such as scene_01, scene_02, scene_03; never invent script_001 IDs. Reuse a scene_id for multiple nearby sentences when needed.',
     '- Each full_caption_script item must have role: hook, process_purpose, technical_context, emotional_expression, scene_observation, method, quality_reason, progress, or closing.',
     '- The scene_observation captions mark key moments only. Do not describe every visible cut, and keep natural sentence flow and the timing budget.',
     '- Most Full script items must explain the whole process purpose, method, material change, quality reason, and emotional meaning. Scene labels are supporting material only.',
@@ -2661,6 +2677,7 @@ function buildFullCaptionScriptRepairPrompt({ sourceUrl, filename, durationSec, 
     '',
     'Required output fields:',
     `- ${OUTPUT_CONFIG.full_draft.scriptKey}: ${koreanFullScriptCountRange(speechBudget)} objects. Full Draft production language is ${OUTPUT_CONFIG.full_draft.lang.toUpperCase()} only.`,
+    ...koreanFullSentenceItemRuleLines(speechBudget),
     '- Each object must contain scene_id, role, text, source_basis.',
     '- scene_id must be copied from Existing metadata context.scene_summary[].scene_id, for example scene_01. Do not output script_001 IDs.',
     '',
@@ -2686,7 +2703,7 @@ function buildFullCaptionScriptRepairPrompt({ sourceUrl, filename, durationSec, 
       sourceText: JSON.stringify(guide?.scene_transitions || [])
     }),
     '- Avoid repeated 입니다/습니다/됩니다/집니다 endings.',
-    '- Sentence validity rule v3: every caption item must be its own complete clause. Never end an item with only a bare noun, an object/topic/subject particle (을/를/은/는/이/가), or a half-finished modifier — never split one grammatical unit across two items. Each item must end in a natural Korean ending or connector such as -요, -죠, -예요, -해요, -돼요, -고, -니까, -면서, -합니다, -됩니다, -입니다, -니다, -까, or punctuation.',
+    '- Sentence validity rule v4: every item is ONE COMPLETE SPOKEN SENTENCE (15-25 Korean visible characters). Never end an item with a bare noun, an object/topic/subject particle (을/를/은/는/이/가), or a half-finished modifier, and never split one sentence across two items. Items end in ~합니다/~했습니다/~하죠/~했죠 or sentence punctuation; ~에요/~어요/~예요/~해요/~돼요/~거든요/~네요 endings are banned.',
     ...koreanFullSpeechBudgetPromptLines(speechBudget),
     ...koreanFullKnowledgeNarrationDistributionPromptLines(speechBudget),
     ...koreanFullSceneSpeechBudgetPromptLines(sceneSummary),
@@ -2739,6 +2756,7 @@ function buildInitialFullCaptionScriptSeedPrompt({ sourceUrl, filename, duration
     '',
     'Required output fields:',
     `- ${OUTPUT_CONFIG.full_draft.scriptKey}: ${koreanFullScriptCountRange(speechBudget)} objects. Korean only.`,
+    ...koreanFullSentenceItemRuleLines(speechBudget),
     '- Each object must contain scene_id, role, text, source_basis.',
     '- scene_id must be copied from Existing context.scene_summary[].scene_id. Do not output script_001 IDs.',
     '- source_basis must be "initial_full_caption_script_seed" for every item.',
@@ -2820,6 +2838,7 @@ function buildKoreanFullCaptionScriptRegenerationPrompt({ sourceUrl, filename, d
     '',
     'Required output fields:',
     `- ${OUTPUT_CONFIG.full_draft.scriptKey}: ${koreanFullScriptCountRange(speechBudget)} objects. Korean only.`,
+    ...koreanFullSentenceItemRuleLines(speechBudget),
     '- Each object must contain scene_id, role, text, source_basis.',
     '- scene_id must be copied from Existing context.scene_summary[].scene_id, for example scene_01. Do not output script_001 IDs.',
     '- Do not return full_caption_script_ja or any Japanese Full fields.',
@@ -2847,7 +2866,7 @@ function buildKoreanFullCaptionScriptRegenerationPrompt({ sourceUrl, filename, d
       sourceText: JSON.stringify(guide?.scene_transitions || [])
     }),
     '- Use natural spoken Korean for a friendly process-channel host.',
-    '- Sentence validity rule v3: every caption item must be its own complete clause. Never end an item with only a bare noun, an object/topic/subject particle (을/를/은/는/이/가), or a half-finished modifier — never split one grammatical unit across two items. Each item must end in a natural Korean ending or connector such as -요, -죠, -예요, -해요, -돼요, -고, -니까, -면서, -합니다, -됩니다, -입니다, -니다, -까, or punctuation.',
+    '- Sentence validity rule v4: every item is ONE COMPLETE SPOKEN SENTENCE (15-25 Korean visible characters). Never end an item with a bare noun, an object/topic/subject particle (을/를/은/는/이/가), or a half-finished modifier, and never split one sentence across two items. Items end in ~합니다/~했습니다/~하죠/~했죠 or sentence punctuation; ~에요/~어요/~예요/~해요/~돼요/~거든요/~네요 endings are banned.',
     '- Forbidden: no caption item may end with 함 or 됨.',
     '- Forbidden: do not write three consecutive caption items ending in 합니다.',
     ...koreanFullSpeechBudgetPromptLines(speechBudget),
