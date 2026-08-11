@@ -613,8 +613,24 @@ async function analyzeMidformVideoChunked({ videoPath, contentType, options, dur
   fs.mkdirSync(videoDir, { recursive: true });
   fs.mkdirSync(logsDir, { recursive: true });
   const chunkResults = [];
+  // Chunk-result cache keyed by source identity + chunk range: quota storms kill long
+  // analyses stochastically, and without a cache every retry restarts from chunk 1 and
+  // re-spends the whole token budget. With it, progress ACCUMULATES across retries.
+  // Shared across run dirs: each fresh run downloads the same file to a NEW directory, so
+  // the cache keys on content identity (size + duration), not path.
+  const sourceStat = fs.statSync(videoPath);
+  const cacheDir = path.join(__dirname, '..', '..', 'midform', 'test_runs', '.vision_chunk_cache', `${sourceStat.size}_${Math.round(durationSec)}`);
+  fs.mkdirSync(cacheDir, { recursive: true });
 
   for (const chunk of chunks) {
+    const cachePath = path.join(cacheDir, `chunk_${Math.round(chunk.start_sec * 1000)}_${Math.round(chunk.end_sec * 1000)}.json`);
+    if (fs.existsSync(cachePath)) {
+      try {
+        const cached = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
+        chunkResults.push({ chunk, result: cached });
+        continue;
+      } catch { /* corrupt cache - re-analyze */ }
+    }
     const chunkVideoPath = await extractChunkVideo(videoPath, chunk, videoDir);
     const chunkTranscript = transcriptForChunk(options.transcript || options.sourceTranscript || null, chunk);
     // A truncated response (model stops mid-JSON) is stochastic: one bad chunk used to kill the
@@ -644,6 +660,7 @@ async function analyzeMidformVideoChunked({ videoPath, contentType, options, dur
     }
     const logPath = path.join(logsDir, `chunk_${String(chunk.index).padStart(2, '0')}_response.json`);
     fs.writeFileSync(logPath, `${JSON.stringify({ chunk, result }, null, 2)}\n`, 'utf8');
+    fs.writeFileSync(cachePath, `${JSON.stringify(result)}\n`, 'utf8');
     chunkResults.push({ chunk, result, logPath, chunkVideoPath });
     if (chunk.index < chunks.length) await sleep(chunkDelayMs());
   }
