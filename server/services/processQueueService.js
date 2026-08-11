@@ -567,83 +567,186 @@ function assertCaptionUnitsMatchTtsSentences(plan = {}) {
   return true;
 }
 
-const KOREAN_CAPTION_SLICE_TARGET_CHARS = 11;
-const KOREAN_CAPTION_SLICE_TOLERANCE = 4;
-const KOREAN_CAPTION_SLICE_MIN_CHARS = 3;
-const KOREAN_CAPTION_SLICE_MAX_CHARS = 15;
-const KOREAN_CAPTION_PREFERRED_BOUNDARY_RE = /(은|는|이|가|을|를|고|서|며)$/u;
+// Korean caption line breaker ported from the midform repo's
+// balanced_partition_words (midform/scripts/assemble_slot_draft_input.py:489-659,
+// re-written for this repo 2026-08-12 after user feedback that KR Full caption
+// splits degraded toward the end of the script: "미래의 제품을 | 위한 중요한
+// 기반이 | 됩니다"). Boundaries are scored linguistically, stranding a
+// determiner/modifier/subject is forbidden, and the partition optimizes
+// line-length balance over the whole sentence instead of filling greedily.
+const KOREAN_CAPTION_SLICE_MAX_CHARS = 11;
+const KOREAN_CAPTION_SLICE_EXTENDED_CHARS = 14;
+const KOREAN_CAPTION_SLICE_MIN_CHARS = 4;
 
-function isPreferredKoreanCaptionBoundary(word = '') {
-  const value = normalizeTtsText(word);
-  return value === '게' || KOREAN_CAPTION_PREFERRED_BOUNDARY_RE.test(value);
+const KO_BREAK_CONNECTIVE_END_RE = /(자|고|는데|는데도|지만|면서|며|수록|했는데|였는데|됐는데|되자|하자|오고|가자|자마자)[,，]?$/u;
+const KO_BREAK_PUNCT_END_RE = /[.!?。！？]$/u;
+const KO_BREAK_PARTICLE_END_RE = /(은|는|이|가|을|를|에|로|으로|에서|에게|의|도|만|까지)$/u;
+const KO_BREAK_PREDICATE_RE = /(습니다|했습니다|됐습니다|됩니다|였습니다|였죠|했죠|이죠|죠|버렸습니다)$/u;
+const KO_BREAK_OBJECT_PARTICLE_RE = /(을|를)$/u;
+const KO_BREAK_ADVERB_WORDS = new Set(['잠깐', '바로', '다시', '이미', '즉시', '천천히', '결국', '정반대로']);
+const KO_BREAK_CONNECTOR_WORDS = new Set(['그런데', '하지만', '그래서', '결국', '그러니까']);
+const KO_BREAK_DETERMINER_WORDS = new Set(['이', '그', '저', '한', '두', '세', '네', '그런', '이런', '저런', '무슨', '어떤', '모든', '온', '첫', '다른', '새', '옛']);
+const KO_BREAK_BOUND_NOUN_WORDS = new Set(['거야', '겁니다', '것', '거', '수', '뿐', '때', '채', '줄']);
+const KO_BREAK_AUXILIARY_START_WORDS = new Set(['않자', '않고', '않아', '않았죠', '않았습니다', '않는데', '버렸죠', '버렸습니다', '버렸는데', '있었죠', '있었습니다', '있었는데']);
+const KO_BREAK_DEPENDENT_NOUN_STARTS = ['쪽으로', '때문에', '뿐만'];
+
+function koCaptionVisibleLen(text = '') {
+  return normalizeTtsText(text).replace(/\s+/g, '').length;
 }
 
-function splitLongKoreanWordForCaption(word = '') {
-  const text = normalizeTtsText(word);
-  if (text.length <= KOREAN_CAPTION_SLICE_MAX_CHARS) return [text].filter(Boolean);
-  const out = [];
-  for (let index = 0; index < text.length; index += KOREAN_CAPTION_SLICE_MAX_CHARS) {
-    out.push(text.slice(index, index + KOREAN_CAPTION_SLICE_MAX_CHARS));
+function koCaptionWordCore(word = '') {
+  return normalizeTtsText(word).replace(/[,，.!?。！？]+$/u, '');
+}
+
+function koCaptionIsProtectedBoundary(left, right) {
+  const leftCore = koCaptionWordCore(left);
+  const rightCore = koCaptionWordCore(right);
+  if (leftCore === '수' && (rightCore.startsWith('있') || rightCore.startsWith('없'))) return true;
+  if (rightCore === '수밖에' || KO_BREAK_DEPENDENT_NOUN_STARTS.some((prefix) => rightCore.startsWith(prefix))) return true;
+  if (KO_BREAK_BOUND_NOUN_WORDS.has(rightCore)) return true;
+  const protectedLeft = ['지', '할', '한', '하는', '하던', '될', '된', '되는', '있던', '있었'].some((suffix) => leftCore.endsWith(suffix));
+  return protectedLeft && KO_BREAK_AUXILIARY_START_WORDS.has(rightCore);
+}
+
+// A one-syllable word with a ㄴ/ㄹ final is almost always a verbal modifier
+// (준/본/한/될/간); tearing it from its neighbour reads as a stutter.
+function koCaptionSingleSyllableModifier(word) {
+  const core = koCaptionWordCore(word);
+  if (core.length !== 1) return false;
+  const code = core.codePointAt(0) - 0xAC00;
+  if (code < 0 || code > 11171) return false;
+  const final = code % 28;
+  return final === 4 || final === 8;
+}
+
+function koCaptionIsForbiddenBoundary(left, right) {
+  if (!normalizeTtsText(left) || !normalizeTtsText(right)) return true;
+  if (koCaptionIsProtectedBoundary(left, right)) return true;
+  if (normalizeTtsText(left).endsWith('의')) return true;
+  const leftCore = koCaptionWordCore(left);
+  if (KO_BREAK_DETERMINER_WORDS.has(leftCore)) return true;
+  if (KO_BREAK_CONNECTOR_WORDS.has(leftCore)) return true;
+  if (KO_BREAK_OBJECT_PARTICLE_RE.test(leftCore) && leftCore.length <= 2 && koCaptionVisibleLen(right) <= 6) return true;
+  if (KO_BREAK_ADVERB_WORDS.has(normalizeTtsText(left)) && KO_BREAK_PREDICATE_RE.test(right)) return true;
+  if ((normalizeTtsText(left).endsWith('가') || normalizeTtsText(left).endsWith('이')) && KO_BREAK_PREDICATE_RE.test(right)) return true;
+  if (koCaptionSingleSyllableModifier(right) || koCaptionSingleSyllableModifier(left)) return true;
+  return false;
+}
+
+function koCaptionBoundaryScore(left, right) {
+  if (koCaptionIsForbiddenBoundary(left, right)) return -100;
+  if (KO_BREAK_PUNCT_END_RE.test(normalizeTtsText(left))) return 80;
+  if (KO_BREAK_CONNECTIVE_END_RE.test(normalizeTtsText(left))) return 80;
+  if (KO_BREAK_CONNECTOR_WORDS.has(koCaptionWordCore(right))) return 60;
+  if (/[,，]$/u.test(normalizeTtsText(left))) return 60;
+  const leftCore = koCaptionWordCore(left);
+  if (['다는', '라는', '이라는', '였다는', '이었다는'].some((suffix) => leftCore.endsWith(suffix))) return 40;
+  if (['오히려', '이미', '결국', '끝까지'].includes(leftCore)) return 40;
+  if (KO_BREAK_PARTICLE_END_RE.test(leftCore)) return 40;
+  return 20;
+}
+
+function koCaptionChunkHasProtectedPair(words) {
+  for (let index = 1; index < words.length; index += 1) {
+    if (koCaptionIsProtectedBoundary(words[index - 1], words[index])) return true;
   }
-  return out.filter(Boolean);
+  return false;
+}
+
+function koCaptionChunkAllowed(words) {
+  const length = koCaptionVisibleLen(words.join(' '));
+  if (length < KOREAN_CAPTION_SLICE_MIN_CHARS) return false;
+  if (length <= KOREAN_CAPTION_SLICE_MAX_CHARS) return true;
+  return length <= KOREAN_CAPTION_SLICE_EXTENDED_CHARS && koCaptionChunkHasProtectedPair(words);
+}
+
+function koCaptionPartitionScore(words, boundaries, idealPositions) {
+  const starts = [0, ...boundaries];
+  const ends = [...boundaries, words.length];
+  const lengths = starts.map((start, index) => koCaptionVisibleLen(words.slice(start, ends[index]).join(' ')));
+  const imbalance = Math.max(...lengths) - Math.min(...lengths);
+  const ratio = Math.max(...lengths) / Math.max(1, Math.min(...lengths));
+  const boundaryPoints = boundaries.map((boundary) => words.slice(0, boundary).reduce((sum, word) => sum + koCaptionVisibleLen(word), 0));
+  const distance = boundaryPoints.reduce((sum, point, index) => sum + Math.abs(point - idealPositions[index]), 0);
+  const boundaryQuality = boundaries.reduce((sum, boundary) => sum + koCaptionBoundaryScore(words[boundary - 1], words[boundary]), 0);
+  return (imbalance * 1000) + (ratio * 100) + (distance * 10) - boundaryQuality;
+}
+
+function koCaptionBalancedPartition(words) {
+  const totalLen = words.reduce((sum, word) => sum + koCaptionVisibleLen(word), 0);
+  if (totalLen <= KOREAN_CAPTION_SLICE_MAX_CHARS) return [words.join(' ')];
+  const minParts = Math.max(2, Math.ceil(totalLen / KOREAN_CAPTION_SLICE_MAX_CHARS));
+  for (let partCount = minParts; partCount <= words.length; partCount += 1) {
+    const idealPositions = Array.from({ length: partCount - 1 }, (_, i) => totalLen * ((i + 1) / partCount));
+    const candidateLists = [];
+    let starved = false;
+    for (const ideal of idealPositions) {
+      const candidates = [];
+      for (let boundary = 1; boundary < words.length; boundary += 1) {
+        if (koCaptionIsForbiddenBoundary(words[boundary - 1], words[boundary])) continue;
+        const point = words.slice(0, boundary).reduce((sum, word) => sum + koCaptionVisibleLen(word), 0);
+        if (Math.abs(point - ideal) > 5) continue;
+        const score = koCaptionBoundaryScore(words[boundary - 1], words[boundary]);
+        if (score < 40) continue;
+        candidates.push({ boundary, score, distance: Math.abs(point - ideal) });
+      }
+      if (!candidates.length) { starved = true; break; }
+      candidates.sort((a, b) => (b.score - a.score) || (a.distance - b.distance) || (a.boundary - b.boundary));
+      candidateLists.push(candidates.slice(0, 6).map((candidate) => candidate.boundary));
+    }
+    if (starved) continue;
+    let best = null;
+    const combo = new Array(candidateLists.length).fill(0);
+    const tryCombo = (depth, chosen) => {
+      if (depth === candidateLists.length) {
+        const boundaries = [...new Set(chosen)].sort((a, b) => a - b);
+        if (boundaries.length !== partCount - 1) return;
+        const starts = [0, ...boundaries];
+        const ends = [...boundaries, words.length];
+        for (let index = 0; index < starts.length; index += 1) {
+          if (!koCaptionChunkAllowed(words.slice(starts[index], ends[index]))) return;
+        }
+        const score = koCaptionPartitionScore(words, boundaries, idealPositions);
+        if (!best || score < best.score) best = { score, boundaries };
+        return;
+      }
+      for (const boundary of candidateLists[depth]) tryCombo(depth + 1, [...chosen, boundary]);
+    };
+    tryCombo(0, []);
+    void combo;
+    if (best) {
+      const starts = [0, ...best.boundaries];
+      const ends = [...best.boundaries, words.length];
+      return starts.map((start, index) => words.slice(start, ends[index]).join(' '));
+    }
+  }
+  // Greedy fallback: still refuses forbidden boundaries, so the worst case is
+  // a plainer split rather than an unreadable one.
+  const out = [];
+  let current = [];
+  for (const word of words) {
+    if (current.length && koCaptionVisibleLen([...current, word].join(' ')) > KOREAN_CAPTION_SLICE_MAX_CHARS) {
+      let cut = -1;
+      for (let index = current.length; index >= 1; index -= 1) {
+        const right = index < current.length ? current[index] : word;
+        if (!koCaptionIsForbiddenBoundary(current[index - 1], right)) { cut = index; break; }
+      }
+      if (cut > 0) {
+        out.push(current.slice(0, cut).join(' '));
+        current = [...current.slice(cut), word];
+        continue;
+      }
+    }
+    current.push(word);
+  }
+  if (current.length) out.push(current.join(' '));
+  return out;
 }
 
 function splitKoreanTtsSentenceIntoCaptionSlices(text = '') {
-  const words = normalizeTtsText(text).split(/\s+/).filter(Boolean).flatMap(splitLongKoreanWordForCaption);
+  const words = normalizeTtsText(text).split(/\s+/).filter(Boolean);
   if (!words.length) return [];
-  const slices = [];
-  let cursor = 0;
-  const scoreBoundary = (candidateWords, isWholeRemainder = false) => {
-    const candidate = candidateWords.join(' ');
-    const lastWord = candidateWords[candidateWords.length - 1] || '';
-    const inTargetRange = candidate.length >= KOREAN_CAPTION_SLICE_TARGET_CHARS - KOREAN_CAPTION_SLICE_TOLERANCE
-      && candidate.length <= KOREAN_CAPTION_SLICE_TARGET_CHARS + KOREAN_CAPTION_SLICE_TOLERANCE;
-    const shortPenalty = candidate.length < KOREAN_CAPTION_SLICE_MIN_CHARS ? 1_000 : 0;
-    const wholeRemainderBonus = isWholeRemainder ? -25 : 0;
-    const preferredPenalty = isPreferredKoreanCaptionBoundary(lastWord) ? 0 : 100;
-    const rangePenalty = inTargetRange ? 0 : 200;
-    return shortPenalty + preferredPenalty + rangePenalty + Math.abs(candidate.length - KOREAN_CAPTION_SLICE_TARGET_CHARS) + wholeRemainderBonus;
-  };
-
-  while (cursor < words.length) {
-    let bestEnd = cursor + 1;
-    let bestScore = Number.POSITIVE_INFINITY;
-    for (let end = cursor + 1; end <= words.length; end += 1) {
-      const candidateWords = words.slice(cursor, end);
-      const candidate = candidateWords.join(' ');
-      if (candidate.length > KOREAN_CAPTION_SLICE_MAX_CHARS) break;
-      const score = scoreBoundary(candidateWords, end === words.length);
-      if (score < bestScore) {
-        bestScore = score;
-        bestEnd = end;
-      }
-    }
-    slices.push(words.slice(cursor, bestEnd).join(' '));
-    cursor = bestEnd;
-  }
-
-  const merged = [];
-  for (const slice of slices) {
-    if (slice.length < KOREAN_CAPTION_SLICE_MIN_CHARS && merged.length) {
-      const candidate = `${merged[merged.length - 1]} ${slice}`;
-      if (candidate.length <= KOREAN_CAPTION_SLICE_MAX_CHARS) {
-        merged[merged.length - 1] = candidate;
-      } else {
-        merged.push(slice);
-      }
-    } else {
-      merged.push(slice);
-    }
-  }
-  for (let index = merged.length - 1; index > 0; index -= 1) {
-    if (merged[index].length >= KOREAN_CAPTION_SLICE_MIN_CHARS) continue;
-    const candidate = `${merged[index - 1]} ${merged[index]}`;
-    if (candidate.length <= KOREAN_CAPTION_SLICE_MAX_CHARS) {
-      merged[index - 1] = candidate;
-      merged.splice(index, 1);
-    }
-  }
-  return merged.filter(Boolean);
+  return koCaptionBalancedPartition(words).filter(Boolean);
 }
 
 function buildKoreanFullDraftTtsPlan({ itemId, itemConfig = {}, draftConfig = {} }) {
@@ -11773,6 +11876,7 @@ module.exports = {
   QUEUE_CONFIG_PATH,
   BATCH_OUTPUT_ROOT,
   verifyKoreanFullDraftTimelineAlignment,
+  splitKoreanTtsSentenceIntoCaptionSlices,
   defaultQueueConfig,
   defaultItemConfig,
   validateOutputRoot,
