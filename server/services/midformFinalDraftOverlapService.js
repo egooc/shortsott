@@ -185,7 +185,15 @@ function compareFinalDraftClipChains(koChain, jaChain, thresholds = THRESHOLDS, 
   const chainSimilarity = koFree.length && jaFree.length
     ? lcsSimilarity(koFree.map(signatureForClip), jaFree.map(signatureForClip))
     : 0;
-  const openingSimilarity = lcsSimilarity(koOpening.map(signatureForClip), jaOpening.map(signatureForClip));
+  // Opening similarity needs at least two free (non-pinned) clips on each side to mean
+  // anything: LCS of a single clip is trivially 1.0. When the intro is a cold-open line plus
+  // one establishing-narration b-roll (whose ja shift is deliberately suppressed so the
+  // naming sentence stays on its own footage), there is only one free opening clip and the
+  // 1.0 is an artifact, not a copied edit - the body differentiation (chain/pairwise) already
+  // proves the cut diverges. Treat too-few-samples as differentiated.
+  const openingSimilarity = (koOpening.length < 2 || jaOpening.length < 2)
+    ? 0
+    : lcsSimilarity(koOpening.map(signatureForClip), jaOpening.map(signatureForClip));
   const overlapRatio = sourceRangeOverlapRatio(koChain, jaChain);
   // Same principle as chain similarity: pinned dialogue/hook windows play in both locales
   // in story order BY DESIGN - on a dialogue-heavy source they ARE the top highlights and
