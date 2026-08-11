@@ -8993,6 +8993,27 @@ async function validateOrRepairJapaneseCaptions({ guide, generateRepairJson, sou
     } catch (error) {
       const issues = error?.details?.invalid_japanese_captions || [];
       if (!issues.length) throw error;
+      // kr_full lane leniency: soft findings (style endings, fragments,
+      // observation quota, structure order, labeling, mild budget-over)
+      // become warnings when a non-empty script within 1.5x budget exists.
+      if (validationOptions.lenientKoreanFullGates) {
+        const isSoftIssue = (issue) => {
+          const reason = String(issue?.reason || issue || '');
+          return /report-style|non-sentence|scene_observation|must follow hook|speech_budget_over|speech budget|banned|문체|forbidden|scene_id must be an existing|Legacy script_|어미/i.test(reason);
+        };
+        const hardIssues = issues.filter((issue) => !isSoftIssue(issue));
+        const laneScript = Array.isArray(current?.full_caption_script_ko) ? current.full_caption_script_ko : [];
+        const laneVisibleChars = laneScript.reduce((sum, piece) => sum + String(piece?.text || '').replace(/\s/g, '').length, 0);
+        const laneMaxChars = Number(current?.korean_full_speech_budget?.max_chars) || 0;
+        if (!hardIssues.length && laneScript.length && (!laneMaxChars || laneVisibleChars <= laneMaxChars * 1.5)) {
+          emitProgress(onProgress, `KR Full 레인 관용 수용: 소프트 이슈 ${issues.length}건을 경고로 처리하고 진행 (${laneScript.length}문구/${laneVisibleChars}자)`, {
+            phase: 'kr_full_lenient_accept',
+            attempt,
+            soft_issues: summarizeCaptionIssuesForLog(issues, 6)
+          });
+          return current;
+        }
+      }
       if (attempt >= 3) {
         summarizeCaptionIssuesForLog(issues, 10).forEach((line) => {
           emitProgress(onProgress, `Gemini 최종 검증 실패 상세: ${line}`, {
@@ -9345,7 +9366,13 @@ function validationOptionsForMetadataVariantMode(mode = 'all') {
   return {
     skipFullValidation: normalizedMode === 'highlight_only' || normalizedMode === 'midform_only',
     skipHighlightValidation: normalizedMode === 'full_only' || normalizedMode === 'midform_only',
-    skipMidformValidation: normalizedMode !== 'midform_only'
+    skipMidformValidation: normalizedMode !== 'midform_only',
+    // Approved 2026-08-11 ("어설퍼도 차라리"): the unattended kr_full lane
+    // treats style/structure/quota/labeling findings on the Korean Full
+    // script as warnings - only an empty script or a gross budget overshoot
+    // may block. Live runs 7-10 each produced usable narration that the
+    // perfectionist gates rejected to empty/held.
+    lenientKoreanFullGates: normalizedMode === 'full_only'
   };
 }
 
