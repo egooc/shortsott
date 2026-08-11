@@ -10408,7 +10408,13 @@ async function runLongformGeminiPipeline({ generateJson, sourceUrl, filename, du
       validationOptions: {
         skipFullValidation: allowFullPartial,
         skipHighlightValidation: allowHighlightPartial,
-        skipMidformValidation: allowMidformPartial
+        skipMidformValidation: allowMidformPartial,
+        // The kr_full lane runs THROUGH THIS longform call site, not the
+        // standard-pipeline one - without the flag here, every lenient
+        // mechanism (soft-issue accept, budget clip, cycle collapse, role
+        // coercion) was disarmed on the lane it was built for
+        // (observed live 2026-08-12: three soft issues -> held).
+        lenientKoreanFullGates: effectiveLongformVariantMode === 'full_only'
       },
       onProgress,
       throwIfCancelled,
