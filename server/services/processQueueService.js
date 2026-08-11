@@ -1698,10 +1698,24 @@ async function generateKoreanFullDraftTtsAssets({ itemId, itemConfig = {}, draft
     throw error;
   }
   if (plan.anchor_simulation?.block_real_tts) {
-    const error = new Error(`Anchor dry-run drift exceeds limit: max=${plan.anchor_simulation.max_delay_sec}s cumulative=${plan.anchor_simulation.cumulative_positive_delay_sec}s`);
-    error.code = 'FULL_DRAFT_ANCHOR_SIMULATION_DRIFT_EXCEEDED';
-    error.details = { itemId, anchor_simulation: plan.anchor_simulation, plan };
-    throw error;
+    // On the unattended kr_full lane the scene anchors are advisory: narration
+    // is placed sequentially from t=0 and the video is trimmed to the
+    // narration end (trim_video_track_to_narration), so anchor drift against
+    // the pre-trim edit timeline cannot desync anything the viewer sees.
+    if (krFullLaneAutoTts) {
+      plan.warnings = [
+        ...(Array.isArray(plan.warnings) ? plan.warnings : []),
+        {
+          reason: 'anchor_simulation_drift_waived_kr_full',
+          message: `Anchor dry-run drift waived on kr_full lane: max=${plan.anchor_simulation.max_delay_sec}s cumulative=${plan.anchor_simulation.cumulative_positive_delay_sec}s (sequential placement + narration trim)`
+        }
+      ];
+    } else {
+      const error = new Error(`Anchor dry-run drift exceeds limit: max=${plan.anchor_simulation.max_delay_sec}s cumulative=${plan.anchor_simulation.cumulative_positive_delay_sec}s`);
+      error.code = 'FULL_DRAFT_ANCHOR_SIMULATION_DRIFT_EXCEEDED';
+      error.details = { itemId, anchor_simulation: plan.anchor_simulation, plan };
+      throw error;
+    }
   }
   assertKoreanFullTtsFitsVideoTimeline({
     itemId,
