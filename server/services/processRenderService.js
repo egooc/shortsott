@@ -107,7 +107,10 @@ function normalizeAnimationName(value) {
   return 'none';
 }
 
-function estimateCaptionLines(text, charsPerLine = 24) {
+// 2026-08-11: mirrors the CapCut explainer policy change (size 9->5,
+// y -0.6->-0.88). Font 58->32 keeps the 5/9 ratio; base position hugs the
+// bottom edge; per-line offsets and chars-per-line scale with the size.
+function estimateCaptionLines(text, charsPerLine = 43) {
   const raw = String(text || '').trim();
   if (!raw) return 1;
   const explicitLines = raw.split(/\r?\n/).filter((line) => line.trim());
@@ -117,26 +120,44 @@ function estimateCaptionLines(text, charsPerLine = 24) {
   return Math.max(1, Math.ceil(raw.length / charsPerLine));
 }
 
-function explainerVerticalOffset(text) {
-  const length = String(text || '').trim().length;
-  const lines = estimateCaptionLines(text);
-  if (lines <= 2 && length <= 54) return 0;
-  if (lines === 3 || length <= 82) return 90;
-  if (lines === 4 || length <= 112) return 165;
-  return 245;
+// \an2 anchors the BLOCK bottom at pos() and stacks extra lines upward, so a
+// long caption can never run off the bottom - no per-length offset needed.
+function explainerVerticalOffset() {
+  return 0;
+}
+
+// libass does not reliably wrap spaceless CJK runs (the first render shipped
+// one line running off both edges) - wrap explicitly before building events.
+function wrapCaptionText(text, charsPerLine = 45) {
+  const raw = String(text || '').trim();
+  if (!raw) return raw;
+  const lines = [];
+  for (const paragraph of raw.split(/\r?\n/)) {
+    let rest = paragraph.trim();
+    while (rest.length > charsPerLine) {
+      let cut = charsPerLine;
+      const window = rest.slice(0, charsPerLine + 1);
+      const breakAt = Math.max(window.lastIndexOf(' '), window.lastIndexOf('、'), window.lastIndexOf('。'));
+      if (breakAt > charsPerLine * 0.55) cut = breakAt + 1;
+      lines.push(rest.slice(0, cut).trim());
+      rest = rest.slice(cut).trim();
+    }
+    if (rest) lines.push(rest);
+  }
+  return lines.join('\n');
 }
 
 function explainerAnimatedText(text, animation, startSec, endSec) {
   const duration = Math.max(0.1, endSec - startSec);
   const anim = normalizeAnimationName(animation);
-  const safe = assText(text);
+  const safe = assText(wrapCaptionText(text));
   const offsetY = explainerVerticalOffset(text);
-  const baseY = 1685 - offsetY;
+  const baseY = 1880 - offsetY;
   if (anim === 'fade_in') {
     return `{\\an2\\pos(540,${baseY})\\fad(280,120)}${safe}`;
   }
   if (anim === 'slide_up') {
-    const startY = 1780 - offsetY;
+    const startY = 1915 - offsetY;
     const endY = baseY;
     const moveMs = Math.min(650, Math.max(250, Math.round(duration * 1000 * 0.35)));
     return `{\\move(540,${startY},540,${endY},0,${moveMs})\\fad(180,100)}${safe}`;
@@ -178,11 +199,15 @@ function createAssSubtitleFile({ manifest, outputPath, durationSec }) {
     'WrapStyle: 0',
     'ScaledBorderAndShadow: yes',
     'YCbCr Matrix: TV.709',
+    // Without an explicit PlayRes, libass defaults to 384x288 and every
+    // pos() above that lands off-canvas - captions rendered but invisible.
+    'PlayResX: 1080',
+    'PlayResY: 1920',
     '',
     '[V4+ Styles]',
     'Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding',
     'Style: Channel,Malgun Gothic,42,&H00FFFFFF,&H000000FF,&H00000000,&H99000000,-1,0,0,0,100,100,0,0,3,2,0,7,70,70,80,1',
-    'Style: Explainer,Malgun Gothic,58,&H00FFFFFF,&H000000FF,&H00101010,&HAA000000,-1,0,0,0,100,100,0,0,3,2,0,2,90,90,210,1',
+    'Style: Explainer,Malgun Gothic,16,&H00FFFFFF,&H000000FF,&H00101010,&HAA000000,-1,0,0,0,100,100,0,0,3,1,0,2,90,90,40,1',
     '',
     '[Events]',
     'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
@@ -244,12 +269,71 @@ async function renderSegment({ sourceVideoPath, segment, index, tempDir, manifes
     '-vf', filter,
     '-an',
     '-c:v', 'libx264',
-    '-preset', 'veryfast',
-    '-crf', '23',
+    '-preset', 'medium',
+    '-crf', '18',
     '-pix_fmt', 'yuv420p',
     outputPath
   ]);
   return outputPath;
+}
+
+// The channel asset is a keyed-alpha video CapCut composites from the draft's
+// overlay/ folder. Its exact placement lives in draft_content.json (CapCut
+// normalized coords: x right+, y up+, scale x natural pixels on the 1080
+// canvas) - read it back so the render matches the CapCut look.
+function findChannelAssetOverlay(draftFolder, manifest) {
+  const overlayInfo = manifest.channel_asset_overlay || {};
+  if (overlayInfo.enabled !== true) return null;
+  const candidates = [
+    overlayInfo.draft_path ? path.join(draftFolder, 'overlay', path.basename(overlayInfo.draft_path)) : '',
+    overlayInfo.draft_path || ''
+  ].filter(Boolean);
+  const assetPath = candidates.find((candidate) => fs.existsSync(candidate));
+  if (!assetPath) return null;
+
+  let width = 960;
+  let height = 960;
+  let scaleX = Number(overlayInfo.scale) || 0.34;
+  let scaleY = scaleX;
+  let transformX = 0.62;
+  let transformY = 0.76;
+  try {
+    const draftDoc = readJson(path.join(draftFolder, 'draft_content.json'));
+    const materials = [
+      ...((draftDoc.materials || {}).videos || []),
+      ...((draftDoc.materials || {}).images || []),
+      ...((draftDoc.materials || {}).stickers || [])
+    ];
+    const assetBase = path.basename(assetPath);
+    const material = materials.find((entry) => String(entry.path || '').includes(assetBase));
+    if (material) {
+      width = Number(material.width) || width;
+      height = Number(material.height) || height;
+      for (const track of draftDoc.tracks || []) {
+        const segment = (track.segments || []).find((seg) => seg.material_id === material.id);
+        const clip = segment && segment.clip;
+        if (clip) {
+          scaleX = Number(clip.scale?.x) || scaleX;
+          scaleY = Number(clip.scale?.y) || scaleY;
+          transformX = Number(clip.transform?.x ?? transformX);
+          transformY = Number(clip.transform?.y ?? transformY);
+          break;
+        }
+      }
+    }
+  } catch { /* fall back to manifest defaults */ }
+
+  const displayWidth = Math.max(2, Math.round((width * scaleX) / 2) * 2);
+  const displayHeight = Math.max(2, Math.round((height * scaleY) / 2) * 2);
+  const centerX = ((1 + transformX) / 2) * DEFAULT_WIDTH;
+  const centerY = ((1 - transformY) / 2) * DEFAULT_HEIGHT;
+  return {
+    path: assetPath,
+    displayWidth,
+    displayHeight,
+    left: Math.round(centerX - displayWidth / 2),
+    top: Math.round(centerY - displayHeight / 2)
+  };
 }
 
 async function concatSegments(segmentPaths, outputPath, tempDir) {
@@ -269,14 +353,25 @@ async function concatSegments(segmentPaths, outputPath, tempDir) {
   ]);
 }
 
-async function burnAssAndAudio({ inputVideoPath, assPath, bgmPath, outputPath, durationSec, bgmVolume }) {
+async function burnAssAndAudio({ inputVideoPath, assPath, bgmPath, outputPath, durationSec, bgmVolume, channelAsset }) {
   const assFilterPath = normalizePathForFfmpeg(assPath).replace(/:/g, '\\:').replace(/'/g, "\\'");
-  const filters = [`[0:v]ass='${assFilterPath}'[v]`];
   const args = ['-y', '-i', inputVideoPath];
+  const filters = [];
+  let videoLabel = '[0:v]';
+  let inputIndex = 1;
+  if (channelAsset) {
+    // Looped so a short animated asset covers the whole clip; -t caps output.
+    args.push('-stream_loop', '-1', '-i', channelAsset.path);
+    filters.push(`[${inputIndex}:v]scale=${channelAsset.displayWidth}:${channelAsset.displayHeight}[ovl]`);
+    filters.push(`${videoLabel}[ovl]overlay=x=${channelAsset.left}:y=${channelAsset.top}[vbase]`);
+    videoLabel = '[vbase]';
+    inputIndex += 1;
+  }
   if (bgmPath) {
     args.push('-stream_loop', '-1', '-i', bgmPath);
-    filters.push(`[1:a]volume=${Number(bgmVolume || 0.18)},atrim=0:${durationSec},asetpts=PTS-STARTPTS[a]`);
+    filters.push(`[${inputIndex}:a]volume=${Number(bgmVolume || 0.18)},atrim=0:${durationSec},asetpts=PTS-STARTPTS[a]`);
   }
+  filters.push(`${videoLabel}ass='${assFilterPath}'[v]`);
   args.push('-filter_complex', filters.join(';'));
   args.push('-map', '[v]');
   if (bgmPath) args.push('-map', '[a]');
@@ -284,8 +379,8 @@ async function burnAssAndAudio({ inputVideoPath, assPath, bgmPath, outputPath, d
   args.push(
     '-t', String(durationSec),
     '-c:v', 'libx264',
-    '-preset', 'veryfast',
-    '-crf', '22',
+    '-preset', 'medium',
+    '-crf', '17',
     '-pix_fmt', 'yuv420p'
   );
   if (bgmPath) args.push('-c:a', 'aac', '-b:a', '160k', '-shortest');
@@ -303,9 +398,17 @@ async function renderProcessFinalMp4({ draftFolder, outputPath = '', enabled = t
     throw new Error(`edit_manifest.json not found: ${manifestPath}`);
   }
   const manifest = readJson(manifestPath);
-  const sourceVideoPath = manifest.draft_video_path || path.join(resolvedDraftFolder, 'video', 'source.mp4');
-  if (!fs.existsSync(sourceVideoPath)) {
-    throw new Error(`render source video not found: ${sourceVideoPath}`);
+  // Prefer the original trimmed clip over the draft's editing proxy - the
+  // proxy is a crf-28 / 0.8-scale copy meant for CapCut editing, and encoding
+  // from it doubles the compression.
+  const sourceCandidates = [
+    manifest.source_video_path,
+    manifest.draft_video_path,
+    path.join(resolvedDraftFolder, 'video', 'source.mp4')
+  ].filter(Boolean);
+  const sourceVideoPath = sourceCandidates.find((candidate) => fs.existsSync(candidate));
+  if (!sourceVideoPath) {
+    throw new Error(`render source video not found: ${sourceCandidates.join(' | ')}`);
   }
 
   const segmentPlan = Array.isArray(manifest.segment_transform_plan) ? manifest.segment_transform_plan : [];
@@ -344,13 +447,15 @@ async function renderProcessFinalMp4({ draftFolder, outputPath = '', enabled = t
   const joinedPath = path.join(tempDir, 'joined_video.mp4');
   await concatSegments(segmentPaths, joinedPath, tempDir);
   const bgmPath = getBgmPath(manifest, resolvedDraftFolder);
+  const channelAsset = findChannelAssetOverlay(resolvedDraftFolder, manifest);
   await burnAssAndAudio({
     inputVideoPath: joinedPath,
     assPath,
     bgmPath,
     outputPath: finalPath,
     durationSec,
-    bgmVolume: manifest.bgm_volume || 0.18
+    bgmVolume: manifest.bgm_volume || 0.18,
+    channelAsset
   });
 
   const stats = fs.statSync(finalPath);
