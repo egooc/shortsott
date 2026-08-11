@@ -3527,8 +3527,12 @@ function splitFullScriptScreenPhrases(text = '', korean = false) {
   if (visibleTextLength(cleaned) <= maxChars) return [cleaned];
 
   if (korean) {
+    // The ending lookbehind must only fire at a WORD boundary - with a bare
+    // \s* (zero-width) it split after any 다/요/죠 character even inside a
+    // word: "다이아몬드" shipped as "다" + "이아몬드" (observed live, midform
+    // adoption A안 2026-08-11). Split only when whitespace or end follows.
     const parts = cleaned
-      .split(/(?<=[.!?。！？]|입니다|합니다|됩니다|되죠|하죠|가죠|죠|요|다)\s*/u)
+      .split(/(?<=[.!?。！？]|입니다|합니다|됩니다|되죠|하죠|가죠|죠|요|다)(?:\s+|$)/u)
       .map((part) => part.replace(/[.!?。！？]+$/g, '').trim())
       .filter(Boolean);
     const units = [];
