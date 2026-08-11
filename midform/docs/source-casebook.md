@@ -154,5 +154,8 @@
 |---|---|---|
 | Sony Pictures 계열 전체 (Columbia, Screen Gems, TriStar 포함) | **사용 금지 — 소유주 확정 결정 2026-08-11** | Hollow Man 차단 사고 후 소유주 지시: "sony 계열사는 사용안할게." 기존 소스 중 해당: Hollow Man, Anger Management(Columbia), Anacondas(Screen Gems), A Few Good Men(Columbia) — 발행 금지 |
 
+| Lionsgate 계열 (Summit 포함 — 존 윅, 트와일라잇) | 추정: 수익화 클레임형(차단 드묾) — **미검증, 프리플라이트 필수** | 평판 기반 2026-08-11. 서드파티 리캡 대량 생존. 저장소에 존윅·브레이킹던 compress run 보유 |
+| Warner Bros (영화) | 추정: 중간 — 수익화 클레임 위주, 핵심 프랜차이즈(HP·DC)는 수동 단속 사례 — 미검증 | 평판 기반. WB 음악(WMG)은 별개로 사나움 - 삽입곡 비중 큰 클립 주의 |
+
 - 새 소스 실행 전 이 표를 확인하고, 업로드 결과(무클레임/수익화 클레임/차단)를 반드시 추가할 것.
 - 클레임 구간이 전체를 덮은 이유: 리캡 구조상 화면의 대부분이 원본 푸티지 — 편집 레버가 아니라 **소스 선정 레버**로 대응한다.
