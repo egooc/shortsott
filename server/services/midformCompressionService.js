@@ -5972,8 +5972,19 @@ async function regenerateJapaneseSlotFills(runIdOrPath) {
   const recapContext = resolveRecapContext(runDir);
   const sceneMapPath = path.join(runDir, VISION_SCENE_MAP_FILE);
   const visionSection = fs.existsSync(sceneMapPath) ? buildVisionSceneSection(readJson(sceneMapPath)) : '';
+  // The ko fills carry frame-truth surgery (narration rewritten to match the footage after
+  // the machine eye caught mismatches). A fresh ja generation would revert to plot summary and
+  // fail the same visual check, so pin ja to the ko narration's MEANING per slot.
+  const koFills = readJson(koFillsPath);
+  const koNarrations = (koFills.slot_fills || [])
+    .filter((s) => String(s.narration || '').trim())
+    .map((s) => `- ${s.slot_id}: ${String(s.narration).trim()}`)
+    .join('\n');
+  const koPinSection = koNarrations
+    ? `\n\nFRAME-VERIFIED KOREAN NARRATION (translate its MEANING faithfully into Japanese; these already match the footage - do NOT revert to a plot summary, do NOT add events, keep them frame-true):\n${koNarrations}\n`
+    : '';
   const japaneseResult = await runJsonGeneration(
-    buildJapaneseSlotFillsPrompt(beatsObject.beats || [], editPlan, movieTitle, recapContext.contextMarkdown) + visionSection,
+    buildJapaneseSlotFillsPrompt(beatsObject.beats || [], editPlan, movieTitle, recapContext.contextMarkdown) + visionSection + koPinSection,
     MIDFORM_SLOT_FILLS_SCHEMA_PATH,
     (parsed) => validateJapaneseSlotFills(validateSlotFillsDialogueCaptions(parsed, editPlan, 'ja'), editPlan)
   );
