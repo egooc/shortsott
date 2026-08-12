@@ -241,8 +241,9 @@ function koreanFullSentenceItemRuleLines(budget = {}) {
   return [
     `- full_caption_script_ko must be ${koreanFullScriptCountRange(budget)} items where EACH ITEM IS ONE COMPLETE SPOKEN SENTENCE of roughly 15-25 Korean visible characters. Do NOT pre-fragment into short screen chunks - screen-caption splitting happens automatically downstream.`,
     '- Invalid fragment style (never output as items): "값진 재료 변신.", "틀에 부어져요.", "평범한 모래가". Valid item: "여기서 1초만 늦으면 전부 버려집니다."',
+    '- Example sentences in these instructions are FORMAT references only. Never copy or lightly paraphrase them into the script - every sentence must come from what is visible in THIS video.',
     '- Sentence endings: ~합니다/했습니다 for 60-70% of items, ~하죠/했죠 for 15-30%, an occasional noun-ending fragment for impact only. BANNED endings: ~에요, ~어요, ~예요, ~해요, ~돼요, ~거든요, ~네요. Never ask the viewer a question.',
-    '- HUMOR (user sign-off 2026-08-12): include 1 light, natural quip ONLY where the scene supports it (e.g. "여기서 실수하면? 그날은 야근입니다."). A forced joke is worse than none; keep the storyteller register (미드폼 원칙: 억지 드립보다 자연).',
+    '- HUMOR (user sign-off 2026-08-12): include 1 light, natural quip ONLY where the scene supports it. NEVER copy or lightly paraphrase any example sentence from these instructions - invent a quip from what is actually on screen in THIS video. A forced joke is worse than none; keep the storyteller register (미드폼 원칙: 억지 드립보다 자연).',
     '- The FIRST item must have role "hook" and the LAST item must have role "closing".'
   ];
 }
@@ -4676,7 +4677,7 @@ function buildLongformVariantFinalPrompt({ variant, sourceUrl, filename, duratio
       '- Curiosity structure: the opening caption raises a question or stake the viewer cannot skip; captions 2-3 answer WHAT is being made; the most surprising fact (the why/how) is withheld until about 70 percent and lands as a short punchy reveal, not a calm report.',
       '- The closing must NOT summarize. End on one consequence, cost, or tension in 1-2 very short beats (e.g. "この一枚の値段が、だから違います。").',
       '- Endings distribution: です/ます register for 60-70% of items, an occasional noun-ending fragment (体言止め, e.g. "わずか3分。") for impact. HARD LIMIT: at most 3 体言止め items in the whole script and never two in a row - a chain of fragments ("精巧な型が / 一枚の革に / 命を吹き込む。") is the listing failure, not impact. Never ask the viewer a question anywhere in the script.',
-      '- HUMOR: include 1 light, natural quip ONLY where the scene supports it (e.g. "ここでミスしたら？その日は残業です。"). A forced joke is worse than none; keep the storyteller register.',
+      '- HUMOR: include 1 light, natural quip ONLY where the scene supports it. NEVER copy or lightly paraphrase any example sentence from these instructions - invent a quip from what is actually on screen in THIS video. A forced joke is worse than none; keep the storyteller register.',
       '- Do not name emotions or judge for the viewer. Describe what happens; the footage carries the feeling.',
       '- Japanese Full must sound like natural spoken Japanese narration for curious viewers, not like translated Korean or noun-only labels.',
       '- Avoid bare label chunks such as "精密な機械が", "小さな誤差も" unless they continue naturally into the next phrase.',
