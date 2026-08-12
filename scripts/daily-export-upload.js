@@ -171,7 +171,18 @@ async function main() {
     console.log(`  -> ${result.status} (${result.elapsed_sec || '?'}s)`);
     lines.push(`- export ${result.status}: ${draftName}`);
     if (result.status === 'exported') {
-      exported.push({ draftName, outputPath: result.output_path });
+      // CapCut truncates long export names and appends "(1)" on collision -
+      // that broke TXT metadata matching once (2026-08-12, H-053808 H02 went
+      // out with a folder-name fallback title). Rename the fresh file to the
+      // full draft name so the matcher always sees the canonical name.
+      let outputPath = result.output_path;
+      const canonicalPath = path.join(EXPORT_DIR, `${draftName}.mp4`);
+      if (outputPath && path.resolve(outputPath) !== path.resolve(canonicalPath) && fs.existsSync(outputPath) && !fs.existsSync(canonicalPath)) {
+        fs.renameSync(outputPath, canonicalPath);
+        console.log(`  -> renamed to canonical: ${path.basename(canonicalPath)}`);
+        outputPath = canonicalPath;
+      }
+      exported.push({ draftName, outputPath });
     }
   }
 
