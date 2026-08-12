@@ -228,12 +228,14 @@ function normalizeDraftVariantMode(value = 'all') {
 
 function effectiveDraftVariantModeForItem(draftVariantMode = 'all', itemConfig = {}) {
   void draftVariantMode;
-  // Approved 2026-08-11 (user sign-off): the KR Full lane is the ONLY path
-  // that escapes the highlight-only policy. Harvested items marked
+  // Approved 2026-08-11 (user sign-off): the TTS Full lanes are the ONLY
+  // paths that escape the highlight-only policy. Harvested items marked
   // production_lane 'kr_full' produce the Korean TTS-narrated Full draft -
   // the KR channel retarget needs a Korean AUDIO language signal that
-  // voiceless highlights cannot give. Everything else stays highlight-only.
-  if (itemConfig?.production_lane === 'kr_full') return 'full_only';
+  // voiceless highlights cannot give. 'ja_full' (approved 2026-08-12,
+  // channel mix strategy) is the Japanese analog. Everything else stays
+  // highlight-only.
+  if (itemConfig?.production_lane === 'kr_full' || itemConfig?.production_lane === 'ja_full') return 'full_only';
   return 'highlight_only';
 }
 
@@ -1674,7 +1676,7 @@ function buildKoreanFullTtsExplainerBlocks(captionUnits = []) {
 async function generateKoreanFullDraftTtsAssets({ itemId, itemConfig = {}, draftConfig = {} }) {
   // kr_full lane runs unattended (approved 2026-08-11): validation-passed
   // scripts skip the manual review approval; held scripts never reach here.
-  const krFullLaneAutoTts = itemConfig.production_lane === 'kr_full'
+  const krFullLaneAutoTts = (itemConfig.production_lane === 'kr_full' || itemConfig.production_lane === 'ja_full')
     && itemConfig.ottogi_guide_output?.full_generation_status !== 'held';
   if (!krFullLaneAutoTts) {
     assertKoreanFullScriptReviewApproved(itemConfig, itemId);
@@ -10644,7 +10646,7 @@ function buildKoreanFullDraftConfig({ itemId, itemConfig, queueConfig, baseConfi
   // kr_full lane runs unattended, so a script that PASSED validation (not
   // held) goes to TTS without the manual review approval. Held scripts still
   // stop for human review; manually queued items keep the approval gate.
-  const krFullLaneAutoTts = itemConfig.production_lane === 'kr_full'
+  const krFullLaneAutoTts = (itemConfig.production_lane === 'kr_full' || itemConfig.production_lane === 'ja_full')
     && itemConfig.ottogi_guide_output?.full_generation_status !== 'held';
   const scriptReviewApprovedForTts = krFullLaneAutoTts
     || String(itemConfig.script_review?.status || '').trim() === 'approved_for_tts';

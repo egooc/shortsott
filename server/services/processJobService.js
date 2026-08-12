@@ -84,11 +84,11 @@ function isLongformQueueItemConfig(itemConfig = {}) {
 }
 
 function effectiveVariantModeForItem(mode = 'all', itemConfig = {}) {
-  // kr_full lane (approved 2026-08-11): metadata analysis must run the Full
-  // script phases, so the item requests 'full_only' explicitly - the longform
-  // pipeline honors exactly that value and pins everything else to the
-  // highlight-only policy.
-  if (itemConfig?.production_lane === 'kr_full') return 'full_only';
+  // TTS Full lanes (kr_full approved 2026-08-11, ja_full 2026-08-12):
+  // metadata analysis must run the Full script phases, so the item requests
+  // 'full_only' explicitly - the longform pipeline honors exactly that value
+  // and pins everything else to the highlight-only policy.
+  if (itemConfig?.production_lane === 'kr_full' || itemConfig?.production_lane === 'ja_full') return 'full_only';
   const normalized = normalizeDraftVariantMode(mode);
   if (normalized === 'highlight_only' && isLongformQueueItemConfig(itemConfig)) {
     return 'full_highlight_only';

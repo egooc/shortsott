@@ -1545,10 +1545,13 @@ function main() {
   // Approved 2026-08-11: the KR Full lane (production_lane 'kr_full') is the
   // ONLY escape from highlight-only policy - Korean TTS Full drafts for the
   // KR channel retarget. Everything else must still land on highlight_only.
+  // 2026-08-12 (user sign-off, channel mix strategy): 'ja_full' joins
+  // 'kr_full' as the second TTS Full lane. Both are explicit lane opt-ins;
+  // everything else must still land on highlight_only.
   assertContains(
     queueService,
-    "if (itemConfig?.production_lane === 'kr_full') return 'full_only';",
-    'The KR Full lane must be scoped strictly to production_lane kr_full items.'
+    "if (itemConfig?.production_lane === 'kr_full' || itemConfig?.production_lane === 'ja_full') return 'full_only';",
+    'The TTS Full lanes must be scoped strictly to production_lane kr_full/ja_full items.'
   );
   assertContains(
     queueService,
