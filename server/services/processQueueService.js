@@ -1985,7 +1985,16 @@ function buildKoreanFullSyncEvidence({ itemConfig = {}, draftConfig = {}, ttsFil
   const generatedChars = countKoreanFullScriptVisibleChars(itemConfig.ottogi_guide_output?.full_caption_script_ko || []);
   const rawTtsSec = sumTtsDurationSec(ttsFiles);
   const occupiedTimelineSec = occupiedTimelineEndSecFromAnchorSimulation(plan);
-  const actualTtsSec = occupiedTimelineSec > 0 ? occupiedTimelineSec : rawTtsSec;
+  // Unattended TTS Full lanes place narration sequentially from t=0 and trim
+  // the video to the narration end - scene anchors are advisory there. Using
+  // the anchor-occupied timeline as "TTS duration" made a 144-char script
+  // look like 152s (anchors sit on the SOURCE scene timeline, minutes long
+  // for longforms) and failed every lane draft (observed 2026-08-12).
+  const sequentialNarrationLane = itemConfig?.production_lane === 'kr_full'
+    || itemConfig?.production_lane === 'ja_full';
+  const actualTtsSec = sequentialNarrationLane
+    ? rawTtsSec
+    : (occupiedTimelineSec > 0 ? occupiedTimelineSec : rawTtsSec);
   const charsPerSec = koreanFullSrtCharsPerSec(draftConfig, itemConfig, {});
   const videoTimelineSec = Number(
     draftConfig.korean_full_actual_video_timeline_sec
