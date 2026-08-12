@@ -26,6 +26,7 @@ description: 수정(코드/플랜/원고)을 기존 소스에 소급 적용하�
 - **앵커 스미어는 이제 자동 병합**(2026-08-12): 자동자막이 명대사를 여러 큐로 쪼개 "KEEP_DIALOGUE must include beat anchor" deadlock이 나면, beats 확정 직후 `mergeAnchorCuesInTranscript`가 단일 큐로 자동 병합한다. 그래도 남으면 anchor_dialogue 텍스트가 transcript 큐와 정말 다른 것 — 큐를 앵커 텍스트로 손수 맞추거나, 정 안 되면 beat anchor를 그 줄만 남기고 완화(key_dialogue엔 유지해 대사는 살림).
 - **화자 색 붕괴**(distinct_speakers_not_collapsed): 새 인물이 `caption_colors.json`에 없어 fallback 충돌한 것. compress fills 화자 배정만으론 안 되고 **config `speakers` 등록이 결정론의 유일한 길** — draft가 이름으로 재계산하기 때문.
 - **ja만 재생성**: 수술한 ko를 얼린 채 ja를 다시 만들려면 `compress-regenerate-ja <run>` (전체 apply는 ko도 덮음). 이 CLI는 프레임 검증된 ko 나레이션을 ja에 핀해 화면 진실을 상속시킨다 — ja 재생성이 plot summary로 회귀하는 것 방지.
+- **일괄 수술 (크레딧 절감 — 2026-08-12 소유주 지시)**: 기계 눈 실패 시 `run_summary`의 메시지는 **앞 3개만** 보여준다. 하나 고치고 재빌드하면 판정 토큰을 매 라운드 다시 쓴다. 반드시 워크스페이스의 **`narration_mismatch_report.md`**(전체 실패 + `suggested_rewrite` 화면 사실 제안)를 열어 **모든 문장을 compress fills에서 한 번에 고친 뒤 재빌드 1회**. `acceptance_gates.json`의 `narration_visual_match.issues`에도 전체가 있다. 기계 눈은 첫 실패에서 멈추지 않고 전 문장을 판정하므로 첫 판정에 이미 다 나와 있다.
 
 ## 실패 시
 

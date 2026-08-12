@@ -748,6 +748,22 @@ async function evaluateFinalLocaleGates({ workspaceDir, pipelineRunDir, sourceVi
   if (status === 'fail') {
     gates.failed.push('narration_visual_match');
     gates.status = 'failed';
+    // Batch-fix report (owner credit-saving directive 2026-08-12): the run summary truncates
+    // to 3 issues, which pushed a fix-one-then-rebuild loop and re-spent judge tokens each
+    // round. Dump EVERY mismatch with its frame-truth suggestion so all sentences are fixed in
+    // ONE surgery + ONE rebuild instead of N. Group by slot; ja/ko share a slot row.
+    try {
+      const lines = ['# 나레이션-화면 불일치 (전체) — 한 번에 수술하고 재빌드', '',
+        '각 문장을 `suggested_rewrite`(화면 사실 기반 제안)를 참고해 **compress fills에서 모두 고친 뒤 한 번만** 재빌드한다. 하나씩 재빌드하면 판정 토큰을 매번 다시 쓴다.', ''];
+      for (const issue of issues) {
+        lines.push(`## [${issue.locale}] ${issue.segment_id}`);
+        lines.push(`- 현재 문장: ${issue.sentence || slotText.get(issue.segment_id) || ''}`);
+        lines.push(`- 화면(on_screen): ${issue.on_screen || ''}`);
+        if (issue.suggested_rewrite) lines.push(`- **제안(frame-true)**: ${issue.suggested_rewrite}`);
+        lines.push('');
+      }
+      fs.writeFileSync(path.join(workspaceDir, 'narration_mismatch_report.md'), `${lines.join('\n')}\n`, 'utf8');
+    } catch { /* report is best-effort */ }
   }
   writeJson(acceptanceFile, gates);
   return { status, judged, issues };

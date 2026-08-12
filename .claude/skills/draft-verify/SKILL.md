@@ -17,6 +17,8 @@ description: 완성된 midform 드래프트를 고정 지표로 측정·검증�
 - **화자 색 = config 이름 등록** (2026-08-11): draft는 `midform/config/caption_colors.json`에서 **화자명으로** 색을 재계산한다 — 업스트림 speaker_color_key는 무시. 미등록 인물은 fallback 해시 충돌로 collapse(제이콥·세스 둘 다 초록). 새 소스 등장인물은 config `speakers`에 먼저 등록(role: 남주/여주/남조연/여조연 또는 기타1~4). 색이 붙되 브랜드색이 아니면 미등록 신호.
 - **ja만 재생성**: ko를 얼린 채 ja fills만 다시 만들려면 `node scripts/midform.js compress-regenerate-ja <compress-run>`. 전체 apply는 ko도 재생성해 프레임 진실 수술을 지운다. 이 CLI는 수술된 ko 나레이션을 프롬프트에 핀해서 ja가 화면 진실을 상속한다.
 - **ja 스킵 ≠ 차별화 실패**: `japanese_locale_skipped`는 대개 차별화 과다가 아니라 ①ko 빈자리 세그먼트를 ja 누락으로 오판 ②도입 자유클립 1개 LCS 자동 1.0 — 둘 다 코드 수정됨(2026-08-12). skip 사유(`japanese_locale_skipped_reason`)를 먼저 읽는다.
+- **기계 눈 실패는 일괄 처리 (크레딧 절감)**: `narration_visual_match` 실패 시 `run_summary` 메시지는 앞 3개만 보인다. 워크스페이스의 `narration_mismatch_report.md`(전체 실패 + `suggested_rewrite`)를 열어 **모든 문장을 한 번에 수술 → 재빌드 1회**. 하나씩 재빌드하면 실패 문장마다 판정 토큰을 매번 다시 쓴다(통과분은 캐시라 무료).
+- **엔드카드 자동 감지**: Clip Empire 등 오버레이형 추천 카드는 `detect_visual_endcard.py`가 잡아 usable_end를 앞당긴다(자막 감지는 오디오가 끝까지라 못 잡음). 클로징이 끝에 붙는 소스는 usable_end 클램프로 클로징이 앞당겨지니, 그 화면과 클로징 문장이 맞는지 기계 눈으로 확인.
 
 ## 1. 측정 (KO/JA 각각)
 
