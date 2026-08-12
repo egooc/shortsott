@@ -1598,6 +1598,8 @@ function buildLongformCandidatePrompt({ sourceUrl, filename, durationSec, source
     '- Each hook candidate must be one continuous source window focused on one specific process/action only.',
     '- Do not create hook candidates by summarizing many different long-form moments.',
     '- Do not choose montage, overview, compilation, or many-scene recap sections for hook candidates.',
+    '- EXCLUDE any window where a person talks to the camera, gives an interview, or a face fills a large part of the frame (talking-head shots). The product is voiceless/narrated process footage - hands, tools, machines, materials only; incidental workers seen from the side/back while working are fine.',
+    '- EXCLUDE windows dominated by burned-in broadcast subtitles, interview name/caption bars, or large on-screen text from the source program.',
     '- Start in-media-res from the strongest Action moment, not from the beginning of the process.',
     '- Logical process order is not important for hook_candidates. Dopamine, rhythm, curiosity, and visual impact are more important.',
     '- Must be visually interesting without explanation.',

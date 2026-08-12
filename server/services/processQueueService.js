@@ -9397,7 +9397,44 @@ async function prepareLongformFullDraftItemConfig({ itemId, itemConfig, sourceVi
       warnings: []
     };
   }
-  const candidateWindows = getLongformFullCandidateWindows(item, 60, highlightMaxDurationForItem(item, item.highlight_duration_sec));
+  let candidateWindows = getLongformFullCandidateWindows(item, 60, highlightMaxDurationForItem(item, item.highlight_duration_sec));
+  const faceFilterWarnings = [];
+  // Per-window talking-head filter (user directive 2026-08-12): the source-
+  // level eligibility gate passes documentaries whose overall face ratio is
+  // low, but a single interview window (face filling the frame, burned-in
+  // broadcast captions) still reached a shipped Full draft. Probe only the
+  // selected windows; drop face-heavy ones. Fail-open; kill switch
+  // FULL_WINDOW_FACE_FILTER=0.
+  if (candidateWindows.length > 1 && process.env.FULL_WINDOW_FACE_FILTER !== '0') {
+    try {
+      const probeOut = require('child_process').execFileSync('python', [
+        path.join(PROJECT_ROOT, 'scripts', 'window_face_probe.py'),
+        '--video', sourceVideoPath,
+        '--windows', JSON.stringify(candidateWindows.map((w) => ({ start_sec: w.start_sec, end_sec: w.end_sec })))
+      ], { encoding: 'utf8', timeout: 180000, windowsHide: true });
+      const probed = JSON.parse(String(probeOut).trim().split('\n').pop()).windows || [];
+      const kept = candidateWindows.filter((window, index) => {
+        const faceRatio = Number(probed[index]?.dominant_ratio);
+        const speechRatio = Number(probed[index]?.speech_ratio);
+        const motionMean = Number(probed[index]?.motion_mean);
+        // Unmasked close-up faces trip YuNet directly; masked interviews trip
+        // the speech+static composite (measured live: interview window
+        // speech 0.84 / motion 9.1 vs process-with-narration windows
+        // speech 0.4-0.8 / motion 20-37).
+        const faceHeavy = Number.isFinite(faceRatio) && faceRatio >= 0.34;
+        const talkingStatic = Number.isFinite(speechRatio) && speechRatio >= 0.5
+          && Number.isFinite(motionMean) && motionMean < 15;
+        if (!faceHeavy && !talkingStatic) return true;
+        faceFilterWarnings.push(`talking-head window dropped: ${window.start_sec}-${window.end_sec}s (face ${Number.isFinite(faceRatio) ? faceRatio : 'n/a'}, speech ${Number.isFinite(speechRatio) ? speechRatio : 'n/a'}, motion ${Number.isFinite(motionMean) ? motionMean : 'n/a'})`);
+        return false;
+      });
+      // Never filter down to nothing - a face-only source should fail later
+      // with evidence rather than silently produce an empty concat.
+      if (kept.length) candidateWindows = kept;
+    } catch (error) {
+      faceFilterWarnings.push(`window face probe failed open: ${String(error.message || error).slice(0, 120)}`);
+    }
+  }
   if (candidateWindows.length) {
     const itemDir = getItemDir(itemId);
     const fullSourcePath = path.join(itemDir, 'full_source_highlight_candidates.mp4');
@@ -9437,7 +9474,7 @@ async function prepareLongformFullDraftItemConfig({ itemId, itemConfig, sourceVi
         duration_sec: Number((metadata.duration_sec || 0).toFixed(3)),
         windows: candidateWindows
       },
-      warnings: [`longform full draft uses ${candidateWindows.length} highlight candidate segment(s), total ${Number((metadata.duration_sec || 0).toFixed(3))}s`]
+      warnings: [`longform full draft uses ${candidateWindows.length} highlight candidate segment(s), total ${Number((metadata.duration_sec || 0).toFixed(3))}s`, ...faceFilterWarnings]
     };
   }
   const window = pickFullDraftWindow(item);
