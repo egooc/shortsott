@@ -849,10 +849,36 @@ function buildKoreanFullDraftTtsPlan({ itemId, itemConfig = {}, draftConfig = {}
   const warnings = [...regrouped.warnings];
   const anchorScenes = normalizeAnchorSceneTransitions(itemConfig);
   const sceneById = new Map(anchorScenes.map((scene) => [scene.scene_id, scene]));
-  const sentencesWithAnchors = assignDistributedAnchorTargets(regrouped.sentences.map((sentence) => ({
+  let sentencesWithAnchors = assignDistributedAnchorTargets(regrouped.sentences.map((sentence) => ({
     ...sentence,
     ...sceneAnchorFieldsForSentence(sentence, sceneById)
   })), { language });
+  // Fit the narration to the ACTUAL assembled video before spending TTS
+  // credits: the metadata-time budget estimates from candidate windows, but
+  // the assembly's arc/talking-head filters can shrink the concat well below
+  // that (observed live 2026-08-12: 25s-budgeted script vs an 11.45s video -
+  // 4 of 7 sentences clipped after synthesis and the gate refused the gutted
+  // draft). draftConfig.target_duration_sec is the real concat length here.
+  const actualVideoSec = Number(draftConfig.target_duration_sec) || 0;
+  if (actualVideoSec > 3 && sentencesWithAnchors.length > 3) {
+    const fitCharsPerSec = language === 'ja' ? JAPANESE_FULL_SPEECH_CHARS_PER_SEC : KOREAN_FULL_SPEECH_CHARS_PER_SEC;
+    const maxFitChars = Math.max(20, Math.floor((actualVideoSec - 1.5) * fitCharsPerSec * 0.95));
+    const kept = [];
+    let fitChars = 0;
+    for (const sentence of sentencesWithAnchors) {
+      const sentenceChars = String(sentence.text || '').replace(/\s/g, '').length;
+      if (kept.length >= 3 && fitChars + sentenceChars > maxFitChars) break;
+      kept.push(sentence);
+      fitChars += sentenceChars;
+    }
+    if (kept.length < sentencesWithAnchors.length) {
+      warnings.push({
+        reason: 'narration_fitted_to_actual_video',
+        message: `narration fitted to actual video: ${sentencesWithAnchors.length} -> ${kept.length} sentences (${fitChars} chars for ${actualVideoSec}s video)`
+      });
+      sentencesWithAnchors = kept;
+    }
+  }
   const captionUnits = [];
   sentencesWithAnchors.forEach((sentence) => {
     const slices = splitFullTtsSentenceIntoCaptionSlices(sentence.text, language);
