@@ -298,7 +298,7 @@ const KOREAN_FULL_TTS_DELIVERY_MODE = 'tts_audio_caption_units';
 // (jB1Cifc2UQbq1gR3wnb0) and SAME settings (stability 1.0, speed 1.1,
 // mp3_44100_128) - adopted 2026-08-12 when those settings actually started
 // reaching the ElevenLabs API here (they were silently dropped before).
-const KOREAN_FULL_SPEECH_CHARS_PER_SEC = 6.59;
+const KOREAN_FULL_SPEECH_CHARS_PER_SEC = 5.9;
 const KOREAN_FULL_TTS_VOICE_ID = 'jB1Cifc2UQbq1gR3wnb0';
 const KOREAN_FULL_TTS_MODEL_ID = 'eleven_multilingual_v2';
 const KOREAN_FULL_TTS_OUTPUT_FORMAT = 'mp3_44100_128';
@@ -1805,6 +1805,14 @@ async function generateKoreanFullDraftTtsAssets({ itemId, itemConfig = {}, draft
     && itemConfig.ottogi_guide_output?.full_generation_status !== 'held';
   if (!krFullLaneAutoTts) {
     assertKoreanFullScriptReviewApproved(itemConfig, itemId);
+  }
+  // Refuse clip-length "Fulls" BEFORE spending ElevenLabs credits - the
+  // post-draft check caught a 8.9s assembly only after 3 sentences were
+  // synthesized (2026-08-12).
+  if (Number(draftConfig.target_duration_sec) > 0 && Number(draftConfig.target_duration_sec) < 20) {
+    const error = new Error(`Full source assembly too short for the format: ${draftConfig.target_duration_sec}s < 20s (target ~40s)`);
+    error.code = 'OTTOGI_FULL_SOURCE_TOO_SHORT';
+    throw error;
   }
   const plan = buildKoreanFullDraftTtsPlan({ itemId, itemConfig, draftConfig });
   if (!draftConfig.korean_full_actual_video_timeline_sec) {
