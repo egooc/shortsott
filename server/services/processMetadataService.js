@@ -242,8 +242,10 @@ function koreanFullSentenceItemRuleLines(budget = {}) {
     `- full_caption_script_ko must be ${koreanFullScriptCountRange(budget)} items where EACH ITEM IS ONE COMPLETE SPOKEN SENTENCE of roughly 15-25 Korean visible characters. Do NOT pre-fragment into short screen chunks - screen-caption splitting happens automatically downstream.`,
     '- Invalid fragment style (never output as items): "값진 재료 변신.", "틀에 부어져요.", "평범한 모래가". Valid item: "여기서 1초만 늦으면 전부 버려집니다."',
     '- Example sentences in these instructions are FORMAT references only. Never copy or lightly paraphrase them into the script - every sentence must come from what is visible in THIS video.',
-    '- Sentence endings: ~합니다/했습니다 for 60-70% of items, ~하죠/했죠 for 15-30%, an occasional noun-ending fragment for impact only. BANNED endings: ~에요, ~어요, ~예요, ~해요, ~돼요, ~거든요, ~네요. Never ask the viewer a question.',
-    '- HUMOR (user sign-off 2026-08-12): include 1 light, natural quip ONLY where the scene supports it. NEVER copy or lightly paraphrase any example sentence from these instructions - invent a quip from what is actually on screen in THIS video. A forced joke is worse than none; keep the storyteller register (미드폼 원칙: 억지 드립보다 자연).',
+    '- Sentence endings: ~합니다/했습니다 for 60-70% of items, ~하죠/했죠 for 15-30%, an occasional noun-ending fragment for impact only. BANNED endings: ~에요, ~어요, ~예요, ~해요, ~돼요, ~거든요, ~네요. No viewer questions EXCEPT the single optional closing quip.',
+    '- REGISTER (user sign-off 2026-08-12): this is ENTERTAINMENT narration, not a textbook. A sentence that merely EXPLAINS a step is a failure - every sentence must carry one of: a stake ("실수하면 전량 폐기"), tension/consequence, a surprising concrete number, a reversal, or a quip. BAD (dry explanation): "정확한 배합과 균일한 온도가 중요합니다." GOOD (stake): "온도가 1도만 어긋나면? 오늘 만든 건 전부 버립니다."',
+    '- Up to 2 light, natural quips where the scene supports them. NEVER copy or lightly paraphrase any example sentence from these instructions - invent from what is on screen in THIS video. 억지 드립보다 자연.',
+    '- The LAST item may be a single short viewer quip question starting with "여러분" (midform house style) - this is the ONLY question allowed in the whole script.',
     '- The FIRST item must have role "hook" and the LAST item must have role "closing".'
   ];
 }
@@ -4676,8 +4678,10 @@ function buildLongformVariantFinalPrompt({ variant, sourceUrl, filename, duratio
       '- Specificity beats adjectives: use concrete numbers, temperatures, counts, and times that the footage supports. Filler praise words are banned: 魔法のような, 完璧な, 驚きの, 素晴らしい.',
       '- Curiosity structure: the opening caption raises a question or stake the viewer cannot skip; captions 2-3 answer WHAT is being made; the most surprising fact (the why/how) is withheld until about 70 percent and lands as a short punchy reveal, not a calm report.',
       '- The closing must NOT summarize. End on one consequence, cost, or tension in 1-2 very short beats (e.g. "この一枚の値段が、だから違います。").',
-      '- Endings distribution: です/ます register for 60-70% of items, an occasional noun-ending fragment (体言止め, e.g. "わずか3分。") for impact. HARD LIMIT: at most 3 体言止め items in the whole script and never two in a row - a chain of fragments ("精巧な型が / 一枚の革に / 命を吹き込む。") is the listing failure, not impact. Never ask the viewer a question anywhere in the script.',
-      '- HUMOR: include 1 light, natural quip ONLY where the scene supports it. NEVER copy or lightly paraphrase any example sentence from these instructions - invent a quip from what is actually on screen in THIS video. A forced joke is worse than none; keep the storyteller register.',
+      '- Endings distribution: です/ます register for 60-70% of items, an occasional noun-ending fragment (体言止め, e.g. "わずか3分。") for impact. HARD LIMIT: at most 3 体言止め items in the whole script and never two in a row - a chain of fragments ("精巧な型が / 一枚の革に / 命を吹き込む。") is the listing failure, not impact. No viewer questions EXCEPT the single optional closing quip.',
+      '- REGISTER: this is ENTERTAINMENT narration, not a textbook. A sentence that merely EXPLAINS a step is a failure - every sentence must carry a stake, tension, a surprising concrete number, a reversal, or a quip. BAD (dry): "均一な温度管理が重要です。" GOOD (stake): "温度が1度ズレたら？今日の分は全部廃棄です。"',
+      '- Up to 2 light, natural quips where the scene supports them. NEVER copy or lightly paraphrase any example sentence from these instructions.',
+      '- The LAST item may be a single short viewer quip question starting with "皆さん" - the ONLY question allowed in the whole script.',
       '- Do not name emotions or judge for the viewer. Describe what happens; the footage carries the feeling.',
       '- Japanese Full must sound like natural spoken Japanese narration for curious viewers, not like translated Korean or noun-only labels.',
       '- Avoid bare label chunks such as "精密な機械が", "小さな誤差も" unless they continue naturally into the next phrase.',
