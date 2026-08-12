@@ -70,20 +70,34 @@ function budgetIssuesFor(script, budget) {
 }
 
 function testBudgetMath() {
+  // Re-baselined 2026-08-12: the measured 6.03775 chars/sec (midform-parity
+  // voice settings) shipped at HEAD but these expectations still assumed the
+  // old 7.12 rate.
   const budget = metadataTest.calculateKoreanFullSpeechBudget({ targetDurationSec: 30, prerollSec: 2, marginSec: 1.5 });
   assert(budget.available_sec === 26.5, `expected available_sec 26.5, got ${budget.available_sec}`);
-  assert(budget.target_chars === 169, `expected target_chars floor(26.5*7.12*.9)=169, got ${budget.target_chars}`);
-  assert(budget.min_chars === 126, `expected 75% min 126, got ${budget.min_chars}`);
-  assert(budget.max_chars === 185, `expected 110% max 185, got ${budget.max_chars}`);
+  assert(budget.target_chars === 144, `expected target_chars floor(26.5*6.03775*.9)=144, got ${budget.target_chars}`);
+  assert(budget.min_chars === 108, `expected 75% min 108, got ${budget.min_chars}`);
+  assert(budget.max_chars === 158, `expected 110% max 158, got ${budget.max_chars}`);
+}
+
+function testJapaneseBudgetMath() {
+  // ja_full lane (2026-08-12): 5.5 chars/sec initial estimate, /16 sentence
+  // divisor; the KO budget path must stay untouched by the language knob.
+  const budget = metadataTest.calculateKoreanFullSpeechBudget({ targetDurationSec: 30, prerollSec: 2, marginSec: 1.5, language: 'ja' });
+  assert(budget.language === 'ja', `expected language ja, got ${budget.language}`);
+  assert(budget.chars_per_sec === 5.5, `expected JA 5.5 chars/sec, got ${budget.chars_per_sec}`);
+  assert(budget.target_chars === Math.floor(26.5 * 5.5 * 0.9), `expected JA target chars, got ${budget.target_chars}`);
+  const koBudget = metadataTest.calculateKoreanFullSpeechBudget({ targetDurationSec: 30, prerollSec: 2, marginSec: 1.5 });
+  assert(koBudget.chars_per_sec === 6.03775, `KO chars/sec must stay 6.03775, got ${koBudget.chars_per_sec}`);
 }
 
 function testPromptBudgetInjection() {
   const budget = metadataTest.calculateKoreanFullSpeechBudget({ targetDurationSec: 30, prerollSec: 2, marginSec: 1.5, sentenceCount: 22 });
   const lines = metadataTest.koreanFullSpeechBudgetPromptLines(budget);
   const joined = lines.join('\n');
-  assert(joined.includes('이 영상 30초. 원고 총 169자 ±10%, 문장 22개 내외.'), 'expected Korean prompt budget sentence');
-  assert(joined.includes('hard lower signal 126 Korean chars'), 'expected lower-budget validation line');
-  assert(joined.includes('hard upper 185 Korean chars'), 'expected upper-budget validation line');
+  assert(joined.includes('이 영상 30초. 원고 총 144자 ±10%, 문장 22개 내외.'), 'expected Korean prompt budget sentence');
+  assert(joined.includes('hard lower signal 108 Korean chars'), 'expected lower-budget validation line');
+  assert(joined.includes('hard upper 158 Korean chars'), 'expected upper-budget validation line');
 }
 
 function testSceneBudgetPromptInjection() {
@@ -93,8 +107,8 @@ function testSceneBudgetPromptInjection() {
   ]);
   const joined = lines.join('\n');
   assert(joined.includes('각 장면의 원고 분량 가이드'), 'expected scene budget heading');
-  assert(joined.includes('scene_01 (5.75초): 약 36자 이내'), 'expected scene_01 budget line');
-  assert(joined.includes('scene_02 (7.25초): 약 46자 이내'), 'expected scene_02 budget line');
+  assert(joined.includes('scene_01 (5.75초): 약 31자 이내'), 'expected scene_01 budget line');
+  assert(joined.includes('scene_02 (7.25초): 약 39자 이내'), 'expected scene_02 budget line');
   assert(joined.includes('한 장면에 배정된 full_caption_script_ko 문장들의 한글 가시 글자 합'), 'expected per-scene sum guard');
 }
 
@@ -207,7 +221,9 @@ function testSyncEvidenceFields() {
   assert(evidence.actual_tts_raw_sum_sec === 6.6, `expected raw sum 6.6, got ${evidence.actual_tts_raw_sum_sec}`);
   assert(evidence.actual_tts_occupied_timeline_sec === 6.6, `expected occupied timeline 6.6, got ${evidence.actual_tts_occupied_timeline_sec}`);
   assert(evidence.video_timeline_sec === 24, `expected video_timeline_sec 24, got ${evidence.video_timeline_sec}`);
-  assert(evidence.actual_tts_vs_budget_delta_sec === 3.931461, `expected budget delta 3.931461, got ${evidence.actual_tts_vs_budget_delta_sec}`);
+  // 19 visible chars / 6.03775 chars-per-sec (re-baselined 2026-08-12 with
+  // the measured rate; was 19 / 7.12).
+  assert(evidence.actual_tts_vs_budget_delta_sec === 3.453132, `expected budget delta 3.453132, got ${evidence.actual_tts_vs_budget_delta_sec}`);
 }
 
 function testAnchoredTimelineGuardUsesOccupiedEnd() {
@@ -433,6 +449,7 @@ function testSkipFullDraftShortformMetadataMode() {
 
 async function main() {
   testBudgetMath();
+  testJapaneseBudgetMath();
   testPromptBudgetInjection();
   testSceneBudgetPromptInjection();
   testBudgetValidationIssues();
