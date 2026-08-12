@@ -1449,6 +1449,55 @@ function completeBeatDialogueFromCues(beats, transcript) {
   });
 }
 
+// Auto-merge smeared anchor cues (owner directive 2026-08-12, after four consecutive sources
+// hit this by hand). Auto-captions split a signature line across several cues with repeats,
+// prefixes and mid-word ellipses ("such is life such is life can you" / "Defiance today is not
+// to the day you" / "will" / "die of that..."), so a beat anchor never exact-matches a cue and
+// KEEP_DIALOGUE deadlocks. For each anchor, find the minimal run of consecutive cues whose
+// combined text CONTAINS the anchor and collapse that run into one cue carrying the anchor
+// text. Leftover words on the boundary cues are preserved as their own trimmed cues so no
+// other dialogue is lost.
+function mergeAnchorCuesInTranscript(transcript, beats) {
+  const cues = Array.isArray(transcript) ? transcript.map((c) => ({ ...c })) : [];
+  if (!cues.length) return transcript;
+  const anchors = [];
+  for (const beat of Array.isArray(beats) ? beats : []) {
+    for (const a of Array.isArray(beat?.anchor_dialogue) ? beat.anchor_dialogue : []) {
+      const text = String(a || '').trim();
+      if (text && text.split(/\s+/).length >= 2) anchors.push(text);
+    }
+  }
+  if (!anchors.length) return transcript;
+  // longest anchors first so a long line claims its cues before a short substring anchor
+  anchors.sort((x, y) => y.length - x.length);
+  let merged = 0;
+  for (const anchor of anchors) {
+    const normAnchor = normalizeComparableText(anchor);
+    if (!normAnchor) continue;
+    // Already a clean standalone cue? leave it. A cue that merely CONTAINS the anchor amid
+    // other words (repeats/prefixes) is exactly the smear the focus matcher misses, so it
+    // still needs collapsing - only an EXACT single-cue match is a no-op.
+    if (cues.some((c) => normalizeComparableText(c.text) === normAnchor)) continue;
+    let done = false;
+    for (let i = 0; i < cues.length && !done; i += 1) {
+      let combined = '';
+      for (let j = i; j < cues.length && j < i + 6; j += 1) {
+        combined = `${combined} ${normalizeComparableText(cues[j].text)}`.trim();
+        if (!combined.includes(normAnchor)) continue;
+        // cues[i..j] together contain the anchor: collapse them into one anchor cue.
+        const start = Number(cues[i].start_sec);
+        const end = Number(cues[j].end_sec);
+        if (!(Number.isFinite(start) && Number.isFinite(end) && end > start)) { done = true; break; }
+        cues.splice(i, j - i + 1, { start_sec: start, end_sec: end, text: anchor });
+        merged += 1;
+        done = true;
+        break;
+      }
+    }
+  }
+  return merged ? cues : transcript;
+}
+
 function splitMultiTurnFocusLines(lines) {
   const output = [];
   for (const line of Array.isArray(lines) ? lines : []) {
@@ -5718,6 +5767,13 @@ async function runCompression(source, options = {}) {
     }
   );
   beatsResult.parsed.beats = completeBeatDialogueFromCues(beatsResult.parsed.beats, transcript);
+  // Anchor smear is now healed here rather than by hand: rewrite the transcript so each beat
+  // anchor is one clean cue, then persist it so every downstream stage reads the merged form.
+  const anchorMergedTranscript = mergeAnchorCuesInTranscript(transcript, beatsResult.parsed.beats);
+  if (anchorMergedTranscript !== transcript) {
+    transcript = anchorMergedTranscript;
+    writeJson(path.join(runDir, 'transcript_timed.json'), transcript);
+  }
   const beatsPath = path.join(runDir, 'narrative_beats.json');
   writeJson(beatsPath, beatsResult.parsed);
 
@@ -5907,7 +5963,14 @@ function refreshCompressionPlan(runIdOrPath) {
   }
   const beatsObject = readJson(beatsPath);
   const currentPlan = readJson(editPlanPath);
-  const transcript = readJson(transcriptPath);
+  let transcript = readJson(transcriptPath);
+  // Idempotent anchor-cue merge on refresh too: a surgical rewrite of beats/anchors during a
+  // re-run gets the same clean transcript the initial apply produced (no-op when already merged).
+  const refreshMerged = mergeAnchorCuesInTranscript(transcript, beatsObject.beats || []);
+  if (refreshMerged !== transcript) {
+    transcript = refreshMerged;
+    writeJson(transcriptPath, transcript);
+  }
   const metadata = fs.existsSync(metadataPath) ? readJson(metadataPath) : {};
   const heatmap = fs.existsSync(heatmapPath) ? readJson(heatmapPath) : { status: 'unavailable', items: [] };
   const targetSec = Number(currentPlan?.duration_budget?.target_sec || DEFAULT_TARGET_SEC) || DEFAULT_TARGET_SEC;
@@ -6021,6 +6084,7 @@ module.exports = {
     resolveDialogueLineWindows,
     splitMultiTurnDialogueLine,
     completeBeatDialogueFromCues,
+    mergeAnchorCuesInTranscript,
     collectDialogueFocus,
     profileSourceCase,
     buildSourceCaseGuidance,
