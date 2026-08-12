@@ -16,5 +16,8 @@
     "express": "^4.19.2",
     "google-auth-library": "^10.7.0",
     "multer": "^1.4.5-lts.1"
+  },
+  "allowScripts": {
+    "better-sqlite3@12.10.1": true
   }
 }
