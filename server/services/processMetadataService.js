@@ -320,7 +320,7 @@ function koreanFullSceneSpeechBudgetPromptLines(scenes = [], limit = 16, languag
 }
 
 function koreanFullSpeechBudgetFromGuide(guide = {}, durationSec = 0, language = 'ko') {
-  // kr_full 롱폼 (approved 2026-08-11): the Full draft's video is the <=60s
+  // kr_full 롱폼 (approved 2026-08-11): the Full draft's video is the <=40s
   // CONCATENATION of the Vision hook-candidate windows, never the raw source.
   // Budgeting speech against the source length asked for thousands of chars
   // (a 19min source demanded 7,391) and Gemini returned an empty script -
@@ -335,14 +335,14 @@ function koreanFullSpeechBudgetFromGuide(guide = {}, durationSec = 0, language =
       return sum + (Number.isFinite(span) && span > 0 ? span : 0);
     }, 0);
   if (Number(durationSec) > 90 && candidateConcatSec > 0) {
-    return calculateKoreanFullSpeechBudget({ targetDurationSec: Math.min(60, candidateConcatSec), language });
+    return calculateKoreanFullSpeechBudget({ targetDurationSec: Math.min(40, candidateConcatSec), language });
   }
   // Longform full-lane videos are NEVER longer than the <=60s concat - any
   // duration above that reaching the budget (a stale stored budget, or the
   // model returning a 400s "full window" when the candidate scan came back
   // empty; observed live 2026-08-12: 402s -> 2,178-char demand -> held) is
-  // garbage input, so every remaining path clamps to 60s on longform.
-  const clampForLongform = (seconds) => (Number(durationSec) > 90 ? Math.min(60, Number(seconds) || 0) : Number(seconds) || 0);
+  // garbage input, so every remaining path clamps to 40s on longform.
+  const clampForLongform = (seconds) => (Number(durationSec) > 90 ? Math.min(40, Number(seconds) || 0) : Number(seconds) || 0);
   const existing = guide?.korean_full_speech_budget;
   if (existing && typeof existing === 'object' && Number(existing.target_chars) > 0) {
     return calculateKoreanFullSpeechBudget({

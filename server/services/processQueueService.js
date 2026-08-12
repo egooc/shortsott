@@ -9032,24 +9032,39 @@ function getLongformFullCandidateWindows(itemConfig = {}, targetDurationSec = 60
     if (ranked.length >= maxCandidateScenes) break;
   }
 
-  const picked = [];
-  let total = 0;
-  for (const [rankIndex, window] of ranked.entries()) {
-    const duration = Math.min(candidateDurationCap, Math.max(1, Number(window.duration_sec || 0)));
-    if (total + duration > targetDuration + 0.25 && picked.length >= minCandidateScenes) break;
-    picked.push({
-      ...window,
-      full_candidate_rank: rankIndex + 1,
-      full_explanation_scene: rankIndex < 3,
-      duration_sec: Number(duration.toFixed(3)),
-      end_sec: Number((Number(window.start_sec || 0) + duration).toFixed(3)),
-      selection_strategy: window.selection_strategy || 'longform_full_from_highlight_candidates',
-      longform_full_role: rankIndex < 3 ? 'direct_explanation_scene' : 'connected_process_backbone_scene'
-    });
-    total += duration;
-    if (picked.length >= maxCandidateScenes) break;
+  const pickWithCap = (cap) => {
+    const picked = [];
+    let total = 0;
+    for (const [rankIndex, window] of ranked.entries()) {
+      const duration = Math.min(cap, Math.max(1, Number(window.duration_sec || 0)));
+      if (total + duration > targetDuration + 0.25 && picked.length >= minCandidateScenes) break;
+      picked.push({
+        ...window,
+        full_candidate_rank: rankIndex + 1,
+        full_explanation_scene: rankIndex < 3,
+        duration_sec: Number(duration.toFixed(3)),
+        end_sec: Number((Number(window.start_sec || 0) + duration).toFixed(3)),
+        selection_strategy: window.selection_strategy || 'longform_full_from_highlight_candidates',
+        longform_full_role: rankIndex < 3 ? 'direct_explanation_scene' : 'connected_process_backbone_scene'
+      });
+      total += duration;
+      if (picked.length >= maxCandidateScenes) break;
+    }
+    return { picked, total };
+  };
+  let selection = pickWithCap(candidateDurationCap);
+  // A "Full" that assembles under ~30s is not the format (observed live: 2
+  // surviving windows x 10s cap = a 13.88s Full). When the pool is thin, let
+  // each window carry more of its arc (up to 20s or the highlight max) before
+  // giving up on length.
+  if (selection.total < 30) {
+    const relaxedCap = Math.max(candidateDurationCap, Math.min(20, Number(maxSegmentSec) || 20));
+    if (relaxedCap > candidateDurationCap) {
+      const relaxed = pickWithCap(relaxedCap);
+      if (relaxed.total > selection.total) selection = relaxed;
+    }
   }
-  return picked.sort((a, b) => Number(a.start_sec || 0) - Number(b.start_sec || 0));
+  return selection.picked.sort((a, b) => Number(a.start_sec || 0) - Number(b.start_sec || 0));
 }
 
 function mapWindowScenesToConcatenatedTimeline(itemConfig = {}, windows = []) {
@@ -9431,7 +9446,7 @@ async function prepareLongformFullDraftItemConfig({ itemId, itemConfig, sourceVi
       warnings: []
     };
   }
-  let candidateWindows = getLongformFullCandidateWindows(item, 60, highlightMaxDurationForItem(item, item.highlight_duration_sec));
+  let candidateWindows = getLongformFullCandidateWindows(item, 40, highlightMaxDurationForItem(item, item.highlight_duration_sec));
   const faceFilterWarnings = [];
   // Per-window talking-head filter (user directive 2026-08-12): the source-
   // level eligibility gate passes documentaries whose overall face ratio is
@@ -11692,6 +11707,13 @@ async function generateQueue({ batch_name, item_ids, stop_on_error = false, draf
           });
 
           if (koreanFullConfig.use_tts === true) {
+            // A "Full" assembled under 20s is not the format (target ~40s,
+            // user sign-off 2026-08-12) - refuse instead of shipping a clip.
+            if (Number(koreanFullConfig.target_duration_sec) > 0 && Number(koreanFullConfig.target_duration_sec) < 20) {
+              const error = new Error(`Full source assembly too short for the format: ${koreanFullConfig.target_duration_sec}s < 20s (target ~40s)`);
+              error.code = 'OTTOGI_FULL_SOURCE_TOO_SHORT';
+              throw error;
+            }
             const alignment = verifyKoreanFullDraftTimelineAlignment(result.draftPath, {
               bgmVolume: koreanFullConfig.use_bgm === false ? null : koreanFullConfig.bgm_volume
             });
