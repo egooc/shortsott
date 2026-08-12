@@ -127,7 +127,9 @@ async function main() {
   // HOLD (2026-08-12, user directive): KR Full (F/KF) drafts must NOT be
   // auto-exported/uploaded until the user confirms the draft quality in
   // CapCut. Highlights (H) keep flowing. Flip to false after confirmation.
-  const HOLD_KR_FULL_EXPORT = true;
+  // User confirmed the KR Full draft quality 2026-08-12 (bold caption face
+  // included) - exports resumed.
+  const HOLD_KR_FULL_EXPORT = false;
   if (HOLD_KR_FULL_EXPORT) {
     const held = targets.filter((folder) => /-K?F-/.test(path.basename(folder)));
     if (held.length) {
