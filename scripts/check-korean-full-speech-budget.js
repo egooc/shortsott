@@ -78,7 +78,7 @@ function testBudgetMath() {
   assert(budget.available_sec === 26.5, `expected available_sec 26.5, got ${budget.available_sec}`);
   assert(budget.target_chars === Math.floor(26.5 * 6.59 * 0.9), `expected KO target chars, got ${budget.target_chars}`);
   assert(budget.min_chars === Math.floor(budget.target_chars * 0.75), `expected 75% min, got ${budget.min_chars}`);
-  assert(budget.max_chars === 158, `expected 110% max 158, got ${budget.max_chars}`);
+  assert(budget.max_chars === Math.floor(budget.target_chars * 1.1), `expected 110% max, got ${budget.max_chars}`);
 }
 
 function testJapaneseBudgetMath() {
