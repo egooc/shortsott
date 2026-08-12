@@ -64,11 +64,11 @@ const MIDFORM_CAPTION_SPLIT_COUNT = 2;
 // Measured 6.03775 chars/sec in the midform repo with the SAME voice and
 // SAME voice settings (stability 1.0, speed 1.1, mp3_44100_128) - adopted
 // 2026-08-12 together with the settings actually reaching the API.
-const KOREAN_FULL_SPEECH_CHARS_PER_SEC = 6.03775;
+const KOREAN_FULL_SPEECH_CHARS_PER_SEC = 6.59;
 // JA Full lane (2026-08-12): INITIAL ESTIMATE, not measured. Replace with a
 // real chars/sec measured from ElevenLabs output on the same voice/settings
 // (like the Korean 6.03775 was) before trusting tight budgets.
-const JAPANESE_FULL_SPEECH_CHARS_PER_SEC = 4.5;
+const JAPANESE_FULL_SPEECH_CHARS_PER_SEC = 4.91;
 const KOREAN_FULL_SPEECH_SAFETY_RATIO = 0.90;
 const KOREAN_FULL_SPEECH_DEFAULT_MARGIN_SEC = 1.5;
 const KOREAN_FULL_SPEECH_DEFAULT_SENTENCE_COUNT = 22;

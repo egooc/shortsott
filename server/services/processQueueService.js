@@ -298,7 +298,7 @@ const KOREAN_FULL_TTS_DELIVERY_MODE = 'tts_audio_caption_units';
 // (jB1Cifc2UQbq1gR3wnb0) and SAME settings (stability 1.0, speed 1.1,
 // mp3_44100_128) - adopted 2026-08-12 when those settings actually started
 // reaching the ElevenLabs API here (they were silently dropped before).
-const KOREAN_FULL_SPEECH_CHARS_PER_SEC = 6.03775;
+const KOREAN_FULL_SPEECH_CHARS_PER_SEC = 6.59;
 const KOREAN_FULL_TTS_VOICE_ID = 'jB1Cifc2UQbq1gR3wnb0';
 const KOREAN_FULL_TTS_MODEL_ID = 'eleven_multilingual_v2';
 const KOREAN_FULL_TTS_OUTPUT_FORMAT = 'mp3_44100_128';
@@ -307,14 +307,15 @@ const KOREAN_FULL_TTS_VOICE_SETTINGS = Object.freeze({
   similarity_boost: 1.0,
   style: 0.2,
   use_speaker_boost: true,
-  speed: 1.1
+  // 1.1 -> 1.2 (user request 2026-08-12: slightly faster narration).
+  speed: 1.2
 });
 // ja_full lane (approved 2026-08-12). Rate is an INITIAL ESTIMATE — measure
 // real ElevenLabs JA output on this voice/settings and replace, like the
 // Korean 6.03775 was measured. The TTS aliases share the KO values today
 // (eleven_multilingual_v2 speaks Japanese) but exist so the JA voice can
 // diverge later without touching the KO lane.
-const JAPANESE_FULL_SPEECH_CHARS_PER_SEC = 4.5;
+const JAPANESE_FULL_SPEECH_CHARS_PER_SEC = 4.91;
 const JAPANESE_FULL_TTS_VOICE_ID = KOREAN_FULL_TTS_VOICE_ID;
 const JAPANESE_FULL_TTS_MODEL_ID = KOREAN_FULL_TTS_MODEL_ID;
 const JAPANESE_FULL_TTS_OUTPUT_FORMAT = KOREAN_FULL_TTS_OUTPUT_FORMAT;

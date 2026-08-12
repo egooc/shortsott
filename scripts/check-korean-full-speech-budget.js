@@ -70,12 +70,13 @@ function budgetIssuesFor(script, budget) {
 }
 
 function testBudgetMath() {
-  // Re-baselined 2026-08-12: the measured 6.03775 chars/sec (midform-parity
+  // Re-baselined 2026-08-12 (x2): 6.03775 measured at speed 1.1, scaled to
+  // 6.59 for speed 1.2 (user request; re-measure from the next live batch
   // voice settings) shipped at HEAD but these expectations still assumed the
   // old 7.12 rate.
   const budget = metadataTest.calculateKoreanFullSpeechBudget({ targetDurationSec: 30, prerollSec: 2, marginSec: 1.5 });
   assert(budget.available_sec === 26.5, `expected available_sec 26.5, got ${budget.available_sec}`);
-  assert(budget.target_chars === 144, `expected target_chars floor(26.5*6.03775*.9)=144, got ${budget.target_chars}`);
+  assert(budget.target_chars === Math.floor(26.5 * 6.59 * 0.9), `expected KO target chars, got ${budget.target_chars}`);
   assert(budget.min_chars === 108, `expected 75% min 108, got ${budget.min_chars}`);
   assert(budget.max_chars === 158, `expected 110% max 158, got ${budget.max_chars}`);
 }
@@ -86,10 +87,10 @@ function testJapaneseBudgetMath() {
   // divisor; the KO budget path must stay untouched by the language knob.
   const budget = metadataTest.calculateKoreanFullSpeechBudget({ targetDurationSec: 30, prerollSec: 2, marginSec: 1.5, language: 'ja' });
   assert(budget.language === 'ja', `expected language ja, got ${budget.language}`);
-  assert(budget.chars_per_sec === 4.5, `expected JA 4.5 chars/sec, got ${budget.chars_per_sec}`);
-  assert(budget.target_chars === Math.floor(26.5 * 4.5 * 0.9), `expected JA target chars, got ${budget.target_chars}`);
+  assert(budget.chars_per_sec === 4.91, `expected JA 4.91 chars/sec, got ${budget.chars_per_sec}`);
+  assert(budget.target_chars === Math.floor(26.5 * 4.91 * 0.9), `expected JA target chars, got ${budget.target_chars}`);
   const koBudget = metadataTest.calculateKoreanFullSpeechBudget({ targetDurationSec: 30, prerollSec: 2, marginSec: 1.5 });
-  assert(koBudget.chars_per_sec === 6.03775, `KO chars/sec must stay 6.03775, got ${koBudget.chars_per_sec}`);
+  assert(koBudget.chars_per_sec === 6.59, `KO chars/sec must stay 6.59, got ${koBudget.chars_per_sec}`);
 }
 
 function testPromptBudgetInjection() {
