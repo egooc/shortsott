@@ -18,6 +18,7 @@
 
 const { execFileSync } = require('child_process');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const dotenv = require('dotenv');
 
@@ -32,7 +33,7 @@ const {
   listUploadJobs
 } = require('../server/services/youtubeUploadService');
 
-const EXPORT_DIR = 'C:/Users/sejun/Desktop/캡컷아웃풋/CapCut Drafts/_automation factory';
+const EXPORT_DIR = path.join(os.homedir(), 'Desktop', '캡컷아웃풋', 'CapCut Drafts', '_automation factory');
 const FIRST_PUBLISH_DELAY_MIN = 60;
 const PUBLISH_INTERVAL_MIN = 120;
 const REPORTS_DIR = path.join(ROOT, 'server', 'output', 'daily-reports');

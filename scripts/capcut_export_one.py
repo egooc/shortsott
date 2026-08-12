@@ -13,7 +13,7 @@ Requires an unlocked interactive desktop (no screen lock).
 
 Usage
   python scripts/capcut_export_one.py --draft-name <folder name> \
-      --export-dir "C:/Users/sejun/Desktop/캡컷아웃풋/CapCut Drafts/_automation factory" \
+      --export-dir "%USERPROFILE%/Desktop/캡컷아웃풋/CapCut Drafts/_automation factory" \
       [--capcut-exe <path>] [--json OUT]
 
 Output JSON: { status: exported|timeout|error, output_path, elapsed_sec }
