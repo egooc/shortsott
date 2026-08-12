@@ -1528,6 +1528,32 @@ function mergeAnchorCuesInTranscript(transcript, beats) {
   return merged ? cues : transcript;
 }
 
+// Companion to the anchor-cue merge: after merging, an anchor that STILL has no matching cue
+// was never real speech - Gemini paraphrased or invented it (Draft Day B002 anchored "What do
+// you know?" which appears nowhere in the beat's window). A hard anchor that can't be found
+// deadlocks KEEP_DIALOGUE forever, so demote it: drop it from anchor_dialogue (keeping it in
+// key_dialogue if it was there) so the slot no longer REQUIRES it, while a real anchor stays.
+function pruneUnmatchedBeatAnchors(beats, transcript) {
+  const cues = Array.isArray(transcript) ? transcript : [];
+  const cueText = cues.map((c) => normalizeComparableText(c.text)).join('  ');
+  return (Array.isArray(beats) ? beats : []).map((beat) => {
+    const anchors = Array.isArray(beat?.anchor_dialogue) ? beat.anchor_dialogue : [];
+    if (!anchors.length) return beat;
+    const kept = [];
+    const demoted = [];
+    for (const anchor of anchors) {
+      const norm = normalizeComparableText(anchor);
+      if (norm && cueText.includes(norm)) kept.push(anchor);
+      else demoted.push(anchor);
+    }
+    if (!demoted.length) return beat;
+    // keep the demoted lines available as key_dialogue so the sentence can still be chosen
+    const key = Array.isArray(beat.key_dialogue) ? beat.key_dialogue.slice() : [];
+    for (const line of demoted) if (!key.some((k) => normalizeComparableText(k) === normalizeComparableText(line))) key.push(line);
+    return { ...beat, anchor_dialogue: kept, key_dialogue: key };
+  });
+}
+
 function splitMultiTurnFocusLines(lines) {
   const output = [];
   for (const line of Array.isArray(lines) ? lines : []) {
@@ -5813,6 +5839,9 @@ async function runCompression(source, options = {}) {
     transcript = anchorMergedTranscript;
     writeJson(path.join(runDir, 'transcript_timed.json'), transcript);
   }
+  // After merging, demote any anchor still unmatched (Gemini paraphrased/invented it) so it
+  // can't deadlock KEEP_DIALOGUE.
+  beatsResult.parsed.beats = pruneUnmatchedBeatAnchors(beatsResult.parsed.beats, transcript);
   const beatsPath = path.join(runDir, 'narrative_beats.json');
   writeJson(beatsPath, beatsResult.parsed);
 
@@ -6053,6 +6082,7 @@ function refreshCompressionPlan(runIdOrPath) {
     transcript = refreshMerged;
     writeJson(transcriptPath, transcript);
   }
+  beatsObject.beats = pruneUnmatchedBeatAnchors(beatsObject.beats || [], transcript);
   const metadata = fs.existsSync(metadataPath) ? readJson(metadataPath) : {};
   const heatmap = fs.existsSync(heatmapPath) ? readJson(heatmapPath) : { status: 'unavailable', items: [] };
   const targetSec = Number(currentPlan?.duration_budget?.target_sec || DEFAULT_TARGET_SEC) || DEFAULT_TARGET_SEC;
