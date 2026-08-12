@@ -74,7 +74,9 @@ const KOREAN_FULL_SPEECH_DEFAULT_MARGIN_SEC = 1.5;
 const KOREAN_FULL_SPEECH_DEFAULT_SENTENCE_COUNT = 22;
 // Sentence-count divisors: one KO sentence runs ~20 visible chars (15-25
 // standard); one JA sentence runs ~16 visible chars (12-22 standard).
-const KOREAN_FULL_SENTENCE_CHARS_DIVISOR = 20;
+// 숏헌터 house style (user-provided spec 2026-08-12): 35-60 chars per
+// sentence, breathing carried by endings not punctuation.
+const KOREAN_FULL_SENTENCE_CHARS_DIVISOR = 45;
 const JAPANESE_FULL_SENTENCE_CHARS_DIVISOR = 16;
 
 function fullSpeechCharsPerSecForLanguage(language = 'ko') {
@@ -239,13 +241,13 @@ function calculateKoreanFullSpeechBudget({
 // "평범한 모래가 / 특별한 가치를 지닌 / ...과정이에요").
 function koreanFullSentenceItemRuleLines(budget = {}) {
   return [
-    `- full_caption_script_ko must be ${koreanFullScriptCountRange(budget)} items where EACH ITEM IS ONE COMPLETE SPOKEN SENTENCE of roughly 15-25 Korean visible characters. Do NOT pre-fragment into short screen chunks - screen-caption splitting happens automatically downstream.`,
-    '- Invalid fragment style (never output as items): "값진 재료 변신.", "틀에 부어져요.", "평범한 모래가". Valid item: "여기서 1초만 늦으면 전부 버려집니다."',
-    '- Example sentences in these instructions are FORMAT references only. Never copy or lightly paraphrase them into the script - every sentence must come from what is visible in THIS video.',
-    '- Sentence endings: ~합니다/했습니다 for 60-70% of items, ~하죠/했죠 for 15-30%, an occasional noun-ending fragment for impact only. BANNED endings: ~에요, ~어요, ~예요, ~해요, ~돼요, ~거든요, ~네요. No viewer questions EXCEPT the single optional closing quip.',
-    '- REGISTER (user sign-off 2026-08-12): this is ENTERTAINMENT narration, not a textbook. A sentence that merely EXPLAINS a step is a failure - every sentence must carry one of: a stake ("실수하면 전량 폐기"), tension/consequence, a surprising concrete number, a reversal, or a quip. BAD (dry explanation): "정확한 배합과 균일한 온도가 중요합니다." GOOD (stake): "온도가 1도만 어긋나면? 오늘 만든 건 전부 버립니다."',
-    '- Up to 2 light, natural quips where the scene supports them. NEVER copy or lightly paraphrase any example sentence from these instructions - invent from what is on screen in THIS video. 억지 드립보다 자연.',
-    '- The LAST item may be a single short viewer quip question starting with "여러분" (midform house style) - this is the ONLY question allowed in the whole script.',
+    `- full_caption_script_ko must be ${koreanFullScriptCountRange(budget)} items where EACH ITEM IS ONE COMPLETE SPOKEN SENTENCE of roughly 35-60 Korean visible characters (숏헌터 house style). Do NOT pre-fragment into short screen chunks - screen-caption splitting happens automatically downstream.`,
+    '- 숏헌터 STYLE CORE: informational-entertainment TTS narration. The signature ending ~하는데요 must appear on at least 1 of every 3 sentences (it hooks the viewer into the next scene; never closes a thought). All other sentences end ~합니다/~입니다.',
+    '- PUNCTUATION: periods ONLY. No commas, question marks, exclamation marks, quotes, or ellipses anywhere - breathing is carried by sentence endings. Question-shaped sentences also end with a period.',
+    '- 4-ACT STRUCTURE in order: (1) HOOK - one of: onomatopoeia opening("[의성어] 소리와 함께 ~하고 있는데요."), concealment("우리가 자주 보는 이것이 ~"), shock declaration, question, or number/value shock; (2) DEVELOPMENT - progress connectors in order 먼저 → 이제 → 이때 → 마지막으로, each sentence = action + result, principles as ~기 때문에 ~합니다; (3) REVERSAL (mandatory, 1+) - 하지만 여기서 끝이 아닙니다 / 더욱 놀라운 건 / 놀랍게도; (4) CLOSING - completion declaration("~가 완성됩니다"), viewer question, or meaning.',
+    '- CONCEALMENT: when the finished product is the payoff, refer to it only as 이것/이 throughout and reveal the name ONLY in the final sentence.',
+    '- VOCABULARY: use 3+ of 놀랍게도/천재적인/엄청난/정교한/숙련된/전통적인/완벽하게/차곡차곡/신중하게/순식간에; value amplifiers (수천만 원/단 10초 만에/수백 년간) where the footage supports them. BANNED: 인사말/구독 요청, 문어체 endings(~된다/~이다/~라고 한다), casual intensifiers(정말/진짜/완전), 야근 (overused), three consecutive sentences with the same ending.',
+    '- Example sentences in these instructions are FORMAT references only. Never copy or lightly paraphrase them - every sentence must come from what is visible in THIS video.',
     '- The FIRST item must have role "hook" and the LAST item must have role "closing".'
   ];
 }
