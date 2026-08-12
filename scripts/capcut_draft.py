@@ -5265,6 +5265,65 @@ def apply_caption_blur_effect_to_draft(draft_content_path, template_doc, warning
     return summary
 
 
+def clip_narration_to_video(draft_content_path):
+    """When the assembled video is SHORTER than the narration (speech budget
+    is estimated before the edit is assembled), playing audio past the last
+    frame is worse than losing trailing sentences. Drop whole trailing tts
+    segments (and the caption segments that ride them) until the narration
+    fits inside the video, keeping the hook-first front of the script."""
+    summary = {"applied": False, "reason": "not run", "dropped_tts_segments": 0, "dropped_caption_segments": 0}
+    if not draft_content_path or not os.path.exists(draft_content_path):
+        summary["reason"] = "draft_content.json not found"
+        return summary
+    with open(draft_content_path, "r", encoding="utf-8-sig") as file:
+        draft_content = json.load(file)
+    tracks = draft_content.get("tracks", [])
+    video_track = next((t for t in tracks if isinstance(t, dict) and t.get("type") == "video" and t.get("name") == "source_video"), None)
+    tts_track = next((t for t in tracks if isinstance(t, dict) and t.get("name") == "tts"), None)
+    text_track = next((t for t in tracks if isinstance(t, dict) and t.get("name") == "process_explainer"), None)
+    if not video_track or not tts_track:
+        summary["reason"] = "video or tts track not found"
+        return summary
+    def track_end(track):
+        return max((int((s.get("target_timerange") or {}).get("start") or 0) + int((s.get("target_timerange") or {}).get("duration") or 0))
+                   for s in (track.get("segments") or []) if isinstance(s, dict)) if track.get("segments") else 0
+    video_end_us = track_end(video_track)
+    narration_end_us = track_end(tts_track)
+    summary["video_end_sec"] = round(video_end_us / 1_000_000, 3)
+    summary["narration_end_sec_before"] = round(narration_end_us / 1_000_000, 3)
+    if narration_end_us <= video_end_us or video_end_us <= 0:
+        summary["reason"] = "narration already within video"
+        return summary
+    segments = [s for s in (tts_track.get("segments") or []) if isinstance(s, dict)]
+    kept = list(segments)
+    while kept and narration_end_us > video_end_us:
+        kept.pop()
+        narration_end_us = int((kept[-1].get("target_timerange") or {}).get("start") or 0) + int((kept[-1].get("target_timerange") or {}).get("duration") or 0) if kept else 0
+        summary["dropped_tts_segments"] += 1
+    tts_track["segments"] = kept
+    if text_track:
+        caption_segments = [s for s in (text_track.get("segments") or []) if isinstance(s, dict)]
+        kept_captions = []
+        for segment in caption_segments:
+            target = segment.get("target_timerange") or {}
+            start_us = int(target.get("start") or 0)
+            duration_us = int(target.get("duration") or 0)
+            if start_us >= narration_end_us:
+                summary["dropped_caption_segments"] += 1
+                continue
+            if start_us + duration_us > narration_end_us:
+                target["duration"] = max(1, narration_end_us - start_us)
+                segment["target_timerange"] = target
+            kept_captions.append(segment)
+        text_track["segments"] = kept_captions
+    summary["applied"] = True
+    summary["reason"] = "narration clipped to video end"
+    summary["narration_end_sec_after"] = round(narration_end_us / 1_000_000, 3)
+    with open(draft_content_path, "w", encoding="utf-8") as file:
+        json.dump(draft_content, file, ensure_ascii=False)
+    return summary
+
+
 def trim_video_track_to_narration(draft_content_path, narration_end_us, tail_us=1_500_000):
     """KR Full TTS drafts: the assembled video timeline can run far past the
     narration (speech budget is estimated at metadata time, the video edit is
@@ -7845,8 +7904,16 @@ def create_process_draft(data):
     # narration instead of stretching captions over silent video.
     tts_narration_active = bool(process_tts_summary.get("enabled")) and process_tts_summary.get("placed_count", 0) > 0
     video_narration_trim_summary = {"applied": False, "reason": "no tts narration"}
+    narration_video_clip_summary = {"applied": False, "reason": "no tts narration"}
     if tts_narration_active:
-        narration_end_us = int(round(float(process_tts_summary.get("total_duration_sec") or 0) * 1_000_000))
+        # Symmetric case first: if the assembled video is SHORTER than the
+        # narration, drop trailing sentences so audio never outruns the frame.
+        narration_video_clip_summary = clip_narration_to_video(generated_draft_content_path)
+        narration_end_us = int(round(float(
+            narration_video_clip_summary.get("narration_end_sec_after")
+            if narration_video_clip_summary.get("applied")
+            else process_tts_summary.get("total_duration_sec") or 0
+        ) * 1_000_000))
         video_narration_trim_summary = trim_video_track_to_narration(
             generated_draft_content_path,
             narration_end_us,
@@ -8051,6 +8118,7 @@ def create_process_draft(data):
         "caption_visibility": caption_visibility_summary,
         "caption_blur_background": caption_blur_background_summary,
         "video_narration_trim": video_narration_trim_summary,
+        "narration_video_clip": narration_video_clip_summary,
         "auxiliary_timeline_trim": auxiliary_timeline_trim,
         "chapter05_strategy_applied": chapter05_strategy_applied,
         "manual_or_pending_transform_items": manual_pending,
