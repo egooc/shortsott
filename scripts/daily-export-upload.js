@@ -117,11 +117,15 @@ function publishAtIso(indexInChannel) {
 
 async function main() {
   const args = parseArgs(process.argv);
-  const jobId = args.job || latestFinishedJobId();
-  if (!jobId) throw new Error('no finished batch job found');
-  const { folders } = collectShippedDrafts(jobId);
+  // --job accepts a comma-separated list: a logical batch can span several
+  // job records (e.g. a draft-stage retry), and separate runs would double-
+  // book the per-channel publishAt slots.
+  const jobIds = String(args.job || latestFinishedJobId() || '').split(',').map((id) => id.trim()).filter(Boolean);
+  if (!jobIds.length) throw new Error('no finished batch job found');
+  const jobId = jobIds[0];
+  const folders = [...new Set(jobIds.flatMap((id) => collectShippedDrafts(id).folders))];
   const okSet = args.all ? null : scorecardOkFolders(jobId);
-  const lines = [`# 내보내기+업로드 리포트 ${new Date().toISOString()}`, `- job: ${jobId}`, ''];
+  const lines = [`# 내보내기+업로드 리포트 ${new Date().toISOString()}`, `- job: ${jobIds.join(', ')}`, ''];
 
   let targets = folders.filter((folder) => fs.existsSync(folder));
   // HOLD (2026-08-12, user directive): KR Full (F/KF) drafts must NOT be
