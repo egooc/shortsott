@@ -4419,8 +4419,23 @@ def force_process_caption_visibility(draft_content_path, template_doc=None, proc
     caption_text_color = "#FFF2A6"
     caption_fill_rgb = [1.0, 0.949, 0.651]
     caption_outline_rgb = [0.0, 0.0, 0.0]
-    caption_pop_animation_path = (
-        r"C:\Users\sejun\AppData\Local\CapCut\User Data\Cache\effect\3834795\28d9145ead32c23742082a37e511370e"
+    # The effect cache lives under the RUNNING user's LOCALAPPDATA. This was
+    # pinned to the original authoring machine's home directory, so on any
+    # other machine the os.path.exists guard below silently went False and
+    # highlight captions shipped without the pop animation (found migrating to
+    # the N100 machine, 2026-08-12). Deriving it keeps the guard meaningful:
+    # the animation applies wherever CapCut has effect 3834795 cached.
+    capcut_cache_root = os.environ.get("LOCALAPPDATA") or os.path.join(
+        os.path.expanduser("~"), "AppData", "Local"
+    )
+    caption_pop_animation_path = os.path.join(
+        capcut_cache_root,
+        "CapCut",
+        "User Data",
+        "Cache",
+        "effect",
+        "3834795",
+        "28d9145ead32c23742082a37e511370e",
     )
     caption_pop_animation_path = caption_pop_animation_path.replace("\\", "/")
     caption_pop_animation_available = os.path.exists(caption_pop_animation_path.replace("/", os.sep))
