@@ -314,7 +314,7 @@ const KOREAN_FULL_TTS_VOICE_SETTINGS = Object.freeze({
 // Korean 6.03775 was measured. The TTS aliases share the KO values today
 // (eleven_multilingual_v2 speaks Japanese) but exist so the JA voice can
 // diverge later without touching the KO lane.
-const JAPANESE_FULL_SPEECH_CHARS_PER_SEC = 5.5;
+const JAPANESE_FULL_SPEECH_CHARS_PER_SEC = 4.5;
 const JAPANESE_FULL_TTS_VOICE_ID = KOREAN_FULL_TTS_VOICE_ID;
 const JAPANESE_FULL_TTS_MODEL_ID = KOREAN_FULL_TTS_MODEL_ID;
 const JAPANESE_FULL_TTS_OUTPUT_FORMAT = KOREAN_FULL_TTS_OUTPUT_FORMAT;
