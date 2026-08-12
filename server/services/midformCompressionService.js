@@ -5950,6 +5950,38 @@ async function runCompressionApply(runIdOrPath, applyOptions = {}) {
   return applyState;
 }
 
+// Regenerate ONLY the ja slot fills over the existing (surgically-edited) ko plan/fills.
+// The whole-apply path rebuilds ko too, wiping frame-truth surgery; this keeps ko frozen and
+// re-runs just the Japanese localization pass - the missing-piece for a source whose ja was
+// never produced (HW: its first apply failed ja validation on a punctuation-only line, then
+// only refresh ran, which never regenerates ja).
+async function regenerateJapaneseSlotFills(runIdOrPath) {
+  const runDir = resolveCompressionRunDir(runIdOrPath);
+  const beatsPath = path.join(runDir, 'narrative_beats.json');
+  const editPlanPath = path.join(runDir, 'edit_plan.json');
+  const koFillsPath = path.join(runDir, 'compression_slot_fills.json');
+  if (!fs.existsSync(beatsPath) || !fs.existsSync(editPlanPath) || !fs.existsSync(koFillsPath)) {
+    throw new Error(`ja regeneration requires narrative_beats.json, edit_plan.json and compression_slot_fills.json in ${runDir}`);
+  }
+  const beatsObject = readJson(beatsPath);
+  const editPlan = readJson(editPlanPath);
+  const sourceInfoPath = path.join(runDir, 'source_info.json');
+  const manifestPath = path.join(runDir, 'compression_manifest.json');
+  const movieTitle = (fs.existsSync(sourceInfoPath) ? (readJson(sourceInfoPath) || {}).title : '')
+    || (fs.existsSync(manifestPath) ? (readJson(manifestPath) || {}).title : '') || '';
+  const recapContext = resolveRecapContext(runDir);
+  const sceneMapPath = path.join(runDir, VISION_SCENE_MAP_FILE);
+  const visionSection = fs.existsSync(sceneMapPath) ? buildVisionSceneSection(readJson(sceneMapPath)) : '';
+  const japaneseResult = await runJsonGeneration(
+    buildJapaneseSlotFillsPrompt(beatsObject.beats || [], editPlan, movieTitle, recapContext.contextMarkdown) + visionSection,
+    MIDFORM_SLOT_FILLS_SCHEMA_PATH,
+    (parsed) => validateJapaneseSlotFills(validateSlotFillsDialogueCaptions(parsed, editPlan, 'ja'), editPlan)
+  );
+  const jaPath = path.join(runDir, 'compression_slot_fills.ja.json');
+  writeJson(jaPath, japaneseResult.parsed);
+  return { runDir, japaneseSlotFillsPath: jaPath, slots: (japaneseResult.parsed?.slot_fills || []).length };
+}
+
 function refreshCompressionPlan(runIdOrPath) {
   const runDir = resolveCompressionRunDir(runIdOrPath);
   const beatsPath = path.join(runDir, 'narrative_beats.json');
@@ -6063,6 +6095,7 @@ module.exports = {
   runCompression,
   runCompressionApply,
   refreshCompressionPlan,
+  regenerateJapaneseSlotFills,
   downloadCompressionSourceVideo,
   resolveCompressionRunDir,
   extractTimedTranscript,

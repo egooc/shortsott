@@ -188,6 +188,12 @@ async function main() {
     process.stdout.write(lines.join('\n') + '\n');
     return;
   }
+  if (command === 'compress-regenerate-ja') {
+    const { regenerateJapaneseSlotFills } = require('../server/services/midformCompressionService');
+    const result = await regenerateJapaneseSlotFills(subcommand);
+    process.stdout.write(`ja slot fills regenerated: ${path.relative(PROJECT_ROOT, result.japaneseSlotFillsPath).replace(/\\/g, '/')} (${result.slots} slots)\n`);
+    return;
+  }
   if (command === 'compress-refresh') {
     const result = await refreshCompressionPlan(subcommand);
     process.stdout.write([
