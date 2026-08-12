@@ -5739,7 +5739,8 @@ async function runCompression(source, options = {}) {
       });
     }
   }
-  const { transcript, transcriptPath, vttPath } = await extractTimedTranscript(sourceUrl, runDir, { sourceKind: options.sourceKind });
+  // eslint-disable-next-line prefer-const -- transcript is reassigned by the anchor-cue merge below
+  let { transcript, transcriptPath, vttPath } = await extractTimedTranscript(sourceUrl, runDir, { sourceKind: options.sourceKind });
   const { heatmap, heatmapPath } = extractHeatmap(metadata, runDir);
   // Download the source now (idempotent - reuses an existing file) so the visual end-card
   // detector inside profileSourceCase has frames to scan. A download failure is non-fatal:
