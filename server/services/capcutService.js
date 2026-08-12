@@ -31,11 +31,15 @@ function assertCaptionUnitsMatchTtsFiles(ttsFiles = [], captionUnits = []) {
   }
   for (const [sentenceId, unitTexts] of unitsBySentence.entries()) {
     const sentenceText = sentenceTextById.get(sentenceId) || '';
-    const joinedText = normalizeCaptionText(unitTexts.join(' '));
-    if (joinedText !== sentenceText) {
+    // Korean units re-join with spaces; Japanese units are contiguous
+    // substrings of a spaceless sentence (ja_full lane, 2026-08-12) - accept
+    // either reconstruction.
+    const joinedWithSpaces = normalizeCaptionText(unitTexts.join(' '));
+    const joinedTight = normalizeCaptionText(unitTexts.join(''));
+    if (joinedWithSpaces !== sentenceText && joinedTight !== sentenceText) {
       const error = new Error(`caption units do not reconstruct TTS sentence: ${sentenceId}`);
       error.code = 'CAPTION_TTS_TEXT_MISMATCH';
-      error.details = { sentence_id: sentenceId, unit_text: joinedText, sentence_text: sentenceText };
+      error.details = { sentence_id: sentenceId, unit_text: joinedWithSpaces, sentence_text: sentenceText };
       throw error;
     }
   }
