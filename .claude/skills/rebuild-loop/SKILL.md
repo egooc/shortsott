@@ -23,6 +23,9 @@ description: 수정(코드/플랜/원고)을 기존 소스에 소급 적용하�
 - **compress run 상태 확인**: `run_summary.json`의 `internal.compression_run_id === internal.bootstrap_source_run_id` — 다르면 측정 자체가 무의미.
 - **refresh 멱등성**: 액션 슬롯·채택 창은 refresh마다 재파생된다. 손으로 넣은 항목이 refresh 후 사라지면 코드 규칙에 걸린 것 — 규칙을 확인하지, 다시 손으로 넣지 말 것.
 - **fills 배열 정렬**: 대사 줄 추가/삭제 시 caption 배열·speakers 배열·(ja 동일) 3원소가 어긋나면 자막 인덱스가 밀려 빈 자막/줄 소실이 난다.
+- **앵커 스미어는 이제 자동 병합**(2026-08-12): 자동자막이 명대사를 여러 큐로 쪼개 "KEEP_DIALOGUE must include beat anchor" deadlock이 나면, beats 확정 직후 `mergeAnchorCuesInTranscript`가 단일 큐로 자동 병합한다. 그래도 남으면 anchor_dialogue 텍스트가 transcript 큐와 정말 다른 것 — 큐를 앵커 텍스트로 손수 맞추거나, 정 안 되면 beat anchor를 그 줄만 남기고 완화(key_dialogue엔 유지해 대사는 살림).
+- **화자 색 붕괴**(distinct_speakers_not_collapsed): 새 인물이 `caption_colors.json`에 없어 fallback 충돌한 것. compress fills 화자 배정만으론 안 되고 **config `speakers` 등록이 결정론의 유일한 길** — draft가 이름으로 재계산하기 때문.
+- **ja만 재생성**: 수술한 ko를 얼린 채 ja를 다시 만들려면 `compress-regenerate-ja <run>` (전체 apply는 ko도 덮음). 이 CLI는 프레임 검증된 ko 나레이션을 ja에 핀해 화면 진실을 상속시킨다 — ja 재생성이 plot summary로 회귀하는 것 방지.
 
 ## 실패 시
 

@@ -13,6 +13,10 @@ description: 완성된 midform 드래프트를 고정 지표로 측정·검증�
 - **좌표계**: 자막 공백은 `edit_manifest.json`의 **`video_timeline_start/end_sec`** 기준으로 대조. `timeline_*`로 재면 "화면에 아무것도 없음"으로 오독한다.
 - **대체 확인**: `run_summary.json`에서 `internal.compression_run_id === internal.bootstrap_source_run_id` 확인. 다르면 이 영상은 이번 실행 산출물이 아니므로 **측정 자체가 무의미**하다.
 - **동결 감지**: 수치가 이전 측정과 소수점까지 동일하면 수정 무효가 아니라 **측정 대상이 갱신 안 된 것**부터 의심.
+- **텍스트 권위 = compress run** (2026-08-11, 하루를 여기 날림): 옛 소스의 나레이션·대사·화자를 고칠 때 **반드시 `compress_*/compression_slot_fills.json`(+`.ja.json`)부터** 고친다. pipeline run의 `slot_fills.json`/`script.json`/`draft_input.*.json`을 고쳐도 bootstrap resume가 compress에서 재생성하며 덮는다. 수술 순서: compress 수정 → refresh → bootstrap → review-resume → draft.
+- **화자 색 = config 이름 등록** (2026-08-11): draft는 `midform/config/caption_colors.json`에서 **화자명으로** 색을 재계산한다 — 업스트림 speaker_color_key는 무시. 미등록 인물은 fallback 해시 충돌로 collapse(제이콥·세스 둘 다 초록). 새 소스 등장인물은 config `speakers`에 먼저 등록(role: 남주/여주/남조연/여조연 또는 기타1~4). 색이 붙되 브랜드색이 아니면 미등록 신호.
+- **ja만 재생성**: ko를 얼린 채 ja fills만 다시 만들려면 `node scripts/midform.js compress-regenerate-ja <compress-run>`. 전체 apply는 ko도 재생성해 프레임 진실 수술을 지운다. 이 CLI는 수술된 ko 나레이션을 프롬프트에 핀해서 ja가 화면 진실을 상속한다.
+- **ja 스킵 ≠ 차별화 실패**: `japanese_locale_skipped`는 대개 차별화 과다가 아니라 ①ko 빈자리 세그먼트를 ja 누락으로 오판 ②도입 자유클립 1개 LCS 자동 1.0 — 둘 다 코드 수정됨(2026-08-12). skip 사유(`japanese_locale_skipped_reason`)를 먼저 읽는다.
 
 ## 1. 측정 (KO/JA 각각)
 

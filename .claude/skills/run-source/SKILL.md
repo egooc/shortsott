@@ -21,9 +21,15 @@ yt-dlp --js-runtimes node --no-playlist --skip-download --print "%(title)s | %(d
 
 예외: **게임 영상**은 자막이 없는 게 정상 — frontmatter에 `source.kind: game`을 선언하면 자막 없이 진행된다 (비전+에너지 구조, 전량 나레이션). 첫 실행 전 `midform/docs/game-branch-plan.md`를 읽을 것 — 브랜치는 배관만 완료 상태다.
 
+## 1.5. 저작권 티어 확인 (소스 선정 1차 필터)
+
+배급사를 확인하고 `source-casebook.md`의 "권리자 정책 대장"과 대조한다. **Sony 계열 전체(Columbia·Screen Gems·TriStar) 사용 금지** — 소유주 확정 결정(2026-08-11), 전 국가 차단 실측(Hollow Man). Movieclips 채널은 Sony 라이선스가 많으니 배급사를 꼭 본다. Lionsgate/Summit(존윅·트와일라잇)은 저위험 추정. **최종 판정은 발행 시 YouTube 비공개 업로드→검사(Checks)→소유권 주장 확인** — 편집으로는 영상 지문을 못 피한다.
+
 ## 2. 케이스북 대조
 
 `midform/docs/source-casebook.md`를 읽고 가장 가까운 사례를 찾는다. 판별 축: 발화 밀도(대략), 히트맵 피크가 대사인지 액션인지, 길이. 사례의 "접근"과 "주의"를 템플릿에 반영한다.
+
+**등장인물 색 사전 등록 (2026-08-11)**: 소스의 주요 화자(2~5명)를 `midform/config/caption_colors.json`의 `speakers`에 미리 등록한다(예: `"제이콥":"남주"`, `"세스":"남조연"`). draft는 화자명으로 색을 재계산하므로, 미등록 인물은 fallback 해시 충돌로 색이 붕괴한다(distinct_speakers_not_collapsed 실패). role은 남주/여주/남조연/여조연 또는 기타1~4.
 
 ## 3. 템플릿 작성
 
