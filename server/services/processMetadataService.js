@@ -5139,8 +5139,10 @@ function validateLongformVariantFinalGuide(variant, guide = {}, options = {}) {
       : 0;
     const missing = [];
     if (!guide.full_metadata_ko || typeof guide.full_metadata_ko !== 'object') missing.push('missing_full_review_metadata');
-    if (koCount < 20) missing.push('full_caption_script_ko_too_short');
-    if (koSubtitleCount < 8 && koCount < 20) missing.push('full_metadata_ko_onscreen_subtitles_too_short');
+    // Sentence-standard scripts (2026-08-12) are 5-25 pieces, not the
+    // screen-phrase era's 20+; a budget-clipped 5-piece script is valid.
+    if (koCount < 3) missing.push('full_caption_script_ko_too_short');
+    if (koSubtitleCount < 3 && koCount < 3) missing.push('full_metadata_ko_onscreen_subtitles_too_short');
     if (missing.length) {
       throw createHttpError(500, 'OTTOGI_FULL_FINAL_VALIDATION_FAILED', 'Gemini Full output is missing required Korean full-draft caption script fields', {
         missing,
