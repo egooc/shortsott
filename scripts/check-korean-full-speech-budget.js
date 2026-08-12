@@ -76,7 +76,7 @@ function testBudgetMath() {
   // old 7.12 rate.
   const budget = metadataTest.calculateKoreanFullSpeechBudget({ targetDurationSec: 30, prerollSec: 2, marginSec: 1.5 });
   assert(budget.available_sec === 26.5, `expected available_sec 26.5, got ${budget.available_sec}`);
-  assert(budget.target_chars === Math.floor(26.5 * 6.59 * 0.9), `expected KO target chars, got ${budget.target_chars}`);
+  assert(budget.target_chars === Math.floor(26.5 * 5.9 * 0.9), `expected KO target chars, got ${budget.target_chars}`);
   assert(budget.min_chars === Math.floor(budget.target_chars * 0.75), `expected 75% min, got ${budget.min_chars}`);
   assert(budget.max_chars === Math.floor(budget.target_chars * 1.1), `expected 110% max, got ${budget.max_chars}`);
 }
@@ -90,7 +90,7 @@ function testJapaneseBudgetMath() {
   assert(budget.chars_per_sec === 4.91, `expected JA 4.91 chars/sec, got ${budget.chars_per_sec}`);
   assert(budget.target_chars === Math.floor(26.5 * 4.91 * 0.9), `expected JA target chars, got ${budget.target_chars}`);
   const koBudget = metadataTest.calculateKoreanFullSpeechBudget({ targetDurationSec: 30, prerollSec: 2, marginSec: 1.5 });
-  assert(koBudget.chars_per_sec === 6.59, `KO chars/sec must stay 6.59, got ${koBudget.chars_per_sec}`);
+  assert(koBudget.chars_per_sec === 5.9, `KO chars/sec must stay 5.9, got ${koBudget.chars_per_sec}`);
 }
 
 function testPromptBudgetInjection() {
@@ -109,8 +109,8 @@ function testSceneBudgetPromptInjection() {
   ]);
   const joined = lines.join('\n');
   assert(joined.includes('각 장면의 원고 분량 가이드'), 'expected scene budget heading');
-  assert(joined.includes(`scene_01 (5.75초): 약 ${Math.floor(5.75 * 6.59 * 0.9)}자 이내`), 'expected scene_01 budget line');
-  assert(joined.includes(`scene_02 (7.25초): 약 ${Math.floor(7.25 * 6.59 * 0.9)}자 이내`), 'expected scene_02 budget line');
+  assert(joined.includes(`scene_01 (5.75초): 약 ${Math.floor(5.75 * 5.9 * 0.9)}자 이내`), 'expected scene_01 budget line');
+  assert(joined.includes(`scene_02 (7.25초): 약 ${Math.floor(7.25 * 5.9 * 0.9)}자 이내`), 'expected scene_02 budget line');
   assert(joined.includes('한 장면에 배정된 full_caption_script_ko 문장들의 한글 가시 글자 합'), 'expected per-scene sum guard');
 }
 
