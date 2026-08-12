@@ -10901,10 +10901,12 @@ function buildKoreanFullDraftConfig({ itemId, itemConfig, queueConfig, baseConfi
     : narrativeBlocks;
   const sceneBlocksWithHook = applyFullPrerollHookToBlocks(sceneBlocks, itemConfig, queueConfig, language);
   const fullTargetDuration = Number((sourceDuration + sceneBlocksWithHook.hookDurationSec).toFixed(3));
-  // KR Full carries the KR highlight channel's logo so the channel brand
-  // stays consistent (2026-08-12); JA Full carries the JP channel logo.
+  // Each Full lane carries ITS channel's highlight logo so the brand stays
+  // consistent within a channel (user sign-off 2026-08-12: "jp full도 jp
+  // 하이라이트랑 같은 bgm과 같은 로고").
   const channelAsset = japanese
     ? selectQueueAsset(
+      queueConfig.highlight_channel_asset,
       queueConfig.channel_asset,
       baseConfig.channel_asset
     )
@@ -10943,17 +10945,19 @@ function buildKoreanFullDraftConfig({ itemId, itemConfig, queueConfig, baseConfi
       ? KOREAN_FULL_TTS_DELIVERY_MODE
       : KOREAN_FULL_SRT_DELIVERY_MODE,
     korean_full_srt_chars_per_sec: koreanFullSrtCharsPerSec(baseConfig, itemConfig, queueConfig),
+    // JA Full mirrors the JP highlight builder's exact BGM field chain so
+    // both formats resolve to the same track (user sign-off 2026-08-12).
     use_bgm: japanese
-      ? baseConfig.use_bgm
+      ? (queueConfig.highlight_custom_bgm_path ? true : baseConfig.use_bgm)
       : (queueConfig.korean_custom_bgm_path ? true : baseConfig.use_bgm),
     custom_bgm_path: japanese
-      ? (queueConfig.custom_bgm_path || baseConfig.custom_bgm_path || '')
+      ? (queueConfig.highlight_custom_bgm_path || baseConfig.custom_bgm_path || '')
       : (queueConfig.korean_custom_bgm_path || baseConfig.custom_bgm_path || ''),
     custom_bgm_original_name: japanese
-      ? (queueConfig.custom_bgm_original_name || baseConfig.custom_bgm_original_name || '')
+      ? (queueConfig.highlight_custom_bgm_original_name || baseConfig.custom_bgm_original_name || '')
       : (queueConfig.korean_custom_bgm_original_name || baseConfig.custom_bgm_original_name || ''),
     bgm_volume: japanese
-      ? baseConfig.bgm_volume
+      ? (queueConfig.highlight_bgm_volume ?? baseConfig.bgm_volume)
       : (queueConfig.korean_bgm_volume ?? baseConfig.bgm_volume),
     explainer_blocks: sceneBlocksWithHook.blocks
   });
