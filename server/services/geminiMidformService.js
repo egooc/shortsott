@@ -768,13 +768,16 @@ async function judgeFramesAgainstText({ framePaths, text }) {
     'IMPORTANT nuance: a narration stating that something is GONE, disappeared, defeated, or "could not return" MATCHES aftermath footage where that thing is absent (e.g., survivors embracing after the monster is gone). Absence of the subject is not a mismatch for an absence statement - "no monster visible" is exactly what "the monster never came back up" looks like. Example: narration "the monster never came up again" over frames of survivors climbing with no monster in sight = MATCH. Other characters doing the action the absent subject cannot do (people climbing up) does NOT contradict it. Mismatch requires the frames to show something that CONTRADICTS the sentence.',
     'Same for FORESHADOWING: a narration teasing that something is approaching, following, or waiting OFF-SCREEN (e.g., "something was climbing up after them") MATCHES frames of characters who cannot see it yet - the unseen subject does not need to be on screen. "Nothing is visible below the characters" is NOT a mismatch for a pursuit tease - the pursuer being out of frame is the point. Example: narration "something that should not be there was climbing up after them" over frames of two people climbing a ladder = MATCH. Only flag it if the frames actively contradict the tease (e.g., the pursuer is already on screen doing something else, or already dealt with).',
     'Same for META-NARRATION: a sentence that marks a narrative transition ("the story goes back a few minutes", "hours earlier, it was an ordinary night") is stage direction, not a visual claim - it MATCHES any footage of the earlier timeline it introduces. Only flag it if the frames clearly still show the LATER scene the narration claims to leave.',
-    'Respond JSON: {"match": true|false, "on_screen": "<one short sentence: what the frames actually show>", "reason": "<one short sentence>"}'
+    'If match is FALSE, also propose "suggested_rewrite": a single replacement narration sentence in the SAME language as the original that states only what the frames actually show. It must NOT invent events beyond the frames, must NOT name emotions or pass judgment, and must NOT reference anything outside this clip. If a faithful one-sentence rewrite is not possible, return an empty string.',
+    'Respond JSON: {"match": true|false, "on_screen": "<one short sentence: what the frames actually show>", "reason": "<one short sentence>", "suggested_rewrite": "<frame-true replacement sentence, or empty>"}'
   ].join('\n') });
+  const langHint = /[가-힣]/.test(String(text || '')) ? 'Korean' : (/[ぁ-んァ-ヴ一-龯]/.test(String(text || '')) ? 'Japanese' : 'the original language');
+  parts.push({ text: `The narration language is ${langHint}; write suggested_rewrite in ${langHint}.` });
   const body = {
     contents: [{ role: 'user', parts }],
     generationConfig: {
       responseMimeType: 'application/json',
-      responseSchema: { type: 'object', properties: { match: { type: 'boolean' }, on_screen: { type: 'string' }, reason: { type: 'string' } }, required: ['match', 'on_screen'] },
+      responseSchema: { type: 'object', properties: { match: { type: 'boolean' }, on_screen: { type: 'string' }, reason: { type: 'string' }, suggested_rewrite: { type: 'string' } }, required: ['match', 'on_screen'] },
       temperature: 0
     }
   };

@@ -708,7 +708,7 @@ async function evaluateFinalLocaleGates({ workspaceDir, pipelineRunDir, sourceVi
                 const verdict = await judgeFramesAgainstText({ framePaths, text: sample.text });
                 judged += 1;
                 if (verdict && verdict.match === false) {
-                  issues.push({ locale, segment_id: key, sentence: sample.text.slice(0, 60), on_screen: String(verdict.on_screen || '').slice(0, 160), reason: String(verdict.reason || '').slice(0, 160) });
+                  issues.push({ locale, segment_id: key, sentence: sample.text.slice(0, 60), on_screen: String(verdict.on_screen || '').slice(0, 160), reason: String(verdict.reason || '').slice(0, 160), suggested_rewrite: String(verdict.suggested_rewrite || '').slice(0, 160) });
                 } else if (verdict && verdict.match === true) {
                   judgeCache[cacheKey] = { match: true, judged_at: new Date().toISOString() };
                 }
