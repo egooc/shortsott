@@ -1296,7 +1296,30 @@ function detectPromoTail(transcript, sourceDurationSec) {
   return { usable_end_sec: usableEnd, promo_tail_sec: tail };
 }
 
-function profileSourceCase(transcript, metadata, heatmap) {
+// Visual end-card detection (Clip Empire and similar overlay their "WATCH MORE" recommendation
+// cards ON the film, so the audio/dialogue keeps playing and the subtitle-based promo tail
+// misses them entirely - Fruitvale/NYSM shipped with the cards inside usable_end). The python
+// helper finds where the persistent yellow card first appears; a 6s safety margin covers the
+// fade-in the sampler catches a few seconds late. Returns 0 when no card / no video.
+const VISUAL_ENDCARD_MARGIN_SEC = 6;
+function detectVisualEndcardSec(sourceVideoPath, durationSec) {
+  if (!sourceVideoPath || !fs.existsSync(sourceVideoPath) || !(durationSec > 0)) return 0;
+  if (process.env.MIDFORM_DISABLE_VISUAL_ENDCARD === '1') return 0;
+  try {
+    const { spawnSync } = require('child_process');
+    const py = process.env.PYTHON_PATH || 'python';
+    const script = path.join(PROJECT_ROOT, 'midform', 'scripts', 'detect_visual_endcard.py');
+    const res = spawnSync(py, [script, sourceVideoPath, String(durationSec)], { encoding: 'utf8', timeout: 180000 });
+    const parsed = JSON.parse(String(res.stdout || '{}').trim() || '{}');
+    const start = Number(parsed.endcard_start_sec);
+    if (!Number.isFinite(start) || start <= 0) return 0;
+    return roundSec(Math.max(0, start - VISUAL_ENDCARD_MARGIN_SEC));
+  } catch {
+    return 0;
+  }
+}
+
+function profileSourceCase(transcript, metadata, heatmap, sourceVideoPath = '') {
   const durationSec = Number(metadata?.duration || 0);
   const cues = (Array.isArray(transcript) ? transcript : [])
     .filter((cue) => Number(cue?.end_sec) > Number(cue?.start_sec) && !isNonSpeechCaption(cue?.text));
@@ -1325,6 +1348,12 @@ function profileSourceCase(transcript, metadata, heatmap) {
   const parts = [density, peakIsDialogue ? 'dialogue_peak' : 'action_peak'];
   if (durationSec > 0 && durationSec < SOURCE_CASE_SHORT_SEC) parts.unshift('short_source');
   const promo = detectPromoTail(transcript, durationSec);
+  // The visual card can start BEFORE the last real dialogue cue (the film plays under it), so
+  // take whichever boundary is earlier - the card must never survive inside usable_end.
+  const visualUsableEnd = detectVisualEndcardSec(sourceVideoPath, durationSec);
+  let usableEnd = promo.usable_end_sec;
+  if (visualUsableEnd > 0 && visualUsableEnd < usableEnd) usableEnd = visualUsableEnd;
+  const promoTail = roundSec(Math.max(0, durationSec - usableEnd));
   return {
     case_type: parts.join('+'),
     duration_sec: durationSec,
@@ -1334,8 +1363,9 @@ function profileSourceCase(transcript, metadata, heatmap) {
     // to 'energy' (measured signal) or downgraded to 'none' by runCompression. 'none' means the
     // guidance must not assert a non-verbal peak it cannot locate.
     peak_evidence: peak ? 'heatmap' : 'none',
-    usable_end_sec: promo.usable_end_sec,
-    promo_tail_sec: promo.promo_tail_sec
+    usable_end_sec: usableEnd,
+    promo_tail_sec: promoTail,
+    promo_tail_source: visualUsableEnd > 0 && usableEnd === visualUsableEnd ? 'visual_endcard' : (promo.promo_tail_sec > 0 ? 'subtitle' : 'none')
   };
 }
 
@@ -5711,7 +5741,15 @@ async function runCompression(source, options = {}) {
   }
   const { transcript, transcriptPath, vttPath } = await extractTimedTranscript(sourceUrl, runDir, { sourceKind: options.sourceKind });
   const { heatmap, heatmapPath } = extractHeatmap(metadata, runDir);
-  const sourceCase = profileSourceCase(transcript, metadata, heatmap);
+  // Download the source now (idempotent - reuses an existing file) so the visual end-card
+  // detector inside profileSourceCase has frames to scan. A download failure is non-fatal:
+  // profileSourceCase falls back to the subtitle-based promo tail.
+  let profileVideoPath = '';
+  try {
+    const dl = await downloadCompressionSourceVideo(runDir);
+    profileVideoPath = dl?.sourceVideoPath || '';
+  } catch { profileVideoPath = path.join(runDir, 'source.mp4'); }
+  const sourceCase = profileSourceCase(transcript, metadata, heatmap, profileVideoPath);
   if (options.sourceKind === 'game') sourceCase.case_type = 'game_no_dialogue';
   // A declared promo tail (template source.promo_tail_sec, measured by frame analysis) beats
   // caption-based detection: preview dialogue defeats the text classifier in both directions.
