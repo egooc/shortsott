@@ -73,3 +73,6 @@ Desktop.ini
 # Agent tooling workspaces (not product code)
 .opencode/
 .sisyphus/
+
+# Machine migration bundles (contain .env secrets and OAuth tokens)
+n100_migration_bundle_*/
