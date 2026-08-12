@@ -97,7 +97,27 @@ async function getVertexAccessToken() {
   return token;
 }
 
+// Session token accounting (owner asked "am I burning credits?" 2026-08-12 - there was no
+// record). Every Vertex response carries usageMetadata; append it to a session-global JSONL so
+// spend is auditable. Best-effort: a logging failure never breaks a generation.
+function logVertexUsage(data, label = '') {
+  try {
+    const usage = data?.usageMetadata;
+    if (!usage) return;
+    const line = JSON.stringify({
+      at: new Date().toISOString(),
+      label,
+      prompt: Number(usage.promptTokenCount || 0),
+      output: Number(usage.candidatesTokenCount || 0),
+      total: Number(usage.totalTokenCount || 0),
+      model: String(getVertexConfig().model || '')
+    });
+    fs.appendFileSync(path.join(__dirname, '..', '..', 'midform', 'test_runs', '.token_usage.jsonl'), `${line}\n`, 'utf8');
+  } catch { /* accounting is best-effort */ }
+}
+
 function extractVertexResponseText(data) {
+  logVertexUsage(data, data?._midformLabel || '');
   const parts = data?.candidates?.[0]?.content?.parts || [];
   const text = parts.map((part) => part?.text || '').join('').trim();
   if (!text) {
