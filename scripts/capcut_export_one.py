@@ -33,7 +33,10 @@ sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 import pyautogui  # noqa: E402
 
-pyautogui.FAILSAFE = True  # mouse to top-left corner aborts
+# Fail-safe OFF for unattended production: a mouse parked in any screen
+# corner (the natural "hands-off" position) aborted every export at ~25s
+# (observed 2026-08-12). The run is short and CapCut is killed in finally.
+pyautogui.FAILSAFE = False
 
 CAPCUT_EXE_DEFAULT = os.path.expandvars(r"%LOCALAPPDATA%\CapCut\9.2.0.3931\CapCut.exe")
 
@@ -175,6 +178,10 @@ def main():
         result["resolution"] = resolution_key
         result["coords_scaled_fallback"] = scaled
         before = snapshot_dir(args.export_dir)
+        # Park the cursor mid-screen so a corner-parked mouse cannot swallow
+        # the first click.
+        screen_w, screen_h = pyautogui.size()
+        pyautogui.moveTo(screen_w // 2, screen_h // 2)
         kill_capcut()
         subprocess.Popen([args.capcut_exe])
         time.sleep(HOME_LOAD_SEC)
