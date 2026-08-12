@@ -4967,9 +4967,19 @@ function validateSlotFillsDialogueCaptions(slotFills, editPlan, locale = 'ko') {
       }
     }
   }
-  if (uploadText.overlay_title.top.length > 8 || uploadText.overlay_title.bottom.length > 8) {
-    throw new Error(`upload_text.overlay_title top/bottom must be <= 8 chars, got: ${uploadText.overlay_title.top} / ${uploadText.overlay_title.bottom}`);
-  }
+  // The overlay is a short on-screen contrast pair; when the model returns a long one it used
+  // to throw and (on a source where the model keeps overshooting) never produce slot fills at
+  // all. Truncate at the last word boundary within 8 chars instead - a shorter overlay is
+  // still a valid overlay, so this is a safe auto-fix, not a data loss.
+  const clampOverlayLine = (value) => {
+    const text = String(value || '').trim();
+    if (text.length <= 8) return text;
+    const cut = text.slice(0, 8);
+    const lastSpace = cut.lastIndexOf(' ');
+    return (lastSpace >= 4 ? cut.slice(0, lastSpace) : cut).trim();
+  };
+  uploadText.overlay_title.top = clampOverlayLine(uploadText.overlay_title.top);
+  uploadText.overlay_title.bottom = clampOverlayLine(uploadText.overlay_title.bottom);
   for (const title of isKorean ? uploadText.title_candidates : []) {
     if (!isCuriosityTitle(title)) {
       throw new Error(
