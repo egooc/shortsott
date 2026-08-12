@@ -98,7 +98,7 @@ function testPromptBudgetInjection() {
   const lines = metadataTest.koreanFullSpeechBudgetPromptLines(budget);
   const joined = lines.join('\n');
   assert(joined.includes(`이 영상 30초. 원고 총 ${budget.target_chars}자 ±10%, 문장 22개 내외.`), 'expected Korean prompt budget sentence');
-  assert(joined.includes('hard lower signal 108 Korean chars'), 'expected lower-budget validation line');
+  assert(joined.includes(`hard lower signal ${budget.min_chars} Korean chars`), 'expected lower-budget validation line');
   assert(joined.includes('hard upper 158 Korean chars'), 'expected upper-budget validation line');
 }
 
