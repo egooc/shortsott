@@ -4669,7 +4669,7 @@ function buildLongformVariantFinalPrompt({ variant, sourceUrl, filename, duratio
       '- Specificity beats adjectives: use concrete numbers, temperatures, counts, and times that the footage supports. Filler praise words are banned: 魔法のような, 完璧な, 驚きの, 素晴らしい.',
       '- Curiosity structure: the opening caption raises a question or stake the viewer cannot skip; captions 2-3 answer WHAT is being made; the most surprising fact (the why/how) is withheld until about 70 percent and lands as a short punchy reveal, not a calm report.',
       '- The closing must NOT summarize. End on one consequence, cost, or tension in 1-2 very short beats (e.g. "この一枚の値段が、だから違います。").',
-      '- Endings distribution: です/ます register for 60-70% of items, an occasional noun-ending fragment (体言止め, e.g. "わずか3分。") for impact. Never ask the viewer a question anywhere in the script.',
+      '- Endings distribution: です/ます register for 60-70% of items, an occasional noun-ending fragment (体言止め, e.g. "わずか3分。") for impact. HARD LIMIT: at most 3 体言止め items in the whole script and never two in a row - a chain of fragments ("精巧な型が / 一枚の革に / 命を吹き込む。") is the listing failure, not impact. Never ask the viewer a question anywhere in the script.',
       '- HUMOR: include 1 light, natural quip ONLY where the scene supports it (e.g. "ここでミスしたら？その日は残業です。"). A forced joke is worse than none; keep the storyteller register.',
       '- Do not name emotions or judge for the viewer. Describe what happens; the footage carries the feeling.',
       '- Japanese Full must sound like natural spoken Japanese narration for curious viewers, not like translated Korean or noun-only labels.',
