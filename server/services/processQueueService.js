@@ -2257,6 +2257,14 @@ function verifyKoreanFullDraftTimelineAlignment(draftPath, { bgmVolume = null } 
   report.checks.video_matches_narration = videoEnd >= ttsEnd - 0.5 && videoEnd <= ttsEnd + 3.0;
   report.checks.bgm_volume_applied = bgmVolume === null
     || report.values.bgm_volumes.every((volume) => Number.isFinite(volume) && Math.abs(volume - Number(bgmVolume)) < 0.005);
+  // A draft whose narration lost more than half its sentences to the
+  // video-length clip is technically "aligned" but editorially gutted
+  // (observed live: a failed candidate scan left a 7.5s video and 21 of 22
+  // sentences were dropped). Alignment must not launder that into a pass.
+  const manifest = readJsonIfExists(path.join(draftPath, 'edit_manifest.json')) || {};
+  const droppedTts = Number(manifest?.narration_video_clip?.dropped_tts_segments) || 0;
+  report.values.dropped_tts_segments = droppedTts;
+  report.checks.narration_not_gutted = droppedTts <= report.values.tts_segments;
   report.ok = Object.values(report.checks).every(Boolean);
   return report;
 }
