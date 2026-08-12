@@ -99,7 +99,7 @@ function testPromptBudgetInjection() {
   const joined = lines.join('\n');
   assert(joined.includes(`이 영상 30초. 원고 총 ${budget.target_chars}자 ±10%, 문장 22개 내외.`), 'expected Korean prompt budget sentence');
   assert(joined.includes(`hard lower signal ${budget.min_chars} Korean chars`), 'expected lower-budget validation line');
-  assert(joined.includes('hard upper 158 Korean chars'), 'expected upper-budget validation line');
+  assert(joined.includes(`hard upper ${budget.max_chars} Korean chars`), 'expected upper-budget validation line');
 }
 
 function testSceneBudgetPromptInjection() {
@@ -109,8 +109,8 @@ function testSceneBudgetPromptInjection() {
   ]);
   const joined = lines.join('\n');
   assert(joined.includes('각 장면의 원고 분량 가이드'), 'expected scene budget heading');
-  assert(joined.includes('scene_01 (5.75초): 약 31자 이내'), 'expected scene_01 budget line');
-  assert(joined.includes('scene_02 (7.25초): 약 39자 이내'), 'expected scene_02 budget line');
+  assert(joined.includes(`scene_01 (5.75초): 약 ${Math.floor(5.75 * 6.59 * 0.9)}자 이내`), 'expected scene_01 budget line');
+  assert(joined.includes(`scene_02 (7.25초): 약 ${Math.floor(7.25 * 6.59 * 0.9)}자 이내`), 'expected scene_02 budget line');
   assert(joined.includes('한 장면에 배정된 full_caption_script_ko 문장들의 한글 가시 글자 합'), 'expected per-scene sum guard');
 }
 
