@@ -81,12 +81,13 @@ function testBudgetMath() {
 }
 
 function testJapaneseBudgetMath() {
-  // ja_full lane (2026-08-12): 5.5 chars/sec initial estimate, /16 sentence
+  // ja_full lane (2026-08-12): 4.5 chars/sec MEASURED on the first live run
+  // (206 chars over 45.74s of ElevenLabs mp3, 11 sentences), /16 sentence
   // divisor; the KO budget path must stay untouched by the language knob.
   const budget = metadataTest.calculateKoreanFullSpeechBudget({ targetDurationSec: 30, prerollSec: 2, marginSec: 1.5, language: 'ja' });
   assert(budget.language === 'ja', `expected language ja, got ${budget.language}`);
-  assert(budget.chars_per_sec === 5.5, `expected JA 5.5 chars/sec, got ${budget.chars_per_sec}`);
-  assert(budget.target_chars === Math.floor(26.5 * 5.5 * 0.9), `expected JA target chars, got ${budget.target_chars}`);
+  assert(budget.chars_per_sec === 4.5, `expected JA 4.5 chars/sec, got ${budget.chars_per_sec}`);
+  assert(budget.target_chars === Math.floor(26.5 * 4.5 * 0.9), `expected JA target chars, got ${budget.target_chars}`);
   const koBudget = metadataTest.calculateKoreanFullSpeechBudget({ targetDurationSec: 30, prerollSec: 2, marginSec: 1.5 });
   assert(koBudget.chars_per_sec === 6.03775, `KO chars/sec must stay 6.03775, got ${koBudget.chars_per_sec}`);
 }
