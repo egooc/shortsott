@@ -53,14 +53,18 @@ try {
 
 assert(assemblyMismatchCode === 'CAPTION_TTS_TEXT_MISMATCH', `expected assembly CAPTION_TTS_TEXT_MISMATCH, got ${assemblyMismatchCode || 'no error'}`);
 
+// Expected partitions re-baselined 2026-08-12 to the midform-ported
+// balanced partition (koCaptionBalancedPartition) already shipped at HEAD —
+// the old greedy-era expectations no longer matched the approved splitter.
+// The hard guards stay: slices reconstruct the sentence, lengths in range.
 const sliceExamples = [
   {
     input: '여러 단계를 거쳐 정교하게 다듬습니다',
-    expected: ['여러 단계를 거쳐', '정교하게 다듬습니다']
+    expected: ['여러 단계를', '거쳐 정교하게 다듬습니다']
   },
   {
     input: '재료 특성을 이해하고 힘을 조절하는 게 아주 중요합니다',
-    expected: ['재료 특성을 이해하고', '힘을 조절하는 게', '아주 중요합니다']
+    expected: ['재료 특성을 이해하고', '힘을 조절하는', '게 아주 중요합니다']
   }
 ];
 

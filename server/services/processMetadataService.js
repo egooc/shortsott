@@ -65,9 +65,25 @@ const MIDFORM_CAPTION_SPLIT_COUNT = 2;
 // SAME voice settings (stability 1.0, speed 1.1, mp3_44100_128) - adopted
 // 2026-08-12 together with the settings actually reaching the API.
 const KOREAN_FULL_SPEECH_CHARS_PER_SEC = 6.03775;
+// JA Full lane (2026-08-12): INITIAL ESTIMATE, not measured. Replace with a
+// real chars/sec measured from ElevenLabs output on the same voice/settings
+// (like the Korean 6.03775 was) before trusting tight budgets.
+const JAPANESE_FULL_SPEECH_CHARS_PER_SEC = 5.5;
 const KOREAN_FULL_SPEECH_SAFETY_RATIO = 0.90;
 const KOREAN_FULL_SPEECH_DEFAULT_MARGIN_SEC = 1.5;
 const KOREAN_FULL_SPEECH_DEFAULT_SENTENCE_COUNT = 22;
+// Sentence-count divisors: one KO sentence runs ~20 visible chars (15-25
+// standard); one JA sentence runs ~16 visible chars (12-22 standard).
+const KOREAN_FULL_SENTENCE_CHARS_DIVISOR = 20;
+const JAPANESE_FULL_SENTENCE_CHARS_DIVISOR = 16;
+
+function fullSpeechCharsPerSecForLanguage(language = 'ko') {
+  return language === 'ja' ? JAPANESE_FULL_SPEECH_CHARS_PER_SEC : KOREAN_FULL_SPEECH_CHARS_PER_SEC;
+}
+
+function fullScriptFieldForLanguage(language = 'ko') {
+  return language === 'ja' ? 'full_caption_script_ja' : 'full_caption_script_ko';
+}
 const YOUTUBE_URL_RE = /^https?:\/\/(?:www\.)?(?:youtube\.com|youtu\.be)\//i;
 
 const KOREAN_FULL_HOOK_TYPES = Object.freeze({
@@ -153,17 +169,38 @@ function countKoreanFullScriptVisibleChars(script = []) {
   return countKoreanVisibleCharsNoSpaces(texts.join(''));
 }
 
+function countJapaneseVisibleCharsNoSpaces(value = '') {
+  return [...String(value || '').replace(/\s+/g, '')]
+    .filter((char) => /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\u3005\u3006]/u.test(char))
+    .length;
+}
+
+function countFullScriptVisibleChars(script = [], language = 'ko') {
+  const texts = (Array.isArray(script) ? script : [])
+    .map((item) => (item && typeof item === 'object' ? item.text : item))
+    .map((text) => String(text || ''))
+    .filter(Boolean);
+  return language === 'ja'
+    ? countJapaneseVisibleCharsNoSpaces(texts.join(''))
+    : countKoreanVisibleCharsNoSpaces(texts.join(''));
+}
+
 function calculateKoreanFullSpeechBudget({
   targetDurationSec = 0,
   prerollSec = 0,
   marginSec = KOREAN_FULL_SPEECH_DEFAULT_MARGIN_SEC,
-  sentenceCount = null
+  sentenceCount = null,
+  language = 'ko'
 } = {}) {
+  const charsPerSec = fullSpeechCharsPerSecForLanguage(language);
+  const sentenceCharsDivisor = language === 'ja'
+    ? JAPANESE_FULL_SENTENCE_CHARS_DIVISOR
+    : KOREAN_FULL_SENTENCE_CHARS_DIVISOR;
   const targetDuration = Math.max(0, Number(targetDurationSec || 0));
   const preroll = Math.max(0, Number(prerollSec || 0));
   const margin = Math.max(0, Number(marginSec || 0));
   const availableSec = Math.max(0, targetDuration - preroll - margin);
-  const targetChars = Math.max(1, Math.floor(availableSec * KOREAN_FULL_SPEECH_CHARS_PER_SEC * KOREAN_FULL_SPEECH_SAFETY_RATIO));
+  const targetChars = Math.max(1, Math.floor(availableSec * charsPerSec * KOREAN_FULL_SPEECH_SAFETY_RATIO));
   // The sentence count must scale with the char budget. Items are COMPLETE
   // spoken sentences (~20 visible chars each; midform: 15s of narration =
   // 4-5 sentences), NOT 8-char screen fragments - the old /8 divisor forced
@@ -172,17 +209,18 @@ function calculateKoreanFullSpeechBudget({
   // (koCaptionBalancedPartition), not the manuscript's.
   const scaledSentenceCount = Math.max(3, Math.min(
     KOREAN_FULL_SPEECH_DEFAULT_SENTENCE_COUNT,
-    Math.round(targetChars / 20)
+    Math.round(targetChars / sentenceCharsDivisor)
   ));
   const effectiveSentenceCount = Number(sentenceCount) > 0
     ? Math.round(Number(sentenceCount))
     : scaledSentenceCount;
   return {
+    language,
     target_duration_sec: roundSeconds(targetDuration),
     preroll_sec: roundSeconds(preroll),
     margin_sec: roundSeconds(margin),
     available_sec: roundSeconds(availableSec),
-    chars_per_sec: KOREAN_FULL_SPEECH_CHARS_PER_SEC,
+    chars_per_sec: charsPerSec,
     safety_ratio: KOREAN_FULL_SPEECH_SAFETY_RATIO,
     target_chars: targetChars,
     min_chars: Math.max(1, Math.floor(targetChars * 0.75)),
@@ -247,7 +285,9 @@ function sceneTransitionPromptSummary(scenes = [], limit = 12) {
     .filter((scene) => scene.scene_id);
 }
 
-function koreanFullSceneSpeechBudgetPromptLines(scenes = [], limit = 16) {
+function koreanFullSceneSpeechBudgetPromptLines(scenes = [], limit = 16, language = 'ko') {
+  const scriptField = fullScriptFieldForLanguage(language);
+  const charsPerSec = fullSpeechCharsPerSecForLanguage(language);
   const normalizedScenes = (Array.isArray(scenes) ? scenes : [])
     .slice(0, limit)
     .map((scene) => {
@@ -262,7 +302,7 @@ function koreanFullSceneSpeechBudgetPromptLines(scenes = [], limit = 16) {
       return {
         scene_id: sceneId,
         duration_sec: roundSeconds(durationSec),
-        max_chars: Math.max(1, Math.floor(durationSec * KOREAN_FULL_SPEECH_CHARS_PER_SEC * KOREAN_FULL_SPEECH_SAFETY_RATIO))
+        max_chars: Math.max(1, Math.floor(durationSec * charsPerSec * KOREAN_FULL_SPEECH_SAFETY_RATIO))
       };
     })
     .filter(Boolean);
@@ -270,12 +310,14 @@ function koreanFullSceneSpeechBudgetPromptLines(scenes = [], limit = 16) {
   return [
     '- 각 장면의 원고 분량 가이드:',
     ...normalizedScenes.map((scene) => `  ${scene.scene_id} (${scene.duration_sec}초): 약 ${scene.max_chars}자 이내`),
-    '- 한 장면에 배정된 full_caption_script_ko 문장들의 한글 가시 글자 합이 그 장면 가이드를 넘지 않게 쓰세요.',
+    language === 'ja'
+      ? `- 한 장면에 배정된 ${scriptField} 문장들의 일본어 가시 글자 합이 그 장면 가이드를 넘지 않게 쓰세요.`
+      : '- 한 장면에 배정된 full_caption_script_ko 문장들의 한글 가시 글자 합이 그 장면 가이드를 넘지 않게 쓰세요.',
     '- 이 장면별 가이드는 1차 방어입니다. 최종 dry-run 시뮬레이션에서 장면 앵커 drift가 크면 실제 TTS 호출이 차단됩니다.'
   ];
 }
 
-function koreanFullSpeechBudgetFromGuide(guide = {}, durationSec = 0) {
+function koreanFullSpeechBudgetFromGuide(guide = {}, durationSec = 0, language = 'ko') {
   // kr_full 롱폼 (approved 2026-08-11): the Full draft's video is the <=60s
   // CONCATENATION of the Vision hook-candidate windows, never the raw source.
   // Budgeting speech against the source length asked for thousands of chars
@@ -291,7 +333,7 @@ function koreanFullSpeechBudgetFromGuide(guide = {}, durationSec = 0) {
       return sum + (Number.isFinite(span) && span > 0 ? span : 0);
     }, 0);
   if (Number(durationSec) > 90 && candidateConcatSec > 0) {
-    return calculateKoreanFullSpeechBudget({ targetDurationSec: Math.min(60, candidateConcatSec) });
+    return calculateKoreanFullSpeechBudget({ targetDurationSec: Math.min(60, candidateConcatSec), language });
   }
   const existing = guide?.korean_full_speech_budget;
   if (existing && typeof existing === 'object' && Number(existing.target_chars) > 0) {
@@ -299,23 +341,33 @@ function koreanFullSpeechBudgetFromGuide(guide = {}, durationSec = 0) {
       targetDurationSec: existing.target_duration_sec || existing.targetDurationSec || durationSec,
       prerollSec: existing.preroll_sec || existing.prerollSec || 0,
       marginSec: existing.margin_sec || existing.marginSec || KOREAN_FULL_SPEECH_DEFAULT_MARGIN_SEC,
-      sentenceCount: existing.target_sentence_count || existing.sentenceCount || KOREAN_FULL_SPEECH_DEFAULT_SENTENCE_COUNT
+      sentenceCount: existing.target_sentence_count || existing.sentenceCount || KOREAN_FULL_SPEECH_DEFAULT_SENTENCE_COUNT,
+      language: existing.language || language
     });
   }
   const targetDurationSec = durationFromWindow(guide?.story_clip_40s)
     || durationFromWindow(guide?.recommended_full_window)
     || durationFromWindow(guide?.full_source_window)
     || Number(guide?.target_duration_sec || guide?.duration_sec || durationSec || 0);
-  return calculateKoreanFullSpeechBudget({ targetDurationSec });
+  return calculateKoreanFullSpeechBudget({ targetDurationSec, language });
 }
 
-function koreanFullSpeechBudgetPromptLines(budget = {}) {
+function koreanFullSpeechBudgetPromptLines(budget = {}, language = 'ko') {
   const normalized = calculateKoreanFullSpeechBudget({
     targetDurationSec: budget.target_duration_sec,
     prerollSec: budget.preroll_sec,
     marginSec: budget.margin_sec,
-    sentenceCount: budget.target_sentence_count
+    sentenceCount: budget.target_sentence_count,
+    language: budget.language || language
   });
+  if ((budget.language || language) === 'ja') {
+    return [
+      `- Japanese Full prompt budget (model-facing): 이 영상 ${normalized.target_duration_sec}초. 원고 총 ${normalized.target_chars}자 ±10%, 문장 ${normalized.target_sentence_count}개 내외.`,
+      `- Japanese Full speech budget: this video is ${normalized.target_duration_sec}s. Write about ${normalized.target_chars} Japanese visible characters total, with an acceptable prompt target of ±10%.`,
+      `- Japanese Full validation budget: hard lower signal ${normalized.min_chars} Japanese chars, hard upper ${normalized.max_chars} Japanese chars. Count kana/kanji visible characters only, excluding spaces and punctuation.`,
+      `- Japanese Full sentence plan: aim for about ${normalized.target_sentence_count} caption items. Keep each item short, but do not underwrite the narration below the budget.`
+    ];
+  }
   return [
     `- Korean Full prompt budget (model-facing): 이 영상 ${normalized.target_duration_sec}초. 원고 총 ${normalized.target_chars}자 ±10%, 문장 ${normalized.target_sentence_count}개 내외.`,
     `- Korean Full speech budget: this video is ${normalized.target_duration_sec}s. Write about ${normalized.target_chars} Korean visible characters total, with an acceptable prompt target of ±10%.`,
@@ -4054,6 +4106,12 @@ function normalizeFullCaptionScript(value = [], scenes = [], language = 'ja', fa
   // standard (2026-08-12) produces 5-10 complete sentences. Callers on that
   // lane pass minItems so a valid short script is not erased into [].
   const minItems = Number(options.minItems) > 0 ? Number(options.minItems) : 20;
+  // ja_full sentence standard: JA items are ONE complete TTS sentence each
+  // and MUST stay intact — the screen-phrase splitter cuts JA mid-word
+  // ("流し込|まれ、") and, unlike Korean, the TTS plan cannot regroup
+  // spaceless JA fragments back into sentences. Screen-caption splitting for
+  // JA happens downstream (splitJapaneseCaptionUnits / the JA TTS slicer).
+  const sentenceStandardJa = !korean && minItems <= 3;
   const sourceHasRepairResult = source.some((item) => isProtectedKoreanFullScriptSourceBasis((item && typeof item === 'object' ? item.source_basis : '') || ''));
   const normalizedScenes = Array.isArray(scenes) ? scenes : [];
   const sceneIds = normalizedScenes.map((scene, index) => normalizeText(scene?.scene_id || `scene_${String(index + 1).padStart(3, '0')}`));
@@ -4083,7 +4141,7 @@ function normalizeFullCaptionScript(value = [], scenes = [], language = 'ja', fa
       if (!text) return [];
       const role = normalizeText(itemObject.role || '');
       const baseSceneId = normalizeText(itemObject.scene_id || `script_${String(index + 1).padStart(3, '0')}`);
-      const phrases = splitFullScriptScreenPhrases(text, korean);
+      const phrases = sentenceStandardJa ? [text] : splitFullScriptScreenPhrases(text, korean);
       return (phrases.length ? phrases : [text]).map((phrase, phraseIndex) => ({
         scene_id: phraseIndex === 0 ? baseSceneId : `${baseSceneId}_${String(phraseIndex + 1).padStart(2, '0')}`,
         role: FULL_CAPTION_SCRIPT_ROLES.has(role) ? role : inferFullScriptRole(index, source.length),
@@ -4102,7 +4160,11 @@ function normalizeFullCaptionScript(value = [], scenes = [], language = 'ja', fa
         text: '처음엔 낯설어 보여도',
         source_basis: 'required Korean full draft opening hook'
       });
-    } else if (!korean && !/(何|なん|これ)/u.test(firstText)) {
+    } else if (!korean && minItems > 3 && !/(何|なん|これ)/u.test(firstText)) {
+      // Screen-phrase-era JA scripts only. The ja_full sentence-standard lane
+      // (minItems 3) writes its own hook sentence; injecting the legacy
+      // これ何だろう fragment there would both break the item count and open
+      // with a question the JA narration standard bans.
       sourceResult.unshift({
         scene_id: 'script_hook_001',
         role: 'hook',
@@ -4110,11 +4172,13 @@ function normalizeFullCaptionScript(value = [], scenes = [], language = 'ja', fa
         source_basis: 'required Japanese full draft opening hook'
       });
     }
-    const repaired = sourceHasRepairResult && korean
+    const repaired = (sourceHasRepairResult && korean) || sentenceStandardJa
       ? sourceResult
       : (korean ? repairKoreanBrokenFullScriptItems(sourceResult) : repairJapaneseBrokenFullScriptItems(sourceResult));
     const deduped = dedupeAdjacentFullCaptionScriptItems(repaired);
-    const limited = limitFullScriptSceneRoles(enforceFullCaptionSafeLengths(deduped, korean));
+    // The safe-length pass re-splits anything over the 14-char JA screen cap,
+    // which would re-fragment the sentence items this lane must preserve.
+    const limited = limitFullScriptSceneRoles(sentenceStandardJa ? deduped : enforceFullCaptionSafeLengths(deduped, korean));
     const limitedTexts = limited.map((item) => item.text);
     const weakCount = incompleteCaptionFragmentCount(limitedTexts, korean)
       + limitedTexts.filter((text) => isBareFullDraftLabel(text, korean)).length;
@@ -4566,16 +4630,70 @@ function longformHighlightCandidateSummary(candidateGuide = {}, hookGuide = {}, 
     .join('\n');
 }
 
-function buildLongformVariantFinalPrompt({ variant, sourceUrl, filename, durationSec, candidateGuide, allCandidateGuide = null, hookGuide, storyGuide, midformGuide, assignedHookType = null, sourceContext = {} }) {
+function buildLongformVariantFinalPrompt({ variant, sourceUrl, filename, durationSec, candidateGuide, allCandidateGuide = null, hookGuide, storyGuide, midformGuide, assignedHookType = null, sourceContext = {}, fullScriptLanguage = 'ko' }) {
   // koreanFullSpeechBudgetFromGuide clamps to the hook-candidate concat for
   // longform (the Full draft's real video length); budgeting on
   // storyDurationSec here demanded thousands of chars (600s window / 1155s
   // source) and Gemini answered with an empty script - every one of the 41
   // queue items shows zero full_caption_script_ko pieces before this fix.
-  const fullSpeechBudget = koreanFullSpeechBudgetFromGuide(candidateGuide, durationSec);
-  const fullSpeechBudgetLines = koreanFullSpeechBudgetPromptLines(fullSpeechBudget);
+  const fullSpeechBudget = koreanFullSpeechBudgetFromGuide(candidateGuide, durationSec, fullScriptLanguage);
+  const fullSpeechBudgetLines = koreanFullSpeechBudgetPromptLines(fullSpeechBudget, fullScriptLanguage);
+  // ja_full lane (approved 2026-08-12): the Full variant is generated in the
+  // lane's language. The JA config mirrors the KO narration standard, ported
+  // to Japanese sentence norms (12-22 chars, です/ます register, 体言止め).
+  const japaneseFullVariantConfig = {
+    phaseName: 'JA Full',
+    windowName: 'story_clip_40s',
+    requiredFields: [
+      'full_metadata',
+      'full_caption_script_ja',
+      'short_description_200',
+      'recommended_titles',
+      'report_description',
+      'explainer_text'
+    ],
+    rules: [
+      '- Create only the JA Full process-summary draft metadata and scripts.',
+      '- Full uses story_clip_40s only as the selected JA Full source. The field name is legacy; treat it as the final short-form Full source window.',
+      '- For longform sources, JA Full is built from multiple highlight-candidate scenes inside the source, not from a uniform timeline summary.',
+      '- Select an adaptive 6 to 12 highlight-candidate scenes for JA Full. Candidate rank 1, 2, and 3 are direct explanation scenes; the remaining candidates become connected process-flow evidence.',
+      '- Put the strongest hook first, then blend the top explanation scenes with natural Japanese narration so the Full feels like one coherent manufacturing/process story.',
+      '- Only about three captions should directly describe visible scenes. The rest should connect purpose, method, quality, transformation, and payoff in natural spoken Japanese.',
+      '- Full must not claim an unseen result. If the selected source window does not visibly show water, final products, packaging, or completion, describe those as purpose/goal only.',
+      '- Full caption mode is scene_based_short_subtitles for compatibility, but the content must be manuscript-based caption chunks, not scene labels.',
+      '- Full production language is Japanese. full_caption_script_ja and full_metadata are the real production output for this variant.',
+      '- NARRATION REGISTER: the script is a spoken TTS narration, written like a storyteller pulling the viewer forward - NOT an equipment tour, NOT a list of process steps, NOT a plot synopsis. One idea per sentence. Short sentences. Each sentence must make the next one feel necessary.',
+      '- Specificity beats adjectives: use concrete numbers, temperatures, counts, and times that the footage supports. Filler praise words are banned: 魔法のような, 完璧な, 驚きの, 素晴らしい.',
+      '- Curiosity structure: the opening caption raises a question or stake the viewer cannot skip; captions 2-3 answer WHAT is being made; the most surprising fact (the why/how) is withheld until about 70 percent and lands as a short punchy reveal, not a calm report.',
+      '- The closing must NOT summarize. End on one consequence, cost, or tension in 1-2 very short beats (e.g. "この一枚の値段が、だから違います。").',
+      '- Endings distribution: です/ます register for 60-70% of items, an occasional noun-ending fragment (体言止め, e.g. "わずか3分。") for impact. Never ask the viewer a question anywhere in the script.',
+      '- Do not name emotions or judge for the viewer. Describe what happens; the footage carries the feeling.',
+      '- Japanese Full must sound like natural spoken Japanese narration for curious viewers, not like translated Korean or noun-only labels.',
+      '- Avoid bare label chunks such as "精密な機械が", "小さな誤差も" unless they continue naturally into the next phrase.',
+      '- Do not leave English fallback phrases like "material transformation" inside Japanese Full fields. Rewrite them into natural Japanese.',
+      `- full_caption_script_ja must be ${koreanFullScriptCountRange(fullSpeechBudget)} items where EACH ITEM IS ONE COMPLETE SPOKEN SENTENCE of roughly 12-22 Japanese characters (e.g. "ここで1秒遅れると全部廃棄です。"). Do NOT pre-fragment into short screen chunks - the system splits screen captions from your sentences automatically. An item like "貴重な材料の変身。" or "型に流し込み。" is invalid fragment style.`,
+      '- Item roles: the FIRST item must have role "hook" and the LAST item must have role "closing". Middle items use technical_context, method, quality_reason, emotional_expression, or scene_observation.',
+      '- Each full_caption_script_ja item.scene_id must be copied from the selected scene_transitions real IDs such as scene_01, scene_02, scene_03. Reuse a scene ID for multiple nearby caption chunks when needed; never output script_001 IDs.',
+      ...fullSpeechBudgetLines,
+      ...koreanFullSceneSpeechBudgetPromptLines(storyGuide?.scene_transitions || candidateGuide?.scene_transitions || [], 16, 'ja'),
+      '- full_metadata.onscreen_subtitles must copy the same manuscript chunks from full_caption_script_ja. Do not fill it from raw scene captions.',
+      '- full_metadata.summary_caption is a short public Japanese summary, not the screen caption block.',
+      ...koreanFullHookPromptLines(assignedHookType, {
+        seed: `${sourceUrl || ''}:${filename || ''}:longform:${variant}`,
+        sourceUrl,
+        filename,
+        sourceType: 'longform',
+        sourceWorkflowMode: 'longform_to_shorts',
+        sourceText: JSON.stringify({ candidateGuide, hookGuide, storyGuide, midformGuide })
+      }),
+      '- The assigned hook type above describes the opening PERSPECTIVE only. Write the hook sentence in natural Japanese; never copy or translate the Korean example phrases verbatim.',
+      '- The first JA Full caption must follow the assigned hook type without using the banned exact phrase.',
+      '- Do not create Korean Full metadata, Korean Full subtitles, or full_caption_script_ko. This Full draft is Japanese only.',
+      '- Do not create Highlight or Midform metadata in this response.'
+    ]
+  };
   const variantConfig = {
-    full: {
+    full: fullScriptLanguage === 'ja' ? japaneseFullVariantConfig : {
       phaseName: 'KR Full',
       windowName: 'story_clip_40s',
       requiredFields: [
@@ -4744,10 +4862,34 @@ function buildLongformVariantFinalPrompt({ variant, sourceUrl, filename, duratio
   ].join('\n');
 }
 
-function buildLongformVariantFinalSchema(variant) {
+function buildLongformVariantFinalSchema(variant, fullScriptLanguage = 'ko') {
   const shared = OTTOGI_METADATA_SCHEMA.properties;
   const schemas = {
-    full: {
+    full: fullScriptLanguage === 'ja' ? {
+      // ja_full lane: the JA public metadata objects already exist in the
+      // shared schema; the Full final call just requires them instead of
+      // the *_ko production set.
+      type: 'object',
+      properties: {
+        detected_subject: { type: 'string' },
+        short_description_200: shared.short_description_200,
+        recommended_titles: shared.recommended_titles,
+        report_description: shared.report_description,
+        explainer_text: shared.explainer_text,
+        full_metadata: OTTOGI_VARIANT_METADATA_SCHEMA,
+        full_caption_script_ja: shared.full_caption_script_ja,
+        regional_editing_strategy: shared.regional_editing_strategy,
+        variant_strategy: shared.variant_strategy
+      },
+      required: [
+        'full_metadata',
+        'full_caption_script_ja',
+        'short_description_200',
+        'recommended_titles',
+        'report_description',
+        'explainer_text'
+      ]
+    } : {
       type: 'object',
       properties: {
         detected_subject: { type: 'string' },
@@ -4959,6 +5101,29 @@ function mergeMidformSplitOutputs(metadataGuide = {}, captionParts = []) {
 }
 
 function validateLongformVariantFinalGuide(variant, guide = {}, options = {}) {
+  if (variant === 'full' && options.fullScriptLanguage === 'ja') {
+    // ja_full lane: the JA prompt asks for sentence items from the start
+    // (~16-18 for a 60s concat), so there is no KO-style 20-raw-item floor —
+    // 12 rejects fragment/empty replies without failing sane sentence
+    // scripts the lenient gates downstream are built to accept.
+    const jaCount = Array.isArray(guide.full_caption_script_ja) ? guide.full_caption_script_ja.length : 0;
+    const jaSubtitleCount = Array.isArray(guide.full_metadata?.onscreen_subtitles)
+      ? guide.full_metadata.onscreen_subtitles.length
+      : 0;
+    const missing = [];
+    if (!guide.full_metadata || typeof guide.full_metadata !== 'object') missing.push('missing_full_metadata');
+    if (jaCount < 12) missing.push('full_caption_script_ja_too_short');
+    if (jaSubtitleCount < 8 && jaCount < 12) missing.push('full_metadata_onscreen_subtitles_too_short');
+    if (missing.length) {
+      throw createHttpError(500, 'OTTOGI_FULL_FINAL_VALIDATION_FAILED', 'Gemini Full output is missing required Japanese full-draft caption script fields', {
+        missing,
+        full_caption_script_ja_count: jaCount,
+        full_metadata_onscreen_subtitles_count: jaSubtitleCount,
+        expected_caption_script_items: '12-22'
+      });
+    }
+    return guide;
+  }
   if (variant === 'full') {
     // Full drafts are Korean-only (see buildLongformVariantFinalPrompt: "Full drafts are
     // Korean only. Do not create full_caption_script_ja."). Japanese full fields are no
@@ -5966,7 +6131,10 @@ function normalizeLongformRecoverableFields(guide = {}, sourceUrl = '', duration
     sceneTransitions,
     'ja',
     [],
-    { allowSceneFallback: false }
+    // JA Full sentence standard (ja_full lane, 2026-08-12): 5-10 complete
+    // sentences are a VALID script; the default 20-item screen-phrase
+    // minimum would erase them, same as the KO regression below.
+    { allowSceneFallback: false, minItems: 3 }
   );
   next.full_caption_script_ko = normalizeFullCaptionScript(
     next.full_caption_script_ko,
@@ -5995,7 +6163,13 @@ function normalizeLongformRecoverableFields(guide = {}, sourceUrl = '', duration
   }
 
   const fullSubtitlesJa = fullCaptionScriptTexts(next.full_caption_script_ja);
-  if (fullSubtitlesJa.length >= 20) {
+  // >= 20 is the screen-phrase-era overwrite gate; a ja_full sentence script
+  // (~10-18 items) only FILLS full_metadata.onscreen_subtitles when Gemini
+  // left it empty, so the required-subtitles validation has real content.
+  const existingFullSubtitleCount = Array.isArray(next.full_metadata?.onscreen_subtitles)
+    ? next.full_metadata.onscreen_subtitles.filter((line) => normalizeText(line)).length
+    : 0;
+  if (fullSubtitlesJa.length >= 20 || (fullSubtitlesJa.length >= 3 && !existingFullSubtitleCount)) {
     next.full_metadata = {
       ...(next.full_metadata || {}),
       variant_type: 'full',
@@ -6370,7 +6544,10 @@ function normalizeGuide(guide = {}, sourceUrl = '', durationSec = 0) {
     sceneTransitions,
     'ja',
     [],
-    { allowSceneFallback: false }
+    // JA Full sentence standard (ja_full lane, 2026-08-12): 5-10 complete
+    // sentences are a valid script; the default 20-item screen-phrase
+    // minimum erased them (same fix as the KO call below).
+    { allowSceneFallback: false, minItems: 3 }
   );
   const fullCaptionScriptKo = normalizeFullCaptionScript(
     guide.full_caption_script_ko,
@@ -7750,6 +7927,25 @@ function collectJapaneseCaptionIssues(guide = {}, options = {}) {
       });
       return;
     }
+    if (!korean && options.sentenceStandard === true) {
+      // ja_full sentence standard: items are whole TTS sentences (12-22
+      // chars). The screen-phrase gates below (14-char cap, scene ratio,
+      // label runs, arc order) describe a format this lane does not produce;
+      // register and budget are enforced by the JA final-call validator and
+      // the lenient budget clip. Keep language + sentence-length sanity only.
+      lines.forEach((item, index) => {
+        const text = normalizeText(item?.text || item || '');
+        if (!isValidJapaneseCaption(text) || visibleTextLength(text) > 40) {
+          issues.push({
+            scene_id: 'metadata',
+            field: `${field}[${index}].text`,
+            value: text,
+            reason: 'Japanese Full sentence item must be one natural Japanese spoken sentence within 40 visible characters'
+          });
+        }
+      });
+      return;
+    }
     if (korean && !isMidform && field === 'full_caption_script_ko') {
       const validSceneIds = sceneTransitionIdSet(guide);
       const invalidExplicitSceneIds = lines
@@ -8097,7 +8293,12 @@ function collectJapaneseCaptionIssues(guide = {}, options = {}) {
   };
 
   if (includeJapaneseFull && includeFull) {
-    validateFullCaptionScript('full_caption_script_ja', guide.full_caption_script_ja, false);
+    // ja_full sentence-standard scripts are stored as ~10-18 whole sentences,
+    // not 20+ screen phrases; the lane call sites pass their own minimum.
+    validateFullCaptionScript('full_caption_script_ja', guide.full_caption_script_ja, false,
+      Number(options.japaneseFullScriptMinimum) > 0
+        ? { minimum: Number(options.japaneseFullScriptMinimum), sentenceStandard: true }
+        : {});
   }
   if (includeJapanese && includeMidform) {
     if (isLongformGuide(guide) && normalizeWindow(guide.midform_clip_120s)) {
@@ -8751,12 +8952,23 @@ function validateGuide(guide, options = {}) {
   if (skipFullValidation && skipHighlightValidation && skipMidformValidation && !anyVariantHeld) {
     missing.push('all_variant_generation_failed');
   }
-  const baseRequiredKeys = skipFullValidation ? [] : [
-    'short_description_ko',
-    'recommended_titles_ko',
-    'report_description_ko',
-    'explainer_text_ko'
-  ];
+  // ja_full lane: the Full production fields are the JA public set; the *_ko
+  // review set is never generated there, so requiring it would hard-fail
+  // every JA Full item before the lenient gates could run.
+  const japaneseFullLane = normalizeText(options.fullScriptField || '') === 'full_caption_script_ja';
+  const baseRequiredKeys = skipFullValidation ? [] : (japaneseFullLane
+    ? [
+        'short_description_200',
+        'recommended_titles',
+        'report_description',
+        'explainer_text'
+      ]
+    : [
+        'short_description_ko',
+        'recommended_titles_ko',
+        'report_description_ko',
+        'explainer_text_ko'
+      ]);
   for (const key of baseRequiredKeys) {
     if (!guide?.[key]) missing.push(key);
   }
@@ -8774,7 +8986,10 @@ function validateGuide(guide, options = {}) {
       missing.push('shortform_scene_transitions_too_collapsed');
     }
   }
-  if (!skipFullValidation && (!Array.isArray(guide?.recommended_titles_ko) || guide.recommended_titles_ko.length < MAX_RECOMMENDED_TITLES)) {
+  if (!skipFullValidation && japaneseFullLane && (!Array.isArray(guide?.recommended_titles) || guide.recommended_titles.length < MAX_RECOMMENDED_TITLES)) {
+    missing.push('recommended_titles_missing');
+  }
+  if (!skipFullValidation && !japaneseFullLane && (!Array.isArray(guide?.recommended_titles_ko) || guide.recommended_titles_ko.length < MAX_RECOMMENDED_TITLES)) {
     missing.push('recommended_titles_ko_missing');
   }
   if (isLongformGuide(guide)) {
@@ -8795,8 +9010,12 @@ function validateGuide(guide, options = {}) {
     includeFull: !skipFullValidation,
     includeHighlight: !skipHighlightValidation,
     includeMidform: !skipMidformValidation,
-    includeKorean: true,
-    includeJapaneseFull: false,
+    // The ja_full lane validates the JA production set instead of the Korean
+    // one; everywhere else JP Full validation stays disabled
+    // (includeJapaneseFull: false remains the default contract).
+    includeKorean: !japaneseFullLane,
+    includeJapaneseFull: japaneseFullLane,
+    japaneseFullScriptMinimum: japaneseFullLane ? 3 : 0,
     durationSec: guide?.duration_sec || guide?.target_duration_sec || 0
   });
   if (invalidJapaneseCaptions.length) {
@@ -8914,21 +9133,23 @@ function summarizeRepairScriptShapeForLog(repairResult = {}) {
   };
 }
 
-function fullDraftStageValidationIssues(guide = {}, durationSec = 0) {
+function fullDraftStageValidationIssues(guide = {}, durationSec = 0, fullScriptField = 'full_caption_script_ko') {
+  const japanese = fullScriptField === 'full_caption_script_ja';
+  const metadataField = japanese ? 'full_metadata' : 'full_metadata_ko';
   return collectJapaneseCaptionIssues(guide || {}, {
     includeFull: true,
     includeHighlight: false,
     includeMidform: false,
-    includeKorean: true,
-    includeJapanese: false,
+    includeKorean: !japanese,
+    includeJapanese: japanese,
     durationSec
   }).filter((issue) => {
     const field = normalizeText(issue?.field || '');
-    return field === 'full_caption_script_ko'
-      || field.startsWith('full_caption_script_ko[')
-      || field === 'full_metadata_ko.onscreen_subtitles'
-      || field.startsWith('full_metadata_ko.onscreen_subtitles[')
-      || field === 'full_metadata_ko';
+    return field === fullScriptField
+      || field.startsWith(`${fullScriptField}[`)
+      || field === `${metadataField}.onscreen_subtitles`
+      || field.startsWith(`${metadataField}.onscreen_subtitles[`)
+      || field === metadataField;
   });
 }
 
@@ -8939,17 +9160,19 @@ function persistFullDraftStageArtifact({
   guide = {},
   durationSec = 0,
   rawResponse = null,
-  notes = {}
+  notes = {},
+  fullScriptField = 'full_caption_script_ko'
 } = {}) {
   const dir = String(fullDraftStagesDir || '').trim();
   if (!dir || !stageName) return { summaryPath: '', rawPath: '', validationIssues: [] };
+  const language = fullScriptField === 'full_caption_script_ja' ? 'ja' : 'ko';
   fs.mkdirSync(dir, { recursive: true });
   const prefix = `${String(stageNumber || 0).padStart(2, '0')}_${safeStageFileName(stageName)}`;
   const summaryPath = path.join(dir, `${prefix}.json`);
   const rawPath = rawResponse ? path.join(dir, `${prefix}.raw.json`) : '';
-  const validationIssues = fullDraftStageValidationIssues(guide, durationSec);
-  const budget = koreanFullSpeechBudgetFromGuide(guide) || calculateKoreanFullSpeechBudget({ targetDurationSec: durationSec });
-  const charCount = countKoreanFullScriptVisibleChars(guide?.full_caption_script_ko || []);
+  const validationIssues = fullDraftStageValidationIssues(guide, durationSec, fullScriptField);
+  const budget = koreanFullSpeechBudgetFromGuide(guide, 0, language) || calculateKoreanFullSpeechBudget({ targetDurationSec: durationSec, language });
+  const charCount = countFullScriptVisibleChars(guide?.[fullScriptField] || [], language);
   const payload = {
     stage: stageName,
     stage_number: stageNumber,
@@ -8968,7 +9191,7 @@ function persistFullDraftStageArtifact({
       issues: validationIssues
     },
     notes,
-    full_caption_script_ko: guide?.full_caption_script_ko || []
+    [fullScriptField]: guide?.[fullScriptField] || []
   };
   fs.writeFileSync(summaryPath, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
   if (rawPath) {
@@ -9005,6 +9228,11 @@ function safeStageFileName(value = '') {
 async function validateOrRepairJapaneseCaptions({ guide, generateRepairJson, sourceUrl, filename, durationSec, validationOptions = {}, assignedHookType = null, onProgress, fullDraftStagesDir = '', initialStageRawResponse = null, storyOutline = null }) {
   let current = guide;
   let koreanFullStyleRegenerationUsed = false;
+  // The TTS Full lanes share one lenient machinery; the lane's script field
+  // (full_caption_script_ko for kr_full, full_caption_script_ja for ja_full)
+  // is chosen by the call site so cycle collapse, role coercion, scene-id
+  // remap, soft accept and budget clip all operate on the produced script.
+  const fullScriptField = validationOptions.fullScriptField || 'full_caption_script_ko';
   // The last gate-rejected Korean full-caption attempt is kept so that, when the item
   // is ultimately held for script review, the human has the flawed fragment manuscript
   // to fix in script_review.txt instead of an empty file.
@@ -9018,7 +9246,8 @@ async function validateOrRepairJapaneseCaptions({ guide, generateRepairJson, sou
     guide: current,
     durationSec,
     rawResponse: initialStageRawResponse,
-    notes: { source: 'guide_before_validation' }
+    notes: { source: 'guide_before_validation' },
+    fullScriptField
   });
   latestRawResponsePath = initialStageArtifact.rawPath || latestRawResponsePath;
   latestCleanedResponsePath = initialStageArtifact.summaryPath || latestCleanedResponsePath;
@@ -9034,25 +9263,25 @@ async function validateOrRepairJapaneseCaptions({ guide, generateRepairJson, sou
       // First/last role labels are structural bookkeeping the validator
       // demands; when the lane is lenient, fix the labels mechanically
       // instead of burning a Gemini retry on a relabel.
-      if (validationOptions.lenientKoreanFullGates && Array.isArray(normalizedCurrent?.full_caption_script_ko) && normalizedCurrent.full_caption_script_ko.length >= 2) {
+      if (validationOptions.lenientKoreanFullGates && Array.isArray(normalizedCurrent?.[fullScriptField]) && normalizedCurrent[fullScriptField].length >= 2) {
         // Gemini sometimes returns the same script repeated verbatim 2-3x
         // (observed live: 11 good sentences x3 = 33 items / 399 chars ->
         // budget failure -> repair destroyed the good register). Collapse
         // exact repeated cycles before validating.
-        const cycleItems = normalizedCurrent.full_caption_script_ko;
+        const cycleItems = normalizedCurrent[fullScriptField];
         const cycleTexts = cycleItems.map((item) => String(item?.text || '').trim());
         for (let period = 2; period <= Math.floor(cycleItems.length / 2); period += 1) {
           if (cycleItems.length % period !== 0) continue;
           if (cycleTexts.every((text, index) => text === cycleTexts[index % period])) {
-            normalizedCurrent.full_caption_script_ko = cycleItems.slice(0, period);
-            emitProgress(onProgress, `KR Full 원고 반복 사이클 정규화: ${cycleItems.length}개 → ${period}개 (동일 원고 ${cycleItems.length / period}회 반복 감지)`, {
+            normalizedCurrent[fullScriptField] = cycleItems.slice(0, period);
+            emitProgress(onProgress, `TTS Full 원고 반복 사이클 정규화(${fullScriptField}): ${cycleItems.length}개 → ${period}개 (동일 원고 ${cycleItems.length / period}회 반복 감지)`, {
               phase: 'kr_full_cycle_collapse',
               attempt
             });
             break;
           }
         }
-        const scriptItems = normalizedCurrent.full_caption_script_ko;
+        const scriptItems = normalizedCurrent[fullScriptField];
         if (scriptItems[0] && scriptItems[0].role !== 'hook') scriptItems[0] = { ...scriptItems[0], role: 'hook' };
         const lastIndex = scriptItems.length - 1;
         if (scriptItems[lastIndex] && scriptItems[lastIndex].role !== 'closing') scriptItems[lastIndex] = { ...scriptItems[lastIndex], role: 'closing' };
@@ -9081,13 +9310,13 @@ async function validateOrRepairJapaneseCaptions({ guide, generateRepairJson, sou
         // an accepted script then silently dies on the very next line of the
         // pipeline (observed live: clip kept 7 pieces, item_config got 0).
         // Remap them onto real scene_transitions ids before returning.
-        if (Array.isArray(current?.full_caption_script_ko) && current.full_caption_script_ko.length) {
+        if (Array.isArray(current?.[fullScriptField]) && current[fullScriptField].length) {
           const validSceneIds = sceneTransitionIdSet(current);
           if (validSceneIds.size) {
             const fallbackSceneId = [...validSceneIds][0];
             current = {
               ...current,
-              full_caption_script_ko: current.full_caption_script_ko.map((piece) => {
+              [fullScriptField]: current[fullScriptField].map((piece) => {
                 const sceneId = String(piece?.scene_id || '').trim();
                 if (validSceneIds.has(sceneId)) return piece;
                 const prefixMatch = sceneId.match(/^(scene_\d+)/);
@@ -9097,7 +9326,7 @@ async function validateOrRepairJapaneseCaptions({ guide, generateRepairJson, sou
             };
           }
         }
-        const laneScript = Array.isArray(current?.full_caption_script_ko) ? current.full_caption_script_ko : [];
+        const laneScript = Array.isArray(current?.[fullScriptField]) ? current[fullScriptField] : [];
         const laneVisibleChars = laneScript.reduce((sum, piece) => sum + String(piece?.text || '').replace(/\s/g, '').length, 0);
         const laneMaxChars = Number(current?.korean_full_speech_budget?.max_chars) || 0;
         if (!hardIssues.length && laneScript.length && (!laneMaxChars || laneVisibleChars <= laneMaxChars * 1.5)) {
@@ -9121,8 +9350,8 @@ async function validateOrRepairJapaneseCaptions({ guide, generateRepairJson, sou
             clippedScript.push(piece);
             clippedChars += pieceChars;
           }
-          current = { ...current, full_caption_script_ko: clippedScript };
-          emitProgress(onProgress, `KR Full 레인 관용 클립: 예산 초과 원고를 문장 단위로 절단 (${laneScript.length}문구/${laneVisibleChars}자 → ${clippedScript.length}문구/${clippedChars}자, max ${laneMaxChars}자)`, {
+          current = { ...current, [fullScriptField]: clippedScript };
+          emitProgress(onProgress, `TTS Full 레인 관용 클립(${fullScriptField}): 예산 초과 원고를 문장 단위로 절단 (${laneScript.length}문구/${laneVisibleChars}자 → ${clippedScript.length}문구/${clippedChars}자, max ${laneMaxChars}자)`, {
             phase: 'kr_full_lenient_clip',
             attempt,
             soft_issues: summarizeCaptionIssuesForLog(issues, 6)
@@ -9146,11 +9375,11 @@ async function validateOrRepairJapaneseCaptions({ guide, generateRepairJson, sou
         // If the caption gate rejected every attempt and left no usable manuscript,
         // hand the last rejected fragment draft to the caller so a held item still
         // has editable content in script_review.txt rather than an empty file.
-        const currentFullKoCount = Array.isArray(current?.full_caption_script_ko) ? current.full_caption_script_ko.length : 0;
+        const currentFullKoCount = Array.isArray(current?.[fullScriptField]) ? current[fullScriptField].length : 0;
         if (currentFullKoCount === 0 && Array.isArray(lastRejectedFullCaptionScriptKo) && lastRejectedFullCaptionScriptKo.length) {
           finalError.guide = {
             ...current,
-            full_caption_script_ko: lastRejectedFullCaptionScriptKo,
+            [fullScriptField]: lastRejectedFullCaptionScriptKo,
             full_caption_script_needs_review: true
           };
         }
@@ -9252,7 +9481,8 @@ async function validateOrRepairJapaneseCaptions({ guide, generateRepairJson, sou
             guide: normalizedGuide,
             durationSec,
             rawResponse: regeneratedFullScript,
-            notes: { attempt, source_basis: 'full_caption_script_regeneration' }
+            notes: { attempt, source_basis: 'full_caption_script_regeneration' },
+            fullScriptField
           });
           latestRawResponsePath = stageArtifact.rawPath || latestRawResponsePath;
           latestCleanedResponsePath = stageArtifact.summaryPath || latestCleanedResponsePath;
@@ -9360,7 +9590,8 @@ async function validateOrRepairJapaneseCaptions({ guide, generateRepairJson, sou
             guide: normalizedGuide,
             durationSec,
             rawResponse: fullScriptRepair,
-            notes: { attempt, source_basis: 'full_caption_script_repair' }
+            notes: { attempt, source_basis: 'full_caption_script_repair' },
+            fullScriptField
           });
           latestRawResponsePath = stageArtifact.rawPath || latestRawResponsePath;
           latestCleanedResponsePath = stageArtifact.summaryPath || latestCleanedResponsePath;
@@ -9934,7 +10165,7 @@ function allRequestedLongformVariantsFailed(guide = {}, variants = []) {
     && variants.every((variant) => guide?.[`${variant}_generation_status`] === 'failed');
 }
 
-async function runLongformGeminiPipeline({ generateJson, sourceUrl, filename, durationSec, sourceType, sourceWorkflowMode, sourceContext = {}, metadataVariantMode = 'all', existingGuide = null, assignedHookType = null, onProgress, throwIfCancelled = null, fullDraftStagesDir = '', phaseRawResponses = null }) {
+async function runLongformGeminiPipeline({ generateJson, sourceUrl, filename, durationSec, sourceType, sourceWorkflowMode, sourceContext = {}, metadataVariantMode = 'all', existingGuide = null, assignedHookType = null, onProgress, throwIfCancelled = null, fullDraftStagesDir = '', phaseRawResponses = null, fullScriptLanguage = 'ko' }) {
   // Approved 2026-08-11 (kr_full lane): the pinned Phase 2 policy forced
   // longform analysis to highlight_only, silently skipping the Full 4/5+5/5
   // generation phases for EVERY item ever analyzed (all 41 queue items carry
@@ -10222,10 +10453,10 @@ async function runLongformGeminiPipeline({ generateJson, sourceUrl, filename, du
       emitProgress(onProgress, 'Gemini Full 5/5: create JP Full script and metadata', { phase: 'longform_final_full' });
       fullGuideRaw = await generateValidatedLongformStep({
         generateJson,
-        prompt: buildLongformVariantFinalPrompt({ variant: 'full', sourceUrl, filename, durationSec, candidateGuide: selectedCandidateGuide(), hookGuide, storyGuide, midformGuide, assignedHookType: resolvedHookType, sourceContext }),
-        schema: buildLongformVariantFinalSchema('full'),
+        prompt: buildLongformVariantFinalPrompt({ variant: 'full', sourceUrl, filename, durationSec, candidateGuide: selectedCandidateGuide(), hookGuide, storyGuide, midformGuide, assignedHookType: resolvedHookType, sourceContext, fullScriptLanguage }),
+        schema: buildLongformVariantFinalSchema('full', fullScriptLanguage),
         phase: 'longform_final_full',
-        validate: (result) => validateLongformVariantFinalGuide('full', result, { durationSec }),
+        validate: (result) => validateLongformVariantFinalGuide('full', result, { durationSec, fullScriptLanguage }),
         onProgress,
         includeVideo: false,
         generateOptions: {
@@ -10334,7 +10565,8 @@ async function runLongformGeminiPipeline({ generateJson, sourceUrl, filename, du
   // window/source fallback stamped 600s-1155s budgets into the guide.
   const koreanFullSpeechBudget = koreanFullSpeechBudgetFromGuide(
     { ...asPlainObject(candidateGuide), korean_full_speech_budget: null },
-    durationSec
+    durationSec,
+    fullScriptLanguage
   );
   const baseGuide = normalizeGuide({
     ...(existingGuide && typeof existingGuide === 'object' ? existingGuide : {}),
@@ -10443,7 +10675,8 @@ async function runLongformGeminiPipeline({ generateJson, sourceUrl, filename, du
         // mechanism (soft-issue accept, budget clip, cycle collapse, role
         // coercion) was disarmed on the lane it was built for
         // (observed live 2026-08-12: three soft issues -> held).
-        lenientKoreanFullGates: effectiveLongformVariantMode === 'full_only'
+        lenientKoreanFullGates: effectiveLongformVariantMode === 'full_only',
+        fullScriptField: fullScriptFieldForLanguage(fullScriptLanguage)
       },
       onProgress,
       throwIfCancelled,
@@ -10759,7 +10992,7 @@ async function runStandardGeminiPipeline({ generateJson, sourceUrl, filename, du
   return guide;
 }
 
-async function analyzeWithVertexAdc({ filePath, sourceUrl, durationSec, originalFilename, sourceType = 'unknown', sourceWorkflowMode = 'unknown', sourceContext = {}, metadataVariantMode = 'all', existingGuide = null, assignedHookType = null, onProgress, throwIfCancelled = null, fullDraftStagesDir = '' }) {
+async function analyzeWithVertexAdc({ filePath, sourceUrl, durationSec, originalFilename, sourceType = 'unknown', sourceWorkflowMode = 'unknown', sourceContext = {}, metadataVariantMode = 'all', existingGuide = null, assignedHookType = null, onProgress, throwIfCancelled = null, fullDraftStagesDir = '', fullScriptLanguage = 'ko' }) {
   const config = getVertexConfig();
   if (!config.project) {
     throw createHttpError(400, 'GOOGLE_CLOUD_PROJECT_REQUIRED', 'GOOGLE_CLOUD_PROJECT is required for Vertex ADC mode');
@@ -10909,12 +11142,12 @@ async function analyzeWithVertexAdc({ filePath, sourceUrl, durationSec, original
 
   const filename = originalFilename || (filePath ? path.basename(filePath) : 'youtube_url');
   if (sourceWorkflowMode === 'longform_to_shorts' || sourceType === 'longform') {
-    return runLongformGeminiPipeline({ generateJson, sourceUrl, filename, durationSec, sourceType, sourceWorkflowMode, sourceContext, metadataVariantMode, existingGuide, assignedHookType, onProgress, throwIfCancelled, fullDraftStagesDir, phaseRawResponses: latestPhaseRawResponses });
+    return runLongformGeminiPipeline({ generateJson, sourceUrl, filename, durationSec, sourceType, sourceWorkflowMode, sourceContext, metadataVariantMode, existingGuide, assignedHookType, onProgress, throwIfCancelled, fullDraftStagesDir, phaseRawResponses: latestPhaseRawResponses, fullScriptLanguage });
   }
   return runStandardGeminiPipeline({ generateJson, sourceUrl, filename, durationSec, sourceType, sourceWorkflowMode, metadataVariantMode, assignedHookType, onProgress, throwIfCancelled, fullDraftStagesDir, phaseRawResponses: latestPhaseRawResponses });
 }
 
-async function analyzeWithApiKey({ filePath, sourceUrl, apiKey, durationSec, originalFilename, sourceType = 'unknown', sourceWorkflowMode = 'unknown', sourceContext = {}, metadataVariantMode = 'all', existingGuide = null, assignedHookType = null, onProgress, throwIfCancelled = null, fullDraftStagesDir = '' }) {
+async function analyzeWithApiKey({ filePath, sourceUrl, apiKey, durationSec, originalFilename, sourceType = 'unknown', sourceWorkflowMode = 'unknown', sourceContext = {}, metadataVariantMode = 'all', existingGuide = null, assignedHookType = null, onProgress, throwIfCancelled = null, fullDraftStagesDir = '', fullScriptLanguage = 'ko' }) {
   if (!apiKey) {
     throw createHttpError(400, 'GEMINI_API_KEY_REQUIRED', 'GEMINI_API_KEY is required when GEMINI_AUTH_MODE is api_key');
   }
@@ -11005,21 +11238,21 @@ async function analyzeWithApiKey({ filePath, sourceUrl, apiKey, durationSec, ori
 
   const filename = originalFilename || (filePath ? path.basename(filePath) : 'youtube_url');
   if (sourceWorkflowMode === 'longform_to_shorts' || sourceType === 'longform') {
-    return runLongformGeminiPipeline({ generateJson, sourceUrl, filename, durationSec, sourceType, sourceWorkflowMode, sourceContext, metadataVariantMode, existingGuide, assignedHookType, onProgress, throwIfCancelled, fullDraftStagesDir, phaseRawResponses: latestPhaseRawResponses });
+    return runLongformGeminiPipeline({ generateJson, sourceUrl, filename, durationSec, sourceType, sourceWorkflowMode, sourceContext, metadataVariantMode, existingGuide, assignedHookType, onProgress, throwIfCancelled, fullDraftStagesDir, phaseRawResponses: latestPhaseRawResponses, fullScriptLanguage });
   }
   return runStandardGeminiPipeline({ generateJson, sourceUrl, filename, durationSec, sourceType, sourceWorkflowMode, metadataVariantMode, assignedHookType, onProgress, throwIfCancelled, fullDraftStagesDir, phaseRawResponses: latestPhaseRawResponses });
 }
 
-async function analyzeOttogiProcessMetadata({ filePath, sourceUrl = '', apiKey, durationSec = 0, originalFilename = '', sourceType = 'unknown', sourceWorkflowMode = 'unknown', sourceContext = {}, metadataVariantMode = 'all', existingGuide = null, assignedHookType = null, onProgress, throwIfCancelled = null, fullDraftStagesDir = '' }) {
+async function analyzeOttogiProcessMetadata({ filePath, sourceUrl = '', apiKey, durationSec = 0, originalFilename = '', sourceType = 'unknown', sourceWorkflowMode = 'unknown', sourceContext = {}, metadataVariantMode = 'all', existingGuide = null, assignedHookType = null, onProgress, throwIfCancelled = null, fullDraftStagesDir = '', fullScriptLanguage = 'ko' }) {
   if (!filePath && !isYouTubeUrl(sourceUrl)) {
     throw createHttpError(400, 'SOURCE_VIDEO_REQUIRED', 'source video file is required');
   }
 
   if (isVertexAdcMode()) {
-    return analyzeWithVertexAdc({ filePath, sourceUrl, durationSec, originalFilename, sourceType, sourceWorkflowMode, sourceContext, metadataVariantMode, existingGuide, assignedHookType, onProgress, throwIfCancelled, fullDraftStagesDir });
+    return analyzeWithVertexAdc({ filePath, sourceUrl, durationSec, originalFilename, sourceType, sourceWorkflowMode, sourceContext, metadataVariantMode, existingGuide, assignedHookType, onProgress, throwIfCancelled, fullDraftStagesDir, fullScriptLanguage });
   }
 
-  return analyzeWithApiKey({ filePath, sourceUrl, apiKey, durationSec, originalFilename, sourceType, sourceWorkflowMode, sourceContext, metadataVariantMode, existingGuide, assignedHookType, onProgress, throwIfCancelled, fullDraftStagesDir });
+  return analyzeWithApiKey({ filePath, sourceUrl, apiKey, durationSec, originalFilename, sourceType, sourceWorkflowMode, sourceContext, metadataVariantMode, existingGuide, assignedHookType, onProgress, throwIfCancelled, fullDraftStagesDir, fullScriptLanguage });
 }
 
 function buildAuxSceneAnalysisPrompt({ filename = '', durationSec = 0 } = {}) {
@@ -11288,6 +11521,8 @@ module.exports = {
   calculateKoreanFullSpeechBudget,
   countKoreanFullScriptVisibleChars,
   countKoreanVisibleCharsNoSpaces,
+  countJapaneseVisibleCharsNoSpaces,
+  countFullScriptVisibleChars,
   koreanFullSpeechBudgetFromGuide,
   outputLanguageForVariant,
   selectKoreanFullHookType,

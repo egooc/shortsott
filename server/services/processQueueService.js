@@ -16,6 +16,8 @@ const {
   calculateKoreanFullSpeechBudget,
   countKoreanFullScriptVisibleChars,
   countKoreanVisibleCharsNoSpaces,
+  countJapaneseVisibleCharsNoSpaces,
+  countFullScriptVisibleChars,
   isVertexAdcMode,
   matchAuxScenesToMain,
   outputLanguageForVariant
@@ -307,6 +309,37 @@ const KOREAN_FULL_TTS_VOICE_SETTINGS = Object.freeze({
   use_speaker_boost: true,
   speed: 1.1
 });
+// ja_full lane (approved 2026-08-12). Rate is an INITIAL ESTIMATE — measure
+// real ElevenLabs JA output on this voice/settings and replace, like the
+// Korean 6.03775 was measured. The TTS aliases share the KO values today
+// (eleven_multilingual_v2 speaks Japanese) but exist so the JA voice can
+// diverge later without touching the KO lane.
+const JAPANESE_FULL_SPEECH_CHARS_PER_SEC = 5.5;
+const JAPANESE_FULL_TTS_VOICE_ID = KOREAN_FULL_TTS_VOICE_ID;
+const JAPANESE_FULL_TTS_MODEL_ID = KOREAN_FULL_TTS_MODEL_ID;
+const JAPANESE_FULL_TTS_OUTPUT_FORMAT = KOREAN_FULL_TTS_OUTPUT_FORMAT;
+const JAPANESE_FULL_TTS_VOICE_SETTINGS = KOREAN_FULL_TTS_VOICE_SETTINGS;
+// JA screen-caption slice bounds (mirrors KOREAN_CAPTION_SLICE_* below).
+const CAPTION_MAX_CHARS_JA = 14;
+const CAPTION_MIN_CHARS_JA = 4;
+
+function fullScriptLanguageForItem(itemConfig = {}) {
+  return itemConfig?.production_lane === 'ja_full' ? 'ja' : 'ko';
+}
+
+function fullScriptFieldForLanguage(language = 'ko') {
+  return language === 'ja' ? 'full_caption_script_ja' : 'full_caption_script_ko';
+}
+
+function fullSpeechCharsPerSecForLanguage(language = 'ko') {
+  return language === 'ja' ? JAPANESE_FULL_SPEECH_CHARS_PER_SEC : KOREAN_FULL_SPEECH_CHARS_PER_SEC;
+}
+
+function countFullDraftVisibleChars(text = '', language = 'ko') {
+  return language === 'ja'
+    ? countJapaneseVisibleCharsNoSpaces(text)
+    : countKoreanVisibleCharsNoSpaces(text);
+}
 
 function normalizeTtsText(value = '') {
   return String(value || '').replace(/\s+/g, ' ').trim();
@@ -448,6 +481,10 @@ function repairSplitKoreanSyllablePieces(pieces = [], warnings = []) {
 }
 
 function regroupKoreanFullCaptionScript(fullCaptionScript = [], options = {}) {
+  const language = options.language === 'ja' ? 'ja' : 'ko';
+  // JA has no inter-word spaces; joining pieces with ' ' would corrupt the
+  // sentence text the caption units must reconstruct by concatenation.
+  const pieceJoin = language === 'ja' ? '' : ' ';
   const warnings = [];
   const pieces = repairSplitKoreanSyllablePieces((Array.isArray(fullCaptionScript) ? fullCaptionScript : [])
     .map((piece, index) => ({
@@ -467,7 +504,10 @@ function regroupKoreanFullCaptionScript(fullCaptionScript = [], options = {}) {
       current = [];
       return;
     }
-    if (hasKoreanSentenceEnding(piece.text) && startsLikelyNewKoreanSentence(next.text)) {
+    // JA Full script items are one complete sentence each by contract
+    // (12-22 chars, 体言止め endings included), and noun endings cannot be
+    // regex-detected — every item is its own sentence group.
+    if (language === 'ja' || (hasKoreanSentenceEnding(piece.text) && startsLikelyNewKoreanSentence(next.text))) {
       rawGroups.push(current);
       current = [];
     }
@@ -476,7 +516,7 @@ function regroupKoreanFullCaptionScript(fullCaptionScript = [], options = {}) {
 
   const splitGroups = [];
   rawGroups.forEach((group, groupIndex) => {
-    const text = group.map((piece) => piece.text).join(' ');
+    const text = group.map((piece) => piece.text).join(pieceJoin);
     const maxChars = options.maxChars || FULL_DRAFT_TTS_SENTENCE_MAX_CHARS;
     const maxPieces = options.maxPieces || FULL_DRAFT_TTS_SENTENCE_MAX_PIECES;
     if (text.length > FULL_DRAFT_TTS_BOUNDARYLESS_REJECT_CHARS) {
@@ -523,7 +563,7 @@ function regroupKoreanFullCaptionScript(fullCaptionScript = [], options = {}) {
     return {
       id,
       sentence_id: id,
-      text: normalizeTtsText(group.map((piece) => piece.text).join(' ')),
+      text: normalizeTtsText(group.map((piece) => piece.text).join(pieceJoin)),
       piece_indexes: pieceIndexes,
       caption_parts: group.map((piece, partIndex) => ({
         text: normalizeTtsText(piece.text),
@@ -558,7 +598,8 @@ function assertCaptionUnitsMatchTtsSentences(plan = {}) {
   }
   for (const [sentenceId, unitTexts] of unitsBySentence.entries()) {
     const sentenceText = sentenceTextById.get(sentenceId) || '';
-    const joinedText = normalizeTtsText(unitTexts.join(' '));
+    // JA units are contiguous substrings (no spaces to re-insert).
+    const joinedText = normalizeTtsText(unitTexts.join(plan.language === 'ja' ? '' : ' '));
     if (joinedText !== sentenceText) {
       const error = new Error(`caption units do not reconstruct TTS sentence: ${sentenceId}`);
       error.code = 'CAPTION_TTS_TEXT_MISMATCH';
@@ -751,18 +792,70 @@ function splitKoreanTtsSentenceIntoCaptionSlices(text = '') {
   return koCaptionBalancedPartition(words).filter(Boolean);
 }
 
+// JA TTS caption slicer: cuts ONE spoken JA sentence into <=14-char screen
+// lines at 、。 punctuation first, then particle boundaries. Slices are
+// contiguous substrings of the sentence — assertCaptionUnitsMatchTtsSentences
+// reconstructs the sentence by concatenation, so nothing may be trimmed,
+// reordered, or dropped here.
+function splitJapaneseTtsSentenceIntoCaptionSlices(text = '') {
+  const value = normalizeTtsText(text).replace(/\s+/g, '');
+  if (!value) return [];
+  const chars = [...value];
+  if (chars.length <= CAPTION_MAX_CHARS_JA) return [value];
+  const isJaWordChar = (char = '') => /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\u3005]/u.test(char);
+  const slices = [];
+  let start = 0;
+  while (chars.length - start > CAPTION_MAX_CHARS_JA) {
+    const limit = start + CAPTION_MAX_CHARS_JA;
+    // A cut at `end` may not strand a tail shorter than the minimum.
+    const tailAllows = (end) => {
+      const tail = chars.length - end;
+      return tail === 0 || tail >= CAPTION_MIN_CHARS_JA;
+    };
+    let cut = 0;
+    for (let end = limit; end >= start + CAPTION_MIN_CHARS_JA; end -= 1) {
+      if (!tailAllows(end)) continue;
+      if (/[、。！？!?]/u.test(chars[end - 1])) { cut = end; break; }
+    }
+    if (!cut) {
+      for (let end = limit; end >= start + CAPTION_MIN_CHARS_JA; end -= 1) {
+        if (!tailAllows(end)) continue;
+        if (/[のがをにでとへはもや]/u.test(chars[end - 1]) && isJaWordChar(chars[end] || '')) { cut = end; break; }
+      }
+    }
+    if (!cut) {
+      for (let end = limit; end >= start + CAPTION_MIN_CHARS_JA; end -= 1) {
+        if (tailAllows(end)) { cut = end; break; }
+      }
+    }
+    if (!cut || cut <= start) cut = limit;
+    slices.push(chars.slice(start, cut).join(''));
+    start = cut;
+  }
+  if (start < chars.length) slices.push(chars.slice(start).join(''));
+  return slices.filter(Boolean);
+}
+
+function splitFullTtsSentenceIntoCaptionSlices(text = '', language = 'ko') {
+  return language === 'ja'
+    ? splitJapaneseTtsSentenceIntoCaptionSlices(text)
+    : splitKoreanTtsSentenceIntoCaptionSlices(text);
+}
+
 function buildKoreanFullDraftTtsPlan({ itemId, itemConfig = {}, draftConfig = {} }) {
-  const regrouped = regroupKoreanFullCaptionScript(itemConfig.ottogi_guide_output?.full_caption_script_ko || []);
+  const language = fullScriptLanguageForItem(itemConfig);
+  const scriptField = fullScriptFieldForLanguage(language);
+  const regrouped = regroupKoreanFullCaptionScript(itemConfig.ottogi_guide_output?.[scriptField] || [], { language });
   const warnings = [...regrouped.warnings];
   const anchorScenes = normalizeAnchorSceneTransitions(itemConfig);
   const sceneById = new Map(anchorScenes.map((scene) => [scene.scene_id, scene]));
   const sentencesWithAnchors = assignDistributedAnchorTargets(regrouped.sentences.map((sentence) => ({
     ...sentence,
     ...sceneAnchorFieldsForSentence(sentence, sceneById)
-  })));
+  })), { language });
   const captionUnits = [];
   sentencesWithAnchors.forEach((sentence) => {
-    const slices = splitKoreanTtsSentenceIntoCaptionSlices(sentence.text);
+    const slices = splitFullTtsSentenceIntoCaptionSlices(sentence.text, language);
     slices.forEach((text, sliceIndex) => {
       if (!text) return;
       const sourcePieceIndex = Array.isArray(sentence.piece_indexes) && sentence.piece_indexes.length ? sentence.piece_indexes[0] : null;
@@ -804,7 +897,7 @@ function buildKoreanFullDraftTtsPlan({ itemId, itemConfig = {}, draftConfig = {}
     anchor_target_source: sentence.anchor_target_source,
     anchor_source: sentence.anchor_source
   }));
-  const anchorSimulation = simulateAnchoredSentencePlacement(sentencesWithAnchors);
+  const anchorSimulation = simulateAnchoredSentencePlacement(sentencesWithAnchors, { language });
   if (anchorSimulation.block_real_tts) {
     warnings.push({
       reason: 'anchor_simulation_drift_exceeded',
@@ -826,6 +919,8 @@ function buildKoreanFullDraftTtsPlan({ itemId, itemConfig = {}, draftConfig = {}
 
   const plan = {
     item_id: itemId,
+    language,
+    script_field: scriptField,
     status: sentenceUnits.length ? 'ready' : 'empty',
     sentence_limit: FULL_DRAFT_TTS_SENTENCE_LIMIT,
     sentence_count: sentenceUnits.length,
@@ -842,7 +937,7 @@ function buildKoreanFullDraftTtsPlan({ itemId, itemConfig = {}, draftConfig = {}
   return plan;
 }
 
-function sceneBudgetsFromGuide(guide = {}) {
+function sceneBudgetsFromGuide(guide = {}, language = 'ko') {
   return (Array.isArray(guide.scene_transitions) ? guide.scene_transitions : [])
     .map((scene) => {
       const start = Number(scene.start_sec || 0);
@@ -854,7 +949,7 @@ function sceneBudgetsFromGuide(guide = {}) {
         start_sec: Number(start.toFixed(3)),
         end_sec: Number(end.toFixed(3)),
         duration_sec: Number(duration.toFixed(3)),
-        guide_chars: Math.max(1, Math.floor(duration * KOREAN_FULL_SPEECH_CHARS_PER_SEC * 0.90))
+        guide_chars: Math.max(1, Math.floor(duration * fullSpeechCharsPerSecForLanguage(language) * 0.90))
       };
     })
     .filter(Boolean);
@@ -1137,18 +1232,20 @@ function roundScriptReviewNumber(value = 0, decimals = 1) {
 function buildScriptReviewBlockedHeaders(itemConfig = {}, plan = {}) {
   const headers = [];
   const guide = itemConfig.ottogi_guide_output || {};
-  const scriptChars = countKoreanFullScriptVisibleChars(guide.full_caption_script_ko || []);
+  const language = fullScriptLanguageForItem(itemConfig);
+  const scriptChars = countFullScriptVisibleChars(guide[fullScriptFieldForLanguage(language)] || [], language);
   const budget = guide.korean_full_speech_budget && Number(guide.korean_full_speech_budget.target_chars || 0) > 0
     ? guide.korean_full_speech_budget
     : calculateKoreanFullSpeechBudget({
-        targetDurationSec: itemConfig.target_duration_sec || itemConfig.video_metadata?.duration_sec || 0
+        targetDurationSec: itemConfig.target_duration_sec || itemConfig.video_metadata?.duration_sec || 0,
+        language
       });
   const targetChars = Number(budget.target_chars || 0);
   if (targetChars > 0 && scriptChars > targetChars) {
     headers.push(`# BLOCKED: 총량 ${targetChars}자 초과 (현재 ${scriptChars}자) — 전체 문장 축약 필요`);
   }
 
-  const sceneAssignment = buildSceneAssignmentReport({ sentences: plan.sentences || [] }, sceneBudgetsFromGuide(guide), guide.full_caption_script_ko || []);
+  const sceneAssignment = buildSceneAssignmentReport({ sentences: plan.sentences || [] }, sceneBudgetsFromGuide(guide, language), guide[fullScriptFieldForLanguage(language)] || []);
   sceneAssignment.scenes
     .filter((scene) => scene.over_guide)
     .forEach((scene) => {
@@ -1530,7 +1627,7 @@ function koreanFullSrtCharsPerSec(draftConfig = {}, itemConfig = {}, queueConfig
     const value = Number(candidate);
     if (Number.isFinite(value) && value > 0) return value;
   }
-  return KOREAN_FULL_SPEECH_CHARS_PER_SEC;
+  return fullSpeechCharsPerSecForLanguage(fullScriptLanguageForItem(itemConfig));
 }
 
 function buildKoreanFullSrtWarnings({ plan = {}, draftConfig = {}, itemConfig = {} } = {}) {
@@ -1554,11 +1651,12 @@ function buildKoreanFullSrtWarnings({ plan = {}, draftConfig = {}, itemConfig = 
 
 function buildKoreanFullSrtEntries({ plan = {}, charsPerSec = KOREAN_FULL_SPEECH_CHARS_PER_SEC } = {}) {
   const sentences = Array.isArray(plan.sentences) ? plan.sentences : [];
-  const safeCharsPerSec = Number(charsPerSec) > 0 ? Number(charsPerSec) : KOREAN_FULL_SPEECH_CHARS_PER_SEC;
+  const planLanguage = plan.language === 'ja' ? 'ja' : 'ko';
+  const safeCharsPerSec = Number(charsPerSec) > 0 ? Number(charsPerSec) : fullSpeechCharsPerSecForLanguage(planLanguage);
   let cursorSec = 0;
   return sentences.map((sentence) => {
     const text = normalizeTtsText(sentence.text || '');
-    const charCount = countKoreanVisibleCharsNoSpaces(text);
+    const charCount = countFullDraftVisibleChars(text, planLanguage);
     const durationSec = roundSyncSec(charCount > 0 ? charCount / safeCharsPerSec : 0);
     const preferredStartSec = Number.isFinite(Number(sentence.anchor_target_start_sec))
       ? Number(sentence.anchor_target_start_sec)
@@ -1623,7 +1721,7 @@ function buildKoreanFullTtsCaptionUnits({ plan = {}, ttsFiles = [] } = {}) {
       tts_caption_id: sentenceId,
       text: sentence.text || ''
     }];
-    const visibleCounts = usableUnits.map((unit) => Math.max(1, countKoreanVisibleCharsNoSpaces(unit.text || '')));
+    const visibleCounts = usableUnits.map((unit) => Math.max(1, countFullDraftVisibleChars(unit.text || '', plan.language === 'ja' ? 'ja' : 'ko')));
     const totalVisible = visibleCounts.reduce((total, count) => total + count, 0) || usableUnits.length;
     let localCursorSec = 0;
     usableUnits.forEach((unit, index) => {
@@ -1651,17 +1749,17 @@ function buildKoreanFullTtsCaptionUnits({ plan = {}, ttsFiles = [] } = {}) {
   return units.filter((unit) => unit.text);
 }
 
-function buildKoreanFullTtsExplainerBlocks(captionUnits = []) {
+function buildKoreanFullTtsExplainerBlocks(captionUnits = [], language = 'ko') {
   return (Array.isArray(captionUnits) ? captionUnits : []).map((unit, index) => ({
-    block_id: String(unit.block_id || unit.caption_id || `ko_full_tts_${String(index + 1).padStart(3, '0')}`),
+    block_id: String(unit.block_id || unit.caption_id || `${language}_full_tts_${String(index + 1).padStart(3, '0')}`),
     scene_id: String(unit.anchor_scene_id || unit.segment_id || ''),
     parent_scene_id: String(unit.anchor_scene_id || unit.segment_id || ''),
     source_script_index: Number.isInteger(Number(unit.source_script_index)) ? Number(unit.source_script_index) : undefined,
     caption_part_index: index + 1,
     caption_parts_count: captionUnits.length,
     caption_unit_mode: 'tts_caption_unit',
-    output_language: 'ko',
-    language: 'ko',
+    output_language: language,
+    language,
     full_scene_caption_text: String(unit.text || ''),
     text: String(unit.text || '').trim(),
     start_sec: Number(unit.start_sec || 0),
@@ -1728,10 +1826,13 @@ async function generateKoreanFullDraftTtsAssets({ itemId, itemConfig = {}, draft
   });
   const apiKey = requireApiKey('ELEVENLABS_API_KEY');
   const { batchId, dir } = createBatchDir();
-  const voiceId = draftConfig.tts_voice_id || draftConfig.elevenlabs_voice_id || itemConfig.tts_voice_id || itemConfig.elevenlabs_voice_id || KOREAN_FULL_TTS_VOICE_ID;
-  const modelId = draftConfig.tts_model_id || draftConfig.elevenlabs_model_id || itemConfig.tts_model_id || itemConfig.elevenlabs_model_id || KOREAN_FULL_TTS_MODEL_ID;
+  const ttsLanguage = plan.language === 'ja' ? 'ja' : 'ko';
+  const voiceId = draftConfig.tts_voice_id || draftConfig.elevenlabs_voice_id || itemConfig.tts_voice_id || itemConfig.elevenlabs_voice_id
+    || (ttsLanguage === 'ja' ? JAPANESE_FULL_TTS_VOICE_ID : KOREAN_FULL_TTS_VOICE_ID);
+  const modelId = draftConfig.tts_model_id || draftConfig.elevenlabs_model_id || itemConfig.tts_model_id || itemConfig.elevenlabs_model_id
+    || (ttsLanguage === 'ja' ? JAPANESE_FULL_TTS_MODEL_ID : KOREAN_FULL_TTS_MODEL_ID);
   if (!voiceId) {
-    const error = new Error('ElevenLabs voice ID is required for Korean full draft TTS');
+    const error = new Error('ElevenLabs voice ID is required for full draft TTS');
     error.code = 'TTS_VOICE_ID_REQUIRED';
     error.details = { itemId };
     throw error;
@@ -1739,8 +1840,8 @@ async function generateKoreanFullDraftTtsAssets({ itemId, itemConfig = {}, draft
   let generation;
   try {
     generation = await generateAllTTS(plan.sentenceUnits, voiceId, modelId, apiKey, dir, {
-      voiceSettings: KOREAN_FULL_TTS_VOICE_SETTINGS,
-      outputFormat: KOREAN_FULL_TTS_OUTPUT_FORMAT,
+      voiceSettings: ttsLanguage === 'ja' ? JAPANESE_FULL_TTS_VOICE_SETTINGS : KOREAN_FULL_TTS_VOICE_SETTINGS,
+      outputFormat: ttsLanguage === 'ja' ? JAPANESE_FULL_TTS_OUTPUT_FORMAT : KOREAN_FULL_TTS_OUTPUT_FORMAT,
       // Feed neighbouring sentences as ElevenLabs request context so the
       // per-sentence calls read as one continuous narration instead of
       // resetting prosody at every full stop (user feedback 2026-08-12).
@@ -1849,15 +1950,15 @@ function sceneAnchorFieldsForSentence(sentence = {}, sceneById = new Map(), sour
   };
 }
 
-function estimatedKoreanTtsDurationSec(text = '') {
-  const chars = countKoreanVisibleCharsNoSpaces(text);
-  return roundSyncSec(chars / KOREAN_FULL_SPEECH_CHARS_PER_SEC);
+function estimatedKoreanTtsDurationSec(text = '', language = 'ko') {
+  const chars = countFullDraftVisibleChars(text, language);
+  return roundSyncSec(chars / fullSpeechCharsPerSecForLanguage(language));
 }
 
-function assignDistributedAnchorTargets(sentences = []) {
+function assignDistributedAnchorTargets(sentences = [], { language = 'ko' } = {}) {
   const sceneCursorById = new Map();
   return (Array.isArray(sentences) ? sentences : []).map((sentence) => {
-    const durationSec = estimatedKoreanTtsDurationSec(sentence.text || '');
+    const durationSec = estimatedKoreanTtsDurationSec(sentence.text || '', language);
     const sceneId = String(sentence.anchor_scene_id || '').trim();
     const hasAnchor = sceneId && Number.isFinite(Number(sentence.anchor_start_sec));
     if (!hasAnchor) {
@@ -1883,17 +1984,18 @@ function assignDistributedAnchorTargets(sentences = []) {
 }
 
 function simulateAnchoredSentencePlacement(sentences = [], options = {}) {
+  const language = options.language === 'ja' ? 'ja' : 'ko';
   const maxAllowedDelaySec = Number(options.maxDelaySec || FULL_DRAFT_ANCHOR_MAX_DELAY_SEC);
   const maxAllowedCumulativeDelaySec = Number(options.maxCumulativeDelaySec || FULL_DRAFT_ANCHOR_CUMULATIVE_DELAY_SEC);
   let cursorSec = 0;
   let maxSceneInvasionSec = 0;
   let cumulativeSceneInvasionSec = 0;
   let anchoredCount = 0;
-  const distributedSentences = assignDistributedAnchorTargets(sentences);
+  const distributedSentences = assignDistributedAnchorTargets(sentences, { language });
   const sentenceTimeline = distributedSentences.map((sentence) => {
     const durationSec = Number.isFinite(Number(sentence.estimated_duration_sec))
       ? Number(sentence.estimated_duration_sec)
-      : estimatedKoreanTtsDurationSec(sentence.text || '');
+      : estimatedKoreanTtsDurationSec(sentence.text || '', language);
     const hasAnchor = sentence.anchor_scene_id && Number.isFinite(Number(sentence.anchor_start_sec));
     if (hasAnchor) anchoredCount += 1;
     const targetStartSec = hasAnchor && Number.isFinite(Number(sentence.anchor_target_start_sec))
@@ -1930,7 +2032,7 @@ function simulateAnchoredSentencePlacement(sentences = [], options = {}) {
     enabled: anchoredCount > 0,
     anchored_sentence_count: anchoredCount,
     sentence_count: sentenceTimeline.length,
-    duration_basis: `korean_visible_chars_divided_by_${KOREAN_FULL_SPEECH_CHARS_PER_SEC}`,
+    duration_basis: `${language === 'ja' ? 'japanese' : 'korean'}_visible_chars_divided_by_${fullSpeechCharsPerSecForLanguage(language)}`,
     drift_metric: 'scene_invasion_after_anchor_end',
     max_delay_sec: roundSyncSec(maxSceneInvasionSec),
     cumulative_positive_delay_sec: roundSyncSec(cumulativeSceneInvasionSec),
@@ -1979,10 +2081,11 @@ async function computeDraftActualVideoTimelineSecForPreflight(draftConfig = {}) 
 }
 
 function buildKoreanFullSyncEvidence({ itemConfig = {}, draftConfig = {}, ttsFiles = [], plan = {}, syncDecision = 'pending' } = {}) {
+  const language = fullScriptLanguageForItem(itemConfig);
   const budget = itemConfig.ottogi_guide_output?.korean_full_speech_budget && Number(itemConfig.ottogi_guide_output.korean_full_speech_budget.target_chars) > 0
     ? itemConfig.ottogi_guide_output.korean_full_speech_budget
-    : calculateKoreanFullSpeechBudget({ targetDurationSec: draftConfig.target_duration_sec || itemConfig.target_duration_sec || itemConfig.video_metadata?.duration_sec || 0 });
-  const generatedChars = countKoreanFullScriptVisibleChars(itemConfig.ottogi_guide_output?.full_caption_script_ko || []);
+    : calculateKoreanFullSpeechBudget({ targetDurationSec: draftConfig.target_duration_sec || itemConfig.target_duration_sec || itemConfig.video_metadata?.duration_sec || 0, language });
+  const generatedChars = countFullScriptVisibleChars(itemConfig.ottogi_guide_output?.[fullScriptFieldForLanguage(language)] || [], language);
   const rawTtsSec = sumTtsDurationSec(ttsFiles);
   const occupiedTimelineSec = occupiedTimelineEndSecFromAnchorSimulation(plan);
   // Unattended TTS Full lanes place narration sequentially from t=0 and trim
@@ -5558,6 +5661,24 @@ function selectKoreanTitle(itemConfig = {}, variant = 'full') {
     : (itemConfig.full_upload_title || itemConfig.upload_title || itemConfig.item_id || '');
   const title = String(picked?.title || fallbackTitle || '').trim();
   const hashtags = normalizeHashtags(picked?.hashtags || itemConfig.upload_hashtags || []);
+  return {
+    title,
+    hashtags,
+    category: String(picked?.category || '').trim()
+  };
+}
+
+// ja_full lane: JP upload title from the JA Full metadata (or the shared JA
+// recommended titles), mirroring selectKoreanTitle's shape.
+function selectJapaneseFullTitle(itemConfig = {}) {
+  const guide = itemConfig.ottogi_guide_output || {};
+  const metadata = getVariantMetadata(guide, 'full') || {};
+  const titles = Array.isArray(metadata.recommended_titles) && metadata.recommended_titles.length
+    ? metadata.recommended_titles
+    : (Array.isArray(guide.recommended_titles) ? guide.recommended_titles : []);
+  const picked = titles[0] || null;
+  const title = String(picked?.title || metadata.upload_title || itemConfig.upload_title || itemConfig.item_id || '').trim();
+  const hashtags = normalizeHashtags(picked?.hashtags || metadata.hashtags || itemConfig.upload_hashtags || []);
   return {
     title,
     hashtags,
@@ -10651,6 +10772,11 @@ function selectKoreanCapcutTemplateDraftName(queueConfig = {}) {
 function buildKoreanFullDraftConfig({ itemId, itemConfig, queueConfig, baseConfig }) {
   const actualSourceDuration = getSourceVideoDurationSec(resolveItemSourcePath(itemConfig), itemConfig);
   const sourceDuration = Number(actualSourceDuration || sourceDurationSecForItem(itemConfig) || baseConfig.target_duration_sec || 30);
+  // ja_full (approved 2026-08-12) reuses this battle-hardened config builder
+  // parameterized by the lane language: JA script field, JA metadata, the JP
+  // channel logo/BGM/template instead of the korean_* overrides.
+  const language = fullScriptLanguageForItem(itemConfig);
+  const japanese = language === 'ja';
   // Approved 2026-08-11 (user sign-off, "어설퍼도 차라리"): the automated
   // kr_full lane runs unattended, so a script that PASSED validation (not
   // held) goes to TTS without the manual review approval. Held scripts still
@@ -10659,72 +10785,85 @@ function buildKoreanFullDraftConfig({ itemId, itemConfig, queueConfig, baseConfi
     && itemConfig.ottogi_guide_output?.full_generation_status !== 'held';
   const scriptReviewApprovedForTts = krFullLaneAutoTts
     || String(itemConfig.script_review?.status || '').trim() === 'approved_for_tts';
-  const titleInfo = selectKoreanTitle(itemConfig, 'full');
+  const titleInfo = japanese ? selectJapaneseFullTitle(itemConfig) : selectKoreanTitle(itemConfig, 'full');
   const koreanReview = itemConfig.korean_review || {};
-  const koreanFullMetadata = getVariantReviewMetadata(itemConfig.ottogi_guide_output || {}, 'full');
+  const guideOutput = itemConfig.ottogi_guide_output || {};
+  const fullMetadata = japanese
+    ? (getVariantMetadata(guideOutput, 'full') || {})
+    : getVariantReviewMetadata(guideOutput, 'full');
   const sceneTransitions = normalizeSceneTransitions(getItemSceneTransitions(itemConfig), sourceDuration);
   const sceneCount = sceneTransitions.length;
   const narrativeText = String(
-    koreanFullMetadata.summary_caption
-      || koreanReview.explainer_text
-      || koreanFullMetadata.short_description
+    fullMetadata.summary_caption
+      || (japanese ? guideOutput.explainer_text : koreanReview.explainer_text)
+      || fullMetadata.short_description
       || ''
   ).trim();
-  const sceneCaptionBlocksFromScript = buildFullCaptionScriptBlocks(itemConfig.ottogi_guide_output?.full_caption_script_ko, sceneTransitions, {
+  const sceneCaptionBlocksFromScript = buildFullCaptionScriptBlocks(guideOutput[fullScriptFieldForLanguage(language)], sceneTransitions, {
     fallbackDurationSec: sourceDuration,
     animation: 'pop_in',
     styleProfile: 'full_cut_caption',
-    blockPrefix: 'ko_full_script',
-    language: 'ko'
+    blockPrefix: `${language}_full_script`,
+    language
   });
   const sceneCaptionBlocks = sceneCaptionBlocksFromScript.length && !shouldUseNarrativeKoreanFullFallback(sceneCaptionBlocksFromScript)
     ? sceneCaptionBlocksFromScript
-    : buildKoreanSceneExplainerBlocks(sceneTransitions, {
-    fallbackText: narrativeText,
-    fallbackDurationSec: sourceDuration,
-    animation: 'pop_in',
-    styleProfile: 'full_cut_caption',
-    blockPrefix: 'ko_scene_cap'
-  });
+    : (japanese
+      ? []
+      : buildKoreanSceneExplainerBlocks(sceneTransitions, {
+        fallbackText: narrativeText,
+        fallbackDurationSec: sourceDuration,
+        animation: 'pop_in',
+        styleProfile: 'full_cut_caption',
+        blockPrefix: 'ko_scene_cap'
+      }));
   const narrativeBlocks = buildNarrativeFullDraftBlocks({
     text: narrativeText,
-    language: 'ko',
+    language,
     durationSec: sourceDuration,
     sceneCount: sceneCount || 1,
     animation: 'pop_in',
-    blockPrefix: 'full_narrative_ko'
+    blockPrefix: `full_narrative_${language}`
   });
   const sceneBlocks = sceneCaptionBlocks.length && !shouldUseNarrativeKoreanFullFallback(sceneCaptionBlocks)
     ? sceneCaptionBlocks
     : narrativeBlocks;
-  const sceneBlocksWithHook = applyFullPrerollHookToBlocks(sceneBlocks, itemConfig, queueConfig, 'ko');
-  const koreanTargetDuration = Number((sourceDuration + sceneBlocksWithHook.hookDurationSec).toFixed(3));
-  // KR Full is the only Korean lane in production (2026-08-12): it carries the
-  // KR highlight channel's logo so the channel brand stays consistent.
-  const channelAsset = selectQueueAsset(
-    queueConfig.korean_highlight_channel_asset,
-    queueConfig.korean_channel_asset,
-    queueConfig.channel_asset,
-    baseConfig.channel_asset
-  );
+  const sceneBlocksWithHook = applyFullPrerollHookToBlocks(sceneBlocks, itemConfig, queueConfig, language);
+  const fullTargetDuration = Number((sourceDuration + sceneBlocksWithHook.hookDurationSec).toFixed(3));
+  // KR Full carries the KR highlight channel's logo so the channel brand
+  // stays consistent (2026-08-12); JA Full carries the JP channel logo.
+  const channelAsset = japanese
+    ? selectQueueAsset(
+      queueConfig.channel_asset,
+      baseConfig.channel_asset
+    )
+    : selectQueueAsset(
+      queueConfig.korean_highlight_channel_asset,
+      queueConfig.korean_channel_asset,
+      queueConfig.channel_asset,
+      baseConfig.channel_asset
+    );
   const fullTransform = selectFullDraftVideoTransformPreset(
     baseConfig.video_transform_preset || queueConfig.video_transform_preset,
     itemConfig,
     sceneTransitions,
-    'ko'
+    language
   );
 
   const config = normalizeConfig({
     ...baseConfig,
-    capcut_template_draft_name: selectVariantCapcutTemplateDraftName(queueConfig, 'kr_full'),
-    variant_policy_id: 'kr_full',
+    capcut_template_draft_name: selectVariantCapcutTemplateDraftName(queueConfig, japanese ? 'jp_full' : 'kr_full'),
+    variant_policy_id: japanese ? 'ja_full' : 'kr_full',
     caption_mode: 'scene_based_short_subtitles',
-    visual_template: 'kr_full',
-    target_duration_sec: koreanTargetDuration,
+    visual_template: japanese ? 'jp_full' : 'kr_full',
+    target_duration_sec: fullTargetDuration,
+    target_locale: japanese ? 'ja-JP' : (baseConfig.target_locale || itemConfig.target_locale || 'ko-KR'),
     upload_title: titleInfo.title || itemConfig.upload_title,
-    upload_description: koreanReview.report_description || koreanReview.short_description || itemConfig.upload_description || '',
+    upload_description: japanese
+      ? (fullMetadata.report_description || guideOutput.report_description || guideOutput.short_description_200 || itemConfig.upload_description || '')
+      : (koreanReview.report_description || koreanReview.short_description || itemConfig.upload_description || ''),
     upload_hashtags: titleInfo.hashtags.length ? titleInfo.hashtags : normalizeHashtags(itemConfig.upload_hashtags || []),
-    output_language: 'ko',
+    output_language: language,
     channel_asset: channelAsset,
     channel_frame_asset: disabledChannelFrameAsset(),
     video_transform_preset: fullTransform.presetId,
@@ -10733,10 +10872,18 @@ function buildKoreanFullDraftConfig({ itemId, itemConfig, queueConfig, baseConfi
       ? KOREAN_FULL_TTS_DELIVERY_MODE
       : KOREAN_FULL_SRT_DELIVERY_MODE,
     korean_full_srt_chars_per_sec: koreanFullSrtCharsPerSec(baseConfig, itemConfig, queueConfig),
-    use_bgm: queueConfig.korean_custom_bgm_path ? true : baseConfig.use_bgm,
-    custom_bgm_path: queueConfig.korean_custom_bgm_path || baseConfig.custom_bgm_path || '',
-    custom_bgm_original_name: queueConfig.korean_custom_bgm_original_name || baseConfig.custom_bgm_original_name || '',
-    bgm_volume: queueConfig.korean_bgm_volume ?? baseConfig.bgm_volume,
+    use_bgm: japanese
+      ? baseConfig.use_bgm
+      : (queueConfig.korean_custom_bgm_path ? true : baseConfig.use_bgm),
+    custom_bgm_path: japanese
+      ? (queueConfig.custom_bgm_path || baseConfig.custom_bgm_path || '')
+      : (queueConfig.korean_custom_bgm_path || baseConfig.custom_bgm_path || ''),
+    custom_bgm_original_name: japanese
+      ? (queueConfig.custom_bgm_original_name || baseConfig.custom_bgm_original_name || '')
+      : (queueConfig.korean_custom_bgm_original_name || baseConfig.custom_bgm_original_name || ''),
+    bgm_volume: japanese
+      ? baseConfig.bgm_volume
+      : (queueConfig.korean_bgm_volume ?? baseConfig.bgm_volume),
     explainer_blocks: sceneBlocksWithHook.blocks
   });
   config.full_draft_video_transform_analysis = fullTransform.analysis;
@@ -11434,11 +11581,12 @@ async function generateQueue({ batch_name, item_ids, stop_on_error = false, draf
                 queueConfig,
                 plan: koreanFullPlan
               });
+          const fullLaneLanguage = fullScriptLanguageForItem(fullDraftItemConfig);
           const koreanFullCaptionUnits = koreanFullConfig.use_tts === true
             ? buildKoreanFullTtsCaptionUnits({ plan: koreanFullTtsAssets.plan, ttsFiles: koreanFullTtsAssets.ttsFiles })
             : [];
           if (koreanFullCaptionUnits.length) {
-            koreanFullConfig.explainer_blocks = buildKoreanFullTtsExplainerBlocks(koreanFullCaptionUnits);
+            koreanFullConfig.explainer_blocks = buildKoreanFullTtsExplainerBlocks(koreanFullCaptionUnits, fullLaneLanguage);
           }
           row.korean_full_tts = {
             enabled: koreanFullConfig.use_tts === true,
@@ -11517,10 +11665,10 @@ async function generateQueue({ batch_name, item_ids, stop_on_error = false, draf
             korean_draft: {
               enabled: true,
               variant: 'full',
-              language: OUTPUT_CONFIG.full_draft.lang,
+              language: fullLaneLanguage,
               source_item_id: itemId,
               caption_mode: koreanFullConfig.use_tts === true ? 'tts_caption_units' : 'external_srt_only',
-              product_rule: `${OUTPUT_CONFIG.full_draft.label}_and_${OUTPUT_CONFIG.highlight.label}`
+              product_rule: `${fullLaneLanguage === 'ja' ? 'JA Full' : OUTPUT_CONFIG.full_draft.label}_and_${OUTPUT_CONFIG.highlight.label}`
             },
             korean_full_tts_plan: row.korean_full_tts,
             korean_full_sync_evidence: manifestSyncEvidence,
@@ -11529,7 +11677,7 @@ async function generateQueue({ batch_name, item_ids, stop_on_error = false, draf
               ...((fullManifest.touch_log && typeof fullManifest.touch_log === 'object') ? fullManifest.touch_log : {}),
               script_manuscript: Array.isArray(fullDraftItemConfig.script_review?.touch_log) ? fullDraftItemConfig.script_review.touch_log : []
             },
-            ...buildVariantStrategyManifestPatch(itemConfig, 'kr_full')
+            ...buildVariantStrategyManifestPatch(itemConfig, fullLaneLanguage === 'ja' ? 'jp_full' : 'kr_full')
           });
           fs.appendFileSync(
             path.join(itemWorkingDir, 'capcut_notes.md'),
@@ -11555,14 +11703,14 @@ async function generateQueue({ batch_name, item_ids, stop_on_error = false, draf
           `- Auto Preset: ${koreanFullConfig.full_draft_video_transform_analysis?.selected_preset_id || koreanFullConfig.video_transform_preset || 'unknown'}`,
           `- Reason: ${koreanFullConfig.full_draft_video_transform_analysis?.reason || 'unknown'}`,
           `- Scores: ${JSON.stringify(koreanFullConfig.full_draft_video_transform_analysis?.scores || {})}`,
-          `- Product Rule: ${OUTPUT_CONFIG.full_draft.label} and ${OUTPUT_CONFIG.highlight.label}`,
-          ...buildVariantStrategyNoteLines(itemConfig, 'kr_full'),
+          `- Product Rule: ${fullLaneLanguage === 'ja' ? 'JA Full' : OUTPUT_CONFIG.full_draft.label} and ${OUTPUT_CONFIG.highlight.label}`,
+          ...buildVariantStrategyNoteLines(itemConfig, fullLaneLanguage === 'ja' ? 'jp_full' : 'kr_full'),
           ''
         ].join('\n'),
         'utf8'
       );
       const finalizeResult = finalizeGeneratingDraftFolder(itemWorkingDir, itemOutDir);
-      row.metadata_files = copyOttogiMetadataFiles(itemId, itemOutDir, titleProjectName, 'full', OUTPUT_CONFIG.full_draft.lang, itemConfig.ottogi_guide_output || {});
+      row.metadata_files = copyOttogiMetadataFiles(itemId, itemOutDir, titleProjectName, 'full', fullLaneLanguage, itemConfig.ottogi_guide_output || {});
       row.metadata_export_files = exportOttogiMetadataFiles(row.metadata_files, metadataExportDir, titleProjectName);
       attachJsonFilePatch(path.join(itemOutDir, 'edit_manifest.json'), {
         draft_folder_finalization: {
@@ -11960,6 +12108,10 @@ module.exports = {
     simulateAnchoredSentencePlacement,
     sumTtsDurationSec,
     splitKoreanTtsSentenceIntoCaptionSlices,
+    splitJapaneseTtsSentenceIntoCaptionSlices,
+    fullScriptLanguageForItem,
+    buildKoreanFullDraftConfig,
+    selectJapaneseFullTitle,
     buildHighlightCandidatePayload,
     classifyHighlightHook,
     buildHighlightCandidateGuide,

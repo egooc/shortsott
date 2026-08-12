@@ -1229,6 +1229,9 @@ async function runMetadataStage(jobId, items, options = {}) {
             sourceType,
             sourceWorkflowMode,
             metadataVariantMode: itemMetadataVariantMode,
+            // TTS Full lanes: the ja_full lane produces its Full script and
+            // metadata in Japanese; every other item keeps the Korean path.
+            fullScriptLanguage: itemConfig.production_lane === 'ja_full' ? 'ja' : 'ko',
             existingGuide: (force || analysisAttempt > 1) ? null : (itemConfig.ottogi_guide_output || null),
             assignedHookType,
             fullDraftStagesDir: path.join(QUEUE_ROOT, refreshed.item_id, 'full_draft_stages'),
