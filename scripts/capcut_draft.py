@@ -486,8 +486,10 @@ def apply_process_caption_style_profile(material, segment, style_profile):
         material["shadow_distance"] = max(safe_float(material.get("shadow_distance"), 0.0), 7.0)
         material["shadow_angle"] = safe_float(material.get("shadow_angle"), -45.0)
         material["shadow_smoothing"] = max(safe_float(material.get("shadow_smoothing"), 0.0), 0.36)
-        material["bold_width"] = max(safe_float(material.get("bold_width"), 0.0), 0.08)
-        material["bold_width_rate"] = max(safe_float(material.get("bold_width_rate"), 0.0), 0.18)
+        # Bolder face for KR Full captions (user sign-off 2026-08-12):
+        # 0.08/0.18 read too light on 9:16 process footage.
+        material["bold_width"] = max(safe_float(material.get("bold_width"), 0.0), 0.16)
+        material["bold_width_rate"] = max(safe_float(material.get("bold_width_rate"), 0.0), 0.42)
         material["oneline_cutoff"] = False
         material["line_feed"] = 0
         material["fixed_width"] = FULL_CUT_CAPTION_FIXED_WIDTH
