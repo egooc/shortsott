@@ -336,10 +336,16 @@ function koreanFullSpeechBudgetFromGuide(guide = {}, durationSec = 0, language =
   if (Number(durationSec) > 90 && candidateConcatSec > 0) {
     return calculateKoreanFullSpeechBudget({ targetDurationSec: Math.min(60, candidateConcatSec), language });
   }
+  // Longform full-lane videos are NEVER longer than the <=60s concat - any
+  // duration above that reaching the budget (a stale stored budget, or the
+  // model returning a 400s "full window" when the candidate scan came back
+  // empty; observed live 2026-08-12: 402s -> 2,178-char demand -> held) is
+  // garbage input, so every remaining path clamps to 60s on longform.
+  const clampForLongform = (seconds) => (Number(durationSec) > 90 ? Math.min(60, Number(seconds) || 0) : Number(seconds) || 0);
   const existing = guide?.korean_full_speech_budget;
   if (existing && typeof existing === 'object' && Number(existing.target_chars) > 0) {
     return calculateKoreanFullSpeechBudget({
-      targetDurationSec: existing.target_duration_sec || existing.targetDurationSec || durationSec,
+      targetDurationSec: clampForLongform(existing.target_duration_sec || existing.targetDurationSec || durationSec),
       prerollSec: existing.preroll_sec || existing.prerollSec || 0,
       marginSec: existing.margin_sec || existing.marginSec || KOREAN_FULL_SPEECH_DEFAULT_MARGIN_SEC,
       sentenceCount: existing.target_sentence_count || existing.sentenceCount || KOREAN_FULL_SPEECH_DEFAULT_SENTENCE_COUNT,
@@ -350,7 +356,7 @@ function koreanFullSpeechBudgetFromGuide(guide = {}, durationSec = 0, language =
     || durationFromWindow(guide?.recommended_full_window)
     || durationFromWindow(guide?.full_source_window)
     || Number(guide?.target_duration_sec || guide?.duration_sec || durationSec || 0);
-  return calculateKoreanFullSpeechBudget({ targetDurationSec, language });
+  return calculateKoreanFullSpeechBudget({ targetDurationSec: clampForLongform(targetDurationSec), language });
 }
 
 function koreanFullSpeechBudgetPromptLines(budget = {}, language = 'ko') {
