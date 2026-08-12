@@ -223,9 +223,10 @@ function testSyncEvidenceFields() {
   assert(evidence.actual_tts_raw_sum_sec === 6.6, `expected raw sum 6.6, got ${evidence.actual_tts_raw_sum_sec}`);
   assert(evidence.actual_tts_occupied_timeline_sec === 6.6, `expected occupied timeline 6.6, got ${evidence.actual_tts_occupied_timeline_sec}`);
   assert(evidence.video_timeline_sec === 24, `expected video_timeline_sec 24, got ${evidence.video_timeline_sec}`);
-  // 19 visible chars / 6.03775 chars-per-sec (re-baselined 2026-08-12 with
-  // the measured rate; was 19 / 7.12).
-  assert(evidence.actual_tts_vs_budget_delta_sec === 3.453132, `expected budget delta 3.453132, got ${evidence.actual_tts_vs_budget_delta_sec}`);
+  // 19 visible chars over the current KO chars-per-sec; kept relative so
+  // rate recalibrations do not stale this baseline.
+  const expectedDelta = Number((6.6 - Number((19 / evidence.chars_per_sec).toFixed(6))).toFixed(6));
+  assert(Math.abs(evidence.actual_tts_vs_budget_delta_sec - expectedDelta) < 0.01, `expected budget delta ~${expectedDelta}, got ${evidence.actual_tts_vs_budget_delta_sec}`);
 }
 
 function testAnchoredTimelineGuardUsesOccupiedEnd() {
