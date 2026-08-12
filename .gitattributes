@@ -1,0 +1,13 @@
+# Line endings are pinned to LF in the working tree.
+#
+# Several contract tests under scripts/ assert on the literal source text of
+# server/services/*.js, and some of those expectations embed "\n" (see
+# check-longform-compress-lane-contract.js). A CRLF checkout — which is what
+# git produces on Windows when core.autocrlf=true — makes those assertions
+# fail even though the code is correct. This surfaced cloning the repo onto
+# the N100 machine, where every file checked out CRLF and `npm run verify`
+# failed on an untouched contract.
+#
+# text=auto still lets git detect and leave binary files (mp4/mp3/onnx/jpg)
+# alone; only text files are normalized.
+* text=auto eol=lf
