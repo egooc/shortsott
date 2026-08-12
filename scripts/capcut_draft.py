@@ -4860,8 +4860,11 @@ def force_process_caption_visibility(draft_content_path, template_doc=None, proc
         material["shadow_distance"] = max(override_float(overrides, "shadow_distance", safe_float(material.get("shadow_distance"), 0.0)), 0.0)
         material["shadow_angle"] = override_float(overrides, "shadow_angle", safe_float(material.get("shadow_angle"), -45.0))
         material["shadow_smoothing"] = max(override_float(overrides, "shadow_smoothing", safe_float(material.get("shadow_smoothing"), 0.0)), 0.0)
-        material["bold_width"] = max(override_float(overrides, "bold_width", safe_float(material.get("bold_width"), 0.0)), 0.0)
-        material["bold_width_rate"] = max(override_float(overrides, "bold_width_rate", safe_float(material.get("bold_width_rate"), 0.0)), 0.0)
+        # Full-draft captions get a forced bolder face (user sign-off
+        # 2026-08-12): the template text object carries bold 0 and the
+        # confirmed look was too light. Highlight explainers keep their own.
+        material["bold_width"] = max(override_float(overrides, "bold_width", safe_float(material.get("bold_width"), 0.0)), 0.0 if is_highlight else 0.16)
+        material["bold_width_rate"] = max(override_float(overrides, "bold_width_rate", safe_float(material.get("bold_width_rate"), 0.0)), 0.0 if is_highlight else 0.42)
         material["background_color"] = overrides.get("background_color", material.get("background_color", "#000000")) if isinstance(overrides, dict) else material.get("background_color", "#000000")
         material["background_alpha"] = max(override_float(overrides, "background_alpha", safe_float(material.get("background_alpha"), 0.0)), 0.0)
         material["background_round_radius"] = max(override_float(overrides, "background_round_radius", safe_float(material.get("background_round_radius"), 0.0)), 0.0)
