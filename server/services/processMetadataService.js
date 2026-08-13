@@ -9568,7 +9568,23 @@ async function validateOrRepairJapaneseCaptions({ guide, generateRepairJson, sou
         const laneScript = Array.isArray(current?.[fullScriptField]) ? current[fullScriptField] : [];
         const laneVisibleChars = laneScript.reduce((sum, piece) => sum + String(piece?.text || '').replace(/\s/g, '').length, 0);
         const laneMaxChars = Number(current?.korean_full_speech_budget?.max_chars) || 0;
-        if (!hardIssues.length && laneScript.length && (!laneMaxChars || laneVisibleChars <= laneMaxChars * 1.5)) {
+        // An UNDER-budget script is the one soft finding that decides whether
+        // the draft makes the format: the delivered timeline follows the
+        // narration, so a short script is a short Full. The soft-issue regex
+        // matches it on "speech budget" and this accept has no attempt gate, so
+        // it was swallowed on the first pass - item_020 shipped 127 chars
+        // against a 174 floor (2026-08-13). Spend the retries first, then
+        // accept rather than hold: the lane runs unattended.
+        const underBudgetIssues = issues.filter((issue) => /below \d+% of the speech budget/i.test(String(issue?.reason || issue || '')));
+        const retryForUnderBudget = underBudgetIssues.length > 0 && attempt < 2;
+        if (retryForUnderBudget) {
+          emitProgress(onProgress, `TTS Full 레인 원고 분량 미달(${fullScriptField}): ${laneVisibleChars}자 - 재생성 (${attempt + 1}/2)`, {
+            phase: 'kr_full_under_budget_retry',
+            attempt,
+            visible_chars: laneVisibleChars
+          });
+        }
+        if (!retryForUnderBudget && !hardIssues.length && laneScript.length && (!laneMaxChars || laneVisibleChars <= laneMaxChars * 1.5)) {
           emitProgress(onProgress, `KR Full 레인 관용 수용: 소프트 이슈 ${issues.length}건을 경고로 처리하고 진행 (${laneScript.length}문구/${laneVisibleChars}자)`, {
             phase: 'kr_full_lenient_accept',
             attempt,
