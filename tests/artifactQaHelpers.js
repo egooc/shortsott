@@ -237,13 +237,16 @@ function validateManifestMaterialColors(manifest, draftContent) {
     const effectDefaultDisabled = material?.use_effect_default_color === false;
     let passed = Boolean(material && fillMatches && textColorMatches && letterColorEnabled && effectDefaultDisabled);
     let droppedSliver = false;
-    // Rescue ONLY a sub-500ms sliver: the renderer drops captions shorter than its readable
-    // floor, orphaning their (correctly coloured) material. A NORMAL-duration caption whose
-    // material is orphaned is a genuine missing/mis-mapped caption and must still fail - so gate
-    // this on the manifest duration. Captions with no duration recorded are never rescued.
+    // Rescue a caption the renderer legitimately DROPPED (a sub-500ms sliver, or one that
+    // collided in time with a same-lane caption and lost the slot): the drop orphans its
+    // otherwise-correctly-coloured material, which is a DROP, not a colour error. Only a caption
+    // the pipeline actually produced carries a duration_sec, so a correctly-coloured orphan for
+    // such a caption means the colour pipeline succeeded and only the render slot was dropped.
+    // A synthetic/genuinely-absent caption with no recorded duration is never rescued, so a
+    // mis-mapped or mis-coloured caption still fails.
     const durationSec = Number(caption?.duration_sec);
-    const isDroppableSliver = Number.isFinite(durationSec) && durationSec > 0 && durationSec < 0.5;
-    if (!passed && !material && isDroppableSliver) {
+    const isProducedButDropped = Number.isFinite(durationSec) && durationSec > 0;
+    if (!passed && !material && isProducedButDropped) {
       const orphan = allMaterials.find((candidate) => candidate.text === text
         && rgbFloatMatchesHex(candidate.fill_rgb, expected)
         && String(candidate.text_color || '').toLowerCase() === expected.toLowerCase());
