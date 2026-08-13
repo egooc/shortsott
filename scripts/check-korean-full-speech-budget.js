@@ -77,10 +77,13 @@ function testBudgetMath() {
   const budget = metadataTest.calculateKoreanFullSpeechBudget({ targetDurationSec: 30, prerollSec: 2, marginSec: 1.5 });
   assert(budget.available_sec === 26.5, `expected available_sec 26.5, got ${budget.available_sec}`);
   assert(budget.target_chars === Math.floor(26.5 * 5.9 * 0.9), `expected KO target chars, got ${budget.target_chars}`);
-  // Raised 0.75 -> 0.85 on 2026-08-13: at 75% a script could pass validation
-  // and still underrun the concat (item_020 wrote 79% of budget and produced a
-  // 33.6s narration under a 42.2s video, so the timeline landed at 32.05s).
-  assert(budget.min_chars === Math.floor(budget.target_chars * 0.85), `expected 85% min, got ${budget.min_chars}`);
+  // Raised 0.75 -> 0.85 -> 0.90 on 2026-08-13: at 75% a script could pass
+  // validation and still underrun the concat (item_020 wrote 79% of budget and
+  // produced a 33.6s narration under a 42.2s video, timeline 32.05s), and at
+  // 85% a script that landed on the floor still only filled ~34s of a 40s
+  // format. The prompt already asks for the target +/-10%, so the floor now
+  // matches the band the prompt states.
+  assert(budget.min_chars === Math.floor(budget.target_chars * 0.9), `expected 90% min, got ${budget.min_chars}`);
   assert(budget.max_chars === Math.floor(budget.target_chars * 1.1), `expected 110% max, got ${budget.max_chars}`);
 }
 

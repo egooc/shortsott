@@ -65,7 +65,7 @@ const LONGFORM_FULL_MIN_ARC_STEPS = 5;
 // 151 (79%), and produced a 33.6s narration under a 42.2s concat - the timeline
 // followed the narration and landed at 32.05s against a 40s format. Under-budget
 // scripts now go to the repair pass instead of shipping short.
-const KOREAN_FULL_SPEECH_MIN_CHARS_RATIO = 0.85;
+const KOREAN_FULL_SPEECH_MIN_CHARS_RATIO = 0.9;
 // How long the Full concat is cut to. The delivered timeline follows the
 // NARRATION, not the video, and the narration is deliberately budgeted under
 // the video (0.9 safety ratio + margin), so a 40s concat can only ever deliver
@@ -74,8 +74,13 @@ const KOREAN_FULL_SPEECH_MIN_CHARS_RATIO = 0.85;
 // matching the configured rate), (C - 1.5 margin) * 5.5 * 0.9 >= 40s of speech
 // solves to C = 46. Earlier notes in this file quoted 4.5-4.9 chars/sec; those
 // divided the PRE-CLIP script length by the synthesized audio and were wrong.
+//
+// 46 assumed the script fills its budget exactly; it does not. The floor lets
+// it land at 85-90%, so at C=46 the concat measured 38.3s and the timeline
+// 30.1s. Solving for 40s of speech at 90% written - (C - 1.5) * 5.5 * 0.9 * 0.9
+// >= 40 * 5.5 - puts C at 52.
 // Mirrored by LONGFORM_FULL_TARGET_CONCAT_SEC in processQueueService.
-const LONGFORM_FULL_TARGET_CONCAT_SEC = 46;
+const LONGFORM_FULL_TARGET_CONCAT_SEC = 52;
 const SHORT_DESCRIPTION_SOFT_MAX = 260;
 const MIDFORM_CAPTION_MIN_ITEMS_120S = 30;
 const MIDFORM_CAPTION_MAX_ITEMS_120S = 45;
@@ -362,7 +367,7 @@ function countValidProcessArcSteps(guide = {}) {
     }).length;
 }
 
-function longformArcConcatSec(guide = {}, targetDurationSec = LONGFORM_FULL_TARGET_CONCAT_SEC, maxSegmentSec = 10) {
+function longformArcConcatSec(guide = {}, targetDurationSec = LONGFORM_FULL_TARGET_CONCAT_SEC, maxSegmentSec = 10, sourceDurationSec = 0) {
   const steps = Array.isArray(guide?.process_arc_steps) ? guide.process_arc_steps : [];
   if (steps.length < 3) return 0;
   const cap = Math.max(4, Math.min(10, Number(maxSegmentSec) || 10));
@@ -373,10 +378,25 @@ function longformArcConcatSec(guide = {}, targetDurationSec = LONGFORM_FULL_TARG
     if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return 0;
     return Math.min(cap, Math.max(1, end - start));
   };
+  // Same out-of-source drop the selector applies. Without it the budget was
+  // computed from steps that can never be cut: at target 52 this returned ~48s
+  // while the selector produced 38.3s, so the script was budgeted for video
+  // that does not exist (2026-08-13).
+  const source = Number(sourceDurationSec) || 0;
+  const withinSource = (step) => {
+    if (!(source > 0)) return step;
+    const start = Number(step?.start_sec);
+    const end = Number(step?.end_sec);
+    if (!Number.isFinite(start) || start >= source - 4) return null;
+    if (!Number.isFinite(end) || end <= source) return step;
+    return { ...step, end_sec: source };
+  };
   const ordered = steps
     .map((step, index) => ({ step, order: Number(step?.step_index) || index + 1 }))
     .sort((a, b) => a.order - b.order)
-    .map(({ step }) => step);
+    .map(({ step }) => withinSource(step))
+    .filter(Boolean);
+  if (ordered.length < 3) return 0;
   let resultIndex = ordered.reduce((found, step, index) => (step?.is_result_step === true ? index : found), -1);
   if (resultIndex < 0) resultIndex = ordered.length - 1;
   const resultDuration = stepDuration(ordered[resultIndex]);
@@ -412,7 +432,7 @@ function koreanFullSpeechBudgetFromGuide(guide = {}, durationSec = 0, language =
   // 37.3s video, and the draft failed the 20s timeline floor. Prefer the arc
   // total whenever an arc exists; hook_candidates stays the fallback for
   // items analyzed before the arc phase.
-  const arcConcatSec = longformArcConcatSec(guide);
+  const arcConcatSec = longformArcConcatSec(guide, LONGFORM_FULL_TARGET_CONCAT_SEC, 10, durationSec);
   if (Number(durationSec) > 90 && arcConcatSec > 0) {
     return calculateKoreanFullSpeechBudget({ targetDurationSec: Math.min(LONGFORM_FULL_TARGET_CONCAT_SEC, arcConcatSec), language });
   }
@@ -1763,6 +1783,11 @@ function buildLongformCandidatePrompt({ sourceUrl, filename, durationSec, source
     '- The LAST step must set is_result_step true and show the finished result or the payoff of the process.',
     '- WITHIN each step, prefer the window that repeats, loops, or cycles: a complete action cycle (cycle_time_sec) that a viewer can watch resolve. Set has_visible_loop true when the window contains a repeating machine or hand cycle. Rhythmic, repeating work beats a static or one-off moment even when both show the same step.',
     '- Steps must not overlap each other, and must not all sit in the first quarter of the source - the finishing and result steps live in the later half.',
+    // Vision put 3 of 8 (item_017) and 4 of 10 (item_020) steps past the end of
+    // the source on 2026-08-13, the result step among them every time. Those
+    // steps cannot be cut, so the arc lost both its length and its ending.
+    `- HARD BOUND: this source is exactly ${Math.floor(Number(durationSec) || 0)} seconds long. Every start_sec and end_sec must be inside it, and end_sec must never exceed ${Math.floor(Number(durationSec) || 0)}. A step past the end of the source cannot be cut and makes the whole arc unusable.`,
+    `- The result step is the one most often placed out of bounds. Put it in the real last minutes of THIS source, before ${Math.floor(Number(durationSec) || 0)} seconds - do not extrapolate past the end.`,
     '- step_summary states what physically happens in that step, concretely (material, tool, change). Generic labels such as "process movement" or "工程の動き" are invalid.',
     '',
     'Return shape:',

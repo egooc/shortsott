@@ -9052,7 +9052,7 @@ function selectBestHighlightWindow(windows = [], itemConfig = {}, maxDurationSec
 // Mirrored by LONGFORM_FULL_TARGET_CONCAT_SEC in processMetadataService, which
 // budgets the script against the same number. See the comment there for why the
 // concat is cut longer than the format length it has to deliver.
-const LONGFORM_FULL_TARGET_CONCAT_SEC = 46;
+const LONGFORM_FULL_TARGET_CONCAT_SEC = 52;
 
 function getLongformFullArcWindows(itemConfig = {}, targetDurationSec = LONGFORM_FULL_TARGET_CONCAT_SEC, maxSegmentSec = 10) {
   const steps = itemConfig.ottogi_guide_output?.process_arc_steps;
