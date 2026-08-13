@@ -17,7 +17,13 @@ const fs = require('fs');
 const path = require('path');
 const { PROJECT_ROOT, readJsonIfExists, writeJsonWithBackup } = require('./pipelinePaths');
 const { resolveTool } = require('../utils/toolPaths');
-const { loadChannelLedger, isChannelBlocked, assetChannels } = require('./sourceChannelLedgerService');
+const {
+  loadChannelLedger,
+  isChannelBlocked,
+  assetChannels,
+  markChannelExhausted,
+  noteChannelUrl
+} = require('./sourceChannelLedgerService');
 
 const CONFIG_PATH = path.join(PROJECT_ROOT, 'server', 'data', 'harvest_config.json');
 const LEDGER_PATH = path.join(PROJECT_ROOT, 'server', 'data', 'source_harvest_history.json');
@@ -32,6 +38,13 @@ const DEFAULT_CONFIG = {
   daily_count: 12,
   per_query_results: 15,
   queries_per_day: 5,
+  // Asset-channel mining (approved 2026-08-13). Half the day comes from
+  // channels that have already produced, the rest from keyword search so new
+  // channels keep entering the pool. min_views is the "did it land" bar for
+  // back-catalogue picks; scan_count bounds how deep each sweep reads.
+  asset_channel_share: 0.5,
+  asset_channel_min_views: 300000,
+  asset_channel_scan_count: 30,
   // locale_plan is consumed in order until daily_count is filled. An entry's
   // optional lane ('kr_full') routes those items to the Korean TTS Full
   // draft pipeline instead of highlights (approved 2026-08-11: 4/day Korean
@@ -130,6 +143,63 @@ function searchOnce(query, count) {
   });
 }
 
+// --- asset-channel back-catalogue sweep (approved 2026-08-13) -------------
+// A channel that has already produced a usable source is worth mining before
+// spending the day's keyword budget on strangers. We pull its older videos
+// that cleared a performance bar; when a channel has nothing left to give it
+// is marked exhausted and the keyword search takes over - which is exactly
+// how the next asset channel gets found.
+
+function fetchChannelVideos(channelUrl, count, minViews) {
+  return new Promise((resolve) => {
+    execFile(
+      resolveTool('yt-dlp', { envKey: 'YT_DLP_PATH' }),
+      [`${channelUrl.replace(/\/+$/, '')}/videos`, '--skip-download', '--dump-json',
+       '--no-warnings', '--ignore-errors', '--socket-timeout', '15',
+       '--playlist-end', String(count),
+       '--match-filter',
+       `duration>=${MIN_DURATION_SEC} & duration<=${MAX_DURATION_SEC} & view_count>=${minViews}`],
+      { timeout: SEARCH_TIMEOUT_MS * 2, maxBuffer: 128 * 1024 * 1024, encoding: 'utf8', windowsHide: true },
+      (error, stdout) => {
+        const videos = [];
+        for (const line of String(stdout || '').split('\n')) {
+          const trimmed = line.trim();
+          if (!trimmed.startsWith('{')) continue;
+          try { videos.push(JSON.parse(trimmed)); } catch { /* skip bad line */ }
+        }
+        resolve(videos);
+      }
+    );
+  });
+}
+
+// Older ledger entries predate channel_url capture, so recover it from a
+// video the channel already produced rather than guessing from its name.
+function resolveChannelUrlFromVideo(videoId) {
+  const bare = String(videoId || '').replace(/^youtube:/, '');
+  if (!bare) return Promise.resolve('');
+  return new Promise((resolve) => {
+    execFile(
+      resolveTool('yt-dlp', { envKey: 'YT_DLP_PATH' }),
+      [`https://www.youtube.com/watch?v=${bare}`, '--skip-download', '--dump-json',
+       '--no-warnings', '--ignore-errors', '--socket-timeout', '15'],
+      { timeout: SEARCH_TIMEOUT_MS, maxBuffer: 32 * 1024 * 1024, encoding: 'utf8', windowsHide: true },
+      (error, stdout) => {
+        for (const line of String(stdout || '').split('\n')) {
+          const trimmed = line.trim();
+          if (!trimmed.startsWith('{')) continue;
+          try {
+            const meta = JSON.parse(trimmed);
+            resolve(meta.channel_url || meta.uploader_url || '');
+            return;
+          } catch { /* skip bad line */ }
+        }
+        resolve('');
+      }
+    );
+  });
+}
+
 function heatmapPeak(video) {
   const heatmap = Array.isArray(video.heatmap) ? video.heatmap : [];
   return heatmap.reduce((peak, seg) => Math.max(peak, Number(seg?.value) || 0), 0);
@@ -192,7 +262,38 @@ async function harvestDailySources({ importItems, now = new Date(), dryRun = fal
   const ledger = loadLedger();
   const queries = todaysQueries(config, now);
 
-  const found = [];
+  // 1. Mine asset channels first - proven producers beat strangers.
+  const assetTarget = Math.max(0, Math.round(config.daily_count * config.asset_channel_share));
+  const assetVideos = [];
+  const assetReport = [];
+  for (const entry of assetChannels()) {
+    if (assetVideos.length >= assetTarget) break;
+    let channelUrl = entry.channel_url;
+    if (!channelUrl) {
+      channelUrl = await resolveChannelUrlFromVideo(entry.ok_video_ids?.[entry.ok_video_ids.length - 1]);
+      if (channelUrl && !dryRun) noteChannelUrl(entry.creator, channelUrl);
+    }
+    if (!channelUrl) {
+      assetReport.push({ creator: entry.creator, status: 'no_channel_url', new_count: 0 });
+      continue;
+    }
+    const videos = await fetchChannelVideos(channelUrl, config.asset_channel_scan_count, config.asset_channel_min_views);
+    const before = assetVideos.length;
+    assetVideos.push(...videos);
+    const usable = rankCandidates(videos).filter((c) => !ledger.video_ids[c.video_id]).length;
+    // Nothing left that clears the bar and has not been used: stop paying for
+    // this channel until it uploads again (a fresh success clears the flag).
+    if (usable === 0 && !dryRun) markChannelExhausted(entry.creator);
+    assetReport.push({
+      creator: entry.creator,
+      status: usable === 0 ? 'exhausted' : 'ok',
+      new_count: usable,
+      added: assetVideos.length - before
+    });
+  }
+
+  // 2. Keyword search fills the rest - and is how new asset channels appear.
+  const found = [...assetVideos];
   const perQuery = [];
   for (const query of queries) {
     const videos = await searchOnce(query, config.per_query_results);
@@ -251,6 +352,7 @@ async function harvestDailySources({ importItems, now = new Date(), dryRun = fal
     unique_count: ranked.length,
     fresh_count: fresh.length,
     blocked_channel_hits: blockedHits,
+    asset_channels: assetReport,
     selected,
     import_result: importResult
   };

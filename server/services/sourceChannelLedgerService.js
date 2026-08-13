@@ -139,6 +139,23 @@ function assetChannels(ledger = loadChannelLedger()) {
     .sort((a, b) => b.ok - a.ok || String(b.last_ok_at).localeCompare(String(a.last_ok_at)));
 }
 
+// Ledger entries created before channel_url capture (or backfilled from
+// item configs, which never carried it) get the URL filled in the first time
+// a back-catalogue sweep resolves it.
+function noteChannelUrl(creator, channelUrl) {
+  try {
+    if (!channelUrl) return false;
+    const ledger = loadChannelLedger();
+    const entry = ledger.channels[channelKey(creator)];
+    if (!entry || entry.channel_url) return false;
+    entry.channel_url = String(channelUrl);
+    saveChannelLedger(ledger);
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
 function markChannelExhausted(creator) {
   try {
     const ledger = loadChannelLedger();
@@ -162,5 +179,6 @@ module.exports = {
   blockedChannels,
   assetChannels,
   markChannelExhausted,
+  noteChannelUrl,
   channelKey
 };
