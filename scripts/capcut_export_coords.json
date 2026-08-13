@@ -7,6 +7,13 @@
       "first_row": [620, 1580],
       "export_button": [2566, 35],
       "export_confirm": [1894, 1460]
+    },
+    "1920x1080": {
+      "_measured": "N100 (DESKTOP-MU7SH45) 2026-08-13, CapCut 6.8.1.2758, HDMI dummy BBC/HDP-V104, maximized, 100% scale, SIGNED IN. Signing in adds the account block to the sidebar and pushes the Projects row down ~196px, so a signed-out layout gives different values - always calibrate signed in, which is the production state.",
+      "search_icon": [1617, 693],
+      "first_row": [306, 784],
+      "export_button": [1769, 17],
+      "export_confirm": [1187, 820]
     }
   }
 }

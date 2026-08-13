@@ -38,7 +38,33 @@ import pyautogui  # noqa: E402
 # (observed 2026-08-12). The run is short and CapCut is killed in finally.
 pyautogui.FAILSAFE = False
 
-CAPCUT_EXE_DEFAULT = os.path.expandvars(r"%LOCALAPPDATA%\CapCut\9.2.0.3931\CapCut.exe")
+def _default_capcut_exe():
+    """CapCut's install layout differs by version: newer builds ship a stub
+    launcher at Apps\\CapCut.exe that picks the current version, older ones
+    only have <version>\\CapCut.exe. The N100 machine has 6.8.1.2758 under
+    Apps\\ while the previous machine had 9.2.0.3931 at the top level, so probe
+    instead of hardcoding either."""
+    root = os.path.expandvars(r"%LOCALAPPDATA%\CapCut")
+    launcher = os.path.join(root, "Apps", "CapCut.exe")
+    if os.path.exists(launcher):
+        return launcher
+    apps = os.path.join(root, "Apps")
+    candidates = []
+    for base in (apps, root):
+        if not os.path.isdir(base):
+            continue
+        for name in os.listdir(base):
+            exe = os.path.join(base, name, "CapCut.exe")
+            if os.path.exists(exe):
+                candidates.append((name, exe))
+    if candidates:
+        # Highest version string wins.
+        candidates.sort(key=lambda c: [int(p) for p in c[0].split(".") if p.isdigit()] or [0])
+        return candidates[-1][1]
+    return os.path.join(root, "Apps", "CapCut.exe")
+
+
+CAPCUT_EXE_DEFAULT = _default_capcut_exe()
 
 HOME_LOAD_SEC = 20
 EDITOR_LOAD_SEC = 15
@@ -77,6 +103,46 @@ def load_coords():
 def kill_capcut():
     subprocess.run(["taskkill", "/f", "/im", "CapCut.exe"], capture_output=True)
     time.sleep(2)
+
+
+def maximize_capcut(timeout_sec=45):
+    """The coordinate profiles assume a MAXIMIZED window, but CapCut opens
+    floating (~1428x952 on a 1080p screen) and kill_capcut()'s taskkill /f
+    denies it any chance to persist window state - so every run starts
+    un-maximized and every calibrated coordinate misses. Maximize explicitly.
+
+    Picks the largest Qt top-level window, since CapCut's modals and tooltips
+    carry the same window title.
+    """
+    try:
+        import win32con
+        import win32gui
+    except ImportError:
+        return False
+
+    deadline = time.time() + timeout_sec
+    while time.time() < deadline:
+        found = []
+
+        def _collect(hwnd, _):
+            if not win32gui.IsWindowVisible(hwnd):
+                return
+            if "capcut" not in (win32gui.GetWindowText(hwnd) or "").lower():
+                return
+            if not win32gui.GetClassName(hwnd).startswith("Qt"):
+                return
+            rect = win32gui.GetWindowRect(hwnd)
+            found.append((hwnd, (rect[2] - rect[0]) * (rect[3] - rect[1])))
+
+        win32gui.EnumWindows(_collect, None)
+        found.sort(key=lambda w: w[1], reverse=True)
+        # Ignore splash-sized windows; wait for the real main window.
+        if found and found[0][1] > 400_000:
+            win32gui.ShowWindow(found[0][0], win32con.SW_MAXIMIZE)
+            time.sleep(2)
+            return True
+        time.sleep(1.5)
+    return False
 
 
 def set_clipboard(text):
@@ -185,6 +251,9 @@ def main():
         kill_capcut()
         subprocess.Popen([args.capcut_exe])
         time.sleep(HOME_LOAD_SEC)
+        if not maximize_capcut():
+            raise RuntimeError("CapCut main window never appeared to maximize")
+        time.sleep(3)
 
         # Search filters the project list to exactly our draft; paste via
         # clipboard because the names carry CJK that pyautogui cannot type.
