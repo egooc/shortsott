@@ -9053,6 +9053,8 @@ function selectBestHighlightWindow(windows = [], itemConfig = {}, maxDurationSec
 // budgets the script against the same number. See the comment there for why the
 // concat is cut longer than the format length it has to deliver.
 const LONGFORM_FULL_TARGET_CONCAT_SEC = 52;
+// Mirrored by LONGFORM_FULL_MIN_ARC_STEP_SEC in processMetadataService.
+const LONGFORM_FULL_MIN_ARC_STEP_SEC = 3;
 
 function getLongformFullArcWindows(itemConfig = {}, targetDurationSec = LONGFORM_FULL_TARGET_CONCAT_SEC, maxSegmentSec = 10) {
   const steps = itemConfig.ottogi_guide_output?.process_arc_steps;
@@ -9070,7 +9072,17 @@ function getLongformFullArcWindows(itemConfig = {}, targetDurationSec = LONGFORM
     || itemConfig.source_duration_sec
     || 0
   );
+  // The other way Vision degrades: item_017 came back with all 14 steps inside
+  // the first 17 seconds, most of them 0.1-0.5s long (2026-08-13). Those are
+  // not shots, and floor-to-1s turned them into a 20s concat with a 5-sentence
+  // script. The prompt asks for 4-10s steps; anything under 3s is noise.
+  const usableStep = (step) => {
+    const start = Number(step?.start_sec);
+    const end = Number(step?.end_sec);
+    return Number.isFinite(start) && Number.isFinite(end) && end - start >= LONGFORM_FULL_MIN_ARC_STEP_SEC;
+  };
   const withinSource = (step) => {
+    if (!usableStep(step)) return null;
     if (!(sourceDurationSec > 0)) return step;
     const start = Number(step?.start_sec);
     const end = Number(step?.end_sec);

@@ -60,6 +60,11 @@ const LONGFORM_MIN_PRODUCTION_HOOK_CANDIDATES = 1;
 // Below this the arc cannot fill the format: the concat caps each step at 10s,
 // so 5 steps is the floor that still reaches ~40s with a hook and a result.
 const LONGFORM_FULL_MIN_ARC_STEPS = 5;
+// Steps shorter than this are not shots. Vision returned 14 steps of 0.1-0.5s
+// clustered in the first 17s of a 1111s source (2026-08-13); floored to 1s each
+// they produced a 20s concat and a 5-sentence script. Mirrored by
+// LONGFORM_FULL_MIN_ARC_STEP_SEC in processQueueService.
+const LONGFORM_FULL_MIN_ARC_STEP_SEC = 3;
 // A script at the old 75% floor passed validation and then underran the video:
 // the first arc-driven Full (item_020, 2026-08-13) was budgeted 190 chars, wrote
 // 151 (79%), and produced a 33.6s narration under a 42.2s concat - the timeline
@@ -363,7 +368,7 @@ function countValidProcessArcSteps(guide = {}) {
     .filter((step) => {
       const start = Number(step?.start_sec);
       const end = Number(step?.end_sec);
-      return Number.isFinite(start) && Number.isFinite(end) && end > start;
+      return Number.isFinite(start) && Number.isFinite(end) && end - start >= LONGFORM_FULL_MIN_ARC_STEP_SEC;
     }).length;
 }
 
@@ -384,6 +389,9 @@ function longformArcConcatSec(guide = {}, targetDurationSec = LONGFORM_FULL_TARG
   // that does not exist (2026-08-13).
   const source = Number(sourceDurationSec) || 0;
   const withinSource = (step) => {
+    const rawStart = Number(step?.start_sec);
+    const rawEnd = Number(step?.end_sec);
+    if (!Number.isFinite(rawStart) || !Number.isFinite(rawEnd) || rawEnd - rawStart < LONGFORM_FULL_MIN_ARC_STEP_SEC) return null;
     if (!(source > 0)) return step;
     const start = Number(step?.start_sec);
     const end = Number(step?.end_sec);
