@@ -82,13 +82,23 @@ function testBudgetMath() {
 }
 
 function testJapaneseBudgetMath() {
-  // ja_full lane (2026-08-12): 4.5 chars/sec MEASURED on the first live run
-  // (206 chars over 45.74s of ElevenLabs mp3, 11 sentences), /16 sentence
-  // divisor; the KO budget path must stay untouched by the language knob.
+  // ja_full lane: 4.91 was an unmeasured estimate that under-fed the budget -
+  // too slow a rate asks for too few characters, and since the built timeline
+  // follows the narration, the Full came out short of the ~40s format.
+  // Back-computed from the first two shipped JA Fulls on the same
+  // voice/settings (20260813-F-183426: 9 sentences / 28.759s ~= 5.0;
+  // 20260813-F-182121: 5 / 13.479s ~= 5.9) for ~5.45 average -> 5.5, user
+  // sign-off 2026-08-13. /16 sentence divisor; the KO path must stay
+  // untouched by the language knob.
   const budget = metadataTest.calculateKoreanFullSpeechBudget({ targetDurationSec: 30, prerollSec: 2, marginSec: 1.5, language: 'ja' });
   assert(budget.language === 'ja', `expected language ja, got ${budget.language}`);
-  assert(budget.chars_per_sec === 4.91, `expected JA 4.91 chars/sec, got ${budget.chars_per_sec}`);
-  assert(budget.target_chars === Math.floor(26.5 * 4.91 * 0.9), `expected JA target chars, got ${budget.target_chars}`);
+  assert(budget.chars_per_sec === 5.5, `expected JA 5.5 chars/sec, got ${budget.chars_per_sec}`);
+  // Relative to the live rate so a future re-measure only touches one line.
+  assert(budget.target_chars === Math.floor(26.5 * budget.chars_per_sec * 0.9), `expected JA target chars, got ${budget.target_chars}`);
+  // The whole point of the raise: a 40s Full must now ask for enough
+  // sentences to actually fill 40s (11 at 4.91, 12+ at 5.5).
+  const fortySec = metadataTest.calculateKoreanFullSpeechBudget({ targetDurationSec: 40, prerollSec: 0, marginSec: 1.5, language: 'ja' });
+  assert(fortySec.target_sentence_count >= 12, `40s JA Full must ask for 12+ sentences, got ${fortySec.target_sentence_count}`);
   const koBudget = metadataTest.calculateKoreanFullSpeechBudget({ targetDurationSec: 30, prerollSec: 2, marginSec: 1.5 });
   assert(koBudget.chars_per_sec === 5.9, `KO chars/sec must stay 5.9, got ${koBudget.chars_per_sec}`);
 }
