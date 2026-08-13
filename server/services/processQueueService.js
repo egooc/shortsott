@@ -9050,14 +9050,29 @@ function getLongformFullArcWindows(itemConfig = {}, targetDurationSec = 40, maxS
     .sort((a, b) => a.order - b.order)
     .map(({ step }) => step);
 
-  const picked = [];
-  let total = 0;
-  for (const step of ordered) {
+  // The result step is the arc's ending and is reserved BEFORE the middle
+  // steps are filled in. Filling in step order and breaking on the duration
+  // budget dropped it every time (measured 2026-08-13: item_017 kept 4 of 9
+  // steps, item_020 7 of 8, and neither Full ended on its payoff) - the same
+  // arc-completion rule the longform highlight path already follows.
+  const stepDuration = (step) => {
     const start = Number(step?.start_sec);
     const end = Number(step?.end_sec);
-    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) continue;
-    const duration = Math.min(cap, Math.max(1, end - start));
-    if (total + duration > targetDuration + 0.25 && picked.length >= 3) break;
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return 0;
+    return Math.min(cap, Math.max(1, end - start));
+  };
+  let resultIndex = ordered.reduce((found, step, index) => (step?.is_result_step === true ? index : found), -1);
+  if (resultIndex < 0) resultIndex = ordered.length - 1;
+  const resultStep = ordered[resultIndex];
+  const resultDuration = stepDuration(resultStep);
+  const budgetForOthers = Math.max(10, targetDuration - resultDuration);
+
+  const picked = [];
+  let total = 0;
+  const pushStep = (step, role) => {
+    const duration = stepDuration(step);
+    if (!duration) return false;
+    const start = Number(step.start_sec);
     picked.push({
       start_sec: Number(start.toFixed(3)),
       end_sec: Number((start + duration).toFixed(3)),
@@ -9067,13 +9082,22 @@ function getLongformFullArcWindows(itemConfig = {}, targetDurationSec = 40, maxS
       reason: String(step.step_summary || step.reason || '').slice(0, 200),
       full_candidate_rank: picked.length + 1,
       full_explanation_scene: picked.length < 3,
-      longform_full_role: picked.length === 0
-        ? 'arc_hook'
-        : (step.is_result_step === true ? 'arc_result' : 'arc_process_step')
+      longform_full_role: role
     });
     total += duration;
-    if (picked.length >= 12) break;
-  }
+    return true;
+  };
+
+  ordered.forEach((step, index) => {
+    if (index === resultIndex) return;
+    if (picked.length >= 11) return;
+    const duration = stepDuration(step);
+    if (!duration) return;
+    if (total + duration > budgetForOthers + 0.25 && picked.length >= 2) return;
+    pushStep(step, picked.length === 0 ? 'arc_hook' : 'arc_process_step');
+  });
+  if (resultDuration) pushStep(resultStep, picked.length === 0 ? 'arc_hook' : 'arc_result');
+
   return total >= 20 ? picked : [];
 }
 

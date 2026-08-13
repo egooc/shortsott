@@ -328,6 +328,45 @@ function koreanFullSceneSpeechBudgetPromptLines(scenes = [], limit = 16, languag
   ];
 }
 
+// How many seconds of video the arc will actually concatenate. This MUST
+// mirror processQueueService.getLongformFullArcWindows - the script is
+// budgeted here but the video is cut there, and any drift between the two
+// shows up as narration overhanging the video or vice versa. Kept as a
+// duplicate rather than an import because processQueueService requires this
+// module; if the selector's accumulation changes, change this with it.
+function longformArcConcatSec(guide = {}, targetDurationSec = 40, maxSegmentSec = 10) {
+  const steps = Array.isArray(guide?.process_arc_steps) ? guide.process_arc_steps : [];
+  if (steps.length < 3) return 0;
+  const cap = Math.max(4, Math.min(10, Number(maxSegmentSec) || 10));
+  const targetDuration = Math.max(30, Math.min(90, Number(targetDurationSec) || 40));
+  const stepDuration = (step) => {
+    const start = Number(step?.start_sec);
+    const end = Number(step?.end_sec);
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return 0;
+    return Math.min(cap, Math.max(1, end - start));
+  };
+  const ordered = steps
+    .map((step, index) => ({ step, order: Number(step?.step_index) || index + 1 }))
+    .sort((a, b) => a.order - b.order)
+    .map(({ step }) => step);
+  let resultIndex = ordered.reduce((found, step, index) => (step?.is_result_step === true ? index : found), -1);
+  if (resultIndex < 0) resultIndex = ordered.length - 1;
+  const resultDuration = stepDuration(ordered[resultIndex]);
+  const budgetForOthers = Math.max(10, targetDuration - resultDuration);
+  let total = 0;
+  let count = 0;
+  ordered.forEach((step, index) => {
+    if (index === resultIndex) return;
+    const duration = stepDuration(step);
+    if (!duration) return;
+    if (total + duration > budgetForOthers + 0.25 && count >= 2) return;
+    if (count >= 11) return;
+    total += duration;
+    count += 1;
+  });
+  return total + resultDuration;
+}
+
 function koreanFullSpeechBudgetFromGuide(guide = {}, durationSec = 0, language = 'ko') {
   // kr_full 롱폼 (approved 2026-08-11): the Full draft's video is the <=40s
   // CONCATENATION of the Vision hook-candidate windows, never the raw source.
@@ -338,6 +377,17 @@ function koreanFullSpeechBudgetFromGuide(guide = {}, durationSec = 0, language =
   // source-length budget into the guide before candidates exist, and reusing
   // it re-poisons the final phase (observed live: 7,393 chars after a force
   // re-analysis).
+  // process_arc_steps (2026-08-13) now drives the Full concat, so the budget
+  // has to follow the arc, not the hooks. Measured live on item_020: the arc
+  // assembled 37.3s of video while the hook_candidates sum was ~16s, so the
+  // script was budgeted for 16s -> 5 sentences -> a 16.1s narration under a
+  // 37.3s video, and the draft failed the 20s timeline floor. Prefer the arc
+  // total whenever an arc exists; hook_candidates stays the fallback for
+  // items analyzed before the arc phase.
+  const arcConcatSec = longformArcConcatSec(guide);
+  if (Number(durationSec) > 90 && arcConcatSec > 0) {
+    return calculateKoreanFullSpeechBudget({ targetDurationSec: Math.min(40, arcConcatSec), language });
+  }
   const candidateConcatSec = (Array.isArray(guide?.hook_candidates) ? guide.hook_candidates : [])
     .reduce((sum, candidate) => {
       const span = Number(candidate?.end_sec) - Number(candidate?.start_sec);
