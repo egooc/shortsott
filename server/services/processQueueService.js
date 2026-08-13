@@ -9050,10 +9050,31 @@ function getLongformFullArcWindows(itemConfig = {}, targetDurationSec = LONGFORM
   const cap = Math.max(4, Math.min(10, Number(maxSegmentSec) || 10));
   const targetDuration = Math.max(30, Math.min(90, Number(targetDurationSec) || 40));
 
+  // Vision returns steps past the end of the source: item_020 (1180.2s) came
+  // back with 1415~1424, 1815~1820 and 1856~1905, and two of those reached the
+  // selected windows - including the result step, so the concat lost both its
+  // length and its ending (measured 2026-08-13). Windows that start inside the
+  // source are clamped to it; windows that start past the end are dropped.
+  const sourceDurationSec = Number(
+    itemConfig.video_metadata?.duration_sec
+    || itemConfig.source_duration_sec
+    || 0
+  );
+  const withinSource = (step) => {
+    if (!(sourceDurationSec > 0)) return step;
+    const start = Number(step?.start_sec);
+    const end = Number(step?.end_sec);
+    if (!Number.isFinite(start) || start >= sourceDurationSec - 4) return null;
+    if (!Number.isFinite(end) || end <= sourceDurationSec) return step;
+    return { ...step, end_sec: sourceDurationSec };
+  };
+
   const ordered = steps
     .map((step, index) => ({ step, order: Number(step?.step_index) || index + 1 }))
     .sort((a, b) => a.order - b.order)
-    .map(({ step }) => step);
+    .map(({ step }) => withinSource(step))
+    .filter(Boolean);
+  if (ordered.length < 3) return [];
 
   // The result step is the arc's ending and is reserved BEFORE the middle
   // steps are filled in. Filling in step order and breaking on the duration
