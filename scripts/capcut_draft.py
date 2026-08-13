@@ -5732,6 +5732,15 @@ def apply_video_overlay_transform(draft_content_path, overlay_asset, warnings, t
         clip.setdefault("rotation", 0.0)
         segment["uniform_scale"] = {"on": True, "value": transform["scale"]}
         segment["visible"] = True
+        # All four logo assets are mp4 with a live aac stereo track, and the
+        # overlay played it at full volume over the BGM and the TTS narration
+        # (user report 2026-08-13: "너무 시끄럽다"). The track already carried
+        # attribute=1 - the pycapcut mute flag, and the only track in the draft
+        # that had it - yet the audio still came through, so the track flag is
+        # not what CapCut honours on export. Mute the segments themselves.
+        segment["volume"] = 0.0
+        segment["last_nonzero_volume"] = 0.0
+        segment["is_mute"] = True
 
     try:
         with open(draft_content_path, "w", encoding="utf-8") as file:
