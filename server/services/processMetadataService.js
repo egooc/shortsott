@@ -57,6 +57,15 @@ const LONGFORM_VISION_CANDIDATE_SCHEMA_VERSION = 'longform_vision_candidates_v1'
 // Kept in sync with LONGFORM_HIGHLIGHT_MIN_OUTPUT_COUNT in processQueueService.
 // Approved 2026-08-10 (user sign-off): one complete arc is worth shipping.
 const LONGFORM_MIN_PRODUCTION_HOOK_CANDIDATES = 1;
+// Below this the arc cannot fill the format: the concat caps each step at 10s,
+// so 5 steps is the floor that still reaches ~40s with a hook and a result.
+const LONGFORM_FULL_MIN_ARC_STEPS = 5;
+// A script at the old 75% floor passed validation and then underran the video:
+// the first arc-driven Full (item_020, 2026-08-13) was budgeted 190 chars, wrote
+// 151 (79%), and produced a 33.6s narration under a 42.2s concat - the timeline
+// followed the narration and landed at 32.05s against a 40s format. Under-budget
+// scripts now go to the repair pass instead of shipping short.
+const KOREAN_FULL_SPEECH_MIN_CHARS_RATIO = 0.85;
 const SHORT_DESCRIPTION_SOFT_MAX = 260;
 const MIDFORM_CAPTION_MIN_ITEMS_120S = 30;
 const MIDFORM_CAPTION_MAX_ITEMS_120S = 45;
@@ -230,7 +239,7 @@ function calculateKoreanFullSpeechBudget({
     chars_per_sec: charsPerSec,
     safety_ratio: KOREAN_FULL_SPEECH_SAFETY_RATIO,
     target_chars: targetChars,
-    min_chars: Math.max(1, Math.floor(targetChars * 0.75)),
+    min_chars: Math.max(1, Math.floor(targetChars * KOREAN_FULL_SPEECH_MIN_CHARS_RATIO)),
     max_chars: Math.max(1, Math.floor(targetChars * 1.10)),
     target_sentence_count: Math.max(1, effectiveSentenceCount)
   };
@@ -7443,6 +7452,30 @@ function validateLongformCandidateGuide(candidateGuide = {}, durationSec = 0, op
     })
     .filter(Boolean);
 
+  // The arc is what the Full concat is cut from, and Vision returns it
+  // inconsistently: item_017 came back with 9 steps on one scan and 0 on a
+  // re-scan of the same source minutes later (2026-08-13), and the empty scan
+  // dropped the Full to the old single-window fallback - an 8.873s assembly
+  // that cannot clear the 20s floor. Treating an empty arc as a validation
+  // failure buys the same-phase retry this step already has. Full-only lanes
+  // only: on the shared modes a throw here would take the Highlight variant
+  // down with it, and Highlight does not read the arc.
+  const validArcSteps = (Array.isArray(candidateGuide.process_arc_steps) ? candidateGuide.process_arc_steps : [])
+    .filter((step) => {
+      const start = Number(step?.start_sec);
+      const end = Number(step?.end_sec);
+      return Number.isFinite(start) && Number.isFinite(end) && end > start;
+    });
+  if (options.requireProcessArc === true && validArcSteps.length < LONGFORM_FULL_MIN_ARC_STEPS) {
+    throw createHttpError(500, 'OTTOGI_LONGFORM_FULL_ARC_REQUIRED', `longform full analysis requires at least ${LONGFORM_FULL_MIN_ARC_STEPS} process_arc_steps, got ${validArcSteps.length}`, {
+      reason: 'process_arc_steps_required_for_full_concat',
+      process_arc_steps_count: Array.isArray(candidateGuide.process_arc_steps) ? candidateGuide.process_arc_steps.length : 0,
+      valid_process_arc_steps_count: validArcSteps.length,
+      min_process_arc_steps: LONGFORM_FULL_MIN_ARC_STEPS,
+      recommended_action: 'Re-run the longform candidate scan so the Full concat has a process arc to cut from.'
+    });
+  }
+
   const fallbacks = [];
   if (strictHighlightCandidates && validHooks.length < minHookCandidates) {
     throw createHttpError(500, 'OTTOGI_LONGFORM_HIGHLIGHT_CANDIDATES_REQUIRED', `longform highlight analysis requires at least ${minHookCandidates} Vision-backed hook candidates, got ${validHooks.length}`, {
@@ -8342,7 +8375,7 @@ function collectJapaneseCaptionIssues(guide = {}, options = {}) {
           budget: koreanSpeechBudget,
           texts
         },
-        reason: `Korean Full Draft script is below 75% of the speech budget (${koreanVisibleCharCount}/${koreanSpeechBudget.min_chars} Korean visible chars). Regenerate with enough narration for the video length.`,
+        reason: `Korean Full Draft script is below ${Math.round(KOREAN_FULL_SPEECH_MIN_CHARS_RATIO * 100)}% of the speech budget (${koreanVisibleCharCount}/${koreanSpeechBudget.min_chars} Korean visible chars). Regenerate with enough narration for the video length.`,
         style_regeneration_required: true,
         issue_type: 'ko_full_speech_budget_under'
       });
@@ -10362,7 +10395,10 @@ async function runLongformGeminiPipeline({ generateJson, sourceUrl, filename, du
         prompt: buildLongformCandidatePrompt({ sourceUrl, filename, durationSec, sourceType, sourceWorkflowMode, sourceContext }),
         schema: LONGFORM_CANDIDATE_SCHEMA,
         phase: 'longform_candidates',
-        validate: (result) => validateLongformCandidateGuide(result, durationSec, { strictHighlightCandidates: true }),
+        validate: (result) => validateLongformCandidateGuide(result, durationSec, {
+          strictHighlightCandidates: true,
+          requireProcessArc: effectiveLongformVariantMode === 'full_only'
+        }),
         onProgress,
         includeVideo: true,
         throwIfCancelled
