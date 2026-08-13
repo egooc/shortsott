@@ -5975,6 +5975,52 @@ async function runCompression(source, options = {}) {
   return { ...manifest, manifestPath, status: 'phase1_review_ready' };
 }
 
+// The text counterpart to the frame machine-eye: verify each per-line subtitle against the
+// ENGLISH source dialogue so mistranslations, per-line MISALIGNMENT (a Korean line that actually
+// renders a neighbouring English line - which also flips the speaker colour), and inconsistent
+// proper names are caught automatically instead of relying on the reviewer catching them. Fixes
+// are applied in place from the judge's per-line suggestion; the deliberate drug-name softening
+// ("Molly" -> generic) is preserved. Writes dialogue_translation_report.md. Off with
+// MIDFORM_SKIP_DIALOGUE_AUDIT=1.
+async function auditAndFixDialogueTranslations(runDir, editPlan, slotFills, fillsFileName, targetLang) {
+  if (String(process.env.MIDFORM_SKIP_DIALOGUE_AUDIT || '') === '1') return { fixed: 0, issues: [] };
+  let judge;
+  try { ({ judgeDialogueTranslation: judge } = require('./geminiMidformService')); } catch { return { fixed: 0, issues: [] }; }
+  const fillBySlot = new Map((slotFills?.slot_fills || []).map((f) => [String(f.slot_id), f]));
+  const report = [];
+  let fixed = 0;
+  for (const item of (Array.isArray(editPlan?.timeline) ? editPlan.timeline : [])) {
+    if (item.decision !== 'KEEP_DIALOGUE') continue;
+    const en = item.dialogue_focus_lines || item.dialogue_focus_quotes || [];
+    const fill = fillBySlot.get(String(item.slot_id));
+    const tr = fill && Array.isArray(fill.caption_kr_dialogue) ? fill.caption_kr_dialogue : null;
+    const speakers = fill && Array.isArray(fill.speakers) ? fill.speakers : [];
+    if (!en.length || !tr || !tr.length) continue;
+    const lines = en.map((sourceLine, index) => ({ speaker: speakers[index] || '', en: sourceLine, tr: tr[index] || '' }));
+    let verdict;
+    try { verdict = await judge({ lines, targetLang }); } catch { continue; }
+    for (const issue of (verdict?.issues || [])) {
+      const ln = lines[issue.index] || {};
+      const isMolly = /molly/i.test(ln.en || '');
+      const willApply = !isMolly && issue.suggested_tr && Number.isInteger(issue.index) && issue.index < tr.length;
+      if (willApply) { tr[issue.index] = issue.suggested_tr; fixed += 1; }
+      report.push({ slot: item.slot_id, index: issue.index, problem: issue.problem, reason: issue.reason, speaker: ln.speaker, en: ln.en, before: ln.tr, after: willApply ? issue.suggested_tr : ln.tr, applied: willApply });
+    }
+  }
+  if (fixed) writeJson(path.join(runDir, fillsFileName), slotFills);
+  if (report.length) {
+    const md = [`# 발화 번역 감사 (${targetLang}) — 원문 대조  (총 ${report.length}건 / 적용 ${fixed}건)`, ''];
+    for (const r of report) {
+      md.push(`## ${r.slot}[${r.index}] [${r.speaker}] ${r.problem}${r.applied ? ' — 적용' : ' — 건너뜀(molly 등)'}`);
+      md.push(`- EN: ${r.en}`, `- before: ${r.before}`);
+      if (r.applied) md.push(`- after : ${r.after}`);
+      md.push(`- ${r.reason || ''}`, '');
+    }
+    try { fs.appendFileSync(path.join(runDir, 'dialogue_translation_report.md'), md.join('\n') + '\n'); } catch { /* report only */ }
+  }
+  return { fixed, issues: report };
+}
+
 async function runCompressionApply(runIdOrPath, applyOptions = {}) {
   const runDir = resolveCompressionRunDir(runIdOrPath);
   const beatsPath = path.join(runDir, 'narrative_beats.json');
@@ -6022,6 +6068,7 @@ async function runCompressionApply(runIdOrPath, applyOptions = {}) {
   const slotFillsPath = path.join(runDir, 'compression_slot_fills.json');
   const normalizedSlotFills = normalizeSlotFillsForStyle(result.parsed, finalizedEditPlan);
   writeJson(slotFillsPath, normalizedSlotFills);
+  try { await auditAndFixDialogueTranslations(runDir, finalizedEditPlan, normalizedSlotFills, 'compression_slot_fills.json', 'Korean'); } catch { /* dialogue audit is advisory */ }
   const uploadTextPath = path.join(runDir, 'upload_text.md');
   writeText(uploadTextPath, `${buildUploadTextMarkdown(normalizedSlotFills.upload_text)}\n`);
 
@@ -6039,6 +6086,7 @@ async function runCompressionApply(runIdOrPath, applyOptions = {}) {
     );
     japaneseSlotFillsPath = path.join(runDir, 'compression_slot_fills.ja.json');
     writeJson(japaneseSlotFillsPath, japaneseResult.parsed);
+    try { await auditAndFixDialogueTranslations(runDir, finalizedEditPlan, japaneseResult.parsed, 'compression_slot_fills.ja.json', 'Japanese'); } catch { /* dialogue audit is advisory */ }
   }
 
   const recalculatedEditPlan = recalculateNarrationDurations(finalizedEditPlan, normalizedSlotFills, beatsObject.beats || [], transcript);
@@ -6132,6 +6180,10 @@ async function regenerateJapaneseSlotFills(runIdOrPath) {
   );
   const jaPath = path.join(runDir, 'compression_slot_fills.ja.json');
   writeJson(jaPath, japaneseResult.parsed);
+  try {
+    const editPlanForAudit = readJson(path.join(runDir, 'edit_plan.json'));
+    await auditAndFixDialogueTranslations(runDir, editPlanForAudit, japaneseResult.parsed, 'compression_slot_fills.ja.json', 'Japanese');
+  } catch { /* dialogue audit is advisory */ }
   return { runDir, japaneseSlotFillsPath: jaPath, slots: (japaneseResult.parsed?.slot_fills || []).length };
 }
 

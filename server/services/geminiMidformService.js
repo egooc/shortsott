@@ -817,9 +817,81 @@ async function judgeFramesAgainstText({ framePaths, text }) {
   return extractJson(extractVertexResponseText(data));
 }
 
+// Verifies that the recap's per-line subtitle translations faithfully carry the ENGLISH source
+// dialogue - the text counterpart to judgeFramesAgainstText. It judges a whole SCENE at once so it
+// can catch alignment slips (a Korean line that actually translates a NEIGHBOURING English line),
+// speaker attribution flips, dropped/added meaning, and inconsistent proper names - none of which a
+// per-line check sees. targetLang is the caption language being checked ('Korean' | 'Japanese').
+async function judgeDialogueTranslation({ lines, targetLang = 'Korean' }) {
+  const config = getVertexConfig();
+  if (!config.project) throw createError(400, 'GOOGLE_CLOUD_PROJECT_REQUIRED', 'GOOGLE_CLOUD_PROJECT is required');
+  const rows = (Array.isArray(lines) ? lines : [])
+    .map((row, index) => ({
+      i: index,
+      speaker: String(row?.speaker || '').slice(0, 40),
+      en: String(row?.en || '').slice(0, 300),
+      tr: String(row?.tr || '').slice(0, 300)
+    }))
+    .filter((row) => row.en || row.tr);
+  if (!rows.length) return { issues: [] };
+  const token = await getVertexAccessToken();
+  const endpoint = buildVertexEndpoint(config);
+  const promptLines = [
+    `You verify the ${targetLang} subtitle translation of ONE English movie scene, line by line.`,
+    `Each line is {i, speaker, en (the English source line spoken), tr (the ${targetLang} subtitle shown)}.`,
+    'A translation is FAITHFUL when its line conveys the MEANING of its OWN english line, spoken by that speaker. Natural dubbing-style adaptation is expected and good - do NOT flag a line just for being non-literal, idiomatic, or reordered, as long as the meaning of THAT line is preserved.',
+    'Flag a line ONLY for a real defect:',
+    '- meaning_drift: the tr says something its en does NOT (a fact/number/intent added, dropped, or changed - e.g. en "you gave up three first-rounders" but tr "that is our future").',
+    '- misalignment: the tr actually translates a DIFFERENT (usually neighbouring) line - the scene\'s tr rows are shifted against the en rows.',
+    '- speaker_flip: the line is attributed to the wrong speaker (the tr belongs to the other person in the exchange).',
+    '- name_error: a proper name (person/team/place) is wrong or inconsistent with how the same referent is written elsewhere in this scene. If a name looks mis-heard in the ENGLISH itself, note it in reason but do not invent a spelling.',
+    `For each flagged line return {index, problem: one of [meaning_drift,misalignment,speaker_flip,name_error], reason: one short clause, suggested_tr: a faithful natural ${targetLang} rewrite of THAT line (empty string if none is possible)}.`,
+    'Return ONLY genuinely defective lines - a clean scene returns an empty array. Respond JSON: {"issues": [{"index": <int>, "problem": "<slug>", "reason": "<clause>", "suggested_tr": "<text>"}]}',
+    '',
+    'SCENE:',
+    ...rows.map((row) => `[${row.i}] (${row.speaker || '?'}) en: ${row.en} | tr: ${row.tr}`)
+  ];
+  const body = {
+    contents: [{ role: 'user', parts: [{ text: promptLines.join('\n') }] }],
+    generationConfig: {
+      responseMimeType: 'application/json',
+      responseSchema: {
+        type: 'object',
+        properties: {
+          issues: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                index: { type: 'integer' },
+                problem: { type: 'string' },
+                reason: { type: 'string' },
+                suggested_tr: { type: 'string' }
+              },
+              required: ['index', 'problem']
+            }
+          }
+        },
+        required: ['issues']
+      },
+      temperature: 0
+    }
+  };
+  const response = await fetchVertexWithRateBackoff(endpoint, {
+    method: 'POST',
+    headers: { ...vertexAuthHeaders(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw createError(response.status, 'VERTEX_DIALOGUE_JUDGE_FAILED', 'dialogue translation judgement failed', { status: response.status });
+  const parsed = extractJson(extractVertexResponseText(data));
+  return parsed && Array.isArray(parsed.issues) ? parsed : { issues: [] };
+}
+
 module.exports = {
   analyzeMidformVideo,
   judgeFramesAgainstText,
+  judgeDialogueTranslation,
   buildChunkPlan,
   loadMidformPrompt,
   loadMidformResponseSchema,
