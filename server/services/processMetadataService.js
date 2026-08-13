@@ -1777,7 +1777,11 @@ function buildLongformCandidatePrompt({ sourceUrl, filename, durationSec, source
     '',
     '2. process_arc_steps',
     '- This is a DIFFERENT job from hook_candidates. Here you ARE summarizing the whole source: the Full draft is one short-form video that walks through the entire process from raw material to finished result.',
-    '- Return 6 to 10 steps in CHRONOLOGICAL order (step_index 1..N, ascending start_sec). Together they must tell the whole process; a viewer who watches only these steps should understand how the thing gets made.',
+    // 6-10 was the original ask. About a third of the steps come back past the
+    // end of the source and have to be dropped (3 of 10 on both items even
+    // after the hard bound below was added), which left only 37-38s of usable
+    // arc. Asking for more steps keeps enough after the drop to fill the concat.
+    '- Return 10 to 14 steps in CHRONOLOGICAL order (step_index 1..N, ascending start_sec). Together they must tell the whole process; a viewer who watches only these steps should understand how the thing gets made.',
     '- Each step is 4 to 10 seconds and stays inside ONE continuous camera shot.',
     '- step_index 1 is the HOOK: of all the steps, pick the one with the strongest visual pull for the opening, even if the process technically starts elsewhere. It appears once, at the front. Every later step then runs in real chronological order.',
     '- The LAST step must set is_result_step true and show the finished result or the payoff of the process.',
