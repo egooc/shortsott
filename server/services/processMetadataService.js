@@ -351,6 +351,15 @@ function koreanFullSceneSpeechBudgetPromptLines(scenes = [], limit = 16, languag
 // shows up as narration overhanging the video or vice versa. Kept as a
 // duplicate rather than an import because processQueueService requires this
 // module; if the selector's accumulation changes, change this with it.
+function countValidProcessArcSteps(guide = {}) {
+  return (Array.isArray(guide?.process_arc_steps) ? guide.process_arc_steps : [])
+    .filter((step) => {
+      const start = Number(step?.start_sec);
+      const end = Number(step?.end_sec);
+      return Number.isFinite(start) && Number.isFinite(end) && end > start;
+    }).length;
+}
+
 function longformArcConcatSec(guide = {}, targetDurationSec = LONGFORM_FULL_TARGET_CONCAT_SEC, maxSegmentSec = 10) {
   const steps = Array.isArray(guide?.process_arc_steps) ? guide.process_arc_steps : [];
   if (steps.length < 3) return 0;
@@ -7460,30 +7469,6 @@ function validateLongformCandidateGuide(candidateGuide = {}, durationSec = 0, op
     })
     .filter(Boolean);
 
-  // The arc is what the Full concat is cut from, and Vision returns it
-  // inconsistently: item_017 came back with 9 steps on one scan and 0 on a
-  // re-scan of the same source minutes later (2026-08-13), and the empty scan
-  // dropped the Full to the old single-window fallback - an 8.873s assembly
-  // that cannot clear the 20s floor. Treating an empty arc as a validation
-  // failure buys the same-phase retry this step already has. Full-only lanes
-  // only: on the shared modes a throw here would take the Highlight variant
-  // down with it, and Highlight does not read the arc.
-  const validArcSteps = (Array.isArray(candidateGuide.process_arc_steps) ? candidateGuide.process_arc_steps : [])
-    .filter((step) => {
-      const start = Number(step?.start_sec);
-      const end = Number(step?.end_sec);
-      return Number.isFinite(start) && Number.isFinite(end) && end > start;
-    });
-  if (options.requireProcessArc === true && validArcSteps.length < LONGFORM_FULL_MIN_ARC_STEPS) {
-    throw createHttpError(500, 'OTTOGI_LONGFORM_FULL_ARC_REQUIRED', `longform full analysis requires at least ${LONGFORM_FULL_MIN_ARC_STEPS} process_arc_steps, got ${validArcSteps.length}`, {
-      reason: 'process_arc_steps_required_for_full_concat',
-      process_arc_steps_count: Array.isArray(candidateGuide.process_arc_steps) ? candidateGuide.process_arc_steps.length : 0,
-      valid_process_arc_steps_count: validArcSteps.length,
-      min_process_arc_steps: LONGFORM_FULL_MIN_ARC_STEPS,
-      recommended_action: 'Re-run the longform candidate scan so the Full concat has a process arc to cut from.'
-    });
-  }
-
   const fallbacks = [];
   if (strictHighlightCandidates && validHooks.length < minHookCandidates) {
     throw createHttpError(500, 'OTTOGI_LONGFORM_HIGHLIGHT_CANDIDATES_REQUIRED', `longform highlight analysis requires at least ${minHookCandidates} Vision-backed hook candidates, got ${validHooks.length}`, {
@@ -10412,16 +10397,47 @@ async function runLongformGeminiPipeline({ generateJson, sourceUrl, filename, du
         prompt: buildLongformCandidatePrompt({ sourceUrl, filename, durationSec, sourceType, sourceWorkflowMode, sourceContext }),
         schema: LONGFORM_CANDIDATE_SCHEMA,
         phase: 'longform_candidates',
-        validate: (result) => validateLongformCandidateGuide(result, durationSec, {
-          strictHighlightCandidates: true,
-          requireProcessArc: effectiveLongformVariantMode === 'full_only'
-        }),
+        validate: (result) => validateLongformCandidateGuide(result, durationSec, { strictHighlightCandidates: true }),
         onProgress,
         includeVideo: true,
         throwIfCancelled
       });
       candidateGuideWasScanned = true;
-      emitProgress(onProgress, `Gemini Longform 1/5 완료: hook 후보 ${candidateGuideRaw.hook_candidates?.length || 0}개 / story 후보 ${candidateGuideRaw.story_candidates?.length || 0}개 / midform 후보 ${candidateGuideRaw.midform_candidates?.length || 0}개`, {
+      // Vision returns the arc inconsistently on identical input - the same
+      // source scanned three times gave 9 steps, then 0, then 10 (2026-08-13),
+      // and an arc-less scan drops the Full to the old single-window fallback
+      // (8.9s, under the 20s floor). One extra scan, keeping whichever result
+      // has more steps. This deliberately does NOT go through `validate`: a
+      // throwing validator discards the whole candidate guide when the retries
+      // run out, which wiped the hook candidates too and made the Full worse
+      // than no check at all (measured: 0 hooks / 0 arc on both items).
+      if (effectiveLongformVariantMode === 'full_only'
+        && countValidProcessArcSteps(candidateGuideRaw) < LONGFORM_FULL_MIN_ARC_STEPS) {
+        emitProgress(onProgress, `Gemini Longform 1/5: 공정 아크 ${countValidProcessArcSteps(candidateGuideRaw)}단계(최소 ${LONGFORM_FULL_MIN_ARC_STEPS}) - 후보 스캔 1회 재시도`, {
+          phase: 'longform_candidates',
+          process_arc_steps_count: countValidProcessArcSteps(candidateGuideRaw)
+        });
+        try {
+          const rescanned = await generateValidatedLongformStep({
+            generateJson,
+            prompt: buildLongformCandidatePrompt({ sourceUrl, filename, durationSec, sourceType, sourceWorkflowMode, sourceContext }),
+            schema: LONGFORM_CANDIDATE_SCHEMA,
+            phase: 'longform_candidates',
+            validate: (result) => validateLongformCandidateGuide(result, durationSec, { strictHighlightCandidates: true }),
+            onProgress,
+            includeVideo: true,
+            throwIfCancelled
+          });
+          if (countValidProcessArcSteps(rescanned) > countValidProcessArcSteps(candidateGuideRaw)) {
+            candidateGuideRaw = rescanned;
+          }
+        } catch (rescanError) {
+          emitProgress(onProgress, `Gemini Longform 1/5: 아크 재스캔 실패, 첫 스캔 결과를 사용합니다 (${summarizeGeminiFailure(rescanError)})`, {
+            phase: 'longform_candidates'
+          });
+        }
+      }
+      emitProgress(onProgress, `Gemini Longform 1/5 완료: hook 후보 ${candidateGuideRaw.hook_candidates?.length || 0}개 / story 후보 ${candidateGuideRaw.story_candidates?.length || 0}개 / 공정 아크 ${countValidProcessArcSteps(candidateGuideRaw)}단계`, {
         phase: 'longform_candidates',
         candidate_validation_summary: candidateGuideRaw.candidate_validation_summary || null,
         fallback_windows_applied: candidateGuideRaw.fallback_windows_applied || []
