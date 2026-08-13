@@ -22,6 +22,7 @@ const {
 const { requireApiKey } = require('../middleware/auth');
 const { runRetentionSweep } = require('./retentionCleanupService');
 const { evaluateSourceEligibility } = require('./sourceEligibilityService');
+const { recordChannelOutcome } = require('./sourceChannelLedgerService');
 const {
   DB_PATH,
   upsertJob,
@@ -1173,6 +1174,17 @@ async function runMetadataStage(jobId, items, options = {}) {
           refreshed.item_id,
           { source_eligibility: { gate: eligibility.gate, reasons: eligibility.reasons, signals: eligibility.signals } }
         );
+        // Channel-level memory (approved 2026-08-13): gate verdicts cluster by
+        // channel, so remember them. Two failures with no success blocks the
+        // channel from future harvests; successes make it an asset channel to
+        // keep mining. Fail-soft - bookkeeping never breaks a batch.
+        recordChannelOutcome({
+          creator: itemConfig.source_creator || itemConfig.source_discovery?.creator || '',
+          channelUrl: itemConfig.source_handle || '',
+          videoId: itemConfig.canonical_source_key || '',
+          outcome: eligibility.eligible ? 'ok' : 'skipped',
+          reasons: eligibility.reasons
+        });
         if (!eligibility.eligible) {
           const ineligible = new Error(`harvested source failed the eligibility gate: ${eligibility.reasons.join(' / ')}`);
           ineligible.code = 'OTTOGI_SOURCE_INELIGIBLE';

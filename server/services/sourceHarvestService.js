@@ -17,6 +17,7 @@ const fs = require('fs');
 const path = require('path');
 const { PROJECT_ROOT, readJsonIfExists, writeJsonWithBackup } = require('./pipelinePaths');
 const { resolveTool } = require('../utils/toolPaths');
+const { loadChannelLedger, isChannelBlocked, assetChannels } = require('./sourceChannelLedgerService');
 
 const CONFIG_PATH = path.join(PROJECT_ROOT, 'server', 'data', 'harvest_config.json');
 const LEDGER_PATH = path.join(PROJECT_ROOT, 'server', 'data', 'source_harvest_history.json');
@@ -154,6 +155,11 @@ function rankCandidates(videos) {
       views: Number(video.view_count) || 0,
       published_at: video.upload_date || '',
       creator: video.uploader || video.channel || '',
+      // Kept for the channel ledger (2026-08-13). The ledger keys on the
+      // creator name because that is what survives into item_config, but the
+      // id/url are what a back-catalogue sweep needs.
+      channel_id: video.channel_id || video.uploader_id || '',
+      channel_url: video.channel_url || video.uploader_url || '',
       heatmap_peak: Number(peak.toFixed(3)),
       // Heatmap presence means the audience already marked highlight moments;
       // it outranks raw popularity on purpose.
@@ -195,7 +201,17 @@ async function harvestDailySources({ importItems, now = new Date(), dryRun = fal
   }
 
   const ranked = rankCandidates(found);
-  const fresh = ranked.filter((candidate) => !ledger.video_ids[candidate.video_id]);
+  const unseen = ranked.filter((candidate) => !ledger.video_ids[candidate.video_id]);
+  // Drop channels the eligibility gate has already rejected twice with no
+  // success (2026-08-13). These are narration-led documentary channels; every
+  // one of their videos costs a download plus a probe before being skipped.
+  const channelLedger = loadChannelLedger();
+  const blockedHits = [];
+  const fresh = unseen.filter((candidate) => {
+    if (!isChannelBlocked(candidate.creator, channelLedger)) return true;
+    blockedHits.push({ creator: candidate.creator, title: candidate.title, url: candidate.url });
+    return false;
+  });
   const selected = assignLocales(fresh, config).slice(0, config.daily_count);
 
   const importRows = selected.map((candidate) => ({
@@ -234,6 +250,7 @@ async function harvestDailySources({ importItems, now = new Date(), dryRun = fal
     found_count: found.length,
     unique_count: ranked.length,
     fresh_count: fresh.length,
+    blocked_channel_hits: blockedHits,
     selected,
     import_result: importResult
   };
