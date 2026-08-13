@@ -9625,9 +9625,16 @@ async function prepareLongformFullDraftItemConfig({ itemId, itemConfig, sourceVi
     });
     const metadata = getVideoMetadata(fullSourcePath);
     const shiftedScenes = mapWindowScenesToConcatenatedTimeline(item, candidateWindows);
+    // Arc windows are already exact cuts, so the per-scene tail trim only eats
+    // the concat: measured 2026-08-13, a 50.05s arc concat became a 38.37s
+    // video track across 16 scenes, and the narration that had been budgeted
+    // against 50s lost 2 TTS and 3 caption segments to the shorter video.
+    // The trim still applies to the older highlight-candidate path, whose
+    // windows are not chosen shot by shot.
+    const arcDrivenConcat = candidateWindows.every((window) => window.selection_strategy === 'gemini_process_arc_step');
     const sourcePreprocess = {
       ...(item.source_preprocess || {}),
-      scene_tail_trim_sec: Number(item.source_preprocess?.scene_tail_trim_sec ?? 1),
+      scene_tail_trim_sec: arcDrivenConcat ? 0 : Number(item.source_preprocess?.scene_tail_trim_sec ?? 1),
       scene_detection: {
         ...(item.source_preprocess?.scene_detection || {}),
         enabled: true,
