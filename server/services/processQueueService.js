@@ -9028,9 +9028,60 @@ function selectBestHighlightWindow(windows = [], itemConfig = {}, maxDurationSec
   return picked || pickHighlightWindow(itemConfig, maxDurationSec);
 }
 
+// Full-lane arc material (approved 2026-08-13). Vision now returns
+// process_arc_steps: chronological steps covering the whole process, each
+// window already chosen for repetition/loop, with step 1 as the hook. Prefer
+// them over hook_candidates, which are isolated strongest moments selected
+// under rules that explicitly forbid summarising the source - reusing them
+// capped every Full at 2-3 scenes regardless of the duration cap.
+//
+// Ordering is by step_index, NOT start_sec: the hook is step 1 wherever it
+// sits in the source, and the remaining steps follow in real time order. The
+// old start_sec sort opened the Full on whatever happened earliest, which is
+// why drafts began on the first second of the source instead of on a hook.
+function getLongformFullArcWindows(itemConfig = {}, targetDurationSec = 40, maxSegmentSec = 10) {
+  const steps = itemConfig.ottogi_guide_output?.process_arc_steps;
+  if (!Array.isArray(steps) || steps.length < 3) return [];
+  const cap = Math.max(4, Math.min(10, Number(maxSegmentSec) || 10));
+  const targetDuration = Math.max(30, Math.min(90, Number(targetDurationSec) || 40));
+
+  const ordered = steps
+    .map((step, index) => ({ step, order: Number(step?.step_index) || index + 1 }))
+    .sort((a, b) => a.order - b.order)
+    .map(({ step }) => step);
+
+  const picked = [];
+  let total = 0;
+  for (const step of ordered) {
+    const start = Number(step?.start_sec);
+    const end = Number(step?.end_sec);
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) continue;
+    const duration = Math.min(cap, Math.max(1, end - start));
+    if (total + duration > targetDuration + 0.25 && picked.length >= 3) break;
+    picked.push({
+      start_sec: Number(start.toFixed(3)),
+      end_sec: Number((start + duration).toFixed(3)),
+      duration_sec: Number(duration.toFixed(3)),
+      scene_id: step.scene_id || '',
+      selection_strategy: 'gemini_process_arc_step',
+      reason: String(step.step_summary || step.reason || '').slice(0, 200),
+      full_candidate_rank: picked.length + 1,
+      full_explanation_scene: picked.length < 3,
+      longform_full_role: picked.length === 0
+        ? 'arc_hook'
+        : (step.is_result_step === true ? 'arc_result' : 'arc_process_step')
+    });
+    total += duration;
+    if (picked.length >= 12) break;
+  }
+  return total >= 20 ? picked : [];
+}
+
 function getLongformFullCandidateWindows(itemConfig = {}, targetDurationSec = 60, maxSegmentSec = 10) {
   if (!isLongformHighlightSource(itemConfig)) return [];
   if (isLocalOrFallbackLongformGuide(itemConfig.ottogi_guide_output || {})) return [];
+  const arcWindows = getLongformFullArcWindows(itemConfig, targetDurationSec, maxSegmentSec);
+  if (arcWindows.length) return arcWindows;
   const targetDuration = Math.max(30, Math.min(90, Number(targetDurationSec) || 60));
   const maxCandidateScenes = 12;
   const minCandidateScenes = 6;
@@ -12244,6 +12295,8 @@ module.exports = {
     buildCandidateReportDescription,
     formatMetadataReportDescription,
     collectHighlightCandidateWindows,
+    getLongformFullArcWindows,
+    getLongformFullCandidateWindows,
     isProcessSpanHighlightCandidate,
     rankedTitleCandidate,
     LONGFORM_COMPRESS_LANE_MIN_SOURCE_SEC,

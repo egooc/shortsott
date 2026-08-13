@@ -869,6 +869,34 @@ const LONGFORM_CANDIDATE_SCHEMA = {
         ]
       }
     },
+    // Full-lane material (approved 2026-08-13). hook_candidates are selected
+    // as ISOLATED strongest moments - the prompt even forbids "summarizing
+    // many different long-form moments" and "overview/recap sections" - which
+    // is right for a highlight and wrong for a Full, whose format is "the
+    // whole process summarized". Reusing hook candidates capped the Full at
+    // 2-3 scenes no matter how the duration cap was tuned. Ask for the arc
+    // itself: chronological steps covering start -> result, each step's window
+    // still picked for repetition/loop/visual pull.
+    process_arc_steps: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          step_index: { type: 'number' },
+          start_sec: { type: 'number' },
+          end_sec: { type: 'number' },
+          duration_sec: { type: 'number' },
+          step_summary: { type: 'string' },
+          visual_hook: { type: 'string' },
+          cycle_time_sec: { type: 'number' },
+          has_visible_loop: { type: 'boolean' },
+          hook_score: { type: 'number' },
+          is_result_step: { type: 'boolean' },
+          reason: { type: 'string' }
+        },
+        required: ['step_index', 'start_sec', 'end_sec', 'duration_sec', 'step_summary', 'reason']
+      }
+    },
     story_candidates: {
       type: 'array',
       items: {
@@ -881,8 +909,7 @@ const LONGFORM_CANDIDATE_SCHEMA = {
           opening_type: { type: 'string' },
           hook_score: { type: 'number' },
           process_coverage_score: { type: 'number' },
-          reason: { type: 'string' },
-          risk: { type: 'string' }
+          reason: { type: 'string' }
         },
         required: ['start_sec', 'end_sec', 'duration_sec', 'story_flow', 'reason']
       }
@@ -1650,6 +1677,16 @@ function buildLongformCandidatePrompt({ sourceUrl, filename, durationSec, source
     '- A hook candidate must stay inside ONE continuous camera shot. Do not let a window run across a camera cut into a different shot, angle, or location - a highlight that changes shot mid-way reads as a compilation, not as one process moment.',
     '- If the strongest action is interrupted by a cut, end the window at the cut and keep the stronger side.',
     '',
+    '2. process_arc_steps',
+    '- This is a DIFFERENT job from hook_candidates. Here you ARE summarizing the whole source: the Full draft is one short-form video that walks through the entire process from raw material to finished result.',
+    '- Return 6 to 10 steps in CHRONOLOGICAL order (step_index 1..N, ascending start_sec). Together they must tell the whole process; a viewer who watches only these steps should understand how the thing gets made.',
+    '- Each step is 4 to 10 seconds and stays inside ONE continuous camera shot.',
+    '- step_index 1 is the HOOK: of all the steps, pick the one with the strongest visual pull for the opening, even if the process technically starts elsewhere. It appears once, at the front. Every later step then runs in real chronological order.',
+    '- The LAST step must set is_result_step true and show the finished result or the payoff of the process.',
+    '- WITHIN each step, prefer the window that repeats, loops, or cycles: a complete action cycle (cycle_time_sec) that a viewer can watch resolve. Set has_visible_loop true when the window contains a repeating machine or hand cycle. Rhythmic, repeating work beats a static or one-off moment even when both show the same step.',
+    '- Steps must not overlap each other, and must not all sit in the first quarter of the source - the finishing and result steps live in the later half.',
+    '- step_summary states what physically happens in that step, concretely (material, tool, change). Generic labels such as "process movement" or "工程の動き" are invalid.',
+    '',
     'Return shape:',
     JSON.stringify({
       source_time_basis: 'absolute_original_seconds',
@@ -1671,6 +1708,21 @@ function buildLongformCandidatePrompt({ sourceUrl, filename, durationSec, source
           human_visibility: 'FULL_PERSON',
           reason: '',
           risk: ''
+        }
+      ],
+      process_arc_steps: [
+        {
+          step_index: 1,
+          start_sec: 0,
+          end_sec: 8,
+          duration_sec: 8,
+          step_summary: '',
+          visual_hook: '',
+          cycle_time_sec: 4,
+          has_visible_loop: true,
+          hook_score: 9,
+          is_result_step: false,
+          reason: ''
         }
       ],
       story_candidates: [],
