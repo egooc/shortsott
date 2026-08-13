@@ -540,9 +540,18 @@ const OTTOGI_METADATA_SCHEMA = {
     highlight_metadata_ko: OTTOGI_VARIANT_METADATA_SCHEMA,
     midform_metadata: OTTOGI_VARIANT_METADATA_SCHEMA,
     midform_metadata_ko: OTTOGI_VARIANT_METADATA_SCHEMA,
+    // minItems 20 is a screen-phrase-era leftover and it FORCED the padding
+    // we kept cleaning up downstream. Since the sentence standard (2026-08-12)
+    // an item is one complete spoken sentence and the budget asks for ~10-12
+    // of them, but structured output must satisfy the schema - so Gemini wrote
+    // 3 good sentences and repeated them to reach 21 (observed live
+    // 2026-08-13: "21개 → 3개, 동일 원고 7회 반복"), the cycle-collapse cut it
+    // back to 3, and the lane shipped a 15s Full. Floor at 3 to match the
+    // prompt's own lower bound and the lenient normalizer, so the model can
+    // simply write the count it was asked for. (user sign-off 2026-08-13)
     full_caption_script_ja: {
       type: 'array',
-      minItems: 20,
+      minItems: 3,
       items: {
         type: 'object',
         properties: {
@@ -556,7 +565,7 @@ const OTTOGI_METADATA_SCHEMA = {
     },
     full_caption_script_ko: {
       type: 'array',
-      minItems: 20,
+      minItems: 3,
       items: {
         type: 'object',
         properties: {
@@ -1143,9 +1152,15 @@ const FULL_CAPTION_SCRIPT_REPAIR_ITEM_SCHEMA = {
 const OTTOGI_FULL_CAPTION_SCRIPT_REPAIR_SCHEMA = {
   type: 'object',
   properties: {
+    // Same screen-phrase-era floor as the main schema, and here it explains a
+    // failure already documented in this file: a repair forced to return
+    // 20-24 items can only reach that count by fragmenting the complete
+    // sentences it was given ("평범한 모래가 / 특별한 가치를 지닌 /
+    // ...과정이에요"). Under the sentence standard a repaired script is the
+    // same ~10-12 sentences, so stop demanding 20. (user sign-off 2026-08-13)
     full_caption_script_ko: {
       type: 'array',
-      minItems: 20,
+      minItems: 3,
       maxItems: 24,
       items: FULL_CAPTION_SCRIPT_REPAIR_ITEM_SCHEMA
     }
