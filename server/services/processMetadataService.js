@@ -7125,7 +7125,10 @@ function buildLongformCandidateGuideFromExisting(existingGuide = {}, durationSec
     source_time_basis: 'absolute_original_seconds',
     hook_candidates: Array.isArray(safeExistingGuide.hook_candidates) ? safeExistingGuide.hook_candidates : [],
     story_candidates: Array.isArray(safeExistingGuide.story_candidates) ? safeExistingGuide.story_candidates : [],
-    midform_candidates: Array.isArray(safeExistingGuide.midform_candidates) ? safeExistingGuide.midform_candidates : []
+    midform_candidates: Array.isArray(safeExistingGuide.midform_candidates) ? safeExistingGuide.midform_candidates : [],
+    // Carried through the reuse path too, or a re-analysis silently loses the
+    // arc a previous run already paid for.
+    process_arc_steps: Array.isArray(safeExistingGuide.process_arc_steps) ? safeExistingGuide.process_arc_steps : []
   };
   const hasDirectCandidates = directGuide.hook_candidates.length
     || directGuide.story_candidates.length
@@ -10685,6 +10688,11 @@ async function runLongformGeminiPipeline({ generateJson, sourceUrl, filename, du
     hook_candidates: candidateGuideRaw?.hook_candidates || candidateGuide.hook_candidates || [],
     story_candidates: candidateGuideRaw?.story_candidates || candidateGuide.story_candidates || [],
     midform_candidates: candidateGuideRaw?.midform_candidates || candidateGuide.midform_candidates || [],
+    // This object is an explicit whitelist, so a field missing here is dropped
+    // no matter what Vision returned - process_arc_steps was added to the
+    // schema and prompt but not here, and the stored guide came back with the
+    // key entirely absent (2026-08-13).
+    process_arc_steps: candidateGuideRaw?.process_arc_steps || candidateGuide.process_arc_steps || [],
     selected_hook_candidates: candidateGuide.selected_hook_candidates || [],
     selected_story_candidates: candidateGuide.selected_story_candidates || [],
     selected_midform_candidates: candidateGuide.selected_midform_candidates || [],
