@@ -310,12 +310,16 @@ const KOREAN_FULL_TTS_VOICE_SETTINGS = Object.freeze({
   // 1.1 -> 1.2 (user request 2026-08-12: slightly faster narration).
   speed: 1.2
 });
-// ja_full lane (approved 2026-08-12). Rate is an INITIAL ESTIMATE — measure
-// real ElevenLabs JA output on this voice/settings and replace, like the
-// Korean 6.03775 was measured. The TTS aliases share the KO values today
-// (eleven_multilingual_v2 speaks Japanese) but exist so the JA voice can
-// diverge later without touching the KO lane.
-const JAPANESE_FULL_SPEECH_CHARS_PER_SEC = 4.91;
+// ja_full lane (approved 2026-08-12). MEASURED 2026-08-13 from a synthesized
+// batch: 180 JA visible chars / 32.694s = 5.505 chars/sec. The estimate here
+// was 4.91 while processMetadataService already budgeted at 5.5, so the script
+// was written for 202 chars and this file's narration fit then allowed only
+// 191 - the difference was thrown away as whole sentences on every ja_full
+// draft. Keep this in sync with JAPANESE_FULL_SPEECH_CHARS_PER_SEC there.
+// The TTS aliases share the KO values today (eleven_multilingual_v2 speaks
+// Japanese) but exist so the JA voice can diverge later without touching the
+// KO lane.
+const JAPANESE_FULL_SPEECH_CHARS_PER_SEC = 5.5;
 const JAPANESE_FULL_TTS_VOICE_ID = KOREAN_FULL_TTS_VOICE_ID;
 const JAPANESE_FULL_TTS_MODEL_ID = KOREAN_FULL_TTS_MODEL_ID;
 const JAPANESE_FULL_TTS_OUTPUT_FORMAT = KOREAN_FULL_TTS_OUTPUT_FORMAT;
@@ -864,11 +868,17 @@ function buildKoreanFullDraftTtsPlan({ itemId, itemConfig = {}, draftConfig = {}
   if (actualVideoSec > 3 && sentencesWithAnchors.length > 3) {
     const fitCharsPerSec = language === 'ja' ? JAPANESE_FULL_SPEECH_CHARS_PER_SEC : KOREAN_FULL_SPEECH_CHARS_PER_SEC;
     const maxFitChars = Math.max(20, Math.floor((actualVideoSec - 1.5) * fitCharsPerSec * 0.95));
+    // Skip the sentences that do not fit rather than stopping at the first one:
+    // breaking threw away everything after it, including the closing. Measured
+    // 2026-08-13 on item_017 - a long 10th sentence cut a 12-sentence script to
+    // 9 and 180 of an allowed 214 chars, so a 42.5s video carried 32.7s of
+    // narration and the draft landed at 31.9s. Never exceeds maxFitChars, so
+    // the narration still cannot overhang the video.
     const kept = [];
     let fitChars = 0;
     for (const sentence of sentencesWithAnchors) {
       const sentenceChars = String(sentence.text || '').replace(/\s/g, '').length;
-      if (kept.length >= 3 && fitChars + sentenceChars > maxFitChars) break;
+      if (kept.length >= 3 && fitChars + sentenceChars > maxFitChars) continue;
       kept.push(sentence);
       fitChars += sentenceChars;
     }

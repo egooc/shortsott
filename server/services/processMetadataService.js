@@ -70,8 +70,10 @@ const KOREAN_FULL_SPEECH_MIN_CHARS_RATIO = 0.85;
 // NARRATION, not the video, and the narration is deliberately budgeted under
 // the video (0.9 safety ratio + margin), so a 40s concat can only ever deliver
 // ~33-35s of timeline - measured 27.19s and 30.24s on the first two arc Fulls.
-// Solving (C - margin) * 5.5 * 0.9 / measured-rate >= 40 against the three live
-// JA samples (4.89, 4.84, 4.50 chars/sec) puts C at 45; 46 leaves a margin.
+// Measured from a synthesized batch (180 JA chars / 32.694s = 5.505 chars/sec,
+// matching the configured rate), (C - 1.5 margin) * 5.5 * 0.9 >= 40s of speech
+// solves to C = 46. Earlier notes in this file quoted 4.5-4.9 chars/sec; those
+// divided the PRE-CLIP script length by the synthesized audio and were wrong.
 // Mirrored by LONGFORM_FULL_TARGET_CONCAT_SEC in processQueueService.
 const LONGFORM_FULL_TARGET_CONCAT_SEC = 46;
 const SHORT_DESCRIPTION_SOFT_MAX = 260;
