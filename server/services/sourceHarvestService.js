@@ -239,19 +239,37 @@ function rankCandidates(videos) {
   return [...byId.values()].sort((a, b) => b.score - a.score);
 }
 
+// Round-robin, not block assignment (approved 2026-08-13).
+//
+// Filling locale_plan in order handed the whole top of the ranking to
+// whichever entry was listed first. Since score is heatmap_peak*10 +
+// log10(views), the top ranks are the biggest-view videos, and the
+// biggest-view process videos on YouTube are narrated TV documentaries -
+// exactly what the eligibility gate rejects. Measured over the first 10
+// harvested items: ja-JP (listed first) passed 1 of 6, ko-KR passed 3 of 4,
+// and in both mixed batches ja-JP took ranks 1-2 and lost both while ko-KR
+// took ranks 3-4 and kept three.
+//
+// Dealing one at a time to each lane gives every lane the same quality
+// distribution, so a lane's pass rate reflects the lane, not its position.
 function assignLocales(candidates, config) {
-  const rows = [];
-  let cursor = 0;
-  for (const plan of config.locale_plan) {
-    for (let i = 0; i < plan.count && cursor < candidates.length; i += 1, cursor += 1) {
-      rows.push({
-        ...candidates[cursor],
-        target_locale: plan.locale,
-        production_lane: plan.lane || ''
-      });
+  const remaining = config.locale_plan.map((plan) => ({ plan, left: Number(plan.count) || 0 }));
+  const slots = [];
+  let dealt = true;
+  while (dealt) {
+    dealt = false;
+    for (const entry of remaining) {
+      if (entry.left <= 0) continue;
+      slots.push(entry.plan);
+      entry.left -= 1;
+      dealt = true;
     }
   }
-  return rows;
+  return slots.slice(0, candidates.length).map((plan, index) => ({
+    ...candidates[index],
+    target_locale: plan.locale,
+    production_lane: plan.lane || ''
+  }));
 }
 
 // Importer is injected so this service never requires processQueueService

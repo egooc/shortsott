@@ -2254,6 +2254,9 @@ function assertKoreanFullTtsFitsVideoTimeline({ itemId = '', itemConfig = {}, dr
 // draft whose captions/video/narration ran on three different timelines): read
 // the GENERATED draft_content.json back and assert the three tracks share one
 // timeline. A draft that fails this must fail the item - never ship silently.
+// Same 20s floor the pre-TTS guard uses, applied to the BUILT timeline.
+const FULL_DRAFT_MIN_TIMELINE_SEC = 20;
+
 function verifyKoreanFullDraftTimelineAlignment(draftPath, { bgmVolume = null } = {}) {
   const report = { ok: false, checks: {}, values: {} };
   const contentPath = path.join(draftPath, 'draft_content.json');
@@ -2300,6 +2303,14 @@ function verifyKoreanFullDraftTimelineAlignment(draftPath, { bgmVolume = null } 
   const droppedTts = Number(manifest?.narration_video_clip?.dropped_tts_segments) || 0;
   report.values.dropped_tts_segments = droppedTts;
   report.checks.narration_not_gutted = droppedTts <= report.values.tts_segments;
+  // The pre-TTS guard checks target_duration_sec, which is the ASSEMBLED
+  // source length - but the finished timeline follows the narration, not the
+  // assembly. A 36s assembly with a 5-sentence script shipped a 14.979s Full
+  // past that guard (20260813-F-182121, approved fix 2026-08-13). Measure
+  // what actually got built.
+  const timelineEnd = Math.max(ttsEnd, captionEnd, videoEnd);
+  report.values.timeline_end_sec = Number(timelineEnd.toFixed(3));
+  report.checks.timeline_meets_format_floor = timelineEnd >= FULL_DRAFT_MIN_TIMELINE_SEC;
   report.ok = Object.values(report.checks).every(Boolean);
   return report;
 }
