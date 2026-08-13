@@ -5139,24 +5139,32 @@ function mergeMidformSplitOutputs(metadataGuide = {}, captionParts = []) {
 
 function validateLongformVariantFinalGuide(variant, guide = {}, options = {}) {
   if (variant === 'full' && options.fullScriptLanguage === 'ja') {
-    // ja_full lane: the JA prompt asks for sentence items from the start
-    // (~16-18 for a 60s concat), so there is no KO-style 20-raw-item floor —
-    // 12 rejects fragment/empty replies without failing sane sentence
-    // scripts the lenient gates downstream are built to accept.
+    // ja_full lane: reject fragment/empty replies without rejecting a script
+    // that obeyed the prompt. The floor used to be a hard 12, sized for a 60s
+    // concat (~16-18 items) - but the prompt's ask is budget-derived
+    // (koreanFullScriptCountRange = count-2 .. count), so a 40s concat asks
+    // for "10 to 12" and a model that wrote exactly 10 was failed for doing
+    // what it was told (observed live 2026-08-13: JP captions 8/10 rejected,
+    // "expected 12-22"). Derive the floor from the same budget the prompt
+    // used so the two can never disagree again. (user sign-off 2026-08-13)
+    const expectedSentences = Number(options.expectedSentenceCount) > 0
+      ? Number(options.expectedSentenceCount)
+      : 12;
+    const jaMinItems = Math.max(3, expectedSentences - 2);
     const jaCount = Array.isArray(guide.full_caption_script_ja) ? guide.full_caption_script_ja.length : 0;
     const jaSubtitleCount = Array.isArray(guide.full_metadata?.onscreen_subtitles)
       ? guide.full_metadata.onscreen_subtitles.length
       : 0;
     const missing = [];
     if (!guide.full_metadata || typeof guide.full_metadata !== 'object') missing.push('missing_full_metadata');
-    if (jaCount < 12) missing.push('full_caption_script_ja_too_short');
-    if (jaSubtitleCount < 8 && jaCount < 12) missing.push('full_metadata_onscreen_subtitles_too_short');
+    if (jaCount < jaMinItems) missing.push('full_caption_script_ja_too_short');
+    if (jaSubtitleCount < 8 && jaCount < jaMinItems) missing.push('full_metadata_onscreen_subtitles_too_short');
     if (missing.length) {
       throw createHttpError(500, 'OTTOGI_FULL_FINAL_VALIDATION_FAILED', 'Gemini Full output is missing required Japanese full-draft caption script fields', {
         missing,
         full_caption_script_ja_count: jaCount,
         full_metadata_onscreen_subtitles_count: jaSubtitleCount,
-        expected_caption_script_items: '12-22'
+        expected_caption_script_items: `${jaMinItems}-${expectedSentences}`
       });
     }
     return guide;
@@ -10495,7 +10503,15 @@ async function runLongformGeminiPipeline({ generateJson, sourceUrl, filename, du
         prompt: buildLongformVariantFinalPrompt({ variant: 'full', sourceUrl, filename, durationSec, candidateGuide: selectedCandidateGuide(), hookGuide, storyGuide, midformGuide, assignedHookType: resolvedHookType, sourceContext, fullScriptLanguage }),
         schema: buildLongformVariantFinalSchema('full', fullScriptLanguage),
         phase: 'longform_final_full',
-        validate: (result) => validateLongformVariantFinalGuide('full', result, { durationSec, fullScriptLanguage }),
+        // Same budget the prompt was built from, so the validator's floor and
+        // the prompt's ask cannot drift apart.
+        validate: (result) => validateLongformVariantFinalGuide('full', result, {
+          durationSec,
+          fullScriptLanguage,
+          expectedSentenceCount: koreanFullSpeechBudgetFromGuide(
+            selectedCandidateGuide(), durationSec, fullScriptLanguage
+          ).target_sentence_count
+        }),
         onProgress,
         includeVideo: false,
         generateOptions: {
