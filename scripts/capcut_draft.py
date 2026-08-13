@@ -10670,6 +10670,29 @@ def create_draft(input_json_path):
             start_us = int(sentence_timeline.get("timeline_start_us") or 0)
             end_us = int(sentence_timeline.get("timeline_end_us") or start_us)
             duration_us = max(1, end_us - start_us)
+            # A caption unit whose proportional time-slice would fall below the render's readable
+            # floor (500ms) both flashes unread AND gets dropped downstream - silently losing that
+            # dialogue text and tripping the rendered-color gate (the manifest still lists the
+            # dropped chunk). Fold such a short unit into the PRECEDING unit so the words stay on
+            # screen under one caption: preserves the dialogue text (dialogue-first invariant) and
+            # keeps the manifest and the rendered timeline in agreement. Seen on Housemaid
+            # (slot_03_L03 "꼴이라니." 0.35s, slot_07_L04 "거라도 있습니까?" 0.49s).
+            if len(units_for_sentence) > 1 and duration_us > 0:
+                _MIN_UNIT_US = 500_000
+                _total_chars = sum(max(1, len(str(u.get("text") or ""))) for u in units_for_sentence) or 1
+                _merged_units = []
+                for _u in units_for_sentence:
+                    _proj_us = duration_us * max(1, len(str(_u.get("text") or ""))) / _total_chars
+                    if _merged_units and _proj_us < _MIN_UNIT_US:
+                        _prev = _merged_units[-1]
+                        _ptext = str(_prev.get("text") or "")
+                        _utext = str(_u.get("text") or "")
+                        _is_ko = any("가" <= _ch <= "힣" for _ch in (_ptext + _utext))
+                        _sep = " " if (_is_ko and _ptext and _utext) else ""
+                        _prev["text"] = (_ptext + _sep + _utext).strip() or _utext
+                    else:
+                        _merged_units.append(dict(_u))
+                units_for_sentence = _merged_units
             weights = [max(1, len(str(unit.get("text") or ""))) for unit in units_for_sentence]
             total_weight = sum(weights) or 1
             elapsed_weight = 0

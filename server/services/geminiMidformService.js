@@ -340,10 +340,15 @@ function buildVertexEndpoint(config) {
 // 429 handling (owner backlog: immediate honest backoff instead of failing the run or
 // hammering): honor Retry-After when Vertex sends it, else back off 20s/40s/80s. Only 429
 // retries here - every other status still surfaces immediately.
-async function fetchVertexWithRateBackoff(endpoint, options, attempts = 4) {
+async function fetchVertexWithRateBackoff(endpoint, options, attempts = Number(process.env.MIDFORM_VERTEX_BACKOFF_ATTEMPTS) || 7) {
   // Network-level fetch failures (undici TypeError: fetch failed - DNS blip, reset socket,
   // large-payload hiccup) killed a whole 15-minute analysis run that a 10s retry would have
   // saved. Treat them like a retryable 429, not a crash.
+  // Sustained project-level 429 pressure (a 10-min source fires 5-6 large text-gen calls back
+  // to back after the chunked analysis already drained the per-minute quota) needs a longer
+  // budget than 3 retries: 6 retries capped at 90s each = ~7min of honest backoff so the run
+  // survives the quota trough instead of falling back to the local planner. Owner directive:
+  // don't fail/degrade the run on transient quota - back off and wait.
   const fetchOnce = async () => {
     try {
       return await fetch(endpoint, options);
@@ -356,7 +361,7 @@ async function fetchVertexWithRateBackoff(endpoint, options, attempts = 4) {
     const retryAfter = Number(response.headers?.get?.('retry-after'));
     const waitMs = response.status === -1
       ? 10_000 * attempt
-      : (Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : 20 * (2 ** (attempt - 1))) * 1000;
+      : Math.min(90, (Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : 20 * (2 ** (attempt - 1)))) * 1000;
     console.warn(`[midform] Vertex ${response.status === -1 ? 'network failure' : '429'} - backing off ${Math.round(waitMs / 1000)}s (attempt ${attempt}/${attempts - 1})`);
     await sleep(waitMs);
     response = await fetchOnce();

@@ -371,7 +371,13 @@ async function collectRunArtifacts({
           + Math.max(0, Math.min(clipEnd, peak.end_sec) - Math.max(clipStart, peak.start_sec)), 0).toFixed(3))
       }));
       const uncovered = coverage.filter((peak) => peak.covered_sec < 0.5);
-      const actionSource = String(sourceCase?.case_type || '').includes('action_peak');
+      // Only a GENUINE action source (sparse dialogue + the peak is the point) hard-fails on
+      // missing its energy peak. A dialogue_led source (mixed/dense speech) centres on its
+      // lines - a lone non-verbal peak is an accent to include if natural, never a blocker.
+      // Falls back to the case_type string when the field is absent (pre-dialogue_led runs).
+      const dialogueLed = sourceCase?.dialogue_led === true
+        || (sourceCase?.dialogue_led === undefined && !String(sourceCase?.case_type || '').includes('sparse_dialogue'));
+      const actionSource = String(sourceCase?.case_type || '').includes('action_peak') && !dialogueLed;
       const status = uncovered.length === 0 ? 'pass'
         : (actionSource && uncovered.length === coverage.length ? 'fail' : 'warning');
       gateResults.results.push({ id: 'energy_peak_coverage', status, coverage, case_type: sourceCase?.case_type || '' });

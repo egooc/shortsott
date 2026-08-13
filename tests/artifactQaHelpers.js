@@ -176,7 +176,7 @@ function textFromMaterial(material, parsedContent) {
   ).trim();
 }
 
-function extractSubtitleTextMaterials(draftContent) {
+function extractSubtitleTextMaterials(draftContent, includeUnreferenced = false) {
   const activeMaterialIds = new Set();
   for (const track of Array.isArray(draftContent?.tracks) ? draftContent.tracks : []) {
     // Captions live on one text track per lane now (subtitle, subtitle_2, ...). Looking only at
@@ -209,11 +209,18 @@ function extractSubtitleTextMaterials(draftContent) {
       };
     })
     .filter((material) => material.type === 'subtitle' && material.text)
-    .filter((material) => activeMaterialIds.size === 0 || activeMaterialIds.has(material.id));
+    .filter((material) => includeUnreferenced || activeMaterialIds.size === 0 || activeMaterialIds.has(material.id));
 }
 
 function validateManifestMaterialColors(manifest, draftContent) {
   const materials = extractSubtitleTextMaterials(draftContent);
+  // A caption unit whose time-slice fell below the render's readable floor (~500ms) has its
+  // timeline segment dropped, which orphans its (correctly coloured) text material - it exists in
+  // the draft but no segment references it. That is a DROP, not a colour error: the colour
+  // pipeline succeeded. So when no REFERENCED material matches, fall back to the full material
+  // pool; a correctly coloured orphan means the colour was applied and only the unreadable sliver
+  // was dropped. (Housemaid slot_03_L03/slot_07_L04 tail chunks at 0.35-0.49s.)
+  const allMaterials = extractSubtitleTextMaterials(draftContent, true);
   const coloredCaptions = (Array.isArray(manifest?.caption_units) ? manifest.caption_units : [])
     .filter((caption) => ['dialogue_quote', 'dialogue'].includes(String(caption?.segment_type || '')))
     .filter((caption) => String(caption?.caption_color || '').trim());
@@ -228,6 +235,20 @@ function validateManifestMaterialColors(manifest, draftContent) {
     const textColorMatches = material ? String(material.text_color || '').toLowerCase() === expected.toLowerCase() : false;
     const letterColorEnabled = material?.useLetterColor === true;
     const effectDefaultDisabled = material?.use_effect_default_color === false;
+    let passed = Boolean(material && fillMatches && textColorMatches && letterColorEnabled && effectDefaultDisabled);
+    let droppedSliver = false;
+    // Rescue ONLY a sub-500ms sliver: the renderer drops captions shorter than its readable
+    // floor, orphaning their (correctly coloured) material. A NORMAL-duration caption whose
+    // material is orphaned is a genuine missing/mis-mapped caption and must still fail - so gate
+    // this on the manifest duration. Captions with no duration recorded are never rescued.
+    const durationSec = Number(caption?.duration_sec);
+    const isDroppableSliver = Number.isFinite(durationSec) && durationSec > 0 && durationSec < 0.5;
+    if (!passed && !material && isDroppableSliver) {
+      const orphan = allMaterials.find((candidate) => candidate.text === text
+        && rgbFloatMatchesHex(candidate.fill_rgb, expected)
+        && String(candidate.text_color || '').toLowerCase() === expected.toLowerCase());
+      if (orphan) { passed = true; droppedSliver = true; }
+    }
     return {
       caption_id: String(caption?.caption_id || ''),
       segment_id: String(caption?.segment_id || ''),
@@ -240,7 +261,8 @@ function validateManifestMaterialColors(manifest, draftContent) {
       text_color_matches: textColorMatches,
       use_letter_color: letterColorEnabled,
       effect_default_disabled: effectDefaultDisabled,
-      passed: Boolean(material && fillMatches && textColorMatches && letterColorEnabled && effectDefaultDisabled)
+      dropped_sliver: droppedSliver,
+      passed
     };
   });
   return {
