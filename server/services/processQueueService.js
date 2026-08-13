@@ -9039,7 +9039,12 @@ function selectBestHighlightWindow(windows = [], itemConfig = {}, maxDurationSec
 // sits in the source, and the remaining steps follow in real time order. The
 // old start_sec sort opened the Full on whatever happened earliest, which is
 // why drafts began on the first second of the source instead of on a hook.
-function getLongformFullArcWindows(itemConfig = {}, targetDurationSec = 40, maxSegmentSec = 10) {
+// Mirrored by LONGFORM_FULL_TARGET_CONCAT_SEC in processMetadataService, which
+// budgets the script against the same number. See the comment there for why the
+// concat is cut longer than the format length it has to deliver.
+const LONGFORM_FULL_TARGET_CONCAT_SEC = 46;
+
+function getLongformFullArcWindows(itemConfig = {}, targetDurationSec = LONGFORM_FULL_TARGET_CONCAT_SEC, maxSegmentSec = 10) {
   const steps = itemConfig.ottogi_guide_output?.process_arc_steps;
   if (!Array.isArray(steps) || steps.length < 3) return [];
   const cap = Math.max(4, Math.min(10, Number(maxSegmentSec) || 10));
@@ -9541,7 +9546,7 @@ async function prepareLongformFullDraftItemConfig({ itemId, itemConfig, sourceVi
       warnings: []
     };
   }
-  let candidateWindows = getLongformFullCandidateWindows(item, 40, highlightMaxDurationForItem(item, item.highlight_duration_sec));
+  let candidateWindows = getLongformFullCandidateWindows(item, LONGFORM_FULL_TARGET_CONCAT_SEC, highlightMaxDurationForItem(item, item.highlight_duration_sec));
   const faceFilterWarnings = [];
   // Per-window talking-head filter (user directive 2026-08-12): the source-
   // level eligibility gate passes documentaries whose overall face ratio is

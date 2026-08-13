@@ -66,6 +66,14 @@ const LONGFORM_FULL_MIN_ARC_STEPS = 5;
 // followed the narration and landed at 32.05s against a 40s format. Under-budget
 // scripts now go to the repair pass instead of shipping short.
 const KOREAN_FULL_SPEECH_MIN_CHARS_RATIO = 0.85;
+// How long the Full concat is cut to. The delivered timeline follows the
+// NARRATION, not the video, and the narration is deliberately budgeted under
+// the video (0.9 safety ratio + margin), so a 40s concat can only ever deliver
+// ~33-35s of timeline - measured 27.19s and 30.24s on the first two arc Fulls.
+// Solving (C - margin) * 5.5 * 0.9 / measured-rate >= 40 against the three live
+// JA samples (4.89, 4.84, 4.50 chars/sec) puts C at 45; 46 leaves a margin.
+// Mirrored by LONGFORM_FULL_TARGET_CONCAT_SEC in processQueueService.
+const LONGFORM_FULL_TARGET_CONCAT_SEC = 46;
 const SHORT_DESCRIPTION_SOFT_MAX = 260;
 const MIDFORM_CAPTION_MIN_ITEMS_120S = 30;
 const MIDFORM_CAPTION_MAX_ITEMS_120S = 45;
@@ -343,7 +351,7 @@ function koreanFullSceneSpeechBudgetPromptLines(scenes = [], limit = 16, languag
 // shows up as narration overhanging the video or vice versa. Kept as a
 // duplicate rather than an import because processQueueService requires this
 // module; if the selector's accumulation changes, change this with it.
-function longformArcConcatSec(guide = {}, targetDurationSec = 40, maxSegmentSec = 10) {
+function longformArcConcatSec(guide = {}, targetDurationSec = LONGFORM_FULL_TARGET_CONCAT_SEC, maxSegmentSec = 10) {
   const steps = Array.isArray(guide?.process_arc_steps) ? guide.process_arc_steps : [];
   if (steps.length < 3) return 0;
   const cap = Math.max(4, Math.min(10, Number(maxSegmentSec) || 10));
@@ -395,7 +403,7 @@ function koreanFullSpeechBudgetFromGuide(guide = {}, durationSec = 0, language =
   // items analyzed before the arc phase.
   const arcConcatSec = longformArcConcatSec(guide);
   if (Number(durationSec) > 90 && arcConcatSec > 0) {
-    return calculateKoreanFullSpeechBudget({ targetDurationSec: Math.min(40, arcConcatSec), language });
+    return calculateKoreanFullSpeechBudget({ targetDurationSec: Math.min(LONGFORM_FULL_TARGET_CONCAT_SEC, arcConcatSec), language });
   }
   const candidateConcatSec = (Array.isArray(guide?.hook_candidates) ? guide.hook_candidates : [])
     .reduce((sum, candidate) => {
@@ -403,14 +411,14 @@ function koreanFullSpeechBudgetFromGuide(guide = {}, durationSec = 0, language =
       return sum + (Number.isFinite(span) && span > 0 ? span : 0);
     }, 0);
   if (Number(durationSec) > 90 && candidateConcatSec > 0) {
-    return calculateKoreanFullSpeechBudget({ targetDurationSec: Math.min(40, candidateConcatSec), language });
+    return calculateKoreanFullSpeechBudget({ targetDurationSec: Math.min(LONGFORM_FULL_TARGET_CONCAT_SEC, candidateConcatSec), language });
   }
   // Longform full-lane videos are NEVER longer than the <=60s concat - any
   // duration above that reaching the budget (a stale stored budget, or the
   // model returning a 400s "full window" when the candidate scan came back
   // empty; observed live 2026-08-12: 402s -> 2,178-char demand -> held) is
   // garbage input, so every remaining path clamps to 40s on longform.
-  const clampForLongform = (seconds) => (Number(durationSec) > 90 ? Math.min(40, Number(seconds) || 0) : Number(seconds) || 0);
+  const clampForLongform = (seconds) => (Number(durationSec) > 90 ? Math.min(LONGFORM_FULL_TARGET_CONCAT_SEC, Number(seconds) || 0) : Number(seconds) || 0);
   const existing = guide?.korean_full_speech_budget;
   if (existing && typeof existing === 'object' && Number(existing.target_chars) > 0) {
     return calculateKoreanFullSpeechBudget({
@@ -8216,10 +8224,19 @@ function collectJapaneseCaptionIssues(guide = {}, options = {}) {
       detectedSubject: guide?.detected_subject || '',
       metadata: guide?.full_metadata_ko || {}
     });
-    const koreanSpeechBudget = korean && !isMidform
-      ? koreanFullSpeechBudgetFromGuide(guide, options.durationSec || guide?.duration_sec || guide?.target_duration_sec || 0)
+    // The budget check used to be Korean-only, so the ja_full lane shipped
+    // whatever length Gemini felt like: both Fulls built on 2026-08-13 wrote
+    // 73-77% of budget, ran 27-28s of narration under a 36-40s concat, and
+    // passed. The lane is language-parameterized everywhere else; this check
+    // was the one place still hardcoded to Korean.
+    const fullSpeechLanguage = korean ? 'ko' : 'ja';
+    const koreanSpeechBudget = !isMidform
+      ? koreanFullSpeechBudgetFromGuide(guide, options.durationSec || guide?.duration_sec || guide?.target_duration_sec || 0, fullSpeechLanguage)
       : null;
-    const koreanVisibleCharCount = korean && !isMidform ? countKoreanVisibleCharsNoSpaces(texts.join('')) : 0;
+    const koreanVisibleCharCount = isMidform
+      ? 0
+      : (korean ? countKoreanVisibleCharsNoSpaces(texts.join('')) : countJapaneseVisibleCharsNoSpaces(texts.join('')));
+    const fullSpeechLanguageLabel = korean ? 'Korean' : 'Japanese';
     const sceneRoleRatioOk = isMidform
       ? sceneRoleCount >= 5 && sceneRoleRatio <= 0.7
       : korean
@@ -8354,11 +8371,11 @@ function collectJapaneseCaptionIssues(guide = {}, options = {}) {
           char_count: koreanVisibleCharCount,
           max_chars: koreanSpeechBudget.max_chars,
           target_chars: koreanSpeechBudget.target_chars,
-          estimated_speech_sec: roundSeconds(koreanVisibleCharCount / KOREAN_FULL_SPEECH_CHARS_PER_SEC),
+          estimated_speech_sec: roundSeconds(koreanVisibleCharCount / fullSpeechCharsPerSecForLanguage(fullSpeechLanguage)),
           budget: koreanSpeechBudget,
           texts
         },
-        reason: `Korean Full Draft script exceeds the speech budget (${koreanVisibleCharCount}/${koreanSpeechBudget.max_chars} Korean visible chars). Regenerate the narration shorter so TTS can fit the video timeline.`,
+        reason: `${fullSpeechLanguageLabel} Full Draft script exceeds the speech budget (${koreanVisibleCharCount}/${koreanSpeechBudget.max_chars} ${fullSpeechLanguageLabel} visible chars). Regenerate the narration shorter so TTS can fit the video timeline.`,
         style_regeneration_required: true,
         issue_type: 'ko_full_speech_budget_over'
       });
@@ -8371,11 +8388,11 @@ function collectJapaneseCaptionIssues(guide = {}, options = {}) {
           char_count: koreanVisibleCharCount,
           min_chars: koreanSpeechBudget.min_chars,
           target_chars: koreanSpeechBudget.target_chars,
-          estimated_speech_sec: roundSeconds(koreanVisibleCharCount / KOREAN_FULL_SPEECH_CHARS_PER_SEC),
+          estimated_speech_sec: roundSeconds(koreanVisibleCharCount / fullSpeechCharsPerSecForLanguage(fullSpeechLanguage)),
           budget: koreanSpeechBudget,
           texts
         },
-        reason: `Korean Full Draft script is below ${Math.round(KOREAN_FULL_SPEECH_MIN_CHARS_RATIO * 100)}% of the speech budget (${koreanVisibleCharCount}/${koreanSpeechBudget.min_chars} Korean visible chars). Regenerate with enough narration for the video length.`,
+        reason: `${fullSpeechLanguageLabel} Full Draft script is below ${Math.round(KOREAN_FULL_SPEECH_MIN_CHARS_RATIO * 100)}% of the speech budget (${koreanVisibleCharCount}/${koreanSpeechBudget.min_chars} ${fullSpeechLanguageLabel} visible chars). Regenerate with enough narration for the video length.`,
         style_regeneration_required: true,
         issue_type: 'ko_full_speech_budget_under'
       });
