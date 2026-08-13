@@ -7970,6 +7970,7 @@ function collectJapaneseCaptionIssues(guide = {}, options = {}) {
   const includeJapanese = options.includeJapanese !== false;
   const includeJapaneseFull = includeJapanese && options.includeJapaneseFull === true;
   const includeKorean = options.includeKorean === true;
+  const collectDurationSec = Number(options.durationSec || 0);
   const strictHighlightMetadata = options.strictHighlightMetadata !== false;
   // allowEmbeddedLatin: for review/upload-description fields (report_description) that
   // are NOT burned-in on-screen subtitles. A foreign technique name in the description
@@ -8122,6 +8123,40 @@ function collectJapaneseCaptionIssues(guide = {}, options = {}) {
           });
         }
       });
+      // The comment above used to say the budget was enforced downstream by the
+      // JA final-call validator. It is not: a 156-char script shipped against
+      // its own stored 210/178 budget with zero issues raised, and the draft
+      // came out at 25.5s of timeline (2026-08-13). Since the timeline follows
+      // the narration, an under-budget JA script is exactly what makes the Full
+      // miss the format, so the length gate belongs on this path too.
+      const jaBudget = koreanFullSpeechBudgetFromGuide(
+        guide,
+        options.durationSec || collectDurationSec || guide?.duration_sec || guide?.target_duration_sec || 0,
+        'ja'
+      );
+      const jaCharCount = countJapaneseVisibleCharsNoSpaces(
+        lines.map((item) => normalizeText(item?.text || item || '')).join('')
+      );
+      if (jaBudget && jaCharCount > jaBudget.max_chars) {
+        issues.push({
+          scene_id: 'metadata',
+          field,
+          value: { char_count: jaCharCount, max_chars: jaBudget.max_chars, target_chars: jaBudget.target_chars, budget: jaBudget },
+          reason: `Japanese Full Draft script exceeds the speech budget (${jaCharCount}/${jaBudget.max_chars} Japanese visible chars). Regenerate the narration shorter so TTS can fit the video timeline.`,
+          style_regeneration_required: true,
+          issue_type: 'ko_full_speech_budget_over'
+        });
+      }
+      if (jaBudget && jaCharCount < jaBudget.min_chars) {
+        issues.push({
+          scene_id: 'metadata',
+          field,
+          value: { char_count: jaCharCount, min_chars: jaBudget.min_chars, target_chars: jaBudget.target_chars, budget: jaBudget },
+          reason: `Japanese Full Draft script is below ${Math.round(KOREAN_FULL_SPEECH_MIN_CHARS_RATIO * 100)}% of the speech budget (${jaCharCount}/${jaBudget.min_chars} Japanese visible chars). Regenerate with enough narration for the video length.`,
+          style_regeneration_required: true,
+          issue_type: 'ko_full_speech_budget_under'
+        });
+      }
       return;
     }
     if (korean && !isMidform && field === 'full_caption_script_ko') {
@@ -8215,13 +8250,62 @@ function collectJapaneseCaptionIssues(guide = {}, options = {}) {
     // passed. The lane is language-parameterized everywhere else; this check
     // was the one place still hardcoded to Korean.
     const fullSpeechLanguage = korean ? 'ko' : 'ja';
+    // `options` here is this validator's own options object, which the JA call
+    // site does not put a duration on - so the JA budget was resolved from
+    // guide.target_duration_sec and came out smaller than the concat-aware
+    // budget the prompt and the manifest use. Measured 2026-08-13: a 156-char
+    // script passed against a 210-char budget (74%). Fall back to the duration
+    // the caller of collectJapaneseCaptionIssues passed in.
     const koreanSpeechBudget = !isMidform
-      ? koreanFullSpeechBudgetFromGuide(guide, options.durationSec || guide?.duration_sec || guide?.target_duration_sec || 0, fullSpeechLanguage)
+      ? koreanFullSpeechBudgetFromGuide(
+        guide,
+        options.durationSec || collectDurationSec || guide?.duration_sec || guide?.target_duration_sec || 0,
+        fullSpeechLanguage
+      )
       : null;
     const koreanVisibleCharCount = isMidform
       ? 0
       : (korean ? countKoreanVisibleCharsNoSpaces(texts.join('')) : countJapaneseVisibleCharsNoSpaces(texts.join('')));
     const fullSpeechLanguageLabel = korean ? 'Korean' : 'Japanese';
+    // Deliberately OUTSIDE the `korean && !isMidform` block below: the speech
+    // budget is the one gate that is not a Korean house-style rule, and living
+    // inside that block meant the ja_full lane was never length-checked at all.
+    // Measured 2026-08-13: a 156-char JA script shipped against its own stored
+    // 210/178 budget with zero issues raised, and the draft came out at 25.5s.
+    if (koreanSpeechBudget && koreanVisibleCharCount > koreanSpeechBudget.max_chars) {
+      issues.push({
+        scene_id: 'metadata',
+        field,
+        value: {
+          char_count: koreanVisibleCharCount,
+          max_chars: koreanSpeechBudget.max_chars,
+          target_chars: koreanSpeechBudget.target_chars,
+          estimated_speech_sec: roundSeconds(koreanVisibleCharCount / fullSpeechCharsPerSecForLanguage(fullSpeechLanguage)),
+          budget: koreanSpeechBudget,
+          texts
+        },
+        reason: `${fullSpeechLanguageLabel} Full Draft script exceeds the speech budget (${koreanVisibleCharCount}/${koreanSpeechBudget.max_chars} ${fullSpeechLanguageLabel} visible chars). Regenerate the narration shorter so TTS can fit the video timeline.`,
+        style_regeneration_required: true,
+        issue_type: 'ko_full_speech_budget_over'
+      });
+    }
+    if (koreanSpeechBudget && koreanVisibleCharCount < koreanSpeechBudget.min_chars) {
+      issues.push({
+        scene_id: 'metadata',
+        field,
+        value: {
+          char_count: koreanVisibleCharCount,
+          min_chars: koreanSpeechBudget.min_chars,
+          target_chars: koreanSpeechBudget.target_chars,
+          estimated_speech_sec: roundSeconds(koreanVisibleCharCount / fullSpeechCharsPerSecForLanguage(fullSpeechLanguage)),
+          budget: koreanSpeechBudget,
+          texts
+        },
+        reason: `${fullSpeechLanguageLabel} Full Draft script is below ${Math.round(KOREAN_FULL_SPEECH_MIN_CHARS_RATIO * 100)}% of the speech budget (${koreanVisibleCharCount}/${koreanSpeechBudget.min_chars} ${fullSpeechLanguageLabel} visible chars). Regenerate with enough narration for the video length.`,
+        style_regeneration_required: true,
+        issue_type: 'ko_full_speech_budget_under'
+      });
+    }
     const sceneRoleRatioOk = isMidform
       ? sceneRoleCount >= 5 && sceneRoleRatio <= 0.7
       : korean
@@ -8346,40 +8430,6 @@ function collectJapaneseCaptionIssues(guide = {}, options = {}) {
         reason: 'Korean Full Draft opens a curiosity loop but does not reveal the object/product/material name later. A question hook must be answered inside the script.',
         style_regeneration_required: true,
         issue_type: 'ko_full_hook_without_payoff'
-      });
-    }
-    if (koreanSpeechBudget && koreanVisibleCharCount > koreanSpeechBudget.max_chars) {
-      issues.push({
-        scene_id: 'metadata',
-        field,
-        value: {
-          char_count: koreanVisibleCharCount,
-          max_chars: koreanSpeechBudget.max_chars,
-          target_chars: koreanSpeechBudget.target_chars,
-          estimated_speech_sec: roundSeconds(koreanVisibleCharCount / fullSpeechCharsPerSecForLanguage(fullSpeechLanguage)),
-          budget: koreanSpeechBudget,
-          texts
-        },
-        reason: `${fullSpeechLanguageLabel} Full Draft script exceeds the speech budget (${koreanVisibleCharCount}/${koreanSpeechBudget.max_chars} ${fullSpeechLanguageLabel} visible chars). Regenerate the narration shorter so TTS can fit the video timeline.`,
-        style_regeneration_required: true,
-        issue_type: 'ko_full_speech_budget_over'
-      });
-    }
-    if (koreanSpeechBudget && koreanVisibleCharCount < koreanSpeechBudget.min_chars) {
-      issues.push({
-        scene_id: 'metadata',
-        field,
-        value: {
-          char_count: koreanVisibleCharCount,
-          min_chars: koreanSpeechBudget.min_chars,
-          target_chars: koreanSpeechBudget.target_chars,
-          estimated_speech_sec: roundSeconds(koreanVisibleCharCount / fullSpeechCharsPerSecForLanguage(fullSpeechLanguage)),
-          budget: koreanSpeechBudget,
-          texts
-        },
-        reason: `${fullSpeechLanguageLabel} Full Draft script is below ${Math.round(KOREAN_FULL_SPEECH_MIN_CHARS_RATIO * 100)}% of the speech budget (${koreanVisibleCharCount}/${koreanSpeechBudget.min_chars} ${fullSpeechLanguageLabel} visible chars). Regenerate with enough narration for the video length.`,
-        style_regeneration_required: true,
-        issue_type: 'ko_full_speech_budget_under'
       });
     }
     if (koreanStyleViolations.reportStyleEndings.length) {
