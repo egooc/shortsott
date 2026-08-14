@@ -4865,6 +4865,12 @@ function buildLongformVariantFinalPrompt({ variant, sourceUrl, filename, duratio
       ...arcSpineSteps.map((step, index) => `  arc ${index + 1}. ${Number(step.start_sec).toFixed(1)}-${Number(step.end_sec).toFixed(1)}s: ${normalizeText(step.step_summary || step.reason || '').slice(0, 140)}`),
       `- The script must WALK THIS ARC in the order above. Spending the whole manuscript on one step is the single worst failure of this format - it leaves the viewer hearing about arc 1 while watching arc ${arcSpineSteps.length}.`,
       `- Cover every arc step at least once. At most 2 sentences on any one step, and the ${arcSpineSteps.length} steps must be spread across the whole manuscript, not clustered at the front.`,
+      // Instruction alone was not enough: item_020 covered 7 of 12 arc steps,
+      // stopped at the conveyor, and filled the remaining five sentences with
+      // scene-free lines ("均一な品質が、揺るぎない信頼を生む。"). Naming the
+      // concrete change in each step is what forces the script down the arc.
+      `- Before writing, allocate your ${arcSpineSteps.length} arc steps across the sentence count you are given, in order. The LATER steps are the ones that get skipped - walk all the way to arc ${arcSpineSteps.length} and check you did.`,
+      '- Every sentence must be traceable to one arc step and must name the concrete thing in it - the material, the tool, or the change it makes. A sentence that would fit any factory video ("uniform quality builds trust", "this is the secret of the texture", "the wisdom of the factory") is filler: it covers no step and wastes a slot a later step needed.',
       // The genuine finished-product shot is the step Vision most often places
       // past the end of the source, so it gets dropped and the last surviving
       // step is mid-process: item_017 ended on a rubber floor mat while the
