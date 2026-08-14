@@ -522,8 +522,10 @@ function extendShortDialogueWindows(editPlan, sourceDurationSec = 0) {
       let limit = start + needSec;
       // Bound by the next clip that begins after THIS one starts - a back-to-back line often opens
       // exactly at this window's end, so an end-based search would skip it and overrun into it.
+      // Leave a 0.35s gap, not 0.05: each clip carries pre/post-roll padding, and a 0.05s gap let
+      // the padded ranges of two back-to-back lines overlap and trip the cross-segment gate.
       const nextStart = selectedStarts.find((value) => value > start + 0.05);
-      if (Number.isFinite(nextStart)) limit = Math.min(limit, nextStart - 0.05);
+      if (Number.isFinite(nextStart)) limit = Math.min(limit, nextStart - 0.35);
       if (sourceDurationSec > 0) limit = Math.min(limit, sourceDurationSec);
       if (limit > end + 0.1) {
         win.end_sec = roundSec3(limit);
