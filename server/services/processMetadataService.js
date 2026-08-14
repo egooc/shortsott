@@ -4839,6 +4839,36 @@ function buildLongformVariantFinalPrompt({ variant, sourceUrl, filename, duratio
   // queue items shows zero full_caption_script_ko pieces before this fix.
   const fullSpeechBudget = koreanFullSpeechBudgetFromGuide(candidateGuide, durationSec, fullScriptLanguage);
   const fullSpeechBudgetLines = koreanFullSpeechBudgetPromptLines(fullSpeechBudget, fullScriptLanguage);
+  // The Full's video is the process arc concatenated in step order - it is NOT
+  // story_clip_40s, which is only still around as the legacy window field. The
+  // script phase never saw the arc, so it wrote the whole manuscript about the
+  // one selected window: measured 2026-08-13, item_017 spent all 13 sentences
+  // on the CNC cut (arc step 1) while the video walked through seven steps to a
+  // finished camper interior, and item_020 spent all 13 on the multi-blade
+  // cutter. Both closings talked about the opening material. Give the script the
+  // same spine the video is cut from.
+  const arcSpineSteps = (Array.isArray(candidateGuide?.process_arc_steps) ? candidateGuide.process_arc_steps : [])
+    .filter((step) => {
+      const start = Number(step?.start_sec);
+      const end = Number(step?.end_sec);
+      if (!Number.isFinite(start) || !Number.isFinite(end)) return false;
+      if (end - start < LONGFORM_FULL_MIN_ARC_STEP_SEC) return false;
+      return !(Number(durationSec) > 0 && start >= Number(durationSec) - 4);
+    })
+    .map((step, index) => ({ step, order: Number(step?.step_index) || index + 1 }))
+    .sort((a, b) => a.order - b.order)
+    .map(({ step }) => step)
+    .slice(0, 14);
+  const arcSpineLines = arcSpineSteps.length >= 3
+    ? [
+      '- PROCESS ARC (this is what the finished video actually shows, in this order):',
+      ...arcSpineSteps.map((step, index) => `  arc ${index + 1}. ${Number(step.start_sec).toFixed(1)}-${Number(step.end_sec).toFixed(1)}s: ${normalizeText(step.step_summary || step.reason || '').slice(0, 140)}`),
+      `- The script must WALK THIS ARC in the order above. Spending the whole manuscript on one step is the single worst failure of this format - it leaves the viewer hearing about arc 1 while watching arc ${arcSpineSteps.length}.`,
+      `- Cover every arc step at least once. At most 2 sentences on any one step, and the ${arcSpineSteps.length} steps must be spread across the whole manuscript, not clustered at the front.`,
+      '- The hook sentence opens on arc 1. The closing must land on what the LAST arc step visibly shows - the finished result - not on the material the video opened with.',
+      '- Do not describe anything that is not in one of the arc steps above. The rest of the source is not in this video.'
+    ]
+    : [];
   // ja_full lane (approved 2026-08-12): the Full variant is generated in the
   // lane's language. The JA config mirrors the KO narration standard, ported
   // to Japanese sentence norms (12-22 chars, です/ます register, 体言止め).
@@ -4856,7 +4886,8 @@ function buildLongformVariantFinalPrompt({ variant, sourceUrl, filename, duratio
     rules: [
       '- Create only the JA Full process-summary draft metadata and scripts.',
       '- Full uses story_clip_40s only as the selected JA Full source. The field name is legacy; treat it as the final short-form Full source window.',
-      '- For longform sources, JA Full is built from multiple highlight-candidate scenes inside the source, not from a uniform timeline summary.',
+      '- For longform sources, JA Full is built from the process arc listed below, not from a uniform timeline summary and not from one window.',
+      ...arcSpineLines,
       '- Select an adaptive 6 to 12 highlight-candidate scenes for JA Full. Candidate rank 1, 2, and 3 are direct explanation scenes; the remaining candidates become connected process-flow evidence.',
       '- Put the strongest hook first, then blend the top explanation scenes with natural Japanese narration so the Full feels like one coherent manufacturing/process story.',
       '- Only about three captions should directly describe visible scenes. The rest should connect purpose, method, quality, transformation, and payoff in natural spoken Japanese.',
@@ -4911,7 +4942,8 @@ function buildLongformVariantFinalPrompt({ variant, sourceUrl, filename, duratio
       rules: [
         '- Create only the KR Full process-summary draft metadata and scripts.',
         '- Full uses story_clip_40s only as the selected KR Full source. The field name is legacy; treat it as the final short-form Full source window.',
-        '- For longform sources, KR Full is built from multiple highlight-candidate scenes inside the source, not from a uniform timeline summary.',
+        '- For longform sources, KR Full is built from the process arc listed below, not from a uniform timeline summary and not from one window.',
+      ...arcSpineLines,
         '- Select an adaptive 6 to 12 highlight-candidate scenes for KR Full. Candidate rank 1, 2, and 3 are direct explanation scenes; the remaining candidates become connected process-flow evidence.',
         '- Put the strongest hook first, then blend the top explanation scenes with natural Korean narration so the Full feels like one coherent manufacturing/process story.',
         '- Only about three captions should directly describe visible scenes. The rest should connect purpose, method, quality, transformation, and payoff in natural spoken Korean.',
