@@ -10163,6 +10163,24 @@ async function validateOrRepairJapaneseCaptions({ guide, generateRepairJson, sou
   try {
     validateGuide(normalizedCurrent, validationOptions);
   } catch (error) {
+    // The lenient lane accepts a script with soft findings a few lines above,
+    // and then this final pass re-validated the very guide it just accepted -
+    // with no leniency - so the acceptance never survived. item_007 reached
+    // "관용 수용 (7문구/179자)" and failed on the next line (2026-08-14).
+    // Honour the same decision here: a non-empty script on the lenient lane
+    // with only caption findings ships with a warning.
+    const lenientScript = validationOptions.lenientKoreanFullGates
+      ? normalizedCurrent?.[normalizeText(validationOptions.fullScriptField || '') || 'full_caption_script_ko']
+      : null;
+    const captionOnlyFinding = Array.isArray(error?.details?.missing)
+      && error.details.missing.every((entry) => normalizeText(entry) === 'invalid_japanese_scene_captions');
+    if (Array.isArray(lenientScript) && lenientScript.length >= 3 && captionOnlyFinding) {
+      emitProgress(onProgress, `TTS Full 레인 관용 수용(최종 검증): 자막 소프트 이슈를 경고로 처리하고 진행 (${lenientScript.length}문장)`, {
+        phase: 'kr_full_lenient_final_accept',
+        script_items: lenientScript.length
+      });
+      return normalizedCurrent;
+    }
     error.guide = normalizedCurrent;
     throw error;
   }
