@@ -427,6 +427,66 @@ function roundSec3(value) {
   return Number(Number(value).toFixed(3));
 }
 
+function normalizeCaptionTokens(text) {
+  return String(text || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean);
+}
+
+// A dialogue clip must carry ONLY its own captioned line. When a window spans more than one
+// transcript cue, the extra cues are DIFFERENT utterances (often a different speaker) that play
+// as audio with no subtitle on screen - e.g. Draft Day's cold open cut 8s of a phone call
+// ("fair offer" / "three number one picks" / "you're panicking") but captioned only the last
+// line, so two of the three voices were untranslated. The padding guard treats any cue inside the
+// window as "own speech", so it cannot fix this. Clamp each window to the single cue whose text
+// matches its line, dropping the neighbouring utterances from the clip. Only shrinks, and only
+// when the window genuinely straddles a foreign cue AND the match is confident, so a fresh run
+// whose window already sits inside one cue is untouched.
+function clampDialogueWindowsToOwnCue(editPlan, transcriptTimed) {
+  const cues = (Array.isArray(transcriptTimed) ? transcriptTimed : [])
+    .map((cue) => ({ start: Number(cue?.start_sec), end: Number(cue?.end_sec), tokens: new Set(normalizeCaptionTokens(cue?.text)) }))
+    .filter((cue) => Number.isFinite(cue.start) && Number.isFinite(cue.end) && cue.end > cue.start && cue.tokens.size);
+  if (!cues.length) return { clamped: 0, details: [] };
+  let clamped = 0;
+  const details = [];
+  for (const item of Array.isArray(editPlan?.timeline) ? editPlan.timeline : []) {
+    if (item?.decision !== 'KEEP_DIALOGUE') continue;
+    for (const win of Array.isArray(item.dialogue_line_windows) ? item.dialogue_line_windows : []) {
+      if (!win || win.matched !== true) continue;
+      const winStart = Number(win.start_sec);
+      const winEnd = Number(win.end_sec);
+      if (!(winEnd > winStart)) continue;
+      const lineTokens = normalizeCaptionTokens(win.line);
+      if (lineTokens.length < 2) continue;
+      const overlapping = cues.filter((cue) => cue.end > winStart + 0.05 && cue.start < winEnd - 0.05);
+      if (overlapping.length < 2) continue; // window sits inside a single cue -> nothing foreign to drop
+      let best = null;
+      let bestScore = 0;
+      for (const cue of overlapping) {
+        const hit = lineTokens.filter((token) => cue.tokens.has(token)).length;
+        const score = hit / lineTokens.length;
+        if (score > bestScore) { bestScore = score; best = cue; }
+      }
+      if (!best || bestScore < 0.5) continue; // no confident owner -> leave the window alone
+      const nextStart = Math.max(winStart, best.start);
+      const nextEnd = Math.min(winEnd, best.end);
+      if (nextEnd - nextStart < 0.4) continue; // refuse to shrink a line out of existence
+      if (nextStart - winStart <= 0.2 && winEnd - nextEnd <= 0.2) continue; // already tight
+      details.push({ line: String(win.line || '').slice(0, 40), from: [roundSec3(winStart), roundSec3(winEnd)], to: [roundSec3(nextStart), roundSec3(nextEnd)] });
+      win.start_sec = roundSec3(nextStart);
+      win.end_sec = roundSec3(nextEnd);
+      win.raw_start_sec = win.start_sec;
+      win.raw_end_sec = win.end_sec;
+      if (Number.isFinite(Number(win.caption_start_sec))) win.caption_start_sec = roundSec3(Math.max(Number(win.caption_start_sec), win.start_sec));
+      if (Number.isFinite(Number(win.caption_end_sec))) win.caption_end_sec = roundSec3(Math.min(Number(win.caption_end_sec), win.end_sec));
+      clamped += 1;
+    }
+  }
+  return { clamped, details };
+}
+
 // An auto-caption cue ends when the caption leaves the screen, not when the words stop, so
 // a five-word line can be recorded as thirty seconds. Captions are locked to these windows,
 // which left short lines held on screen long after the speaker had finished and drifting out
@@ -1057,6 +1117,9 @@ function assembleBootstrapArtifacts(runIdOrPath, options = {}) {
   const bootstrapSourceCase = fs.existsSync(bootstrapSourceCasePath) ? readJson(bootstrapSourceCasePath) : null;
   const declaredUsableEndSec = bootstrapSourceCase && bootstrapSourceCase.promo_tail_declared === true
     && Number(bootstrapSourceCase.usable_end_sec) > 0 ? Number(bootstrapSourceCase.usable_end_sec) : 0;
+  // Drop foreign utterances from a clip BEFORE the VAD trim: if a window straddles two cues, the
+  // VAD trim would keep both (they are continuous speech) and the extra voice ships uncaptioned.
+  const dialogueCueClamp = clampDialogueWindowsToOwnCue(editPlan, transcriptTimed);
   const dialogueTrim = trimDialogueWindowsToSpeech(editPlan, speechRanges, sourceDurationSec);
 
   const { transcript, stats: transcriptStats, warnings: tW } = buildBootstrapTranscript(editPlan, transcriptTimed);
@@ -1095,9 +1158,16 @@ function assembleBootstrapArtifacts(runIdOrPath, options = {}) {
     sourceVideoPath,
     sourceDurationSec,
     paths: { outTranscriptPath, outSlotMapPath, outScriptPath, reviewDraftPath, editorialReviewPath },
-    warnings: [...tW, ...sW],
+    warnings: [
+      ...tW,
+      ...sW,
+      ...(dialogueCueClamp.clamped > 0
+        ? [`clamped ${dialogueCueClamp.clamped} dialogue window(s) to their own cue to drop a foreign utterance: ${dialogueCueClamp.details.map((d) => `"${d.line}"`).join(', ')}`]
+        : [])
+    ],
     stats: transcriptStats,
-    dialogue_window_trim: dialogueTrim
+    dialogue_window_trim: dialogueTrim,
+    dialogue_cue_clamp: dialogueCueClamp
   };
 }
 
@@ -1294,6 +1364,7 @@ module.exports = {
   buildBootstrapSlotMapAndScript,
   detectSpeechRanges,
   trimDialogueWindowsToSpeech,
+  clampDialogueWindowsToOwnCue,
   buildEditorialReviewArtifact,
   assembleBootstrapArtifacts,
   runBootstrapPreflight,
