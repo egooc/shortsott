@@ -2934,11 +2934,19 @@ function buildFullCaptionScriptRepairPrompt({ sourceUrl, filename, durationSec, 
       caption_text_ko: scene.caption_text_ko
     }));
   return [
-    'You are repairing ONLY the Full Draft screen-caption manuscript for the 3-minute Ottogi process workflow.',
+    // This prompt used to call the manuscript a "screen-caption" script, and
+    // the model repaired accordingly - it shortened everything to caption size.
+    // Measured on item_007 (2026-08-14): regeneration produced 5 sentences /
+    // 179 chars at 36 chars each, and this repair pass returned 5 / 120 at 24
+    // chars each, cutting a third of the narration and leaving the draft at
+    // 25.3s. The screen split happens downstream in the TTS plan; repair edits
+    // spoken sentences.
+    'You are repairing ONLY the Full Draft spoken narration manuscript for the 3-minute Ottogi process workflow.',
     'Return JSON only. Do not include Markdown.',
     '',
-    'This is not upload description writing.',
-    'You must create ordered screen-caption scripts for Full Draft video subtitles.',
+    'This is not upload description writing, and these are NOT screen captions.',
+    'Each item is one complete spoken TTS sentence. Screen captions are split from these sentences automatically downstream - never shorten a sentence to fit a caption box.',
+    `- LENGTH IS A REPAIR CONSTRAINT: the incoming script must not get shorter. Keep the total at or above ${speechBudget.min_chars} Korean visible characters; if a fix removes text, add narration elsewhere to hold the total. Returning a shorter script than you were given is a failed repair.`,
     '',
     'Required output fields:',
     `- ${OUTPUT_CONFIG.full_draft.scriptKey}: ${koreanFullScriptCountRange(speechBudget)} objects. Full Draft production language is ${OUTPUT_CONFIG.full_draft.lang.toUpperCase()} only.`,
@@ -3042,7 +3050,7 @@ function buildInitialFullCaptionScriptSeedPrompt({ sourceUrl, filename, duration
       ''
     ] : []),
     'Korean narration rules:',
-    '- First write one hidden connected Korean narration, then split it into short screen-caption items.',
+    '- Write connected spoken narration. Each item is ONE complete Korean sentence of 35-60 visible characters - do NOT split the narration into short caption chunks. The screen captions are cut from these sentences automatically downstream.',
     ...koreanFullHookPromptLines(assignedHookType, {
       seed: `${sourceUrl || ''}:${filename || ''}`,
       sourceUrl,
@@ -3094,7 +3102,7 @@ function buildKoreanFullCaptionScriptRegenerationPrompt({ sourceUrl, filename, d
       scene_role: scene.scene_role
     }));
   return [
-    'You are regenerating ONLY the Korean Full Draft screen-caption manuscript for the 3-minute Ottogi process workflow.',
+    'You are regenerating ONLY the Korean Full Draft spoken narration manuscript for the 3-minute Ottogi process workflow.',
     'Return JSON only. Do not include Markdown.',
     '',
     'Why this regeneration is required:',
@@ -3110,7 +3118,7 @@ function buildKoreanFullCaptionScriptRegenerationPrompt({ sourceUrl, filename, d
     '',
     'Korean narration rules:',
     '- Scene data is factual reference only. Do not copy visual_summary, caption_text_ko, or screen_captions_ko as the script.',
-    '- First write one hidden connected Korean narration, then split it into short screen-caption items.',
+    '- Write connected spoken narration. Each item is ONE complete Korean sentence of 35-60 visible characters - do NOT split the narration into short caption chunks. The screen captions are cut from these sentences automatically downstream.',
     ...(storyOutline && Array.isArray(storyOutline.key_moments) ? [
       'Pre-planned knowledge story (story_outline) — regeneration must follow this plan instead of drifting into scene-by-scene description:',
       JSON.stringify({
