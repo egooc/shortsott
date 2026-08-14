@@ -4312,7 +4312,17 @@ function normalizeFullCaptionScript(value = [], scenes = [], language = 'ja', fa
   // ("流し込|まれ、") and, unlike Korean, the TTS plan cannot regroup
   // spaceless JA fragments back into sentences. Screen-caption splitting for
   // JA happens downstream (splitJapaneseCaptionUnits / the JA TTS slicer).
-  const sentenceStandardJa = !korean && minItems <= 3;
+  // Korean needs the same protection. The lane's own gate rejects a fragmented
+  // manuscript, but this splitter was producing the fragments: measured
+  // 2026-08-14 on item_007, Gemini returned 6 clean sentences of 31-39 chars
+  // and they were stored as 20 chunks of ~14, which the fragment gate then
+  // held twice. The 35-60 char sentence standard (2026-08-12) made it worse by
+  // turning each sentence into three pieces instead of two. Screen-caption
+  // splitting for Korean already happens downstream in the TTS plan
+  // (splitFullTtsSentenceIntoCaptionSlices), so doing it here is both
+  // redundant and self-defeating.
+  const sentenceStandardScript = minItems <= 3;
+  const sentenceStandardJa = !korean && sentenceStandardScript;
   const sourceHasRepairResult = source.some((item) => isProtectedKoreanFullScriptSourceBasis((item && typeof item === 'object' ? item.source_basis : '') || ''));
   const normalizedScenes = Array.isArray(scenes) ? scenes : [];
   const sceneIds = normalizedScenes.map((scene, index) => normalizeText(scene?.scene_id || `scene_${String(index + 1).padStart(3, '0')}`));
@@ -4342,7 +4352,7 @@ function normalizeFullCaptionScript(value = [], scenes = [], language = 'ja', fa
       if (!text) return [];
       const role = normalizeText(itemObject.role || '');
       const baseSceneId = normalizeText(itemObject.scene_id || `script_${String(index + 1).padStart(3, '0')}`);
-      const phrases = sentenceStandardJa ? [text] : splitFullScriptScreenPhrases(text, korean);
+      const phrases = sentenceStandardScript ? [text] : splitFullScriptScreenPhrases(text, korean);
       return (phrases.length ? phrases : [text]).map((phrase, phraseIndex) => ({
         scene_id: phraseIndex === 0 ? baseSceneId : `${baseSceneId}_${String(phraseIndex + 1).padStart(2, '0')}`,
         role: FULL_CAPTION_SCRIPT_ROLES.has(role) ? role : inferFullScriptRole(index, source.length),
@@ -4379,7 +4389,12 @@ function normalizeFullCaptionScript(value = [], scenes = [], language = 'ja', fa
     const deduped = dedupeAdjacentFullCaptionScriptItems(repaired);
     // The safe-length pass re-splits anything over the 14-char JA screen cap,
     // which would re-fragment the sentence items this lane must preserve.
-    const limited = limitFullScriptSceneRoles(sentenceStandardJa ? deduped : enforceFullCaptionSafeLengths(deduped, korean));
+    // Second splitter, same JA-only exemption as above: this one cuts on the
+    // on-screen caption width, which a 35-60 char Korean spoken sentence always
+    // exceeds. Manuscript items are TTS sentences, not screen captions - the
+    // screen split happens in the TTS plan - so the sentence standard is
+    // exempt in both languages.
+    const limited = limitFullScriptSceneRoles(sentenceStandardScript ? deduped : enforceFullCaptionSafeLengths(deduped, korean));
     const limitedTexts = limited.map((item) => item.text);
     const weakCount = incompleteCaptionFragmentCount(limitedTexts, korean)
       + limitedTexts.filter((text) => isBareFullDraftLabel(text, korean)).length;
