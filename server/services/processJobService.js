@@ -243,11 +243,27 @@ function isDeferredQueuedJob(job = {}) {
   return job?.status === 'queued' && job.deferred === true;
 }
 
+// A job that never actually started still counts as active, and the only thing
+// that clears it is the finishing process calling startNextDeferredProcessJob -
+// which lives in memory, so if that process dies the record stays 'queued'
+// forever and blocks every later job. Measured 2026-08-14: one orphaned queued
+// job held the queue for 90 minutes and every new job deferred behind it. The
+// daily batch would sit in the same deadlock silently. A queued job that has
+// not moved in this long is treated as dead, not active.
+const STALE_QUEUED_JOB_ACTIVE_MS = 30 * 60 * 1000;
+
+function isStaleQueuedJob(job = {}) {
+  if (job?.status !== 'queued') return false;
+  const stamp = Date.parse(job.updated_at || job.created_at || '');
+  if (!Number.isFinite(stamp)) return false;
+  return Date.now() - stamp > STALE_QUEUED_JOB_ACTIVE_MS;
+}
+
 function isRunnableActiveJob(job = {}, lane = '') {
   if (!job || job.cancel_requested) return false;
   if (lane && String(job.lane || getJobLaneFromStages(job.stages || [])) !== lane) return false;
   if (job.status === 'running') return true;
-  if (job.status === 'queued' && !isDeferredQueuedJob(job)) return true;
+  if (job.status === 'queued' && !isDeferredQueuedJob(job) && !isStaleQueuedJob(job)) return true;
   return false;
 }
 
