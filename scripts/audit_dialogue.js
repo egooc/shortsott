@@ -24,7 +24,12 @@ async function main() {
   let total = 0; let flagged = 0; const report = [];
   for (const item of timeline) {
     if (item.decision !== 'KEEP_DIALOGUE') continue;
-    const en = item.dialogue_focus_lines || item.dialogue_focus_quotes || [];
+    // Use the dialogue_line_windows (the cues that actually render, indexed 1:1 with
+    // caption_kr_dialogue) rather than dialogue_focus_lines: the matcher can add a cue beyond the
+    // focus list, and that extra rendered line then has NO translation (empty caption / raw
+    // English on screen). Windows expose it; focus_lines hide it.
+    const windows = Array.isArray(item.dialogue_line_windows) ? item.dialogue_line_windows : [];
+    const en = windows.length ? windows.map((w) => String(w.line || '')) : (item.dialogue_focus_lines || item.dialogue_focus_quotes || []);
     const fill = fillBySlot.get(String(item.slot_id)) || {};
     const tr = fill.caption_kr_dialogue || [];
     const speakers = fill.speakers || [];

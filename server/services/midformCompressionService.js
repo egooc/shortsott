@@ -5991,7 +5991,12 @@ async function auditAndFixDialogueTranslations(runDir, editPlan, slotFills, fill
   let fixed = 0;
   for (const item of (Array.isArray(editPlan?.timeline) ? editPlan.timeline : [])) {
     if (item.decision !== 'KEEP_DIALOGUE') continue;
-    const en = item.dialogue_focus_lines || item.dialogue_focus_quotes || [];
+    // The dialogue_line_windows are the cues that actually render, indexed 1:1 with
+    // caption_kr_dialogue; the matcher can add a cue beyond dialogue_focus_lines, and that extra
+    // rendered line then ships with NO translation (empty caption / raw English on screen). Audit
+    // against the windows so those are caught, not just the focus lines.
+    const windows = Array.isArray(item.dialogue_line_windows) ? item.dialogue_line_windows : [];
+    const en = windows.length ? windows.map((w) => String(w.line || '')) : (item.dialogue_focus_lines || item.dialogue_focus_quotes || []);
     const fill = fillBySlot.get(String(item.slot_id));
     const tr = fill && Array.isArray(fill.caption_kr_dialogue) ? fill.caption_kr_dialogue : null;
     const speakers = fill && Array.isArray(fill.speakers) ? fill.speakers : [];
