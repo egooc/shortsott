@@ -8612,6 +8612,7 @@ function collectJapaneseCaptionIssues(guide = {}, options = {}) {
         issue_type: 'ko_full_weak_sentence_group'
       });
     }
+    const sentenceStandardScriptItems = options.sentenceStandardScript === true;
     const formalEndingCount = texts.filter((text) => (
       korean
         ? /(입니다|습니다|됩니다|집니다|합니다)$/u.test(text)
@@ -8635,7 +8636,13 @@ function collectJapaneseCaptionIssues(guide = {}, options = {}) {
       const invalid = korean
         ? !isValidKoreanCaption(text)
         : ((!isValidJapaneseCaption(text) && !allowConnectedJapaneseFragment) || (isBrokenJapaneseScreenPhrase(text) && !allowConnectedJapaneseFragment));
-      const tooLong = visibleTextLength(text) > (korean ? FULL_CAPTION_SAFE_MAX_CHARS.ko : FULL_CAPTION_SAFE_MAX_CHARS.ja);
+      // The caption box limit is screen geometry, and a sentence-standard item
+      // is a spoken TTS sentence, not a caption: 26-35 Korean chars can never
+      // fit a 16-char box. It only ever passed because the splitters cut the
+      // manuscript into caption-sized chunks first. The screen split happens in
+      // the TTS plan, so the box limit is checked there, not here.
+      const tooLong = !sentenceStandardScriptItems
+        && visibleTextLength(text) > (korean ? FULL_CAPTION_SAFE_MAX_CHARS.ko : FULL_CAPTION_SAFE_MAX_CHARS.ja);
       if (invalid || tooLong) {
         issues.push({
           scene_id: 'metadata',
@@ -8665,7 +8672,16 @@ function collectJapaneseCaptionIssues(guide = {}, options = {}) {
     }
   }
   if (includeKorean && includeFull) {
-    validateFullCaptionScript('full_caption_script_ko', guide.full_caption_script_ko, true);
+    // The default minimum here is 20, the screen-phrase-era item count. The
+    // splitters were the only reason a sentence-standard script ever reached
+    // it: 5 spoken sentences became 20 chunks. With splitting stopped, a valid
+    // KR Full manuscript is 5-10 whole sentences and this stale floor held it
+    // (item_007, 2026-08-14). Callers on the sentence-standard lane pass their
+    // own minimum, exactly as the JA lane already does.
+    validateFullCaptionScript('full_caption_script_ko', guide.full_caption_script_ko, true,
+      Number(options.koreanFullScriptMinimum) > 0
+        ? { minimum: Number(options.koreanFullScriptMinimum), sentenceStandard: true, sentenceStandardScript: true }
+        : {});
   }
   if (includeKorean && includeMidform) {
     if (isLongformGuide(guide) && normalizeWindow(guide.midform_clip_120s)) {
@@ -9318,6 +9334,10 @@ function validateGuide(guide, options = {}) {
   // review set is never generated there, so requiring it would hard-fail
   // every JA Full item before the lenient gates could run.
   const japaneseFullLane = normalizeText(options.fullScriptField || '') === 'full_caption_script_ja';
+  // Same signal for the Korean side: a caller that names full_caption_script_ko
+  // as its script field is on the sentence standard, so the 20-item
+  // screen-phrase floor does not apply to it.
+  const koreanFullLane = normalizeText(options.fullScriptField || '') === 'full_caption_script_ko';
   const baseRequiredKeys = skipFullValidation ? [] : (japaneseFullLane
     ? [
         'short_description_200',
@@ -9378,6 +9398,7 @@ function validateGuide(guide, options = {}) {
     includeKorean: !japaneseFullLane,
     includeJapaneseFull: japaneseFullLane,
     japaneseFullScriptMinimum: japaneseFullLane ? 3 : 0,
+    koreanFullScriptMinimum: koreanFullLane ? 3 : 0,
     durationSec: guide?.duration_sec || guide?.target_duration_sec || 0
   });
   if (invalidJapaneseCaptions.length) {
