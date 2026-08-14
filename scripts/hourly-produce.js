@@ -29,6 +29,26 @@ const EXPORT_DIR = path.join(DRAFTS_DIR, '_automation factory');
 const UPLOADED_DIR = path.join(EXPORT_DIR, 'uploaded');
 const QUEUE_DIR = path.join(ROOT, 'queue', 'process');
 const EXPORT_TIMEOUT_MS = 15 * 60 * 1000;
+// A draft whose media the retention sweep already deleted can never export:
+// CapCut opens it straight into "Couldn't find some of the imported media
+// files" and the editor never comes up. Without a ledger the producer retried
+// the same dead draft every hour and the whole line stalled behind it
+// (observed 2026-08-15 on 20260813-F-215210). Two attempts, then skip.
+const FAILURE_LEDGER_PATH = path.join(ROOT, 'server', 'data', 'export_failures.json');
+const MAX_EXPORT_ATTEMPTS = 2;
+
+function readLedger() {
+  try {
+    return JSON.parse(fs.readFileSync(FAILURE_LEDGER_PATH, 'utf8'));
+  } catch {
+    return {};
+  }
+}
+
+function writeLedger(ledger) {
+  fs.mkdirSync(path.dirname(FAILURE_LEDGER_PATH), { recursive: true });
+  fs.writeFileSync(FAILURE_LEDGER_PATH, `${JSON.stringify(ledger, null, 2)}\n`, 'utf8');
+}
 
 function exportedNames() {
   const names = new Set();
@@ -50,6 +70,7 @@ function pendingDrafts() {
     .map((entry) => entry.name)
     .filter((name) => fs.existsSync(path.join(DRAFTS_DIR, name, 'edit_manifest.json')))
     .filter((name) => !done.has(name))
+    .filter((name) => (readLedger()[name]?.attempts || 0) < MAX_EXPORT_ATTEMPTS)
     .sort();
 }
 
@@ -92,7 +113,17 @@ function main() {
       ], { encoding: 'utf8', timeout: EXPORT_TIMEOUT_MS, windowsHide: false });
       console.log(String(out).trim().split('\n').slice(-2).join('\n'));
     } catch (error) {
-      console.log(`export failed: ${String(error.message || error).slice(0, 200)}`);
+      const ledger = readLedger();
+      const entry = ledger[target] || { attempts: 0 };
+      entry.attempts += 1;
+      entry.lastError = String(error.message || error).slice(0, 200);
+      entry.lastAt = new Date().toISOString();
+      ledger[target] = entry;
+      writeLedger(ledger);
+      console.log(`export failed (${entry.attempts}/${MAX_EXPORT_ATTEMPTS}): ${entry.lastError}`);
+      if (entry.attempts >= MAX_EXPORT_ATTEMPTS) {
+        console.log(`giving up on ${target}; it will be skipped from now on`);
+      }
       process.exitCode = 1;
     }
     return;

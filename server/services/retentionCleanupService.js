@@ -60,15 +60,66 @@ function dirSizeBytes(dir) {
   return total;
 }
 
+// The header above assumed a shipped draft is self-contained once copied to the
+// CapCut output root. It is not: the copied draft_content.json still points at
+// absolute staging paths, so deleting the staging dir leaves CapCut opening the
+// draft straight into "Couldn't find some of the imported media files" and the
+// export automation can never run it. Measured 2026-08-15:
+// 20260813-F-215210 lost all 18 media files this way and blocked the hourly
+// export line until it was skipped by hand.
+//
+// So a staging dir stays as long as any draft that references it has not been
+// exported yet. Once its mp4 exists, the staging copy is genuinely disposable.
+function exportedDraftNames(root) {
+  const names = new Set();
+  for (const dir of [path.join(root, '_automation factory'), path.join(root, '_automation factory', 'uploaded')]) {
+    if (!fs.existsSync(dir)) continue;
+    for (const file of fs.readdirSync(dir)) {
+      if (!file.toLowerCase().endsWith('.mp4')) continue;
+      names.add(file.replace(/\.mp4$/i, '').replace(/\s*\(\d+\)$/, ''));
+    }
+  }
+  return names;
+}
+
+function stagingDirsInUse(errors) {
+  const inUse = new Set();
+  let root = '';
+  try {
+    const queueConfig = JSON.parse(fs.readFileSync(path.join(QUEUE_ROOT, 'queue_config.json'), 'utf8'));
+    root = String(queueConfig?.output?.output_root || queueConfig?.output?.capcut_draft_root || '').trim();
+  } catch (error) {
+    errors.push(`queue config: ${error.message}`);
+  }
+  if (!root || !fs.existsSync(root)) return inUse;
+
+  const exported = exportedDraftNames(root);
+  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+    if (!entry.isDirectory() || entry.name === '_automation factory') continue;
+    if (exported.has(entry.name)) continue;
+    const contentPath = path.join(root, entry.name, 'draft_content.json');
+    if (!fs.existsSync(contentPath)) continue;
+    try {
+      const text = fs.readFileSync(contentPath, 'utf8');
+      for (const match of text.matchAll(/process_\d+/g)) inUse.add(match[0]);
+    } catch (error) {
+      errors.push(`draft ${entry.name}: ${error.message}`);
+    }
+  }
+  return inUse;
+}
+
 function sweepStagingDrafts(nowMs, errors) {
   let removedDirs = 0;
   let freedBytes = 0;
   if (!fs.existsSync(DRAFT_STAGING_ROOT)) {
     return { removedDirs, freedBytes };
   }
+  const protectedDirs = stagingDirsInUse(errors);
   const maxAgeMs = retentionHours() * 3600 * 1000;
   for (const name of fs.readdirSync(DRAFT_STAGING_ROOT)) {
     if (!STAGING_DRAFT_DIR_RE.test(name)) continue;
+    if (protectedDirs.has(name)) continue;
     const dirPath = path.join(DRAFT_STAGING_ROOT, name);
     try {
       const stat = fs.statSync(dirPath);
