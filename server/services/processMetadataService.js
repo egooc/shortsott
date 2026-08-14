@@ -12080,6 +12080,7 @@ module.exports = {
     validateFullStoryOutline,
     collectCameraEditingTermHits,
     buildReviewPrompt,
+    collectEnglishFallbackHits,
     collectJapaneseCaptionIssues,
     coerceKoreanFullScriptBookkeeping,
     coerceStandardMetadataVariantModeForSource,

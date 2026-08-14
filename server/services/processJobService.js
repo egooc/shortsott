@@ -626,6 +626,13 @@ function summarizeMetadataFailure(error = {}) {
       can_regenerate_draft_only: false,
       detail_lines: [
         missing.length ? `누락 필드: ${missing.slice(0, 8).join(', ')}${missing.length > 8 ? ` 외 ${missing.length - 8}개` : ''}` : '',
+        // english_fallback_detected on its own is undiagnosable - the guide is
+        // not persisted when this validator throws, so item_007 failed on it
+        // three times with nothing to inspect (2026-08-14). The validator now
+        // carries the offending strings; surface them.
+        Array.isArray(error?.details?.english_fallback_hits) && error.details.english_fallback_hits.length
+          ? `영어 혼입 값: ${error.details.english_fallback_hits.slice(0, 3).map((hit) => String(hit).slice(0, 70)).join(' / ')}`
+          : '',
         issues.length ? `검증 이슈: ${issues.slice(0, 3).map((issue) => issue.reason || issue.field || 'issue').join(' / ')}${issues.length > 3 ? ` 외 ${issues.length - 3}개` : ''}` : '',
         error.message ? `오류: ${error.message}` : '',
         code ? `오류 코드: ${code}` : '',
