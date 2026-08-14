@@ -9655,6 +9655,33 @@ function safeStageFileName(value = '') {
   return String(value || '').trim().replace(/[^a-zA-Z0-9_-]/g, '_') || 'stage';
 }
 
+// The lenient lane accepts a script with soft caption findings, and then every
+// LATER validateGuide re-judged the guide it had just accepted with no
+// leniency - so the acceptance never survived. item_007 logged
+// "관용 수용 (6문구/175자)" and failed on the next line, twice, because the
+// two later call sites did not carry the lane flags (2026-08-14). Every pass
+// that can see a lane guide must make the same decision.
+function validateGuideAllowingLaneWarnings(guide, options = {}, onProgress = null) {
+  try {
+    validateGuide(guide, options);
+    return guide;
+  } catch (error) {
+    const field = normalizeText(options.fullScriptField || '') || 'full_caption_script_ko';
+    const script = options.lenientKoreanFullGates ? guide?.[field] : null;
+    const captionOnlyFinding = Array.isArray(error?.details?.missing)
+      && error.details.missing.length > 0
+      && error.details.missing.every((entry) => normalizeText(entry) === 'invalid_japanese_scene_captions');
+    if (Array.isArray(script) && script.length >= 3 && captionOnlyFinding) {
+      emitProgress(onProgress, `TTS Full 레인 관용 수용(최종 검증): 자막 소프트 이슈를 경고로 처리하고 진행 (${script.length}문장)`, {
+        phase: 'kr_full_lenient_final_accept',
+        script_items: script.length
+      });
+      return guide;
+    }
+    throw error;
+  }
+}
+
 async function validateOrRepairJapaneseCaptions({ guide, generateRepairJson, sourceUrl, filename, durationSec, validationOptions = {}, assignedHookType = null, onProgress, fullDraftStagesDir = '', initialStageRawResponse = null, storyOutline = null }) {
   let current = guide;
   let koreanFullStyleRegenerationUsed = false;
@@ -10161,26 +10188,8 @@ async function validateOrRepairJapaneseCaptions({ guide, generateRepairJson, sou
     durationSec
   ));
   try {
-    validateGuide(normalizedCurrent, validationOptions);
+    validateGuideAllowingLaneWarnings(normalizedCurrent, validationOptions, onProgress);
   } catch (error) {
-    // The lenient lane accepts a script with soft findings a few lines above,
-    // and then this final pass re-validated the very guide it just accepted -
-    // with no leniency - so the acceptance never survived. item_007 reached
-    // "관용 수용 (7문구/179자)" and failed on the next line (2026-08-14).
-    // Honour the same decision here: a non-empty script on the lenient lane
-    // with only caption findings ships with a warning.
-    const lenientScript = validationOptions.lenientKoreanFullGates
-      ? normalizedCurrent?.[normalizeText(validationOptions.fullScriptField || '') || 'full_caption_script_ko']
-      : null;
-    const captionOnlyFinding = Array.isArray(error?.details?.missing)
-      && error.details.missing.every((entry) => normalizeText(entry) === 'invalid_japanese_scene_captions');
-    if (Array.isArray(lenientScript) && lenientScript.length >= 3 && captionOnlyFinding) {
-      emitProgress(onProgress, `TTS Full 레인 관용 수용(최종 검증): 자막 소프트 이슈를 경고로 처리하고 진행 (${lenientScript.length}문장)`, {
-        phase: 'kr_full_lenient_final_accept',
-        script_items: lenientScript.length
-      });
-      return normalizedCurrent;
-    }
     error.guide = normalizedCurrent;
     throw error;
   }
@@ -11473,11 +11482,14 @@ async function runStandardGeminiPipeline({ generateJson, sourceUrl, filename, du
     if (allRequestedLongformVariantsFailed(guide, requestedVariants)) {
       throw error;
     }
-    validateGuide(guide, {
+    validateGuideAllowingLaneWarnings(guide, {
       skipFullValidation: validationOptions.skipFullValidation || guide.full_generation_status === 'failed' || guide.full_generation_status === 'held',
       skipHighlightValidation: validationOptions.skipHighlightValidation || guide.highlight_generation_status === 'failed',
-      skipMidformValidation: validationOptions.skipMidformValidation || guide.midform_generation_status === 'failed'
-    });
+      skipMidformValidation: validationOptions.skipMidformValidation || guide.midform_generation_status === 'failed',
+      // Without these the lane's acceptance is discarded one line later.
+      lenientKoreanFullGates: validationOptions.lenientKoreanFullGates,
+      fullScriptField: validationOptions.fullScriptField
+    }, onProgress);
   }
   if (effectiveMetadataVariantMode === 'highlight_only' && normalizedMetadataVariantMode !== effectiveMetadataVariantMode) {
     guide = {
