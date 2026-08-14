@@ -110,7 +110,13 @@ const KOREAN_FULL_SPEECH_DEFAULT_SENTENCE_COUNT = 22;
 // standard); one JA sentence runs ~16 visible chars (12-22 standard).
 // 숏헌터 house style (user-provided spec 2026-08-12): 35-60 chars per
 // sentence, breathing carried by endings not punctuation.
-const KOREAN_FULL_SENTENCE_CHARS_DIVISOR = 45;
+// Re-baselined 45 -> 38 on 2026-08-14. 45 is the middle of the stated 35-60
+// band, but the model does not write to the middle of it: measured across runs
+// the sentences come back at 36-42 chars. Dividing by 45 therefore asked for
+// one sentence too few, and the script landed under the floor even when every
+// sentence was in spec (item_007: 4 sentences x 38 = 151 against a 216 floor).
+// Divide by what the sentences actually measure.
+const KOREAN_FULL_SENTENCE_CHARS_DIVISOR = 38;
 const JAPANESE_FULL_SENTENCE_CHARS_DIVISOR = 16;
 
 function fullSpeechCharsPerSecForLanguage(language = 'ko') {
