@@ -6285,7 +6285,7 @@ function hasNonEmptySubtitles(guide = {}, language = 'ja') {
   return sceneHas || highlightHas;
 }
 
-function hasEnglishFallback(guide = {}, options = {}) {
+function collectEnglishFallbackHits(guide = {}, options = {}) {
   const values = [];
   const push = (value) => {
     if (typeof value === 'string') values.push(value);
@@ -6348,12 +6348,16 @@ function hasEnglishFallback(guide = {}, options = {}) {
     pushMetadata(guide.midform_metadata_ko);
   }
 
-  return values.some((value) => {
+  return values.filter((value) => {
     const text = normalizeText(value);
     if (!text) return false;
     const hasCjk = hasJapaneseText(text) || hasKoreanText(text);
     return !hasCjk && /[A-Za-z]{12,}/.test(text);
-  });
+  }).map((value) => normalizeText(value).slice(0, 160));
+}
+
+function hasEnglishFallback(guide = {}, options = {}) {
+  return collectEnglishFallbackHits(guide, options).length > 0;
 }
 
 
@@ -6689,15 +6693,20 @@ function validateLongformShortsResult(guide = {}, options = {}) {
   if ((!fullProductionIsKorean || !skipHighlightValidation || !skipMidformValidation) && !hasNonEmptySubtitles(guide, 'ja')) {
     missing.push('missing_japanese_subtitles');
   }
-  if (!options.skipEnglishFallback && hasEnglishFallback(guide, {
+  // Report WHICH value tripped this. The finding alone is undiagnosable: the
+  // guide is not persisted when this validator throws, so a run that failed on
+  // english_fallback_detected left nothing to inspect (item_007, 2026-08-14).
+  const englishFallbackHits = options.skipEnglishFallback ? [] : collectEnglishFallbackHits(guide, {
     includeFull: !skipFullValidation,
     includeHighlight: !skipHighlightValidation,
     includeMidform: !skipMidformValidation
-  })) missing.push('english_fallback_detected');
+  });
+  if (englishFallbackHits.length) missing.push('english_fallback_detected');
 
   if (missing.length) {
     throw createHttpError(500, 'OTTOGI_LONGFORM_VALIDATION_FAILED', 'Long-form Gemini result failed validation', {
       missing,
+      english_fallback_hits: englishFallbackHits.slice(0, 5),
       hook_clip_10s: guide.hook_clip_10s || null,
       story_clip_40s: guide.story_clip_40s || null,
       midform_clip_120s: guide.midform_clip_120s || guide.recommended_midform_window || null,
