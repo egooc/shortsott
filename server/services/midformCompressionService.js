@@ -523,8 +523,73 @@ function dedupeRollingCues(cues) {
   return result;
 }
 
+function normalizeCaptionWord(word) {
+  return String(word || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+// YouTube auto-captions carry per-word timing tags (`How<00:06:36.480><c> much</c>...`). Those
+// tags are the authoritative moment each word is spoken. cleanVttText strips them, so collect them
+// here first: the leading words before the first tag belong to the cue's own start; every tagged
+// word gets its own timestamp. Consecutive exact repeats (the rolling tail) are dropped.
+function extractWordTimings(rawTextLines, blockStartSec) {
+  const out = [];
+  const joined = rawTextLines.join(' ');
+  const firstTagAt = joined.search(/<\d\d:\d\d:\d\d[.,]\d{1,3}>/);
+  const head = firstTagAt >= 0 ? joined.slice(0, firstTagAt) : joined;
+  for (const word of cleanVttText(head).split(' ')) {
+    const normalized = normalizeCaptionWord(word);
+    if (normalized && Number.isFinite(blockStartSec)) out.push({ sec: blockStartSec, word: normalized });
+  }
+  const tagRe = /<(\d\d:\d\d:\d\d[.,]\d{1,3})><c>\s*([^<]+)<\/c>/g;
+  let match;
+  while ((match = tagRe.exec(joined))) {
+    const sec = parseVttTime(match[1]);
+    if (!Number.isFinite(sec)) continue;
+    for (const word of cleanVttText(match[2]).split(' ')) {
+      const normalized = normalizeCaptionWord(word);
+      if (normalized) out.push({ sec, word: normalized });
+    }
+  }
+  return out;
+}
+
+// The rolling-cue dedup can hand a line the start time of an EARLIER block it was merged through,
+// so a line whose words are actually spoken 15s later still gets cut from the wrong audio (the
+// clip plays a different scene under the caption). The word-timing tags know when each word was
+// really spoken: walk the cues in order and, when the tags say a line's first words start later
+// than the parsed start, snap the start forward. Only ever moves a start LATER, only within the
+// cue's own span, so a legitimately long line (whose start already matches its first word) is left
+// untouched.
+function snapCuesToWordTimings(cues, wordTimings) {
+  const SNAP_MIN_GAIN_SEC = 1.5;
+  if (!Array.isArray(wordTimings) || wordTimings.length < 2) return cues;
+  let searchFrom = 0;
+  for (const cue of cues) {
+    const words = cleanVttText(cue.text).split(' ').map(normalizeCaptionWord).filter(Boolean);
+    if (words.length < 2) continue;
+    let found = -1;
+    for (let i = searchFrom; i < wordTimings.length - 1; i += 1) {
+      if (wordTimings[i].word !== words[0]) continue;
+      let secondFollows = false;
+      for (let j = i + 1; j < Math.min(wordTimings.length, i + 4); j += 1) {
+        if (wordTimings[j].word === words[1]) { secondFollows = true; break; }
+      }
+      if (secondFollows) { found = i; break; }
+    }
+    if (found < 0) continue;
+    searchFrom = found + 1;
+    const trueStart = wordTimings[found].sec;
+    if (trueStart > cue.start_sec + SNAP_MIN_GAIN_SEC && trueStart < cue.end_sec) {
+      cue.start_sec = roundSec(trueStart);
+      cue.end_sec = roundSec(Math.max(cue.end_sec, trueStart + 0.3));
+    }
+  }
+  return cues;
+}
+
 function parseVtt(vttText) {
   const cues = [];
+  const wordTimings = [];
   const lines = String(vttText || '').replace(/^\uFEFF/, '').split(/\r?\n/);
   let index = 0;
   while (index < lines.length) {
@@ -545,13 +610,20 @@ function parseVtt(vttText) {
       if (!/^NOTE\b|^STYLE\b|^REGION\b/i.test(nextLine)) textLines.push(nextLine);
       index += 1;
     }
+    if (Number.isFinite(startSec)) {
+      for (const timed of extractWordTimings(textLines, startSec)) {
+        const previous = wordTimings[wordTimings.length - 1];
+        if (previous && previous.sec === timed.sec && previous.word === timed.word) continue;
+        wordTimings.push(timed);
+      }
+    }
     const text = cleanVttText(textLines.join(' '));
     if (Number.isFinite(startSec) && Number.isFinite(endSec) && endSec > startSec && text) {
       cues.push({ start_sec: startSec, end_sec: endSec, text });
     }
     index += 1;
   }
-  return dedupeRollingCues(cues);
+  return snapCuesToWordTimings(dedupeRollingCues(cues), wordTimings);
 }
 
 function findVttFile(dirPath) {
