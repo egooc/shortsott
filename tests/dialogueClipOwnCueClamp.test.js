@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 
-const { clampDialogueWindowsToOwnCue } = require('../server/services/midformBootstrapAdapterService');
+const { clampDialogueWindowsToOwnCue, extendShortDialogueWindows } = require('../server/services/midformBootstrapAdapterService');
 
 function planWith(line, start, end) {
   return {
@@ -73,4 +73,58 @@ test('an unconfident text match is not clamped (never guesses a foreign cue is t
   const result = clampDialogueWindowsToOwnCue(plan, transcript);
 
   assert.equal(result.clamped, 0);
+});
+
+test('a caption YouTube collapsed onto one timestamp is floored to speaking time, bounded by the next line', () => {
+  // "Okay, I'm ready to do this, Tom." (8 words) recorded as a 0.9s window -> only the last word is
+  // audible. Floor it to ~wordCount/3.2s so the whole line plays; the next selected clip is far off.
+  const plan = {
+    timeline: [
+      {
+        slot_id: 's1',
+        decision: 'KEEP_DIALOGUE',
+        dialogue_line_windows: [
+          { matched: true, line: "Okay, I'm ready to do this, Tom.", start_sec: 304.5, end_sec: 305.4 },
+          { matched: true, line: 'much later line', start_sec: 320.0, end_sec: 322.0 }
+        ]
+      }
+    ]
+  };
+  const result = extendShortDialogueWindows(plan, 600);
+  assert.equal(result.extended, 1);
+  const win = plan.timeline[0].dialogue_line_windows[0];
+  assert.ok(win.end_sec - win.start_sec >= 2.1, `floored to speaking time, got ${win.end_sec - win.start_sec}`);
+});
+
+test('the floor never runs a clip into the next selected line', () => {
+  const plan = {
+    timeline: [
+      {
+        slot_id: 's1',
+        decision: 'KEEP_DIALOGUE',
+        dialogue_line_windows: [
+          { matched: true, line: 'seven word line right here now ok', start_sec: 100.0, end_sec: 100.9 },
+          { matched: true, line: 'the next speaker starts talking', start_sec: 101.4, end_sec: 103.0 }
+        ]
+      }
+    ]
+  };
+  extendShortDialogueWindows(plan, 600);
+  const win = plan.timeline[0].dialogue_line_windows[0];
+  assert.ok(win.end_sec <= 101.4, `stops before next line, got ${win.end_sec}`);
+});
+
+test('a clip already long enough for its words is left alone', () => {
+  const plan = {
+    timeline: [
+      {
+        slot_id: 's1',
+        decision: 'KEEP_DIALOGUE',
+        dialogue_line_windows: [{ matched: true, line: 'three word line', start_sec: 10.0, end_sec: 13.0 }]
+      }
+    ]
+  };
+  const result = extendShortDialogueWindows(plan, 600);
+  assert.equal(result.extended, 0);
+  assert.equal(plan.timeline[0].dialogue_line_windows[0].end_sec, 13.0);
 });

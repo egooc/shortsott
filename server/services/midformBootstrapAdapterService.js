@@ -490,6 +490,49 @@ function clampDialogueWindowsToOwnCue(editPlan, transcriptTimed) {
   return { clamped, details };
 }
 
+// The opposite failure to the over-long cue: YouTube sometimes stamps a whole spoken line onto ONE
+// timestamp ("Okay, I'm ready to do this, Tom." collapsed to a 0.2s cue), so the window - and the
+// clip cut from it - holds only the tail and the viewer hears one word and has to read the rest.
+// The tags can't recover a span they never recorded, so floor each clip at the time the words need
+// to be spoken (wordCount / WORDS_PER_SEC), extending the END forward. Bounded by the next selected
+// dialogue clip anywhere on the timeline and by the source end, so it never swallows another line.
+function extendShortDialogueWindows(editPlan, sourceDurationSec = 0) {
+  const DIALOGUE_FLOOR_WORDS_PER_SEC = 3.2;
+  const timeline = Array.isArray(editPlan?.timeline) ? editPlan.timeline : [];
+  const selectedStarts = [];
+  for (const item of timeline) {
+    if (item?.decision !== 'KEEP_DIALOGUE') continue;
+    for (const win of Array.isArray(item.dialogue_line_windows) ? item.dialogue_line_windows : []) {
+      if (win && win.matched === true && Number.isFinite(Number(win.start_sec))) selectedStarts.push(Number(win.start_sec));
+    }
+  }
+  selectedStarts.sort((a, b) => a - b);
+  let extended = 0;
+  for (const item of timeline) {
+    if (item?.decision !== 'KEEP_DIALOGUE') continue;
+    for (const win of Array.isArray(item.dialogue_line_windows) ? item.dialogue_line_windows : []) {
+      if (!win || win.matched !== true) continue;
+      const start = Number(win.start_sec);
+      const end = Number(win.end_sec);
+      if (!(end > start)) continue;
+      const wordCount = String(win.line || '').trim().split(/\s+/).filter(Boolean).length;
+      if (wordCount < 3) continue;
+      const needSec = wordCount / DIALOGUE_FLOOR_WORDS_PER_SEC;
+      if (end - start >= needSec) continue;
+      let limit = start + needSec;
+      const nextStart = selectedStarts.find((value) => value > end + 0.05);
+      if (Number.isFinite(nextStart)) limit = Math.min(limit, nextStart - 0.05);
+      if (sourceDurationSec > 0) limit = Math.min(limit, sourceDurationSec);
+      if (limit > end + 0.1) {
+        win.end_sec = roundSec3(limit);
+        if (Number.isFinite(Number(win.caption_end_sec))) win.caption_end_sec = roundSec3(Math.max(Number(win.caption_end_sec), win.end_sec));
+        extended += 1;
+      }
+    }
+  }
+  return { extended };
+}
+
 // An auto-caption cue ends when the caption leaves the screen, not when the words stop, so
 // a five-word line can be recorded as thirty seconds. Captions are locked to these windows,
 // which left short lines held on screen long after the speaker had finished and drifting out
@@ -1124,6 +1167,10 @@ function assembleBootstrapArtifacts(runIdOrPath, options = {}) {
   // VAD trim would keep both (they are continuous speech) and the extra voice ships uncaptioned.
   const dialogueCueClamp = clampDialogueWindowsToOwnCue(editPlan, transcriptTimed);
   const dialogueTrim = trimDialogueWindowsToSpeech(editPlan, speechRanges, sourceDurationSec);
+  // Floor each clip at the time its words need to be spoken, so a caption YouTube collapsed onto one
+  // timestamp is not cut down to its last word. Runs AFTER the trim so it lifts whatever the cue and
+  // VAD left too short.
+  const dialogueFloor = extendShortDialogueWindows(editPlan, sourceDurationSec);
 
   const { transcript, stats: transcriptStats, warnings: tW } = buildBootstrapTranscript(editPlan, transcriptTimed);
   const energyProfilePath = path.join(runDir, 'energy_profile.json');
@@ -1170,7 +1217,8 @@ function assembleBootstrapArtifacts(runIdOrPath, options = {}) {
     ],
     stats: transcriptStats,
     dialogue_window_trim: dialogueTrim,
-    dialogue_cue_clamp: dialogueCueClamp
+    dialogue_cue_clamp: dialogueCueClamp,
+    dialogue_floor: dialogueFloor
   };
 }
 
@@ -1368,6 +1416,7 @@ module.exports = {
   detectSpeechRanges,
   trimDialogueWindowsToSpeech,
   clampDialogueWindowsToOwnCue,
+  extendShortDialogueWindows,
   buildEditorialReviewArtifact,
   assembleBootstrapArtifacts,
   runBootstrapPreflight,
