@@ -9149,6 +9149,70 @@ function getLongformFullArcWindows(itemConfig = {}, targetDurationSec = LONGFORM
   return total >= 20 ? picked : [];
 }
 
+// Full promotion of a highlight source (designed 2026-08-14, OFF by default).
+//
+// A qualified source is the scarce resource here, not the analysis: the arc is
+// produced by the SAME Vision candidate scan that produces the hook candidates,
+// so every longform highlight source already carries a full process arc that is
+// currently discarded. Promoting a source to also ship a Full costs one script
+// call, TTS and a draft build - the expensive scan is already paid for - and it
+// raises output per source instead of raising harvest pressure, which is what
+// the gate pass rate (measured 0/4 to 4/4 per batch) actually limits.
+//
+// Deliberately not wired into effectiveDraftVariantModeForItem/wantsFullDraft:
+// those are the guards that keep Full generation from ever going unconditionally
+// on, and check:shortform-highlight pins them. Promotion is meant to run as a
+// SECOND queue item on the channel's full lane, reusing the downloaded source
+// and the stored guide, so the lane check keeps working untouched.
+const FULL_PROMOTION_ENV_KEY = 'FULL_FROM_HIGHLIGHT_SOURCE';
+const FULL_PROMOTION_MIN_CONCAT_SEC = 38;
+// Same floor the arc selector uses for a usable arc; dropping below it after
+// dedupe means the overlap ate the arc, so the untouched arc is kept instead.
+const FULL_PROMOTION_MIN_KEPT_WINDOWS = 5;
+
+function fullPromotionAssessment(itemConfig = {}) {
+  const reasons = [];
+  if (process.env[FULL_PROMOTION_ENV_KEY] !== '1') reasons.push('promotion_disabled');
+  const lane = itemConfig?.production_lane || '';
+  if (lane === 'kr_full' || lane === 'ja_full') reasons.push('already_full_lane');
+  if (!isLongformHighlightSource(itemConfig)) reasons.push('not_longform_source');
+  const windows = getLongformFullArcWindows(itemConfig);
+  const concatSec = windows.reduce((sum, window) => sum + Number(window.duration_sec || 0), 0);
+  if (!windows.length) {
+    reasons.push('no_usable_arc');
+  } else {
+    // The two arc failures that shipped bad Fulls before: an arc whose result
+    // step fell outside the source (so the Full ended mid-process) and an arc
+    // too short to clear the format. Both are visible here before any cost.
+    if (windows[windows.length - 1].longform_full_role !== 'arc_result') reasons.push('arc_has_no_result_step');
+    if (concatSec < FULL_PROMOTION_MIN_CONCAT_SEC) reasons.push(`arc_too_short_${concatSec.toFixed(1)}s`);
+  }
+  return {
+    eligible: reasons.length === 0,
+    reasons,
+    windows,
+    concat_sec: Number(concatSec.toFixed(3))
+  };
+}
+
+// The hook window a highlight ships and arc step 1 routinely land on the same
+// moment, so a promoted Full would replay footage the channel already posted.
+// Arc windows overlapping an already-shipped highlight window are dropped, but
+// never below the arc minimum and never the result step - a Full without its
+// ending is worse than one that repeats a few seconds.
+function dedupeArcWindowsAgainstHighlights(arcWindows = [], highlightWindows = []) {
+  const shipped = (Array.isArray(highlightWindows) ? highlightWindows : [])
+    .map((window) => ({ start: Number(window?.start_sec), end: Number(window?.end_sec) }))
+    .filter((window) => Number.isFinite(window.start) && Number.isFinite(window.end) && window.end > window.start);
+  if (!shipped.length) return arcWindows;
+  const overlaps = (window) => shipped.some((range) => Number(window.start_sec) < range.end && Number(window.end_sec) > range.start);
+  const kept = arcWindows.filter((window, index) => {
+    if (index === arcWindows.length - 1 && window.longform_full_role === 'arc_result') return true;
+    return !overlaps(window);
+  });
+  return kept.length >= FULL_PROMOTION_MIN_KEPT_WINDOWS ? kept : arcWindows;
+}
+
 function getLongformFullCandidateWindows(itemConfig = {}, targetDurationSec = 60, maxSegmentSec = 10) {
   if (!isLongformHighlightSource(itemConfig)) return [];
   if (isLocalOrFallbackLongformGuide(itemConfig.ottogi_guide_output || {})) return [];
@@ -12376,6 +12440,10 @@ module.exports = {
     collectHighlightCandidateWindows,
     getLongformFullArcWindows,
     getLongformFullCandidateWindows,
+    fullPromotionAssessment,
+    dedupeArcWindowsAgainstHighlights,
+    FULL_PROMOTION_ENV_KEY,
+    FULL_PROMOTION_MIN_CONCAT_SEC,
     isProcessSpanHighlightCandidate,
     rankedTitleCandidate,
     LONGFORM_COMPRESS_LANE_MIN_SOURCE_SEC,
