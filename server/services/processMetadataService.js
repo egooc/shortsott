@@ -495,7 +495,13 @@ function koreanFullSpeechBudgetPromptLines(budget = {}, language = 'ko') {
     `- Korean Full prompt budget (model-facing): 이 영상 ${normalized.target_duration_sec}초. 원고 총 ${normalized.target_chars}자 ±10%, 문장 ${normalized.target_sentence_count}개 내외.`,
     `- Korean Full speech budget: this video is ${normalized.target_duration_sec}s. Write about ${normalized.target_chars} Korean visible characters total, with an acceptable prompt target of ±10%.`,
     `- Korean Full validation budget: hard lower signal ${normalized.min_chars} Korean chars, hard upper ${normalized.max_chars} Korean chars. Count Korean visible characters only, excluding spaces.`,
-    `- Korean Full sentence plan: aim for about ${normalized.target_sentence_count} caption items. Keep each item short, but do not underwrite the narration below the budget.`
+    // "Keep each item short" is a screen-phrase-era instruction and it fights
+    // the 35-60 char sentence standard the same prompt asks for. Measured
+    // 2026-08-14 on item_007: 4 sentences of 26-36 chars, 120 of a 214 char
+    // floor. State the arithmetic instead - the model hits a number it is given
+    // far more reliably than an adjective.
+    `- Korean Full sentence plan: write ${normalized.target_sentence_count} items whose Korean visible characters SUM to about ${normalized.target_chars}. That is roughly ${Math.max(35, Math.round(normalized.target_chars / Math.max(1, normalized.target_sentence_count)))} characters per sentence - each item is ONE complete spoken sentence of 35-60 characters, never a short screen phrase.`,
+    `- Underwriting is the most common failure on this lane: a script totalling under ${normalized.min_chars} Korean characters is rejected and regenerated. If you run out of visible steps, add why/risk/quality narration rather than shortening the sentences.`
   ];
 }
 
@@ -9027,7 +9033,15 @@ function applyMetadataFieldRepair(guide = {}, repairResult = {}, options = {}) {
       // exempted, a repaired kr_full script still shipped shredded (item_007,
       // 20 items, 2026-08-14). Repair output is TTS sentences like the initial
       // generation; the screen split belongs to the TTS plan.
-      next[field] = limitFullScriptSceneRoles(dedupeAdjacentFullCaptionScriptItems(mappedItems));
+      // The first/last role labels and the scene anchors are bookkeeping, and
+      // the coercion that fixes them runs on the generated script but not on a
+      // repaired one - so a repair could reintroduce a non-hook opener or
+      // script_### anchors and the item was held for a relabel (item_007,
+      // 2026-08-14). Apply the same mechanical fixes to repair output.
+      next[field] = coerceKoreanFullScriptBookkeeping(
+        limitFullScriptSceneRoles(dedupeAdjacentFullCaptionScriptItems(mappedItems)),
+        next
+      );
       const repairedSubtitles = fullCaptionScriptTexts(next[field]);
       if (repairedSubtitles.length) {
         next.full_metadata_ko = {
@@ -9063,6 +9077,33 @@ function extractRepairScriptArray(repairResult = {}, field = '') {
     repairResult?.scripts?.[variant]?.[language === 'ja' ? 'jp' : language]
   ];
   return candidates.find(Array.isArray) || null;
+}
+
+// First role hook, last role closing, and scene anchors that exist. All three
+// are bookkeeping the validator demands and the model gets wrong at random -
+// item_007 was held for a "first caption must have role hook" relabel and for
+// script anchors reading scene_02..scene_05 when the real transitions were
+// scene_096..scene_101. Retrying Gemini to relabel is pure waste; do it here.
+function coerceKoreanFullScriptBookkeeping(items = [], guide = {}) {
+  const script = Array.isArray(items) ? items.map((item) => ({ ...item })) : [];
+  if (!script.length) return script;
+  const validSceneIds = sceneTransitionIdSet(guide);
+  if (validSceneIds.size) {
+    const sceneIdList = [...validSceneIds];
+    script.forEach((item, index) => {
+      const sceneId = normalizeText(item.scene_id || '');
+      if (validSceneIds.has(sceneId)) return;
+      // Spread the anchors across the real transitions in order rather than
+      // pinning everything to the first one, so the caption timing has
+      // something to follow.
+      const mapped = sceneIdList[Math.min(sceneIdList.length - 1, Math.floor((index * sceneIdList.length) / script.length))];
+      item.scene_id = mapped || sceneIdList[0];
+    });
+  }
+  if (script[0].role !== 'hook') script[0].role = 'hook';
+  const last = script.length - 1;
+  if (last > 0 && script[last].role !== 'closing') script[last].role = 'closing';
+  return script;
 }
 
 function applyLocalMetadataFallbacks(guide = {}, issues = []) {
@@ -9664,10 +9705,13 @@ async function validateOrRepairJapaneseCaptions({ guide, generateRepairJson, sou
             break;
           }
         }
-        const scriptItems = normalizedCurrent[fullScriptField];
-        if (scriptItems[0] && scriptItems[0].role !== 'hook') scriptItems[0] = { ...scriptItems[0], role: 'hook' };
-        const lastIndex = scriptItems.length - 1;
-        if (scriptItems[lastIndex] && scriptItems[lastIndex].role !== 'closing') scriptItems[lastIndex] = { ...scriptItems[lastIndex], role: 'closing' };
+        // Same bookkeeping as the repair path, including the scene anchors -
+        // fixing only the roles here left script_### anchors to fail
+        // validation on the very next line.
+        normalizedCurrent[fullScriptField] = coerceKoreanFullScriptBookkeeping(
+          normalizedCurrent[fullScriptField],
+          normalizedCurrent
+        );
       }
       current = normalizedCurrent;
       validateGuide(normalizedCurrent, validationOptions);
@@ -11992,6 +12036,7 @@ module.exports = {
     collectCameraEditingTermHits,
     buildReviewPrompt,
     collectJapaneseCaptionIssues,
+    coerceKoreanFullScriptBookkeeping,
     coerceStandardMetadataVariantModeForSource,
     enforcePublicMetadataLanguage,
     isKoreanFullScriptStyleRegenerationIssue,
