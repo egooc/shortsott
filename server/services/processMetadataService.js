@@ -6295,11 +6295,21 @@ function hasNonEmptySubtitles(guide = {}, language = 'ja') {
 
 function collectEnglishFallbackHits(guide = {}, options = {}) {
   const values = [];
+  // Internal bookkeeping is not viewer-facing text and must not be scanned:
+  // script items carry source_basis values like
+  // "full_caption_script_regeneration", which is Latin, has no CJK, and is
+  // long enough to look exactly like an English fallback. That false positive
+  // failed item_007 four times (2026-08-14) on a script that was entirely
+  // Korean.
+  const INTERNAL_KEYS = new Set(['source_basis', 'basis', 'scene_id', 'role', 'id', 'variant', 'strategy', 'selection_strategy']);
   const push = (value) => {
     if (typeof value === 'string') values.push(value);
     else if (Array.isArray(value)) value.forEach(push);
     else if (value && typeof value === 'object') {
-      Object.values(value).forEach(push);
+      Object.entries(value).forEach(([key, entry]) => {
+        if (INTERNAL_KEYS.has(key)) return;
+        push(entry);
+      });
     }
   };
 
