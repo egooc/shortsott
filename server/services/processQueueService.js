@@ -4926,12 +4926,35 @@ function getVariantMetadata(guide = {}, variant = 'full') {
   };
 }
 
+// Which language the Full variant actually ships in. outputLanguageForVariant
+// only knows the variant, and the Full variant is configured Korean globally,
+// so the ja_full lane's metadata package came out tagged
+// "METADATA_LANGUAGE: ko" with the Korean review title and summary while its
+// captions were Japanese. Uploading that puts Korean text on the Japanese
+// channel - the regression CLAUDE.md lists as do-not-reintroduce (found live
+// 2026-08-14 on item_020). The populated script field is the lane's own
+// signal: ja_full guides carry full_caption_script_ja and no _ko, kr_full the
+// reverse.
+function fullVariantProductionLanguage(guide = {}) {
+  const jaCount = Array.isArray(guide.full_caption_script_ja) ? guide.full_caption_script_ja.length : 0;
+  const koCount = Array.isArray(guide.full_caption_script_ko) ? guide.full_caption_script_ko.length : 0;
+  if (jaCount > 0 && koCount === 0) return 'ja';
+  return outputLanguageForVariant('full');
+}
+
 function getProductionVariantMetadata(guide = {}, variant = 'full') {
-  if (variant === 'full' && guide.full_metadata_ko) return guide.full_metadata_ko;
+  // Only take the Korean metadata when Korean is what this Full actually
+  // ships; a ja_full draft's public fields live in guide.full_metadata.
+  if (variant === 'full' && guide.full_metadata_ko && fullVariantProductionLanguage(guide) === 'ko') {
+    return guide.full_metadata_ko;
+  }
   return getVariantMetadata(guide, variant);
 }
 
-function getProductionVariantLanguage(variant = 'full') {
+function getProductionVariantLanguage(variant = 'full', guide = null) {
+  if (variant === 'full' && guide && typeof guide === 'object') {
+    return fullVariantProductionLanguage(guide);
+  }
   return outputLanguageForVariant(variant);
 }
 
@@ -5839,7 +5862,7 @@ function formatMetadataVariantSection(guide = {}, variant = 'full') {
   const isHighlight = variant === 'highlight';
   const metadata = getProductionVariantMetadata(guide, variant);
   const koreanMetadata = getVariantReviewMetadata(guide, variant);
-  const productionLanguage = getProductionVariantLanguage(variant);
+  const productionLanguage = getProductionVariantLanguage(variant, guide);
   const titles = Array.isArray(metadata.recommended_titles) ? metadata.recommended_titles : [];
   const titlesKo = Array.isArray(koreanMetadata.recommended_titles) ? koreanMetadata.recommended_titles : [];
   const shortDescription = productionLanguage === 'ko'
@@ -12438,6 +12461,7 @@ module.exports = {
     buildCandidateReportDescription,
     formatMetadataReportDescription,
     collectHighlightCandidateWindows,
+    formatMetadataVariantSection,
     getLongformFullArcWindows,
     getLongformFullCandidateWindows,
     fullPromotionAssessment,
