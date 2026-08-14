@@ -4865,7 +4865,14 @@ function buildLongformVariantFinalPrompt({ variant, sourceUrl, filename, duratio
       ...arcSpineSteps.map((step, index) => `  arc ${index + 1}. ${Number(step.start_sec).toFixed(1)}-${Number(step.end_sec).toFixed(1)}s: ${normalizeText(step.step_summary || step.reason || '').slice(0, 140)}`),
       `- The script must WALK THIS ARC in the order above. Spending the whole manuscript on one step is the single worst failure of this format - it leaves the viewer hearing about arc 1 while watching arc ${arcSpineSteps.length}.`,
       `- Cover every arc step at least once. At most 2 sentences on any one step, and the ${arcSpineSteps.length} steps must be spread across the whole manuscript, not clustered at the front.`,
-      '- The hook sentence opens on arc 1. The closing must land on what the LAST arc step visibly shows - the finished result - not on the material the video opened with.',
+      // The genuine finished-product shot is the step Vision most often places
+      // past the end of the source, so it gets dropped and the last surviving
+      // step is mid-process: item_017 ended on a rubber floor mat while the
+      // script announced completion (2026-08-13). Claiming an unseen result is
+      // a standing ban on this lane, so the closing describes what is actually
+      // on screen and only declares completion when that shot earns it.
+      '- The hook sentence opens on arc 1. The closing must land on the LAST arc step and describe what that step visibly shows - never on the material the video opened with.',
+      '- Only declare the thing finished if the last arc step actually shows the finished product. If it shows a mid-process action, close on that action carrying the piece to its purpose instead of announcing completion.',
       '- Do not describe anything that is not in one of the arc steps above. The rest of the source is not in this video.'
     ]
     : [];
