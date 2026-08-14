@@ -33,6 +33,24 @@ test('a window straddling a foreign cue is clamped to its own line, dropping the
   assert.ok(win.end_sec >= 344.8 && win.end_sec <= 345.0, `end clamped, got ${win.end_sec}`);
 });
 
+test('a long line spanning several own cues keeps all of them (only foreign cues drop)', () => {
+  // "I'm going to pick Bo, Tom, unless you want him more, and if so, let's make a deal." is split
+  // across two cues; a leading foreign line bleeds into the window. Keep BOTH own cues, drop only
+  // the foreign one - clamping to a single best cue would cut "I'm going to pick Bo, Tom".
+  const transcript = [
+    { start_sec: 407.0, end_sec: 408.0, text: 'No time for that.' },
+    { start_sec: 408.07, end_sec: 409.7, text: "I'm going to pick Bo, Tom, unless you want" },
+    { start_sec: 409.7, end_sec: 411.9, text: "him more, and if so, let's make a deal." }
+  ];
+  const plan = planWith("I'm going to pick Bo, Tom, unless you want him more, and if so, let's make a deal.", 407.2, 411.9);
+  const result = clampDialogueWindowsToOwnCue(plan, transcript);
+
+  assert.equal(result.clamped, 1);
+  const win = plan.timeline[0].dialogue_line_windows[0];
+  assert.ok(win.start_sec >= 408.0 && win.start_sec <= 408.2, `start keeps first own cue, got ${win.start_sec}`);
+  assert.ok(win.end_sec >= 411.8 && win.end_sec <= 412.0, `end keeps last own cue, got ${win.end_sec}`);
+});
+
 test('a window already inside a single cue is left untouched', () => {
   const transcript = [
     { start_sec: 100.0, end_sec: 104.0, text: 'This is one clean line spoken by one person.' }

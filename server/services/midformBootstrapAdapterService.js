@@ -460,18 +460,21 @@ function clampDialogueWindowsToOwnCue(editPlan, transcriptTimed) {
       if (!(winEnd > winStart)) continue;
       const lineTokens = normalizeCaptionTokens(win.line);
       if (lineTokens.length < 2) continue;
-      const overlapping = cues.filter((cue) => cue.end > winStart + 0.05 && cue.start < winEnd - 0.05);
+      const overlapping = cues
+        .filter((cue) => cue.end > winStart + 0.05 && cue.start < winEnd - 0.05)
+        .sort((a, b) => a.start - b.start);
       if (overlapping.length < 2) continue; // window sits inside a single cue -> nothing foreign to drop
-      let best = null;
-      let bestScore = 0;
-      for (const cue of overlapping) {
-        const hit = lineTokens.filter((token) => cue.tokens.has(token)).length;
-        const score = hit / lineTokens.length;
-        if (score > bestScore) { bestScore = score; best = cue; }
-      }
-      if (!best || bestScore < 0.5) continue; // no confident owner -> leave the window alone
-      const nextStart = Math.max(winStart, best.start);
-      const nextEnd = Math.min(winEnd, best.end);
+      const lineTokenSet = new Set(lineTokens);
+      // A cue belongs to this line when most of ITS OWN words appear in the caption line (a long
+      // line legitimately spans several cues; a foreign utterance shares almost nothing). Keep the
+      // span of every owned cue - only leading/trailing foreign cues get dropped.
+      const owned = overlapping.filter((cue) => {
+        const hit = [...cue.tokens].filter((token) => lineTokenSet.has(token)).length;
+        return hit / cue.tokens.size >= 0.5;
+      });
+      if (!owned.length || owned.length === overlapping.length) continue; // can't identify, or nothing foreign
+      const nextStart = Math.max(winStart, Math.min(...owned.map((cue) => cue.start)));
+      const nextEnd = Math.min(winEnd, Math.max(...owned.map((cue) => cue.end)));
       if (nextEnd - nextStart < 0.4) continue; // refuse to shrink a line out of existence
       if (nextStart - winStart <= 0.2 && winEnd - nextEnd <= 0.2) continue; // already tight
       details.push({ line: String(win.line || '').slice(0, 40), from: [roundSec3(winStart), roundSec3(winEnd)], to: [roundSec3(nextStart), roundSec3(nextEnd)] });
