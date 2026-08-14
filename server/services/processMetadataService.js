@@ -9004,7 +9004,14 @@ function applyMetadataFieldRepair(guide = {}, repairResult = {}, options = {}) {
       })
       .filter((item) => item?.scene_id && item?.text);
     if (field === 'full_caption_script_ko') {
-      next[field] = limitFullScriptSceneRoles(enforceFullCaptionSafeLengths(dedupeAdjacentFullCaptionScriptItems(mappedItems), true));
+      // Third place the Korean manuscript was being cut to caption width. The
+      // repair path rebuilds the script from the repair response, and running
+      // it through enforceFullCaptionSafeLengths turned the repaired sentences
+      // back into 6-14 char chunks - so even after the first two splitters were
+      // exempted, a repaired kr_full script still shipped shredded (item_007,
+      // 20 items, 2026-08-14). Repair output is TTS sentences like the initial
+      // generation; the screen split belongs to the TTS plan.
+      next[field] = limitFullScriptSceneRoles(dedupeAdjacentFullCaptionScriptItems(mappedItems));
       const repairedSubtitles = fullCaptionScriptTexts(next[field]);
       if (repairedSubtitles.length) {
         next.full_metadata_ko = {
