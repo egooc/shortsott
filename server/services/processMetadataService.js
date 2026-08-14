@@ -4857,8 +4857,27 @@ function buildLongformVariantFinalPrompt({ variant, sourceUrl, filename, duratio
     })
     .map((step, index) => ({ step, order: Number(step?.step_index) || index + 1 }))
     .sort((a, b) => a.order - b.order)
-    .map(({ step }) => step)
-    .slice(0, 14);
+    .map(({ step }) => step);
+  // The spine must fit the sentence budget or it contradicts itself. Korean
+  // sentences are 35-60 chars, so a 50s Full buys about 6 of them - asking that
+  // to cover 14 arc steps made Gemini split each sentence into two ~15-char
+  // screen chunks and the lane's fragment gate held the item twice
+  // (item_007, 2026-08-13). Japanese never hit this: 12-22 char sentences buy
+  // 13 slots for 10-12 steps. Thin the list evenly, always keeping the opening
+  // and the closing step.
+  const arcSpineBudget = Math.max(3, Math.min(14, Number(fullSpeechBudget?.target_sentence_count) || 14));
+  if (arcSpineSteps.length > arcSpineBudget) {
+    const kept = [];
+    const stride = (arcSpineSteps.length - 1) / (arcSpineBudget - 1);
+    for (let i = 0; i < arcSpineBudget; i += 1) {
+      const step = arcSpineSteps[Math.round(i * stride)];
+      if (step && !kept.includes(step)) kept.push(step);
+    }
+    const last = arcSpineSteps[arcSpineSteps.length - 1];
+    if (last && !kept.includes(last)) kept[kept.length - 1] = last;
+    arcSpineSteps.length = 0;
+    arcSpineSteps.push(...kept);
+  }
   const arcSpineLines = arcSpineSteps.length >= 3
     ? [
       '- PROCESS ARC (this is what the finished video actually shows, in this order):',
