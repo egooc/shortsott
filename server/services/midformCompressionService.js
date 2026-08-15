@@ -605,9 +605,14 @@ function parseVtt(vttText) {
     const endSec = parseVttTime(endRaw);
     index += 1;
     const textLines = [];
-    while (index < lines.length && lines[index].trim()) {
+    // A cue block ends at a TRULY empty line. YouTube's rolling captions put a whitespace-only
+    // placeholder line where the settled text would go ("  \n>> Just<00:07:33.600>...") - treating
+    // that as the end of the block dropped the tagged line entirely, so the spoken words and their
+    // timings were lost and the sentence only entered the transcript at the later 10ms "settle"
+    // block: cues collapsed to 0.2s and landed seconds after the line was actually spoken.
+    while (index < lines.length && lines[index] !== '' && !lines[index].includes('-->')) {
       const nextLine = lines[index].trim();
-      if (!/^NOTE\b|^STYLE\b|^REGION\b/i.test(nextLine)) textLines.push(nextLine);
+      if (nextLine && !/^NOTE\b|^STYLE\b|^REGION\b/i.test(nextLine)) textLines.push(nextLine);
       index += 1;
     }
     if (Number.isFinite(startSec)) {
@@ -621,7 +626,9 @@ function parseVtt(vttText) {
     if (Number.isFinite(startSec) && Number.isFinite(endSec) && endSec > startSec && text) {
       cues.push({ start_sec: startSec, end_sec: endSec, text });
     }
-    index += 1;
+    // Consume the blank separator, but never the timing line of the next cue: swallowing it made
+    // the following block parse as a continuation and its lines vanished from the transcript.
+    if (index < lines.length && lines[index] === '') index += 1;
   }
   return snapCuesToWordTimings(dedupeRollingCues(cues), wordTimings);
 }
