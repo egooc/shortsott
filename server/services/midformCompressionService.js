@@ -1600,11 +1600,20 @@ function mergeAnchorCuesInTranscript(transcript, beats) {
       for (let j = i; j < cues.length && j < i + 6; j += 1) {
         combined = `${combined} ${normalizeComparableText(cues[j].text)}`.trim();
         if (!combined.includes(normAnchor)) continue;
-        // cues[i..j] together contain the anchor: collapse them into one anchor cue.
-        const start = Number(cues[i].start_sec);
-        const end = Number(cues[j].end_sec);
+        // cues[i..j] together contain the anchor - but i is merely the EARLIEST start that still
+        // reaches it within the 6-cue reach, so it drags the preceding lines of other speakers into
+        // the merge: the window then starts seconds before the anchor is spoken and the slot's other
+        // dialogue lines vanish inside the swallowing cue. Tighten to the smallest span that still
+        // contains the anchor before collapsing.
+        const span = (a, b) => cues.slice(a, b + 1).map((c) => normalizeComparableText(c.text)).join(' ').trim();
+        let lo = i;
+        let hi = j;
+        while (lo < hi && span(lo + 1, hi).includes(normAnchor)) lo += 1;
+        while (hi > lo && span(lo, hi - 1).includes(normAnchor)) hi -= 1;
+        const start = Number(cues[lo].start_sec);
+        const end = Number(cues[hi].end_sec);
         if (!(Number.isFinite(start) && Number.isFinite(end) && end > start)) { done = true; break; }
-        cues.splice(i, j - i + 1, { start_sec: start, end_sec: end, text: anchor });
+        cues.splice(lo, hi - lo + 1, { start_sec: start, end_sec: end, text: anchor });
         merged += 1;
         done = true;
         break;
