@@ -111,12 +111,8 @@ async function main() {
     || (argv.includes('--channel') ? argv[argv.indexOf('--channel') + 1] : '');
 
   const state = readState();
-  const channel = forced || (state.lastChannel === 'jp' ? 'kr' : 'jp');
-  console.log(`target channel: ${channel} (last: ${state.lastChannel || 'none'})`);
-
-  const profile = profileFor(channel);
-  if (!profile) throw new Error(`no connected upload profile for channel ${channel}`);
-  console.log(`profile: ${profile.id} / ${profile.channelTitle || profile.name}`);
+  const target = forced || (state.lastChannel === 'jp' ? 'kr' : 'jp');
+  console.log(`target channel: ${target} (last: ${state.lastChannel || 'none'})`);
 
   const pool = readyVideos();
   console.log(`ready buffer: ${pool.length} mp4`);
@@ -130,32 +126,55 @@ async function main() {
     (state.history || []).map((h) => String(h.file || '').replace(/\.mp4$/i, '').replace(/\s*\(\d+\)$/, ''))
   );
 
-  let picked = null;
-  let candidate = null;
-  for (const entry of pool) {
-    const draftName = entry.name.replace(/\.mp4$/i, '').replace(/\s*\(\d+\)$/, '');
-    if (alreadyUploaded.has(draftName)) {
-      console.log(`skip duplicate of already-uploaded draft: ${entry.name}`);
-      continue;
+  function pickFor(wanted) {
+    for (const entry of pool) {
+      const draftName = entry.name.replace(/\.mp4$/i, '').replace(/\s*\(\d+\)$/, '');
+      if (alreadyUploaded.has(draftName)) {
+        console.log(`skip duplicate of already-uploaded draft: ${entry.name}`);
+        continue;
+      }
+      const txt = fs.readdirSync(entry.draftDir).find((n) => n.toLowerCase().endsWith('.txt'));
+      if (!txt) continue;
+      const imported = importUploadFiles({
+        videoFiles: [{ originalname: entry.name, path: entry.full }],
+        metadataFiles: [{ originalname: txt, path: path.join(entry.draftDir, txt) }]
+      });
+      const first = (imported.candidates || [])[0];
+      if (!first) continue;
+      if (channelOf(first.variant) !== wanted) continue;
+      return { entry, candidate: first };
     }
-    const txt = fs.readdirSync(entry.draftDir).find((n) => n.toLowerCase().endsWith('.txt'));
-    if (!txt) continue;
-    const imported = importUploadFiles({
-      videoFiles: [{ originalname: entry.name, path: entry.full }],
-      metadataFiles: [{ originalname: txt, path: path.join(entry.draftDir, txt) }]
-    });
-    const first = (imported.candidates || [])[0];
-    if (!first) continue;
-    if (channelOf(first.variant) !== channel) continue;
-    picked = entry;
-    candidate = first;
-    break;
+    return null;
   }
 
-  if (!picked) {
-    console.log(`nothing ready for ${channel}; buffer has no matching video`);
+  // Strict alternation deadlocks the whole line when one side runs dry: an hour
+  // with no KR video uploads nothing, so lastChannel never advances and the next
+  // hour targets KR again. Measured 2026-08-15 21:00 KST, with 23 JP videos
+  // sitting in the buffer unable to ship behind a single missing KR one.
+  // So a starved turn yields to the other channel instead of idling. The target
+  // is still whatever the alternation asks for, and it is retried every hour, so
+  // the JP/KR split re-balances by itself once the starved side has stock again.
+  let hit = pickFor(target);
+  let channel = target;
+  if (!hit && !forced) {
+    const other = target === 'jp' ? 'kr' : 'jp';
+    hit = pickFor(other);
+    if (hit) {
+      channel = other;
+      console.log(`no ${target} video ready; falling back to ${other} to keep the hour`);
+    }
+  }
+
+  if (!hit) {
+    console.log(`nothing ready for ${target}; buffer has no matching video`);
     return;
   }
+  const picked = hit.entry;
+  const candidate = hit.candidate;
+
+  const profile = profileFor(channel);
+  if (!profile) throw new Error(`no connected upload profile for channel ${channel}`);
+  console.log(`profile: ${profile.id} / ${profile.channelTitle || profile.name}`);
 
   const item = {
     ...candidate,
