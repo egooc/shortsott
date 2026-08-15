@@ -75,6 +75,8 @@ EXPORT_TIMEOUT_SEC = 420
 HOME_GRID_SETTLE_SEC = 12
 SIZE_STABLE_CHECKS = 3
 SIZE_STABLE_INTERVAL_SEC = 2
+RENAME_ATTEMPTS = 10
+RENAME_RETRY_SEC = 3
 
 COORDS_CONFIG = os.path.join(os.path.dirname(__file__), "capcut_export_coords.json")
 
@@ -267,16 +269,25 @@ def wait_for_new_export(export_dir, before, timeout_sec):
 # place that knows both.
 def normalize_export_name(output_path, draft_name):
     if not output_path:
-        return output_path
+        return output_path, ""
     export_dir = os.path.dirname(output_path)
     desired = os.path.join(export_dir, draft_name + ".mp4")
     if os.path.normcase(desired) == os.path.normcase(output_path):
-        return output_path
-    try:
-        os.replace(output_path, desired)
-        return desired
-    except OSError:
-        return output_path
+        return output_path, ""
+    # CapCut can still hold the file open for a moment after the size settles,
+    # and the rename then fails with a sharing violation. Swallowing that put the
+    # truncated name back in play: the next attempt found it already there and
+    # CapCut wrote "name(1).mp4" beside it. Retry, and if it truly cannot be
+    # renamed say so in the result instead of reporting a path nothing matches.
+    last = ""
+    for _ in range(RENAME_ATTEMPTS):
+        try:
+            os.replace(output_path, desired)
+            return desired, ""
+        except OSError as error:
+            last = str(error)
+            time.sleep(RENAME_RETRY_SEC)
+    return output_path, last
 
 
 def main():
@@ -369,7 +380,9 @@ def main():
 
         output_path = wait_for_new_export(args.export_dir, before, EXPORT_TIMEOUT_SEC)
         if output_path:
-            output_path = normalize_export_name(output_path, args.draft_name)
+            output_path, rename_error = normalize_export_name(output_path, args.draft_name)
+            if rename_error:
+                raise RuntimeError(f"could not rename export to draft name: {rename_error}")
             result["status"] = "exported"
             result["output_path"] = output_path
         else:
