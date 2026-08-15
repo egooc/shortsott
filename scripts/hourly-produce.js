@@ -34,20 +34,27 @@ const EXPORT_TIMEOUT_MS = 15 * 60 * 1000;
 // files" and the editor never comes up. Without a ledger the producer retried
 // the same dead draft every hour and the whole line stalled behind it
 // (observed 2026-08-15 on 20260813-F-215210). Two attempts, then skip.
-const FAILURE_LEDGER_PATH = path.join(ROOT, 'server', 'data', 'export_failures.json');
+//
+// Attempts are counted before the export runs, not after it fails, because a
+// draft can loop without ever failing: CapCut truncates long project names, so
+// one highlight draft exported fine but never under the name that marks it
+// done, and it was re-exported 18 times in a row. Counting only failures left
+// that unbounded. Whatever the outcome, a draft that is still pending after two
+// attempts is something this loop cannot finish, so it stops trying.
+const ATTEMPT_LEDGER_PATH = path.join(ROOT, 'server', 'data', 'export_failures.json');
 const MAX_EXPORT_ATTEMPTS = 2;
 
 function readLedger() {
   try {
-    return JSON.parse(fs.readFileSync(FAILURE_LEDGER_PATH, 'utf8'));
+    return JSON.parse(fs.readFileSync(ATTEMPT_LEDGER_PATH, 'utf8'));
   } catch {
     return {};
   }
 }
 
 function writeLedger(ledger) {
-  fs.mkdirSync(path.dirname(FAILURE_LEDGER_PATH), { recursive: true });
-  fs.writeFileSync(FAILURE_LEDGER_PATH, `${JSON.stringify(ledger, null, 2)}\n`, 'utf8');
+  fs.mkdirSync(path.dirname(ATTEMPT_LEDGER_PATH), { recursive: true });
+  fs.writeFileSync(ATTEMPT_LEDGER_PATH, `${JSON.stringify(ledger, null, 2)}\n`, 'utf8');
 }
 
 function exportedNames() {
@@ -105,6 +112,14 @@ function main() {
     const target = pending[0];
     console.log(`export: ${target}`);
     if (dryRun) return;
+
+    const ledger = readLedger();
+    const entry = ledger[target] || { attempts: 0 };
+    entry.attempts += 1;
+    entry.lastAt = new Date().toISOString();
+    ledger[target] = entry;
+    writeLedger(ledger);
+
     try {
       const out = execFileSync('python', [
         path.join(ROOT, 'scripts', 'capcut_export_one.py'),
@@ -113,18 +128,14 @@ function main() {
       ], { encoding: 'utf8', timeout: EXPORT_TIMEOUT_MS, windowsHide: false });
       console.log(String(out).trim().split('\n').slice(-2).join('\n'));
     } catch (error) {
-      const ledger = readLedger();
-      const entry = ledger[target] || { attempts: 0 };
-      entry.attempts += 1;
       entry.lastError = String(error.message || error).slice(0, 200);
-      entry.lastAt = new Date().toISOString();
       ledger[target] = entry;
       writeLedger(ledger);
-      console.log(`export failed (${entry.attempts}/${MAX_EXPORT_ATTEMPTS}): ${entry.lastError}`);
-      if (entry.attempts >= MAX_EXPORT_ATTEMPTS) {
-        console.log(`giving up on ${target}; it will be skipped from now on`);
-      }
+      console.log(`export failed (attempt ${entry.attempts}/${MAX_EXPORT_ATTEMPTS}): ${entry.lastError}`);
       process.exitCode = 1;
+    }
+    if (entry.attempts >= MAX_EXPORT_ATTEMPTS && !exportedNames().has(target)) {
+      console.log(`giving up on ${target}; it will be skipped from now on`);
     }
     return;
   }

@@ -255,6 +255,30 @@ def wait_for_new_export(export_dir, before, timeout_sec):
     return None
 
 
+# CapCut names the mp4 after the project title, which it truncates - a draft
+# folder ending in " H01" exports as "...工程.mp4" with the suffix gone. Every
+# consumer downstream identifies a video by its draft name: the producer treats
+# a draft with no matching mp4 as still pending, and the uploader finds the
+# metadata TXT by that name. So a truncated name made one highlight draft look
+# permanently unexported, and the fill loop re-exported it 18 times before
+# anyone noticed (2026-08-15).
+#
+# The exported file is therefore renamed to the draft name here, at the one
+# place that knows both.
+def normalize_export_name(output_path, draft_name):
+    if not output_path:
+        return output_path
+    export_dir = os.path.dirname(output_path)
+    desired = os.path.join(export_dir, draft_name + ".mp4")
+    if os.path.normcase(desired) == os.path.normcase(output_path):
+        return output_path
+    try:
+        os.replace(output_path, desired)
+        return desired
+    except OSError:
+        return output_path
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--draft-name", required=True)
@@ -345,6 +369,7 @@ def main():
 
         output_path = wait_for_new_export(args.export_dir, before, EXPORT_TIMEOUT_SEC)
         if output_path:
+            output_path = normalize_export_name(output_path, args.draft_name)
             result["status"] = "exported"
             result["output_path"] = output_path
         else:
