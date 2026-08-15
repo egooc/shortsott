@@ -380,6 +380,13 @@ def main():
 
         output_path = wait_for_new_export(args.export_dir, before, EXPORT_TIMEOUT_SEC)
         if output_path:
+            # CapCut sits on the export-complete dialog holding the file open, so
+            # renaming it there fails with a sharing violation for as long as the
+            # app is up - retrying alone never won. Close CapCut first; the file
+            # is finished by this point and the finally-block kill is harmless
+            # once it is already gone.
+            kill_capcut()
+            time.sleep(2)
             output_path, rename_error = normalize_export_name(output_path, args.draft_name)
             if rename_error:
                 raise RuntimeError(f"could not rename export to draft name: {rename_error}")
