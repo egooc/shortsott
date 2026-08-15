@@ -13,6 +13,9 @@ description: 완성된 midform 드래프트를 고정 지표로 측정·검증�
 - **좌표계**: 자막 공백은 `edit_manifest.json`의 **`video_timeline_start/end_sec`** 기준으로 대조. `timeline_*`로 재면 "화면에 아무것도 없음"으로 오독한다.
 - **대체 확인**: `run_summary.json`에서 `internal.compression_run_id === internal.bootstrap_source_run_id` 확인. 다르면 이 영상은 이번 실행 산출물이 아니므로 **측정 자체가 무의미**하다.
 - **동결 감지**: 수치가 이전 측정과 소수점까지 동일하면 수정 무효가 아니라 **측정 대상이 갱신 안 된 것**부터 의심.
+- **게이트 실패본이 설치될 수 있다** (2026-08-15 실사고): 배치 렌더 스크립트가 `run_summary.status`를 안 보고 워크스페이스의 `draft_ko/`를 복사하면, **부트스트랩 프리플라이트에서 막혀 드래프트 단계까지 못 간 산출물**이 데스크톱에 설치된다(LongShot이 `capcut_cross_segment_overlap`으로 막혔는데 설치됨). 설치 전 반드시 `status`(passed / passed_with_warnings)와 `internal` 계보 일치를 확인한다.
+- **폴백은 조용하다**: 핀을 줘도 그 compress run이 프리플라이트에 걸리면 파이프라인은 **옛 compress run으로 폴백해 계속 진행**한다(warnings에만 한 줄). `internal.bootstrap_source_run_id`가 핀과 다르면 그 판은 버리고 원인(대개 창 겹침)을 고친 뒤 다시 돌린다.
+- **오디오 진실 감사(권장)**: 클립이 자기 대사를 실제로 담는지는 자막이 아니라 오디오로 판정한다. faster-whisper(medium, CPU, 소스당 ~8~13분, 로컬)로 소스 오디오를 단어 타임스탬프까지 전사한 뒤, 매니페스트의 각 대사 클립 구간과 그 줄의 **단어 시각**을 대조해 coverage를 낸다. 단어가 아닌 **세그먼트 span으로 재면 침묵을 포함해 오탐**이 난다(예: "The number one pick." 세그먼트 456~461, 실제 단어는 460.3~461.2).
 - **텍스트 권위 = compress run** (2026-08-11, 하루를 여기 날림): 옛 소스의 나레이션·대사·화자를 고칠 때 **반드시 `compress_*/compression_slot_fills.json`(+`.ja.json`)부터** 고친다. pipeline run의 `slot_fills.json`/`script.json`/`draft_input.*.json`을 고쳐도 bootstrap resume가 compress에서 재생성하며 덮는다. 수술 순서: compress 수정 → refresh → bootstrap → review-resume → draft.
 - **화자 색 = config 이름 등록** (2026-08-11): draft는 `midform/config/caption_colors.json`에서 **화자명으로** 색을 재계산한다 — 업스트림 speaker_color_key는 무시. 미등록 인물은 fallback 해시 충돌로 collapse(제이콥·세스 둘 다 초록). 새 소스 등장인물은 config `speakers`에 먼저 등록(role: 남주/여주/남조연/여조연 또는 기타1~4). 색이 붙되 브랜드색이 아니면 미등록 신호.
 - **ja만 재생성**: ko를 얼린 채 ja fills만 다시 만들려면 `node scripts/midform.js compress-regenerate-ja <compress-run>`. 전체 apply는 ko도 재생성해 프레임 진실 수술을 지운다. 이 CLI는 수술된 ko 나레이션을 프롬프트에 핀해서 ja가 화면 진실을 상속한다.

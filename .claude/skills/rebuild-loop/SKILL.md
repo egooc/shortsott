@@ -16,6 +16,13 @@ description: 수정(코드/플랜/원고)을 기존 소스에 소급 적용하�
 5. **재개**: `review-resume <pipeline_run_id>` → `run --template ... --resume draft`.
 6. **실측**: /draft-verify 절차. 코드 diff가 아니라 산출물이 근거다.
 
+## 승인된 원고를 지키는 재타이밍 (2026-08-16)
+
+파서·병합 수정처럼 **transcript 좌표가 바뀌는** 수정을 옛 소스에 소급할 때 `compress-refresh`를 돌리면 대사 줄 선택 자체가 바뀌어(allin 25→31줄) 승인 원고를 다시 써야 한다. 원고를 얼리려면 **창의 시각만** 옮긴다: transcript 재파싱 → 각 `dialogue_line_windows`의 줄 텍스트로 교정 큐 구간을 찾아 `start/end/raw_*`만 갱신 → `--resume bootstrap --bootstrap-run` → `slot_fills` diff NONE 확인. 재타이밍에는 세 가드가 필수다(없으면 프리플라이트에서 막히고 조용히 구계보로 폴백한다):
+1. **순서 되돌리기**: 두 줄이 같은 큐에 매칭돼 앞줄보다 먼저 시작하면 그 줄은 원위치로 되돌린다(자동자막 스미어 때문에 흔함).
+2. **티저 예약구간**: 콜드오픈 `teaser_visual_start/end_sec` 안으로 들어가면 `cold_open_no_reserved_overlap`에 걸린다 — 티저 끝 뒤로 밀어낸다.
+3. **이웃 간격 0.35s**: 패딩까지 고려한 최소 간격. 못 맞추면 그 쌍은 건드리지 않는다.
+
 ## 함정 (전부 실사고)
 
 - **워크스페이스 해시**: 템플릿 내용이 바뀌면(예: target 변경) 워크스페이스 폴더가 **바뀐다** — 옛 폴더를 읽고 "완료됐다" 오판하지 말 것. 항상 `template_runs`에서 mtime 최신 워크스페이스를 확인.
