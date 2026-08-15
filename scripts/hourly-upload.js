@@ -121,9 +121,23 @@ async function main() {
   const pool = readyVideos();
   console.log(`ready buffer: ${pool.length} mp4`);
 
+  // One draft must never ship twice. Repeated export attempts leave "(1)",
+  // "(2)" copies of the same draft in the buffer, and treating each file as its
+  // own video put the same 玉子焼き Full on the JP channel four times and the
+  // same KR Full three times (2026-08-15). Identity is the draft name with any
+  // copy suffix removed, checked against everything already uploaded.
+  const alreadyUploaded = new Set(
+    (state.history || []).map((h) => String(h.file || '').replace(/\.mp4$/i, '').replace(/\s*\(\d+\)$/, ''))
+  );
+
   let picked = null;
   let candidate = null;
   for (const entry of pool) {
+    const draftName = entry.name.replace(/\.mp4$/i, '').replace(/\s*\(\d+\)$/, '');
+    if (alreadyUploaded.has(draftName)) {
+      console.log(`skip duplicate of already-uploaded draft: ${entry.name}`);
+      continue;
+    }
     const txt = fs.readdirSync(entry.draftDir).find((n) => n.toLowerCase().endsWith('.txt'));
     if (!txt) continue;
     const imported = importUploadFiles({
