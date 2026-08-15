@@ -70,6 +70,9 @@ HOME_LOAD_SEC = 20
 EDITOR_LOAD_SEC = 15
 EXPORT_DIALOG_SEC = 4
 EXPORT_TIMEOUT_SEC = 420
+# A cold-started CapCut paints its chrome before the Projects grid; searching
+# too early filters nothing and the row double-click lands on empty canvas.
+HOME_GRID_SETTLE_SEC = 12
 SIZE_STABLE_CHECKS = 3
 SIZE_STABLE_INTERVAL_SEC = 2
 
@@ -105,7 +108,7 @@ def kill_capcut():
     time.sleep(2)
 
 
-def maximize_capcut(timeout_sec=45):
+def maximize_capcut(timeout_sec=45, title_hints=("capcut",)):
     """The coordinate profiles assume a MAXIMIZED window, but CapCut opens
     floating (~1428x952 on a 1080p screen) and kill_capcut()'s taskkill /f
     denies it any chance to persist window state - so every run starts
@@ -127,7 +130,8 @@ def maximize_capcut(timeout_sec=45):
         def _collect(hwnd, _):
             if not win32gui.IsWindowVisible(hwnd):
                 return
-            if "capcut" not in (win32gui.GetWindowText(hwnd) or "").lower():
+            title = (win32gui.GetWindowText(hwnd) or "").lower()
+            if not any(hint and hint.lower() in title for hint in title_hints):
                 return
             if not win32gui.GetClassName(hwnd).startswith("Qt"):
                 return
@@ -138,8 +142,30 @@ def maximize_capcut(timeout_sec=45):
         found.sort(key=lambda w: w[1], reverse=True)
         # Ignore splash-sized windows; wait for the real main window.
         if found and found[0][1] > 400_000:
-            win32gui.ShowWindow(found[0][0], win32con.SW_MAXIMIZE)
-            time.sleep(2)
+            hwnd = found[0][0]
+            win32gui.ShowWindow(hwnd, win32con.SW_MAXIMIZE)
+            time.sleep(1)
+            # SW_MAXIMIZE alone is silently ignored by this frameless Qt window:
+            # measured 2026-08-15, the window stayed 1450x850 after it, so the
+            # editor's Export button sat at (1288, 18) while the coordinate
+            # profile looked for it at (1769, 17) - every export then failed with
+            # "editor did not open" even though the draft opened perfectly by
+            # hand. Force the geometry instead of asking for it.
+            try:
+                import win32api
+                width = win32api.GetSystemMetrics(0)
+                height = win32api.GetSystemMetrics(1)
+                win32gui.SetWindowPos(hwnd, 0, 0, 0, width, height, 0x0004)
+                time.sleep(1)
+            except Exception:
+                pass
+            rect = win32gui.GetWindowRect(hwnd)
+            print(json.dumps({
+                "step": "maximize",
+                "width": rect[2] - rect[0],
+                "height": rect[3] - rect[1]
+            }, ensure_ascii=False), flush=True)
+            time.sleep(1)
             return True
         time.sleep(1.5)
     return False
@@ -257,21 +283,49 @@ def main():
 
         # Search filters the project list to exactly our draft; paste via
         # clipboard because the names carry CJK that pyautogui cannot type.
+        #
+        # The window existing does not mean the home screen is usable: on a cold
+        # start CapCut paints its chrome well before the Projects grid, and a
+        # search typed into a half-built page filters nothing, so the
+        # double-click below lands on empty canvas and every export died with
+        # "editor did not open" (2026-08-15). Give the grid time, and report
+        # each step so a failure says where it stopped.
+        time.sleep(HOME_GRID_SETTLE_SEC)
+        print(json.dumps({"step": "home_ready"}, ensure_ascii=False), flush=True)
+
         pyautogui.click(*coords["search_icon"])
         time.sleep(1.5)
         set_clipboard(args.draft_name)
         pyautogui.hotkey("ctrl", "v")
-        time.sleep(2.5)
+        time.sleep(3.5)
+        print(json.dumps({"step": "searched"}, ensure_ascii=False), flush=True)
 
         # Double-clicks get swallowed sometimes - verify the editor actually
         # opened (its export button turns teal) and retry if not.
+        # Opening a project gives CapCut a NEW window at its own default size
+        # (1450x850 measured 2026-08-15), so the home screen's maximize does not
+        # carry over. The editor really was opening every time; the teal check
+        # just looked at (1769, 17), which by then was desktop. Re-force the
+        # geometry on the editor window - its title is the draft name, not
+        # "CapCut", so it has to be matched by that too.
         opened = False
         for _ in range(3):
             pyautogui.doubleClick(*coords["first_row"])
-            if wait_for(lambda: editor_open(coords), EDITOR_LOAD_SEC + 10):
+            time.sleep(EDITOR_LOAD_SEC)
+            maximize_capcut(timeout_sec=20, title_hints=("capcut", args.draft_name[-24:]))
+            if wait_for(lambda: editor_open(coords), 20):
                 opened = True
                 break
         if not opened:
+            # Screenshot from inside the run: watching from another shell kept
+            # showing a bare desktop while the step log said the search had just
+            # succeeded, which told us nothing about what the click actually hit.
+            try:
+                shot = os.path.join(os.path.dirname(args.export_dir), "_export_failure.png")
+                pyautogui.screenshot(shot)
+                print(json.dumps({"step": "failure_shot", "path": shot}, ensure_ascii=False), flush=True)
+            except Exception:
+                pass
             raise RuntimeError("editor did not open after 3 double-click attempts")
         time.sleep(3)  # let the editor finish layout before poking export
 
