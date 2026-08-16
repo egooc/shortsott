@@ -51,6 +51,33 @@ test('a long line spanning several own cues keeps all of them (only foreign cues
   assert.ok(win.end_sec >= 411.8 && win.end_sec <= 412.0, `end keeps last own cue, got ${win.end_sec}`);
 });
 
+// Draft Day slot_005: "How can I help you?" is spoken from 298.12, but its caption cue only opens
+// at 299.12 because ">> Sonny." still holds the screen. Re-anchoring the window to that cue cut the
+// clip into the line's third word. A start measured from the audio outranks a caption boundary.
+test('a start measured from the audio is not pulled back to a late caption cue', () => {
+  const transcript = [
+    { start_sec: 297.76, end_sec: 299.12, text: 'Sonny.' },
+    { start_sec: 299.12, end_sec: 302.55, text: 'How can I help you?' }
+  ];
+  const plan = planWith('How can I help you?', 298.05, 302.555);
+  plan.timeline[0].dialogue_line_windows[0].timing_source = 'measured';
+  clampDialogueWindowsToOwnCue(plan, transcript);
+
+  const win = plan.timeline[0].dialogue_line_windows[0];
+  assert.equal(win.start_sec, 298.05, `measured start kept, got ${win.start_sec}`);
+});
+
+test('without that measurement the same window is still clamped off the foreign cue', () => {
+  const transcript = [
+    { start_sec: 297.76, end_sec: 299.12, text: 'Sonny.' },
+    { start_sec: 299.12, end_sec: 302.55, text: 'How can I help you?' }
+  ];
+  const plan = planWith('How can I help you?', 298.05, 302.555);
+  clampDialogueWindowsToOwnCue(plan, transcript);
+
+  assert.equal(plan.timeline[0].dialogue_line_windows[0].start_sec, 299.12);
+});
+
 test('a window already inside a single cue is left untouched', () => {
   const transcript = [
     { start_sec: 100.0, end_sec: 104.0, text: 'This is one clean line spoken by one person.' }

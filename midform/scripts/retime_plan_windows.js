@@ -180,6 +180,10 @@ for (let idx = 0; idx < ordered.length; idx++) {
     win.raw_end_sec = +hit.e.toFixed(3);
     win.start_sec = +hit.s.toFixed(3);
     win.end_sec = +Math.max(hit.e, hit.s + Math.min(Number.isFinite(oldSpan) ? oldSpan : 0, hit.e - hit.s)).toFixed(3);
+    // Provenance, not decoration: downstream passes re-anchor windows to caption CUE boundaries,
+    // and a rolling caption's boundary is exactly what this measurement disagrees with. A start
+    // that came from word timings outranks a cue edge, so mark it and let the clamp leave it alone.
+    if (hit === audio) win.timing_source = 'measured';
   }
 }
 

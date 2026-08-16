@@ -484,7 +484,12 @@ function clampDialogueWindowsToOwnCue(editPlan, transcriptTimed) {
       // front, the window keeps the start it was given.
       const ownedStart = Math.min(...owned.map((cue) => cue.start));
       const foreignBeforeOwned = overlapping.some((cue) => !owned.includes(cue) && cue.start < ownedStart - 0.05);
-      const nextStart = foreignBeforeOwned ? Math.max(winStart, ownedStart) : winStart;
+      // A start measured from the audio (retime_plan_windows, forced alignment) outranks a cue edge:
+      // the whole reason the window disagrees with the cue is that the caption rolled late. Draft Day
+      // says "How can I help you?" from 298.12, but its cue only opens at 299.12 because "Sonny."
+      // still holds the screen - re-anchoring to that cue cut the clip into the line's third word.
+      const startIsMeasured = win.timing_source === 'measured';
+      const nextStart = foreignBeforeOwned && !startIsMeasured ? Math.max(winStart, ownedStart) : winStart;
       const nextEnd = Math.min(winEnd, Math.max(...owned.map((cue) => cue.end)));
       if (nextEnd - nextStart < 0.4) continue; // refuse to shrink a line out of existence
       if (nextStart - winStart <= 0.2 && winEnd - nextEnd <= 0.2) continue; // already tight
