@@ -2339,12 +2339,18 @@ function sliceCueForLine(cue, line) {
 // The span is the plan's own choice, so this spends the budget the plan already allocated (Draft
 // Day: 116s of dialogue planned, 33s rendered). Non-speech cues are skipped, and a slot is capped so
 // one runaway span cannot eat the whole recap.
-function fillDialogueExchangeGaps(focusLines, transcript, maxAddedPerSlot = 12) {
+function fillDialogueExchangeGaps(focusLines, transcript, maxAddedPerSlot = 12, bounds = null) {
   const lines = (Array.isArray(focusLines) ? focusLines : []).map((line) => String(line || '').trim()).filter(Boolean);
   if (lines.length < 2) return { lines, added: 0 };
+  // Only ever inside the slot's own window. Locating the picked lines globally could latch onto a
+  // repeat elsewhere in the source and import a whole different scene - those lines then matched
+  // nothing when the windows were resolved (score 0) and the slot came out emptier than before.
+  const lo = Number(bounds?.start);
+  const hi = Number(bounds?.end);
   const raw = (Array.isArray(transcript) ? transcript : [])
     .map((cue) => ({ start: Number(cue?.start_sec), end: Number(cue?.end_sec), text: String(cue?.text || '').trim() }))
     .filter((cue) => Number.isFinite(cue.start) && Number.isFinite(cue.end) && cue.end > cue.start)
+    .filter((cue) => (!Number.isFinite(lo) || cue.end > lo - 0.05) && (!Number.isFinite(hi) || cue.start < hi + 0.05))
     .sort((a, b) => a.start - b.start);
   if (!raw.length) return { lines, added: 0 };
   // Auto-caption cues are display chunks, not sentences: "니나에게 그냥 내가 내가" is half a thought.
@@ -2428,6 +2434,7 @@ function resolveDialogueLineWindows(transcript, windowStartSec, windowEndSec, li
   const CLUSTER_GAP_TOL_SEC = 2.0; // rolling VTT repeats a line across consecutive cues <2s apart
   const MIN_LINE_SEC = 0.5; // below this, even after extension, the caption is unusable -> flag+block
   const MIN_DISPLAY_SEC = 1.2; // target minimum on-screen time; short cues extend toward this
+  const MAX_ANCHOR_RUN = 4; // a line may span this many consecutive display chunks
   const MAX_LINE_SEC = 12; // caps degenerate VTT cues (e.g. a trailing caption whose end runs to
   // the end of the video), which no dialogue line realistically occupies
 
@@ -2440,11 +2447,22 @@ function resolveDialogueLineWindows(transcript, windowStartSec, windowEndSec, li
   const resolved = inputLines.map((line) => {
     let bestIndex = -1;
     let bestScore = 0;
+    let bestRun = 1;
     for (let i = 0; i < sortedCues.length; i += 1) {
-      const score = scoreCueAgainstQuote(sortedCues[i].text, line);
-      if (score > bestScore) {
-        bestScore = score;
-        bestIndex = i;
+      // Score the line against this cue AND against the run of cues starting here. A sentence the
+      // auto-captions split across three display chunks scores about a third against any one of
+      // them and used to fail the match outright: eleven of eighteen restored lines in Housemaid's
+      // slot_08 were lost that way, and the exchange collapsed back to disconnected fragments.
+      let text = '';
+      for (let run = 0; run < MAX_ANCHOR_RUN && i + run < sortedCues.length; run += 1) {
+        if (run > 0 && Number(sortedCues[i + run].start_sec) - Number(sortedCues[i + run - 1].end_sec) > CLUSTER_GAP_TOL_SEC) break;
+        text = run === 0 ? sortedCues[i].text : `${text} ${sortedCues[i + run].text}`;
+        const score = scoreCueAgainstQuote(text, line);
+        if (score > bestScore) {
+          bestScore = score;
+          bestIndex = i;
+          bestRun = run + 1;
+        }
       }
     }
     const matched = bestIndex >= 0 && bestScore >= MATCH_THRESHOLD;
@@ -2453,7 +2471,7 @@ function resolveDialogueLineWindows(transcript, windowStartSec, windowEndSec, li
       return { line, matched: false, score: roundSec(bestScore), raw_start: null, raw_end: null };
     }
     let lo = bestIndex;
-    let hi = bestIndex;
+    let hi = bestIndex + bestRun - 1;
     while (lo - 1 >= 0
       && scoreCueAgainstQuote(sortedCues[lo - 1].text, line) >= EXTEND_THRESHOLD
       && Number(sortedCues[lo].start_sec) - Number(sortedCues[lo - 1].end_sec) <= CLUSTER_GAP_TOL_SEC) {
@@ -4090,7 +4108,7 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec, usableEndSec =
         // one per focus line, so a line added here is a line the viewer actually gets to read.
         const filled = process.env.MIDFORM_KEEP_EXCHANGE === '0'
           ? { lines: focus.lines, added: 0 }
-          : fillDialogueExchangeGaps(focus.lines, transcript);
+          : fillDialogueExchangeGaps(focus.lines, transcript, 12, { start: focus.start_sec, end: focus.end_sec });
         if (filled.added > 0) focus.lines = filled.lines;
         const readable = resolveReadableDialogueWindows(transcript, focus, beat.end_sec, nextBeatStart, requiredAnchors);
         const lineResolution = readable.resolution;

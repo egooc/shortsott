@@ -70,3 +70,21 @@ test('cue fragments are glued into whole utterances', () => {
     `chunks glued into one utterance, got ${JSON.stringify(lines)}`);
   assert.equal(lines.length, 2, 'one line per utterance, not per display chunk');
 });
+
+test('the exchange is restored only from inside the slot window', () => {
+  // Locating the picked lines across the whole transcript latched onto a repeat elsewhere and
+  // imported a different scene; those lines matched no cue in the slot's window (score 0) and the
+  // slot shipped emptier than before the fix.
+  const wide = [
+    { start_sec: 20.0, end_sec: 21.0, text: 'Leave him alone.' },
+    { start_sec: 21.2, end_sec: 22.4, text: 'You have no business talking to him.' },
+    { start_sec: 100.0, end_sec: 101.2, text: 'I need a favor from you.' },
+    { start_sec: 101.4, end_sec: 102.6, text: 'What kind of favor?' },
+    { start_sec: 102.8, end_sec: 104.0, text: 'Tickets for a musical.' },
+  ];
+  const { lines } = fillDialogueExchangeGaps(
+    ['I need a favor from you.', 'Tickets for a musical.'], wide, 12, { start: 99, end: 105 },
+  );
+  assert.ok(!lines.some((line) => /Leave him alone/.test(line)), 'nothing from outside the window');
+  assert.ok(lines.some((line) => /What kind of favor\?/.test(line)), 'the reply inside the window comes back');
+});
