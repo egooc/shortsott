@@ -9756,6 +9756,25 @@ async function prepareLongformFullDraftItemConfig({ itemId, itemConfig, sourceVi
       faceFilterWarnings.push(`window face probe failed open: ${String(error.message || error).slice(0, 120)}`);
     }
   }
+  // Arc windows come from Vision's step timings, which land near a shot change
+  // rather than on it, and nothing was snapping them: only the highlight path
+  // called the edge refiner. Measured on item_017 (2026-08-16) the hook step
+  // began at 50.0s while the cut from the CAM monitor to the CNC router is at
+  // 50.18s, so the Full opened on 0.18s of a computer screen - and with the 16:9
+  // source cropped 3.16x into 9:16, that screen filled the frame and became the
+  // thumbnail YouTube chose. Same bounded refinement the highlights get: no
+  // change to window count, order or strategy, edges move at most 0.35s onto a
+  // real cut, fail-open.
+  let fullEdgeRefinement = null;
+  if (candidateWindows.length) {
+    const refined = await refineHighlightWindowEdges({
+      videoPath: sourceVideoPath,
+      windows: candidateWindows,
+      maxDurationSec: 0
+    });
+    candidateWindows = refined.windows;
+    fullEdgeRefinement = refined.summary;
+  }
   if (candidateWindows.length) {
     const itemDir = getItemDir(itemId);
     const fullSourcePath = path.join(itemDir, 'full_source_highlight_candidates.mp4');
@@ -9800,7 +9819,8 @@ async function prepareLongformFullDraftItemConfig({ itemId, itemConfig, sourceVi
       sourceWindow: {
         mode: 'longform_full_from_highlight_candidates',
         duration_sec: Number((metadata.duration_sec || 0).toFixed(3)),
-        windows: candidateWindows
+        windows: candidateWindows,
+        edge_refinement: fullEdgeRefinement
       },
       warnings: [`longform full draft uses ${candidateWindows.length} highlight candidate segment(s), total ${Number((metadata.duration_sec || 0).toFixed(3))}s`, ...faceFilterWarnings]
     };
