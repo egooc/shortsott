@@ -26,7 +26,7 @@ node  midform/scripts/verify_dialogue_clips.js <draft_ko/edit_manifest.json> ali
   되돌리려면 490.56으로 되돌리고 `--resume bootstrap --bootstrap-run compress_20260813110559_5qWm_kVDhQQ` 재실행.
 - 재검증: FAIL **1 → 0**, 최소 포함률 **0.21 → 0.64**. 원고 diff NONE. 설치 `20260816c-housemaid-ending-*`.
 
-### [미해결] longshot-molly · slot_008_L01 — 자막 없는 발화가 클립 안에 있음
+### [수정 완료] longshot-molly · slot_008_L01 — 자막 없는 발화가 클립 안에 있음
 
 - 증거: 클립 399.94~406.02가 세 발화를 재생한다.
   399.13 "We just re-upped." / **400.91 "You kept saying you wanted to take more, so we did."** /
@@ -34,10 +34,13 @@ node  midform/scripts/verify_dialogue_clips.js <draft_ko/edit_manifest.json> ali
   자막은 첫·셋째만 담는다("We just re-upped... we have another maybe four or five hours").
   검증기: 클립 안에서 들리는 11단어 중 **8단어가 어떤 자막에도 없음**.
 - 성격: 자막의 `...`가 이미 생략을 뜻한다 — 즉 **자막은 맞고 오디오가 생략을 따라가지 않는다.**
-- 올바른 수정: 대사 클립 하나가 **두 개의 소스 구간**(399.13~400.4 + 403.09~406.05)을 갖도록 해서
-  오디오가 자막의 생략과 일치하게 만든다. 매니페스트 세그먼트는 이미 다중 `source_clips`를 지원하지만
-  `dialogue_line_windows`는 단일 구간이라 부트스트랩 어댑터 수정이 필요하다.
-- 임시 대안(권장하지 않음): 클립을 첫 발화까지로 줄이면 자막 후반의 오디오가 사라진다.
+- **진짜 원인은 창이 아니라 floor였다**: 플랜 창은 399.94~401.4(1.46초)인데, 11단어 자막이라
+  floor가 `wordCount/3.2 = 3.4초`를 채우려고 end를 **406.02까지** 밀었다. 그 사이의 다른 발화를
+  그대로 삼킨 것. 클램프는 큐 기준이고 floor보다 먼저 돌기 때문에 막을 수 없었다.
+- 수정(커밋 `9d98462`): floor가 transcript를 받아 **창 시작 이후 첫 "남의 큐" 앞에서 멈춘다**
+  (0.15초 여유). 창 **끝**이 아니라 **시작** 기준으로 재는 이유는, 이미 남의 발화에 걸쳐 있는 창이면
+  끝 기준 탐색이 그 발화를 건너뛰어 버리기 때문. 테스트 2건 추가(tests/dialogueClipOwnCueClamp.test.js).
+- 재검증: 클립 399.94~406.02 → **399.94~401.40**, uncaptioned_speech FAIL **1 → 0**, 원고 diff NONE.
 
 ## 판정을 믿기 전에 알아야 할 오탐 3종 (전부 실제로 겪음)
 

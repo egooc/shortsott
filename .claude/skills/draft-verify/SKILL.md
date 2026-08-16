@@ -61,6 +61,28 @@ JA는 KO와 **동일 지표로** 측정한다 — 특히 핵심 장면 커버(�
 2. 각 프레임을 그 슬롯의 나레이션 문장과 대조 — 문장이 말하는 장면이 맞는가 (비전 장면 지도 visible_action 참조).
 3. `narration_broll_semantic_bounds` 게이트(플랜 창 ±8s + usable end)가 코드 방어선이지만, 창 안에서도 의미가 어긋날 수 있으므로 육안이 최종 판정.
 
+## 1.7 오디오 게이트 (설치 전 필수 — 2026-08-16)
+
+수치·프레임 검증과 별개로, **클립이 자기 대사를 실제로 담는지**는 오디오로만 판정된다. 설치 전에:
+
+```
+python midform/scripts/align_dialogue_lines.py --audio <compress>/source.mp4 \
+       --plan <compress>/edit_plan.json --out align.json
+node  midform/scripts/verify_dialogue_clips.js <draft_ko>/edit_manifest.json align.json \
+       --asr <whisper_words.json>          # exit 1 이면 설치 금지
+node  midform/scripts/clip_baseline.js check <draft_ko>/edit_manifest.json \
+       midform/docs/goldens/<소스>.json     # 승인된 구간에서 벗어났는지
+```
+
+- **FAIL 종류**: `containment`(대사가 타임라인 어디에도 없음), `uncaptioned_speech`(자막 없는 다른 발화),
+  `duplicate_audio`(같은 말을 두 클립이 반복). WARN은 `mid_word_cut`(단어 중간 절단)과
+  `containment_split`(꼬리를 이웃 자막이 담음 — 정상).
+- **의도한 편집이면** 기준선을 다시 쓰고(`clip_baseline.js write`) 그 변경과 함께 커밋한다. 기준선 없이
+  설치하면 조용한 계보 폴백·게이트 실패본 설치를 다시 놓친다(둘 다 실사고).
+- 소스당 정렬은 CPU로 10~30분 걸린다. 배치로 돌리고 기다릴 것.
+- 판정을 못 믿을 근거(`ambiguous`, `weak_tokens`, 신뢰도<0.6)가 붙은 줄은 **경고만** 낸다.
+  발견 사례와 오탐 3종은 `midform/docs/dialogue-clip-findings.md`.
+
 ## 2. 설치 (측정 통과 시)
 
 ```
