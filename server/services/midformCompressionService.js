@@ -3160,7 +3160,7 @@ function prepareColdOpenCallbackTimeline(timeline, editPlan, beats, transcript) 
     visual_source_end_sec: selected.focus.end_sec,
     dialogue_focus_source: selected.source === 'micro_exchange_candidate' ? 'cold_open_callback_micro_exchange' : 'cold_open_callback_hook',
     dialogue_focus_lines: selected.focus.lines,
-    dialogue_focus_quotes: selected.focus.quotes,
+    dialogue_focus_quotes: (selected.focus.quotes || []).length ? selected.focus.quotes : selected.focus.lines,
     replay_of_slot_id: '',
     replay_mode: '',
     editorial_role: 'hook_teaser',
@@ -3306,7 +3306,7 @@ function topUpTimelineToTargetRuntime(timeline, beats, transcript, targetSec, us
         ? {
             dialogue_focus_source: 'runtime_topup_dialogue',
             dialogue_focus_lines: focus.lines,
-            dialogue_focus_quotes: focus.quotes
+            dialogue_focus_quotes: (focus.quotes || []).length ? focus.quotes : focus.lines
           }
         : {}),
       reason: keepsDialogue
@@ -3350,7 +3350,7 @@ function topUpTimelineToTargetRuntime(timeline, beats, transcript, targetSec, us
         estimated_duration_sec: focus.duration_sec,
         dialogue_focus_source: 'runtime_topup_narrated_beat',
         dialogue_focus_lines: focus.lines,
-        dialogue_focus_quotes: focus.quotes,
+        dialogue_focus_quotes: (focus.quotes || []).length ? focus.quotes : focus.lines,
         reason: 'Played the dialogue of a beat the plan only narrated, so the cut reaches its runtime with scene rather than explanation.',
         spoiler_policy: 'Keep the mystery progression grounded in transcript evidence.',
         repeat_policy: 'No repeat.',
@@ -3520,6 +3520,19 @@ function fillUncaptionedCuesInsideCuts(timeline, transcript) {
   });
 }
 
+// Focus quotes are a subset of the line windows, so they cannot be filtered by window index: doing
+// that dropped unrelated entries and sometimes emptied the array, and an empty one fails the plan
+// validator - which threw away the whole refresh and left the source on its previous plan.
+function keepQuotesByText(quotes, keptWindows) {
+  const keptLines = (Array.isArray(keptWindows) ? keptWindows : [])
+    .map((win) => normalizeComparableText(win && win.line))
+    .filter(Boolean);
+  const survivors = (Array.isArray(quotes) ? quotes : [])
+    .filter((quote) => keptLines.includes(normalizeComparableText(quote)));
+  if (survivors.length) return survivors;
+  return (Array.isArray(keptWindows) ? keptWindows : []).map((win) => win && win.line).filter(Boolean);
+}
+
 function separateOverlappingDialogueWindows(timeline) {
   const items = (Array.isArray(timeline) ? timeline : []).map((item) => {
     if (item.decision !== 'KEEP_DIALOGUE' || !Array.isArray(item.dialogue_line_windows)) return item;
@@ -3647,8 +3660,10 @@ function dropDuplicateDialogueSlots(timeline) {
       dialogue_line_windows: kept,
       dialogue_focus_lines: Array.isArray(item.dialogue_focus_lines)
         ? item.dialogue_focus_lines.filter((_, line) => survives(line)) : item.dialogue_focus_lines,
-      dialogue_focus_quotes: Array.isArray(item.dialogue_focus_quotes)
-        ? item.dialogue_focus_quotes.filter((_, line) => survives(line)) : item.dialogue_focus_quotes,
+      // Quotes are a SUBSET of the windows, so filtering them by window index dropped the wrong
+      // entries and could empty the array - which the plan validator rejects, killing the refresh.
+      // Keep the quotes whose text survived, and fall back to the kept lines if none did.
+      dialogue_focus_quotes: keepQuotesByText(item.dialogue_focus_quotes, kept),
       start_sec: roundSec(Math.min(...spans.map((s) => s[0]))),
       end_sec: roundSec(Math.max(...spans.map((s) => s[1]))),
       duplicate_dialogue_lines_dropped: true,
@@ -3691,8 +3706,7 @@ function leadColdOpenWithStrongestLine(timeline) {
         ...item,
         dialogue_line_windows: kept,
         dialogue_focus_lines: lines.filter((_line, index) => survives(index)),
-        dialogue_focus_quotes: Array.isArray(item.dialogue_focus_quotes)
-          ? item.dialogue_focus_quotes.filter((_quote, index) => survives(index)) : item.dialogue_focus_quotes,
+        dialogue_focus_quotes: keepQuotesByText(item.dialogue_focus_quotes, kept),
         start_sec: roundSec(Math.min(...spans.map((span) => span[0]))),
         end_sec: roundSec(Math.max(...spans.map((span) => span[1]))),
         cold_open_reordered: true,
@@ -3836,8 +3850,11 @@ function trimTimelineToTargetRuntime(timeline, targetSec) {
     const starts = kept.map((w) => Number(w.start_sec)).filter(Number.isFinite);
     const ends = kept.map((w) => Number(w.end_sec)).filter(Number.isFinite);
     const shaved = { ...item, dialogue_line_windows: windows, runtime_trimmed: true };
+    // The shave removes ONE window by index. Focus lines are 1:1 with the windows so the same index
+    // applies, but quotes are a subset - removing the same index there deleted an unrelated quote
+    // and could empty the list, which the plan validator rejects and the whole refresh then dies on.
     if (Array.isArray(item.dialogue_focus_lines)) shaved.dialogue_focus_lines = item.dialogue_focus_lines.filter((_, i) => i !== lastMatched);
-    if (Array.isArray(item.dialogue_focus_quotes)) shaved.dialogue_focus_quotes = item.dialogue_focus_quotes.filter((_, i) => i !== lastMatched);
+    shaved.dialogue_focus_quotes = keepQuotesByText(item.dialogue_focus_quotes, kept);
     if (starts.length && ends.length) {
       shaved.start_sec = roundSec(Math.min(...starts));
       shaved.end_sec = roundSec(Math.max(...ends));
