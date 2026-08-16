@@ -491,15 +491,37 @@ function clampDialogueWindowsToOwnCue(editPlan, transcriptTimed) {
 }
 
 // The opposite failure to the over-long cue: YouTube sometimes stamps a whole spoken line onto ONE
+// The first cue after this window that carries someone else's words. A cue sharing most of its
+// words with the line is this same utterance still rolling, not a new voice.
+function nextForeignCueStart(cues, win, start, end) {
+  const lineTokens = new Set(normalizeCaptionTokens(win.line));
+  for (const cue of cues) {
+    // Measured from the window's START, not its end: the foreign utterance can already be inside a
+    // window the plan drew too wide, and bounding from the end would step right over it.
+    if (cue.start <= start + 0.05) continue;
+    const cueTokens = normalizeCaptionTokens(cue.text);
+    if (!cueTokens.length) continue;
+    const shared = cueTokens.filter((token) => lineTokens.has(token)).length / cueTokens.length;
+    if (shared >= 0.5) continue;
+    return cue.start;
+  }
+  return NaN;
+}
+
 // timestamp ("Okay, I'm ready to do this, Tom." collapsed to a 0.2s cue), so the window - and the
 // clip cut from it - holds only the tail and the viewer hears one word and has to read the rest.
 // The tags can't recover a span they never recorded, so floor each clip at the time the words need
 // to be spoken (wordCount / WORDS_PER_SEC), extending the END forward. Bounded by the next selected
 // dialogue clip anywhere on the timeline and by the source end, so it never swallows another line.
-function extendShortDialogueWindows(editPlan, sourceDurationSec = 0) {
+function extendShortDialogueWindows(editPlan, sourceDurationSec = 0, transcriptTimed = []) {
   const DIALOGUE_FLOOR_WORDS_PER_SEC = 3.2;
   // Largest pre-roll a dialogue clip can claim (0.7s, question rebuttal) plus its post-roll (0.15s).
   const DIALOGUE_FLOOR_NEIGHBOUR_GAP_SEC = 0.9;
+  const FOREIGN_SPEECH_GUARD_SEC = 0.15;
+  const cues = (Array.isArray(transcriptTimed) ? transcriptTimed : [])
+    .map((cue) => ({ start: Number(cue?.start_sec), end: Number(cue?.end_sec), text: String(cue?.text || '') }))
+    .filter((cue) => Number.isFinite(cue.start) && Number.isFinite(cue.end) && cue.end > cue.start)
+    .sort((a, b) => a.start - b.start);
   const timeline = Array.isArray(editPlan?.timeline) ? editPlan.timeline : [];
   const selectedStarts = [];
   for (const item of timeline) {
@@ -530,6 +552,12 @@ function extendShortDialogueWindows(editPlan, sourceDurationSec = 0) {
       // too small on Long Shot: the floor filled the space right back up to a 0.13s collision.
       const nextStart = selectedStarts.find((value) => value > start + 0.05);
       if (Number.isFinite(nextStart)) limit = Math.min(limit, nextStart - DIALOGUE_FLOOR_NEIGHBOUR_GAP_SEC);
+      // Stop at the next voice that is not this line. A short window between two other utterances
+      // otherwise grows straight over the one in between, and that speech ships with no caption of
+      // its own: Long Shot's "We just re-upped... we have another maybe 4 or 5 hours." was floored
+      // from 1.5s to 6.1s and swallowed "You kept saying you wanted to take more, so we did."
+      const foreignStart = nextForeignCueStart(cues, win, start, end);
+      if (Number.isFinite(foreignStart)) limit = Math.min(limit, foreignStart - FOREIGN_SPEECH_GUARD_SEC);
       if (sourceDurationSec > 0) limit = Math.min(limit, sourceDurationSec);
       if (limit > end + 0.1) {
         win.end_sec = roundSec3(limit);
@@ -1178,7 +1206,7 @@ function assembleBootstrapArtifacts(runIdOrPath, options = {}) {
   // Floor each clip at the time its words need to be spoken, so a caption YouTube collapsed onto one
   // timestamp is not cut down to its last word. Runs AFTER the trim so it lifts whatever the cue and
   // VAD left too short.
-  const dialogueFloor = extendShortDialogueWindows(editPlan, sourceDurationSec);
+  const dialogueFloor = extendShortDialogueWindows(editPlan, sourceDurationSec, transcriptTimed);
 
   const { transcript, stats: transcriptStats, warnings: tW } = buildBootstrapTranscript(editPlan, transcriptTimed);
   const energyProfilePath = path.join(runDir, 'energy_profile.json');

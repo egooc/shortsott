@@ -128,3 +128,48 @@ test('a clip already long enough for its words is left alone', () => {
   assert.equal(result.extended, 0);
   assert.equal(plan.timeline[0].dialogue_line_windows[0].end_sec, 13.0);
 });
+
+test('the floor stops at the next voice instead of swallowing it', () => {
+  // Long Shot shipped this: a 1.5s window for an eleven-word caption was floored to 6.1s and ran
+  // straight over the line spoken between its two halves, so that speech played with no caption of
+  // its own. The floor may only borrow silence, never another utterance.
+  const plan = {
+    timeline: [{
+      slot_id: 'slot_008',
+      decision: 'KEEP_DIALOGUE',
+      dialogue_line_windows: [
+        { line: 'We just re-upped... we have another maybe 4 or 5 hours.', matched: true, start_sec: 399.94, end_sec: 401.4 },
+        { line: 'Yeah. Why?', matched: true, start_sec: 407.4, end_sec: 409.6 },
+      ],
+    }],
+  };
+  const transcript = [
+    { start_sec: 399.13, end_sec: 400.31, text: 'We just re-upped.' },
+    { start_sec: 400.91, end_sec: 402.79, text: 'You kept saying you wanted to take more, so we did.' },
+    { start_sec: 403.09, end_sec: 406.05, text: 'So we have another maybe four or five hours.' },
+    { start_sec: 407.4, end_sec: 409.6, text: 'Yeah. Why?' },
+  ];
+  extendShortDialogueWindows(plan, 600, transcript);
+  const win = plan.timeline[0].dialogue_line_windows[0];
+  // The window already reaches into the other speaker here, which is the clamp's problem; what the
+  // floor must not do is make it worse by growing across that voice to reach its word-count target.
+  assert.equal(win.end_sec, 401.4, 'the floor refuses to grow over another utterance');
+});
+
+test('the floor still fills silence when no other voice is in the way', () => {
+  const plan = {
+    timeline: [{
+      slot_id: 'slot_01',
+      decision: 'KEEP_DIALOGUE',
+      dialogue_line_windows: [
+        { line: 'Okay, I am ready to do this, Tom.', matched: true, start_sec: 302.6, end_sec: 302.8 },
+      ],
+    }],
+  };
+  const transcript = [
+    { start_sec: 302.6, end_sec: 302.8, text: 'Okay, I am ready to do this, Tom.' },
+    { start_sec: 312.0, end_sec: 314.0, text: 'Our next two number one picks.' },
+  ];
+  extendShortDialogueWindows(plan, 600, transcript);
+  assert.ok(plan.timeline[0].dialogue_line_windows[0].end_sec > 304.5, 'a collapsed cue is still floored');
+});
