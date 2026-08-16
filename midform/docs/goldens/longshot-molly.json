@@ -1,0 +1,143 @@
+{
+ "draft_name": "draft_ko",
+ "source_duration_sec": 553.121,
+ "dialogue_clips": 27,
+ "note": "2026-08-16 audio-verified: FAIL 0, floor bounded by foreign speech",
+ "clips": {
+  "slot_001_L01": {
+   "start": 396.36,
+   "end": 399.09,
+   "speaker": "여자"
+  },
+  "slot_003_L01": {
+   "start": 123.92,
+   "end": 126.108,
+   "speaker": "대통령"
+  },
+  "slot_004_L01": {
+   "start": 197.492,
+   "end": 200.304,
+   "speaker": "여자"
+  },
+  "slot_005_L02": {
+   "start": 224.28,
+   "end": 226.4,
+   "speaker": "여자"
+  },
+  "slot_005_L03": {
+   "start": 228.119,
+   "end": 229.325,
+   "speaker": "여자"
+  },
+  "slot_005_L04": {
+   "start": 235.88,
+   "end": 238.38,
+   "speaker": "여자"
+  },
+  "slot_005_L05": {
+   "start": 239.64,
+   "end": 241.68,
+   "speaker": "남자"
+  },
+  "slot_005_L06": {
+   "start": 241.799,
+   "end": 242.682,
+   "speaker": "남자"
+  },
+  "slot_005_L07": {
+   "start": 243.48,
+   "end": 246.08,
+   "speaker": "남자"
+  },
+  "slot_005_L08": {
+   "start": 252.64,
+   "end": 256.077,
+   "speaker": "여자"
+  },
+  "slot_007_L01": {
+   "start": 363.84,
+   "end": 364.7,
+   "speaker": "남자"
+  },
+  "slot_007_L02": {
+   "start": 364.88,
+   "end": 370,
+   "speaker": "여자"
+  },
+  "slot_007_L03": {
+   "start": 370.92,
+   "end": 373.04,
+   "speaker": "여자"
+  },
+  "slot_008_L01": {
+   "start": 399.94,
+   "end": 401.4,
+   "speaker": "남자"
+  },
+  "slot_008_L02": {
+   "start": 407.4,
+   "end": 409.6,
+   "speaker": "남자"
+  },
+  "slot_008_L03": {
+   "start": 409.6,
+   "end": 411.44,
+   "speaker": "여자"
+  },
+  "slot_010_L01": {
+   "start": 463.95,
+   "end": 465.15,
+   "speaker": "보좌관"
+  },
+  "slot_010_L03": {
+   "start": 465.92,
+   "end": 468.49,
+   "speaker": "보좌관"
+  },
+  "slot_010_L04": {
+   "start": 469.327,
+   "end": 471.891,
+   "speaker": "여자"
+  },
+  "slot_010_L05": {
+   "start": 479.92,
+   "end": 482.179,
+   "speaker": "여자"
+  },
+  "slot_010_L06": {
+   "start": 483.015,
+   "end": 486.35,
+   "speaker": "총리"
+  },
+  "slot_010_L07": {
+   "start": 497.4,
+   "end": 502.6,
+   "speaker": "총리"
+  },
+  "slot_012_L01": {
+   "start": 520,
+   "end": 521.2,
+   "speaker": "남자"
+  },
+  "slot_012_L02": {
+   "start": 521.76,
+   "end": 523.032,
+   "speaker": "여자"
+  },
+  "slot_012_L03": {
+   "start": 523.56,
+   "end": 525.72,
+   "speaker": "남자"
+  },
+  "slot_012_L04": {
+   "start": 525.72,
+   "end": 528.08,
+   "speaker": "여자"
+  },
+  "slot_012_L05": {
+   "start": 528.11,
+   "end": 530.78,
+   "speaker": "남자"
+  }
+ }
+}
