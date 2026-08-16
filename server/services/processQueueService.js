@@ -5729,6 +5729,37 @@ function buildHighlightCandidateGuide(baseGuide = {}, rawWindow = {}, highlightO
   return guide;
 }
 
+// Is this the deterministic "<주제>의 결정적 순간" template rather than a title
+// somebody wrote? Three separate places rank a recommended_titles entry ahead of
+// an upload_title, and that entry is exactly where the template lands - so this
+// has to be the same rule in all of them.
+//
+// The shapes alone over-match: Gemini wrote "蚕が紡ぐ奇跡の糸！伝統の絹織物ができる
+// まで", a real title ending the way the template does. A template is also short
+// and carries none of the punctuation a written hook uses.
+const TEMPLATE_TITLE_SHAPES = [
+  /의 결정적 순간$/u,
+  /(?:이|가) 만들어지는 과정$/u,
+  /(?:이|가) 완성되는 순간$/u,
+  /^작업 흐름으로 보는 /u,
+  / 제작 과정 관찰$/u,
+  /の決定的瞬間$/u,
+  /ができるまで$/u,
+  /が形になる瞬間$/u,
+  /^作業の流れで見る/u,
+  /づくりを観察$/u
+];
+const TEMPLATE_MAX_BARE_LENGTH = 16;
+
+function isTemplateTitleCandidate(candidate) {
+  if (!candidate) return false;
+  if (candidate.generated === 'deterministic') return true;
+  const bare = String(candidate.title || '').replace(/[#＃][^\s#＃]+/gu, '').trim();
+  if (!bare || bare.length > TEMPLATE_MAX_BARE_LENGTH) return false;
+  if (/[!！?？:：、,]/u.test(bare)) return false;
+  return TEMPLATE_TITLE_SHAPES.some((shape) => shape.test(bare));
+}
+
 function selectKoreanTitle(itemConfig = {}, variant = 'full') {
   const review = itemConfig.korean_review && typeof itemConfig.korean_review === 'object'
     ? itemConfig.korean_review
@@ -5746,7 +5777,16 @@ function selectKoreanTitle(itemConfig = {}, variant = 'full') {
   const fallbackTitle = normalizedVariant === 'highlight'
     ? (itemConfig.highlight_upload_title || itemConfig.upload_title || itemConfig.item_id || '')
     : (itemConfig.full_upload_title || itemConfig.upload_title || itemConfig.item_id || '');
-  const title = String(picked?.title || fallbackTitle || '').trim();
+  // This is what ends up in edit_manifest.json, which is what the uploader sends
+  // to YouTube. The item config already resolved the real title into
+  // full_upload_title, but a templated review title outranked it here, so two
+  // Korean Fulls were still built as "제조 공정의 결정적 순간" after the earlier
+  // fix (2026-08-17). A template only wins when the fallback is one too.
+  const pickedIsTemplate = isTemplateTitleCandidate(picked);
+  const preferred = pickedIsTemplate && fallbackTitle && !isTemplateTitleCandidate({ title: fallbackTitle })
+    ? fallbackTitle
+    : (picked?.title || fallbackTitle || '');
+  const title = String(preferred).trim();
   const hashtags = normalizeHashtags(picked?.hashtags || itemConfig.upload_hashtags || []);
   return {
     title,
@@ -6229,34 +6269,9 @@ function applyOttogiGuideToItem(itemId, guide = {}, sourceUrl = '') {
   // title Gemini did write sat in upload_title, one line further down, never
   // reached (2026-08-16: 제조/단조/절단 공정의 결정적 순간, eight videos).
   // A template only wins now if nothing was actually written.
-  // The marker covers everything analysed from now on; the shapes catch guides
-  // written before it existed, which is every item already in the queue.
-  const TEMPLATE_TITLE_SHAPES = [
-    /의 결정적 순간$/u,
-    /(?:이|가) 만들어지는 과정$/u,
-    /(?:이|가) 완성되는 순간$/u,
-    /^작업 흐름으로 보는 /u,
-    / 제작 과정 관찰$/u,
-    /の決定的瞬間$/u,
-    /ができるまで$/u,
-    /が形になる瞬間$/u,
-    /^作業の流れで見る/u,
-    /づくりを観察$/u
-  ];
-  // The shapes alone over-match: Gemini wrote "蚕が紡ぐ奇跡の糸！伝統の絹織物が
-  // できるまで", a real title that happens to end the way the template does, and
-  // treating it as one would discard it. The deterministic patterns are a bare
-  // "<seed><suffix>" - short, and with none of the punctuation a written title
-  // uses to set up its hook - so require that too.
-  const TEMPLATE_MAX_BARE_LENGTH = 16;
-  const isTemplate = (candidate) => {
-    if (!candidate) return false;
-    if (candidate.generated === 'deterministic') return true;
-    const bare = String(candidate.title || '').replace(/[#＃][^\s#＃]+/gu, '').trim();
-    if (!bare || bare.length > TEMPLATE_MAX_BARE_LENGTH) return false;
-    if (/[!！?？:：、,]/u.test(bare)) return false;
-    return TEMPLATE_TITLE_SHAPES.some((shape) => shape.test(bare));
-  };
+  // Shared with selectKoreanTitle: the same template must be recognised wherever
+  // a recommended_titles entry is ranked ahead of an upload_title.
+  const isTemplate = isTemplateTitleCandidate;
   const preferredTitle = (!isTemplate(localeHighlightTitle) && localeHighlightTitle?.title)
     || localeHighlightMetadata.upload_title
     || (!isTemplate(highlightTitle) && highlightTitle?.title)
@@ -12520,6 +12535,8 @@ module.exports = {
     classifyHighlightHook,
     buildHighlightCandidateGuide,
     highlightMetadataBodiesAreDistinct,
+    selectKoreanTitle,
+    isTemplateTitleCandidate,
     assertHighlightCandidateMetadataDistinct,
     isGenericSceneExplanation,
     normalizeHighlightCompareText,
