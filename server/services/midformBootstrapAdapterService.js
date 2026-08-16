@@ -601,6 +601,10 @@ function trimDialogueWindowsToSpeech(editPlan, speechRanges, sourceDurationSec =
       }
       const inside = ranges.filter(([rangeStart, rangeEnd]) => rangeEnd > start + 0.05 && rangeStart < end - 0.05);
       if (!inside.length) continue;
+      // Energy detection is a proxy for speech, and a quiet delivery under a score reads as
+      // silence: it cut a full second off the head of "How can I help you?" and the line shipped
+      // starting inside its second word. Forced alignment puts the head dead air at 0.05s median,
+      // so a trim deeper than this is the detector being wrong, not the window.
       const speechStart = Math.max(start, Math.min(...inside.map((range) => range[0])) - SPEECH_ATTACK_GUARD_SEC);
       let speechEnd = Math.min(end, Math.max(...inside.map((range) => range[1])) + SPEECH_RELEASE_GUARD_SEC);
       // Silence detection alone cannot find the pauses under a continuous score, so a line
@@ -618,7 +622,13 @@ function trimDialogueWindowsToSpeech(editPlan, speechRanges, sourceDurationSec =
         from: [roundSec3(start), roundSec3(end)],
         to: [roundSec3(speechStart), roundSec3(speechEnd)]
       });
-      win.start_sec = roundSec3(speechStart);
+      // Energy detection is a proxy for speech, and a quiet delivery under a score reads as silence:
+      // it cut a full second off the head of "How can I help you?" and the line shipped starting
+      // inside its second word. Forced alignment puts real head dead air at 0.05s median, so a
+      // deeper cut is the detector being wrong. The decision to trim still uses the detected start -
+      // only how much it may take off the head is capped.
+      const MAX_HEAD_TRIM_SEC = 0.6;
+      win.start_sec = roundSec3(Math.min(speechStart, start + MAX_HEAD_TRIM_SEC));
       win.end_sec = roundSec3(speechEnd);
       trimmed += 1;
     }
