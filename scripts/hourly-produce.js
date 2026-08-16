@@ -203,7 +203,20 @@ async function buildOneDraft(dryRun) {
   console.log(`produce: ${itemId}`);
   if (dryRun) return false;
 
-  const { startProcessJob, readJob } = require('../server/services/processJobService');
+  const { startProcessJob, readJob, listJobs, cancelJob } = require('../server/services/processJobService');
+
+  // Never build while a batch is already working. The daily harvest runs 24
+  // items for hours, and a job started on top of it comes back queued behind it
+  // - so the drain would sit and poll for something that cannot start, holding
+  // the producer lock and making every later tick a no-op (observed 2026-08-17).
+  const raw = listJobs();
+  const jobs = Array.isArray(raw) ? raw : (raw.jobs || []);
+  const active = jobs.find((j) => j.status === 'running');
+  if (active) {
+    console.log(`a batch is already running (${active.job_id}, ${active.batch_name}); leaving analysis to it`);
+    return false;
+  }
+
   const result = startProcessJob({
     item_ids: [itemId],
     stages: ['metadata', 'draft'],
@@ -212,8 +225,16 @@ async function buildOneDraft(dryRun) {
     enqueue_if_active: false
   });
   const jobId = result.job && result.job.job_id;
-  console.log(`job: ${jobId} (${result.job && result.job.status})`);
+  const status = result.job && result.job.status;
+  console.log(`job: ${jobId} (${status})`);
   if (!jobId) return false;
+  // enqueue_if_active is not honoured in every path; a job that came back queued
+  // would leave an orphan behind the batch, which is its own known failure.
+  if (status === 'queued') {
+    try { cancelJob(jobId); } catch { /* best effort */ }
+    console.log(`job ${jobId} came back queued; cancelled rather than left behind a batch`);
+    return false;
+  }
 
   const TERMINAL = ['success', 'failed', 'cancelled', 'completed_with_warnings'];
   const deadline = Date.now() + JOB_TIMEOUT_MS;
