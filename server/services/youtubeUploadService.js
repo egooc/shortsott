@@ -17,6 +17,14 @@ const DELETED_CARDS_PATH = path.join(PROJECT_ROOT, 'server', 'data', 'youtube_up
 
 const YOUTUBE_UPLOAD_SCOPE = 'https://www.googleapis.com/auth/youtube.upload';
 const YOUTUBE_READONLY_SCOPE = 'https://www.googleapis.com/auth/youtube.readonly';
+// youtube.upload can put a video up but can never touch it again, and readonly
+// only reads - so a title that shipped wrong stayed wrong, and a video that
+// should not have gone out could not be unlisted (2026-08-16: eight Korean Fulls
+// all titled "제조 공정의 결정적 순간", and seventeen duplicates of three
+// sources, none of them fixable through the API). videos.update needs the
+// manage scope.
+const YOUTUBE_MANAGE_SCOPE = 'https://www.googleapis.com/auth/youtube';
+const YOUTUBE_OAUTH_SCOPES = [YOUTUBE_UPLOAD_SCOPE, YOUTUBE_READONLY_SCOPE, YOUTUBE_MANAGE_SCOPE];
 const DEFAULT_REDIRECT_URI = 'http://localhost:3001/api/youtube-upload/oauth/callback';
 const PROFILE_PURPOSE_TO_VARIANT = {
   jp_full: 'full',
@@ -682,7 +690,7 @@ function getAuthorizationUrl({ profileId = '', profileName = '' } = {}) {
   const authUrl = client.generateAuthUrl({
     access_type: 'offline',
     prompt: 'consent select_account',
-    scope: [YOUTUBE_UPLOAD_SCOPE, YOUTUBE_READONLY_SCOPE],
+    scope: YOUTUBE_OAUTH_SCOPES,
     state: encodeOAuthState({
       profileId: resolvedProfileId,
       profileName: profileName || settings.profile?.name || settings.profile?.channelTitle || 'YouTube 채널'
@@ -692,7 +700,7 @@ function getAuthorizationUrl({ profileId = '', profileName = '' } = {}) {
   return {
     authUrl,
     redirectUri: settings.redirectUri,
-    scopes: [YOUTUBE_UPLOAD_SCOPE, YOUTUBE_READONLY_SCOPE]
+    scopes: YOUTUBE_OAUTH_SCOPES
   };
 }
 
