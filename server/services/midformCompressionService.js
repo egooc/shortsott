@@ -3927,6 +3927,15 @@ function dropWindowsPastUsableEnd(timeline, usableEndSec) {
   const limit = Number(usableEndSec || 0);
   if (!(limit > 0)) return timeline;
   return timeline.map((item) => {
+    // A NARRATE window is where its b-roll gets cut from, so one reaching into the promo tail puts
+    // the clip there too: Draft Day's closing sat at 532.1-554.7 against a usable end of 549 and
+    // failed narration_broll_semantic_bounds every build. Pull it back, keeping its length.
+    if (item.decision === 'NARRATE' && Number(item.end_sec) > limit) {
+      const span = Math.max(2, Number(item.end_sec) - Number(item.start_sec));
+      const end = roundSec(limit);
+      const start = roundSec(Math.max(0, end - span));
+      return { ...item, start_sec: start, end_sec: end, narration_window_clamped_to_usable_end: true };
+    }
     if (item.decision !== 'KEEP_DIALOGUE' || !Array.isArray(item.dialogue_line_windows)) return item;
     const windows = item.dialogue_line_windows;
     const survives = (index) => {
@@ -3945,7 +3954,7 @@ function dropWindowsPastUsableEnd(timeline, usableEndSec) {
       ...item,
       dialogue_line_windows: kept,
       dialogue_focus_lines: Array.isArray(item.dialogue_focus_lines) ? item.dialogue_focus_lines.filter((_, index) => survives(index)) : item.dialogue_focus_lines,
-      dialogue_focus_quotes: Array.isArray(item.dialogue_focus_quotes) ? item.dialogue_focus_quotes.filter((_, index) => survives(index)) : item.dialogue_focus_quotes,
+      dialogue_focus_quotes: keepQuotesByText(item.dialogue_focus_quotes, kept),
       start_sec: roundSec(Math.min(...matched.map((win) => Number(win.start_sec)))),
       end_sec: roundSec(Math.max(...matched.map((win) => Number(win.end_sec)))),
       promo_tail_trimmed: true
