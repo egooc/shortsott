@@ -77,6 +77,7 @@ SIZE_STABLE_CHECKS = 3
 SIZE_STABLE_INTERVAL_SEC = 2
 RENAME_ATTEMPTS = 10
 RENAME_RETRY_SEC = 3
+SEARCH_FILTER_TIMEOUT_SEC = 12
 
 COORDS_CONFIG = os.path.join(os.path.dirname(__file__), "capcut_export_coords.json")
 
@@ -258,14 +259,46 @@ def teal_at(x, y):
     return g > 140 and b > 120 and r < 110
 
 
+# One pixel is not enough to identify a button: the label is painted white ON the
+# teal, so whether the probe lands on background or on a glyph decides the
+# answer. Measured 2026-08-16 on a failure screenshot, (1769,17) read
+# (142,228,233) - the white stroke of 내보내기 - and every scheduled export was
+# rejected with "editor did not open" while the editor sat open and maximized
+# behind it. Sample across the button and ask whether enough of it is teal.
+TEAL_SCAN_HALF_WIDTH = 26
+TEAL_SCAN_MIN_RATIO = 0.25
+
+
+def teal_button_at(x, y):
+    hits = 0
+    total = 0
+    for offset in range(-TEAL_SCAN_HALF_WIDTH, TEAL_SCAN_HALF_WIDTH + 1, 2):
+        try:
+            if teal_at(x + offset, y):
+                hits += 1
+        except Exception:  # noqa: BLE001 - off-screen probe
+            continue
+        total += 1
+    return total > 0 and (hits / total) >= TEAL_SCAN_MIN_RATIO
+
+
 def export_dialog_open(coords):
-    return teal_at(*coords["export_confirm"])
+    return teal_button_at(*coords["export_confirm"])
 
 
 def editor_open(coords):
     # The editor's own export button is teal; on the home screen this spot is
     # dark window chrome.
-    return teal_at(*coords["export_button"])
+    return teal_button_at(*coords["export_button"])
+
+
+# Verifying WHICH draft the editor opened is not possible from here: CapCut
+# paints its own title bar, so the project name is on screen but every Qt window
+# reports the title "CapCut" (measured 2026-08-16). Two attempts to match on the
+# window title rejected correctly opened drafts instead. What protects against
+# opening the wrong project is preventing the race rather than detecting it -
+# the search filter is confirmed settled before the double-click, so the grid
+# holds only the draft that was asked for.
 
 
 def wait_for(predicate, timeout_sec, interval_sec=0.5):
@@ -377,12 +410,25 @@ def main():
         time.sleep(HOME_GRID_SETTLE_SEC)
         print(json.dumps({"step": "home_ready"}, ensure_ascii=False), flush=True)
 
-        pyautogui.click(*coords["search_icon"])
-        time.sleep(1.5)
-        set_clipboard(args.draft_name)
-        pyautogui.hotkey("ctrl", "v")
-        time.sleep(3.5)
-        print(json.dumps({"step": "searched"}, ensure_ascii=False), flush=True)
+        def search_for_draft(label):
+            pyautogui.click(*coords["search_icon"])
+            time.sleep(1.5)
+            set_clipboard(args.draft_name)
+            pyautogui.hotkey("ctrl", "v")
+            # The grid re-renders asynchronously. A fixed wait lost the race often
+            # enough that the double-click hit the UNFILTERED first row - the most
+            # recently modified project - and CapCut opened a different draft
+            # (2026-08-16). The second grid slot is occupied only while more than
+            # one project is listed, so waiting for it to go dark is waiting for
+            # the filter to land.
+            second_slot = (coords["first_row"][0] + 146, coords["first_row"][1])
+            settled = wait_for(lambda: not any(
+                v > 60 for v in pyautogui.pixel(*second_slot)
+            ), SEARCH_FILTER_TIMEOUT_SEC)
+            time.sleep(1.0)
+            print(json.dumps({"step": label, "filter_settled": settled}, ensure_ascii=False), flush=True)
+
+        search_for_draft("searched")
 
         # Double-clicks get swallowed sometimes - verify the editor actually
         # opened (its export button turns teal) and retry if not.
@@ -394,19 +440,19 @@ def main():
         # "CapCut", so it has to be matched by that too.
         opened = False
         for attempt in range(3):
-            # Re-search before each retry. The grid settle is a fixed wait, and
-            # when the machine is busy - a batch running ffmpeg alongside this -
-            # CapCut can still be painting the Projects list when the search is
-            # typed, so nothing filters and the double-click lands on an empty
-            # slot. Retrying the same click could never recover from that; the
-            # search has to be redone now that the grid exists.
+            # A retry has to start from the home screen. Once a project is open
+            # the search icon's coordinates belong to the editor, so re-searching
+            # in place clicked into the timeline and every later attempt was
+            # spent in the wrong window. Restarting CapCut is the only reset that
+            # is certain, and it costs about 20s against an export that takes 90.
             if attempt:
-                pyautogui.click(*coords["search_icon"])
-                time.sleep(1.5)
-                set_clipboard(args.draft_name)
-                pyautogui.hotkey("ctrl", "v")
-                time.sleep(3.5)
-                print(json.dumps({"step": "researched", "attempt": attempt}, ensure_ascii=False), flush=True)
+                kill_capcut()
+                time.sleep(2)
+                subprocess.Popen([args.capcut_exe])
+                time.sleep(HOME_LOAD_SEC)
+                maximize_capcut()
+                time.sleep(HOME_GRID_SETTLE_SEC)
+                search_for_draft("researched")
             pyautogui.doubleClick(*coords["first_row"])
             time.sleep(EDITOR_LOAD_SEC)
             maximize_capcut(timeout_sec=20, title_hints=("capcut", args.draft_name[-24:]))
