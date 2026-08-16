@@ -20,9 +20,9 @@ const apply = process.argv.includes('--apply');
 const whisperIdx = process.argv.indexOf('--whisper');
 const whisperPath = whisperIdx > 0 ? process.argv[whisperIdx + 1] : '';
 const gapIdx = process.argv.indexOf('--gap');
-// Downstream stages (the short-clip floor, the VAD trim) move these edges again, so a source whose
-// clips still collide after a re-time just needs a wider margin here.
-const GAP = gapIdx > 0 ? Number(process.argv[gapIdx + 1]) : 0.35;
+// Extra margin to leave in front of the next line when trimming an overlap. Default 0: trimming
+// past the next line's start would cut speech, and padding collisions are handled downstream.
+const GAP = gapIdx > 0 ? Number(process.argv[gapIdx + 1]) : 0;
 
 const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9' ]/g, ' ').replace(/\s+/g, ' ').trim();
 const toks = (s) => norm(s).split(' ').filter(Boolean);
@@ -75,7 +75,14 @@ function runFrom(stream, i, lineTokens) {
   for (let h = 1; h < hits.length && h <= Math.ceil(hits.length / 3); h++) {
     if (stream[hits[h]].s - stream[hits[h - 1]].e > 1.5) first = hits[h];
   }
-  return { matched, last, first };
+  // How many of the line's opening words land contiguously here. The two transcripts can disagree
+  // about the tail of a line - YouTube heard "kill the trees" where whisper heard "revise it" - and
+  // the whole-line score then falls below threshold even though the opening is unmistakable. Where a
+  // clip STARTS is what the opening decides, so a strong prefix is enough to place it.
+  let prefixRun = 0;
+  while (prefixRun < lineTokens.length && i + prefixRun < stream.length
+    && stream[i + prefixRun].t === lineTokens[prefixRun]) prefixRun += 1;
+  return { matched, last, first, prefixRun };
 }
 
 function makeLocator(stream) {
@@ -93,14 +100,18 @@ function makeLocator(stream) {
       if (start < lo || start > hi) continue;
       const dist = Number.isFinite(hint) ? Math.abs(start - hint) : 0;
       if (dist > reach) continue;
-      const { matched, last, first } = runFrom(stream, i, lt);
-      const score = matched / lt.length;
+      const { matched, last, first, prefixRun } = runFrom(stream, i, lt);
+      const full = matched / lt.length;
       // Below 0.75 the run is as likely to be a neighbouring line sharing a few words - the approved
-      // timing is the safer answer than a confident-looking move onto the wrong sentence.
-      if (score < (single ? 1 : 0.75)) continue;
-      if (lt.length >= 4 && matched < 3) continue;
+      // timing is the safer answer than a confident-looking move onto the wrong sentence. Four
+      // contiguous opening words are their own evidence, so they qualify at a lower rank.
+      const prefixOnly = full < 0.75 && !single && lt.length >= 5 && prefixRun >= 4;
+      if (full < (single ? 1 : 0.75) && !prefixOnly) continue;
+      if (lt.length >= 4 && matched < 3 && !prefixOnly) continue;
+      const score = prefixOnly ? 0.7 : full;
+      const endIdx = prefixOnly ? i + prefixRun - 1 : last;
       if (!best || score > best.score + 0.001 || (Math.abs(score - best.score) <= 0.001 && dist < best.dist)) {
-        best = { score, dist, s: stream[first].s, e: stream[last].e };
+        best = { score, dist, s: stream[first].s, e: stream[endIdx].e };
       }
     }
     return best;
@@ -171,6 +182,9 @@ for (let idx = 0; idx < ordered.length; idx++) {
 // own order is the truth about who speaks first, so revert whichever move broke it.
 if (apply) {
   for (let i = 1; i < ordered.length; i++) {
+    // Only inside one slot does plan order mean chronological order: a cold open deliberately
+    // replays a line from late in the source, so comparing across slots reverts correct moves.
+    if (ordered[i].slot !== ordered[i - 1].slot) continue;
     const prev = Number(ordered[i - 1].win.start_sec);
     const cur = Number(ordered[i].win.start_sec);
     if (!Number.isFinite(prev) || !Number.isFinite(cur) || cur >= prev + 0.3) continue;
@@ -215,6 +229,10 @@ if (apply) {
     .sort((a, b) => Number(a.start_sec) - Number(b.start_sec));
   for (let i = 0; i < all.length - 1; i++) {
     const cur = all[i];
+    // Trim ONLY a genuine overlap, and only down to where the next line starts speaking. Enforcing a
+    // safety gap here cut into the speech itself - on a rapid-fire source it shortened eleven clips
+    // and dropped their audio coverage from 0.93 to 0.81. Padding collisions are the padding guard's
+    // and the floor's problem (they can shrink pre-roll); losing spoken words is unrecoverable.
     const limit = Number(all[i + 1].start_sec) - GAP;
     if (Number(cur.end_sec) <= limit) continue;
     if (limit < Number(cur.start_sec) + 0.4) {
