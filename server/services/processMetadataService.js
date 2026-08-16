@@ -4708,10 +4708,17 @@ function rebuildMetadataTitles(metadata = {}, seed = '', korean = false) {
       ? metadata.recommended_titles.flatMap((item) => Array.isArray(item?.hashtags) ? item.hashtags : [])
       : [])
   ], korean);
+  // Marked so consumers can tell a template apart from a title Gemini actually
+  // wrote. Every Korean Full on the channel was called "제조 공정의 결정적 순간"
+  // (2026-08-16) because the draft reads recommended_titles[0] before
+  // upload_title, and this template sits in exactly that slot - while the real
+  // title, "정밀한 목재 가공: 통나무가 최고급 테이블 상판이 되는 과정", waited
+  // one line further down and was never reached.
   return deterministicTitlePatterns(titleSeed, korean).slice(0, MAX_RECOMMENDED_TITLES).map((title, index) => ({
     category: categories[index] || categories[0],
     title: titleWithHashtags(title, hashtags, korean),
-    hashtags
+    hashtags,
+    generated: 'deterministic'
   }));
 }
 

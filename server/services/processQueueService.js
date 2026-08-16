@@ -6223,11 +6223,40 @@ function applyOttogiGuideToItem(itemId, guide = {}, sourceUrl = '') {
   const localeHighlightTitle = Array.isArray(localeHighlightMetadata.recommended_titles)
     ? localeHighlightMetadata.recommended_titles[0] || null
     : null;
-  const preferredTitle = localeHighlightTitle?.title
+  // recommended_titles[0] outranks upload_title here, and when Gemini returns no
+  // usable titles that slot is filled with the "<주제>의 결정적 순간" template.
+  // So every Korean Full on the channel shipped under that one name while the
+  // title Gemini did write sat in upload_title, one line further down, never
+  // reached (2026-08-16: 제조/단조/절단 공정의 결정적 순간, eight videos).
+  // A template only wins now if nothing was actually written.
+  // The marker covers everything analysed from now on; the shapes catch guides
+  // written before it existed, which is every item already in the queue.
+  const TEMPLATE_TITLE_SHAPES = [
+    /의 결정적 순간$/u,
+    /(?:이|가) 만들어지는 과정$/u,
+    /(?:이|가) 완성되는 순간$/u,
+    /^작업 흐름으로 보는 /u,
+    / 제작 과정 관찰$/u,
+    /の決定的瞬間$/u,
+    /ができるまで$/u,
+    /が形になる瞬間$/u,
+    /^作業の流れで見る/u,
+    /づくりを観察$/u
+  ];
+  const isTemplate = (candidate) => {
+    if (!candidate) return false;
+    if (candidate.generated === 'deterministic') return true;
+    const bare = String(candidate.title || '').replace(/[#＃][^\s#＃]+/gu, '').trim();
+    return TEMPLATE_TITLE_SHAPES.some((shape) => shape.test(bare));
+  };
+  const preferredTitle = (!isTemplate(localeHighlightTitle) && localeHighlightTitle?.title)
     || localeHighlightMetadata.upload_title
+    || (!isTemplate(highlightTitle) && highlightTitle?.title)
+    || (!isTemplate(selectedTitle) && selectedTitle?.title)
+    || fullMetadata.upload_title
+    || localeHighlightTitle?.title
     || highlightTitle?.title
     || selectedTitle?.title
-    || fullMetadata.upload_title
     || item.upload_title
     || '';
   const preferredHashtags = localeHighlightTitle?.hashtags
@@ -6238,8 +6267,21 @@ function applyOttogiGuideToItem(itemId, guide = {}, sourceUrl = '') {
     || guide.upload_hashtags
     || item.upload_hashtags
     || [];
-  const uploadTitle = sanitizeKoreanProductionText(preferredTitle);
   const hashtags = normalizeHashtags(preferredHashtags);
+  // recommended_titles carry their hashtags inside the title string, upload_title
+  // does not - so preferring the real title would otherwise drop the trailing
+  // hashtags that every Japanese title on the channel already has.
+  const uploadTitle = (() => {
+    const base = sanitizeKoreanProductionText(preferredTitle);
+    if (!base || base.includes('#') || !hashtags.length) return base;
+    let withTags = base;
+    for (const tag of hashtags) {
+      const next = `${withTags} ${tag}`;
+      if (next.length > 100) break;
+      withTags = next;
+    }
+    return withTags;
+  })();
   const shortDescription = sanitizeKoreanProductionText(fullMetadata.short_description || guide.short_description_200 || '');
   const shortDescriptionKo = String(fullReviewMetadata.short_description || guide.short_description_ko || guide.explainer_text_ko || '').trim();
   const reportDescription = sanitizeKoreanProductionText(fullMetadata.report_description || guide.report_description || '');

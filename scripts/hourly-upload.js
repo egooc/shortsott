@@ -63,6 +63,21 @@ function channelOf(variant) {
   return String(variant || '').startsWith('ko') ? 'kr' : 'jp';
 }
 
+// Which queue item a draft was cut from. For a Full this is the identity that
+// decides whether it has already been published; the draft folder name is not,
+// because every regeneration of a Full makes a new dated folder from the same
+// source. Nineteen videos went out across three sources before anyone noticed
+// (2026-08-16) - the drafts left over from a week of Full regenerations all
+// looked distinct to a name-based check.
+function sourceItemOf(draftDir) {
+  try {
+    const m = JSON.parse(fs.readFileSync(path.join(draftDir, 'edit_manifest.json'), 'utf8'));
+    return (String(m.source_video_path || '').split(path.sep).find((p) => /^item_\d+$/.test(p))) || '';
+  } catch {
+    return '';
+  }
+}
+
 function profileFor(channel) {
   const raw = listYouTubeUploadProfiles();
   const list = Array.isArray(raw) ? raw : (raw.profiles || []);
@@ -126,12 +141,31 @@ async function main() {
     (state.history || []).map((h) => String(h.file || '').replace(/\.mp4$/i, '').replace(/\s*\(\d+\)$/, ''))
   );
 
+  // A Full is the whole process of one source summarized, so a source gets
+  // exactly one of them - ever. Highlights are deliberately several per source
+  // (different windows, different moments), so they are left to the per-draft
+  // check above.
+  const publishedFullSources = new Set();
+  for (const entry of state.history || []) {
+    const draftName = String(entry.file || '').replace(/\.mp4$/i, '').replace(/\s*\(\d+\)$/, '');
+    if (!/-F-/.test(draftName)) continue;
+    const item = sourceItemOf(path.join(DRAFTS_DIR, draftName));
+    if (item) publishedFullSources.add(item);
+  }
+
   function pickFor(wanted) {
     for (const entry of pool) {
       const draftName = entry.name.replace(/\.mp4$/i, '').replace(/\s*\(\d+\)$/, '');
       if (alreadyUploaded.has(draftName)) {
         console.log(`skip duplicate of already-uploaded draft: ${entry.name}`);
         continue;
+      }
+      if (/-F-/.test(draftName)) {
+        const item = sourceItemOf(entry.draftDir);
+        if (item && publishedFullSources.has(item)) {
+          console.log(`skip Full from an already-published source (${item}): ${entry.name}`);
+          continue;
+        }
       }
       const txt = fs.readdirSync(entry.draftDir).find((n) => n.toLowerCase().endsWith('.txt'));
       if (!txt) continue;
