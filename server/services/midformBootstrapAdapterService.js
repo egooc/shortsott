@@ -473,7 +473,13 @@ function clampDialogueWindowsToOwnCue(editPlan, transcriptTimed) {
         return hit / cue.tokens.size >= 0.5;
       });
       if (!owned.length || owned.length === overlapping.length) continue; // can't identify, or nothing foreign
-      const nextStart = Math.max(winStart, Math.min(...owned.map((cue) => cue.start)));
+      // Only a FOREIGN cue at the head justifies moving the start: the caption cue for a line can
+      // begin after the words do, and re-anchoring to it undid the audio-aligned start - Draft Day
+      // shipped "How can I help you?" opening inside its second word. When nothing foreign sits in
+      // front, the window keeps the start it was given.
+      const ownedStart = Math.min(...owned.map((cue) => cue.start));
+      const foreignBeforeOwned = overlapping.some((cue) => !owned.includes(cue) && cue.start < ownedStart - 0.05);
+      const nextStart = foreignBeforeOwned ? Math.max(winStart, ownedStart) : winStart;
       const nextEnd = Math.min(winEnd, Math.max(...owned.map((cue) => cue.end)));
       if (nextEnd - nextStart < 0.4) continue; // refuse to shrink a line out of existence
       if (nextStart - winStart <= 0.2 && winEnd - nextEnd <= 0.2) continue; // already tight
