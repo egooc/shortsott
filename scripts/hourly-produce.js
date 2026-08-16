@@ -133,7 +133,14 @@ function main() {
       ], { encoding: 'utf8', timeout: EXPORT_TIMEOUT_MS, windowsHide: false });
       console.log(String(out).trim().split('\n').slice(-2).join('\n'));
     } catch (error) {
-      entry.lastError = String(error.message || error).slice(0, 200);
+      // execFileSync's message is only the command line it ran. The export
+      // script's own JSON - which says which step it reached and what went
+      // wrong - is on stdout, and dropping it left the log saying nothing but
+      // "Command failed: python ..." for every failure, so a whole afternoon of
+      // dead exports could not be diagnosed from it at all.
+      const out = `${String(error.stdout || '')}${String(error.stderr || '')}`.trim();
+      const detail = out.split('\n').filter(Boolean).slice(-2).join(' | ');
+      entry.lastError = (detail || String(error.message || error)).slice(0, 400);
       ledger[target] = entry;
       writeLedger(ledger);
       console.log(`export failed (attempt ${entry.attempts}/${MAX_EXPORT_ATTEMPTS}): ${entry.lastError}`);

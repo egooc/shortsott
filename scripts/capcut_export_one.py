@@ -110,6 +110,44 @@ def kill_capcut():
     time.sleep(2)
 
 
+def _force_foreground(hwnd):
+    """Bring hwnd to the front and return whether it got there.
+
+    SetForegroundWindow is refused unless the calling process already owns the
+    foreground, which a scheduled task never does. Attaching this thread's input
+    queue to the current foreground window's thread lends it that right for the
+    duration.
+    """
+    try:
+        import win32con
+        import win32gui
+        import win32process
+        import ctypes
+    except ImportError:
+        return False
+
+    try:
+        current = win32gui.GetForegroundWindow()
+        if current == hwnd:
+            return True
+        this_thread = ctypes.windll.kernel32.GetCurrentThreadId()
+        other_thread = win32process.GetWindowThreadProcessId(current)[0] if current else 0
+        attached = False
+        if other_thread and other_thread != this_thread:
+            attached = bool(ctypes.windll.user32.AttachThreadInput(other_thread, this_thread, True))
+        try:
+            win32gui.ShowWindow(hwnd, win32con.SW_SHOW)
+            win32gui.BringWindowToTop(hwnd)
+            win32gui.SetForegroundWindow(hwnd)
+        finally:
+            if attached:
+                ctypes.windll.user32.AttachThreadInput(other_thread, this_thread, False)
+        time.sleep(0.5)
+        return win32gui.GetForegroundWindow() == hwnd
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def maximize_capcut(timeout_sec=45, title_hints=("capcut",)):
     """The coordinate profiles assume a MAXIMIZED window, but CapCut opens
     floating (~1428x952 on a 1080p screen) and kill_capcut()'s taskkill /f
@@ -161,11 +199,22 @@ def maximize_capcut(timeout_sec=45, title_hints=("capcut",)):
                 time.sleep(1)
             except Exception:
                 pass
+            # Geometry is not enough: the clicks below go to whatever window is
+            # actually on top at those coordinates. Run by hand this is CapCut,
+            # because nothing else is competing - but Task Scheduler opens a
+            # console for the job, and the upload task fires on the same minute
+            # and opens another, so the console can sit over CapCut for the whole
+            # run. Every scheduled export failed today while the same drafts
+            # exported first try by hand (2026-08-16). Windows refuses
+            # SetForegroundWindow to a process that does not own the foreground,
+            # so the input queues are attached first to borrow that right.
+            foreground = _force_foreground(hwnd)
             rect = win32gui.GetWindowRect(hwnd)
             print(json.dumps({
                 "step": "maximize",
                 "width": rect[2] - rect[0],
-                "height": rect[3] - rect[1]
+                "height": rect[3] - rect[1],
+                "foreground": foreground
             }, ensure_ascii=False), flush=True)
             time.sleep(1)
             return True
