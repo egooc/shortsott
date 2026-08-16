@@ -18,10 +18,22 @@ description: 수정(코드/플랜/원고)을 기존 소스에 소급 적용하�
 
 ## 승인된 원고를 지키는 재타이밍 (2026-08-16)
 
-파서·병합 수정처럼 **transcript 좌표가 바뀌는** 수정을 옛 소스에 소급할 때 `compress-refresh`를 돌리면 대사 줄 선택 자체가 바뀌어(allin 25→31줄) 승인 원고를 다시 써야 한다. 원고를 얼리려면 **창의 시각만** 옮긴다: transcript 재파싱 → 각 `dialogue_line_windows`의 줄 텍스트로 교정 큐 구간을 찾아 `start/end/raw_*`만 갱신 → `--resume bootstrap --bootstrap-run` → `slot_fills` diff NONE 확인. 재타이밍에는 세 가드가 필수다(없으면 프리플라이트에서 막히고 조용히 구계보로 폴백한다):
-1. **순서 되돌리기**: 두 줄이 같은 큐에 매칭돼 앞줄보다 먼저 시작하면 그 줄은 원위치로 되돌린다(자동자막 스미어 때문에 흔함).
-2. **티저 예약구간**: 콜드오픈 `teaser_visual_start/end_sec` 안으로 들어가면 `cold_open_no_reserved_overlap`에 걸린다 — 티저 끝 뒤로 밀어낸다.
-3. **이웃 간격 0.35s**: 패딩까지 고려한 최소 간격. 못 맞추면 그 쌍은 건드리지 않는다.
+파서·병합 수정처럼 **transcript 좌표가 바뀌는** 수정을 옛 소스에 소급할 때 `compress-refresh`를 돌리면 대사 줄 선택 자체가 바뀌어(allin 25→31줄) 승인 원고를 다시 써야 한다. 원고를 얼리려면 **창의 시각만** 옮긴다:
+
+```
+node midform/scripts/retime_plan_windows.js <edit_plan.json> <transcript_timed.json> \
+     --whisper <whisper_words.json> --apply
+node scripts/midform.js run --template <tpl> --resume bootstrap --bootstrap-run <compress_run>
+# slot_fills diff가 NONE이면 재승인 불필요 → review-resume → --resume draft
+```
+
+**먼저 `edit_plan.json`을 백업**한다(실패 시 되돌려야 재적용이 이중 적용되지 않는다). whisper 단어 타임스탬프가 있으면 그것이 1순위 진실이고 교정된 큐가 2순위다. 실전에서 확인된 규칙들:
+
+1. **순서 되돌리기는 같은 슬롯 안에서만**: 콜드오픈은 뒷부분 대사를 일부러 앞에 재생하므로 플랜 순서 ≠ 시간순. 슬롯을 넘어 비교하면 정상 이동까지 되돌린다.
+2. **티저 예약구간**: 콜드오픈 `teaser_visual_*` 안으로 들어가면 `cold_open_no_reserved_overlap`. 클립 pre-roll(0.5~0.7s)이 뒤로 당기므로 **아슬아슬하게 비켜서는 안 되고** 0.45s 여유를 둔다.
+3. **겹침은 다음 발화 시작까지만 자른다 — 안전 간격을 강제하지 말 것**: rapid-fire 소스에서 0.35s를 예약했더니 클립 11개가 발화 도중 잘려 커버리지 0.93→0.81로 떨어졌다. 패딩 충돌은 floor·패딩 가드가 처리할 문제고, 잘린 말은 복구가 안 된다.
+4. **뒷부분이 다른 줄은 접두 4단어로 배치**: 유튜브 자막과 whisper가 문장 끝을 다르게 듣는 경우가 흔하다("kill the trees" vs "revise it"). 전체 점수는 미달해도 앞 4단어 연속 일치면 시작 지점 근거로 충분하다.
+5. **문장 중간의 긴 침묵**: "The... number one pick"처럼 첫 단어만 4초 앞에 떨어져 있으면 그 단어를 버리고 침묵 뒤에서 연다. 검증 스크립트도 같은 보정을 해야 정상 클립을 오탐하지 않는다.
 
 ## 함정 (전부 실사고)
 
