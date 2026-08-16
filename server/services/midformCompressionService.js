@@ -2403,6 +2403,20 @@ function fillDialogueExchangeGaps(focusLines, transcript, maxAddedPerSlot = 12, 
     if (!cueKey || cueKey.split(/\s+/).filter(Boolean).length < 2) continue;
     if (chosen.has(cueKey)) { out.push(text); continue; }
     if (lines.some((line) => key(line) === cueKey)) { out.push(text); continue; }
+    // Rolling captions re-state a line as it scrolls, so the same utterance arrives twice with a
+    // word changed ("사실 부군을 좀 압니다" / "사실 부군을 좀 알았어요"). Exact-match dedup let both
+    // through and the recap said everything twice.
+    const cueWords = cueKey.split(/\s+/).filter(Boolean);
+    const alreadySaid = out.some((existing) => {
+      const existingWords = key(existing).split(/\s+/).filter(Boolean);
+      if (existingWords.length < 4 || cueWords.length < 4) return false;
+      const union = new Set([...cueWords, ...existingWords]);
+      const shared = cueWords.filter((word) => existingWords.includes(word)).length;
+      // Jaccard, not overlap-over-shorter: two lines differing only by a number ("line 3" vs
+      // "line 39") share most of their words without being the same utterance.
+      return shared / union.size >= 0.8;
+    });
+    if (alreadySaid) continue;
     out.push(text);
     added += 1;
   }

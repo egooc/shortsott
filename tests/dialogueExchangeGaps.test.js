@@ -88,3 +88,17 @@ test('the exchange is restored only from inside the slot window', () => {
   assert.ok(!lines.some((line) => /Leave him alone/.test(line)), 'nothing from outside the window');
   assert.ok(lines.some((line) => /What kind of favor\?/.test(line)), 'the reply inside the window comes back');
 });
+
+test('a rolling caption restating the same line is not added twice', () => {
+  // The rolling caption re-states a line as it scrolls, so the same utterance arrives again with a
+  // word changed. Exact-match dedup let both through and the recap said everything twice.
+  const rolling = [
+    { start_sec: 10.0, end_sec: 11.4, text: 'I actually knew your husband a little bit.' },
+    { start_sec: 11.4, end_sec: 12.8, text: 'I actually knew your husband a little.' },
+    { start_sec: 13.0, end_sec: 14.4, text: 'He was engaged to my sister.' },
+  ];
+  const { lines } = fillDialogueExchangeGaps(
+    ['I actually knew your husband a little bit.', 'He was engaged to my sister.'], rolling,
+  );
+  assert.equal(lines.length, 2, `the restatement is dropped, got ${JSON.stringify(lines)}`);
+});
