@@ -11,9 +11,23 @@ python midform/scripts/align_dialogue_lines.py --audio <source.mp4|wav> --plan <
 node  midform/scripts/verify_dialogue_clips.js <draft_ko/edit_manifest.json> align.json --asr <whisper.json>
 ```
 
-## 2026-08-16 최종 (5개 소스, 설치본 `20260816e-*`, 골든 동결)
+## 2026-08-16 최종 (5개 소스, 설치본 `20260816f-*`, 골든 동결)
 
-경계를 단어에 스냅한 뒤:
+단어 경계 + 컷 경계 스냅까지 반영한 최종판:
+
+| 소스 | FAIL | WARN | 남은 경고의 성격 |
+|---|---|---|---|
+| draftday-allin | 0 | 2 | 발화가 걸려 보호된 컷 조각 |
+| draftday-outsmart | 0 | 1 | 자막 병합 꼬리(정상) |
+| housemaid-ending | 0 | 2 | 이웃 자막이 담는 꼬리 |
+| housemaid-night | 0 | 2 | 신뢰도 미달 줄의 절단 1 + 꼬리 1 |
+| longshot-molly | 0 | 1 | 발화가 걸려 보호된 컷 조각 |
+
+컷 조각은 5개 소스 10건 중 **발화가 없는 7건만** 컷에 맞췄다(나머지는 말이 걸려 있어 그대로 둔다 —
+보기 좋은 편집이 음절을 먹는 것보다 낫다는 판정). 경계가 컷 위에 정확히 놓인 경우(±0.03초)는
+결함이 아니므로 판정에서 제외한다.
+
+### 단어 경계 스냅 직후 (`20260816e-*`)
 
 | 소스 | FAIL | WARN | 비고 |
 |---|---|---|---|

@@ -2,7 +2,7 @@
  "draft_name": "draft_ko",
  "source_duration_sec": 596.821,
  "dialogue_clips": 25,
- "note": "2026-08-16 audio-verified + word-boundary snapped: FAIL 0",
+ "note": "2026-08-16 audio-verified + word/shot snapped",
  "clips": {
   "slot_01_L01": {
    "start": 139.766,
@@ -26,7 +26,7 @@
   },
   "slot_04_L02": {
    "start": 175.959,
-   "end": 185.239,
+   "end": 185.143,
    "speaker": "여자"
   },
   "slot_05_L01": {
@@ -36,7 +36,7 @@
   },
   "slot_06_L01": {
    "start": 273.88,
-   "end": 276.78,
+   "end": 276.651,
    "speaker": "니나"
   },
   "slot_07_L01": {
@@ -76,7 +76,7 @@
   },
   "slot_09_L06": {
    "start": 443.76,
-   "end": 448.4,
+   "end": 448.323,
    "speaker": "앤드류"
   },
   "slot_09_L07": {

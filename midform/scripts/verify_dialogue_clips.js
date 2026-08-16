@@ -45,6 +45,8 @@ const CONFIDENCE_FLOOR = 0.6;
 const FOREIGN_EDGE_GUARD = 0.15;  // padding at each end may clip a neighbouring word
 const FOREIGN_MIN_WORDS = 3;      // fewer than this is a bleed, not a second speaker
 const SHOT_SLIVER_SEC = 0.25;     // a shard of the neighbouring shot shorter than this reads as a glitch
+// An edge sitting ON the cut is the goal, not a defect; rounding leaves a millisecond either way.
+const SHOT_ON_CUT_SEC = 0.03;
 
 const toSec = (value) => {
   const [h, m, s] = String(value).split(':');
@@ -201,13 +203,13 @@ for (const clip of clips.values()) {
 // that closes a fraction after a cut does the same at the other end. Both read as a mistake.
 for (const clip of clips.values()) {
   for (const cut of shots) {
-    if (cut > clip.start && cut - clip.start <= SHOT_SLIVER_SEC) {
+    if (cut - clip.start > SHOT_ON_CUT_SEC && cut - clip.start <= SHOT_SLIVER_SEC) {
       findings.push({
         level: 'WARN', kind: 'shot_sliver', clip: clip.id,
         detail: `opens ${(cut - clip.start).toFixed(2)}s of the outgoing shot before the cut at ${cut.toFixed(2)}`,
       });
     }
-    if (cut < clip.end && clip.end - cut <= SHOT_SLIVER_SEC) {
+    if (clip.end - cut > SHOT_ON_CUT_SEC && clip.end - cut <= SHOT_SLIVER_SEC) {
       findings.push({
         level: 'WARN', kind: 'shot_sliver', clip: clip.id,
         detail: `holds ${(clip.end - cut).toFixed(2)}s past the cut at ${cut.toFixed(2)} before ending`,

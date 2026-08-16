@@ -2,7 +2,7 @@
  "draft_name": "draft_ko",
  "source_duration_sec": 557.621,
  "dialogue_clips": 26,
- "note": "2026-08-16 audio-verified + word-boundary snapped: FAIL 0",
+ "note": "2026-08-16 audio-verified + word/shot snapped",
  "clips": {
   "slot_01_L01": {
    "start": 326.64,
@@ -40,8 +40,8 @@
    "speaker": "소니"
   },
   "slot_09_L02": {
-   "start": 411.88,
-   "end": 414.4,
+   "start": 411.911,
+   "end": 414.164,
    "speaker": "구단주"
   },
   "slot_09_L03": {
@@ -81,7 +81,7 @@
   },
   "slot_10_L02": {
    "start": 491.8,
-   "end": 492.708,
+   "end": 492.575,
    "speaker": "소니"
   },
   "slot_10_L03": {

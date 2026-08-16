@@ -2,7 +2,7 @@
  "draft_name": "draft_ko",
  "source_duration_sec": 566.381,
  "dialogue_clips": 23,
- "note": "2026-08-16 audio-verified + word-boundary snapped: FAIL 0",
+ "note": "2026-08-16 audio-verified + word/shot snapped",
  "clips": {
   "slot_001_L01": {
    "start": 336.7,
@@ -36,7 +36,7 @@
   },
   "slot_005_L01": {
    "start": 297.809,
-   "end": 300.12,
+   "end": 300.05,
    "speaker": "톰"
   },
   "slot_005_L02": {
@@ -70,8 +70,8 @@
    "speaker": "소니"
   },
   "slot_008_L06": {
-   "start": 474.972,
-   "end": 477.21,
+   "start": 474.84,
+   "end": 477.268,
    "speaker": "재무담당"
   },
   "slot_008_L07": {
