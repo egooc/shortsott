@@ -27,6 +27,7 @@ const ROOT = path.join(__dirname, '..');
 const DRAFTS_DIR = path.join(os.homedir(), 'Desktop', '캡컷아웃풋', 'CapCut Drafts');
 const EXPORT_DIR = path.join(DRAFTS_DIR, '_automation factory');
 const UPLOADED_DIR = path.join(EXPORT_DIR, 'uploaded');
+const HELD_DIR = path.join(EXPORT_DIR, 'held');
 const QUEUE_DIR = path.join(ROOT, 'queue', 'process');
 const EXPORT_TIMEOUT_MS = 15 * 60 * 1000;
 // A draft whose media the retention sweep already deleted can never export:
@@ -57,9 +58,13 @@ function writeLedger(ledger) {
   fs.writeFileSync(ATTEMPT_LEDGER_PATH, `${JSON.stringify(ledger, null, 2)}\n`, 'utf8');
 }
 
+// held/ is where a video is moved when it must not ship - a duplicate of a
+// source already published, or a draft whose script failed review. It has still
+// been exported, so leaving it out of this set made the producer see those
+// drafts as pending and export them again, one per hour, forever.
 function exportedNames() {
   const names = new Set();
-  for (const dir of [EXPORT_DIR, UPLOADED_DIR]) {
+  for (const dir of [EXPORT_DIR, UPLOADED_DIR, HELD_DIR]) {
     if (!fs.existsSync(dir)) continue;
     for (const name of fs.readdirSync(dir)) {
       if (!name.toLowerCase().endsWith('.mp4')) continue;

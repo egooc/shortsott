@@ -72,7 +72,10 @@ function dirSizeBytes(dir) {
 // exported yet. Once its mp4 exists, the staging copy is genuinely disposable.
 function exportedDraftNames(root) {
   const names = new Set();
-  for (const dir of [path.join(root, '_automation factory'), path.join(root, '_automation factory', 'uploaded')]) {
+  const exportRoot = path.join(root, '_automation factory');
+  // held/ holds exported videos that must not ship (duplicate source, script
+  // held in review). They are exported, so their staging is disposable too.
+  for (const dir of [exportRoot, path.join(exportRoot, 'uploaded'), path.join(exportRoot, 'held')]) {
     if (!fs.existsSync(dir)) continue;
     for (const file of fs.readdirSync(dir)) {
       if (!file.toLowerCase().endsWith('.mp4')) continue;

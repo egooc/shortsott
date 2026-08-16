@@ -344,7 +344,20 @@ def main():
         # geometry on the editor window - its title is the draft name, not
         # "CapCut", so it has to be matched by that too.
         opened = False
-        for _ in range(3):
+        for attempt in range(3):
+            # Re-search before each retry. The grid settle is a fixed wait, and
+            # when the machine is busy - a batch running ffmpeg alongside this -
+            # CapCut can still be painting the Projects list when the search is
+            # typed, so nothing filters and the double-click lands on an empty
+            # slot. Retrying the same click could never recover from that; the
+            # search has to be redone now that the grid exists.
+            if attempt:
+                pyautogui.click(*coords["search_icon"])
+                time.sleep(1.5)
+                set_clipboard(args.draft_name)
+                pyautogui.hotkey("ctrl", "v")
+                time.sleep(3.5)
+                print(json.dumps({"step": "researched", "attempt": attempt}, ensure_ascii=False), flush=True)
             pyautogui.doubleClick(*coords["first_row"])
             time.sleep(EDITOR_LOAD_SEC)
             maximize_capcut(timeout_sec=20, title_hints=("capcut", args.draft_name[-24:]))
