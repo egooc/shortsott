@@ -6243,10 +6243,18 @@ function applyOttogiGuideToItem(itemId, guide = {}, sourceUrl = '') {
     /^作業の流れで見る/u,
     /づくりを観察$/u
   ];
+  // The shapes alone over-match: Gemini wrote "蚕が紡ぐ奇跡の糸！伝統の絹織物が
+  // できるまで", a real title that happens to end the way the template does, and
+  // treating it as one would discard it. The deterministic patterns are a bare
+  // "<seed><suffix>" - short, and with none of the punctuation a written title
+  // uses to set up its hook - so require that too.
+  const TEMPLATE_MAX_BARE_LENGTH = 16;
   const isTemplate = (candidate) => {
     if (!candidate) return false;
     if (candidate.generated === 'deterministic') return true;
     const bare = String(candidate.title || '').replace(/[#＃][^\s#＃]+/gu, '').trim();
+    if (!bare || bare.length > TEMPLATE_MAX_BARE_LENGTH) return false;
+    if (/[!！?？:：、,]/u.test(bare)) return false;
     return TEMPLATE_TITLE_SHAPES.some((shape) => shape.test(bare));
   };
   const preferredTitle = (!isTemplate(localeHighlightTitle) && localeHighlightTitle?.title)
