@@ -35,14 +35,17 @@ test('sound-effect cues are not turned into captions', () => {
     { start_sec: 13.4, end_sec: 15.0, text: 'I said what I said.' },
   ];
   const { lines } = fillDialogueExchangeGaps(['Say it again.', 'I said what I said.'], withEffects);
-  assert.deepEqual(lines, ['Say it again.', 'I said what I said.']);
+  assert.equal(lines.length, 2, 'only the two spoken lines survive');
+  assert.ok(lines.some((line) => line.includes('Say it again.')));
+  assert.ok(lines.some((line) => line.includes('I said what I said.')));
+  assert.ok(!lines.some((line) => /\[music\]/.test(line)), 'no effect cue becomes a caption');
 });
 
 test('one runaway span cannot eat the whole recap', () => {
   const long = Array.from({ length: 40 }, (_, i) => ({
-    start_sec: 10 + i, end_sec: 10.8 + i, text: `line number ${i} here`,
+    start_sec: 10 + i, end_sec: 10.8 + i, text: `line number ${i} here.`,
   }));
-  const { added } = fillDialogueExchangeGaps(['line number 0 here', 'line number 39 here'], long, 12);
+  const { added } = fillDialogueExchangeGaps(['line number 0 here.', 'line number 39 here.'], long, 12);
   assert.equal(added, 12);
 });
 
@@ -51,4 +54,19 @@ test('a line the plan picked outside the span is kept', () => {
   const picked = ['I need you to look into something.', 'What kind of something?', 'Something from much later.'];
   const { lines } = fillDialogueExchangeGaps(picked, transcript);
   assert.ok(lines.includes('Something from much later.'));
+});
+
+test('cue fragments are glued into whole utterances', () => {
+  // Auto-captions break a sentence across display chunks. Restoring them as separate "lines" gave
+  // the caption writer half-thoughts to translate and it produced broken Korean and duplicates.
+  const chunked = [
+    { start_sec: 10.0, end_sec: 10.9, text: '>> Tell Nina that I' },
+    { start_sec: 10.9, end_sec: 11.8, text: 'exchanged the tickets' },
+    { start_sec: 11.8, end_sec: 12.6, text: 'for next week.' },
+    { start_sec: 13.0, end_sec: 14.2, text: '>> No, I can not let you do that.' },
+  ];
+  const { lines } = fillDialogueExchangeGaps(['>> Tell Nina that I', '>> No, I can not let you do that.'], chunked);
+  assert.ok(lines.some((line) => /exchanged the tickets for next week\./.test(line)),
+    `chunks glued into one utterance, got ${JSON.stringify(lines)}`);
+  assert.equal(lines.length, 2, 'one line per utterance, not per display chunk');
 });

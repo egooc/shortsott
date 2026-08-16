@@ -2342,11 +2342,27 @@ function sliceCueForLine(cue, line) {
 function fillDialogueExchangeGaps(focusLines, transcript, maxAddedPerSlot = 12) {
   const lines = (Array.isArray(focusLines) ? focusLines : []).map((line) => String(line || '').trim()).filter(Boolean);
   if (lines.length < 2) return { lines, added: 0 };
-  const cues = (Array.isArray(transcript) ? transcript : [])
+  const raw = (Array.isArray(transcript) ? transcript : [])
     .map((cue) => ({ start: Number(cue?.start_sec), end: Number(cue?.end_sec), text: String(cue?.text || '').trim() }))
     .filter((cue) => Number.isFinite(cue.start) && Number.isFinite(cue.end) && cue.end > cue.start)
     .sort((a, b) => a.start - b.start);
-  if (!cues.length) return { lines, added: 0 };
+  if (!raw.length) return { lines, added: 0 };
+  // Auto-caption cues are display chunks, not sentences: "니나에게 그냥 내가 내가" is half a thought.
+  // Handing those to the caption writer produced broken Korean and duplicated lines, so glue a run of
+  // cues into one utterance and break on a speaker marker or sentence-final punctuation.
+  const cues = [];
+  for (const cue of raw) {
+    const startsSpeaker = /^\s*>>/.test(cue.text);
+    const previous = cues[cues.length - 1];
+    const previousEnded = previous ? /[.!?…]["')\]]?\s*$/.test(previous.text) : true;
+    const gap = previous ? cue.start - previous.end : Infinity;
+    if (!previous || startsSpeaker || previousEnded || gap > 1.2) {
+      cues.push({ start: cue.start, end: cue.end, text: cue.text });
+    } else {
+      previous.text = `${previous.text} ${cue.text}`.replace(/\s+/g, ' ').trim();
+      previous.end = cue.end;
+    }
+  }
 
   const key = (text) => normalizeComparableText(text);
   const chosen = new Set(lines.map(key).filter(Boolean));
@@ -2380,9 +2396,12 @@ function fillDialogueExchangeGaps(focusLines, transcript, maxAddedPerSlot = 12) 
     out.push(text);
     added += 1;
   }
-  // Anything the plan picked outside the span (a replayed line) stays.
+  // Anything the plan picked outside the span (a cold-open replay) stays - but a picked line that
+  // was only a display chunk is already inside the utterance it belongs to, so match on containment.
   for (const line of lines) {
-    if (!out.some((existing) => key(existing) === key(line))) out.push(line);
+    const wanted = key(line);
+    if (!wanted) continue;
+    if (!out.some((existing) => key(existing).includes(wanted))) out.push(line);
   }
   return { lines: out.length >= lines.length ? out : lines, added };
 }
@@ -4797,6 +4816,8 @@ function buildSlotFillsPrompt(beats, editPlan, movieTitle, recapContextMarkdown)
     '- KEEP_DIALOGUE is faithful source dialogue translation, NOT copywriting. Preserve the original meaning first, preserve the speaker attitude (sarcasm, attack, defense, admission), avoid beautifying or inventing stronger Korean phrasing, and compress only when meaning is not distorted.',
     '- Any Korean sentence that reads like a quote must be grounded in an actual dialogue_focus_line. Do not turn narration-only interpretation into a quoted dialogue caption.',
     '- caption_kr_dialogue must have exactly the same number of items as dialogue_focus_lines for that slot. Never merge two dialogue lines into one caption, never split one into two. On-screen caption timing is locked to the original dialogue lines, so a count mismatch breaks sync.',
+    '- NAME THE PEOPLE. The first time a person speaks or is referred to, the narration must have said who they are and how they relate to the others ("가정부 밀리와 그녀의 고용주 앤드류"). A recap where 앤드류 or 윌 캘러핸 simply appears in a caption leaves the viewer with a stranger and the scene stops meaning anything - this shipped and the owner could not follow it. Use the names the source itself uses (auto-captions, the movie title, how characters address each other); only invent a descriptor when the source truly never names them, and then reuse that one descriptor everywhere.',
+    '- The same person must carry the SAME name in narration and in every caption speaker field. 사장/가정부 in the captions while the narration says 앤드류/밀리 reads as four people.',
     '- For KEEP_DIALOGUE slots you MUST fill speakers with exactly one name per caption_kr_dialogue line. Each speaker gets their own caption colour, so a missing name leaves that line uncoloured and the render is rejected. When the auto-captions do not name someone, use the SAME name the narration uses for that person; only if the narration never names them either, use a short stable descriptor you reuse throughout (여자, 남자, 점원). A caption reading "남자" while the narration calls him 대릴 leaves the viewer with a nameless stranger. Never leave an entry empty and never merge two speakers under one name.',
     '- Read every caption back as a line a Korean actor would say. Three failures to avoid, all seen in real output: a term carried over that does not mean the same thing in Korean (an "intervention" is not 혜재); an ungrammatical form of address ("따님 아버님이라고요?"); and a line that only parses if you saw the screen. If a caption is confusing on its own, rewrite it so it lands.',
     '- Fix the Korean, not the meaning: keep the attitude and force the speaker had, and never soften a hostile or crude line into something polite.',
