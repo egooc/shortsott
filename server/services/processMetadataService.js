@@ -676,6 +676,7 @@ const OTTOGI_METADATA_SCHEMA = {
           scene_id: { type: 'string' },
           role: { type: 'string' },
           text: { type: 'string' },
+          arc_step: { type: 'number' },
           source_basis: { type: 'string' }
         },
         required: ['scene_id', 'role', 'text']
@@ -690,6 +691,7 @@ const OTTOGI_METADATA_SCHEMA = {
           scene_id: { type: 'string' },
           role: { type: 'string' },
           text: { type: 'string' },
+          arc_step: { type: 'number' },
           source_basis: { type: 'string' }
         },
         required: ['scene_id', 'role', 'text']
@@ -1289,6 +1291,7 @@ const FULL_CAPTION_SCRIPT_REPAIR_ITEM_SCHEMA = {
     scene_id: { type: 'string' },
     role: { type: 'string' },
     text: { type: 'string' },
+    arc_step: { type: 'number' },
     source_basis: { type: 'string' }
   },
   required: ['scene_id', 'role', 'text', 'source_basis']
@@ -4933,7 +4936,15 @@ function buildLongformVariantFinalPrompt({ variant, sourceUrl, filename, duratio
       // on screen and only declares completion when that shot earns it.
       '- The hook sentence opens on arc 1. The closing must land on the LAST arc step and describe what that step visibly shows - never on the material the video opened with.',
       '- Only declare the thing finished if the last arc step actually shows the finished product. If it shows a mid-process action, close on that action carrying the piece to its purpose instead of announcing completion.',
-      '- Do not describe anything that is not in one of the arc steps above. The rest of the source is not in this video.'
+      '- Do not describe anything that is not in one of the arc steps above. The rest of the source is not in this video.',
+      // The walk-the-arc rules above were instruction only, and nothing checked
+      // whether the finished script obeyed them. It did not: item_045
+      // (2026-08-16) spent 3 of its 5 sentences on sanding and polishing while
+      // the video ran from a band saw ripping raw timber through planing, epoxy
+      // pouring and staining, and the item shipped. Making each sentence name
+      // its own step is what lets the gate below verify the walk instead of
+      // trusting it.
+      `- Every item MUST carry arc_step: the 1-based number of the arc step above that the sentence describes. arc_step must never decrease from one item to the next, at most 2 items may share a step, and the final item must carry arc_step ${arcSpineSteps.length}.`
     ]
     : [];
   // ja_full lane (approved 2026-08-12): the Full variant is generated in the
@@ -8031,6 +8042,80 @@ function collectKoreanFullRepairGateIssues(scriptItems = []) {
   return issues;
 }
 
+// Does the manuscript actually walk the process arc, or does it circle one step?
+//
+// The Full format is "the whole process, summarized", so a script that covers
+// one stage is not a short script - it is the wrong video. The prompt has asked
+// for the walk since 2026-08-13 and nothing verified the answer; item_045
+// (2026-08-16) put 3 of 5 sentences on sanding while the arc ran from a band saw
+// through planing, epoxy and staining, and it went out to the KR channel.
+//
+// Verification rides on the arc_step each item now carries. Scripts written
+// before that field existed, or produced where no arc spine was injected, have
+// nothing to check - those pass, because holding an item over a field its
+// prompt never asked for would stall the lane for no gain.
+// arcStepCount is optional. The spine the model saw is thinned to the sentence
+// budget at prompt time, so recomputing that number here would be a second copy
+// of a rule that lives elsewhere and would drift from it. Pass it when it is
+// known for hand; leave it out and the range and final-step checks are skipped,
+// while order, repetition and spread - which need no total - still apply.
+function collectFullScriptArcCoverageIssues(scriptItems = [], arcStepCount = 0) {
+  const items = Array.isArray(scriptItems) ? scriptItems : [];
+  if (items.length < 2) return [];
+
+  const steps = items.map((item) => Number(item?.arc_step));
+  if (!steps.some((step) => Number.isFinite(step) && step > 0)) return [];
+
+  const issues = [];
+  const named = steps.filter((step) => Number.isFinite(step) && step > 0);
+  if (named.length < items.length) {
+    issues.push({
+      reason: 'some script items carry no arc_step, so their arc coverage cannot be checked',
+      value: { named: named.length, total: items.length }
+    });
+    return issues;
+  }
+
+  if (arcStepCount >= 3) {
+    const outOfRange = named.filter((step) => step < 1 || step > arcStepCount);
+    if (outOfRange.length) {
+      issues.push({ reason: 'arc_step outside the arc that was given', value: { arc_step_count: arcStepCount, offending: outOfRange } });
+    }
+  }
+
+  for (let i = 1; i < named.length; i += 1) {
+    if (named[i] < named[i - 1]) {
+      issues.push({ reason: 'arc_step goes backwards, so the script does not follow the video order', value: named });
+      break;
+    }
+  }
+
+  // One step carrying most of the manuscript is the item_045 failure itself.
+  const perStep = new Map();
+  for (const step of named) perStep.set(step, (perStep.get(step) || 0) + 1);
+  const worst = [...perStep.entries()].sort((a, b) => b[1] - a[1])[0];
+  if (worst && worst[1] > 2) {
+    issues.push({ reason: 'more than 2 sentences describe the same arc step', value: { arc_step: worst[0], sentences: worst[1] } });
+  }
+
+  // Half the sentences on distinct steps is a deliberately loose floor: the
+  // spine is already thinned to the sentence budget, so a script that walks it
+  // at all clears this, while one that circles a stage cannot.
+  const distinct = perStep.size;
+  const minDistinct = Math.max(3, Math.ceil(items.length * 0.5));
+  if (distinct < minDistinct) {
+    issues.push({ reason: 'script covers too few distinct arc steps', value: { distinct, required: minDistinct, sentences: items.length } });
+  }
+
+  // Ending anywhere but the last step means the closing talks past the footage -
+  // the standing ban on claiming a result the video never shows.
+  if (arcStepCount >= 3 && named[named.length - 1] < arcStepCount) {
+    issues.push({ reason: 'script does not reach the final arc step', value: { last_arc_step: named[named.length - 1], arc_step_count: arcStepCount } });
+  }
+
+  return issues;
+}
+
 function isKoreanFullScriptStyleRegenerationIssue(issue = {}) {
   const field = normalizeText(issue?.field || '');
   return issue?.style_regeneration_required === true
@@ -9832,7 +9917,23 @@ async function validateOrRepairJapaneseCaptions({ guide, generateRepairJson, sou
             visible_chars: laneVisibleChars
           });
         }
-        if (!retryForUnderBudget && !hardIssues.length && laneScript.length && (!laneMaxChars || laneVisibleChars <= laneMaxChars * 1.5)) {
+        // A script that circles one stage is the wrong video, not a slightly
+        // worse one, so this is the single finding the lenient lane must not
+        // wave through. Spend a regeneration on it like the budget check does;
+        // if the rewrite still will not walk the arc, fall through to the hold
+        // path rather than shipping a Full that narrates sanding over footage of
+        // a band saw (item_045, 2026-08-16).
+        const arcCoverageIssues = collectFullScriptArcCoverageIssues(laneScript);
+        const retryForArcCoverage = arcCoverageIssues.length > 0 && attempt < 2;
+        if (arcCoverageIssues.length) {
+          emitProgress(onProgress, `TTS Full 아크 커버리지 위반(${fullScriptField}): ${arcCoverageIssues[0].reason}${retryForArcCoverage ? ` - 재생성 (${attempt + 1}/2)` : ' - 보류'}`, {
+            phase: retryForArcCoverage ? 'full_arc_coverage_retry' : 'full_arc_coverage_hold',
+            attempt,
+            arc_issues: arcCoverageIssues.slice(0, 4)
+          });
+        }
+        if (!retryForUnderBudget && !retryForArcCoverage && !arcCoverageIssues.length
+          && !hardIssues.length && laneScript.length && (!laneMaxChars || laneVisibleChars <= laneMaxChars * 1.5)) {
           emitProgress(onProgress, `KR Full 레인 관용 수용: 소프트 이슈 ${issues.length}건을 경고로 처리하고 진행 (${laneScript.length}문구/${laneVisibleChars}자)`, {
             phase: 'kr_full_lenient_accept',
             attempt,
@@ -9844,7 +9945,7 @@ async function validateOrRepairJapaneseCaptions({ guide, generateRepairJson, sou
         // after retries; the sentences themselves are usually fine. Rather than
         // hold the item, keep whole sentences from the front until the budget is
         // reached — narration then fits the video's available speech window.
-        if (!hardIssues.length && laneScript.length && laneMaxChars && laneVisibleChars > laneMaxChars * 1.5) {
+        if (!hardIssues.length && !arcCoverageIssues.length && laneScript.length && laneMaxChars && laneVisibleChars > laneMaxChars * 1.5) {
           const clippedScript = [];
           let clippedChars = 0;
           for (const piece of laneScript) {
@@ -9853,13 +9954,27 @@ async function validateOrRepairJapaneseCaptions({ guide, generateRepairJson, sou
             clippedScript.push(piece);
             clippedChars += pieceChars;
           }
-          current = { ...current, [fullScriptField]: clippedScript };
-          emitProgress(onProgress, `TTS Full 레인 관용 클립(${fullScriptField}): 예산 초과 원고를 문장 단위로 절단 (${laneScript.length}문구/${laneVisibleChars}자 → ${clippedScript.length}문구/${clippedChars}자, max ${laneMaxChars}자)`, {
-            phase: 'kr_full_lenient_clip',
-            attempt,
-            soft_issues: summarizeCaptionIssuesForLog(issues, 6)
-          });
-          return current;
+          // Clipping keeps sentences from the FRONT, so it eats the arc from the
+          // far end - the closing and the result step are the first things it
+          // drops. A clip that leaves the script no longer walking the arc has
+          // turned an over-long good Full into a truncated one, so let it fall
+          // through to the hold path instead.
+          const clippedArcIssues = collectFullScriptArcCoverageIssues(clippedScript);
+          if (clippedArcIssues.length) {
+            emitProgress(onProgress, `TTS Full 레인 관용 클립 취소(${fullScriptField}): 절단 후 아크 커버리지 상실 (${clippedArcIssues[0].reason})`, {
+              phase: 'full_arc_coverage_clip_rejected',
+              attempt,
+              arc_issues: clippedArcIssues.slice(0, 4)
+            });
+          } else {
+            current = { ...current, [fullScriptField]: clippedScript };
+            emitProgress(onProgress, `TTS Full 레인 관용 클립(${fullScriptField}): 예산 초과 원고를 문장 단위로 절단 (${laneScript.length}문구/${laneVisibleChars}자 → ${clippedScript.length}문구/${clippedChars}자, max ${laneMaxChars}자)`, {
+              phase: 'kr_full_lenient_clip',
+              attempt,
+              soft_issues: summarizeCaptionIssuesForLog(issues, 6)
+            });
+            return current;
+          }
         }
       }
       if (attempt >= 3) {
@@ -12080,6 +12195,7 @@ module.exports = {
   outputLanguageForVariant,
   selectKoreanFullHookType,
   __test: {
+    collectFullScriptArcCoverageIssues,
     buildFallbackReport,
     repairPublicTitles,
     mergeReviewedGuide,
