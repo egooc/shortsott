@@ -1,0 +1,133 @@
+{
+ "draft_name": "draft_ko",
+ "source_duration_sec": 596.821,
+ "dialogue_clips": 25,
+ "note": "2026-08-16 audio-verified: FAIL 0",
+ "clips": {
+  "slot_01_L01": {
+   "start": 139.766,
+   "end": 141.875,
+   "speaker": "여자"
+  },
+  "slot_03_L02": {
+   "start": 47,
+   "end": 55.438,
+   "speaker": "니나"
+  },
+  "slot_03_L01": {
+   "start": 77.76,
+   "end": 81.13,
+   "speaker": "니나"
+  },
+  "slot_04_L01": {
+   "start": 167.97,
+   "end": 171.57,
+   "speaker": "여자"
+  },
+  "slot_04_L02": {
+   "start": 175.959,
+   "end": 185.239,
+   "speaker": "여자"
+  },
+  "slot_05_L01": {
+   "start": 230.149,
+   "end": 232.05,
+   "speaker": "정원사"
+  },
+  "slot_06_L01": {
+   "start": 273.88,
+   "end": 276.78,
+   "speaker": "니나"
+  },
+  "slot_07_L01": {
+   "start": 307.87,
+   "end": 310.058,
+   "speaker": "앤드류"
+  },
+  "slot_08_L01": {
+   "start": 405.085,
+   "end": 411.891,
+   "speaker": "밀리"
+  },
+  "slot_09_L01": {
+   "start": 425.8,
+   "end": 427.22,
+   "speaker": "앤드류"
+  },
+  "slot_09_L02": {
+   "start": 428.12,
+   "end": 431.8,
+   "speaker": "앤드류"
+  },
+  "slot_09_L03": {
+   "start": 434.48,
+   "end": 436.84,
+   "speaker": "앤드류"
+  },
+  "slot_09_L04": {
+   "start": 436.84,
+   "end": 440.764,
+   "speaker": "앤드류"
+  },
+  "slot_09_L05": {
+   "start": 441.527,
+   "end": 443.184,
+   "speaker": "밀리"
+  },
+  "slot_09_L06": {
+   "start": 443.76,
+   "end": 448.4,
+   "speaker": "앤드류"
+  },
+  "slot_09_L07": {
+   "start": 449.2,
+   "end": 450.883,
+   "speaker": "앤드류"
+  },
+  "slot_09_L08": {
+   "start": 452.4,
+   "end": 454.055,
+   "speaker": "밀리"
+  },
+  "slot_11_L01": {
+   "start": 542.47,
+   "end": 544.4,
+   "speaker": "밀리"
+  },
+  "slot_11_L02": {
+   "start": 547.68,
+   "end": 550.34,
+   "speaker": "앤드류"
+  },
+  "slot_11_L03": {
+   "start": 551.24,
+   "end": 553.92,
+   "speaker": "밀리"
+  },
+  "slot_11_L04": {
+   "start": 555.28,
+   "end": 557.005,
+   "speaker": "앤드류"
+  },
+  "slot_11_L05": {
+   "start": 557.78,
+   "end": 559.64,
+   "speaker": "밀리"
+  },
+  "slot_11_L06": {
+   "start": 564.8,
+   "end": 567.04,
+   "speaker": "밀리"
+  },
+  "slot_11_L07": {
+   "start": 569.24,
+   "end": 569.5,
+   "speaker": "앤드류"
+  },
+  "slot_11_L08": {
+   "start": 581.96,
+   "end": 583.4,
+   "speaker": "앤드류"
+  }
+ }
+}

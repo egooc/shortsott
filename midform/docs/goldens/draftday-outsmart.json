@@ -1,0 +1,138 @@
+{
+ "draft_name": "draft_ko",
+ "source_duration_sec": 557.621,
+ "dialogue_clips": 26,
+ "note": "2026-08-16 audio-verified: FAIL 0",
+ "clips": {
+  "slot_01_L01": {
+   "start": 326.64,
+   "end": 330.56,
+   "speaker": "소니"
+  },
+  "slot_03_L01": {
+   "start": 98.25,
+   "end": 99.813,
+   "speaker": "소니"
+  },
+  "slot_04_L01": {
+   "start": 143.53,
+   "end": 148.218,
+   "speaker": "소니"
+  },
+  "slot_07_L01": {
+   "start": 340,
+   "end": 341.14,
+   "speaker": "소니"
+  },
+  "slot_08_L01": {
+   "start": 358.96,
+   "end": 360.56,
+   "speaker": "구단주"
+  },
+  "slot_08_L02": {
+   "start": 389,
+   "end": 393.063,
+   "speaker": "소니"
+  },
+  "slot_09_L01": {
+   "start": 408.07,
+   "end": 411.87,
+   "speaker": "소니"
+  },
+  "slot_09_L02": {
+   "start": 411.88,
+   "end": 414.4,
+   "speaker": "구단주"
+  },
+  "slot_09_L03": {
+   "start": 414.4,
+   "end": 417,
+   "speaker": "코치"
+  },
+  "slot_09_L04": {
+   "start": 417,
+   "end": 418.4,
+   "speaker": "소니"
+  },
+  "slot_09_L05": {
+   "start": 418.4,
+   "end": 420,
+   "speaker": "소니"
+  },
+  "slot_09_L06": {
+   "start": 422.4,
+   "end": 424.36,
+   "speaker": "소니"
+  },
+  "slot_09_L07": {
+   "start": 424.36,
+   "end": 427.36,
+   "speaker": "소니"
+  },
+  "slot_09_L08": {
+   "start": 427.36,
+   "end": 430.24,
+   "speaker": "탐"
+  },
+  "slot_10_L01": {
+   "start": 463.2,
+   "end": 465.37,
+   "speaker": "탐"
+  },
+  "slot_10_L02": {
+   "start": 491.8,
+   "end": 492.708,
+   "speaker": "소니"
+  },
+  "slot_10_L03": {
+   "start": 493.32,
+   "end": 496.42,
+   "speaker": "소니"
+  },
+  "slot_10_L04": {
+   "start": 496.96,
+   "end": 498.68,
+   "speaker": "소니"
+  },
+  "slot_10_L05": {
+   "start": 506.4,
+   "end": 513.275,
+   "speaker": "소니"
+  },
+  "slot_11_L01": {
+   "start": 519.768,
+   "end": 523.179,
+   "speaker": "소니"
+  },
+  "slot_11_L02": {
+   "start": 524.08,
+   "end": 525.52,
+   "speaker": "소니"
+  },
+  "slot_11_L03": {
+   "start": 525.52,
+   "end": 526.76,
+   "speaker": "소니"
+  },
+  "slot_11_L04": {
+   "start": 526.76,
+   "end": 527.72,
+   "speaker": "탐"
+  },
+  "slot_11_L05": {
+   "start": 529.32,
+   "end": 530.8,
+   "speaker": "소니"
+  },
+  "slot_11_L06": {
+   "start": 530.8,
+   "end": 533.839,
+   "speaker": "소니"
+  },
+  "slot_11_L07": {
+   "start": 538.74,
+   "end": 542.96,
+   "speaker": "소니"
+  }
+ }
+}

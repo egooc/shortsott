@@ -1,0 +1,123 @@
+{
+ "draft_name": "draft_ko",
+ "source_duration_sec": 566.381,
+ "dialogue_clips": 23,
+ "note": "2026-08-16 audio-verified: FAIL 0",
+ "clips": {
+  "slot_001_L01": {
+   "start": 336.7,
+   "end": 339.3,
+   "speaker": "톰"
+  },
+  "slot_001_L02": {
+   "start": 339.6,
+   "end": 342.2,
+   "speaker": "소니"
+  },
+  "slot_001_L03": {
+   "start": 342.4,
+   "end": 345.837,
+   "speaker": "톰"
+  },
+  "slot_003_L01": {
+   "start": 152.9,
+   "end": 156.338,
+   "speaker": "소니"
+  },
+  "slot_004_L01": {
+   "start": 223.24,
+   "end": 226.27,
+   "speaker": "소니"
+  },
+  "slot_004_L02": {
+   "start": 229.64,
+   "end": 231.484,
+   "speaker": "구단주"
+  },
+  "slot_005_L01": {
+   "start": 297.92,
+   "end": 300.12,
+   "speaker": "톰"
+  },
+  "slot_005_L02": {
+   "start": 302.65,
+   "end": 304.837,
+   "speaker": "소니"
+  },
+  "slot_008_L01": {
+   "start": 446.73,
+   "end": 448.99,
+   "speaker": "코치"
+  },
+  "slot_008_L02": {
+   "start": 449.408,
+   "end": 451.596,
+   "speaker": "구단주"
+  },
+  "slot_008_L03": {
+   "start": 453.38,
+   "end": 454.88,
+   "speaker": "소니"
+  },
+  "slot_008_L04": {
+   "start": 455.8,
+   "end": 456.18,
+   "speaker": "코치"
+  },
+  "slot_008_L05": {
+   "start": 460.32,
+   "end": 461.57,
+   "speaker": "소니"
+  },
+  "slot_008_L06": {
+   "start": 474.972,
+   "end": 477.21,
+   "speaker": "재무담당"
+  },
+  "slot_008_L07": {
+   "start": 479.32,
+   "end": 481.6,
+   "speaker": "재무담당"
+  },
+  "slot_008_L08": {
+   "start": 488.2,
+   "end": 489.64,
+   "speaker": "소니"
+  },
+  "slot_009_L01": {
+   "start": 510.03,
+   "end": 512.08,
+   "speaker": "코치"
+  },
+  "slot_009_L02": {
+   "start": 512.98,
+   "end": 514.855,
+   "speaker": "소니"
+  },
+  "slot_009_L04": {
+   "start": 522.08,
+   "end": 523.643,
+   "speaker": "코치"
+  },
+  "slot_009_L05": {
+   "start": 526.48,
+   "end": 528.83,
+   "speaker": "스태프"
+  },
+  "slot_010_L01": {
+   "start": 532.155,
+   "end": 534.674,
+   "speaker": "소니"
+  },
+  "slot_010_L02": {
+   "start": 536.156,
+   "end": 537.406,
+   "speaker": "스태프"
+  },
+  "slot_010_L03": {
+   "start": 545.37,
+   "end": 550.058,
+   "speaker": "코치"
+  }
+ }
+}

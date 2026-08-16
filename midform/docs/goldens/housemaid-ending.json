@@ -1,0 +1,118 @@
+{
+ "draft_name": "draft_ko",
+ "source_duration_sec": 600.261,
+ "dialogue_clips": 22,
+ "note": "2026-08-16 audio-verified: FAIL 0",
+ "clips": {
+  "slot_01_L02": {
+   "start": 488.91,
+   "end": 491.6,
+   "speaker": "밀리"
+  },
+  "slot_03_L01": {
+   "start": 61.59,
+   "end": 63.44,
+   "speaker": "니나"
+  },
+  "slot_03_L02": {
+   "start": 63.44,
+   "end": 66.04,
+   "speaker": "니나"
+  },
+  "slot_03_L03": {
+   "start": 66.04,
+   "end": 74.165,
+   "speaker": "니나"
+  },
+  "slot_03_L04": {
+   "start": 85,
+   "end": 87.813,
+   "speaker": "니나"
+  },
+  "slot_05_L01": {
+   "start": 140.12,
+   "end": 147.82,
+   "speaker": "니나"
+  },
+  "slot_06_L01": {
+   "start": 175.462,
+   "end": 177.649,
+   "speaker": "니나"
+  },
+  "slot_07_L01": {
+   "start": 236.56,
+   "end": 240.455,
+   "speaker": "경찰"
+  },
+  "slot_07_L02": {
+   "start": 241.355,
+   "end": 242.919,
+   "speaker": "경찰"
+  },
+  "slot_07_L03": {
+   "start": 243.459,
+   "end": 245.294,
+   "speaker": "니나"
+  },
+  "slot_07_L04": {
+   "start": 246.08,
+   "end": 247.82,
+   "speaker": "경찰"
+  },
+  "slot_07_L05": {
+   "start": 248.72,
+   "end": 250.907,
+   "speaker": "경찰"
+  },
+  "slot_07_L06": {
+   "start": 252.06,
+   "end": 253.02,
+   "speaker": "니나"
+  },
+  "slot_07_L07": {
+   "start": 253.959,
+   "end": 256.519,
+   "speaker": "니나"
+  },
+  "slot_07_L08": {
+   "start": 256.519,
+   "end": 259.884,
+   "speaker": "니나"
+  },
+  "slot_08_L01": {
+   "start": 276.95,
+   "end": 278.93,
+   "speaker": "경찰"
+  },
+  "slot_08_L02": {
+   "start": 279.76,
+   "end": 281.16,
+   "speaker": "경찰"
+  },
+  "slot_08_L03": {
+   "start": 281.19,
+   "end": 283.3,
+   "speaker": "니나"
+  },
+  "slot_08_L04": {
+   "start": 287.458,
+   "end": 294.646,
+   "speaker": "경찰"
+  },
+  "slot_10_L01": {
+   "start": 417.04,
+   "end": 421.7,
+   "speaker": "시어머니"
+  },
+  "slot_10_L02": {
+   "start": 433.56,
+   "end": 438.248,
+   "speaker": "시어머니"
+  },
+  "slot_10_L03": {
+   "start": 439.33,
+   "end": 442.73,
+   "speaker": "시어머니"
+  }
+ }
+}
