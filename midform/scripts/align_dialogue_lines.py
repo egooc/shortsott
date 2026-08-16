@@ -31,6 +31,9 @@ SAMPLE_RATE = 16000
 # to pick the wrong one.
 SEARCH_BEFORE_SEC = 12.0
 SEARCH_AFTER_SEC = 12.0
+# The plan is presumed right until a distant match beats it by more than this margin.
+NEAR_WINDOW_SEC = 3.0
+FAR_OVERRIDE_MARGIN = 0.08
 
 
 def log(message):
@@ -70,9 +73,36 @@ def read_wav(path, torch):
     return torch.from_numpy(samples.copy()).unsqueeze(0), rate
 
 
+ONES = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
+        "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen",
+        "nineteen"]
+TENS = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"]
+
+
+def number_to_words(value):
+    """Digits are dropped by the letter-only vocabulary, and dropping them can leave a line with two
+    generic tokens that then match a later repeat ("30 million, Sonny." aligned onto the "30
+    million." three seconds後). Spell them so the number carries its own weight."""
+    if value < 20:
+        return ONES[value]
+    if value < 100:
+        rest = value % 10
+        return TENS[value // 10] + ("" if not rest else " " + ONES[rest])
+    if value < 1000:
+        rest = value % 100
+        return ONES[value // 100] + " hundred" + ("" if not rest else " " + number_to_words(rest))
+    for scale, name in ((1000000000, "billion"), (1000000, "million"), (1000, "thousand")):
+        if value >= scale:
+            rest = value % scale
+            return number_to_words(value // scale) + " " + name + ("" if not rest else " " + number_to_words(rest))
+    return ""
+
+
 def normalize_tokens(text):
     """The alignment vocabulary is plain lowercase letters and the apostrophe."""
     cleaned = re.sub(r"&[a-z]+;", " ", str(text or "").lower())
+    cleaned = re.sub(r"(\d),(\d{3})", r"\1\2", cleaned)
+    cleaned = re.sub(r"\d+", lambda m: " " + number_to_words(int(m.group(0))) + " ", cleaned)
     cleaned = re.sub(r"[^a-z' ]+", " ", cleaned)
     return [t for t in cleaned.split() if t.strip("'")]
 
@@ -280,28 +310,45 @@ def main():
                 results.append({**{k: entry[k] for k in ("slot_id", "line_index", "utt_id", "line")},
                                 "status": "no_hint"})
                 continue
-            span = (entry["hint_end_sec"] or hint) - hint
-            lo = max(0.0, hint - SEARCH_BEFORE_SEC)
-            hi = min(total_sec, hint + max(span, 0.0) + SEARCH_AFTER_SEC)
-            chunk = waveform[:, int(lo * sample_rate):int(hi * sample_rate)]
-            if chunk.size(1) < sample_rate // 2:
-                results.append({**{k: entry[k] for k in ("slot_id", "line_index", "utt_id", "line")},
-                                "status": "window_too_short"})
-                continue
-            aligned = align_window(aligner, chunk, entry["tokens"])
-            if not aligned or not aligned["words"]:
-                results.append({**{k: entry[k] for k in ("slot_id", "line_index", "utt_id", "line")},
-                                "status": "unaligned"})
-                continue
-            ratio = aligned["ratio"] / sample_rate
-            words = []
-            for word in aligned["words"]:
-                words.append({
+            span = max((entry["hint_end_sec"] or hint) - hint, 0.0)
+
+            def attempt(before, after):
+                lo = max(0.0, hint - before)
+                hi = min(total_sec, hint + span + after)
+                chunk = waveform[:, int(lo * sample_rate):int(hi * sample_rate)]
+                if chunk.size(1) < sample_rate // 2:
+                    return None
+                aligned = align_window(aligner, chunk, entry["tokens"])
+                if not aligned or not aligned["words"]:
+                    return None
+                ratio = aligned["ratio"] / sample_rate
+                built = [{
                     "w": entry["tokens"][word["word_index"]],
                     "s": round(lo + word["start_frame"] * ratio, 3),
                     "e": round(lo + word["end_frame"] * ratio, 3),
                     "score": round(word["score"], 3),
-                })
+                } for word in aligned["words"]]
+                ranked = sorted(w["score"] for w in built)
+                return {"words": built, "median": ranked[len(ranked) // 2]}
+
+            # Search close to the plan first. A repeated phrase ("30 million.") a few seconds later
+            # can out-score the real utterance in a wide window, and then the tool accuses a plan
+            # that was right. The plan only loses to a distant match that scores clearly better.
+            near = attempt(NEAR_WINDOW_SEC, NEAR_WINDOW_SEC)
+            far = attempt(SEARCH_BEFORE_SEC, SEARCH_AFTER_SEC)
+            chosen = near
+            if far and (not near or far["median"] > near["median"] + FAR_OVERRIDE_MARGIN):
+                chosen = far
+            # Two windows landing in different places means the audio holds more than one plausible
+            # spot for these words (a repeated phrase, a stock line). We can report where we think it
+            # is, but we must not let a verifier accuse the plan on evidence this soft.
+            ambiguous = bool(near and far and abs(near["words"][0]["s"] - far["words"][0]["s"]) > 1.0)
+            if not chosen:
+                results.append({**{k: entry[k] for k in ("slot_id", "line_index", "utt_id", "line")},
+                                "status": "unaligned"})
+                continue
+            words = chosen["words"]
+            searched = "near" if chosen is near else "far"
             scores = sorted(w["score"] for w in words)
             median = scores[len(scores) // 2]
             # With <star> absorbing the unmatched audio the raw scores sit lower than a textbook
@@ -317,6 +364,11 @@ def main():
                 "score": round(sum(scores) / len(scores), 3),
                 "median_word_score": round(median, 3),
                 "confident_word_ratio": round(confident, 3),
+                # Two generic words can match a later repeat of the same phrase as easily as the
+                # real one, so callers must not accuse the plan on this line alone.
+                "weak_tokens": len(entry["tokens"]) < 3,
+                "ambiguous": ambiguous,
+                "searched": searched,
                 "min_word_score": round(min(scores), 3),
                 "shift_sec": round(words[0]["s"] - hint, 3),
                 "words": words,
