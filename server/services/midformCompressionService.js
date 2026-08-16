@@ -3547,6 +3547,45 @@ function keepQuotesByText(quotes, keptWindows) {
   return (Array.isArray(keptWindows) ? keptWindows : []).map((win) => win && win.line).filter(Boolean);
 }
 
+// Two restored lines can resolve onto the same cue - the rolling caption said nearly the same thing
+// twice and both matched there. The plan then carries two windows with one start, which is both a
+// reserved-range violation and a cross-segment overlap, so preflight rejects the whole plan and the
+// run falls back to an older compression. Keep the longer window and drop the one it swallows.
+function dropWindowsSwallowedByTheirNeighbour(timeline) {
+  return (Array.isArray(timeline) ? timeline : []).map((item) => {
+    if (item?.decision !== 'KEEP_DIALOGUE' || !Array.isArray(item.dialogue_line_windows)) return item;
+    const windows = item.dialogue_line_windows;
+    const drop = new Set();
+    for (let i = 0; i < windows.length; i += 1) {
+      const a = windows[i];
+      if (!a || a.matched !== true || drop.has(i)) continue;
+      for (let j = i + 1; j < windows.length; j += 1) {
+        const b = windows[j];
+        if (!b || b.matched !== true || drop.has(j)) continue;
+        const aStart = Number(a.start_sec); const aEnd = Number(a.end_sec);
+        const bStart = Number(b.start_sec); const bEnd = Number(b.end_sec);
+        if (![aStart, aEnd, bStart, bEnd].every(Number.isFinite)) continue;
+        const overlap = Math.min(aEnd, bEnd) - Math.max(aStart, bStart);
+        if (overlap <= 0) continue;
+        const shorter = Math.min(aEnd - aStart, bEnd - bStart);
+        if (shorter <= 0 || overlap / shorter < 0.8) continue;
+        drop.add((aEnd - aStart) >= (bEnd - bStart) ? j : i);
+      }
+    }
+    if (!drop.size) return item;
+    const keptWindows = windows.filter((_, index) => !drop.has(index));
+    const keptLines = Array.isArray(item.dialogue_focus_lines)
+      ? item.dialogue_focus_lines.filter((_, index) => !drop.has(index)) : item.dialogue_focus_lines;
+    return {
+      ...item,
+      dialogue_line_windows: keptWindows,
+      dialogue_focus_lines: keptLines,
+      dialogue_focus_quotes: keepQuotesByText(item.dialogue_focus_quotes, keptWindows),
+      duplicate_dialogue_windows_dropped: drop.size
+    };
+  });
+}
+
 function separateOverlappingDialogueWindows(timeline) {
   const items = (Array.isArray(timeline) ? timeline : []).map((item) => {
     if (item.decision !== 'KEEP_DIALOGUE' || !Array.isArray(item.dialogue_line_windows)) return item;
@@ -4553,7 +4592,7 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec, usableEndSec =
   // Word snap runs BEFORE separation so both the clip windows and the caption coordinates the
   // separation stamps inherit word-accurate edges.
   const wordSnappedTimeline = snapDialogueWindowsToWords(filledTimeline, wordTimestamps);
-  const dedupedTimeline = separateOverlappingDialogueWindows(wordSnappedTimeline);
+  const dedupedTimeline = separateOverlappingDialogueWindows(dropWindowsSwallowedByTheirNeighbour(wordSnappedTimeline));
   // Write the corrected measure back onto the slot. Fixing only realisticSlotDurationSec left
   // estimated_duration_sec holding the raw span - slot_02 still read 151.3s for four lines - so
   // every consumer that reads the field directly still saw the dead air between them.
@@ -6566,6 +6605,7 @@ module.exports = {
   extractTimedTranscript,
   parseVtt,
   fillDialogueExchangeGaps,
+  dropWindowsSwallowedByTheirNeighbour,
   extractHeatmap,
   _test: {
     clampColdOpenToTeaser,

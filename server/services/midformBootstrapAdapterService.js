@@ -626,6 +626,20 @@ function trimDialogueWindowsToSpeech(editPlan, speechRanges, sourceDurationSec =
   return { trimmed, details };
 }
 
+// Slide a scene back so it ends by `limit` while keeping its length where possible.
+function clampScenesToUsableEnd(scenes, limit) {
+  if (!(Number(limit) > 0)) return scenes;
+  return (Array.isArray(scenes) ? scenes : []).map((scene) => {
+    const start = parseTimecode(scene?.start);
+    const end = parseTimecode(scene?.end);
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= Number(limit)) return scene;
+    const span = Math.max(0.4, end - start);
+    const nextEnd = Number(limit);
+    const nextStart = Math.max(0, nextEnd - span);
+    return { ...scene, start: secondsToTimecode(nextStart), end: secondsToTimecode(nextEnd) };
+  });
+}
+
 function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
   const warnings = [];
   const durationSec = Number(options.sourceDurationSec || editPlan?.duration_budget?.estimated_total_sec || 0);
@@ -1085,7 +1099,12 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
       translated_caption_ko: '',
       caption_text: isSceneHook ? '' : (captionKr || narration),
       story_anchor: { source_range_hint: sourceRangeHint, scene_refs: [] },
-      source_scenes: sourceScenes,
+      // Nothing may be cut from the channel's self-promo tail. Every b-roll path above picks its
+      // range from a different source (beat window, hook fallback, global gap), and the closing
+      // slot's ran past the usable end once the recap grew - which fails
+      // narration_broll_semantic_bounds and the whole build with it. Clamp once, here, where every
+      // path converges, keeping the clip's length by sliding it back instead of just truncating.
+      source_scenes: clampScenesToUsableEnd(sourceScenes, footageEndSec),
       edit_instruction: defaultEditInstruction(role || 'narration'),
       // Exempts narration b-roll from the reserved-range gate's narration_overlaps_dialogue_map rule.
       narration_background: true
