@@ -359,7 +359,13 @@ function buildLocaleEditPlan(baseEditPlan, strategy, evidencePack, attempt = 0) 
     if (locale === 'ja' && decision === 'NARRATE' && planHasActionBeats) {
       shift = index === firstNarrateIndex ? 0 : Math.min(3.5, Math.max(0, shift));
     }
-    const nextRange = shiftedRange(range, shift, sourceDurationSec);
+    // Every rule above bounds ONE step (the reframe, the slice, the lead-in cap), but they stack:
+    // Draft Day's ja slot_006 came out at 360.9-369.3 against a plan window of 351.7-360.1, nine
+    // seconds off the scene its narration describes, and the b-roll bounds gate failed the build.
+    // Whatever the steps decide, the result stays inside the plan window's own tolerance.
+    const planWindow = rangeForSlot(slot);
+    const shiftedFromSteps = shiftedRange(range, shift, sourceDurationSec);
+    const nextRange = clampRangeToPlanWindow(shiftedFromSteps, planWindow);
     return {
       ...applyRangeToSlot(slot, nextRange),
       // The pre-differentiation plan window is the slot's SEMANTIC identity - the packer
@@ -453,6 +459,23 @@ function sharedContiguousBlocks(leftChain, rightChain) {
     }
   }
   return blocks.sort((left, right) => right.duration_sec - left.duration_sec || right.length - left.length);
+}
+
+// The b-roll bounds gate allows a clip to sit within 8.5s of its slot's plan window; anything
+// further is another scene. Slide the range back inside rather than truncating, so the differentiated
+// slice keeps its length.
+function clampRangeToPlanWindow(range, planWindow, toleranceSec = 8) {
+  const start = Number(range?.[0]);
+  const end = Number(range?.[1]);
+  const windowStart = Number(planWindow?.[0]);
+  const windowEnd = Number(planWindow?.[1]);
+  if (![start, end, windowStart, windowEnd].every(Number.isFinite) || end <= start) return range;
+  const lo = Math.max(0, windowStart - toleranceSec);
+  const hi = windowEnd + toleranceSec;
+  if (start >= lo && end <= hi) return range;
+  const duration = end - start;
+  const nextStart = Math.max(lo, Math.min(start, hi - duration));
+  return [round3(nextStart), round3(nextStart + duration)];
 }
 
 function compareLocaleEditPlans(koPlan, jaPlan, thresholds = OVERLAP_THRESHOLDS, regenerationAttempts = 0) {
