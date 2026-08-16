@@ -19,6 +19,9 @@ const transcriptPath = process.argv[3];
 const apply = process.argv.includes('--apply');
 const whisperIdx = process.argv.indexOf('--whisper');
 const whisperPath = whisperIdx > 0 ? process.argv[whisperIdx + 1] : '';
+// Forced alignment (align_dialogue_lines.py). Used to snap an edge that lands inside a word.
+const alignIdx = process.argv.indexOf('--align');
+const alignPath = alignIdx > 0 ? process.argv[alignIdx + 1] : '';
 const gapIdx = process.argv.indexOf('--gap');
 // Extra margin to leave in front of the next line when trimming an overlap. Default 0: trimming
 // past the next line's start would cut speech, and padding collisions are handled downstream.
@@ -218,6 +221,44 @@ if (apply) {
   }
 }
 
+// An edge inside a word chops the syllable in half, and the viewer hears it. Alignment knows where
+// each word begins and ends, so push the edge out to the word's own boundary - out rather than in,
+// because losing a word is worse than carrying a few frames of the next one.
+let snapped = 0;
+if (apply && alignPath && fs.existsSync(alignPath)) {
+  const MIDWORD_TOLERANCE = 0.06;
+  const byUtt = new Map();
+  for (const line of JSON.parse(fs.readFileSync(alignPath, 'utf8')).lines || []) {
+    if (line.status === 'aligned' && !line.ambiguous && (line.confident_word_ratio ?? 0) >= 0.6) {
+      byUtt.set(String(line.utt_id), line.words || []);
+    }
+  }
+  for (const item of plan.timeline || []) {
+    const wins = item.dialogue_line_windows || [];
+    wins.forEach((win, index) => {
+      const words = byUtt.get(`${item.slot_id}_L${String(index + 1).padStart(2, '0')}`);
+      if (!words || !words.length) return;
+      const start = Number(win.start_sec);
+      const end = Number(win.end_sec);
+      if (!Number.isFinite(start) || !Number.isFinite(end)) return;
+      for (const word of words) {
+        if (start > word.s + MIDWORD_TOLERANCE && start < word.e - MIDWORD_TOLERANCE) {
+          win.start_sec = +(word.s - 0.02).toFixed(3);
+          if (Number(win.raw_start_sec) > win.start_sec) win.raw_start_sec = win.start_sec;
+          snapped += 1;
+          report.push(`  snap start ${start.toFixed(2)} → ${win.start_sec} (was inside "${word.w}")`);
+        }
+        if (end > word.s + MIDWORD_TOLERANCE && end < word.e - MIDWORD_TOLERANCE) {
+          win.end_sec = +(word.e + 0.02).toFixed(3);
+          if (Number(win.raw_end_sec) < win.end_sec) win.raw_end_sec = win.end_sec;
+          snapped += 1;
+          report.push(`  snap end ${end.toFixed(2)} → ${win.end_sec} (was inside "${word.w}")`);
+        }
+      }
+    });
+  }
+}
+
 // A moved window can now collide with its neighbour, and the draft gate rejects overlapping source
 // ranges outright (the run then silently falls back to an older plan). Keep 0.35s between clips -
 // the same gap the floor guard leaves for pre/post-roll padding.
@@ -246,7 +287,7 @@ if (apply) {
 }
 
 console.log(report.join('\n'));
-console.log(`windows: moved ${moved} (audio ${fromAudio}), unchanged ${kept}, unmatched ${unmatched}, reverted ${reverted}, separated ${separated}`);
+console.log(`windows: moved ${moved} (audio ${fromAudio}), unchanged ${kept}, unmatched ${unmatched}, reverted ${reverted}, snapped ${snapped}, separated ${separated}`);
 if (apply) {
   fs.writeFileSync(planPath, JSON.stringify(plan, null, 2));
   console.log('edit_plan.json updated');

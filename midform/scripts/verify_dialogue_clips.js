@@ -177,7 +177,10 @@ for (const clip of clips.values()) {
     }
   }
 
-  for (const cut of cuts) {
+  // Same trust bar as the containment verdict: an alignment we would not act on must not fill the
+  // report either. The snapper skips these lines by the same rule, so warning about them would
+  // describe work nobody is going to do.
+  for (const cut of (trusted ? cuts : [])) {
     findings.push({
       level: 'WARN', kind: 'mid_word_cut', clip: clip.id,
       detail: `${cut.edge} boundary at ${cut.at.toFixed(2)} falls ${Math.round(cut.into * 100)}% into "${cut.word}"`,

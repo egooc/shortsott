@@ -2,7 +2,7 @@
  "draft_name": "draft_ko",
  "source_duration_sec": 557.621,
  "dialogue_clips": 26,
- "note": "2026-08-16 audio-verified: FAIL 0",
+ "note": "2026-08-16 audio-verified + word-boundary snapped: FAIL 0",
  "clips": {
   "slot_01_L01": {
    "start": 326.64,
@@ -131,7 +131,7 @@
   },
   "slot_11_L07": {
    "start": 538.74,
-   "end": 542.96,
+   "end": 543.195,
    "speaker": "소니"
   }
  }

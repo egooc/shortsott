@@ -11,7 +11,22 @@ python midform/scripts/align_dialogue_lines.py --audio <source.mp4|wav> --plan <
 node  midform/scripts/verify_dialogue_clips.js <draft_ko/edit_manifest.json> align.json --asr <whisper.json>
 ```
 
-## 2026-08-16 최종 (5개 소스, 설치본 `20260816d-*`, 골든 동결)
+## 2026-08-16 최종 (5개 소스, 설치본 `20260816e-*`, 골든 동결)
+
+경계를 단어에 스냅한 뒤:
+
+| 소스 | FAIL | WARN | 비고 |
+|---|---|---|---|
+| draftday-allin | 0 | **0** | 단어중간 절단 5 → 0 |
+| draftday-outsmart | 0 | 1 | 자막 병합 꼬리(정상) |
+| housemaid-ending | 0 | 2 | 이웃 자막이 담는 꼬리 |
+| housemaid-night | 0 | 2 | |
+| longshot-molly | 0 | **0** | 절단 3 → 0 |
+
+5개 합계 단어중간 절단 **12 → 0**(신뢰도 미달 정렬 줄은 스냅도 경고도 하지 않음 — 판정과 조치가
+같은 기준을 쓴다). 골든은 이 구간으로 다시 동결했고 `clip_baseline.js check` 드리프트 0.
+
+### 스냅 이전 (설치본 `20260816d-*`)
 
 두 결함을 고치고 파서·병합·floor 수정이 모두 들어간 판으로 전수 재검증:
 

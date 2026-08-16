@@ -2,7 +2,7 @@
  "draft_name": "draft_ko",
  "source_duration_sec": 600.261,
  "dialogue_clips": 22,
- "note": "2026-08-16 audio-verified: FAIL 0",
+ "note": "2026-08-16 audio-verified + word-boundary snapped: FAIL 0",
  "clips": {
   "slot_01_L02": {
    "start": 488.91,
@@ -21,12 +21,12 @@
   },
   "slot_03_L03": {
    "start": 66.04,
-   "end": 74.165,
+   "end": 73.68,
    "speaker": "니나"
   },
   "slot_03_L04": {
    "start": 85,
-   "end": 87.813,
+   "end": 87.733,
    "speaker": "니나"
   },
   "slot_05_L01": {
@@ -56,12 +56,12 @@
   },
   "slot_07_L04": {
    "start": 246.08,
-   "end": 247.82,
+   "end": 247.48,
    "speaker": "경찰"
   },
   "slot_07_L05": {
    "start": 248.72,
-   "end": 250.907,
+   "end": 250.65,
    "speaker": "경찰"
   },
   "slot_07_L06": {

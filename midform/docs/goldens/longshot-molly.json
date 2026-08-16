@@ -2,7 +2,7 @@
  "draft_name": "draft_ko",
  "source_duration_sec": 553.121,
  "dialogue_clips": 27,
- "note": "2026-08-16 audio-verified: FAIL 0, floor bounded by foreign speech",
+ "note": "2026-08-16 audio-verified + word-boundary snapped: FAIL 0",
  "clips": {
   "slot_001_L01": {
    "start": 396.36,
@@ -90,7 +90,7 @@
    "speaker": "보좌관"
   },
   "slot_010_L03": {
-   "start": 465.92,
+   "start": 465.806,
    "end": 468.49,
    "speaker": "보좌관"
   },
