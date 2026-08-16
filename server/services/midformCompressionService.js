@@ -2089,7 +2089,7 @@ function enforceEarlyDialogueAnchor(timeline, editPlan, beats, transcript) {
       estimated_duration_sec: roundSec(Number(selected.focus.end_sec) - Number(selected.focus.start_sec)),
       dialogue_focus_source: 'early_confrontation_anchor',
       dialogue_focus_lines: selected.focus.lines,
-      dialogue_focus_quotes: selected.focus.matched_quotes || selected.focus.lines,
+      dialogue_focus_quotes: (selected.focus.matched_quotes || []).length ? selected.focus.matched_quotes : selected.focus.lines,
       early_dialogue_anchor: true,
       dialogue_selection_scores: selected.candidate.scoring,
       reason: `${item.reason || ''} Early confrontation dialogue anchor promoted to avoid delaying the source argument.`.trim()
@@ -2449,19 +2449,29 @@ function resolveDialogueLineWindows(transcript, windowStartSec, windowEndSec, li
     let bestScore = 0;
     let bestRun = 1;
     for (let i = 0; i < sortedCues.length; i += 1) {
-      // Score the line against this cue AND against the run of cues starting here. A sentence the
-      // auto-captions split across three display chunks scores about a third against any one of
-      // them and used to fail the match outright: eleven of eighteen restored lines in Housemaid's
-      // slot_08 were lost that way, and the exchange collapsed back to disconnected fragments.
-      let text = '';
-      for (let run = 0; run < MAX_ANCHOR_RUN && i + run < sortedCues.length; run += 1) {
-        if (run > 0 && Number(sortedCues[i + run].start_sec) - Number(sortedCues[i + run - 1].end_sec) > CLUSTER_GAP_TOL_SEC) break;
-        text = run === 0 ? sortedCues[i].text : `${text} ${sortedCues[i + run].text}`;
-        const score = scoreCueAgainstQuote(text, line);
-        if (score > bestScore) {
-          bestScore = score;
-          bestIndex = i;
-          bestRun = run + 1;
+      const score = scoreCueAgainstQuote(sortedCues[i].text, line);
+      if (score > bestScore) {
+        bestScore = score;
+        bestIndex = i;
+      }
+    }
+    // Only when no single cue carries the line: score it against runs of consecutive cues. A
+    // sentence the auto-captions split across three display chunks scores about a third against any
+    // one of them and used to fail outright - eleven of eighteen restored lines in Housemaid's
+    // slot_08 were lost that way. Single cues stay in charge otherwise, so a line whose tail merely
+    // spills into the next cue still gets the proportional extension rather than the whole cue.
+    if (bestScore < MATCH_THRESHOLD) {
+      for (let i = 0; i < sortedCues.length; i += 1) {
+        let text = sortedCues[i].text;
+        for (let run = 1; run < MAX_ANCHOR_RUN && i + run < sortedCues.length; run += 1) {
+          if (Number(sortedCues[i + run].start_sec) - Number(sortedCues[i + run - 1].end_sec) > CLUSTER_GAP_TOL_SEC) break;
+          text = `${text} ${sortedCues[i + run].text}`;
+          const runScore = scoreCueAgainstQuote(text, line);
+          if (runScore > bestScore) {
+            bestScore = runScore;
+            bestIndex = i;
+            bestRun = run + 1;
+          }
         }
       }
     }
@@ -4099,7 +4109,10 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec, usableEndSec =
         next.end_sec = focus.end_sec;
         next.estimated_duration_sec = roundSec(focus.end_sec - focus.start_sec);
         next.dialogue_focus_source = 'key_dialogue';
-        next.dialogue_focus_quotes = focus.matched_quotes || focus.lines;
+        // An empty matched_quotes array is truthy, so the `|| lines` fallback never fired and the slot
+        // shipped with zero focus quotes - which the plan validator rejects outright, so the whole
+        // refresh failed and the source silently kept its old plan.
+        next.dialogue_focus_quotes = (focus.matched_quotes || []).length ? focus.matched_quotes : focus.lines;
         next.dialogue_focus_lines = focus.lines;
         // Compute per-line source windows ONCE here; Phase 2 transcript + slot_map both
         // read these exact stored numbers (single source of coordinates for each line).
@@ -4112,7 +4125,7 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec, usableEndSec =
         if (filled.added > 0) focus.lines = filled.lines;
         const readable = resolveReadableDialogueWindows(transcript, focus, beat.end_sec, nextBeatStart, requiredAnchors);
         const lineResolution = readable.resolution;
-        next.dialogue_focus_quotes = readable.focus.matched_quotes || readable.focus.lines;
+        next.dialogue_focus_quotes = (readable.focus.matched_quotes || []).length ? readable.focus.matched_quotes : readable.focus.lines;
         next.dialogue_focus_lines = readable.focus.lines;
         next.dialogue_line_windows = lineResolution.windows;
         // The runtime shave must never remove an ANCHOR line: shaving one made the plan fail
@@ -4227,7 +4240,7 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec, usableEndSec =
         cold.end_sec = focus.end_sec;
         cold.estimated_duration_sec = roundSec(Number(focus.end_sec) - Number(focus.start_sec));
         cold.dialogue_focus_source = cold.dialogue_focus_source || 'cold_open_anchor_dialogue';
-        cold.dialogue_focus_quotes = focus.matched_quotes || focus.lines;
+        cold.dialogue_focus_quotes = (focus.matched_quotes || []).length ? focus.matched_quotes : focus.lines;
         cold.dialogue_focus_lines = focus.lines;
         cold.dialogue_selection_scores = {
           ...(cold.dialogue_selection_scores || {}),
@@ -4236,7 +4249,7 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec, usableEndSec =
         const nextBeatStart = sortedBeatStarts.find((startSec) => startSec > Number(coldBeat.end_sec) + 0.001);
         const readable = resolveReadableDialogueWindows(transcript, focus, coldBeat.end_sec, nextBeatStart, preferredQuotes);
         const lineResolution = readable.resolution;
-        cold.dialogue_focus_quotes = readable.focus.matched_quotes || readable.focus.lines;
+        cold.dialogue_focus_quotes = (readable.focus.matched_quotes || []).length ? readable.focus.matched_quotes : readable.focus.lines;
         cold.dialogue_focus_lines = readable.focus.lines;
         cold.dialogue_line_windows = lineResolution.windows;
         cold.dialogue_line_window_ok = lineResolution.ok;
@@ -5140,7 +5153,13 @@ function validateSlotFillsDialogueCaptions(slotFills, editPlan, locale = 'ko') {
       for (const name of Array.isArray(fill?.speakers) ? fill.speakers : []) speakerNames.push(name);
       if (fill?.speaker) speakerNames.push(fill.speaker);
     }
+    // The premise is whichever narration the viewer meets first; that one line may name the cast.
+    const firstNarrationSlot = (Array.isArray(slotFills?.slot_fills) ? slotFills.slot_fills : [])
+      .filter((entry) => String(entry?.narration || '').trim())
+      .map((entry) => String(entry?.slot_id || ''))
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))[0] || '';
     for (const fill of Array.isArray(slotFills?.slot_fills) ? slotFills.slot_fills : []) {
+      const isPremiseNarration = String(fill?.slot_id || '') === firstNarrationSlot;
       const styleProblems = validateKoreanNarrationStyle(
         fill?.narration, [...new Set(speakerNames)],
         String(fill?.slot_id || '').includes('closing')
@@ -5159,11 +5178,16 @@ function validateSlotFillsDialogueCaptions(slotFills, editPlan, locale = 'ko') {
           + 'Narration states only what the transcript or footage shows - no reveals, no hidden connections.'
         );
       }
+      // The ban on nameplates exists so narration stops explaining what the scene already shows.
+      // Taken absolutely it produced recaps where 앤드류 and 윌 캘러핸 simply appear and the viewer
+      // never learns who they are - the owner could not follow the story at all. A name and a
+      // relation are precisely what the eye CANNOT read, so the premise line is allowed to set them
+      // up once; every later slot still has to earn it from the scene.
       const nameplate = findNarrationNameplate(fill?.narration, [...new Set(speakerNames)]);
-      if (nameplate) {
+      if (nameplate && !isPremiseNarration) {
         throw new Error(
-          `${fill?.slot_id} narration introduces a character (${nameplate}). Who these people are is `
-          + 'for the viewer to read off the scene: cut the role noun and say only what the eye cannot.'
+          `${fill?.slot_id} narration introduces a character (${nameplate}) outside the premise line. `
+          + 'Only the first narration may say who these people are; after that the scene has to show it.'
         );
       }
     }
