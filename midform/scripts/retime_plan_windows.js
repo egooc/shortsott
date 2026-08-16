@@ -19,6 +19,10 @@ const transcriptPath = process.argv[3];
 const apply = process.argv.includes('--apply');
 const whisperIdx = process.argv.indexOf('--whisper');
 const whisperPath = whisperIdx > 0 ? process.argv[whisperIdx + 1] : '';
+const gapIdx = process.argv.indexOf('--gap');
+// Downstream stages (the short-clip floor, the VAD trim) move these edges again, so a source whose
+// clips still collide after a re-time just needs a wider margin here.
+const GAP = gapIdx > 0 ? Number(process.argv[gapIdx + 1]) : 0.35;
 
 const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9' ]/g, ' ').replace(/\s+/g, ' ').trim();
 const toks = (s) => norm(s).split(' ').filter(Boolean);
@@ -189,9 +193,11 @@ if (apply) {
       const s = Number(win.start_sec);
       const e = Number(win.end_sec);
       if (!Number.isFinite(s) || !Number.isFinite(e)) continue;
-      if (s >= teaserEnd || e <= teaserStart) continue;
-      if (e <= teaserEnd + 0.45) continue; // wholly inside the teaser: leave it alone
-      win.start_sec = +(teaserEnd + 0.05).toFixed(3);
+      // Clearing the teaser by a hair is not enough: each clip carries ~0.35s of pre-roll, which
+      // pulls a window that starts just after the teaser back inside it and trips the gate.
+      if (s >= teaserEnd + 0.45 || e <= teaserStart) continue;
+      if (e <= teaserEnd + 0.9) continue; // wholly inside the teaser: leave it alone
+      win.start_sec = +(teaserEnd + 0.45).toFixed(3);
       if (Number(win.raw_start_sec) < teaserEnd) win.raw_start_sec = win.start_sec;
       report.push(`  teaser guard: "${String(win.line).slice(0, 34)}" start ${s.toFixed(2)} → ${win.start_sec}`);
     }
@@ -209,7 +215,7 @@ if (apply) {
     .sort((a, b) => Number(a.start_sec) - Number(b.start_sec));
   for (let i = 0; i < all.length - 1; i++) {
     const cur = all[i];
-    const limit = Number(all[i + 1].start_sec) - 0.35;
+    const limit = Number(all[i + 1].start_sec) - GAP;
     if (Number(cur.end_sec) <= limit) continue;
     if (limit < Number(cur.start_sec) + 0.4) {
       report.push(`  OVERLAP left as-is: "${String(cur.line).slice(0, 34)}" cannot fit before "${String(all[i + 1].line).slice(0, 24)}"`);

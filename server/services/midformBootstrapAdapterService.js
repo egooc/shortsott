@@ -498,6 +498,8 @@ function clampDialogueWindowsToOwnCue(editPlan, transcriptTimed) {
 // dialogue clip anywhere on the timeline and by the source end, so it never swallows another line.
 function extendShortDialogueWindows(editPlan, sourceDurationSec = 0) {
   const DIALOGUE_FLOOR_WORDS_PER_SEC = 3.2;
+  // Largest pre-roll a dialogue clip can claim (0.7s, question rebuttal) plus its post-roll (0.15s).
+  const DIALOGUE_FLOOR_NEIGHBOUR_GAP_SEC = 0.9;
   const timeline = Array.isArray(editPlan?.timeline) ? editPlan.timeline : [];
   const selectedStarts = [];
   for (const item of timeline) {
@@ -522,10 +524,12 @@ function extendShortDialogueWindows(editPlan, sourceDurationSec = 0) {
       let limit = start + needSec;
       // Bound by the next clip that begins after THIS one starts - a back-to-back line often opens
       // exactly at this window's end, so an end-based search would skip it and overrun into it.
-      // Leave a 0.35s gap, not 0.05: each clip carries pre/post-roll padding, and a 0.05s gap let
-      // the padded ranges of two back-to-back lines overlap and trip the cross-segment gate.
+      // The gap has to clear the NEXT clip's pre-roll (0.5s, 0.7s for a question rebuttal) plus this
+      // clip's own post-roll (0.15s), or the two padded ranges still overlap and the cross-segment
+      // gate rejects the plan - which then falls back to an older compression run. 0.35 was measured
+      // too small on Long Shot: the floor filled the space right back up to a 0.13s collision.
       const nextStart = selectedStarts.find((value) => value > start + 0.05);
-      if (Number.isFinite(nextStart)) limit = Math.min(limit, nextStart - 0.35);
+      if (Number.isFinite(nextStart)) limit = Math.min(limit, nextStart - DIALOGUE_FLOOR_NEIGHBOUR_GAP_SEC);
       if (sourceDurationSec > 0) limit = Math.min(limit, sourceDurationSec);
       if (limit > end + 0.1) {
         win.end_sec = roundSec3(limit);
