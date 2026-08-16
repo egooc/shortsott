@@ -171,7 +171,10 @@ test('an edit plan that still overlaps when it reaches the adapter is separated 
     ]
   }];
   assert.equal(countOverlappingDialogueWindows(timeline), 1, 'the plan really does overlap');
-  const separated = _test.separateOverlappingDialogueWindows(timeline);
+  // Top-level export on purpose: the adapter imports it from here, and an internals-only export
+  // meant the adapter threw "not a function" in the middle of a render instead of at load.
+  const { separateOverlappingDialogueWindows } = require('../server/services/midformCompressionService');
+  const separated = separateOverlappingDialogueWindows(timeline);
   assert.equal(countOverlappingDialogueWindows(separated), 0, 'and separation clears it');
   const fills = { slot_fills: [{ slot_id: 'slot_010', caption_kr_dialogue: ['선글라스', '탈모'] }] };
   const { script } = buildBootstrapSlotMapAndScript({ timeline: separated }, fills, { sourceDurationSec: 529.561 });

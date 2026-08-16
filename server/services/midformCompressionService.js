@@ -6611,6 +6611,9 @@ async function downloadCompressionSourceVideo(runIdOrPath, options = {}) {
 
 module.exports = {
   detectPromoTail,
+  // The bootstrap adapter runs this again as its last step: padding needs disjoint windows and the
+  // plan can be edited after compression separates them.
+  separateOverlappingDialogueWindows,
   buildSlotFillsPrompt,
   resolveRecapContext,
   runCompression,
