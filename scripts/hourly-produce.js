@@ -1,8 +1,17 @@
-// Hourly production of one unit of work (design 2026-08-15, user).
+// Continuous production, one unit at a time (design 2026-08-16, user).
 //
-// The upload side drains a buffer of exported mp4s one video per hour, so this
-// side only has to keep that buffer fed at the same pace. It does exactly one
-// thing per run, in priority order:
+// This used to do exactly one unit per hour, matching the upload cadence. That
+// paced production to the slowest consumer: uploads drain one video an hour
+// whatever happens, while a single longform source yields several shorts, so the
+// backlog only grew. It now keeps working until there is nothing left, and the
+// hourly schedule is just a supervisor that restarts the drain.
+//
+// Strictly serial, though - never a batch. Exports drive CapCut through its GUI
+// and cannot overlap, and running analyses in parallel draws 429s from Gemini
+// whose retries cost more than working one at a time does. A lock keeps two
+// producers from starting.
+//
+// Each unit is chosen in priority order:
 //
 //   1. If a shipped draft has no mp4 yet, export that draft. Exporting is the
 //      step that actually adds to the buffer, and it is the serial one - CapCut
@@ -44,6 +53,38 @@ const EXPORT_TIMEOUT_MS = 15 * 60 * 1000;
 // attempts is something this loop cannot finish, so it stops trying.
 const ATTEMPT_LEDGER_PATH = path.join(ROOT, 'server', 'data', 'export_failures.json');
 const MAX_EXPORT_ATTEMPTS = 2;
+const LOCK_PATH = path.join(ROOT, 'server', 'data', 'hourly_produce.lock');
+// Long enough for a longform analysis plus its draft build; past this the job is
+// left running and the loop stops rather than piling a second one on top.
+const JOB_TIMEOUT_MS = 90 * 60 * 1000;
+// The drain stops here so a run cannot outlive the day's work and hold the lock
+// against a fixed producer; the next hourly tick picks up where it left off.
+const DRAIN_BUDGET_MS = 6 * 60 * 60 * 1000;
+const ANALYSIS_COOLDOWN_MS = 60 * 1000;
+const startedAt = Date.now();
+
+function acquireLock() {
+  try {
+    const raw = fs.readFileSync(LOCK_PATH, 'utf8');
+    const held = JSON.parse(raw);
+    if (held && held.pid) {
+      try {
+        process.kill(held.pid, 0); // throws if the pid is gone
+        return false;
+      } catch { /* stale lock from a killed run */ }
+    }
+  } catch { /* no lock file */ }
+  fs.mkdirSync(path.dirname(LOCK_PATH), { recursive: true });
+  fs.writeFileSync(LOCK_PATH, `${JSON.stringify({ pid: process.pid, at: new Date().toISOString() }, null, 2)}\n`, 'utf8');
+  return true;
+}
+
+function releaseLock() {
+  try {
+    const held = JSON.parse(fs.readFileSync(LOCK_PATH, 'utf8'));
+    if (held && held.pid === process.pid) fs.rmSync(LOCK_PATH, { force: true });
+  } catch { /* already gone */ }
+}
 
 function readLedger() {
   try {
@@ -107,16 +148,16 @@ function nextQueueItem() {
   return '';
 }
 
-function main() {
-  const dryRun = process.argv.includes('--dry-run');
-
+// Returns true if it did a unit of work, false if there was nothing to do.
+function exportOnePendingDraft(dryRun) {
   const pending = pendingDrafts();
   console.log(`pending drafts (no mp4 yet): ${pending.length}`);
+  if (!pending.length) return false;
 
-  if (pending.length) {
+  {
     const target = pending[0];
     console.log(`export: ${target}`);
-    if (dryRun) return;
+    if (dryRun) return false;
 
     const ledger = readLedger();
     const entry = ledger[target] || { attempts: 0 };
@@ -149,19 +190,20 @@ function main() {
     if (entry.attempts >= MAX_EXPORT_ATTEMPTS && !exportedNames().has(target)) {
       console.log(`giving up on ${target}; it will be skipped from now on`);
     }
-    return;
+    return true;
   }
+}
 
+// Builds a draft for one queue item and waits for it, so the loop below never
+// starts a second analysis on top of a running one.
+async function buildOneDraft(dryRun) {
   const itemId = nextQueueItem();
-  if (!itemId) {
-    console.log('nothing to produce: no pending draft and no unanalysed queue item');
-    return;
-  }
+  if (!itemId) return false;
 
   console.log(`produce: ${itemId}`);
-  if (dryRun) return;
+  if (dryRun) return false;
 
-  const { startProcessJob } = require('../server/services/processJobService');
+  const { startProcessJob, readJob } = require('../server/services/processJobService');
   const result = startProcessJob({
     item_ids: [itemId],
     stages: ['metadata', 'draft'],
@@ -169,7 +211,76 @@ function main() {
     continue_to_draft_after_metadata: true,
     enqueue_if_active: false
   });
-  console.log(`job: ${result.job && result.job.job_id} (${result.job && result.job.status})`);
+  const jobId = result.job && result.job.job_id;
+  console.log(`job: ${jobId} (${result.job && result.job.status})`);
+  if (!jobId) return false;
+
+  const TERMINAL = ['success', 'failed', 'cancelled', 'completed_with_warnings'];
+  const deadline = Date.now() + JOB_TIMEOUT_MS;
+  for (;;) {
+    await new Promise((r) => setTimeout(r, 20000));
+    let job;
+    try { job = readJob(jobId); } catch { job = null; }
+    const status = job && job.status;
+    if (status && TERMINAL.includes(status)) {
+      console.log(`job ${jobId} finished: ${status}`);
+      return true;
+    }
+    if (Date.now() > deadline) {
+      console.log(`job ${jobId} still ${status || '?'} after ${Math.round(JOB_TIMEOUT_MS / 60000)}min; leaving it to run`);
+      return false;
+    }
+  }
 }
 
-main();
+async function main() {
+  const dryRun = process.argv.includes('--dry-run');
+  if (dryRun) {
+    exportOnePendingDraft(true);
+    await buildOneDraft(true);
+    return;
+  }
+
+  // Only one producer at a time: exports drive CapCut through its GUI, and two
+  // of them would fight over the same window.
+  if (!acquireLock()) {
+    console.log('another producer is already running; nothing to do');
+    return;
+  }
+
+  try {
+    // Keep going until there is nothing left. This used to do exactly one unit
+    // per hour, which paced production to the upload cadence - but uploads drain
+    // one video an hour whatever happens, and a longform source yields several
+    // shorts, so the backlog only ever grew. Stacking is the point (user,
+    // 2026-08-16); the hourly schedule is now just a supervisor that restarts
+    // the drain if it ever stops.
+    let units = 0;
+    for (;;) {
+      if (Date.now() > startedAt + DRAIN_BUDGET_MS) {
+        console.log(`drain budget reached after ${units} unit(s); the next scheduled run continues`);
+        break;
+      }
+      if (exportOnePendingDraft(false)) { units += 1; continue; }
+      // eslint-disable-next-line no-await-in-loop
+      if (await buildOneDraft(false)) {
+        units += 1;
+        // One analysis at a time is the whole point: a batch of them draws 429s
+        // from Gemini and the retries cost more than the pause does.
+        // eslint-disable-next-line no-await-in-loop
+        await new Promise((r) => setTimeout(r, ANALYSIS_COOLDOWN_MS));
+        continue;
+      }
+      console.log(`nothing left to produce; did ${units} unit(s) this run`);
+      break;
+    }
+  } finally {
+    releaseLock();
+  }
+}
+
+main().catch((error) => {
+  releaseLock();
+  console.error('FAILED:', String(error.message || error).slice(0, 400));
+  process.exitCode = 1;
+});
