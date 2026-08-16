@@ -11,7 +11,22 @@ python midform/scripts/align_dialogue_lines.py --audio <source.mp4|wav> --plan <
 node  midform/scripts/verify_dialogue_clips.js <draft_ko/edit_manifest.json> align.json --asr <whisper.json>
 ```
 
-## 2026-08-16 기준선 (5개 소스, 설치본 `20260816b-*`)
+## 2026-08-16 최종 (5개 소스, 설치본 `20260816d-*`, 골든 동결)
+
+두 결함을 고치고 파서·병합·floor 수정이 모두 들어간 판으로 전수 재검증:
+
+| 소스 | 대사 클립 | 타임라인 포함률 p50 | FAIL | WARN |
+|---|---|---|---|---|
+| draftday-allin | 23 | 0.99 | **0** | 5 (단어중간 절단) |
+| draftday-outsmart | 26 | 1.00 | **0** | 2 |
+| housemaid-ending | 22 | 1.00 | **0** | 2 |
+| housemaid-night | 25 | 1.00 | **0** | 5 |
+| longshot-molly | 27 | 1.00 | **0** | 3 |
+
+`midform/docs/goldens/*.json`에 이 구간들을 동결했고, 설치 전 `clip_baseline.js check`로 드리프트 0을
+확인했다. 남은 WARN은 전부 단어중간 절단(경계가 단어 안에서 끊김)과 자막 병합 꼬리다 — 다음 개선 후보.
+
+### 중간 기준선 (수정 전, `20260816b-*`)
 
 플랜 좌표와 강제정렬의 차이: **p50 0.07~0.11s**, p90 0.13~4.0s(반복 구절이 많은 소스일수록 큼).
 전수에서 FAIL 2건, 나머지는 WARN(단어중간 절단 12건, 자막 병합 꼬리 3건).
