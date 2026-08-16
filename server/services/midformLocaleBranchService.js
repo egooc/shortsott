@@ -464,7 +464,9 @@ function sharedContiguousBlocks(leftChain, rightChain) {
 // The b-roll bounds gate allows a clip to sit within 8.5s of its slot's plan window; anything
 // further is another scene. Slide the range back inside rather than truncating, so the differentiated
 // slice keeps its length.
-function clampRangeToPlanWindow(range, planWindow, toleranceSec = 8) {
+// 5s, not the gate's 8.5: the packer splits a range into pieces with gaps between them, so a range
+// clamped flush against the gate boundary still ships a last piece past it (369.6 against 368.6).
+function clampRangeToPlanWindow(range, planWindow, toleranceSec = 5) {
   const start = Number(range?.[0]);
   const end = Number(range?.[1]);
   const windowStart = Number(planWindow?.[0]);
