@@ -61,6 +61,7 @@ const JOB_TIMEOUT_MS = 90 * 60 * 1000;
 // against a fixed producer; the next hourly tick picks up where it left off.
 const DRAIN_BUDGET_MS = 6 * 60 * 60 * 1000;
 const ANALYSIS_COOLDOWN_MS = 60 * 1000;
+let failureCount = 0;
 const startedAt = Date.now();
 
 function acquireLock() {
@@ -185,7 +186,7 @@ function exportOnePendingDraft(dryRun) {
       ledger[target] = entry;
       writeLedger(ledger);
       console.log(`export failed (attempt ${entry.attempts}/${MAX_EXPORT_ATTEMPTS}): ${entry.lastError}`);
-      process.exitCode = 1;
+      failureCount += 1;
     }
     if (entry.attempts >= MAX_EXPORT_ATTEMPTS && !exportedNames().has(target)) {
       console.log(`giving up on ${target}; it will be skipped from now on`);
@@ -277,6 +278,10 @@ async function main() {
     // 2026-08-16); the hourly schedule is now just a supervisor that restarts
     // the drain if it ever stops.
     let units = 0;
+    // A run that exported fifteen drafts and lost one to a transient fault is a
+    // good run. Setting exitCode on each failure made the scheduler record a
+    // failed task for exactly that, so its result stopped meaning anything. It
+    // is a failure only if the run achieved nothing at all.
     for (;;) {
       if (Date.now() > startedAt + DRAIN_BUDGET_MS) {
         console.log(`drain budget reached after ${units} unit(s); the next scheduled run continues`);
@@ -292,9 +297,10 @@ async function main() {
         await new Promise((r) => setTimeout(r, ANALYSIS_COOLDOWN_MS));
         continue;
       }
-      console.log(`nothing left to produce; did ${units} unit(s) this run`);
+      console.log(`nothing left to produce; did ${units} unit(s) this run${failureCount ? `, ${failureCount} export failure(s)` : ''}`);
       break;
     }
+    if (!units && failureCount) process.exitCode = 1;
   } finally {
     releaseLock();
   }
