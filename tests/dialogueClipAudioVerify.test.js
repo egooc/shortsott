@@ -7,13 +7,19 @@ const { spawnSync } = require('node:child_process');
 
 const SCRIPT = path.join(__dirname, '..', 'midform', 'scripts', 'verify_dialogue_clips.js');
 
-function run(manifest, alignment) {
+function run(manifest, alignment, asr) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'clipverify-'));
   const manifestPath = path.join(dir, 'edit_manifest.json');
   const alignmentPath = path.join(dir, 'alignment.json');
   fs.writeFileSync(manifestPath, JSON.stringify(manifest));
   fs.writeFileSync(alignmentPath, JSON.stringify(alignment));
-  const result = spawnSync(process.execPath, [SCRIPT, manifestPath, alignmentPath], { encoding: 'utf8' });
+  const args = [SCRIPT, manifestPath, alignmentPath];
+  if (asr) {
+    const asrPath = path.join(dir, 'asr.json');
+    fs.writeFileSync(asrPath, JSON.stringify(asr));
+    args.push('--asr', asrPath);
+  }
+  const result = spawnSync(process.execPath, args, { encoding: 'utf8' });
   fs.rmSync(dir, { recursive: true, force: true });
   return { status: result.status, out: `${result.stdout}${result.stderr}` };
 }
@@ -123,4 +129,38 @@ test('alignment we do not trust never accuses the plan', () => {
   );
   assert.equal(status, 0);
   assert.doesNotMatch(out, /FAIL \w+ slot/, 'no finding is raised (the summary line always prints a FAIL count)');
+});
+
+test('a second voice inside the clip with no caption fails', () => {
+  // Long Shot ships this: the clip runs 399.9-406.0 and plays "You kept saying you wanted to take
+  // more, so we did." between the two halves of its caption. Alignment cannot see it - it only
+  // knows about the words we asked it to place - so the ASR stream is the one witness that can.
+  const { status, out } = run(
+    { segments: [clip('slot_08_L01', '00:00:06.000', '00:00:12.000')] },
+    { lines: [line('slot_08_L01', 'we just re-upped', [
+      { w: 'we', s: 6.2, e: 6.4 }, { w: 'just', s: 6.5, e: 6.8 }, { w: 'upped', s: 6.9, e: 7.3 },
+    ])] },
+    [{ words: [
+      { w: 'We', s: 6.2, e: 6.4 }, { w: 'just', s: 6.5, e: 6.8 }, { w: 'upped', s: 6.9, e: 7.3 },
+      { w: 'You', s: 8.0, e: 8.2 }, { w: 'kept', s: 8.3, e: 8.5 }, { w: 'saying', s: 8.6, e: 8.9 },
+      { w: 'you', s: 9.0, e: 9.2 }, { w: 'wanted', s: 9.3, e: 9.6 }, { w: 'more', s: 9.7, e: 10.0 },
+    ] }],
+  );
+  assert.equal(status, 1);
+  assert.match(out, /uncaptioned_speech slot_08_L01/);
+});
+
+test('padding that clips a neighbouring word is not called a second voice', () => {
+  const { status, out } = run(
+    { segments: [clip('slot_09_L01', '00:00:06.000', '00:00:08.000')] },
+    { lines: [line('slot_09_L01', 'i said stop', [
+      { w: 'i', s: 6.3, e: 6.5 }, { w: 'said', s: 6.6, e: 6.9 }, { w: 'stop', s: 7.0, e: 7.4 },
+    ])] },
+    [{ words: [
+      { w: 'I', s: 6.3, e: 6.5 }, { w: 'said', s: 6.6, e: 6.9 }, { w: 'stop', s: 7.0, e: 7.4 },
+      { w: 'okay', s: 7.6, e: 7.8 },
+    ] }],
+  );
+  assert.equal(status, 0);
+  assert.doesNotMatch(out, /uncaptioned_speech/);
 });

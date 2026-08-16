@@ -17,6 +17,11 @@ const manifestPath = process.argv[2];
 const alignmentPath = process.argv[3];
 const jsonIdx = process.argv.indexOf('--json');
 const jsonOut = jsonIdx > 0 ? process.argv[jsonIdx + 1] : '';
+// Optional second opinion: a full-source ASR word stream (faster-whisper). Alignment can only speak
+// about words we asked it about, so it can never notice a SECOND voice inside the clip - the
+// failure where a clip plays three people and captions one of them.
+const asrIdx = process.argv.indexOf('--asr');
+const asrPath = asrIdx > 0 ? process.argv[asrIdx + 1] : '';
 
 if (!manifestPath || !alignmentPath) {
   console.error('usage: verify_dialogue_clips.js <edit_manifest.json> <alignment.json> [--json out]');
@@ -33,11 +38,25 @@ const DUPLICATE_MIN_SEC = 0.35;  // shorter shared audio is a padding overlap, n
 // (presumed correct) sit at p10 0.6, while lines disagreeing by 2s+ sit at p50 0.56 and are 92%
 // ambiguous. Below this we report but never accuse.
 const CONFIDENCE_FLOOR = 0.6;
+const FOREIGN_EDGE_GUARD = 0.15;  // padding at each end may clip a neighbouring word
+const FOREIGN_MIN_WORDS = 3;      // fewer than this is a bleed, not a second speaker
 
 const toSec = (value) => {
   const [h, m, s] = String(value).split(':');
   return Number(h) * 3600 + Number(m) * 60 + Number(s);
 };
+
+const norm = (value) => String(value || '').toLowerCase().replace(/[^a-z0-9' ]/g, ' ').replace(/\s+/g, ' ').trim();
+
+const asrWords = [];
+if (asrPath && fs.existsSync(asrPath)) {
+  for (const segment of JSON.parse(fs.readFileSync(asrPath, 'utf8'))) {
+    for (const word of segment.words || []) {
+      const text = norm(word.w);
+      if (text && Number.isFinite(word.s) && Number.isFinite(word.e)) asrWords.push({ t: text, s: word.s, e: word.e });
+    }
+  }
+}
 
 const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 const alignment = JSON.parse(fs.readFileSync(alignmentPath, 'utf8'));
@@ -142,6 +161,22 @@ for (const clip of clips.values()) {
       detail: `${(timelineContainment * 100).toFixed(0)}% of its line reaches the timeline (own clip ${(containment * 100).toFixed(0)}%, spoken ${line.start_sec}-${line.end_sec})`,
     });
   }
+  // Words audible inside the clip that belong to neither this line nor its neighbours are a voice
+  // the viewer hears with no caption on screen.
+  if (asrWords.length) {
+    const own = new Set(norm(line.line).split(' ').filter(Boolean));
+    const neighbourWords = new Set(neighbourText.split(' ').filter(Boolean));
+    const heardWords = asrWords.filter((w) => w.s >= clip.start + FOREIGN_EDGE_GUARD && w.e <= clip.end - FOREIGN_EDGE_GUARD);
+    const foreign = heardWords.filter((w) => !own.has(w.t) && !neighbourWords.has(w.t));
+    if (heardWords.length >= FOREIGN_MIN_WORDS && foreign.length >= FOREIGN_MIN_WORDS
+      && foreign.length / heardWords.length > 0.5) {
+      findings.push({
+        level: 'FAIL', kind: 'uncaptioned_speech', clip: clip.id,
+        detail: `${foreign.length}/${heardWords.length} words heard inside the clip belong to no caption here: "${foreign.slice(0, 8).map((w) => w.t).join(' ')}"`,
+      });
+    }
+  }
+
   for (const cut of cuts) {
     findings.push({
       level: 'WARN', kind: 'mid_word_cut', clip: clip.id,
