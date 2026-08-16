@@ -31,10 +31,23 @@ assert(
   'processQueueService must import the edge refine service'
 );
 const assertIdx = queueSource.indexOf('assertHighlightCandidateMetadataDistinct(itemConfig, highlightWindows)');
-const refineIdx = queueSource.indexOf('refineHighlightWindowEdges({');
+// Search from the distinctness gate: the Full arc path calls the same refiner
+// earlier in the file (2026-08-16), so the first occurrence is no longer the
+// highlight one. What this guards is unchanged - the highlight refinement still
+// has to sit between the gate and the factory loop.
+const refineIdx = queueSource.indexOf('refineHighlightWindowEdges({', assertIdx);
 const loopIdx = queueSource.indexOf('edgeRefinement.windows.entries()');
 assert(assertIdx > 0 && refineIdx > assertIdx && loopIdx > refineIdx,
   'refinement must run after the distinctness gate and feed the factory loop');
+
+// The Full arc concat is refined too, and for the same reason: Vision's step
+// timings land near a shot change, not on it, so an unrefined arc opened the
+// Full on 0.18s of the previous shot - a CAM monitor, which then became the
+// thumbnail (item_017, 2026-08-16).
+const fullRefineIdx = queueSource.indexOf('refineHighlightWindowEdges({');
+const fullConcatIdx = queueSource.indexOf('full_source_highlight_candidates.mp4');
+assert(fullRefineIdx > 0 && fullRefineIdx < assertIdx && fullRefineIdx < fullConcatIdx,
+  'the Full arc windows must be edge-refined before they are concatenated');
 assert(
   serviceSource.includes('HIGHLIGHT_EDGE_REFINE'),
   'the kill switch env var must exist'
