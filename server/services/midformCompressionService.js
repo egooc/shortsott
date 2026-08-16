@@ -4533,6 +4533,14 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec, usableEndSec =
       closingStart = roundSec(Number(lastBeat.start_sec) || closingStart);
       closingEnd = roundSec(Number(lastBeat.end_sec) || closingEnd);
     }
+    // The last beat can run into the channel's promo tail, and the closing b-roll is cut from this
+    // window - which is how Draft Day's closing landed at 549.4-553.5 against a usable end of 549
+    // and failed narration_broll_semantic_bounds. Bound the window where it is created.
+    if (Number(usableEndSec) > 0 && closingEnd > Number(usableEndSec)) {
+      const span = Math.max(2, closingEnd - closingStart);
+      closingEnd = roundSec(Number(usableEndSec));
+      closingStart = roundSec(Math.max(0, closingEnd - span));
+    }
     timeline.push(annotateNarrationSlotForQc({
       slot_id: 'slot_closing',
       beat_id: String(lastActive.beat_id || ''),

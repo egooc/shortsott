@@ -191,9 +191,16 @@ function compareFinalDraftClipChains(koChain, jaChain, thresholds = THRESHOLDS, 
   // naming sentence stays on its own footage), there is only one free opening clip and the
   // 1.0 is an artifact, not a copied edit - the body differentiation (chain/pairwise) already
   // proves the cut diverges. Treat too-few-samples as differentiated.
-  const openingSimilarity = (koOpening.length < 2 || jaOpening.length < 2)
+  // ...and for the same reason chain similarity looks only at free clips, so does this: a preserved
+  // dialogue line is pinned to the audio it captions, so both locales MUST open on it. Once the
+  // exchanges were restored the whole cold open became dialogue, similarity read 1.0, and the gate
+  // failed builds for obeying the invariant the recap rests on. Measure only what the locales could
+  // actually have chosen differently.
+  const koOpeningFree = koOpening.filter((clip) => !isFixedWindowClip(clip));
+  const jaOpeningFree = jaOpening.filter((clip) => !isFixedWindowClip(clip));
+  const openingSimilarity = (koOpeningFree.length < 2 || jaOpeningFree.length < 2)
     ? 0
-    : lcsSimilarity(koOpening.map(signatureForClip), jaOpening.map(signatureForClip));
+    : lcsSimilarity(koOpeningFree.map(signatureForClip), jaOpeningFree.map(signatureForClip));
   const overlapRatio = sourceRangeOverlapRatio(koChain, jaChain);
   // Same principle as chain similarity: pinned dialogue/hook windows play in both locales
   // in story order BY DESIGN - on a dialogue-heavy source they ARE the top highlights and
