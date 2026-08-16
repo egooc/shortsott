@@ -2992,6 +2992,10 @@ function buildFullCaptionScriptRepairPrompt({ sourceUrl, filename, durationSec, 
     'Good Korean output rhythm (every item has its own predicate):',
     JSON.stringify(['버려질 줄 알았던 게 다시 쓰임을 얻어요', '먼저 기준을 정확히 맞추고', '흔들리면 안 되니까 손으로 위치를 잡죠', '힘보다 방향이 중요해요', '기계가 눌러도 기준이 틀어지면', '품질이 눈에 띄게 달라져요', '같은 움직임을 계속 반복하면서', '정밀함이 조금씩 쌓이고', '마지막 형태가 조용히 완성돼요'], null, 2),
     '',
+    // A repair rewrites the manuscript too, so it needs the arc and the
+    // arc_step field for the same reason the first pass does.
+    ...buildArcSpinePromptLines(guide, durationSec, speechBudget?.target_sentence_count).lines,
+    '',
     'Invalid issues:',
     JSON.stringify(issues || [], null, 2),
     '',
@@ -3159,6 +3163,12 @@ function buildKoreanFullCaptionScriptRegenerationPrompt({ sourceUrl, filename, d
     '',
     'Good Korean output rhythm (every item has its own predicate):',
     JSON.stringify(['처음엔 평범해 보여도 이 부품은 곧 새 역할을 얻어요', '먼저 자리를 맞추고', '흔들리면 안 되니까 손으로 잡아줘요', '여기서 중요한 건 힘보다 방향이에요', '기계가 눌러도 기준이 틀어지면', '품질이 눈에 띄게 달라져요', '같은 움직임을 계속 반복하면서', '정밀함이 조금씩 쌓이고', '마지막 형태가 조용히 완성돼요'], null, 2),
+    '',
+    // The regeneration replaces the whole manuscript, so it needs the arc for
+    // the same reason the first pass does - and it is usually the script that
+    // ships. Without these lines it returned scripts with no arc_step at all and
+    // the coverage gate had nothing to check (2026-08-17).
+    ...buildArcSpinePromptLines(guide, durationSec, speechBudget?.target_sentence_count).lines,
     '',
     'Invalid style issues:',
     JSON.stringify(issues || [], null, 2),
@@ -8066,6 +8076,60 @@ function collectKoreanFullRepairGateIssues(scriptItems = []) {
 // of a rule that lives elsewhere and would drift from it. Pass it when it is
 // known for hand; leave it out and the range and final-step checks are skipped,
 // while order, repetition and spread - which need no total - still apply.
+// The arc spine, thinned to the sentence budget, as prompt lines.
+//
+// This lived inline in the initial script prompt only. The script that actually
+// ships is usually not the initial one - it is the regeneration's or the
+// repair's - and neither of those prompts had ever been given the arc, nor the
+// arc_step instruction the coverage gate depends on. Measured 2026-08-17 on the
+// first batch analysed after the gate landed: both Full scripts came back from
+// regeneration with arc_step absent on every item, so the gate matched nothing
+// and passed them untouched.
+function buildArcSpinePromptLines(guide = {}, durationSec = 0, targetSentenceCount = 14) {
+  const steps = (Array.isArray(guide?.process_arc_steps) ? guide.process_arc_steps : [])
+    .filter((step) => {
+      const start = Number(step?.start_sec);
+      const end = Number(step?.end_sec);
+      if (!Number.isFinite(start) || !Number.isFinite(end)) return false;
+      if (end - start < LONGFORM_FULL_MIN_ARC_STEP_SEC) return false;
+      return !(Number(durationSec) > 0 && start >= Number(durationSec) - 4);
+    })
+    .map((step, index) => ({ step, order: Number(step?.step_index) || index + 1 }))
+    .sort((a, b) => a.order - b.order)
+    .map(({ step }) => step);
+
+  const budget = Math.max(3, Math.min(14, Number(targetSentenceCount) || 14));
+  if (steps.length > budget) {
+    const kept = [];
+    const stride = (steps.length - 1) / (budget - 1);
+    for (let i = 0; i < budget; i += 1) {
+      const step = steps[Math.round(i * stride)];
+      if (step && !kept.includes(step)) kept.push(step);
+    }
+    const last = steps[steps.length - 1];
+    if (last && !kept.includes(last)) kept[kept.length - 1] = last;
+    steps.length = 0;
+    steps.push(...kept);
+  }
+  if (steps.length < 3) return { steps, lines: [] };
+
+  return {
+    steps,
+    lines: [
+      '- PROCESS ARC (this is what the finished video actually shows, in this order):',
+      ...steps.map((step, index) => `  arc ${index + 1}. ${Number(step.start_sec).toFixed(1)}-${Number(step.end_sec).toFixed(1)}s: ${normalizeText(step.step_summary || step.reason || '').slice(0, 140)}`),
+      `- The script must WALK THIS ARC in the order above. Spending the whole manuscript on one step is the single worst failure of this format - it leaves the viewer hearing about arc 1 while watching arc ${steps.length}.`,
+      `- Cover every arc step at least once. At most 2 sentences on any one step, and the ${steps.length} steps must be spread across the whole manuscript, not clustered at the front.`,
+      `- Before writing, allocate your ${steps.length} arc steps across the sentence count you are given, in order. The LATER steps are the ones that get skipped - walk all the way to arc ${steps.length} and check you did.`,
+      '- Every sentence must be traceable to one arc step and must name the concrete thing in it - the material, the tool, or the change it makes. A sentence that would fit any factory video ("uniform quality builds trust", "this is the secret of the texture", "the wisdom of the factory") is filler: it covers no step and wastes a slot a later step needed.',
+      '- The hook sentence opens on arc 1. The closing must land on the LAST arc step and describe what that step visibly shows - never on the material the video opened with.',
+      '- Only declare the thing finished if the last arc step actually shows the finished product. If it shows a mid-process action, close on that action carrying the piece to its purpose instead of announcing completion.',
+      '- Do not describe anything that is not in one of the arc steps above. The rest of the source is not in this video.',
+      `- Every item MUST carry arc_step: the 1-based number of the arc step above that the sentence describes. arc_step must never decrease from one item to the next, at most 2 items may share a step, and the final item must carry arc_step ${steps.length}.`
+    ]
+  };
+}
+
 function collectFullScriptArcCoverageIssues(scriptItems = [], arcStepCount = 0) {
   const items = Array.isArray(scriptItems) ? scriptItems : [];
   if (items.length < 2) return [];
@@ -12203,6 +12267,9 @@ module.exports = {
   selectKoreanFullHookType,
   __test: {
     collectFullScriptArcCoverageIssues,
+    buildArcSpinePromptLines,
+    buildKoreanFullCaptionScriptRegenerationPrompt,
+    buildFullCaptionScriptRepairPrompt,
     buildFallbackReport,
     repairPublicTitles,
     mergeReviewedGuide,
