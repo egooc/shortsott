@@ -1,0 +1,53 @@
+# 대사 클립 오디오 검증 — 발견 대장
+
+`align_dialogue_lines.py` + `verify_dialogue_clips.js`가 출하 직전 드래프트에서 찾은 것들.
+플랜(`edit_plan.json`)은 git 밖에 있으므로 **여기가 그 수정의 되돌릴 수 있는 기록**이다. 각 항목은
+증거(오디오 시각) → 수정 → 재검증 수치 순으로 적는다.
+
+측정 명령:
+
+```
+python midform/scripts/align_dialogue_lines.py --audio <source.mp4|wav> --plan <edit_plan.json> --out align.json
+node  midform/scripts/verify_dialogue_clips.js <draft_ko/edit_manifest.json> align.json --asr <whisper.json>
+```
+
+## 2026-08-16 기준선 (5개 소스, 설치본 `20260816b-*`)
+
+플랜 좌표와 강제정렬의 차이: **p50 0.07~0.11s**, p90 0.13~4.0s(반복 구절이 많은 소스일수록 큼).
+전수에서 FAIL 2건, 나머지는 WARN(단어중간 절단 12건, 자막 병합 꼬리 3건).
+
+### [수정 완료] housemaid-ending · slot_01_L02 — 대사 후반이 클립 밖
+
+- 증거: 자막 "못 가. 나 이제 펄이잖아, 잊었어?"(= "Can't run. I'm Pearl, remember?")는
+  488.75~491.44에 발화. 클립은 **488.91~490.56**에서 끝나 "I'm Pearl, remember?"가 통째로 밖.
+  whisper도 "Can't run."(488.94) / "I'm poor(Pearl), remember?"(490.66)로 두 조각을 확인.
+- 원인: 창의 end가 앞 조각에만 맞춰져 있었음(재타이밍 로케이터가 뒷조각을 못 붙임).
+- 수정: `edit_plan.json`의 해당 window `end_sec`/`raw_end_sec` 490.56 → **491.6**.
+  되돌리려면 490.56으로 되돌리고 `--resume bootstrap --bootstrap-run compress_20260813110559_5qWm_kVDhQQ` 재실행.
+- 재검증: FAIL **1 → 0**, 최소 포함률 **0.21 → 0.64**. 원고 diff NONE. 설치 `20260816c-housemaid-ending-*`.
+
+### [미해결] longshot-molly · slot_008_L01 — 자막 없는 발화가 클립 안에 있음
+
+- 증거: 클립 399.94~406.02가 세 발화를 재생한다.
+  399.13 "We just re-upped." / **400.91 "You kept saying you wanted to take more, so we did."** /
+  403.09 "So we have another maybe four or five hours."
+  자막은 첫·셋째만 담는다("We just re-upped... we have another maybe four or five hours").
+  검증기: 클립 안에서 들리는 11단어 중 **8단어가 어떤 자막에도 없음**.
+- 성격: 자막의 `...`가 이미 생략을 뜻한다 — 즉 **자막은 맞고 오디오가 생략을 따라가지 않는다.**
+- 올바른 수정: 대사 클립 하나가 **두 개의 소스 구간**(399.13~400.4 + 403.09~406.05)을 갖도록 해서
+  오디오가 자막의 생략과 일치하게 만든다. 매니페스트 세그먼트는 이미 다중 `source_clips`를 지원하지만
+  `dialogue_line_windows`는 단일 구간이라 부트스트랩 어댑터 수정이 필요하다.
+- 임시 대안(권장하지 않음): 클립을 첫 발화까지로 줄이면 자막 후반의 오디오가 사라진다.
+
+## 판정을 믿기 전에 알아야 할 오탐 3종 (전부 실제로 겪음)
+
+1. **숫자**: 정렬 어휘는 글자뿐이라 "30 million, Sonny."가 두 단어로 줄어 3초 뒤 "30 million."에 붙었다.
+   → 숫자를 철자로 편다(`number_to_words`).
+2. **반복 구절**: 넓은 창에서는 같은 말의 다른 등장이 진짜보다 높은 점수를 받는다.
+   → 근접창 우선, 원거리 매칭은 점수가 뚜렷이 높을 때만. 근접·원거리가 1초 넘게 어긋나면 `ambiguous`로 표시하고
+   그 줄로는 절대 빌드를 실패시키지 않는다.
+3. **자막 병합 꼬리**: 자동자막이 두 발화를 한 줄로 합치고 다음 줄에서 겹치는 말을 반복한다.
+   잘려나간 꼬리가 이웃 자막 아래에서 다시 들리면 결함이 아니다(`containment_split`).
+
+신뢰도 하한 0.6은 117줄로 보정: 플랜이 이미 0.3초 이내로 맞힌 줄은 p10 0.6, 2초 이상 어긋난 줄은
+p50 0.56이며 그중 92%가 `ambiguous`였다.
