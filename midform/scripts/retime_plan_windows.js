@@ -22,6 +22,9 @@ const whisperPath = whisperIdx > 0 ? process.argv[whisperIdx + 1] : '';
 // Forced alignment (align_dialogue_lines.py). Used to snap an edge that lands inside a word.
 const alignIdx = process.argv.indexOf('--align');
 const alignPath = alignIdx > 0 ? process.argv[alignIdx + 1] : '';
+// Optional shot-boundary list (source.mp4.shot_boundaries.json).
+const shotsIdx = process.argv.indexOf('--shots');
+const shotsPath = shotsIdx > 0 ? process.argv[shotsIdx + 1] : '';
 const gapIdx = process.argv.indexOf('--gap');
 // Extra margin to leave in front of the next line when trimming an overlap. Default 0: trimming
 // past the next line's start would cut speech, and padding collisions are handled downstream.
@@ -259,6 +262,46 @@ if (apply && alignPath && fs.existsSync(alignPath)) {
   }
 }
 
+// An edge sitting a few frames on the wrong side of a cut shows a shard of the neighbouring shot and
+// then jumps - it reads as a mistake rather than an edit. Pull it onto the cut, but never over a
+// word: a clean-looking edit that eats a syllable is a worse trade.
+let shotSnapped = 0;
+if (apply && shotsPath && fs.existsSync(shotsPath)) {
+  const SLIVER = 0.25;
+  const cuts = (JSON.parse(fs.readFileSync(shotsPath, 'utf8')).boundaries || [])
+    .map(Number).filter(Number.isFinite).sort((a, b) => a - b);
+  const alignedWords = new Map();
+  if (alignPath && fs.existsSync(alignPath)) {
+    for (const line of JSON.parse(fs.readFileSync(alignPath, 'utf8')).lines || []) {
+      if (line.status === 'aligned') alignedWords.set(String(line.utt_id), line.words || []);
+    }
+  }
+  for (const item of plan.timeline || []) {
+    const wins = item.dialogue_line_windows || [];
+    wins.forEach((win, index) => {
+      const words = alignedWords.get(`${item.slot_id}_L${String(index + 1).padStart(2, '0')}`) || [];
+      const start = Number(win.start_sec);
+      const end = Number(win.end_sec);
+      if (!Number.isFinite(start) || !Number.isFinite(end)) return;
+      const speechIn = (from, to) => words.some((w) => w.e > from + 0.02 && w.s < to - 0.02);
+      for (const cut of cuts) {
+        if (cut > start && cut - start <= SLIVER && cut < end - 0.4 && !speechIn(start, cut)) {
+          report.push(`  shot snap start ${start.toFixed(2)} → ${cut.toFixed(3)} (dropped ${(cut - start).toFixed(2)}s of the outgoing shot)`);
+          win.start_sec = +cut.toFixed(3);
+          if (Number(win.raw_start_sec) < cut) win.raw_start_sec = win.start_sec;
+          shotSnapped += 1;
+        }
+        if (cut < end && end - cut <= SLIVER && cut > start + 0.4 && !speechIn(cut, end)) {
+          report.push(`  shot snap end ${end.toFixed(2)} → ${cut.toFixed(3)} (dropped ${(end - cut).toFixed(2)}s past the cut)`);
+          win.end_sec = +cut.toFixed(3);
+          if (Number(win.raw_end_sec) > cut) win.raw_end_sec = win.end_sec;
+          shotSnapped += 1;
+        }
+      }
+    });
+  }
+}
+
 // A moved window can now collide with its neighbour, and the draft gate rejects overlapping source
 // ranges outright (the run then silently falls back to an older plan). Keep 0.35s between clips -
 // the same gap the floor guard leaves for pre/post-roll padding.
@@ -287,7 +330,7 @@ if (apply) {
 }
 
 console.log(report.join('\n'));
-console.log(`windows: moved ${moved} (audio ${fromAudio}), unchanged ${kept}, unmatched ${unmatched}, reverted ${reverted}, snapped ${snapped}, separated ${separated}`);
+console.log(`windows: moved ${moved} (audio ${fromAudio}), unchanged ${kept}, unmatched ${unmatched}, reverted ${reverted}, snapped ${snapped}, shot-snapped ${shotSnapped}, separated ${separated}`);
 if (apply) {
   fs.writeFileSync(planPath, JSON.stringify(plan, null, 2));
   console.log('edit_plan.json updated');

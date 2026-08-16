@@ -22,6 +22,10 @@ const jsonOut = jsonIdx > 0 ? process.argv[jsonIdx + 1] : '';
 // failure where a clip plays three people and captions one of them.
 const asrIdx = process.argv.indexOf('--asr');
 const asrPath = asrIdx > 0 ? process.argv[asrIdx + 1] : '';
+// Optional: source.mp4.shot_boundaries.json. A clip whose edge sits just inside a cut shows a few
+// frames of the neighbouring shot before jumping, which reads as a mistake rather than an edit.
+const shotsIdx = process.argv.indexOf('--shots');
+const shotsPath = shotsIdx > 0 ? process.argv[shotsIdx + 1] : '';
 
 if (!manifestPath || !alignmentPath) {
   console.error('usage: verify_dialogue_clips.js <edit_manifest.json> <alignment.json> [--json out]');
@@ -40,6 +44,7 @@ const DUPLICATE_MIN_SEC = 0.35;  // shorter shared audio is a padding overlap, n
 const CONFIDENCE_FLOOR = 0.6;
 const FOREIGN_EDGE_GUARD = 0.15;  // padding at each end may clip a neighbouring word
 const FOREIGN_MIN_WORDS = 3;      // fewer than this is a bleed, not a second speaker
+const SHOT_SLIVER_SEC = 0.25;     // a shard of the neighbouring shot shorter than this reads as a glitch
 
 const toSec = (value) => {
   const [h, m, s] = String(value).split(':');
@@ -57,6 +62,10 @@ if (asrPath && fs.existsSync(asrPath)) {
     }
   }
 }
+
+const shots = shotsPath && fs.existsSync(shotsPath)
+  ? (JSON.parse(fs.readFileSync(shotsPath, 'utf8')).boundaries || []).map(Number).filter(Number.isFinite).sort((a, b) => a - b)
+  : [];
 
 const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 const alignment = JSON.parse(fs.readFileSync(alignmentPath, 'utf8'));
@@ -185,6 +194,25 @@ for (const clip of clips.values()) {
       level: 'WARN', kind: 'mid_word_cut', clip: clip.id,
       detail: `${cut.edge} boundary at ${cut.at.toFixed(2)} falls ${Math.round(cut.into * 100)}% into "${cut.word}"`,
     });
+  }
+}
+
+// A clip that opens a fraction before a cut plays a shard of the outgoing shot and then jumps; one
+// that closes a fraction after a cut does the same at the other end. Both read as a mistake.
+for (const clip of clips.values()) {
+  for (const cut of shots) {
+    if (cut > clip.start && cut - clip.start <= SHOT_SLIVER_SEC) {
+      findings.push({
+        level: 'WARN', kind: 'shot_sliver', clip: clip.id,
+        detail: `opens ${(cut - clip.start).toFixed(2)}s of the outgoing shot before the cut at ${cut.toFixed(2)}`,
+      });
+    }
+    if (cut < clip.end && clip.end - cut <= SHOT_SLIVER_SEC) {
+      findings.push({
+        level: 'WARN', kind: 'shot_sliver', clip: clip.id,
+        detail: `holds ${(clip.end - cut).toFixed(2)}s past the cut at ${cut.toFixed(2)} before ending`,
+      });
+    }
   }
 }
 
