@@ -18,7 +18,12 @@ const dotenv = require('dotenv');
 const ROOT = path.join(__dirname, '..');
 dotenv.config({ path: path.join(ROOT, '.env') });
 
-const { harvestDailySources } = require('../server/services/sourceHarvestService');
+const { harvestDailySources, loadHarvestConfig } = require('../server/services/sourceHarvestService');
+const {
+  bufferCountsByChannel,
+  balanceLocalePlan,
+  describePlan
+} = require('../server/services/harvestBalanceService');
 const { importYoutubeSourceQueueItems } = require('../server/services/processQueueService');
 const { startProcessJob, listJobs } = require('../server/services/processJobService');
 
@@ -69,8 +74,20 @@ async function main() {
   // 2. Harvest + import
   let harvest = null;
   try {
+    // Weight today's split towards whichever channel is short. Uploads alternate
+    // strictly, so the thin side is the one that decides when the line starves.
+    const counts = bufferCountsByChannel();
+    const configured = loadHarvestConfig().locale_plan || [];
+    const balanced = balanceLocalePlan(configured, counts);
+    lines.push('## 오늘 수확 배분');
+    lines.push(`- 버퍼 잔량 JP ${counts.ja} / KR ${counts.ko}`);
+    lines.push(`- 기본 계획 ${describePlan(configured)}`);
+    lines.push(`- 적용 계획 ${describePlan(balanced)}`);
+    lines.push('');
+
     harvest = await harvestDailySources({
-      importItems: (rows) => importYoutubeSourceQueueItems({ items: rows })
+      importItems: (rows) => importYoutubeSourceQueueItems({ items: rows }),
+      localePlan: balanced
     });
     const imported = harvest.import_result.imported || [];
     lines.push('## 오늘 소재 수집');

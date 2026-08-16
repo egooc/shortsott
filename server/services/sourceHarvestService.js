@@ -275,8 +275,14 @@ function assignLocales(candidates, config) {
 // Importer is injected so this service never requires processQueueService
 // (keeps the dependency direction one-way). dryRun skips the import AND the
 // ledger write so a rehearsal never consumes candidates.
-async function harvestDailySources({ importItems, now = new Date(), dryRun = false } = {}) {
-  const config = loadHarvestConfig();
+// localePlan overrides the configured split for this run only. The caller is the
+// one that can see how much stock each channel has left; this service must not
+// reach into the CapCut output folder itself (the dependency runs one way).
+async function harvestDailySources({ importItems, now = new Date(), dryRun = false, localePlan = null } = {}) {
+  const baseConfig = loadHarvestConfig();
+  const config = Array.isArray(localePlan) && localePlan.length
+    ? { ...baseConfig, locale_plan: localePlan }
+    : baseConfig;
   const ledger = loadLedger();
   const queries = todaysQueries(config, now);
 
