@@ -3505,11 +3505,16 @@ function fillUncaptionedCuesInsideCuts(timeline, transcript) {
       // entry into the middle of the list, shifting every caption index behind it.
       .sort((left, right) => (Number.isFinite(Number(left.start_sec)) && left.start_sec != null ? Number(left.start_sec) : Infinity)
         - (Number.isFinite(Number(right.start_sec)) && right.start_sec != null ? Number(right.start_sec) : Infinity));
+    // A slot where nothing matched must not come back EMPTY: the plan validator requires every
+    // KEEP_DIALOGUE slot to carry focus quotes, so emptying it threw and killed the whole refresh -
+    // and the source then silently kept its previous plan, which looked exactly like the fix having
+    // done nothing. Keep what the slot already had and let the render-time warning report the miss.
+    const matchedLines = nextWindows.filter((win) => win.matched === true).map((win) => win.line);
     return {
       ...item,
       dialogue_line_windows: nextWindows,
-      dialogue_focus_lines: nextWindows.filter((win) => win.matched === true).map((win) => win.line),
-      dialogue_focus_quotes: nextWindows.filter((win) => win.matched === true).map((win) => win.line),
+      dialogue_focus_lines: matchedLines.length ? matchedLines : item.dialogue_focus_lines,
+      dialogue_focus_quotes: matchedLines.length ? matchedLines : item.dialogue_focus_quotes,
       adopted_cue_count: additions.length
     };
   });
