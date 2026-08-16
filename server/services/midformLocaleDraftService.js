@@ -91,7 +91,10 @@ function rangeDuration(range) {
 // The gate allows a reframe within the planned scene (its window plus 8s of tolerance) but not a
 // move to another one. Slide the range back inside rather than truncating it, so the clip keeps the
 // length the packer gave it.
-function clampToSemanticScene(range, originRange, toleranceSec = 8) {
+// 4s, not 8: the gate measures against the PLAN window with 8.5s of tolerance, and the origin this
+// clamps to is the packer's clip - already sitting some way into that window. Anchored at 8 the
+// result still landed 10.5s past the window end on Draft Day's ja slot_006.
+function clampToSemanticScene(range, originRange, toleranceSec = 4) {
   const start = Number(range?.[0]);
   const end = Number(range?.[1]);
   const originStart = Number(originRange?.[0]);

@@ -155,6 +155,29 @@ test('clips from different slots do not overlap either', () => {
   assertNoOverlap(clipRanges(script));
 });
 
+// The padding guards only fire when the neighbour is CLEAR of this line, so a pair that still
+// overlaps when it reaches the adapter gets padded freely and ships overlapping video. Long Shot
+// slot_010 arrived as 463.76~466.133 against 465.806~469.32, failed preflight, and the run fell
+// back to an older compression plan. The adapter now separates the windows again, last, so a plan
+// that reached it overlapping (hand edit, exchange restoration) can no longer produce this.
+test('an edit plan that still overlaps when it reaches the adapter is separated before padding', () => {
+  const { countOverlappingDialogueWindows } = require('../server/services/midformBootstrapAdapterService');
+  const timeline = [{
+    slot_id: 'slot_010', role: 'body', decision: 'KEEP_DIALOGUE', estimated_duration_sec: 6,
+    dialogue_focus_lines: ['sunglasses', 'alopecia'], dialogue_focus_quotes: ['sunglasses', 'alopecia'],
+    dialogue_line_windows: [
+      { matched: true, line: 'sunglasses', start_sec: 463.76, end_sec: 466.133 },
+      { matched: true, line: 'alopecia', start_sec: 465.806, end_sec: 469.32 }
+    ]
+  }];
+  assert.equal(countOverlappingDialogueWindows(timeline), 1, 'the plan really does overlap');
+  const separated = _test.separateOverlappingDialogueWindows(timeline);
+  assert.equal(countOverlappingDialogueWindows(separated), 0, 'and separation clears it');
+  const fills = { slot_fills: [{ slot_id: 'slot_010', caption_kr_dialogue: ['선글라스', '탈모'] }] };
+  const { script } = buildBootstrapSlotMapAndScript({ timeline: separated }, fills, { sourceDurationSec: 529.561 });
+  assertNoOverlap(clipRanges(script));
+});
+
 // ">> [bell]" is a sound effect, not a line. The matcher can never find it in the transcript, so
 // the slot it lands in is permanently not-ok and preflight rejects the plan.
 test('sound-effect captions are not treated as dialogue', () => {

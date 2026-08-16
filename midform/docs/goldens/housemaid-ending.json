@@ -1,37 +1,22 @@
 {
  "draft_name": "draft_ko",
  "source_duration_sec": 600.261,
- "dialogue_clips": 22,
- "note": "2026-08-16 audio-verified + word/shot snapped",
+ "dialogue_clips": 23,
+ "note": "2026-08-17 exchanges restored, audio-verified",
  "clips": {
-  "slot_01_L02": {
-   "start": 488.91,
-   "end": 491.6,
+  "slot_01_L01": {
+   "start": 490.58,
+   "end": 502.31,
    "speaker": "밀리"
   },
   "slot_03_L01": {
-   "start": 61.59,
-   "end": 63.44,
+   "start": 61.4,
+   "end": 67.45,
    "speaker": "니나"
   },
-  "slot_03_L02": {
-   "start": 63.44,
-   "end": 66.04,
-   "speaker": "니나"
-  },
-  "slot_03_L03": {
-   "start": 66.04,
-   "end": 73.68,
-   "speaker": "니나"
-  },
-  "slot_03_L04": {
-   "start": 85,
-   "end": 87.733,
-   "speaker": "니나"
-  },
-  "slot_05_L01": {
-   "start": 140.12,
-   "end": 147.82,
+  "slot_05_L02": {
+   "start": 146.68,
+   "end": 150.153,
    "speaker": "니나"
   },
   "slot_06_L01": {
@@ -40,14 +25,14 @@
    "speaker": "니나"
   },
   "slot_07_L01": {
-   "start": 236.56,
+   "start": 236.555,
    "end": 240.455,
-   "speaker": "경찰"
+   "speaker": "경찰관"
   },
   "slot_07_L02": {
    "start": 241.355,
    "end": 242.919,
-   "speaker": "경찰"
+   "speaker": "경찰관"
   },
   "slot_07_L03": {
    "start": 243.459,
@@ -56,62 +41,82 @@
   },
   "slot_07_L04": {
    "start": 246.08,
-   "end": 247.48,
-   "speaker": "경찰"
+   "end": 248.72,
+   "speaker": "경찰관"
   },
   "slot_07_L05": {
    "start": 248.72,
-   "end": 250.65,
-   "speaker": "경찰"
+   "end": 249.9,
+   "speaker": "경찰관"
   },
   "slot_07_L06": {
-   "start": 252.06,
-   "end": 253.02,
-   "speaker": "니나"
-  },
-  "slot_07_L07": {
-   "start": 253.959,
+   "start": 250.8,
    "end": 256.519,
    "speaker": "니나"
   },
   "slot_07_L08": {
    "start": 256.519,
+   "end": 257.74,
+   "speaker": "니나"
+  },
+  "slot_07_L07": {
+   "start": 258.64,
    "end": 259.884,
    "speaker": "니나"
   },
   "slot_08_L01": {
-   "start": 276.95,
-   "end": 278.93,
-   "speaker": "경찰"
+   "start": 278.39,
+   "end": 279.76,
+   "speaker": "경찰관"
   },
   "slot_08_L02": {
    "start": 279.76,
    "end": 281.16,
-   "speaker": "경찰"
+   "speaker": "경찰관"
   },
   "slot_08_L03": {
    "start": 281.19,
    "end": 283.3,
-   "speaker": "니나"
+   "speaker": "경찰관"
   },
   "slot_08_L04": {
+   "start": 284.155,
+   "end": 287.435,
+   "speaker": "니나"
+  },
+  "slot_08_L05": {
    "start": 287.458,
    "end": 294.646,
-   "speaker": "경찰"
+   "speaker": "경찰관"
   },
   "slot_10_L01": {
    "start": 417.04,
-   "end": 421.7,
-   "speaker": "시어머니"
-  },
-  "slot_10_L02": {
-   "start": 433.56,
-   "end": 438.248,
+   "end": 422.48,
    "speaker": "시어머니"
   },
   "slot_10_L03": {
-   "start": 439.33,
-   "end": 442.73,
+   "start": 422.48,
+   "end": 424.32,
+   "speaker": "니나"
+  },
+  "slot_10_L04": {
+   "start": 424.32,
+   "end": 425.96,
+   "speaker": "시어머니"
+  },
+  "slot_10_L05": {
+   "start": 426.96,
+   "end": 428.16,
+   "speaker": "시어머니"
+  },
+  "slot_10_L06": {
+   "start": 428.16,
+   "end": 431.633,
+   "speaker": "시어머니"
+  },
+  "slot_10_L07": {
+   "start": 433.555,
+   "end": 438.52,
    "speaker": "시어머니"
   }
  }

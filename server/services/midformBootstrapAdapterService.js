@@ -15,7 +15,12 @@ const { PROJECT_ROOT } = require('./pipelinePaths');
 const { resolveTool, getToolEnv } = require('../utils/toolPaths');
 const { getVideoMetadata } = require('../utils/ffprobe');
 const { buildSpeakerMetadata, resolveCaptionColor, assignFallbackSpeakerColorKeys } = require('../utils/captionColorConfig');
-const { resolveCompressionRunDir, downloadCompressionSourceVideo, detectPromoTail } = require('./midformCompressionService');
+const {
+  resolveCompressionRunDir,
+  downloadCompressionSourceVideo,
+  detectPromoTail,
+  separateOverlappingDialogueWindows
+} = require('./midformCompressionService');
 const { startRun } = require('./midformPipelineService');
 
 const DURATION_CONFIG_PATH = path.join(PROJECT_ROOT, 'midform', 'config', 'duration.json');
@@ -519,6 +524,25 @@ function nextForeignCueStart(cues, win, start, end) {
 // The tags can't recover a span they never recorded, so floor each clip at the time the words need
 // to be spoken (wordCount / WORDS_PER_SEC), extending the END forward. Bounded by the next selected
 // dialogue clip anywhere on the timeline and by the source end, so it never swallows another line.
+// How many neighbouring pairs of kept dialogue windows still sit on top of one another, counted
+// plan-wide because the padding stage sorts the same way - two lines in different slots collide
+// just as readily as two in one.
+function countOverlappingDialogueWindows(timeline) {
+  const windows = [];
+  for (const item of Array.isArray(timeline) ? timeline : []) {
+    if (item?.decision !== 'KEEP_DIALOGUE') continue;
+    for (const win of Array.isArray(item.dialogue_line_windows) ? item.dialogue_line_windows : []) {
+      if (win && win.matched === true && Number(win.end_sec) > Number(win.start_sec)) windows.push(win);
+    }
+  }
+  windows.sort((left, right) => Number(left.start_sec) - Number(right.start_sec));
+  let overlaps = 0;
+  for (let index = 1; index < windows.length; index += 1) {
+    if (Number(windows[index - 1].end_sec) > Number(windows[index].start_sec) + 0.001) overlaps += 1;
+  }
+  return overlaps;
+}
+
 function extendShortDialogueWindows(editPlan, sourceDurationSec = 0, transcriptTimed = []) {
   const DIALOGUE_FLOOR_WORDS_PER_SEC = 3.2;
   // Largest pre-roll a dialogue clip can claim (0.7s, question rebuttal) plus its post-roll (0.15s).
@@ -1242,6 +1266,19 @@ function assembleBootstrapArtifacts(runIdOrPath, options = {}) {
   // timestamp is not cut down to its last word. Runs AFTER the trim so it lifts whatever the cue and
   // VAD left too short.
   const dialogueFloor = extendShortDialogueWindows(editPlan, sourceDurationSec, transcriptTimed);
+  // Padding assumes the windows it is handed are already disjoint: the midpoint guards in
+  // buildDialogueTimingAdjustment only fire when the neighbour is clear of this line, so a pair
+  // that still overlaps gets padded freely and ships two video segments over one another. CapCut
+  // rejects that, the plan fails preflight, and the run silently falls back to an older compression
+  // run - which is how Long Shot shipped a stale plan (slot_010 463.76~466.13 vs 465.81~469.32).
+  // The compression side separates windows too, but the exchange restoration and hand edits land
+  // after it, so this runs last, right before the coordinates are read.
+  const dialogueOverlapsBefore = countOverlappingDialogueWindows(editPlan.timeline);
+  editPlan.timeline = separateOverlappingDialogueWindows(editPlan.timeline);
+  const dialogueSeparation = {
+    overlaps_before: dialogueOverlapsBefore,
+    overlaps_after: countOverlappingDialogueWindows(editPlan.timeline)
+  };
 
   const { transcript, stats: transcriptStats, warnings: tW } = buildBootstrapTranscript(editPlan, transcriptTimed);
   const energyProfilePath = path.join(runDir, 'energy_profile.json');
@@ -1284,12 +1321,16 @@ function assembleBootstrapArtifacts(runIdOrPath, options = {}) {
       ...sW,
       ...(dialogueCueClamp.clamped > 0
         ? [`clamped ${dialogueCueClamp.clamped} dialogue window(s) to their own cue to drop a foreign utterance: ${dialogueCueClamp.details.map((d) => `"${d.line}"`).join(', ')}`]
+        : []),
+      ...(dialogueSeparation.overlaps_before > 0
+        ? [`separated ${dialogueSeparation.overlaps_before} overlapping dialogue window pair(s) before padding`]
         : [])
     ],
     stats: transcriptStats,
     dialogue_window_trim: dialogueTrim,
     dialogue_cue_clamp: dialogueCueClamp,
-    dialogue_floor: dialogueFloor
+    dialogue_floor: dialogueFloor,
+    dialogue_separation: dialogueSeparation
   };
 }
 
@@ -1488,6 +1529,7 @@ module.exports = {
   trimDialogueWindowsToSpeech,
   clampDialogueWindowsToOwnCue,
   extendShortDialogueWindows,
+  countOverlappingDialogueWindows,
   buildEditorialReviewArtifact,
   assembleBootstrapArtifacts,
   runBootstrapPreflight,

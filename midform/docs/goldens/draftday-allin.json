@@ -1,123 +1,163 @@
 {
  "draft_name": "draft_ko",
  "source_duration_sec": 566.381,
- "dialogue_clips": 23,
- "note": "2026-08-16 audio-verified + word/shot snapped",
+ "dialogue_clips": 31,
+ "note": "2026-08-17 exchanges restored, audio-verified",
  "clips": {
   "slot_001_L01": {
-   "start": 336.7,
-   "end": 339.554,
+   "start": 342.36,
+   "end": 345.798,
    "speaker": "톰"
   },
-  "slot_001_L02": {
-   "start": 339.6,
-   "end": 342.2,
-   "speaker": "소니"
-  },
-  "slot_001_L03": {
-   "start": 342.4,
-   "end": 345.837,
-   "speaker": "톰"
-  },
-  "slot_003_L01": {
-   "start": 152.9,
-   "end": 156.338,
-   "speaker": "소니"
+  "slot_003_L02": {
+   "start": 152.948,
+   "end": 156.386,
+   "speaker": "써니"
   },
   "slot_004_L01": {
-   "start": 223.24,
-   "end": 226.367,
-   "speaker": "소니"
-  },
-  "slot_004_L02": {
    "start": 229.64,
    "end": 231.484,
    "speaker": "구단주"
   },
   "slot_005_L01": {
-   "start": 297.809,
-   "end": 300.05,
+   "start": 299.12,
+   "end": 302.555,
    "speaker": "톰"
   },
   "slot_005_L02": {
-   "start": 302.65,
-   "end": 304.837,
-   "speaker": "소니"
+   "start": 302.555,
+   "end": 305.24,
+   "speaker": "써니"
   },
   "slot_008_L01": {
-   "start": 446.73,
-   "end": 448.99,
-   "speaker": "코치"
+   "start": 447.669,
+   "end": 449.36,
+   "speaker": "감독"
   },
   "slot_008_L02": {
    "start": 449.408,
    "end": 451.596,
-   "speaker": "구단주"
+   "speaker": "감독"
   },
   "slot_008_L03": {
-   "start": 453.38,
-   "end": 454.88,
-   "speaker": "소니"
+   "start": 453.435,
+   "end": 455.88,
+   "speaker": "써니"
   },
   "slot_008_L04": {
-   "start": 455.8,
-   "end": 456.18,
-   "speaker": "코치"
+   "start": 460.155,
+   "end": 461.919,
+   "speaker": "써니"
   },
   "slot_008_L05": {
-   "start": 460.32,
-   "end": 461.57,
-   "speaker": "소니"
+   "start": 469.195,
+   "end": 471.44,
+   "speaker": "써니"
   },
   "slot_008_L06": {
-   "start": 474.84,
-   "end": 477.268,
-   "speaker": "재무담당"
+   "start": 471.44,
+   "end": 472.72,
+   "speaker": "써니"
   },
   "slot_008_L07": {
-   "start": 479.32,
-   "end": 481.6,
-   "speaker": "재무담당"
+   "start": 474.972,
+   "end": 477.063,
+   "speaker": "구단주"
   },
   "slot_008_L08": {
+   "start": 477.36,
+   "end": 482.8,
+   "speaker": "앨리"
+  },
+  "slot_008_L09": {
+   "start": 482.8,
+   "end": 485.58,
+   "speaker": "앨리"
+  },
+  "slot_008_L10": {
+   "start": 486.48,
+   "end": 488.2,
+   "speaker": "구단주"
+  },
+  "slot_008_L11": {
    "start": 488.2,
    "end": 489.64,
-   "speaker": "소니"
+   "speaker": "앨리"
   },
   "slot_009_L01": {
-   "start": 510.03,
+   "start": 509.941,
    "end": 512.08,
-   "speaker": "코치"
+   "speaker": "감독"
   },
   "slot_009_L02": {
    "start": 512.98,
-   "end": 514.855,
-   "speaker": "소니"
+   "end": 514.46,
+   "speaker": "써니"
+  },
+  "slot_009_L03": {
+   "start": 515.36,
+   "end": 517.52,
+   "speaker": "감독"
   },
   "slot_009_L04": {
-   "start": 522.08,
-   "end": 523.643,
-   "speaker": "코치"
+   "start": 517.52,
+   "end": 518.88,
+   "speaker": "써니"
   },
   "slot_009_L05": {
-   "start": 526.48,
-   "end": 528.987,
+   "start": 519,
+   "end": 521.711,
    "speaker": "스태프"
   },
+  "slot_009_L06": {
+   "start": 522.2,
+   "end": 524.075,
+   "speaker": "써니"
+  },
+  "slot_009_L07": {
+   "start": 526.575,
+   "end": 528.886,
+   "speaker": "감독"
+  },
+  "slot_009_L08": {
+   "start": 529.692,
+   "end": 530.942,
+   "speaker": "구단주"
+  },
+  "slot_010_L07": {
+   "start": 532.08,
+   "end": 533.36,
+   "speaker": "써니"
+  },
   "slot_010_L01": {
-   "start": 532.155,
+   "start": 533.36,
    "end": 534.674,
-   "speaker": "소니"
+   "speaker": "써니"
   },
   "slot_010_L02": {
    "start": 536.156,
    "end": 537.406,
-   "speaker": "스태프"
+   "speaker": "감독"
   },
   "slot_010_L03": {
-   "start": 545.37,
-   "end": 550.058,
-   "speaker": "코치"
+   "start": 538.72,
+   "end": 539.52,
+   "speaker": "써니"
+  },
+  "slot_010_L04": {
+   "start": 539.52,
+   "end": 540.88,
+   "speaker": "감독"
+  },
+  "slot_010_L05": {
+   "start": 540.88,
+   "end": 544.44,
+   "speaker": "감독"
+  },
+  "slot_010_L06": {
+   "start": 544.545,
+   "end": 549.232,
+   "speaker": "감독"
   }
  }
 }

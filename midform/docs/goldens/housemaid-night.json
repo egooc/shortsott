@@ -1,66 +1,51 @@
 {
  "draft_name": "draft_ko",
  "source_duration_sec": 596.821,
- "dialogue_clips": 25,
- "note": "2026-08-16 audio-verified + word/shot snapped",
+ "dialogue_clips": 30,
+ "note": "2026-08-17 exchanges restored, audio-verified",
  "clips": {
   "slot_01_L01": {
-   "start": 139.766,
-   "end": 141.875,
-   "speaker": "여자"
-  },
-  "slot_03_L02": {
-   "start": 46.769,
-   "end": 55.206,
-   "speaker": "니나"
+   "start": 167.72,
+   "end": 172.6,
+   "speaker": "이웃"
   },
   "slot_03_L01": {
-   "start": 77.76,
-   "end": 81.13,
+   "start": 74.955,
+   "end": 80.326,
    "speaker": "니나"
   },
   "slot_04_L01": {
-   "start": 167.816,
-   "end": 171.57,
-   "speaker": "여자"
-  },
-  "slot_04_L02": {
    "start": 175.959,
-   "end": 185.143,
-   "speaker": "여자"
+   "end": 185.239,
+   "speaker": "이웃"
   },
   "slot_05_L01": {
-   "start": 230.149,
+   "start": 229.979,
    "end": 232.05,
    "speaker": "정원사"
   },
-  "slot_06_L01": {
-   "start": 273.88,
-   "end": 276.651,
-   "speaker": "니나"
-  },
-  "slot_07_L01": {
-   "start": 307.87,
-   "end": 310.058,
+  "slot_08_L01": {
+   "start": 394.875,
+   "end": 399.88,
    "speaker": "앤드류"
   },
-  "slot_08_L01": {
+  "slot_08_L02": {
    "start": 405.085,
    "end": 411.891,
    "speaker": "밀리"
   },
   "slot_09_L01": {
-   "start": 425.8,
-   "end": 427.22,
+   "start": 425.845,
+   "end": 427.614,
    "speaker": "앤드류"
   },
   "slot_09_L02": {
    "start": 428.12,
-   "end": 431.8,
+   "end": 433.12,
    "speaker": "앤드류"
   },
   "slot_09_L03": {
-   "start": 434.48,
+   "start": 433.12,
    "end": 436.84,
    "speaker": "앤드류"
   },
@@ -76,55 +61,95 @@
   },
   "slot_09_L06": {
    "start": 443.76,
-   "end": 448.323,
+   "end": 448.4,
    "speaker": "앤드류"
   },
   "slot_09_L07": {
-   "start": 449.2,
-   "end": 450.883,
+   "start": 448.4,
+   "end": 451.928,
    "speaker": "앤드류"
   },
   "slot_09_L08": {
-   "start": 452.4,
-   "end": 454.055,
+   "start": 452.395,
+   "end": 454.05,
    "speaker": "밀리"
   },
   "slot_11_L01": {
-   "start": 542.47,
-   "end": 544.4,
+   "start": 544.4,
+   "end": 546.04,
    "speaker": "밀리"
   },
   "slot_11_L02": {
-   "start": 547.68,
-   "end": 550.34,
+   "start": 546.04,
+   "end": 547,
    "speaker": "앤드류"
   },
   "slot_11_L03": {
+   "start": 547,
+   "end": 551.24,
+   "speaker": "앤드류"
+  },
+  "slot_11_L04": {
    "start": 551.24,
    "end": 553.92,
    "speaker": "밀리"
   },
-  "slot_11_L04": {
-   "start": 555.28,
-   "end": 557.005,
+  "slot_11_L05": {
+   "start": 553.92,
+   "end": 554.8,
    "speaker": "앤드류"
   },
-  "slot_11_L05": {
-   "start": 557.78,
-   "end": 559.64,
-   "speaker": "밀리"
-  },
   "slot_11_L06": {
-   "start": 564.8,
-   "end": 567.04,
+   "start": 557.795,
+   "end": 559.839,
    "speaker": "밀리"
   },
   "slot_11_L07": {
-   "start": 569.109,
-   "end": 569.5,
+   "start": 559.839,
+   "end": 561.68,
    "speaker": "앤드류"
   },
   "slot_11_L08": {
+   "start": 561.68,
+   "end": 563.28,
+   "speaker": "앤드류"
+  },
+  "slot_11_L09": {
+   "start": 564.849,
+   "end": 567.722,
+   "speaker": "밀리"
+  },
+  "slot_11_L10": {
+   "start": 568.08,
+   "end": 571.16,
+   "speaker": "앤드류"
+  },
+  "slot_11_L11": {
+   "start": 571.16,
+   "end": 572.24,
+   "speaker": "밀리"
+  },
+  "slot_11_L12": {
+   "start": 572.24,
+   "end": 573.786,
+   "speaker": "앤드류"
+  },
+  "slot_11_L13": {
+   "start": 576.839,
+   "end": 578.76,
+   "speaker": "앤드류"
+  },
+  "slot_11_L14": {
+   "start": 578.76,
+   "end": 579.96,
+   "speaker": "밀리"
+  },
+  "slot_11_L15": {
+   "start": 579.96,
+   "end": 581.16,
+   "speaker": "앤드류"
+  },
+  "slot_11_L16": {
    "start": 581.96,
    "end": 583.4,
    "speaker": "앤드류"
