@@ -2330,6 +2330,63 @@ function sliceCueForLine(cue, line) {
   return [roundSec(cueStart + cueDur * startFrac), roundSec(cueStart + cueDur * endFrac)];
 }
 
+// An exchange only reads as an exchange if the viewer hears it as one. Selecting the "best" lines
+// inside a chosen span and dropping the rest leaves the recap playing line-jump-line: on the five
+// recap sources only 33-47% of the speech inside the selected spans was captioned, and the owner
+// could not follow the story from the result. Once a span is chosen, keep the whole conversation in
+// it - the lines in between are what make the picked ones mean anything.
+//
+// The span is the plan's own choice, so this spends the budget the plan already allocated (Draft
+// Day: 116s of dialogue planned, 33s rendered). Non-speech cues are skipped, and a slot is capped so
+// one runaway span cannot eat the whole recap.
+function fillDialogueExchangeGaps(focusLines, transcript, maxAddedPerSlot = 12) {
+  const lines = (Array.isArray(focusLines) ? focusLines : []).map((line) => String(line || '').trim()).filter(Boolean);
+  if (lines.length < 2) return { lines, added: 0 };
+  const cues = (Array.isArray(transcript) ? transcript : [])
+    .map((cue) => ({ start: Number(cue?.start_sec), end: Number(cue?.end_sec), text: String(cue?.text || '').trim() }))
+    .filter((cue) => Number.isFinite(cue.start) && Number.isFinite(cue.end) && cue.end > cue.start)
+    .sort((a, b) => a.start - b.start);
+  if (!cues.length) return { lines, added: 0 };
+
+  const key = (text) => normalizeComparableText(text);
+  const chosen = new Set(lines.map(key).filter(Boolean));
+  const indexOfLine = (line) => {
+    const wanted = key(line);
+    if (!wanted) return -1;
+    let best = -1;
+    let bestScore = 0;
+    cues.forEach((cue, index) => {
+      const cueKey = key(cue.text);
+      if (!cueKey) return;
+      const score = cueKey === wanted ? 1 : (cueKey.includes(wanted) || wanted.includes(cueKey) ? 0.7 : 0);
+      if (score > bestScore) { bestScore = score; best = index; }
+    });
+    return bestScore >= 0.7 ? best : -1;
+  };
+
+  const first = indexOfLine(lines[0]);
+  const last = indexOfLine(lines[lines.length - 1]);
+  if (first < 0 || last < 0 || last <= first) return { lines, added: 0 };
+
+  const out = [];
+  let added = 0;
+  for (let i = first; i <= last && added < maxAddedPerSlot; i += 1) {
+    const text = cues[i].text;
+    const cueKey = key(text);
+    // Sound-effect and speaker-marker-only cues carry no line to caption.
+    if (!cueKey || cueKey.split(/\s+/).filter(Boolean).length < 2) continue;
+    if (chosen.has(cueKey)) { out.push(text); continue; }
+    if (lines.some((line) => key(line) === cueKey)) { out.push(text); continue; }
+    out.push(text);
+    added += 1;
+  }
+  // Anything the plan picked outside the span (a replayed line) stays.
+  for (const line of lines) {
+    if (!out.some((existing) => key(existing) === key(line))) out.push(line);
+  }
+  return { lines: out.length >= lines.length ? out : lines, added };
+}
+
 function resolveDialogueLineWindows(transcript, windowStartSec, windowEndSec, lines, hardMaxSec, nextBoundarySec) {
   const start = Number(windowStartSec);
   const end = Number(windowEndSec);
@@ -4006,6 +4063,12 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec, usableEndSec =
         // Compute per-line source windows ONCE here; Phase 2 transcript + slot_map both
         // read these exact stored numbers (single source of coordinates for each line).
         const nextBeatStart = sortedBeatStarts.find((startSec) => startSec > Number(beat.end_sec) + 0.001);
+        // Keep the exchange whole before resolving windows: the captions the fills step writes are
+        // one per focus line, so a line added here is a line the viewer actually gets to read.
+        const filled = process.env.MIDFORM_KEEP_EXCHANGE === '0'
+          ? { lines: focus.lines, added: 0 }
+          : fillDialogueExchangeGaps(focus.lines, transcript);
+        if (filled.added > 0) focus.lines = filled.lines;
         const readable = resolveReadableDialogueWindows(transcript, focus, beat.end_sec, nextBeatStart, requiredAnchors);
         const lineResolution = readable.resolution;
         next.dialogue_focus_quotes = readable.focus.matched_quotes || readable.focus.lines;
@@ -6399,6 +6462,7 @@ module.exports = {
   resolveCompressionRunDir,
   extractTimedTranscript,
   parseVtt,
+  fillDialogueExchangeGaps,
   extractHeatmap,
   _test: {
     clampColdOpenToTeaser,
