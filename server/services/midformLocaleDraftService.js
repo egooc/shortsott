@@ -88,6 +88,23 @@ function rangeDuration(range) {
   return Math.max(0, Number(range?.[1] || 0) - Number(range?.[0] || 0));
 }
 
+// The gate allows a reframe within the planned scene (its window plus 8s of tolerance) but not a
+// move to another one. Slide the range back inside rather than truncating it, so the clip keeps the
+// length the packer gave it.
+function clampToSemanticScene(range, originRange, toleranceSec = 8) {
+  const start = Number(range?.[0]);
+  const end = Number(range?.[1]);
+  const originStart = Number(originRange?.[0]);
+  const originEnd = Number(originRange?.[1]);
+  if (![start, end, originStart, originEnd].every(Number.isFinite) || end <= start) return range;
+  const lo = Math.max(0, originStart - toleranceSec);
+  const hi = originEnd + toleranceSec;
+  const duration = end - start;
+  if (start >= lo && end <= hi) return range;
+  const nextStart = Math.max(lo, Math.min(start, hi - duration));
+  return [Number(nextStart.toFixed(3)), Number((nextStart + duration).toFixed(3))];
+}
+
 function shiftedSourceRange(range, shiftSec, sourceDurationSec = 0) {
   const duration = rangeDuration(range);
   if (!(duration > 0)) return [0, 0];
@@ -159,7 +176,13 @@ function replanJaDraftSpecForFinalOverlap(draftSpec, finalOverlapReport, attempt
       // The packer's scene bounds must anchor to the ORIGINAL window: re-basing them on the
       // replanned range let +8 replan and +8 packer tolerance compound into 25s of drift.
       semantic_origin_range: Array.isArray(placement.semantic_origin_range) ? placement.semantic_origin_range : sourceRange,
-      source_range: shiftedSourceRange(sourceRange, replanShift, sourceDurationSec),
+      // ...and the cap alone was not enough: a shift applied to an already-shifted range walked ja
+      // slot_006 to 367.0-370.5 against a plan window of 351.7-360.1, which the b-roll bounds gate
+      // rejects as another scene. Hold the result inside the ORIGINAL window's tolerance.
+      source_range: clampToSemanticScene(
+        shiftedSourceRange(sourceRange, replanShift, sourceDurationSec),
+        Array.isArray(placement.semantic_origin_range) ? placement.semantic_origin_range : sourceRange
+      ),
       final_draft_replan_reason: overlappingClipIds.size ? 'shared_contiguous_overlap' : 'final_overlap_threshold',
       final_draft_replan_attempt: attempt
     };

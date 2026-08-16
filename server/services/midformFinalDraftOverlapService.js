@@ -196,11 +196,15 @@ function compareFinalDraftClipChains(koChain, jaChain, thresholds = THRESHOLDS, 
   // exchanges were restored the whole cold open became dialogue, similarity read 1.0, and the gate
   // failed builds for obeying the invariant the recap rests on. Measure only what the locales could
   // actually have chosen differently.
-  const koOpeningFree = koOpening.filter((clip) => !isFixedWindowClip(clip));
-  const jaOpeningFree = jaOpening.filter((clip) => !isFixedWindowClip(clip));
-  const openingSimilarity = (koOpeningFree.length < 2 || jaOpeningFree.length < 2)
+  // A 0.03s shard left by a cut is not an editorial choice, and counting it as a second free clip
+  // defeated the too-few-samples exemption above: Draft Day's outsmart opening had one real b-roll
+  // plus a sliver, read 1.0, and failed a build whose opening had nothing left to differentiate.
+  const realOpening = (clips) => clips.filter((clip) => (Number(clip.source_range?.[1] || 0) - Number(clip.source_range?.[0] || 0)) >= 0.3);
+  const koOpeningReal = realOpening(koOpening);
+  const jaOpeningReal = realOpening(jaOpening);
+  const openingSimilarity = (koOpeningReal.length < 2 || jaOpeningReal.length < 2)
     ? 0
-    : lcsSimilarity(koOpeningFree.map(signatureForClip), jaOpeningFree.map(signatureForClip));
+    : lcsSimilarity(koOpeningReal.map(signatureForClip), jaOpeningReal.map(signatureForClip));
   const overlapRatio = sourceRangeOverlapRatio(koChain, jaChain);
   // Same principle as chain similarity: pinned dialogue/hook windows play in both locales
   // in story order BY DESIGN - on a dialogue-heavy source they ARE the top highlights and
