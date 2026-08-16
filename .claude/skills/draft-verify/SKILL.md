@@ -79,7 +79,13 @@ node  midform/scripts/clip_baseline.js check <draft_ko>/edit_manifest.json \
   `containment_split`(꼬리를 이웃 자막이 담음 — 정상).
 - **의도한 편집이면** 기준선을 다시 쓰고(`clip_baseline.js write`) 그 변경과 함께 커밋한다. 기준선 없이
   설치하면 조용한 계보 폴백·게이트 실패본 설치를 다시 놓친다(둘 다 실사고).
-- 소스당 정렬은 CPU로 10~30분 걸린다. 배치로 돌리고 기다릴 것.
+- 컷 조각까지 보려면 `--shots <run>/source.mp4.shot_boundaries.json`을 함께 준다(클립 경계가 컷을
+  0.25초 이내로 넘어 이웃 샷 조각을 물면 `shot_sliver` 경고).
+- **사람 눈은 약한 것만 본다**: `verify_dialogue_clips.js ... --json verify.json` 후
+  `node midform/scripts/build_review_contact_sheet.js verify.json <compress>/source.mp4 <out_dir> --top 5`.
+  판정이 못 보는 것(말하는 사람이 화면에 있는지, 컷이 자연스러운지)만 프레임으로 확인한다.
+- 소스당 정렬은 CPU로 10~30분 걸린다. 배치로 돌리고 기다릴 것. 클립 구간이 바뀌어도 **정렬은 오디오의
+  함수**라 재사용할 수 있다 — 경계만 바꾼 재빌드에는 재정렬이 필요 없다.
 - 판정을 못 믿을 근거(`ambiguous`, `weak_tokens`, 신뢰도<0.6)가 붙은 줄은 **경고만** 낸다.
   발견 사례와 오탐 3종은 `midform/docs/dialogue-clip-findings.md`.
 
