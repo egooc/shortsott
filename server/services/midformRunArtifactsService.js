@@ -606,6 +606,37 @@ async function collectRunArtifacts({
   };
 }
 
+// A recap line has to carry the STORY - what happened, what it cost, what turns next. A line that
+// merely says what is on screen ("두 여자가 넓은 부엌에서 이야기를 나눕니다") tells the viewer what
+// they are already looking at and leaves the arc to be inferred. Housemaid shipped three of those:
+// the machine eye's suggested_rewrite is frame-truth EVIDENCE, and pasting it in as narration turns
+// the recap into a caption track. This catches that shape before it ships.
+const DESCRIPTIVE_SUBJECT = /(남성|여성|남자|여자|사람|인물|두 사람|두 여자|두 남자)(이|가|은|는|들이|들은)/;
+const DESCRIPTIVE_PREDICATE = /(서 ?있|앉아 ?있|누워 ?있|서 있습니다|보입니다|보여집니다|나타납니다|움직입니다|이야기를 나눕니다|대화를 나눕니다|바라봅니다|걸어갑니다|들고 ?있|입고 ?있)/;
+const STORY_MARKER = /(그러나|하지만|결국|그래서|그날|그 밤|이제|처음|마지막|때문|덕분|위해|하기로|버립니다|잃|숨기|드러|밝혀|시작|끝|선택|결정|대가|약속|배신|거짓)/;
+
+function narrationReadsAsScreenDescription(text) {
+  const line = String(text || '').trim();
+  if (!line) return false;
+  // A named character or an explicit story move is enough to clear it: those sentences are about
+  // the story even when they also happen to describe the frame.
+  if (STORY_MARKER.test(line)) return false;
+  if (!DESCRIPTIVE_PREDICATE.test(line)) return false;
+  return DESCRIPTIVE_SUBJECT.test(line) || /^[^가-힣]*(A |The )?(man|woman|young|two)/i.test(line);
+}
+
+// Slots the planner filled from fallback metadata rather than a beat it actually found tend to have
+// nothing to say, which is where description creeps in. Reported so they can be cut rather than
+// written around - subtraction is the house rule.
+function fallbackNarrationSlots(editPlan) {
+  const out = [];
+  for (const item of (editPlan && Array.isArray(editPlan.timeline) ? editPlan.timeline : [])) {
+    if (item?.decision !== 'NARRATE') continue;
+    if (/Fallback local planner/i.test(String(item.reason || ''))) out.push(String(item.slot_id || ''));
+  }
+  return out;
+}
+
 // Post-locale semantic evaluation (owner directive: the machine must catch narration-visual
 // mismatch, not the human). Runs AFTER locale drafts exist: frames from each recap slot's
 // actually played window, judged against its narration by the vision model. Updates
@@ -760,7 +791,11 @@ async function evaluateFinalLocaleGates({ workspaceDir, pipelineRunDir, sourceVi
     // ONE surgery + ONE rebuild instead of N. Group by slot; ja/ko share a slot row.
     try {
       const lines = ['# 나레이션-화면 불일치 (전체) — 한 번에 수술하고 재빌드', '',
-        '각 문장을 `suggested_rewrite`(화면 사실 기반 제안)를 참고해 **compress fills에서 모두 고친 뒤 한 번만** 재빌드한다. 하나씩 재빌드하면 판정 토큰을 매번 다시 쓴다.', ''];
+        '`suggested_rewrite`는 **화면에 무엇이 있는지에 대한 증거이지 대체 문장이 아니다.** 그대로 붙여넣으면',
+        '나레이션이 자막으로 퇴화한다(실사고: "두 여자가 넓은 부엌에서 이야기를 나눕니다"). 화면 사실을 근거로',
+        '**사건·전제·대가**를 말하는 문장으로 다시 쓴다 — 관객이 이미 보는 것 말고, 무슨 일이 일어났는지를.',
+        '그래도 할 말이 없는 슬롯이면 문장을 고치지 말고 **그 슬롯을 덜어낸다**(뺄셈이 하우스 규칙).',
+        '모든 문장을 **compress fills에서 한 번에** 고친 뒤 재빌드 1회. 하나씩 재빌드하면 판정 토큰을 매번 다시 쓴다.', ''];
       for (const issue of issues) {
         lines.push(`## [${issue.locale}] ${issue.segment_id}`);
         lines.push(`- 현재 문장: ${issue.sentence || slotText.get(issue.segment_id) || ''}`);
@@ -771,12 +806,45 @@ async function evaluateFinalLocaleGates({ workspaceDir, pipelineRunDir, sourceVi
       fs.writeFileSync(path.join(workspaceDir, 'narration_mismatch_report.md'), `${lines.join('\n')}\n`, 'utf8');
     } catch { /* report is best-effort */ }
   }
+  // Structural guard, independent of the vision judge: narration that only describes the frame.
+  try {
+    const descriptive = [];
+    for (const locale of ['ko', 'ja']) {
+      const manifestPath = path.join(workspaceDir, `draft_${locale}`, 'edit_manifest.json');
+      if (!fs.existsSync(manifestPath)) continue;
+      const manifest = readJson(manifestPath);
+      const seen = new Set();
+      for (const segment of manifest.segments || []) {
+        if (segment.segment_type !== 'recap' || seen.has(segment.segment_id)) continue;
+        seen.add(segment.segment_id);
+        const text = String(segment.narration || segment.caption_text || '');
+        if (narrationReadsAsScreenDescription(text)) descriptive.push({ locale, segment_id: segment.segment_id, sentence: text.slice(0, 80) });
+      }
+    }
+    const planPath = path.join(pipelineRunDir || '', 'edit_plan.json');
+    const fallbackSlots = fs.existsSync(planPath) ? fallbackNarrationSlots(readJson(planPath)) : [];
+    gates.results = (gates.results || []).filter((entry) => entry.id !== 'narration_is_story_not_caption');
+    gates.failed = (gates.failed || []).filter((id) => id !== 'narration_is_story_not_caption');
+    gates.results.push({
+      id: 'narration_is_story_not_caption',
+      status: descriptive.length ? 'fail' : 'pass',
+      descriptive,
+      fallback_planner_narration_slots: fallbackSlots,
+    });
+    if (descriptive.length) {
+      gates.failed.push('narration_is_story_not_caption');
+      gates.status = 'failed';
+    }
+  } catch { /* structural guard is best-effort */ }
+
   writeJson(acceptanceFile, gates);
   return { status, judged, issues };
 }
 
 module.exports = {
   evaluateFinalLocaleGates,
+  narrationReadsAsScreenDescription,
+  fallbackNarrationSlots,
   collectRunArtifacts,
   copyIfExists,
   ensureDir,
