@@ -2356,7 +2356,11 @@ function fillDialogueExchangeGaps(focusLines, transcript, maxAddedPerSlot = 12) 
     const previous = cues[cues.length - 1];
     const previousEnded = previous ? /[.!?…]["')\]]?\s*$/.test(previous.text) : true;
     const gap = previous ? cue.start - previous.end : Infinity;
-    if (!previous || startsSpeaker || previousEnded || gap > 1.2) {
+    // Rolling captions run end-to-end, so a gap almost never appears and only some speaker changes
+    // carry a ">>". A censored token swallows the sentence end ("All the psycho mom [__]") and the
+    // reply glued onto the question. Cap the merge so a missed boundary costs one line, not a scene.
+    const tooLong = previous && previous.text.split(/\s+/).filter(Boolean).length >= 16;
+    if (!previous || startsSpeaker || previousEnded || tooLong || gap > 1.2) {
       cues.push({ start: cue.start, end: cue.end, text: cue.text });
     } else {
       previous.text = `${previous.text} ${cue.text}`.replace(/\s+/g, ' ').trim();
