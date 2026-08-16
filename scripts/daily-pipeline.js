@@ -56,8 +56,26 @@ function runScorecardForLastJob() {
   }
 }
 
+// One harvest per day, whoever starts it. The scheduled run is not the only way
+// this script gets invoked, and a second harvest on the same day imports another
+// full day of sources on top of a batch that is still working through the first
+// - far more than the line can analyse. The report is the record that today's
+// harvest already happened.
+function harvestAlreadyRanToday(reportPath) {
+  try {
+    return fs.readFileSync(reportPath, 'utf8').includes('## 오늘 소재 수집');
+  } catch {
+    return false;
+  }
+}
+
 async function main() {
   const startedAt = new Date();
+  const reportPath = path.join(REPORTS_DIR, `${dateStamp(startedAt)}.md`);
+  if (harvestAlreadyRanToday(reportPath) && !process.argv.includes('--force')) {
+    console.log(`daily pipeline already harvested today (${reportPath}); skipping. Use --force to override.`);
+    return;
+  }
   const lines = [`# 데일리 파이프라인 리포트 ${dateStamp(startedAt)}`, ''];
 
   // 1. Yesterday's scorecard
@@ -121,7 +139,6 @@ async function main() {
   }
 
   fs.mkdirSync(REPORTS_DIR, { recursive: true });
-  const reportPath = path.join(REPORTS_DIR, `${dateStamp(startedAt)}.md`);
   fs.writeFileSync(reportPath, `${lines.join('\n')}\n`, 'utf8');
   console.log(`daily pipeline done: ${reportPath}`);
 }
