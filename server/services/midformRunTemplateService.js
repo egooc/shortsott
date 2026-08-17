@@ -719,7 +719,12 @@ async function runMidformTemplateWorkflow(options = {}) {
           run_id: bootstrapSourceRunId,
           failed_checks: (preflight.preflight?.checks || []).filter((check) => !check.ok).map((check) => check.name)
         };
-        const fallback = await findBootstrapableCompressionFallback(normalizedRequest.source.url, compressionRunId);
+        // A PINNED run may never fall back: the pin exists precisely because the owner said "build
+        // from THIS plan". Falling back with a warning is how a rebuilt Housemaid ending quietly
+        // shipped last night's cut with a fabricated closer while every summary said "passed".
+        const fallback = options.bootstrapRun
+          ? null
+          : await findBootstrapableCompressionFallback(normalizedRequest.source.url, compressionRunId);
         if (fallback) {
           bootstrapSourceRunId = fallback.runId;
           bootstrapSourceRunDir = fallback.runDir;
