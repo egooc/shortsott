@@ -636,6 +636,13 @@ function trimDialogueWindowsToSpeech(editPlan, speechRanges, sourceDurationSec =
       }
       const inside = ranges.filter(([rangeStart, rangeEnd]) => rangeEnd > start + 0.05 && rangeStart < end - 0.05);
       if (!inside.length) continue;
+      // Only an over-long window has padding to give back. A window already no longer than its own
+      // words need is not a lingering caption, so every quiet stretch inside it is a pause in the
+      // delivery - and cutting there removes speech: Draft Day's "I mean, we're not seriously
+      // considering anybody else, right?" (9 words in 1.81s of window) was cut at 448.58 and shipped
+      // without "else, right?". The word count is independent of both the audio and the cue timing.
+      const spokenWordCount = String(win.line || '').trim().split(/\s+/).filter(Boolean).length;
+      if (spokenWordCount > 0 && (end - start) <= spokenWordCount / DIALOGUE_WORDS_PER_SEC) continue;
       // Energy detection is a proxy for speech, and a quiet delivery under a score reads as
       // silence: it cut a full second off the head of "How can I help you?" and the line shipped
       // starting inside its second word. Forced alignment puts the head dead air at 0.05s median,

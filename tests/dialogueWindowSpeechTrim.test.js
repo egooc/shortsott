@@ -117,3 +117,38 @@ test('a window that starts past the end is left for the caller rather than inver
   const win = plan.timeline[0].dialogue_line_windows[0];
   assert.ok(win.end_sec > win.start_sec, 'never produce an inverted window');
 });
+
+// A window no longer than its own words need has no padding to give back, so a quiet stretch
+// inside it is a pause in the delivery - not caption lag. Draft Day's "I mean, we're not seriously
+// considering anybody else, right?" (9 words, 1.81s window) was cut at the detector's 448.58 and
+// shipped without "else, right?".
+test('a window already as short as its words need is not trimmed by the detector', () => {
+  const plan = {
+    timeline: [{
+      slot_id: 'slot_008',
+      decision: 'KEEP_DIALOGUE',
+      dialogue_line_windows: [{
+        matched: true,
+        line: "I mean, we're not seriously considering anybody else, right?",
+        start_sec: 447.549,
+        end_sec: 449.36
+      }]
+    }]
+  };
+  const result = trimDialogueWindowsToSpeech(plan, [[446.5, 448.58]], 600);
+  assert.equal(result.trimmed, 0);
+  assert.equal(plan.timeline[0].dialogue_line_windows[0].end_sec, 449.36);
+});
+
+test('a caption that lingers long past its words is still trimmed', () => {
+  const plan = {
+    timeline: [{
+      slot_id: 'slot_1',
+      decision: 'KEEP_DIALOGUE',
+      dialogue_line_windows: [{ matched: true, line: 'Just five words right here', start_sec: 100, end_sec: 130 }]
+    }]
+  };
+  trimDialogueWindowsToSpeech(plan, [[100.2, 102.4]], 600);
+  const win = plan.timeline[0].dialogue_line_windows[0];
+  assert.ok(win.end_sec < 103, `the 30s cue must still come back to the speech, got ${win.end_sec}`);
+});
