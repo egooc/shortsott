@@ -28,7 +28,10 @@ for structured output.
   ones return nothing rather than a false pass.
 - **Several Fulls from one source** — a Full is one video per source. Regenerating
   one makes a new dated folder from the same source, and nineteen videos went out
-  across three sources before anyone noticed.
+  across three sources before anyone noticed. Two of them waiting in the buffer
+  is the dangerous case: the uploader only treats a source as spent once one has
+  been published, so until then the pair looks like two ordinary videos in the
+  queue and goes out on consecutive turns.
 
 ## Reading the result
 

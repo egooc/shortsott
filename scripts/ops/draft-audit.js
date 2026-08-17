@@ -92,6 +92,11 @@ for (const name of fs.readdirSync(DRAFTS).sort()) {
   rows.push({ name, item, is_full: isFull, duration_sec: duration, title: m.upload_title || '', problems });
 }
 
+// Two Fulls from one source sitting in the buffer is the shape that reaches the
+// channel as a duplicate: the uploader only knows a source is spent once one of
+// them has been published, so the pair looks like two ordinary videos waiting
+// their turn (2026-08-17, item_067 - two Fulls built 28 minutes apart before the
+// producer learned not to build while a batch is running).
 const dupSources = [...bySource.entries()].filter(([, list]) => list.length > 1);
 const flagged = rows.filter((r) => r.problems.length);
 
