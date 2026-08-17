@@ -370,6 +370,7 @@ function publicProfile(profile) {
     oauthRedirectUri: profile.oauthRedirectUri || DEFAULT_REDIRECT_URI,
     maskedRefreshToken: maskSecret(profile.refreshToken || ''),
     maskedOAuthClientSecret: maskSecret(profile.oauthClientSecret || ''),
+    retired: profile.retired === true,
     createdAt: profile.createdAt || '',
     updatedAt: profile.updatedAt || ''
   };
@@ -515,6 +516,14 @@ function normalizeProfileOauthInput(patch = {}, previousProfile = {}) {
   }
   if (Object.prototype.hasOwnProperty.call(patch, 'oauthRedirectUri')) {
     next.oauthRedirectUri = String(patch.oauthRedirectUri || '').trim() || DEFAULT_REDIRECT_URI;
+  }
+  // Retiring a profile is how a channel is switched: the replacement is
+  // authorized as its own profile and the old one is stood down rather than
+  // overwritten, since a profile's refresh token is not recoverable once lost.
+  // Without this the flag was silently dropped and the uploader kept choosing the
+  // retired channel (2026-08-18).
+  if (Object.prototype.hasOwnProperty.call(patch, 'retired')) {
+    next.retired = patch.retired === true;
   }
 
   return next;

@@ -122,10 +122,21 @@ function profileFor(channel) {
   const wantKo = channel === 'kr';
   // listYouTubeUploadProfiles redacts the token itself and exposes
   // hasRefreshToken instead, so the connected check reads that flag.
-  return list.find((p) => {
+  const candidates = list.filter((p) => {
     const isKo = String(p.purpose || '').startsWith('ko');
-    return isKo === wantKo && p.hasRefreshToken;
-  }) || null;
+    return isKo === wantKo && p.hasRefreshToken && p.retired !== true;
+  });
+  if (!candidates.length) return null;
+  // Switching a channel means a second connected profile for the same language,
+  // and picking whichever the list happened to return first would decide it by
+  // accident. retired:true takes the old one out, and the newest connection wins
+  // among what is left - so authorizing the replacement is what switches the
+  // channel, and the old profile is kept rather than overwritten.
+  candidates.sort((a, b) => String(b.updatedAt || b.createdAt || '').localeCompare(String(a.updatedAt || a.createdAt || '')));
+  if (candidates.length > 1) {
+    console.log(`note: ${candidates.length} connected ${channel} profiles; using the newest (${candidates.map((p) => p.channelTitle || p.name).join(' / ')})`);
+  }
+  return candidates[0];
 }
 
 function readyVideos() {
