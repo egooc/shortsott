@@ -316,9 +316,12 @@ async function collectRunArtifacts({
         loudness.raw_delta_lu = loudness.delta_lu;
         loudness.video_gain_db = alignment.video_gain_db;
         loudness.tts_cut_db = alignment.tts_cut_db;
+        // Corrections run in both directions now: narration can be lifted and the video cut when the
+        // narration is the quieter side.
+        const narrationDb = Number(alignment.tts_gain_db || 0) - Number(alignment.tts_cut_db || 0);
+        const videoDb = Number(alignment.video_gain_db || 0) - Number(alignment.video_cut_db || 0);
         loudness.delta_lu = Number(Math.abs(
-          (loudness.narration_lufs - Number(alignment.tts_cut_db || 0))
-          - (loudness.dialogue_lufs + Number(alignment.video_gain_db || 0))
+          (loudness.narration_lufs + narrationDb) - (loudness.dialogue_lufs + videoDb)
         ).toFixed(1));
       }
     } catch { /* unaligned measurement stands */ }

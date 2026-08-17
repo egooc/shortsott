@@ -144,3 +144,46 @@ test('a slot where nothing matched keeps its lines rather than emptying', () => 
   }]);
   assert.equal(out[0].dialogue_focus_lines.length, 1);
 });
+
+// caption_source_lines records the line each caption was written for. After a refresh or a runtime
+// shave, position N in the caption array stops meaning line N - Housemaid night's slot_07 shipped every
+// caption one line off, so Andrew's answer carried Nina's objection.
+test('a caption is found by the line it was written for, not by position', () => {
+  const plan = {
+    timeline: [{
+      slot_id: 'slot_07',
+      role: 'body',
+      decision: 'KEEP_DIALOGUE',
+      estimated_duration_sec: 6,
+      // The plan lost one line since the captions were written.
+      dialogue_focus_lines: ['Milly booked tickets for a weekend.', '>> I do not think that is a thing.', 'You do not have to pay for anything.'],
+      dialogue_focus_quotes: ['Milly booked tickets for a weekend.'],
+      dialogue_line_windows: [
+        { matched: true, line: 'Milly booked tickets for a weekend.', start_sec: 293.51, end_sec: 298.6 },
+        { matched: true, line: '>> I do not think that is a thing.', start_sec: 304.32, end_sec: 305.6 },
+        { matched: true, line: 'You do not have to pay for anything.', start_sec: 305.6, end_sec: 310.24 }
+      ]
+    }]
+  };
+  const fills = {
+    slot_fills: [{
+      slot_id: 'slot_07',
+      caption_kr_dialogue: ['밀리가 표를 예매했어요.', '카드사에 전화하면 돼.', '그게 될 리가 없잖아요.', '아무것도 낼 필요 없어요.'],
+      caption_source_lines: [
+        'Milly booked tickets for a weekend.',
+        '>> No, she does not. We will call the credit card company.',
+        '>> I do not think that is a thing.',
+        'You do not have to pay for anything.'
+      ],
+      speakers: ['니나', '앤드류', '니나', '앤드류']
+    }]
+  };
+  const { script, uncaptionedDialogueLines } = buildBootstrapSlotMapAndScript(plan, fills, { sourceDurationSec: 600 });
+  const texts = script.segments
+    .filter((segment) => segment.segment_type === 'dialogue_quote')
+    .sort((left, right) => (left.timeline_start_sec ?? 0) - (right.timeline_start_sec ?? 0))
+    .map((segment) => String(segment.narration || segment.caption_text || ''));
+  assert.deepEqual(uncaptionedDialogueLines, []);
+  assert.ok(texts[1].includes('될 리가 없'), `second line keeps its own caption, got ${texts[1]}`);
+  assert.ok(texts[2].includes('낼 필요 없'), `third line keeps its own caption, got ${texts[2]}`);
+});

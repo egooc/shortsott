@@ -911,7 +911,13 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
       // the surviving line read caption[1] of a one-caption slot, came out captionless, and a
       // captionless dialogue segment does not survive to the timeline. Find the caption by the
       // line's TEXT; identical lists resolve to the same index they always did.
-      const focusLines = Array.isArray(item.dialogue_focus_lines) ? item.dialogue_focus_lines : [];
+      // caption_source_lines records the exact line each caption was written for, so it outranks the
+      // plan's current focus list: the plan keeps changing which lines survive, and after a refresh or
+      // a runtime shave position N in the caption array stopped meaning line N (The Housemaid night's
+      // slot_07 shipped every caption one line off, so Andrew's answer carried Nina's objection).
+      const focusLines = Array.isArray(fill.caption_source_lines) && fill.caption_source_lines.length
+        ? fill.caption_source_lines
+        : (Array.isArray(item.dialogue_focus_lines) ? item.dialogue_focus_lines : []);
       const captionIndexForLine = (line, fallbackIndex) => {
         const wanted = normalizeCaptionTokens(line).join(' ');
         if (wanted) {

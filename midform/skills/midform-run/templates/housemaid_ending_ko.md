@@ -5,7 +5,7 @@ source:
   url: "https://www.youtube.com/watch?v=5qWm_kVDhQQ"
   content_type: movie_midform_recap
 output:
-  target_length_sec: 165
+  target_length_sec: 180
 review:
   pause_before_tts: true
 subtitle_limits:
@@ -34,7 +34,7 @@ render:
 
 # Source
 - clip url: https://www.youtube.com/watch?v=5qWm_kVDhQQ
-- target length: 165s (상한)
+- target length: 180s (상한)
 - title: Nina and Millie's Twisted Ending (Full Scene) | The Housemaid
 - source audio language: English
 - subtitle source: 자동자막 (en) — 게이트 프레임 대조 필수

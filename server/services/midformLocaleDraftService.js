@@ -953,7 +953,11 @@ function buildJapaneseScript(baseScript, japaneseSlotFills) {
     if (segmentType === 'scene_hook') return { ...segment };
     const narration = String(fill.narration || '').trim();
     const caption = String(fill.caption_kr || '').trim() || narration;
-    if (!narration) missing.push(String(segment?.segment_id || ''));
+    // Same rule the dialogue branch already uses: a ja blank is only MISSING when the ko segment has
+    // text. A KEEP_DIALOGUE slot can still carry an empty narration segment in the ko script, and
+    // treating that as untranslated skipped the whole Japanese locale over a segment with nothing in it.
+    const koNarration = String(segment?.narration || segment?.caption_text || '').trim();
+    if (!narration && koNarration) missing.push(String(segment?.segment_id || ''));
     return { ...segment, narration, caption_text: caption, translated_caption_ko: '' };
   });
   if (missing.length) {
@@ -1050,18 +1054,40 @@ function computeLoudnessAlignment(baseInput, sourceVideoPath) {
     const maxTtsCut = Number(process.env.MIDFORM_MAX_TTS_CUT_DB) > 0 ? Number(process.env.MIDFORM_MAX_TTS_CUT_DB) : 6;
     const videoGainDb = needed > 1 ? Number(Math.min(maxVideoGain, needed).toFixed(1)) : 0;
     const ttsCutDb = needed > 1 ? Number(Math.min(maxTtsCut, Math.max(0, needed - videoGainDb)).toFixed(1)) : 0;
-    return { narration_lufs: narrationLufs, dialogue_lufs: dialogueLufs, delta_lu: Number((narrationLufs - dialogueLufs).toFixed(1)), video_gain_db: videoGainDb, tts_cut_db: ttsCutDb };
+    // The other direction was a blind spot: this only ever quietened a narration that was too LOUD, so
+    // a narration mixed 6.3 LU under the dialogue (Housemaid night) stayed inaudible at the seams and
+    // the loudness gate failed the render with nothing able to fix it. Correct it the same way, in
+    // reverse: cut the source video first (no clipping risk), then lift the TTS a little if needed.
+    const deficit = (dialogueLufs - narrationLufs) - 3;
+    const maxVideoCut = Number(process.env.MIDFORM_MAX_VIDEO_CUT_DB) > 0 ? Number(process.env.MIDFORM_MAX_VIDEO_CUT_DB) : 6;
+    const maxTtsGain = Number(process.env.MIDFORM_MAX_TTS_GAIN_DB) > 0 ? Number(process.env.MIDFORM_MAX_TTS_GAIN_DB) : 3;
+    const videoCutDb = deficit > 1 ? Number(Math.min(maxVideoCut, deficit).toFixed(1)) : 0;
+    const ttsGainDb = deficit > 1 ? Number(Math.min(maxTtsGain, Math.max(0, deficit - videoCutDb)).toFixed(1)) : 0;
+    return {
+      narration_lufs: narrationLufs,
+      dialogue_lufs: dialogueLufs,
+      delta_lu: Number((narrationLufs - dialogueLufs).toFixed(1)),
+      video_gain_db: videoGainDb,
+      tts_cut_db: ttsCutDb,
+      video_cut_db: videoCutDb,
+      tts_gain_db: ttsGainDb
+    };
   } catch {
     return null;
   }
 }
 
 function applyLoudnessAlignment(draftContentPath, alignment) {
-  if (!alignment || !(alignment.video_gain_db > 0 || alignment.tts_cut_db > 0)) return false;
+  const anyCorrection = alignment && (alignment.video_gain_db > 0 || alignment.tts_cut_db > 0
+    || alignment.video_cut_db > 0 || alignment.tts_gain_db > 0);
+  if (!anyCorrection) return false;
   if (!draftContentPath || !fs.existsSync(draftContentPath)) return false;
   const content = readJson(draftContentPath);
-  const videoFactor = 10 ** (alignment.video_gain_db / 20);
-  const ttsFactor = 10 ** (-alignment.tts_cut_db / 20);
+  // One factor per track, so a correction in either direction is the same operation.
+  const videoDb = Number(alignment.video_gain_db || 0) - Number(alignment.video_cut_db || 0);
+  const ttsDb = Number(alignment.tts_gain_db || 0) - Number(alignment.tts_cut_db || 0);
+  const videoFactor = 10 ** (videoDb / 20);
+  const ttsFactor = 10 ** (ttsDb / 20);
   let touched = 0;
   for (const track of (Array.isArray(content?.tracks) ? content.tracks : [])) {
     const name = String(track?.name || '');

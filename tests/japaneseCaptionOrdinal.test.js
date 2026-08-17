@@ -31,3 +31,20 @@ test('a ko-empty dialogue line may stay empty in ja', () => {
   );
   assert.equal(script.segments[0].caption_text, '');
 });
+
+// A KEEP_DIALOGUE slot can still leave an empty narration segment in the ko script; treating that as
+// untranslated skipped the entire Japanese locale over a segment with nothing in it.
+test('an empty ko narration segment does not skip the locale', () => {
+  const script = _test.buildJapaneseScript(
+    { segments: [{ segment_id: 'slot_01', segment_type: 'recap', narration: '', caption_text: '' }] },
+    { slot_fills: [{ slot_id: 'slot_01', narration: '', caption_kr: '' }] }
+  );
+  assert.equal(script.segments[0].narration, '');
+});
+
+test('a ko narration with text still demands a ja translation', () => {
+  assert.throws(() => _test.buildJapaneseScript(
+    { segments: [{ segment_id: 'slot_02', segment_type: 'recap', narration: '그날 밤이었습니다.', caption_text: '그날 밤이었습니다.' }] },
+    { slot_fills: [{ slot_id: 'slot_02', narration: '', caption_kr: '' }] }
+  ), /missing text/);
+});

@@ -137,7 +137,45 @@ test('a cold open over the teaser limit gives lines back instead of failing the 
   const finalized = _test.finalizeEditPlan(plan, beats, [], 170);
   const cold = finalized.timeline.find((item) => item.role === 'cold_open');
   assert.ok(cold.estimated_duration_sec <= 16, `teaser must fit, got ${cold.estimated_duration_sec}`);
-  assert.ok((cold.dialogue_line_windows || []).filter((entry) => entry.matched === true).length >= 1, 'and keep a line');
+  const kept = (cold.dialogue_line_windows || []).filter((entry) => entry.matched === true);
+  assert.ok(kept.length >= 1, 'and keep a line');
+  // The punch is the LAST line, so what gets given back is the setup at the front.
+  assert.equal(kept[kept.length - 1].line, 'five');
   // A small target so the toy plan is not also judged short - the teaser limit is what is under test.
   assert.doesNotThrow(() => _test.validateEditPlan(finalized, 20));
+});
+
+// The runtime shave used to eat the teaser's reveal and leave the reaction to it: Housemaid night's
+// cold open shipped as Millie's one-word "What?" with nothing to react to.
+test('the runtime shave never takes a line out of the cold open', () => {
+  const win = (start, end, line) => ({ matched: true, start_sec: start, end_sec: end, line });
+  const plan = {
+    editorial_pattern: 'none',
+    duration_budget: { target_sec: 20 },
+    timeline: [
+      {
+        slot_id: 'slot_01', beat_id: 'B001', role: 'cold_open', decision: 'KEEP_DIALOGUE',
+        estimated_duration_sec: 6,
+        dialogue_focus_lines: ['Nina Winchester tried to drown her kid in a bathtub.', 'What?'],
+        dialogue_focus_quotes: ['Nina Winchester tried to drown her kid in a bathtub.', 'What?'],
+        authored_lines: true,
+        dialogue_line_windows: [
+          win(167.72, 172.6, 'Nina Winchester tried to drown her kid in a bathtub.'),
+          win(172.6, 173.8, 'What?')
+        ]
+      },
+      { slot_id: 'slot_02', beat_id: 'B001', role: 'bridge', decision: 'NARRATE', estimated_duration_sec: 6 },
+      {
+        slot_id: 'slot_03', beat_id: 'B001', role: 'body', decision: 'KEEP_DIALOGUE', estimated_duration_sec: 40,
+        dialogue_focus_lines: ['a', 'b', 'c', 'd'], dialogue_focus_quotes: ['a', 'b', 'c', 'd'],
+        authored_lines: true,
+        dialogue_line_windows: [win(200, 210, 'a'), win(210, 220, 'b'), win(220, 230, 'c'), win(230, 240, 'd')]
+      }
+    ]
+  };
+  const beats = [{ beat_id: 'B001', start_sec: 160, end_sec: 245, dramatic_weight: 3, key_dialogue: [], anchor_dialogue: [] }];
+  const finalized = _test.finalizeEditPlan(plan, beats, [], 20);
+  const cold = finalized.timeline.find((item) => item.role === 'cold_open');
+  const lines = (cold.dialogue_line_windows || []).filter((entry) => entry.matched === true).map((entry) => entry.line);
+  assert.ok(lines.some((line) => line.includes('drown')), `the reveal must survive, got ${JSON.stringify(lines)}`);
 });

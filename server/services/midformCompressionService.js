@@ -3125,6 +3125,11 @@ function prepareColdOpenCallbackTimeline(timeline, editPlan, beats, transcript) 
   const coldIndex = nextTimeline.findIndex((item) => item.role === 'cold_open');
   if (coldIndex < 0) return nextTimeline;
   const cold = nextTimeline[coldIndex];
+  // An authored teaser is the owner's choice of hook; re-selecting one from the beats replaces it.
+  // The Housemaid night's teaser was set by hand to the reveal ("Nina Winchester tried to drown her
+  // kid in a bathtub.") and this pass swapped in an earlier exchange, which the 16s clamp then cut
+  // down to a bare "What?" - a reaction with nothing to react to.
+  if (cold.authored_lines === true) return nextTimeline;
   for (let index = 0; index < nextTimeline.length; index += 1) {
     if (index === coldIndex) continue;
     const isHookCallback = String(nextTimeline[index].beat_id || '').trim() === hookBeatId;
@@ -3480,6 +3485,9 @@ function fillUncaptionedCuesInsideCuts(timeline, transcript) {
   if (!cues.length) return Array.isArray(timeline) ? timeline : [];
   return (Array.isArray(timeline) ? timeline : []).map((item) => {
     if (item?.decision !== 'KEEP_DIALOGUE') return item;
+    // An authored slot's line set is a decision, not a draft: adopting more cues into it leaves those
+    // lines with no caption, which the preflight then blocks. The owner chose these lines.
+    if (item.authored_lines === true) return item;
     const windows = Array.isArray(item.dialogue_line_windows) ? item.dialogue_line_windows : [];
     const matched = windows.filter((win) => win && win.matched === true);
     if (matched.length < 2) return item;
@@ -3871,8 +3879,17 @@ function leadColdOpenWithStrongestLine(timeline) {
   const matched = windows.map((win, index) => ({ win, index })).filter((entry) => entry.win && entry.win.matched === true);
   if (matched.length < 2) return timeline;
 
+  // An authored teaser is the owner's choice of lines; reordering it by dropping some of them is not
+  // a reorder, it is an edit.
+  if (coldOpen.authored_lines === true) return timeline;
   const lines = Array.isArray(coldOpen.dialogue_focus_lines) ? coldOpen.dialogue_focus_lines : [];
-  const best = matched
+  const wordCount = (text) => String(text || '').trim().split(/\s+/).filter(Boolean).length;
+  // A bare reaction cannot open a cut: this pass keeps the line it picks and drops what came before it,
+  // so picking "What?" over "Nina Winchester tried to drown her kid in a bathtub." threw the reveal away
+  // and opened on someone reacting to nothing. Only lines that carry a statement are candidates.
+  const substantial = matched.filter((entry) => wordCount(lines[entry.index] || entry.win.line) >= 3);
+  const candidates = substantial.length ? substantial : matched;
+  const best = candidates
     .map((entry) => ({ ...entry, score: teaserQuoteScore(lines[entry.index] || entry.win.line || '') }))
     .sort((left, right) => right.score - left.score || left.index - right.index)[0];
   if (!best || best.index === matched[0].index) return timeline;
@@ -3908,21 +3925,33 @@ function clampColdOpenToTeaser(timeline) {
 
   if (isDialogue) {
     const windows = Array.isArray(coldOpen.dialogue_line_windows) ? coldOpen.dialogue_line_windows : [];
-    const matched = windows.filter((win) => win && win.matched !== false && Number.isFinite(Number(win.start_sec)));
+    const matched = windows
+      .filter((win) => win && win.matched !== false && Number.isFinite(Number(win.start_sec)))
+      .sort((left, right) => Number(left.start_sec) - Number(right.start_sec));
     if (matched.length > 1) {
-      const openStart = Number(matched[0].start_sec);
-      let keep = 1;
-      while (keep < matched.length && Number(matched[keep].end_sec) - openStart <= limit) keep += 1;
-      if (keep < matched.length) {
-        const dropped = new Set(matched.slice(keep));
-        coldOpen.dialogue_line_windows = windows.filter((win) => !dropped.has(win));
-        if (Array.isArray(coldOpen.dialogue_focus_lines)) coldOpen.dialogue_focus_lines = coldOpen.dialogue_focus_lines.slice(0, keep);
-        if (Array.isArray(coldOpen.dialogue_focus_quotes)) coldOpen.dialogue_focus_quotes = coldOpen.dialogue_focus_quotes.slice(0, keep);
-        const keptEnd = Number(matched[keep - 1].end_sec);
-        if (Number.isFinite(keptEnd) && keptEnd > openStart) {
-          coldOpen.start_sec = roundSec(openStart);
-          coldOpen.end_sec = roundSec(keptEnd);
-          coldOpen.estimated_duration_sec = roundSec(keptEnd - openStart);
+      // Trim from the FRONT. The teaser's punch is its last line - the reveal the whole cut is built
+      // to pay off - and keeping the first N lines threw it away: The Housemaid night's hook ("Nina
+      // Winchester tried to drown her kid in the bathtub.") was cut and the recap opened on the setup
+      // chatter leading up to it. A teaser may start mid-exchange; it may not lose its point.
+      const closeEnd = Number(matched[matched.length - 1].end_sec);
+      let firstKept = 0;
+      while (firstKept < matched.length - 1 && closeEnd - Number(matched[firstKept].start_sec) > limit) firstKept += 1;
+      if (firstKept > 0) {
+        const dropped = new Set(matched.slice(0, firstKept));
+        const keptWindows = windows.filter((win) => !dropped.has(win));
+        const keptText = new Set(keptWindows
+          .filter((win) => win && win.matched === true)
+          .map((win) => normalizeComparableText(win.line))
+          .filter(Boolean));
+        const keepByText = (list) => (Array.isArray(list) ? list : []).filter((line) => keptText.has(normalizeComparableText(line)));
+        coldOpen.dialogue_line_windows = keptWindows;
+        if (Array.isArray(coldOpen.dialogue_focus_lines)) coldOpen.dialogue_focus_lines = keepByText(coldOpen.dialogue_focus_lines);
+        if (Array.isArray(coldOpen.dialogue_focus_quotes)) coldOpen.dialogue_focus_quotes = keepByText(coldOpen.dialogue_focus_quotes);
+        const keptStart = Number(matched[firstKept].start_sec);
+        if (Number.isFinite(closeEnd) && closeEnd > keptStart) {
+          coldOpen.start_sec = roundSec(keptStart);
+          coldOpen.end_sec = roundSec(closeEnd);
+          coldOpen.estimated_duration_sec = roundSec(closeEnd - keptStart);
         }
       }
     }
@@ -4029,7 +4058,12 @@ function trimTimelineToTargetRuntime(timeline, targetSec, beats = []) {
   while (runtime > target) {
     const shaveable = items
       .map((item, index) => ({ item, index }))
+      // The teaser is exempt. It is a handful of seconds, so shaving it buys almost no runtime, and
+      // what it costs is the hook: The Housemaid night's cold open came out as Millie's one-word "What?"
+      // after the reveal it was reacting to ("Nina Winchester tried to drown her kid in a bathtub.")
+      // was shaved away. Everything downstream is built to pay that line off.
       .filter(({ item }) => item.decision === 'KEEP_DIALOGUE'
+        && String(item.role || '').trim() !== 'cold_open'
         && (Array.isArray(item.dialogue_line_windows) ? item.dialogue_line_windows : []).filter((w) => w && w.matched === true).length > 1)
       // Same weight fallback as the drop loop: slots rarely carry these fields, so without the beat's
       // numbers every slot scored 0 and the shave ate whichever happened to be first in the array -
@@ -4460,7 +4494,9 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec, usableEndSec =
       cold.visual_source_beat_id = String(cold.beat_id || '');
       cold.reason = 'Teaser opening selected from the strongest replay/hook beat and preserved as original dialogue with Korean captions.';
     }
-    if (cold.decision === 'KEEP_DIALOGUE') {
+    // An authored teaser skips the widen-and-relead pass below for the same reason it skips the beat
+    // re-derivation: the owner already chose which line opens the cut.
+    if (cold.decision === 'KEEP_DIALOGUE' && cold.authored_lines !== true) {
       const existingLines = Array.isArray(cold.dialogue_focus_lines) ? cold.dialogue_focus_lines.filter(Boolean) : [];
       const existingQuotes = Array.isArray(cold.dialogue_focus_quotes) ? cold.dialogue_focus_quotes.filter(Boolean) : [];
       // The model's own lines, in the model's order, used to decide the opening. When it opened on
@@ -4849,11 +4885,15 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec, usableEndSec =
     const spanOf = (list) => realisticSlotDurationSec({ ...item, dialogue_line_windows: list });
     if (!(spanOf(windows) > limit)) return item;
     let dropped = 0;
+    // Give back the EARLIEST lines, not the latest: a teaser's punch is its last line (the reveal),
+    // and trimming from the end threw the hook away - The Housemaid night lost "Nina Winchester tried
+    // to drown her kid in the bathtub." and opened on the setup chatter instead. A teaser is allowed
+    // to start mid-exchange; it is not allowed to lose its point.
     while (spanOf(windows) > limit) {
       const matched = windows.filter((win) => win && win.matched === true);
       if (matched.length <= 1) break;
-      const last = matched.reduce((latest, win) => (Number(win.start_sec) > Number(latest.start_sec) ? win : latest), matched[0]);
-      windows = windows.filter((win) => win !== last);
+      const first = matched.reduce((earliest, win) => (Number(win.start_sec) < Number(earliest.start_sec) ? win : earliest), matched[0]);
+      windows = windows.filter((win) => win !== first);
       dropped += 1;
     }
     if (!dropped) return item;
@@ -4867,7 +4907,7 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec, usableEndSec =
       dialogue_focus_lines: keepText(item.dialogue_focus_lines),
       dialogue_focus_quotes: keepText(item.dialogue_focus_quotes),
       cold_open_lines_trimmed: dropped,
-      reason: `${item.reason || ''} Teaser trimmed to ${limit}s by dropping its last ${dropped} line(s).`.trim()
+      reason: `${item.reason || ''} Teaser trimmed to ${limit}s by giving back its first ${dropped} line(s).`.trim()
     };
     if (matched.length) {
       next.start_sec = roundSec(Math.min(...matched.map((win) => Number(win.start_sec))));
@@ -5374,6 +5414,25 @@ function validateJapaneseSlotFills(slotFills, editPlan) {
 // LLM, so those corrections were silently replaced on the next run - a caption written because the
 // generated one named the wrong speaker, or captioned a line that never plays, came back wrong. Carry
 // the authored entry over the generated one, keyed by slot.
+// Captions are written one per dialogue_focus_line, but the plan keeps changing which lines survive
+// (a refresh restores an exchange, the runtime shave drops a trailing line), and then position N in the
+// caption array no longer means line N. Every downstream reader had to guess. Record what each caption
+// was actually written FOR, so the mapping is evidence instead of arithmetic.
+function stampCaptionSourceLines(slotFills, editPlan) {
+  const linesBySlot = new Map((Array.isArray(editPlan?.timeline) ? editPlan.timeline : [])
+    .filter((item) => item?.decision === 'KEEP_DIALOGUE')
+    .map((item) => [String(item.slot_id || '').trim(), (Array.isArray(item.dialogue_focus_lines) ? item.dialogue_focus_lines : []).map((line) => String(line || ''))]));
+  for (const fill of Array.isArray(slotFills?.slot_fills) ? slotFills.slot_fills : []) {
+    if (fill?.authored === true) continue;
+    const lines = linesBySlot.get(String(fill?.slot_id || '').trim());
+    if (!lines || !lines.length) continue;
+    const captions = Array.isArray(fill.caption_kr_dialogue) ? fill.caption_kr_dialogue : [];
+    if (!captions.length) continue;
+    fill.caption_source_lines = lines.slice(0, captions.length);
+  }
+  return slotFills;
+}
+
 function keepAuthoredSlotFills(generated, existingPath) {
   if (!fs.existsSync(existingPath)) return generated;
   let existing;
@@ -6692,9 +6751,9 @@ async function runCompressionApply(runIdOrPath, applyOptions = {}) {
     result = await runJsonGeneration(slotFillsPrompt, MIDFORM_SLOT_FILLS_SCHEMA_PATH, validateStructure);
   }
   const slotFillsPath = path.join(runDir, 'compression_slot_fills.json');
-  const normalizedSlotFills = keepAuthoredSlotFills(
-    normalizeSlotFillsForStyle(result.parsed, finalizedEditPlan),
-    slotFillsPath
+  const normalizedSlotFills = stampCaptionSourceLines(
+    keepAuthoredSlotFills(normalizeSlotFillsForStyle(result.parsed, finalizedEditPlan), slotFillsPath),
+    finalizedEditPlan
   );
   writeJson(slotFillsPath, normalizedSlotFills);
   try { await auditAndFixDialogueTranslations(runDir, finalizedEditPlan, normalizedSlotFills, 'compression_slot_fills.json', 'Korean'); } catch { /* dialogue audit is advisory */ }
@@ -6714,7 +6773,10 @@ async function runCompressionApply(runIdOrPath, applyOptions = {}) {
       )
     );
     japaneseSlotFillsPath = path.join(runDir, 'compression_slot_fills.ja.json');
-    const japaneseSlotFills = keepAuthoredSlotFills(japaneseResult.parsed, japaneseSlotFillsPath);
+    const japaneseSlotFills = stampCaptionSourceLines(
+      keepAuthoredSlotFills(japaneseResult.parsed, japaneseSlotFillsPath),
+      finalizedEditPlan
+    );
     writeJson(japaneseSlotFillsPath, japaneseSlotFills);
     try { await auditAndFixDialogueTranslations(runDir, finalizedEditPlan, japaneseSlotFills, 'compression_slot_fills.ja.json', 'Japanese'); } catch { /* dialogue audit is advisory */ }
   }
@@ -6968,6 +7030,7 @@ module.exports = {
     alignFocusLinesToWindows,
     dropUnplayableFocusLines,
     keepAuthoredSlotFills,
+    stampCaptionSourceLines,
     fillUncaptionedCuesInsideCuts,
     topUpTimelineToTargetRuntime,
     buildSlotQcReport,
