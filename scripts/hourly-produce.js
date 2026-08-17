@@ -241,13 +241,12 @@ async function buildOneDraft(dryRun) {
   const status = result.job && result.job.status;
   console.log(`job: ${jobId} (${status})`);
   if (!jobId) return 'blocked';
-  // enqueue_if_active is not honoured in every path; a job that came back queued
-  // would leave an orphan behind the batch, which is its own known failure.
-  if (status === 'queued') {
-    try { cancelJob(jobId); } catch { /* best effort */ }
-    console.log(`job ${jobId} came back queued; cancelled rather than left behind a batch`);
-    return 'blocked';
-  }
+  // startProcessJob returns the record as created, before the worker is spawned,
+  // so status is ALWAYS 'queued' here - it becomes 'running' a moment later.
+  // Treating that as an orphan queued behind a batch cancelled jobs that were
+  // about to start, and the drain then harvested instead of building
+  // (2026-08-17). The running-job check above is what keeps this from queueing
+  // behind a batch; here we simply wait and let the poll below see what happens.
 
   const TERMINAL = ['success', 'failed', 'cancelled', 'completed_with_warnings'];
   const deadline = Date.now() + JOB_TIMEOUT_MS;
