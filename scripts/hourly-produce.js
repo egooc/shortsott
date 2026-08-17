@@ -202,12 +202,17 @@ function exportOnePendingDraft(dryRun) {
 
 // Builds a draft for one queue item and waits for it, so the loop below never
 // starts a second analysis on top of a running one.
+// Returns 'built' | 'none' | 'blocked'. The distinction matters: harvesting is
+// the fallback for 'none' only. Collapsing the two into false meant a build that
+// could not start looked like an empty queue, so the drain harvested instead -
+// and burned the whole day's cap of 24 sources in half an hour while a stuck
+// queue stopped any of them being analysed (2026-08-17).
 async function buildOneDraft(dryRun) {
   const itemId = nextQueueItem();
-  if (!itemId) return false;
+  if (!itemId) return 'none';
 
   console.log(`produce: ${itemId}`);
-  if (dryRun) return false;
+  if (dryRun) return 'blocked';
 
   const { startProcessJob, readJob, listJobs, cancelJob } = require('../server/services/processJobService');
 
@@ -220,7 +225,7 @@ async function buildOneDraft(dryRun) {
   const active = jobs.find((j) => j.status === 'running');
   if (active) {
     console.log(`a batch is already running (${active.job_id}, ${active.batch_name}); leaving analysis to it`);
-    return false;
+    return 'blocked';
   }
 
   const result = startProcessJob({
@@ -235,13 +240,13 @@ async function buildOneDraft(dryRun) {
   const jobId = result.job && result.job.job_id;
   const status = result.job && result.job.status;
   console.log(`job: ${jobId} (${status})`);
-  if (!jobId) return false;
+  if (!jobId) return 'blocked';
   // enqueue_if_active is not honoured in every path; a job that came back queued
   // would leave an orphan behind the batch, which is its own known failure.
   if (status === 'queued') {
     try { cancelJob(jobId); } catch { /* best effort */ }
     console.log(`job ${jobId} came back queued; cancelled rather than left behind a batch`);
-    return false;
+    return 'blocked';
   }
 
   const TERMINAL = ['success', 'failed', 'cancelled', 'completed_with_warnings'];
@@ -253,11 +258,11 @@ async function buildOneDraft(dryRun) {
     const status = job && job.status;
     if (status && TERMINAL.includes(status)) {
       console.log(`job ${jobId} finished: ${status}`);
-      return true;
+      return 'built';
     }
     if (Date.now() > deadline) {
       console.log(`job ${jobId} still ${status || '?'} after ${Math.round(JOB_TIMEOUT_MS / 60000)}min; leaving it to run`);
-      return false;
+      return 'blocked';
     }
   }
 }
@@ -343,7 +348,15 @@ async function main() {
       }
       if (exportOnePendingDraft(false)) { units += 1; continue; }
       // eslint-disable-next-line no-await-in-loop
-      if (await buildOneDraft(false)) {
+      const build = await buildOneDraft(false);
+      // Blocked is not empty. Harvesting on a blocked build is what spent a whole
+      // day's sources in half an hour while a stuck job queue stopped any of them
+      // from being analysed; stop the run instead and let the next tick retry.
+      if (build === 'blocked') {
+        console.log(`build could not start; stopping after ${units} unit(s) rather than harvesting more`);
+        break;
+      }
+      if (build === 'built') {
         units += 1;
         // One analysis at a time is the whole point: a batch of them draws 429s
         // from Gemini and the retries cost more than the pause does.
