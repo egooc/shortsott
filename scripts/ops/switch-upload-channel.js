@@ -93,13 +93,32 @@ if (process.argv.includes('--code')) {
 }
 
 if (process.argv.includes('--url')) {
-  // Reuse an existing profile's OAuth client: the consent flow needs a client id
-  // and secret, and the same app can authorize a different channel. Which
-  // channel the token ends up for is decided by the account picked on the consent
-  // screen, not here.
-  const source = profiles().find((p) => p.oauthClientConfigured) || profiles()[0];
+  // Authorize into a NEW profile, not the existing one.
+  //
+  // Passing the current profile's id meant the new channel's token was written
+  // over it and the old channel's refresh token was lost - the switch worked but
+  // Mansa became unreachable (2026-08-18). The OAuth client is still reused,
+  // since the same app can authorize a different channel; only the profile the
+  // token lands in is new.
+  const source = profiles().find((p) => p.oauthClientId) || profiles()[0];
   if (!source) { console.log(`${channel.toUpperCase()} 프로필이 없어 OAuth 클라이언트를 재사용할 수 없습니다.`); process.exitCode = 1; return; }
-  const r = svc.getAuthorizationUrl({ profileId: source.id, profileName: `${channel.toUpperCase()} 신규 채널` });
+
+  const raw = JSON.parse(require('fs').readFileSync(path.join(ROOT, 'server', 'data', 'youtube_upload_profiles.json'), 'utf8'));
+  const stored = (Array.isArray(raw) ? raw : (raw.profiles || [])).find((p) => p.id === source.id) || {};
+  if (!stored.oauthClientId || !stored.oauthClientSecret) {
+    console.log('기존 프로필에서 OAuth 클라이언트 정보를 읽을 수 없습니다.');
+    process.exitCode = 1;
+    return;
+  }
+  const created = svc.createYouTubeUploadProfile({
+    name: `${channel.toUpperCase()} 신규 채널 ${new Date().toISOString().slice(0, 10)}`,
+    purpose: source.purpose,
+    oauthClientId: stored.oauthClientId,
+    oauthClientSecret: stored.oauthClientSecret,
+    oauthRedirectUri: stored.oauthRedirectUri
+  });
+  const r = svc.getAuthorizationUrl({ profileId: created.id, profileName: created.name });
+  console.log(`새 프로필 ${created.id} 을 만들었습니다 (기존 ${source.channelTitle || source.id} 은 그대로 유지).`);
   console.log(`OAuth 클라이언트: ${source.channelTitle || source.id} 의 것을 재사용합니다.`);
   console.log('\n아래 링크를 브라우저에서 열고, 바꿀 채널의 계정으로 승인하세요:\n');
   console.log(r.authUrl);
