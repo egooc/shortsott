@@ -840,6 +840,46 @@ async function evaluateFinalLocaleGates({ workspaceDir, pipelineRunDir, sourceVi
     }
   } catch { /* structural guard is best-effort */ }
 
+  // Benchmark style guards (명화관 실측): pronoun-subject narration loses the name anchoring that
+  // carries comprehension, and a summary closer retells what the viewer just watched. Warnings, not
+  // failures - style, not correctness.
+  try {
+    const pronounSubjects = [];
+    const summaryClosers = [];
+    for (const locale of ['ko']) {
+      const manifestPath = path.join(workspaceDir, `draft_${locale}`, 'edit_manifest.json');
+      if (!fs.existsSync(manifestPath)) continue;
+      const manifest = readJson(manifestPath);
+      const seen = new Set();
+      const recaps = [];
+      for (const segment of manifest.segments || []) {
+        if (segment.segment_type !== 'recap' || seen.has(segment.segment_id)) continue;
+        seen.add(segment.segment_id);
+        recaps.push(segment);
+      }
+      for (const segment of recaps) {
+        const text = String(segment.narration || segment.caption_text || '');
+        if (/(^|[.!?…]\s*)(그는|그녀는|그들은|두 사람은|그 남자는|그 여자는)\s/.test(text)) {
+          pronounSubjects.push({ locale, segment_id: segment.segment_id, sentence: text.slice(0, 60) });
+        }
+      }
+      const closer = recaps[recaps.length - 1];
+      const closerText = closer ? String(closer.narration || closer.caption_text || '') : '';
+      if (/그렇게\s.*(시작|계속)?(었|됐|됩니다|셨)|시작됐습니다\s*[.]?\s*$|시작되었습니다\s*[.]?\s*$/.test(closerText)) {
+        summaryClosers.push({ locale, segment_id: closer.segment_id, sentence: closerText.slice(0, 80) });
+      }
+    }
+    gates.results = (gates.results || []).filter((entry) => entry.id !== 'narration_benchmark_style');
+    gates.warnings = (gates.warnings || []).filter((id) => id !== 'narration_benchmark_style');
+    gates.results.push({
+      id: 'narration_benchmark_style',
+      status: (pronounSubjects.length || summaryClosers.length) ? 'warning' : 'pass',
+      pronoun_subjects: pronounSubjects,
+      summary_closers: summaryClosers
+    });
+    if (pronounSubjects.length || summaryClosers.length) gates.warnings.push('narration_benchmark_style');
+  } catch { /* style guard is best-effort */ }
+
   writeJson(acceptanceFile, gates);
   return { status, judged, issues };
 }

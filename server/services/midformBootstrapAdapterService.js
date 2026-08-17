@@ -956,7 +956,11 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
         // Extend the LAST line's visual to the slot window end - captions stay on speech, and
         // the source audio carries the reaction.
         let visualEndSec = timing.visual_range_sec[1];
-        if (role === 'cold_open' && orderedIndex === orderedDialogueWindows.length - 1) {
+        // The protected peak gets the same reaction tail: the benchmark channel's signature is the
+        // film's iconic moment playing UNCUT through its reaction - tension is compressed elsewhere,
+        // release plays whole. Cutting the peak on its last word threw that release away.
+        const isReactionTailSlot = role === 'cold_open' || item.protected_peak === true;
+        if (isReactionTailSlot && orderedIndex === orderedDialogueWindows.length - 1) {
           // Cap at the next slot's window start: plans overlap neighbouring windows by up to
           // ~0.5s and an extension into that overlap trips the cross-segment gate.
           const nextWindowStart = Math.min(...timeline
