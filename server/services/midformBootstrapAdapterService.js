@@ -1336,7 +1336,19 @@ function assembleBootstrapArtifacts(runIdOrPath, options = {}) {
   // The compression side separates windows too, but the exchange restoration and hand edits land
   // after it, so this runs last, right before the coordinates are read.
   const dialogueOverlapsBefore = countOverlappingDialogueWindows(editPlan.timeline);
+  // separateOverlappingDialogueWindows clamps each slot's bounds down to its windows, but for the
+  // cold open and the protected peak the slot window deliberately runs PAST the last line - that gap
+  // is the reaction the clip was chosen for. Losing it made the reaction-tail extension a no-op.
+  const reactionRoom = new Map();
+  for (const item of Array.isArray(editPlan.timeline) ? editPlan.timeline : []) {
+    if (item?.decision !== 'KEEP_DIALOGUE') continue;
+    if (item.role === 'cold_open' || item.protected_peak === true) reactionRoom.set(item.slot_id, Number(item.end_sec));
+  }
   editPlan.timeline = separateOverlappingDialogueWindows(editPlan.timeline);
+  for (const item of Array.isArray(editPlan.timeline) ? editPlan.timeline : []) {
+    const roomEnd = reactionRoom.get(item?.slot_id);
+    if (Number.isFinite(roomEnd) && roomEnd > Number(item.end_sec)) item.end_sec = roomEnd;
+  }
   const dialogueSeparation = {
     overlaps_before: dialogueOverlapsBefore,
     overlaps_after: countOverlappingDialogueWindows(editPlan.timeline)
