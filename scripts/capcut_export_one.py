@@ -413,6 +413,18 @@ def main():
         def search_for_draft(label):
             pyautogui.click(*coords["search_icon"])
             time.sleep(1.5)
+            # CapCut keeps the previous search term across restarts. Pasting
+            # without clearing left the OLD filter in place - one result, which
+            # the settle check below reads as success - and the double-click
+            # opened whatever that stale filter was showing. Three consecutive
+            # scheduled exports re-exported the same silk-weaving project under
+            # three different draft names, and two of them reached YouTube
+            # (2026-08-17). Select-all first so the paste replaces rather than
+            # lands somewhere unseen.
+            pyautogui.hotkey("ctrl", "a")
+            time.sleep(0.3)
+            pyautogui.press("delete")
+            time.sleep(0.8)
             set_clipboard(args.draft_name)
             pyautogui.hotkey("ctrl", "v")
             # The grid re-renders asynchronously. A fixed wait lost the race often

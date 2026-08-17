@@ -17,6 +17,7 @@
 
 const PUBLISH_DELAY_MIN = 60;
 
+const { execFileSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -36,6 +37,7 @@ const ROOT = path.join(__dirname, '..');
 const EXPORT_DIR = path.join(os.homedir(), 'Desktop', '캡컷아웃풋', 'CapCut Drafts', '_automation factory');
 const DRAFTS_DIR = path.join(os.homedir(), 'Desktop', '캡컷아웃풋', 'CapCut Drafts');
 const UPLOADED_DIR = path.join(EXPORT_DIR, 'uploaded');
+const HELD_DIR = path.join(EXPORT_DIR, 'held');
 const STATE_PATH = path.join(ROOT, 'server', 'data', 'hourly_upload_state.json');
 
 function readState() {
@@ -61,6 +63,42 @@ function draftFolderFor(mp4Name) {
 
 function channelOf(variant) {
   return String(variant || '').startsWith('ko') ? 'kr' : 'jp';
+}
+
+// Does this mp4 actually contain the draft it is named after?
+//
+// The export drives CapCut's GUI, and when its search fails to re-filter it
+// opens a different project and the finished file is renamed to the requested
+// draft's name - nothing downstream can tell them apart. On 2026-08-17 the same
+// silk-weaving video went to YouTube three times under three different titles.
+// The draft's timeline length is in its manifest, so a file whose real duration
+// does not match is not the video it claims to be, and must not ship.
+const DURATION_TOLERANCE_SEC = 1.5;
+
+function contentMatchesDraft(videoPath, draftDir) {
+  let expected = 0;
+  try {
+    expected = Number(JSON.parse(fs.readFileSync(path.join(draftDir, 'edit_manifest.json'), 'utf8')).actual_timeline_duration_sec || 0);
+  } catch {
+    return { ok: true, reason: 'manifest 없음 - 검사 불가' };
+  }
+  if (!expected) return { ok: true, reason: 'manifest에 길이 없음' };
+
+  let actual = NaN;
+  try {
+    const out = execFileSync('ffprobe', [
+      '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=nw=1:nk=1', videoPath
+    ], { encoding: 'utf8', timeout: 30000 });
+    actual = Number(String(out).trim());
+  } catch {
+    return { ok: true, reason: 'ffprobe 실패 - 검사 불가' };
+  }
+  if (!Number.isFinite(actual)) return { ok: true, reason: 'ffprobe 결과 없음' };
+
+  const diff = Math.abs(actual - expected);
+  return diff <= DURATION_TOLERANCE_SEC
+    ? { ok: true }
+    : { ok: false, reason: `manifest ${expected.toFixed(1)}s vs 파일 ${actual.toFixed(1)}s` };
 }
 
 // Which queue item a draft was cut from. For a Full this is the identity that
@@ -166,6 +204,17 @@ async function main() {
           console.log(`skip Full from an already-published source (${item}): ${entry.name}`);
           continue;
         }
+      }
+      const content = contentMatchesDraft(entry.full, entry.draftDir);
+      if (!content.ok) {
+        // Hold it rather than skip: left in place it would be reconsidered every
+        // hour, and it is not a video anyone should ship.
+        try {
+          fs.mkdirSync(HELD_DIR, { recursive: true });
+          fs.renameSync(entry.full, path.join(HELD_DIR, entry.name));
+        } catch { /* best effort */ }
+        console.log(`held (content does not match its draft): ${entry.name} — ${content.reason}`);
+        continue;
       }
       const txt = fs.readdirSync(entry.draftDir).find((n) => n.toLowerCase().endsWith('.txt'));
       if (!txt) continue;
