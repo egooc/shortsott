@@ -1,12 +1,12 @@
 {
  "draft_name": "draft_ko",
  "source_duration_sec": 553.121,
- "dialogue_clips": 32,
- "note": "2026-08-17 exchanges restored, audio-verified",
+ "dialogue_clips": 33,
+ "note": "",
  "clips": {
   "slot_001_L01": {
    "start": 396.36,
-   "end": 399.24,
+   "end": 399.09,
    "speaker": "샬럿"
   },
   "slot_003_L01": {
@@ -15,13 +15,13 @@
    "speaker": "대통령"
   },
   "slot_004_L01": {
-   "start": 190.544,
-   "end": 193.954,
+   "start": 190.514,
+   "end": 195.08,
    "speaker": "샬럿"
   },
   "slot_005_L01": {
-   "start": 224.29,
-   "end": 227.219,
+   "start": 224.28,
+   "end": 228.08,
    "speaker": "프레드"
   },
   "slot_005_L02": {
@@ -31,12 +31,12 @@
   },
   "slot_005_L03": {
    "start": 252.64,
-   "end": 256.077,
+   "end": 257.079,
    "speaker": "샬럿"
   },
   "slot_007_L01": {
    "start": 363.84,
-   "end": 364.88,
+   "end": 364.7,
    "speaker": "프레드"
   },
   "slot_007_L03": {
@@ -55,27 +55,32 @@
    "speaker": "샬럿"
   },
   "slot_008_L01": {
-   "start": 404.35,
-   "end": 407.4,
+   "start": 399.24,
+   "end": 403.32,
    "speaker": "프레드"
   },
   "slot_008_L02": {
+   "start": 403.32,
+   "end": 407.4,
+   "speaker": "프레드"
+  },
+  "slot_008_L03": {
    "start": 407.4,
    "end": 409.6,
    "speaker": "샬럿"
   },
-  "slot_008_L03": {
+  "slot_008_L04": {
    "start": 409.6,
    "end": 411.44,
    "speaker": "샬럿"
   },
   "slot_010_L01": {
    "start": 463.76,
-   "end": 465.92,
+   "end": 465.863,
    "speaker": "보좌관"
   },
   "slot_010_L02": {
-   "start": 465.92,
+   "start": 465.863,
    "end": 468.49,
    "speaker": "샬럿"
   },
@@ -91,7 +96,7 @@
   },
   "slot_010_L05": {
    "start": 479.92,
-   "end": 482.179,
+   "end": 483,
    "speaker": "샬럿"
   },
   "slot_010_L06": {
@@ -110,18 +115,18 @@
    "speaker": "샬럿"
   },
   "slot_010_L09": {
-   "start": 494.466,
-   "end": 502.703,
+   "start": 494.44,
+   "end": 501.627,
    "speaker": "총리"
   },
   "slot_012_L01": {
-   "start": 510.391,
-   "end": 511.286,
+   "start": 510.36,
+   "end": 512,
    "speaker": "프레드"
   },
   "slot_012_L02": {
-   "start": 512.008,
-   "end": 513.162,
+   "start": 512,
+   "end": 513.56,
    "speaker": "프레드"
   },
   "slot_012_L03": {

@@ -2,16 +2,16 @@
  "draft_name": "draft_ko",
  "source_duration_sec": 557.621,
  "dialogue_clips": 28,
- "note": "2026-08-17 exchanges restored, audio-verified",
+ "note": "",
  "clips": {
   "slot_01_L01": {
    "start": 326.64,
-   "end": 330.56,
+   "end": 328.624,
    "speaker": "소니"
   },
   "slot_03_L01": {
-   "start": 98.274,
-   "end": 100.149,
+   "start": 98.235,
+   "end": 100.72,
    "speaker": "소니"
   },
   "slot_07_L01": {
@@ -25,8 +25,8 @@
    "speaker": "소니"
   },
   "slot_09_L01": {
-   "start": 406.2,
-   "end": 411.88,
+   "start": 408.09,
+   "end": 411.87,
    "speaker": "소니"
   },
   "slot_10_L01": {
@@ -45,8 +45,8 @@
    "speaker": "소니"
   },
   "slot_10_L04": {
-   "start": 479.101,
-   "end": 482.206,
+   "start": 479.075,
+   "end": 482.84,
    "speaker": "탐"
   },
   "slot_10_L05": {
@@ -55,8 +55,8 @@
    "speaker": "탐"
   },
   "slot_10_L06": {
-   "start": 486.064,
-   "end": 487.676,
+   "start": 486.04,
+   "end": 488.44,
    "speaker": "소니"
   },
   "slot_10_L07": {
@@ -76,17 +76,17 @@
   },
   "slot_10_L14": {
    "start": 493.32,
-   "end": 495,
+   "end": 494.807,
    "speaker": "소니"
   },
   "slot_10_L10": {
-   "start": 495,
-   "end": 496.425,
+   "start": 494.807,
+   "end": 496.96,
    "speaker": "소니"
   },
   "slot_10_L11": {
-   "start": 497.001,
-   "end": 500.198,
+   "start": 496.96,
+   "end": 500.56,
    "speaker": "소니"
   },
   "slot_10_L12": {
@@ -95,23 +95,23 @@
    "speaker": "탐"
   },
   "slot_10_L13": {
-   "start": 502.009,
-   "end": 505.134,
+   "start": 501.96,
+   "end": 506.395,
    "speaker": "소니"
   },
   "slot_10_L15": {
-   "start": 506.424,
-   "end": 513.299,
+   "start": 506.395,
+   "end": 515.07,
    "speaker": "소니"
   },
   "slot_11_L01": {
-   "start": 519.768,
-   "end": 523.179,
+   "start": 519.719,
+   "end": 524.08,
    "speaker": "소니"
   },
   "slot_11_L02": {
-   "start": 524.12,
-   "end": 526.374,
+   "start": 524.08,
+   "end": 526.76,
    "speaker": "소니"
   },
   "slot_11_L03": {
@@ -141,7 +141,7 @@
   },
   "slot_11_L08": {
    "start": 538.64,
-   "end": 542.839,
+   "end": 543.194,
    "speaker": "소니"
   }
  }

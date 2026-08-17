@@ -2,7 +2,7 @@
  "draft_name": "draft_ko",
  "source_duration_sec": 596.821,
  "dialogue_clips": 30,
- "note": "2026-08-17 exchanges restored, audio-verified",
+ "note": "",
  "clips": {
   "slot_01_L01": {
    "start": 167.72,
@@ -10,8 +10,8 @@
    "speaker": "이웃"
   },
   "slot_03_L01": {
-   "start": 74.955,
-   "end": 80.326,
+   "start": 77.76,
+   "end": 81.13,
    "speaker": "니나"
   },
   "slot_04_L01": {
@@ -20,8 +20,8 @@
    "speaker": "이웃"
   },
   "slot_05_L01": {
-   "start": 229.979,
-   "end": 232.05,
+   "start": 229.959,
+   "end": 232.68,
    "speaker": "정원사"
   },
   "slot_08_L01": {
@@ -30,13 +30,13 @@
    "speaker": "앤드류"
   },
   "slot_08_L02": {
-   "start": 405.085,
-   "end": 411.891,
+   "start": 405.08,
+   "end": 412.36,
    "speaker": "밀리"
   },
   "slot_09_L01": {
-   "start": 425.845,
-   "end": 427.614,
+   "start": 425.524,
+   "end": 428.12,
    "speaker": "앤드류"
   },
   "slot_09_L02": {
@@ -51,12 +51,12 @@
   },
   "slot_09_L04": {
    "start": 436.84,
-   "end": 440.764,
+   "end": 441.52,
    "speaker": "앤드류"
   },
   "slot_09_L05": {
-   "start": 441.527,
-   "end": 443.184,
+   "start": 441.52,
+   "end": 443.76,
    "speaker": "밀리"
   },
   "slot_09_L06": {
@@ -66,7 +66,7 @@
   },
   "slot_09_L07": {
    "start": 448.4,
-   "end": 451.928,
+   "end": 452.395,
    "speaker": "앤드류"
   },
   "slot_09_L08": {
@@ -115,8 +115,8 @@
    "speaker": "앤드류"
   },
   "slot_11_L09": {
-   "start": 564.849,
-   "end": 567.722,
+   "start": 564.8,
+   "end": 568.08,
    "speaker": "밀리"
   },
   "slot_11_L10": {

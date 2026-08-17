@@ -2,7 +2,7 @@
  "draft_name": "draft_ko",
  "source_duration_sec": 566.381,
  "dialogue_clips": 31,
- "note": "2026-08-17 exchanges restored, audio-verified",
+ "note": "",
  "clips": {
   "slot_001_L01": {
    "start": 342.36,
@@ -20,8 +20,8 @@
    "speaker": "구단주"
   },
   "slot_005_L01": {
-   "start": 299.12,
-   "end": 302.555,
+   "start": 298.05,
+   "end": 301.523,
    "speaker": "톰"
   },
   "slot_005_L02": {
@@ -30,7 +30,7 @@
    "speaker": "써니"
   },
   "slot_008_L01": {
-   "start": 447.669,
+   "start": 446.46,
    "end": 449.36,
    "speaker": "감독"
   },
@@ -60,8 +60,8 @@
    "speaker": "써니"
   },
   "slot_008_L07": {
-   "start": 474.972,
-   "end": 477.063,
+   "start": 474.84,
+   "end": 477.36,
    "speaker": "구단주"
   },
   "slot_008_L08": {
@@ -71,7 +71,7 @@
   },
   "slot_008_L09": {
    "start": 482.8,
-   "end": 485.58,
+   "end": 486.48,
    "speaker": "앨리"
   },
   "slot_008_L10": {
@@ -85,13 +85,13 @@
    "speaker": "앨리"
   },
   "slot_009_L01": {
-   "start": 509.941,
-   "end": 512.08,
+   "start": 509.84,
+   "end": 512.88,
    "speaker": "감독"
   },
   "slot_009_L02": {
-   "start": 512.98,
-   "end": 514.46,
+   "start": 512.88,
+   "end": 515.36,
    "speaker": "써니"
   },
   "slot_009_L03": {
@@ -105,8 +105,8 @@
    "speaker": "써니"
   },
   "slot_009_L05": {
-   "start": 519,
-   "end": 521.711,
+   "start": 518.88,
+   "end": 522.08,
    "speaker": "스태프"
   },
   "slot_009_L06": {
@@ -115,13 +115,13 @@
    "speaker": "써니"
   },
   "slot_009_L07": {
-   "start": 526.575,
-   "end": 528.886,
+   "start": 526.475,
+   "end": 529.56,
    "speaker": "감독"
   },
   "slot_009_L08": {
-   "start": 529.692,
-   "end": 530.942,
+   "start": 529.707,
+   "end": 530.957,
    "speaker": "구단주"
   },
   "slot_010_L07": {
@@ -155,8 +155,8 @@
    "speaker": "감독"
   },
   "slot_010_L06": {
-   "start": 544.545,
-   "end": 549.232,
+   "start": 545.37,
+   "end": 550.058,
    "speaker": "감독"
   }
  }

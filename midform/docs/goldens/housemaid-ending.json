@@ -2,11 +2,11 @@
  "draft_name": "draft_ko",
  "source_duration_sec": 600.261,
  "dialogue_clips": 23,
- "note": "2026-08-17 exchanges restored, audio-verified",
+ "note": "",
  "clips": {
   "slot_01_L01": {
-   "start": 490.58,
-   "end": 502.31,
+   "start": 490.594,
+   "end": 494.067,
    "speaker": "밀리"
   },
   "slot_03_L01": {
@@ -26,12 +26,12 @@
   },
   "slot_07_L01": {
    "start": 236.555,
-   "end": 240.455,
+   "end": 241.32,
    "speaker": "경찰관"
   },
   "slot_07_L02": {
-   "start": 241.355,
-   "end": 242.919,
+   "start": 241.32,
+   "end": 243.4,
    "speaker": "경찰관"
   },
   "slot_07_L03": {
@@ -46,7 +46,7 @@
   },
   "slot_07_L05": {
    "start": 248.72,
-   "end": 249.9,
+   "end": 250.8,
    "speaker": "경찰관"
   },
   "slot_07_L06": {
@@ -56,7 +56,7 @@
   },
   "slot_07_L08": {
    "start": 256.519,
-   "end": 257.74,
+   "end": 258.64,
    "speaker": "니나"
   },
   "slot_07_L07": {
@@ -65,7 +65,7 @@
    "speaker": "니나"
   },
   "slot_08_L01": {
-   "start": 278.39,
+   "start": 277,
    "end": 279.76,
    "speaker": "경찰관"
   },
@@ -85,13 +85,13 @@
    "speaker": "니나"
   },
   "slot_08_L05": {
-   "start": 287.458,
-   "end": 294.646,
+   "start": 287.44,
+   "end": 296.909,
    "speaker": "경찰관"
   },
   "slot_10_L01": {
    "start": 417.04,
-   "end": 422.48,
+   "end": 421.7,
    "speaker": "시어머니"
   },
   "slot_10_L03": {
