@@ -1,7 +1,7 @@
 {
  "draft_name": "draft_ko",
  "source_duration_sec": 596.821,
- "dialogue_clips": 44,
+ "dialogue_clips": 47,
  "note": "",
  "clips": {
   "slot_01_L01": {
@@ -9,17 +9,37 @@
    "end": 172.6,
    "speaker": "여자"
   },
+  "slot_01_L02": {
+   "start": 172.6,
+   "end": 173.8,
+   "speaker": "밀리"
+  },
   "slot_03_L01": {
    "start": 74.92,
    "end": 81.28,
    "speaker": "니나"
   },
   "slot_04_L01": {
+   "start": 153.64,
+   "end": 155.36,
+   "speaker": "밀리"
+  },
+  "slot_04_L02": {
    "start": 175.959,
    "end": 185.239,
    "speaker": "여자"
   },
   "slot_05_L01": {
+   "start": 222.995,
+   "end": 224.92,
+   "speaker": "밀리"
+  },
+  "slot_05_L02": {
+   "start": 224.92,
+   "end": 226.239,
+   "speaker": "정원사"
+  },
+  "slot_05_L03": {
    "start": 229.959,
    "end": 232.68,
    "speaker": "정원사"
@@ -55,8 +75,8 @@
    "speaker": "니나"
   },
   "slot_07_L01": {
-   "start": 293.51,
-   "end": 298.6,
+   "start": 292.195,
+   "end": 297.989,
    "speaker": "니나"
   },
   "slot_07_L02": {
@@ -64,9 +84,9 @@
    "end": 300.16,
    "speaker": "니나"
   },
-  "slot_07_L07": {
+  "slot_07_L03": {
    "start": 301.04,
-   "end": 304.32,
+   "end": 303.52,
    "speaker": "앤드류"
   },
   "slot_07_L04": {
@@ -75,11 +95,6 @@
    "speaker": "니나"
   },
   "slot_07_L05": {
-   "start": 305.614,
-   "end": 308.812,
-   "speaker": "앤드류"
-  },
-  "slot_07_L06": {
    "start": 310.24,
    "end": 312.08,
    "speaker": "밀리"

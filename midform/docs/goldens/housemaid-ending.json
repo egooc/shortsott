@@ -1,7 +1,7 @@
 {
  "draft_name": "draft_ko",
  "source_duration_sec": 600.261,
- "dialogue_clips": 27,
+ "dialogue_clips": 29,
  "note": "",
  "clips": {
   "slot_01_L01": {
@@ -11,12 +11,22 @@
   },
   "slot_03_L01": {
    "start": 61.4,
-   "end": 66.7,
+   "end": 67.58,
    "speaker": "니나"
   },
   "slot_03_L02": {
    "start": 67.6,
    "end": 73.68,
+   "speaker": "니나"
+  },
+  "slot_03_L03": {
+   "start": 73.68,
+   "end": 78.516,
+   "speaker": "니나"
+  },
+  "slot_03_L04": {
+   "start": 80.835,
+   "end": 88.399,
    "speaker": "니나"
   },
   "slot_05_L02": {
@@ -44,40 +54,40 @@
    "end": 177.649,
    "speaker": "니나"
   },
-  "slot_07_L01": {
+  "slot_07_L02": {
+   "start": 227.6,
+   "end": 232.436,
+   "speaker": "니나"
+  },
+  "slot_07_L03": {
+   "start": 233.195,
+   "end": 236.555,
+   "speaker": "경찰관"
+  },
+  "slot_07_L04": {
    "start": 236.555,
    "end": 241.32,
    "speaker": "경찰관"
   },
-  "slot_07_L02": {
+  "slot_07_L05": {
    "start": 241.32,
    "end": 243.4,
    "speaker": "경찰관"
   },
-  "slot_07_L03": {
+  "slot_07_L06": {
    "start": 243.459,
    "end": 245.294,
    "speaker": "니나"
   },
-  "slot_07_L04": {
+  "slot_07_L07": {
    "start": 246.08,
    "end": 248.72,
    "speaker": "경찰관"
   },
-  "slot_07_L05": {
+  "slot_07_L08": {
    "start": 248.72,
    "end": 250.8,
    "speaker": "경찰관"
-  },
-  "slot_07_L06": {
-   "start": 250.8,
-   "end": 256.519,
-   "speaker": "니나"
-  },
-  "slot_07_L07": {
-   "start": 258.64,
-   "end": 259.884,
-   "speaker": "니나"
   },
   "slot_08_L01": {
    "start": 277.037,
