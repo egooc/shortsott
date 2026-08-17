@@ -5,7 +5,7 @@ source:
   url: "https://www.youtube.com/watch?v=EdSQ4rNB6QU"
   content_type: movie_midform_recap
 output:
-  target_length_sec: 140
+  target_length_sec: 175
 review:
   pause_before_tts: true
 subtitle_limits:
@@ -33,7 +33,7 @@ render:
 
 # Source
 - clip url: https://www.youtube.com/watch?v=EdSQ4rNB6QU
-- target length: 140s (상한)
+- target length: 175s (상한)
 - title: The Night Everything Changes Between Andrew And Millie | The Housemaid
 - source audio language: English
 - subtitle source: 자동자막 (en) — 게이트 프레임 대조

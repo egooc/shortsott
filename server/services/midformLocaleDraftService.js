@@ -911,6 +911,23 @@ function buildJapaneseScript(baseScript, japaneseSlotFills) {
   const fillsBySlot = new Map((Array.isArray(japaneseSlotFills?.slot_fills) ? japaneseSlotFills.slot_fills : [])
     .map((fill) => [String(fill?.slot_id || '').trim(), fill]));
   const missing = [];
+  // The _L number in a segment id is the line's position in dialogue_line_windows, which counts the
+  // planned lines that never matched a cue; the caption list holds one entry per line that DOES play.
+  // Reading captions by the raw _L number therefore runs off the end of the list as soon as a slot
+  // has an unmatched line: The Housemaid night's slot_06_L07 and slot_07_L07 came back blank and the
+  // whole Japanese locale was skipped. Count the dialogue segments the slot actually emits instead -
+  // that ordinal is what the caption list is indexed by.
+  const dialogueOrdinal = new Map();
+  const seenPerSlot = new Map();
+  for (const segment of Array.isArray(baseScript?.segments) ? baseScript.segments : []) {
+    if (!['dialogue_quote', 'dialogue'].includes(String(segment?.segment_type || '').trim())) continue;
+    const slotId = parentSlotIdForSegment(segment);
+    const segmentId = String(segment?.segment_id || '');
+    if (dialogueOrdinal.has(segmentId)) continue;
+    const next = seenPerSlot.get(slotId) || 0;
+    dialogueOrdinal.set(segmentId, next);
+    seenPerSlot.set(slotId, next + 1);
+  }
   const segments = (Array.isArray(baseScript?.segments) ? baseScript.segments : []).map((segment) => {
     const fill = fillsBySlot.get(parentSlotIdForSegment(segment));
     const segmentType = String(segment?.segment_type || '').trim();
@@ -920,7 +937,10 @@ function buildJapaneseScript(baseScript, japaneseSlotFills) {
     }
     if (['dialogue_quote', 'dialogue'].includes(segmentType)) {
       const lines = Array.isArray(fill.caption_kr_dialogue) ? fill.caption_kr_dialogue : [];
-      const text = String(lines[dialogueLineIndexForSegment(segment)] || '').trim();
+      const ordinal = dialogueOrdinal.get(String(segment?.segment_id || ''));
+      const rawIndex = dialogueLineIndexForSegment(segment);
+      const byOrdinal = Number.isInteger(ordinal) ? String(lines[ordinal] || '').trim() : '';
+      const text = byOrdinal || String(lines[rawIndex] || '').trim();
       // The ko script itself can carry empty dialogue segments (the pipeline splits a slot
       // into L01..L0N but only fills the lines that have text; slot_10_L03..L05 shipped ko-
       // empty on Breaking Dawn). A ja blank is only MISSING when the ko line HAS text - then

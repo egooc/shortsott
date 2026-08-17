@@ -4944,6 +4944,27 @@ function compactSlotDialogueUnit(unit) {
   return Object.fromEntries(Object.entries(compact).filter(([, value]) => !(value == null || value === '' || (Array.isArray(value) && !value.length))));
 }
 
+// The fills prompt embeds the whole edit plan, and dialogue_line_windows lists the planned lines that
+// never matched a cue alongside the ones that play. The caption writer read that list instead of
+// dialogue_focus_lines and wrote one caption per WINDOW - so every caption in the slot came out shifted
+// onto its neighbour's line and the last line got none at all (Housemaid night slot_06). Hand the
+// prompt a plan that only contains the lines that will be cut.
+function stripUnplayableWindowsForPrompt(editPlan = {}) {
+  const timeline = Array.isArray(editPlan?.timeline) ? editPlan.timeline : [];
+  return {
+    ...editPlan,
+    timeline: timeline.map((item) => {
+      if (item?.decision !== 'KEEP_DIALOGUE' || !Array.isArray(item.dialogue_line_windows)) return item;
+      const playable = item.dialogue_line_windows.filter((win) => win && win.matched === true);
+      if (playable.length === item.dialogue_line_windows.length) return item;
+      // A slot where nothing matched keeps its windows: the caption writer still needs to see the
+      // lines it was asked to caption, and the render-time warning reports the miss.
+      if (!playable.length) return item;
+      return { ...item, dialogue_line_windows: playable };
+    })
+  };
+}
+
 function buildSlotFillEditorialGuide(editPlan = {}) {
   const timeline = Array.isArray(editPlan?.timeline) ? editPlan.timeline : [];
   const slotRules = timeline
@@ -5078,7 +5099,7 @@ function buildSlotFillsPrompt(beats, editPlan, movieTitle, recapContextMarkdown)
     '- KEEP_DIALOGUE slots must set translation_mode to "faithful_dialogue".',
     '- KEEP_DIALOGUE is faithful source dialogue translation, NOT copywriting. Preserve the original meaning first, preserve the speaker attitude (sarcasm, attack, defense, admission), avoid beautifying or inventing stronger Korean phrasing, and compress only when meaning is not distorted.',
     '- Any Korean sentence that reads like a quote must be grounded in an actual dialogue_focus_line. Do not turn narration-only interpretation into a quoted dialogue caption.',
-    '- caption_kr_dialogue must have exactly the same number of items as dialogue_focus_lines for that slot. Never merge two dialogue lines into one caption, never split one into two. On-screen caption timing is locked to the original dialogue lines, so a count mismatch breaks sync.',
+    '- caption_kr_dialogue must have exactly the same number of items as dialogue_focus_lines for that slot, in that same order. Count and order come from dialogue_focus_lines ONLY - never from dialogue_line_windows, whose entries can differ. Never merge two dialogue lines into one caption, never split one into two. On-screen caption timing is locked to the original dialogue lines, so a count mismatch breaks sync.',
     '- NAME THE PEOPLE. The first time a person speaks or is referred to, the narration must have said who they are and how they relate to the others ("가정부 밀리와 그녀의 고용주 앤드류"). A recap where 앤드류 or 윌 캘러핸 simply appears in a caption leaves the viewer with a stranger and the scene stops meaning anything - this shipped and the owner could not follow it. Use the names the source itself uses (auto-captions, the movie title, how characters address each other); only invent a descriptor when the source truly never names them, and then reuse that one descriptor everywhere.',
     '- The same person must carry the SAME name in narration and in every caption speaker field. 사장/가정부 in the captions while the narration says 앤드류/밀리 reads as four people.',
     '- For KEEP_DIALOGUE slots you MUST fill speakers with exactly one name per caption_kr_dialogue line. Each speaker gets their own caption colour, so a missing name leaves that line uncoloured and the render is rejected. When the auto-captions do not name someone, use the SAME name the narration uses for that person; only if the narration never names them either, use a short stable descriptor you reuse throughout (여자, 남자, 점원). A caption reading "남자" while the narration calls him 대릴 leaves the viewer with a nameless stranger. Never leave an entry empty and never merge two speakers under one name.',
@@ -5157,7 +5178,7 @@ function buildSlotFillsPrompt(beats, editPlan, movieTitle, recapContextMarkdown)
     JSON.stringify(beats, null, 2),
     '',
     'Edit plan:',
-    JSON.stringify(editPlan, null, 2)
+    JSON.stringify(stripUnplayableWindowsForPrompt(editPlan), null, 2)
   ].join('\n');
 }
 
@@ -5213,7 +5234,7 @@ function buildJapaneseSlotFillsPrompt(beats, editPlan, movieTitle, recapContextM
     JSON.stringify(beats, null, 2),
     '',
     'Edit plan:',
-    JSON.stringify(editPlan, null, 2)
+    JSON.stringify(stripUnplayableWindowsForPrompt(editPlan), null, 2)
   ].filter((line) => line !== '').join('\n');
 }
 
