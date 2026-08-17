@@ -1,13 +1,13 @@
 {
  "draft_name": "draft_ko",
  "source_duration_sec": 553.121,
- "dialogue_clips": 33,
+ "dialogue_clips": 38,
  "note": "",
  "clips": {
   "slot_001_L01": {
    "start": 396.36,
-   "end": 399.09,
-   "speaker": "샬럿"
+   "end": 399.24,
+   "speaker": "샬롯"
   },
   "slot_003_L01": {
    "start": 123.92,
@@ -15,74 +15,99 @@
    "speaker": "대통령"
   },
   "slot_004_L01": {
-   "start": 190.514,
-   "end": 195.08,
-   "speaker": "샬럿"
+   "start": 189.131,
+   "end": 193.954,
+   "speaker": "샬롯"
   },
   "slot_005_L01": {
-   "start": 224.28,
-   "end": 228.08,
-   "speaker": "프레드"
-  },
-  "slot_005_L02": {
    "start": 228.119,
    "end": 229.325,
-   "speaker": "프레드"
+   "speaker": "샬롯"
+  },
+  "slot_005_L02": {
+   "start": 235.715,
+   "end": 239.077,
+   "speaker": "샬롯"
   },
   "slot_005_L03": {
    "start": 252.64,
    "end": 257.079,
-   "speaker": "샬럿"
+   "speaker": "샬롯"
   },
   "slot_007_L01": {
    "start": 363.84,
-   "end": 364.7,
+   "end": 364.88,
    "speaker": "프레드"
   },
   "slot_007_L03": {
-   "start": 367.6,
-   "end": 370,
-   "speaker": "프레드"
-  },
-  "slot_007_L04": {
-   "start": 370,
-   "end": 370.92,
-   "speaker": "샬럿"
-  },
-  "slot_007_L05": {
    "start": 370.92,
    "end": 373.04,
-   "speaker": "샬럿"
+   "speaker": "샬롯"
   },
   "slot_008_L01": {
-   "start": 399.24,
-   "end": 403.32,
+   "start": 399.51,
+   "end": 402.766,
    "speaker": "프레드"
   },
   "slot_008_L02": {
-   "start": 403.32,
+   "start": 403.035,
    "end": 407.4,
    "speaker": "프레드"
   },
   "slot_008_L03": {
    "start": 407.4,
    "end": 409.6,
-   "speaker": "샬럿"
+   "speaker": "프레드"
   },
   "slot_008_L04": {
    "start": 409.6,
    "end": 411.44,
-   "speaker": "샬럿"
+   "speaker": "샬롯"
+  },
+  "slot_009_L01": {
+   "start": 417.02,
+   "end": 422.24,
+   "speaker": "보좌관"
+  },
+  "slot_009_L02": {
+   "start": 422.24,
+   "end": 425.32,
+   "speaker": "보좌관"
+  },
+  "slot_009_L03": {
+   "start": 425.32,
+   "end": 426.96,
+   "speaker": "샬롯"
+  },
+  "slot_009_L04": {
+   "start": 426.96,
+   "end": 434.44,
+   "speaker": "보좌관"
+  },
+  "slot_009_L05": {
+   "start": 434.44,
+   "end": 436.889,
+   "speaker": "샬롯"
+  },
+  "slot_009_L06": {
+   "start": 439.315,
+   "end": 441.4,
+   "speaker": "프레드"
+  },
+  "slot_009_L07": {
+   "start": 441.4,
+   "end": 444.641,
+   "speaker": "보좌관"
   },
   "slot_010_L01": {
    "start": 463.76,
-   "end": 465.863,
+   "end": 465.92,
    "speaker": "보좌관"
   },
   "slot_010_L02": {
-   "start": 465.863,
+   "start": 465.92,
    "end": 468.49,
-   "speaker": "샬럿"
+   "speaker": "샬롯"
   },
   "slot_010_L03": {
    "start": 469.327,
@@ -92,32 +117,32 @@
   "slot_010_L04": {
    "start": 478.8,
    "end": 479.92,
-   "speaker": "총리"
+   "speaker": "바라트"
   },
   "slot_010_L05": {
    "start": 479.92,
    "end": 483,
-   "speaker": "샬럿"
+   "speaker": "샬롯"
   },
   "slot_010_L06": {
    "start": 483.015,
    "end": 486.35,
-   "speaker": "샬럿"
+   "speaker": "샬롯"
   },
   "slot_010_L07": {
    "start": 487.173,
    "end": 490.107,
-   "speaker": "샬럿"
+   "speaker": "샬롯"
   },
   "slot_010_L08": {
    "start": 492.143,
    "end": 493.374,
-   "speaker": "샬럿"
+   "speaker": "샬롯"
   },
   "slot_010_L09": {
    "start": 494.44,
-   "end": 501.627,
-   "speaker": "총리"
+   "end": 504.16,
+   "speaker": "바라트"
   },
   "slot_012_L01": {
    "start": 510.36,
@@ -132,7 +157,7 @@
   "slot_012_L03": {
    "start": 513.56,
    "end": 514.479,
-   "speaker": "총리"
+   "speaker": "바라트"
   },
   "slot_012_L04": {
    "start": 514.479,
@@ -142,7 +167,7 @@
   "slot_012_L05": {
    "start": 517.159,
    "end": 520,
-   "speaker": "샬럿"
+   "speaker": "샬롯"
   },
   "slot_012_L06": {
    "start": 520,
@@ -152,7 +177,7 @@
   "slot_012_L07": {
    "start": 521.76,
    "end": 523.56,
-   "speaker": "샬럿"
+   "speaker": "샬롯"
   },
   "slot_012_L08": {
    "start": 523.56,
@@ -162,7 +187,7 @@
   "slot_012_L09": {
    "start": 525.72,
    "end": 528.08,
-   "speaker": "총리"
+   "speaker": "바라트"
   },
   "slot_012_L10": {
    "start": 528.11,

@@ -1,7 +1,7 @@
 {
  "draft_name": "draft_ko",
  "source_duration_sec": 557.621,
- "dialogue_clips": 28,
+ "dialogue_clips": 35,
  "note": "",
  "clips": {
   "slot_01_L01": {
@@ -14,25 +14,115 @@
    "end": 100.72,
    "speaker": "소니"
   },
+  "slot_04_L03": {
+   "start": 142.941,
+   "end": 147.629,
+   "speaker": "소니"
+  },
+  "slot_06_L01": {
+   "start": 273.451,
+   "end": 278.742,
+   "speaker": "소니"
+  },
   "slot_07_L01": {
    "start": 340,
    "end": 341.14,
    "speaker": "소니"
   },
+  "slot_07_L02": {
+   "start": 341.14,
+   "end": 342.8,
+   "speaker": "소니"
+  },
+  "slot_07_L03": {
+   "start": 342.8,
+   "end": 348.92,
+   "speaker": "소니"
+  },
   "slot_08_L01": {
+   "start": 358.96,
+   "end": 360.56,
+   "speaker": "구단주"
+  },
+  "slot_08_L02": {
+   "start": 360.56,
+   "end": 364.16,
+   "speaker": "알리"
+  },
+  "slot_08_L03": {
+   "start": 364.16,
+   "end": 365.48,
+   "speaker": "알리"
+  },
+  "slot_08_L04": {
+   "start": 365.48,
+   "end": 366.76,
+   "speaker": "소니"
+  },
+  "slot_08_L05": {
+   "start": 366.76,
+   "end": 368.92,
+   "speaker": "톰"
+  },
+  "slot_08_L06": {
+   "start": 368.92,
+   "end": 370.4,
+   "speaker": "소니"
+  },
+  "slot_08_L07": {
+   "start": 370.4,
+   "end": 374.84,
+   "speaker": "톰"
+  },
+  "slot_08_L08": {
+   "start": 374.84,
+   "end": 381.16,
+   "speaker": "톰"
+  },
+  "slot_08_L09": {
+   "start": 381.16,
+   "end": 382.4,
+   "speaker": "톰"
+  },
+  "slot_08_L10": {
+   "start": 382.4,
+   "end": 385.2,
+   "speaker": "소니"
+  },
+  "slot_08_L11": {
+   "start": 385.2,
+   "end": 387.309,
+   "speaker": "소니"
+  },
+  "slot_08_L12": {
    "start": 389,
    "end": 394.15,
    "speaker": "소니"
   },
   "slot_09_L01": {
-   "start": 408.09,
-   "end": 411.87,
+   "start": 406.2,
+   "end": 411.88,
+   "speaker": "소니"
+  },
+  "slot_09_L02": {
+   "start": 411.88,
+   "end": 414.4,
+   "speaker": "구단주"
+  },
+  "slot_09_L03": {
+   "start": 414.4,
+   "end": 417,
+   "speaker": "코치"
+  },
+  "slot_09_L04": {
+   "start": 417,
+   "end": 420,
    "speaker": "소니"
   },
   "slot_10_L01": {
    "start": 463.195,
    "end": 465.52,
-   "speaker": "탐"
+   "speaker": "톰"
   },
   "slot_10_L02": {
    "start": 465.52,
@@ -45,61 +135,6 @@
    "speaker": "소니"
   },
   "slot_10_L04": {
-   "start": 479.075,
-   "end": 482.84,
-   "speaker": "탐"
-  },
-  "slot_10_L05": {
-   "start": 482.84,
-   "end": 486.04,
-   "speaker": "탐"
-  },
-  "slot_10_L06": {
-   "start": 486.04,
-   "end": 488.44,
-   "speaker": "소니"
-  },
-  "slot_10_L07": {
-   "start": 488.44,
-   "end": 491.04,
-   "speaker": "소니"
-  },
-  "slot_10_L08": {
-   "start": 491.04,
-   "end": 491.8,
-   "speaker": "탐"
-  },
-  "slot_10_L09": {
-   "start": 491.8,
-   "end": 493.32,
-   "speaker": "소니"
-  },
-  "slot_10_L14": {
-   "start": 493.32,
-   "end": 494.807,
-   "speaker": "소니"
-  },
-  "slot_10_L10": {
-   "start": 494.807,
-   "end": 496.96,
-   "speaker": "소니"
-  },
-  "slot_10_L11": {
-   "start": 496.96,
-   "end": 500.56,
-   "speaker": "소니"
-  },
-  "slot_10_L12": {
-   "start": 500.56,
-   "end": 501.96,
-   "speaker": "탐"
-  },
-  "slot_10_L13": {
-   "start": 501.96,
-   "end": 506.395,
-   "speaker": "소니"
-  },
-  "slot_10_L15": {
    "start": 506.395,
    "end": 515.07,
    "speaker": "소니"
@@ -117,7 +152,7 @@
   "slot_11_L03": {
    "start": 526.76,
    "end": 527.72,
-   "speaker": "탐"
+   "speaker": "톰"
   },
   "slot_11_L04": {
    "start": 527.72,
@@ -132,16 +167,16 @@
   "slot_11_L06": {
    "start": 533.839,
    "end": 537.12,
-   "speaker": "탐"
+   "speaker": "톰"
   },
   "slot_11_L07": {
    "start": 537.12,
    "end": 538.64,
-   "speaker": "탐"
+   "speaker": "톰"
   },
   "slot_11_L08": {
    "start": 538.64,
-   "end": 543.194,
+   "end": 542.839,
    "speaker": "소니"
   }
  }
