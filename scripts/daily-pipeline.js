@@ -34,8 +34,13 @@ const { startProcessJob, listJobs } = require('../server/services/processJobServ
 
 const REPORTS_DIR = path.join(ROOT, 'server', 'output', 'daily-reports');
 
+// LOCAL date. This runs at local midnight, and stamping in UTC put the new
+// day's report into yesterday's file for the nine hours before the UTC day
+// turned over - which both overwrote yesterday's report and made the
+// once-a-day guard read it as "today already harvested" (2026-08-18).
 function dateStamp(date = new Date()) {
-  return date.toISOString().slice(0, 10).replace(/-/g, '');
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 10).replace(/-/g, '');
 }
 
 function runScorecardForLastJob() {

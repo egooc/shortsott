@@ -10,8 +10,14 @@ const path = require('path');
 
 const STATE_PATH = path.join(__dirname, '..', 'data', 'harvest_daily_state.json');
 
+// LOCAL date, not UTC. The schedule fires at local midnight, so a UTC day
+// boundary nine hours later meant the cap was still yesterday's when the new day
+// started: at 00:15 local the state read 24/24 and the daily seed harvest was
+// skipped as "already done today" (2026-08-18).
 function today() {
-  return new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 10);
 }
 
 function readState() {
