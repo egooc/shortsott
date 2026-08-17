@@ -55,6 +55,43 @@ if (process.argv.includes('--retire')) {
   return;
 }
 
+// The consent redirect goes to localhost, which only resolves on the machine
+// running the server - approving on a phone gives ERR_CONNECTION_REFUSED even
+// though the flow succeeded (2026-08-18). The authorization code is in the URL
+// the browser failed to load, so paste that URL here and the exchange happens
+// server-side.
+if (process.argv.includes('--code')) {
+  const raw = process.argv[process.argv.indexOf('--code') + 1] || '';
+  if (!raw) { console.log('--code <붙여넣은 주소 또는 code 값> 이 필요합니다.'); process.exitCode = 1; return; }
+  let code = raw;
+  let state = '';
+  if (raw.includes('code=')) {
+    try {
+      const u = new URL(raw.startsWith('http') ? raw : `http://localhost:3001/${raw.replace(/^\/+/, '')}`);
+      code = u.searchParams.get('code') || '';
+      state = u.searchParams.get('state') || '';
+    } catch {
+      const m = raw.match(/[?&]code=([^&\s]+)/);
+      const s = raw.match(/[?&]state=([^&\s]+)/);
+      code = m ? decodeURIComponent(m[1]) : raw;
+      state = s ? decodeURIComponent(s[1]) : '';
+    }
+  }
+  if (!code) { console.log('주소에서 code 를 찾지 못했습니다.'); process.exitCode = 1; return; }
+  console.log(`code ${code.slice(0, 12)}... / state ${state ? '있음' : '없음'} 로 교환합니다.`);
+  svc.exchangeOAuthCode(code, state)
+    .then((result) => {
+      console.log('연결 완료:', JSON.stringify(result).slice(0, 200));
+      showStatus();
+    })
+    .catch((e) => {
+      console.log('교환 실패:', String(e.message || e).slice(0, 240));
+      console.log('code 는 한 번만 쓸 수 있고 몇 분 뒤 만료됩니다 - 실패하면 --url 로 새 링크를 받아 다시 승인하세요.');
+      process.exitCode = 1;
+    });
+  return;
+}
+
 if (process.argv.includes('--url')) {
   // Reuse an existing profile's OAuth client: the consent flow needs a client id
   // and secret, and the same app can authorize a different channel. Which
