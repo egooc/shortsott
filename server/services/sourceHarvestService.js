@@ -252,6 +252,35 @@ function rankCandidates(videos) {
 //
 // Dealing one at a time to each lane gives every lane the same quality
 // distribution, so a lane's pass rate reflects the lane, not its position.
+// Which language is this source in? Read off the writing system in its title.
+//
+// Hangul and kana are decisive. Han without kana reads as Chinese - a Japanese
+// title written in kanji only would be misread, which is why the pairing rule
+// below is a preference and not a hard filter.
+function detectSourceLanguage(candidate = {}) {
+  const text = `${candidate.title || ''} ${candidate.creator || ''}`;
+  if (/[가-힣]/u.test(text)) return 'ko';
+  if (/[぀-ゟ゠-ヿ]/u.test(text)) return 'ja';
+  if (/[฀-๿]/u.test(text)) return 'th';
+  if (/[ऀ-ॿ]/u.test(text)) return 'hi';
+  if (/[一-鿿]/u.test(text)) return 'zh';
+  return 'en';
+}
+
+function localeLanguage(locale = '') {
+  return String(locale).toLowerCase().startsWith('ko') ? 'ko' : 'ja';
+}
+
+// A source in the channel's own language is the wrong material for it: the
+// audience can already find the original, and the localized version adds
+// nothing (user, 2026-08-17). Chinese, Thai, English and Hindi process footage
+// is plentiful, so a Japanese source belongs on the KR channel and a Korean one
+// on the JP channel.
+//
+// Dealing stays round-robin - each lane must keep getting the same quality
+// distribution, which is why it was made round-robin in the first place - but
+// each slot now takes the best-ranked candidate that is not in its own language,
+// and only falls back to a same-language one when nothing else is left.
 function assignLocales(candidates, config) {
   const remaining = config.locale_plan.map((plan) => ({ plan, left: Number(plan.count) || 0 }));
   const slots = [];
@@ -265,11 +294,26 @@ function assignLocales(candidates, config) {
       dealt = true;
     }
   }
-  return slots.slice(0, candidates.length).map((plan, index) => ({
-    ...candidates[index],
-    target_locale: plan.locale,
-    production_lane: plan.lane || ''
-  }));
+
+  const pool = candidates.map((candidate) => ({ candidate, language: detectSourceLanguage(candidate) }));
+  const taken = new Set();
+  const assigned = [];
+
+  for (const plan of slots.slice(0, candidates.length)) {
+    const channelLanguage = localeLanguage(plan.locale);
+    let pick = pool.findIndex((row, index) => !taken.has(index) && row.language !== channelLanguage);
+    if (pick < 0) pick = pool.findIndex((row, index) => !taken.has(index));
+    if (pick < 0) break;
+    taken.add(pick);
+    assigned.push({
+      ...pool[pick].candidate,
+      target_locale: plan.locale,
+      production_lane: plan.lane || '',
+      source_language: pool[pick].language,
+      source_language_matches_channel: pool[pick].language === channelLanguage
+    });
+  }
+  return assigned;
 }
 
 // Importer is injected so this service never requires processQueueService
@@ -395,6 +439,7 @@ module.exports = {
     todaysQueries,
     rankCandidates,
     assignLocales,
+    detectSourceLanguage,
     heatmapPeak,
     DEFAULT_CONFIG
   }
