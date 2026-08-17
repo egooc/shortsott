@@ -4770,6 +4770,14 @@ function buildEditPlanPrompt(beats, heatmap, targetSec, metadata) {
     '- Run KEEP_DIALOGUE slots back to back wherever the scene allows it. Long chains of preserved dialogue are what this format is built on; the viewer reads the situation from the exchange itself. Break the chain only where the scene actually moves.',
     '- Narration is for the SEAM between scenes, so keep NARRATE slots few and short. A narration stretch beyond about 12 seconds means the cut is explaining instead of showing — replace it with the lines from the scene.',
     '- Exclude environment description, transitions, cushion setup, joke detours, and side-branch lines even if they happen inside the same beat.',
+    '',
+    'Causal chain (this outranks line quality - a cut whose viewer cannot follow the cause is a failed cut):',
+    '- Every beat with dramatic_weight 4 or 5 must appear in the cut. This is checked mechanically and a plan that drops one is rejected.',
+    '- The event a scene turns on frequently has NO dialogue: someone is pushed down the stairs, a body is on the floor, a door is locked. Those beats show dialogue_quality "low" and a dialogue-first pick drops them - which leaves the aftermath (the alibi, the interview, the funeral) with no cause, and the viewer cannot tell what happened. Keep such a beat as NARRATE with visual_source_mode "source_audio_teaser" over its own footage, and narrate what just happened.',
+    '- Never keep the aftermath of an event while dropping the event. If someone reacts to a death, a betrayal, a lie or a discovery, the moment it happened is either KEPT or NARRATED before that reaction.',
+    '- Skipping beats is fine, but each skip needs a seam: if the beats between two kept slots are dropped, put a short NARRATE slot between them that says what happened in the gap. A jump the narration does not cover reads as a missing scene.',
+    '- Do not keep a single line out of a beat whose payoff you dropped. Either keep the payoff too, or leave that line out - a line nothing answers is a loose end the viewer waits on for the rest of the cut.',
+    '- The clip\'s last beats usually carry its resolution or twist. Ending on a middle beat while the resolution goes unused wastes the arc; close on the beat that settles it.',
     '- If there are more than 5 candidate lines, keep only the highest identity / hook / reveal lines.',
     '- NARRATE compresses via narration. DROP removes low-value side branches.',
     '- If cold_open would otherwise inherit irrelevant chatter, mark it as a narration-led teaser and let body_peak replay the full story beat later.',
@@ -5421,9 +5429,54 @@ function validateBeats(beatsObject, transcript, footageEndSec = 0) {
   return { ...beatsObject, beats };
 }
 
+// The event a scene turns on is often the beat with NO dialogue - a push down a staircase, a body
+// on the floor - and a dialogue-first planner drops exactly those. The Housemaid ending shipped the
+// alibi, the police interview and the funeral while the killing itself (beat_03, dramatic_weight 5,
+// dialogue_quality low) was DROPped, so the viewer never learned that anyone had died and the whole
+// cut read as unrelated fragments. A beat this heavy has to be somewhere in the cut: kept if it has
+// lines, narrated over its own action if it does not.
+const CAUSAL_BEAT_MIN_WEIGHT = 4;
+
+function findUncoveredCausalBeats(editPlan, beats) {
+  const timeline = Array.isArray(editPlan?.timeline) ? editPlan.timeline : [];
+  const kept = timeline.filter((item) => item && item.decision !== 'DROP');
+  const keptBeatIds = new Set(kept.map((item) => String(item.beat_id || '').trim()).filter(Boolean));
+  // A narration slot that plays over the beat's own footage covers it even when the plan attributed
+  // the slot to a neighbouring beat.
+  const narrationRanges = kept
+    .map((item) => [Number(item.visual_source_start_sec), Number(item.visual_source_end_sec)])
+    .filter(([start, end]) => Number.isFinite(start) && Number.isFinite(end) && end > start);
+  return (Array.isArray(beats) ? beats : []).filter((beat) => {
+    if (Number(beat?.dramatic_weight || 0) < CAUSAL_BEAT_MIN_WEIGHT) return false;
+    const beatId = String(beat?.beat_id || '').trim();
+    if (keptBeatIds.has(beatId)) return false;
+    const start = Number(beat?.start_sec);
+    const end = Number(beat?.end_sec);
+    if (!Number.isFinite(start) || !Number.isFinite(end)) return true;
+    // Covered when some kept slot's footage overlaps at least a third of the beat.
+    const overlap = narrationRanges.reduce((best, [rangeStart, rangeEnd]) => {
+      const shared = Math.min(end, rangeEnd) - Math.max(start, rangeStart);
+      return shared > best ? shared : best;
+    }, 0);
+    return overlap < (end - start) / 3;
+  });
+}
+
 function validateEditPlanAgainstBeats(editPlan, beats) {
   const beatMap = new Map((Array.isArray(beats) ? beats : []).map((beat) => [String(beat?.beat_id || '').trim(), beat]));
   const timeline = Array.isArray(editPlan?.timeline) ? editPlan.timeline : [];
+  const uncovered = findUncoveredCausalBeats(editPlan, beats);
+  if (uncovered.length) {
+    const detail = uncovered
+      .map((beat) => `${beat.beat_id} (${Math.round(Number(beat.start_sec))}-${Math.round(Number(beat.end_sec))}s, weight ${beat.dramatic_weight}): ${String(beat.summary || '').slice(0, 120)}`)
+      .join(' | ');
+    throw new Error(
+      `edit plan leaves out the event(s) the scene turns on: ${detail}. A beat with dramatic_weight `
+      + `${CAUSAL_BEAT_MIN_WEIGHT} or more must appear in the cut - KEEP_DIALOGUE when it has lines, otherwise NARRATE `
+      + 'with visual_source_mode "source_audio_teaser" over its own footage. Without it the surrounding '
+      + 'beats have no cause and the recap reads as unrelated fragments.'
+    );
+  }
   // A beat's dialogue can be split across its slots: the cold-open-callback pattern opens with
   // the hook line (slot_01) and replays the REST of the beat later (slot_003), so an anchor may
   // legitimately live in a SIBLING slot of the same beat rather than this one. The invariant is
