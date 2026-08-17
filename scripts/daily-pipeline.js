@@ -24,6 +24,11 @@ const {
   balanceLocalePlan,
   describePlan
 } = require('../server/services/harvestBalanceService');
+const { remainingToday, recordHarvested } = require('../server/services/harvestQuotaService');
+
+// Enough to get the queue moving at the start of the day; the producer harvests
+// the rest a few at a time as it drains what is already there.
+const DAILY_SEED_HARVEST = 4;
 const { importYoutubeSourceQueueItems } = require('../server/services/processQueueService');
 const { startProcessJob, listJobs } = require('../server/services/processJobService');
 
@@ -92,21 +97,34 @@ async function main() {
   // 2. Harvest + import
   let harvest = null;
   try {
-    // Weight today's split towards whichever channel is short. Uploads alternate
-    // strictly, so the thin side is the one that decides when the line starves.
+    // The producer tops the queue up in small chunks as it drains it, so this no
+    // longer takes the whole day's sources at once (user, 2026-08-17): a single
+    // midnight harvest gave the line a burst it finished in a few hours and then
+    // nothing until the next midnight. What is left here is a floor - enough to
+    // get the queue moving if the producer has been idle - and the daily cap is
+    // shared through harvest_daily_state.json, so the two cannot double up.
     const counts = bufferCountsByChannel();
     const configured = loadHarvestConfig().locale_plan || [];
     const balanced = balanceLocalePlan(configured, counts);
     lines.push('## 오늘 수확 배분');
     lines.push(`- 버퍼 잔량 JP ${counts.ja} / KR ${counts.ko}`);
     lines.push(`- 기본 계획 ${describePlan(configured)}`);
-    lines.push(`- 적용 계획 ${describePlan(balanced)}`);
+    lines.push(`- 적용 계획 ${describePlan(balanced)} (제작이 나머지를 나눠 수확)`);
+    lines.push(`- 시작 수확 ${DAILY_SEED_HARVEST}건`);
     lines.push('');
 
-    harvest = await harvestDailySources({
-      importItems: (rows) => importYoutubeSourceQueueItems({ items: rows }),
-      localePlan: balanced
-    });
+    const seed = Math.min(DAILY_SEED_HARVEST, remainingToday(Number(loadHarvestConfig().daily_count) || 24));
+    if (seed <= 0) {
+      lines.push('- 오늘 상한을 이미 채워 시작 수확 생략');
+      harvest = { queries: [], found_count: 0, fresh_count: 0, selected: [], import_result: { imported: [] } };
+    } else {
+      harvest = await harvestDailySources({
+        importItems: (rows) => importYoutubeSourceQueueItems({ items: rows }),
+        localePlan: balanced,
+        dailyCount: seed
+      });
+      recordHarvested((harvest.import_result && harvest.import_result.imported || []).length);
+    }
     const imported = harvest.import_result.imported || [];
     lines.push('## 오늘 소재 수집');
     lines.push(`- 검색 ${harvest.queries.map((q) => `${q.query}(${q.results})`).join(', ')}`);

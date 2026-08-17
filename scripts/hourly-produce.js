@@ -61,6 +61,7 @@ const JOB_TIMEOUT_MS = 90 * 60 * 1000;
 // against a fixed producer; the next hourly tick picks up where it left off.
 const DRAIN_BUDGET_MS = 6 * 60 * 60 * 1000;
 const ANALYSIS_COOLDOWN_MS = 60 * 1000;
+const HARVEST_CHUNK = 4;
 let failureCount = 0;
 const startedAt = Date.now();
 
@@ -143,7 +144,11 @@ function nextQueueItem() {
     // Untouched items only: 'success' already has a guide and the skip states
     // are decisions, not backlog.
     if (config.analysis_status) continue;
-    if (!fs.existsSync(path.join(QUEUE_DIR, id, 'source_clean.mp4'))) continue;
+    // A freshly harvested item has no source_clean.mp4 yet - that is what the
+    // download stage is for. Requiring the file here meant an incrementally
+    // harvested source could never be picked up, so the drain harvested, found
+    // nothing to build, and harvested again (2026-08-17).
+    if (!config.source_url && !fs.existsSync(path.join(QUEUE_DIR, id, 'source_clean.mp4'))) continue;
     return id;
   }
   return '';
@@ -220,7 +225,9 @@ async function buildOneDraft(dryRun) {
 
   const result = startProcessJob({
     item_ids: [itemId],
-    stages: ['metadata', 'draft'],
+    // download included: the producer now harvests its own sources, so it has to
+    // fetch them too rather than assuming a batch already did.
+    stages: ['download', 'metadata', 'draft'],
     batch_name: 'hourly_produce',
     continue_to_draft_after_metadata: true,
     enqueue_if_active: false
@@ -255,11 +262,58 @@ async function buildOneDraft(dryRun) {
   }
 }
 
+// Harvest a few sources when the queue runs dry, rather than taking a whole day
+// at midnight (user, 2026-08-17). A single 24-source harvest gives the line a
+// burst it works through in a few hours and then nothing for the rest of the
+// day; topping up in small chunks keeps it fed and keeps the analyses spread
+// out, which is the same reason the analyses themselves run one at a time.
+//
+// A daily ledger caps the total so incremental harvesting cannot outrun the
+// day's plan.
+async function harvestChunk(dryRun) {
+  const { loadHarvestConfig, harvestDailySources } = require('../server/services/sourceHarvestService');
+  const { readState, remainingToday, recordHarvested } = require('../server/services/harvestQuotaService');
+  const dailyCap = Number(loadHarvestConfig().daily_count) || 24;
+  const state = readState();
+  const remaining = remainingToday(dailyCap);
+  if (remaining <= 0) {
+    console.log(`daily harvest cap reached (${state.imported}/${dailyCap}); nothing to top up`);
+    return false;
+  }
+
+  const chunk = Math.min(HARVEST_CHUNK, remaining);
+  const { bufferCountsByChannel, balanceLocalePlan, describePlan } = require('../server/services/harvestBalanceService');
+  const counts = bufferCountsByChannel();
+  const plan = balanceLocalePlan(loadHarvestConfig().locale_plan || [], counts);
+  // Scale the balanced split down to this chunk, keeping at least one of each
+  // entry that survived the balancing.
+  const planTotal = plan.reduce((sum, entry) => sum + Number(entry.count || 0), 0) || 1;
+  const scaled = plan
+    .map((entry) => ({ ...entry, count: Math.max(0, Math.round((Number(entry.count) / planTotal) * chunk)) }))
+    .filter((entry) => entry.count > 0);
+  if (!scaled.length) return false;
+
+  console.log(`harvest chunk: ${chunk} (오늘 ${state.imported}/${dailyCap}) | 버퍼 JP ${counts.ja} / KR ${counts.ko} | ${describePlan(scaled)}`);
+  if (dryRun) return false;
+
+  const { importYoutubeSourceQueueItems } = require('../server/services/processQueueService');
+  const result = await harvestDailySources({
+    importItems: (rows) => importYoutubeSourceQueueItems({ items: rows }),
+    localePlan: scaled,
+    dailyCount: chunk
+  });
+  const imported = (result.import_result && result.import_result.imported) || [];
+  recordHarvested(imported.length);
+  console.log(`harvested ${imported.length} source(s)`);
+  return imported.length > 0;
+}
+
 async function main() {
   const dryRun = process.argv.includes('--dry-run');
   if (dryRun) {
     exportOnePendingDraft(true);
     await buildOneDraft(true);
+    await harvestChunk(true);
     return;
   }
 
@@ -297,6 +351,8 @@ async function main() {
         await new Promise((r) => setTimeout(r, ANALYSIS_COOLDOWN_MS));
         continue;
       }
+      // eslint-disable-next-line no-await-in-loop
+      if (await harvestChunk(false)) { units += 1; continue; }
       console.log(`nothing left to produce; did ${units} unit(s) this run${failureCount ? `, ${failureCount} export failure(s)` : ''}`);
       break;
     }

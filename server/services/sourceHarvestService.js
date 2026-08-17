@@ -278,11 +278,16 @@ function assignLocales(candidates, config) {
 // localePlan overrides the configured split for this run only. The caller is the
 // one that can see how much stock each channel has left; this service must not
 // reach into the CapCut output folder itself (the dependency runs one way).
-async function harvestDailySources({ importItems, now = new Date(), dryRun = false, localePlan = null } = {}) {
+async function harvestDailySources({
+  importItems, now = new Date(), dryRun = false, localePlan = null, dailyCount = 0
+} = {}) {
   const baseConfig = loadHarvestConfig();
-  const config = Array.isArray(localePlan) && localePlan.length
-    ? { ...baseConfig, locale_plan: localePlan }
-    : baseConfig;
+  const config = { ...baseConfig };
+  if (Array.isArray(localePlan) && localePlan.length) config.locale_plan = localePlan;
+  // A smaller count is how the producer harvests a few sources at a time instead
+  // of taking a whole day's worth at once. It has to move with the plan, since
+  // the asset-channel target is a share of it.
+  if (Number(dailyCount) > 0) config.daily_count = Math.floor(Number(dailyCount));
   const ledger = loadLedger();
   const queries = todaysQueries(config, now);
 
