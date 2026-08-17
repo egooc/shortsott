@@ -49,3 +49,30 @@ test('a two-word fragment is never dropped as a restatement', () => {
   ]));
   assert.equal(lines(out).length, 3);
 });
+
+// The other shape: the caption re-displays only the tail of the line just spoken, as its own cue.
+test('a tail re-displayed right after its own line is dropped', () => {
+  const out = _test.dropRestatedWindows(slot([
+    win(532.08, 533.0, '>> No. Will Callahan is our future.'),
+    win(533.0, 535.2, 'Will Callahan is our future.'),
+    win(536.0, 539.0, '$30 million, Sonny.')
+  ]));
+  assert.deepEqual(lines(out), ['>> No. Will Callahan is our future.', '$30 million, Sonny.']);
+});
+
+test('a character repeating themselves is not a tail re-display', () => {
+  const out = _test.dropRestatedWindows(slot([
+    win(424.32, 426.96, '>> Yeah, did you know that?'),
+    win(426.96, 428.16, '>> Did you?'),
+    win(428.16, 433.5, 'That a tooth was gone.')
+  ]));
+  assert.equal(lines(out).length, 3);
+});
+
+test('a tail spoken again much later stays', () => {
+  const out = _test.dropRestatedWindows(slot([
+    win(100, 103, 'I am taking Callahan with the first pick.'),
+    win(140, 142, 'taking Callahan with the first pick.')
+  ]));
+  assert.equal(lines(out).length, 2);
+});

@@ -5,7 +5,7 @@ source:
   url: "https://www.youtube.com/watch?v=jwyHe0XYmgU"
   content_type: movie_midform_recap
 output:
-  target_length_sec: 130
+  target_length_sec: 170
 review:
   pause_before_tts: true
 subtitle_limits:
@@ -34,7 +34,7 @@ render:
 
 # Source
 - clip url: https://www.youtube.com/watch?v=jwyHe0XYmgU
-- target length: 130s (상한)
+- target length: 170s (상한)
 - title: "We're On Molly Right Now" (Charlize Theron) | Long Shot
 - source audio language: English
 - subtitle source: 자동자막 (en) — 빠른 코미디 대사, 큐 뭉침 주의, 게이트 프레임 대조

@@ -5,7 +5,7 @@ source:
   url: "https://www.youtube.com/watch?v=EA-lJxd2NGs"
   content_type: movie_midform_recap
 output:
-  target_length_sec: 130
+  target_length_sec: 170
 review:
   pause_before_tts: true
 subtitle_limits:
@@ -32,7 +32,7 @@ render:
 
 # Source
 - clip url: https://www.youtube.com/watch?v=EA-lJxd2NGs
-- target length: 130s (상한)
+- target length: 170s (상한)
 - title: Sonny Weaver Goes All In on Draft Day (Kevin Costner) | Draft Day
 - source audio language: English
 - subtitle source: 자동자막 (en) — 빠른 협상 대사, 큐 뭉침 주의, 게이트 프레임 대조

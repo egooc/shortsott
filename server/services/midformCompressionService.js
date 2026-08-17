@@ -3567,6 +3567,27 @@ function dropRestatedWindows(timeline) {
       .filter((entry) => entry.win && entry.win.matched === true && Number(entry.win.end_sec) > Number(entry.win.start_sec))
       .sort((left, right) => Number(left.win.start_sec) - Number(right.win.start_sec));
     const drop = new Set();
+    // The other shape of the same artifact: the caption re-displays only the TAIL of the line just
+    // spoken, as its own cue, right after it - Draft Day shipped "No. Will Callahan is our future."
+    // and then "Will Callahan is our future." two seconds later. A suffix, not merely a containment:
+    // a character really repeating themselves ("Yeah, did you know that?" / "Did you?") shares words
+    // without ending the earlier line, and has to survive.
+    for (let position = 1; position < ordered.length; position += 1) {
+      const previous = norm(ordered[position - 1].win.line);
+      const current = norm(ordered[position].win.line);
+      if (!previous || !current || current.length >= previous.length) continue;
+      if (current.split(' ').filter(Boolean).length < 3) continue;
+      if (!previous.endsWith(` ${current}`)) continue;
+      const gap = Number(ordered[position].win.start_sec) - Number(ordered[position - 1].win.end_sec);
+      if (!(gap < 0.4)) continue;
+      // A ">>" marks a speaker starting to talk. A re-display carries no marker because nobody
+      // started talking - the caption merely scrolled. When BOTH lines carry one, two people (or the
+      // same person twice) really said it, and the repeat is the scene.
+      const previousRaw = String(ordered[position - 1].win.line || '').trim();
+      const currentRaw = String(ordered[position].win.line || '').trim();
+      if (!previousRaw.startsWith('>>') || currentRaw.startsWith('>>')) continue;
+      drop.add(ordered[position].index);
+    }
     for (let position = 1; position < ordered.length - 1; position += 1) {
       const previous = norm(ordered[position - 1].win.line);
       const current = norm(ordered[position].win.line);
@@ -4002,8 +4023,22 @@ function trimTimelineToTargetRuntime(timeline, targetSec, beats = []) {
       .map((item, index) => ({ item, index }))
       .filter(({ item }) => item.decision === 'KEEP_DIALOGUE'
         && (Array.isArray(item.dialogue_line_windows) ? item.dialogue_line_windows : []).filter((w) => w && w.matched === true).length > 1)
-      .sort((left, right) => (Number(left.item.hook_potential || 0) + Number(left.item.dramatic_weight || 0))
-        - (Number(right.item.hook_potential || 0) + Number(right.item.dramatic_weight || 0)));
+      // Same weight fallback as the drop loop: slots rarely carry these fields, so without the beat's
+      // numbers every slot scored 0 and the shave ate whichever happened to be first in the array -
+      // which took Draft Day's newly restored "the trade is struck" beat from four lines down to one.
+      // On a tie, shave the slot with the MOST lines: one line out of a twelve-line exchange costs
+      // the story nothing, one out of four can cost it the point.
+      .sort((left, right) => {
+        const weight = (entry) => {
+          const own = Number(entry.item.hook_potential || 0) + Number(entry.item.dramatic_weight || 0);
+          if (own > 0) return own;
+          const fromBeat = beatWeight.get(String(entry.item.beat_id || '').trim());
+          return fromBeat ? fromBeat.hook_potential + fromBeat.dramatic_weight : 0;
+        };
+        const matchedCount = (entry) => (Array.isArray(entry.item.dialogue_line_windows) ? entry.item.dialogue_line_windows : [])
+          .filter((win) => win && win.matched === true).length;
+        return weight(left) - weight(right) || matchedCount(right) - matchedCount(left);
+      });
     if (!shaveable.length) break;
     const anchorsOf = (entry) => new Set((Array.isArray(entry.item.dialogue_anchor_quotes) ? entry.item.dialogue_anchor_quotes : [])
       .map((quote) => normalizeComparableText(quote)));
