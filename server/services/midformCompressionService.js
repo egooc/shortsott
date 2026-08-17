@@ -4337,7 +4337,13 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec, usableEndSec =
   const timeline = anchorAdjustedTimeline.map((item) => {
     const beat = beatMap.get(String(item?.beat_id || '').trim());
     const next = { ...item };
-    if (next.decision === 'KEEP_DIALOGUE' && beat && next.split_part !== true) {
+    // A slot marked authored_lines was written by hand, so its lines are a decision, not a draft:
+    // re-deriving the focus from the beat threw those edits away on every refresh/apply and the
+    // owner's fix looked like it had done nothing. Geometry passes (trims, separation, the runtime
+    // ceiling) still apply - only the SELECTION is left alone, and only while it still resolves.
+    const authoredLines = next.authored_lines === true
+      && (Array.isArray(next.dialogue_line_windows) ? next.dialogue_line_windows : []).some((win) => win && win.matched === true);
+    if (next.decision === 'KEEP_DIALOGUE' && beat && next.split_part !== true && !authoredLines) {
       const plannedQuotes = Array.isArray(next.dialogue_focus_quotes)
         ? next.dialogue_focus_quotes.map((value) => String(value || '').trim()).filter(Boolean)
         : [];
@@ -4829,6 +4835,47 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec, usableEndSec =
     return annotateNarrationSlotForQc(item);
   });
   finalizedTimeline = applyColdOpenVisualOverlapSafety(finalizedTimeline, beatMap);
+  // The teaser limit has to be enforced HERE, not earlier: clampColdOpenToTeaser runs before the
+  // per-slot durations are recomputed from the windows, so a re-derived cold open came back over the
+  // limit (17.31s against 16s on The Housemaid night) and validateEditPlan rejected the plan - which
+  // then silently kept the previous one. Give the line back instead of rewriting the number: drop the
+  // teaser's last lines until it fits, keeping at least one.
+  finalizedTimeline = finalizedTimeline.map((item) => {
+    if (item?.role !== 'cold_open' || item.decision !== 'KEEP_DIALOGUE') return item;
+    const limit = COLD_OPEN_DIALOGUE_MAX_SEC;
+    let windows = (Array.isArray(item.dialogue_line_windows) ? item.dialogue_line_windows : []).slice();
+    // Measure it the way the validator does - the sum of the lines that get CUT, not the span from
+    // first to last (the dead air between lines never reaches the timeline).
+    const spanOf = (list) => realisticSlotDurationSec({ ...item, dialogue_line_windows: list });
+    if (!(spanOf(windows) > limit)) return item;
+    let dropped = 0;
+    while (spanOf(windows) > limit) {
+      const matched = windows.filter((win) => win && win.matched === true);
+      if (matched.length <= 1) break;
+      const last = matched.reduce((latest, win) => (Number(win.start_sec) > Number(latest.start_sec) ? win : latest), matched[0]);
+      windows = windows.filter((win) => win !== last);
+      dropped += 1;
+    }
+    if (!dropped) return item;
+    const keptLines = new Set(windows.filter((win) => win && win.matched === true)
+      .map((win) => normalizeComparableText(win.line)).filter(Boolean));
+    const keepText = (list) => (Array.isArray(list) ? list : []).filter((line) => keptLines.has(normalizeComparableText(line)));
+    const matched = windows.filter((win) => win && win.matched === true);
+    const next = {
+      ...item,
+      dialogue_line_windows: windows,
+      dialogue_focus_lines: keepText(item.dialogue_focus_lines),
+      dialogue_focus_quotes: keepText(item.dialogue_focus_quotes),
+      cold_open_lines_trimmed: dropped,
+      reason: `${item.reason || ''} Teaser trimmed to ${limit}s by dropping its last ${dropped} line(s).`.trim()
+    };
+    if (matched.length) {
+      next.start_sec = roundSec(Math.min(...matched.map((win) => Number(win.start_sec))));
+      next.end_sec = roundSec(Math.max(...matched.map((win) => Number(win.end_sec))));
+      next.estimated_duration_sec = realisticSlotDurationSec(next);
+    }
+    return next;
+  });
   const callbackMetadata = buildColdOpenCallbackMetadata(finalizedTimeline, editPlan, beats, transcript);
   const dialogueTimingQc = evaluateDialogueTimingQc(finalizedTimeline, {
     dialogueDrivenConfrontation: isDialogueDrivenConfrontation(editPlan, beats),
@@ -5323,6 +5370,25 @@ function validateJapaneseSlotFills(slotFills, editPlan) {
 // model keeps coming back one caption short on long exchanges, and rejecting that only
 // burns retries. Preserve the lines that actually have a caption instead — dropping a line
 // is honest, inventing a caption for it would not be.
+// Slot fills the owner corrected by hand carry authored: true. Apply regenerates every fill from the
+// LLM, so those corrections were silently replaced on the next run - a caption written because the
+// generated one named the wrong speaker, or captioned a line that never plays, came back wrong. Carry
+// the authored entry over the generated one, keyed by slot.
+function keepAuthoredSlotFills(generated, existingPath) {
+  if (!fs.existsSync(existingPath)) return generated;
+  let existing;
+  try { existing = readJson(existingPath); } catch { return generated; }
+  const authored = new Map((Array.isArray(existing?.slot_fills) ? existing.slot_fills : [])
+    .filter((fill) => fill && fill.authored === true)
+    .map((fill) => [String(fill.slot_id || '').trim(), fill]));
+  if (!authored.size) return generated;
+  const slotFills = (Array.isArray(generated?.slot_fills) ? generated.slot_fills : [])
+    .map((fill) => authored.get(String(fill?.slot_id || '').trim()) || fill);
+  const covered = new Set(slotFills.map((fill) => String(fill?.slot_id || '').trim()));
+  for (const [slotId, fill] of authored) if (!covered.has(slotId)) slotFills.push(fill);
+  return { ...generated, slot_fills: slotFills };
+}
+
 function reconcileDialogueCaptionCounts(slotFills, editPlan) {
   const fillsBySlot = new Map((Array.isArray(slotFills?.slot_fills) ? slotFills.slot_fills : [])
     .map((fill) => [String(fill?.slot_id || '').trim(), fill]));
@@ -6626,7 +6692,10 @@ async function runCompressionApply(runIdOrPath, applyOptions = {}) {
     result = await runJsonGeneration(slotFillsPrompt, MIDFORM_SLOT_FILLS_SCHEMA_PATH, validateStructure);
   }
   const slotFillsPath = path.join(runDir, 'compression_slot_fills.json');
-  const normalizedSlotFills = normalizeSlotFillsForStyle(result.parsed, finalizedEditPlan);
+  const normalizedSlotFills = keepAuthoredSlotFills(
+    normalizeSlotFillsForStyle(result.parsed, finalizedEditPlan),
+    slotFillsPath
+  );
   writeJson(slotFillsPath, normalizedSlotFills);
   try { await auditAndFixDialogueTranslations(runDir, finalizedEditPlan, normalizedSlotFills, 'compression_slot_fills.json', 'Korean'); } catch { /* dialogue audit is advisory */ }
   const uploadTextPath = path.join(runDir, 'upload_text.md');
@@ -6645,8 +6714,9 @@ async function runCompressionApply(runIdOrPath, applyOptions = {}) {
       )
     );
     japaneseSlotFillsPath = path.join(runDir, 'compression_slot_fills.ja.json');
-    writeJson(japaneseSlotFillsPath, japaneseResult.parsed);
-    try { await auditAndFixDialogueTranslations(runDir, finalizedEditPlan, japaneseResult.parsed, 'compression_slot_fills.ja.json', 'Japanese'); } catch { /* dialogue audit is advisory */ }
+    const japaneseSlotFills = keepAuthoredSlotFills(japaneseResult.parsed, japaneseSlotFillsPath);
+    writeJson(japaneseSlotFillsPath, japaneseSlotFills);
+    try { await auditAndFixDialogueTranslations(runDir, finalizedEditPlan, japaneseSlotFills, 'compression_slot_fills.ja.json', 'Japanese'); } catch { /* dialogue audit is advisory */ }
   }
 
   const recalculatedEditPlan = recalculateNarrationDurations(finalizedEditPlan, normalizedSlotFills, beatsObject.beats || [], transcript);
@@ -6897,6 +6967,7 @@ module.exports = {
     dropRestatedWindows,
     alignFocusLinesToWindows,
     dropUnplayableFocusLines,
+    keepAuthoredSlotFills,
     fillUncaptionedCuesInsideCuts,
     topUpTimelineToTargetRuntime,
     buildSlotQcReport,

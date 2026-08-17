@@ -16,6 +16,22 @@ description: 수정(코드/플랜/원고)을 기존 소스에 소급 적용하�
 5. **재개**: `review-resume <pipeline_run_id>` → `run --template ... --resume draft`.
 6. **실측**: /draft-verify 절차. 코드 diff가 아니라 산출물이 근거다.
 
+## 수기 수정을 지키는 방법 (2026-08-17)
+
+`compress-refresh`/`finalize`는 KEEP_DIALOGUE 슬롯의 **줄 선택을 비트에서 다시 도출**하고 `compress-apply`는
+**모든 fills를 다시 생성**한다. 그래서 손으로 고친 줄·자막·화자가 다음 실행에서 조용히 사라지곤 했다. 이제
+표시하면 지켜진다:
+
+- `edit_plan.json` 슬롯에 **`"authored_lines": true`** → 그 슬롯의 focus 줄/창을 재도출하지 않는다(트림·분리·
+  런타임 상한 같은 기하 패스는 계속 돈다). 매칭된 창이 하나도 없으면 플래그는 무시된다 — 해석 불가한 선택을
+  얼려두면 슬롯째 사라지므로.
+- `compression_slot_fills.json` / `.ja.json` 슬롯에 **`"authored": true`** → apply가 그 슬롯의 자막·화자를
+  생성본으로 덮지 않는다.
+
+여전히 유효한 사실: **슬롯의 focus는 연속된 덩이(cluster)로 도출된다.** 흩어진 줄을 새로 넣고 싶으면
+`narrative_beats.json`의 `key_dialogue`/`anchor_dialogue`를 고치는 것이 가장 확실하고, 그 뒤 refresh가
+자기 좌표로 창을 잡는다. 자막/화자 교정은 **apply 다음**에 하고 `authored`로 표시한다.
+
 ## 승인된 원고를 지키는 재타이밍 (2026-08-16)
 
 파서·병합 수정처럼 **transcript 좌표가 바뀌는** 수정을 옛 소스에 소급할 때 `compress-refresh`를 돌리면 대사 줄 선택 자체가 바뀌어(allin 25→31줄) 승인 원고를 다시 써야 한다. 원고를 얼리려면 **창의 시각만** 옮긴다:
