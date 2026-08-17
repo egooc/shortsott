@@ -3585,7 +3585,15 @@ function dropRestatedWindows(timeline) {
       // same person twice) really said it, and the repeat is the scene.
       const previousRaw = String(ordered[position - 1].win.line || '').trim();
       const currentRaw = String(ordered[position].win.line || '').trim();
-      if (!previousRaw.startsWith('>>') || currentRaw.startsWith('>>')) continue;
+      if (currentRaw.startsWith('>>')) continue;
+      // Two signatures of a scroll rather than a repeat: the earlier cue opened with a ">>" (someone
+      // started talking) and this one did not, or what the earlier cue had in FRONT of this text was
+      // a complete sentence that the re-display dropped off the top ("No." in "No. Will Callahan's
+      // our future."). A character repeating themselves leaves a fragment there ("So" in "So did you
+      // know?"), not a finished sentence.
+      const droppedHead = previous.slice(0, previous.length - current.length).trim();
+      const headIsSentence = /[.!?]$/.test(String(previousRaw).slice(0, Math.max(0, previousRaw.length - currentRaw.length)).trim());
+      if (!previousRaw.startsWith('>>') && !(droppedHead && headIsSentence)) continue;
       drop.add(ordered[position].index);
     }
     for (let position = 1; position < ordered.length - 1; position += 1) {

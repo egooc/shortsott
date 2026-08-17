@@ -76,3 +76,22 @@ test('a tail spoken again much later stays', () => {
   ]));
   assert.equal(lines(out).length, 2);
 });
+
+// A re-display can also drop a complete leading sentence off the top instead of a speaker marker.
+test('a re-display that dropped a finished sentence off the top is dropped', () => {
+  const out = _test.dropRestatedWindows(slot([
+    win(532.08, 533.36, "No. Will Callahan's our future."),
+    win(533.36, 536.04, "Will Callahan's our future."),
+    win(536.04, 538.72, '>> 30 million, Sonny.')
+  ]));
+  assert.deepEqual(lines(out), ["No. Will Callahan's our future.", '>> 30 million, Sonny.']);
+});
+
+test('a repeat whose head is only a fragment is kept', () => {
+  const out = _test.dropRestatedWindows(slot([
+    win(100, 103, 'So did you know?'),
+    win(103, 104.2, 'did you know?'),
+    win(104.2, 107, 'That it was gone.')
+  ]));
+  assert.equal(lines(out).length, 3);
+});
