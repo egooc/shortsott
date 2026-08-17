@@ -3673,9 +3673,12 @@ function dropUnplayableFocusLines(timeline) {
     // quotes, and emptying it kills the whole refresh. Leave it as it is and let the render-time
     // warning report the miss.
     if (!playable.length) return item;
+    // The played line may be a longer recording of the same utterance, so containment ONE way is
+    // right: the focus line inside a played line. The other direction let a short played fragment
+    // ("Cece") vouch for any long line that happened to contain it.
     const plays = (line) => {
       const wanted = key(line);
-      return Boolean(wanted) && playable.some((played) => played === wanted || played.includes(wanted) || wanted.includes(played));
+      return Boolean(wanted) && playable.some((played) => played === wanted || played.includes(wanted));
     };
     const lines = (Array.isArray(item.dialogue_focus_lines) ? item.dialogue_focus_lines : []).filter(plays);
     const quotes = (Array.isArray(item.dialogue_focus_quotes) ? item.dialogue_focus_quotes : []).filter(plays);
@@ -4775,7 +4778,10 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec, usableEndSec =
     if (!allDuplicates) return item;
     return { ...item, decision: 'DROP', estimated_duration_sec: 0, dialogue_focus_lines: [], dialogue_focus_quotes: [], reason: `${item.reason || ''} Dropped: window-less dialogue duplicate — every line is already carried by another slot.`.trim() };
   });
-  let finalizedTimeline = windowSafeTimeline.map((item) => {
+  // Again after the shave: it drops the LAST MATCHED line of a slot to buy runtime, so a slot can end
+  // up holding only lines that never play - which is what left The Housemaid night's gaslighting slot
+  // with the unplayable planned line and nothing else.
+  let finalizedTimeline = dropUnplayableFocusLines(windowSafeTimeline).map((item) => {
     if (item.decision === 'KEEP_DIALOGUE') return annotateDialogueSlotForQc(item, { windows: item.dialogue_line_windows || [] }, item);
     return annotateNarrationSlotForQc(item);
   });
