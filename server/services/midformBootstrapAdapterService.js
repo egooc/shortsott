@@ -763,6 +763,17 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
       const timing = buildDialogueTimingAdjustment(t, entry.win, orderedDialogueWindows, orderedIndex, durationSec, paddingGuardRanges);
       reservedDialogueRanges.push(timing.visual_range_sec);
     }
+    // The cold open's and the protected peak's LAST clip runs past its speech into the reaction;
+    // reserve that room too, or the closing narration's b-roll gets picked right on top of it
+    // (Long Shot's closing landed at 530.93 over a peak running to 534.28).
+    if ((t.role === 'cold_open' || t.protected_peak === true) && orderedDialogueWindows.length) {
+      const lastWin = orderedDialogueWindows[orderedDialogueWindows.length - 1].win;
+      const tailStart = Number(lastWin.end_sec);
+      const tailEnd = Number(t.end_sec);
+      if (Number.isFinite(tailStart) && Number.isFinite(tailEnd) && tailEnd > tailStart + 0.1) {
+        reservedDialogueRanges.push([tailStart, tailEnd]);
+      }
+    }
   }
   const assignedBrollRanges = [];
   // Action beats carry FIXED peak windows (source_audio_action). Reserve them before any
@@ -1345,9 +1356,33 @@ function assembleBootstrapArtifacts(runIdOrPath, options = {}) {
     if (item.role === 'cold_open' || item.protected_peak === true) reactionRoom.set(item.slot_id, Number(item.end_sec));
   }
   editPlan.timeline = separateOverlappingDialogueWindows(editPlan.timeline);
-  for (const item of Array.isArray(editPlan.timeline) ? editPlan.timeline : []) {
-    const roomEnd = reactionRoom.get(item?.slot_id);
-    if (Number.isFinite(roomEnd) && roomEnd > Number(item.end_sec)) item.end_sec = roomEnd;
+  {
+    // The room is for a REACTION - silence, music, a held look - never someone else's words. Cap it
+    // at the next transcript cue and at the next dialogue window anywhere in the plan (minus the
+    // pre-roll a neighbouring clip may claim), or the restored room re-creates the reserved-range
+    // and cross-segment overlaps the clamp used to hide (all three Draft Day/Long Shot rebuilds
+    // failed preflight exactly here).
+    const cueStarts = (Array.isArray(transcriptTimed) ? transcriptTimed : [])
+      .map((cue) => Number(cue?.start_sec)).filter(Number.isFinite).sort((a, b) => a - b);
+    const windowStarts = [];
+    for (const other of editPlan.timeline) {
+      if (other?.decision !== 'KEEP_DIALOGUE') continue;
+      for (const win of Array.isArray(other.dialogue_line_windows) ? other.dialogue_line_windows : []) {
+        if (win && win.matched === true && Number.isFinite(Number(win.start_sec))) windowStarts.push(Number(win.start_sec));
+      }
+    }
+    windowStarts.sort((a, b) => a - b);
+    for (const item of Array.isArray(editPlan.timeline) ? editPlan.timeline : []) {
+      const roomEnd = reactionRoom.get(item?.slot_id);
+      if (!Number.isFinite(roomEnd) || !(roomEnd > Number(item.end_sec))) continue;
+      const lastEnd = Number(item.end_sec);
+      const nextCue = cueStarts.find((start) => start > lastEnd + 0.05);
+      const nextWindow = windowStarts.find((start) => start > lastEnd + 0.05);
+      let cap = roomEnd;
+      if (Number.isFinite(nextCue)) cap = Math.min(cap, nextCue - 0.15);
+      if (Number.isFinite(nextWindow)) cap = Math.min(cap, nextWindow - 1.0);
+      if (cap > lastEnd + 0.2) item.end_sec = roundSec3(cap);
+    }
   }
   const dialogueSeparation = {
     overlaps_before: dialogueOverlapsBefore,
