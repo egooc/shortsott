@@ -83,3 +83,34 @@ test('aligned lists keep reading their own index', () => {
   assert.ok(texts.join(' ').includes('첫 번째'), 'first caption stays on the first line');
   assert.ok(texts.join(' ').includes('두 번째'), 'second caption stays on the second line');
 });
+
+// Upstream half of the same failure: the plan listed one focus line while the resolver produced two
+// windows, so the found line was never shown to the caption writer at all. The two lists have to
+// describe the same set of lines before the fills are authored.
+test('a window whose line is missing from the focus list is added to it', () => {
+  const { _test } = require('../server/services/midformCompressionService');
+  const out = _test.alignFocusLinesToWindows([{
+    slot_id: 'slot_06',
+    decision: 'KEEP_DIALOGUE',
+    dialogue_focus_lines: ['>> But why would I have you book tickets for the day that I am driving Cece to'],
+    dialogue_focus_quotes: ['>> But why would I have you book tickets for the day that I am driving Cece to'],
+    dialogue_line_windows: [
+      { matched: false, line: '>> But why would I have you book tickets for the day that I am driving Cece to' },
+      { matched: true, start_sec: 273.88, end_sec: 276.8, line: "I don't care. It was your mistake, you're going to cover it." }
+    ]
+  }]);
+  assert.equal(out[0].dialogue_focus_lines.length, 2);
+  assert.ok(out[0].dialogue_focus_lines[1].includes('your mistake'));
+});
+
+test('a window that is a display chunk of a line already listed adds nothing', () => {
+  const { _test } = require('../server/services/midformCompressionService');
+  const out = _test.alignFocusLinesToWindows([{
+    slot_id: 'slot_01',
+    decision: 'KEEP_DIALOGUE',
+    dialogue_focus_lines: ['I know exactly what you did last night.'],
+    dialogue_focus_quotes: ['I know exactly what you did last night.'],
+    dialogue_line_windows: [{ matched: true, start_sec: 10, end_sec: 12, line: 'what you did last night' }]
+  }]);
+  assert.equal(out[0].dialogue_focus_lines.length, 1);
+});
