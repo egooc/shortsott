@@ -114,3 +114,33 @@ test('a window that is a display chunk of a line already listed adds nothing', (
   }]);
   assert.equal(out[0].dialogue_focus_lines.length, 1);
 });
+
+// The caption writer must not be shown a line that never plays: it spends a caption on it, comes back
+// one caption short, and reconcileDialogueCaptionCounts then keeps the FIRST lines - the unplayable
+// one - and throws away the line that was actually cut.
+test('an unplayable line is not offered to the caption writer', () => {
+  const { _test } = require('../server/services/midformCompressionService');
+  const out = _test.dropUnplayableFocusLines([{
+    slot_id: 'slot_06',
+    decision: 'KEEP_DIALOGUE',
+    dialogue_focus_lines: ['>> But why would I have you book tickets for the day', 'I do not care. It was your mistake.'],
+    dialogue_focus_quotes: ['>> But why would I have you book tickets for the day', 'I do not care. It was your mistake.'],
+    dialogue_line_windows: [
+      { matched: false, line: '>> But why would I have you book tickets for the day' },
+      { matched: true, start_sec: 273.88, end_sec: 276.8, line: 'I do not care. It was your mistake.' }
+    ]
+  }]);
+  assert.deepEqual(out[0].dialogue_focus_lines, ['I do not care. It was your mistake.']);
+});
+
+test('a slot where nothing matched keeps its lines rather than emptying', () => {
+  const { _test } = require('../server/services/midformCompressionService');
+  const out = _test.dropUnplayableFocusLines([{
+    slot_id: 'slot_09',
+    decision: 'KEEP_DIALOGUE',
+    dialogue_focus_lines: ['nothing matched here'],
+    dialogue_focus_quotes: ['nothing matched here'],
+    dialogue_line_windows: [{ matched: false, line: 'nothing matched here' }]
+  }]);
+  assert.equal(out[0].dialogue_focus_lines.length, 1);
+});

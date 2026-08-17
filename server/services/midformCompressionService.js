@@ -3657,6 +3657,34 @@ function alignFocusLinesToWindows(timeline) {
   });
 }
 
+// The caption writer is given dialogue_focus_lines and writes one caption per entry, so a line with
+// no matched window costs a caption that has no moment to play at - and worse, when the model then
+// comes back one caption short, reconcileDialogueCaptionCounts keeps the FIRST lines and throws the
+// rest away, which is how The Housemaid night kept the unplayable line ">> But why would I have you
+// book tickets..." and dropped the line that was actually cut. Show only the lines that will play.
+function dropUnplayableFocusLines(timeline) {
+  const key = (value) => normalizeComparableText(value);
+  return (Array.isArray(timeline) ? timeline : []).map((item) => {
+    if (item?.decision !== 'KEEP_DIALOGUE' || !Array.isArray(item.dialogue_line_windows)) return item;
+    const playable = item.dialogue_line_windows
+      .filter((win) => win && win.matched === true && key(win.line))
+      .map((win) => key(win.line));
+    // A slot where nothing matched must not come back EMPTY - the plan validator requires focus
+    // quotes, and emptying it kills the whole refresh. Leave it as it is and let the render-time
+    // warning report the miss.
+    if (!playable.length) return item;
+    const plays = (line) => {
+      const wanted = key(line);
+      return Boolean(wanted) && playable.some((played) => played === wanted || played.includes(wanted) || wanted.includes(played));
+    };
+    const lines = (Array.isArray(item.dialogue_focus_lines) ? item.dialogue_focus_lines : []).filter(plays);
+    const quotes = (Array.isArray(item.dialogue_focus_quotes) ? item.dialogue_focus_quotes : []).filter(plays);
+    if (!lines.length) return item;
+    if (lines.length === (item.dialogue_focus_lines || []).length && quotes.length === (item.dialogue_focus_quotes || []).length) return item;
+    return { ...item, dialogue_focus_lines: lines, dialogue_focus_quotes: quotes.length ? quotes : lines };
+  });
+}
+
 function separateOverlappingDialogueWindows(timeline) {
   const items = (Array.isArray(timeline) ? timeline : []).map((item) => {
     if (item.decision !== 'KEEP_DIALOGUE' || !Array.isArray(item.dialogue_line_windows)) return item;
@@ -4703,7 +4731,7 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec, usableEndSec =
   // Word snap runs BEFORE separation so both the clip windows and the caption coordinates the
   // separation stamps inherit word-accurate edges.
   const wordSnappedTimeline = snapDialogueWindowsToWords(filledTimeline, wordTimestamps);
-  const dedupedTimeline = alignFocusLinesToWindows(separateOverlappingDialogueWindows(dropRestatedWindows(dropWindowsSwallowedByTheirNeighbour(wordSnappedTimeline))));
+  const dedupedTimeline = dropUnplayableFocusLines(alignFocusLinesToWindows(separateOverlappingDialogueWindows(dropRestatedWindows(dropWindowsSwallowedByTheirNeighbour(wordSnappedTimeline)))));
   // Write the corrected measure back onto the slot. Fixing only realisticSlotDurationSec left
   // estimated_duration_sec holding the raw span - slot_02 still read 151.3s for four lines - so
   // every consumer that reads the field directly still saw the dead air between them.
@@ -6798,6 +6826,7 @@ module.exports = {
     separateOverlappingDialogueWindows,
     dropRestatedWindows,
     alignFocusLinesToWindows,
+    dropUnplayableFocusLines,
     fillUncaptionedCuesInsideCuts,
     topUpTimelineToTargetRuntime,
     buildSlotQcReport,
