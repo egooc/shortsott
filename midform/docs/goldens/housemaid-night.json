@@ -1,28 +1,88 @@
 {
  "draft_name": "draft_ko",
  "source_duration_sec": 596.821,
- "dialogue_clips": 30,
+ "dialogue_clips": 44,
  "note": "",
  "clips": {
   "slot_01_L01": {
    "start": 167.72,
    "end": 172.6,
-   "speaker": "이웃"
+   "speaker": "여자"
   },
   "slot_03_L01": {
-   "start": 77.76,
-   "end": 81.13,
+   "start": 74.92,
+   "end": 81.28,
    "speaker": "니나"
   },
   "slot_04_L01": {
    "start": 175.959,
    "end": 185.239,
-   "speaker": "이웃"
+   "speaker": "여자"
   },
   "slot_05_L01": {
    "start": 229.959,
    "end": 232.68,
    "speaker": "정원사"
+  },
+  "slot_06_L02": {
+   "start": 254.64,
+   "end": 257.239,
+   "speaker": "니나"
+  },
+  "slot_06_L03": {
+   "start": 257.239,
+   "end": 258.56,
+   "speaker": "밀리"
+  },
+  "slot_06_L04": {
+   "start": 258.56,
+   "end": 260.48,
+   "speaker": "니나"
+  },
+  "slot_06_L05": {
+   "start": 260.48,
+   "end": 264.4,
+   "speaker": "니나"
+  },
+  "slot_06_L06": {
+   "start": 264.4,
+   "end": 266.56,
+   "speaker": "밀리"
+  },
+  "slot_06_L07": {
+   "start": 273.88,
+   "end": 276.8,
+   "speaker": "니나"
+  },
+  "slot_07_L01": {
+   "start": 293.51,
+   "end": 298.6,
+   "speaker": "니나"
+  },
+  "slot_07_L02": {
+   "start": 298.6,
+   "end": 300.16,
+   "speaker": "니나"
+  },
+  "slot_07_L07": {
+   "start": 301.04,
+   "end": 304.32,
+   "speaker": "앤드류"
+  },
+  "slot_07_L04": {
+   "start": 304.32,
+   "end": 305.6,
+   "speaker": "니나"
+  },
+  "slot_07_L05": {
+   "start": 305.614,
+   "end": 308.812,
+   "speaker": "앤드류"
+  },
+  "slot_07_L06": {
+   "start": 310.24,
+   "end": 312.08,
+   "speaker": "밀리"
   },
   "slot_08_L01": {
    "start": 394.875,
@@ -30,9 +90,19 @@
    "speaker": "앤드류"
   },
   "slot_08_L02": {
+   "start": 399.88,
+   "end": 405.08,
+   "speaker": "앤드류"
+  },
+  "slot_08_L03": {
    "start": 405.08,
    "end": 412.36,
    "speaker": "밀리"
+  },
+  "slot_08_L04": {
+   "start": 412.411,
+   "end": 414.286,
+   "speaker": "앤드류"
   },
   "slot_09_L01": {
    "start": 425.524,
@@ -135,7 +205,7 @@
    "speaker": "앤드류"
   },
   "slot_11_L13": {
-   "start": 576.839,
+   "start": 576.834,
    "end": 578.76,
    "speaker": "앤드류"
   },

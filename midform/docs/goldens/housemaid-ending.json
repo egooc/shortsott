@@ -1,17 +1,22 @@
 {
  "draft_name": "draft_ko",
  "source_duration_sec": 600.261,
- "dialogue_clips": 23,
+ "dialogue_clips": 27,
  "note": "",
  "clips": {
   "slot_01_L01": {
-   "start": 490.594,
-   "end": 494.067,
+   "start": 488.73,
+   "end": 492.202,
    "speaker": "밀리"
   },
   "slot_03_L01": {
    "start": 61.4,
-   "end": 67.45,
+   "end": 66.7,
+   "speaker": "니나"
+  },
+  "slot_03_L02": {
+   "start": 67.6,
+   "end": 73.68,
    "speaker": "니나"
   },
   "slot_05_L02": {
@@ -19,7 +24,22 @@
    "end": 150.153,
    "speaker": "니나"
   },
+  "slot_05_L04": {
+   "start": 160.509,
+   "end": 163.527,
+   "speaker": "니나"
+  },
   "slot_06_L01": {
+   "start": 165.038,
+   "end": 166.601,
+   "speaker": "밀리"
+  },
+  "slot_06_L02": {
+   "start": 171.12,
+   "end": 175.4,
+   "speaker": "밀리"
+  },
+  "slot_06_L03": {
    "start": 175.462,
    "end": 177.649,
    "speaker": "니나"
@@ -54,18 +74,13 @@
    "end": 256.519,
    "speaker": "니나"
   },
-  "slot_07_L08": {
-   "start": 256.519,
-   "end": 258.64,
-   "speaker": "니나"
-  },
   "slot_07_L07": {
    "start": 258.64,
    "end": 259.884,
    "speaker": "니나"
   },
   "slot_08_L01": {
-   "start": 277,
+   "start": 277.037,
    "end": 279.76,
    "speaker": "경찰관"
   },
@@ -77,12 +92,12 @@
   "slot_08_L03": {
    "start": 281.19,
    "end": 283.3,
-   "speaker": "경찰관"
+   "speaker": "니나"
   },
   "slot_08_L04": {
    "start": 284.155,
    "end": 287.435,
-   "speaker": "니나"
+   "speaker": "경찰관"
   },
   "slot_08_L05": {
    "start": 287.44,
@@ -90,9 +105,9 @@
    "speaker": "경찰관"
   },
   "slot_10_L01": {
-   "start": 417.04,
-   "end": 421.7,
-   "speaker": "시어머니"
+   "start": 415.573,
+   "end": 422.48,
+   "speaker": "앤드류 엄마"
   },
   "slot_10_L03": {
    "start": 422.48,
@@ -102,22 +117,27 @@
   "slot_10_L04": {
    "start": 424.32,
    "end": 425.96,
-   "speaker": "시어머니"
+   "speaker": "앤드류 엄마"
   },
   "slot_10_L05": {
    "start": 426.96,
    "end": 428.16,
-   "speaker": "시어머니"
+   "speaker": "앤드류 엄마"
   },
   "slot_10_L06": {
    "start": 428.16,
    "end": 431.633,
-   "speaker": "시어머니"
+   "speaker": "앤드류 엄마"
   },
   "slot_10_L07": {
    "start": 433.555,
    "end": 438.52,
-   "speaker": "시어머니"
+   "speaker": "앤드류 엄마"
+  },
+  "slot_10_L08": {
+   "start": 438.52,
+   "end": 441.993,
+   "speaker": "앤드류 엄마"
   }
  }
 }
