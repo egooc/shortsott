@@ -5804,7 +5804,16 @@ function selectJapaneseFullTitle(itemConfig = {}) {
     ? metadata.recommended_titles
     : (Array.isArray(guide.recommended_titles) ? guide.recommended_titles : []);
   const picked = titles[0] || null;
-  const title = String(picked?.title || metadata.upload_title || itemConfig.upload_title || itemConfig.item_id || '').trim();
+  // Same template trap as the Korean path, and it was left here when that one
+  // was fixed: recommended_titles[0] is where deterministicTitlePatterns lands,
+  // so two Japanese Fulls from completely different sources - silk weaving and
+  // Ryukyu bingata dyeing - both went out as "製造工程の決定的瞬間" and read as a
+  // duplicate upload (2026-08-17).
+  const fallbackTitle = metadata.upload_title || itemConfig.full_upload_title || itemConfig.upload_title || itemConfig.item_id || '';
+  const preferred = isTemplateTitleCandidate(picked) && fallbackTitle && !isTemplateTitleCandidate({ title: fallbackTitle })
+    ? fallbackTitle
+    : (picked?.title || fallbackTitle);
+  const title = String(preferred || '').trim();
   const hashtags = normalizeHashtags(picked?.hashtags || metadata.hashtags || itemConfig.upload_hashtags || []);
   return {
     title,
