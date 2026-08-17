@@ -694,6 +694,9 @@ function clampScenesToUsableEnd(scenes, limit) {
 
 function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
   const warnings = [];
+  // Dialogue lines whose caption came out empty. A captionless dialogue segment never reaches the
+  // timeline, so this list is what the preflight gate refuses to ship.
+  const uncaptionedDialogueLines = [];
   const durationSec = Number(options.sourceDurationSec || editPlan?.duration_budget?.estimated_total_sec || 0);
   // Source channels end their clips with a self-promo tail; nothing may be cut from it.
   const footageEndSec = Number(options.usableEndSec) > 0 ? Math.min(durationSec || Number(options.usableEndSec), Number(options.usableEndSec)) : durationSec;
@@ -900,6 +903,30 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
       // moment its English line is spoken. Coordinates come from dialogue_line_windows verbatim.
       const windows = Array.isArray(item.dialogue_line_windows) ? item.dialogue_line_windows : [];
       const captionKr = Array.isArray(fill.caption_kr_dialogue) ? fill.caption_kr_dialogue : [];
+      // The captions were authored against dialogue_focus_lines, so reading them by the WINDOW's
+      // position breaks as soon as the two lists differ in length or order - and they do: a line
+      // the exchange restoration added, or one the runtime shave took out, shifts every caption
+      // after it by one. The Housemaid night cut lost slot_06 and slot_07 whole this way (Nina's
+      // gaslighting and Andrew stepping in), which is exactly the causal middle of that scene:
+      // the surviving line read caption[1] of a one-caption slot, came out captionless, and a
+      // captionless dialogue segment does not survive to the timeline. Find the caption by the
+      // line's TEXT; identical lists resolve to the same index they always did.
+      const focusLines = Array.isArray(item.dialogue_focus_lines) ? item.dialogue_focus_lines : [];
+      const captionIndexForLine = (line, fallbackIndex) => {
+        const wanted = normalizeCaptionTokens(line).join(' ');
+        if (wanted) {
+          const exact = focusLines.findIndex((focus) => normalizeCaptionTokens(focus).join(' ') === wanted);
+          if (exact >= 0 && String(captionKr[exact] || '').trim()) return exact;
+          // A caption cue is a display chunk, so the plan's line and the window's line are often
+          // the same utterance recorded at different lengths. Containment matches those.
+          const loose = focusLines.findIndex((focus) => {
+            const key = normalizeCaptionTokens(focus).join(' ');
+            return key && (key.includes(wanted) || wanted.includes(key));
+          });
+          if (loose >= 0 && String(captionKr[loose] || '').trim()) return loose;
+        }
+        return fallbackIndex;
+      };
       // Emit per-line dialogue segments in CHRONOLOGICAL (source-time) order, not the LLM's list
       // order — the capcut story-sync gate requires non-decreasing source starts across the
       // timeline. segId/utt_id keep the ORIGINAL index so they still match the transcript utterance.
@@ -945,9 +972,10 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
         }
         const startTc = secondsToTimecode(timing.visual_range_sec[0]);
         const endTc = secondsToTimecode(visualEndSec);
-        const captionText = compressDialogueCaptionText(captionKr[index] || '');
+        const captionIndex = captionIndexForLine(win.line, index);
+        const captionText = compressDialogueCaptionText(captionKr[captionIndex] || '');
         const speakerList = Array.isArray(fill.speakers) ? fill.speakers : [];
-        const speaker = normalizeText(speakerList[index] || fill.speaker || '');
+        const speaker = normalizeText(speakerList[captionIndex] || speakerList[index] || fill.speaker || '');
         const speakerMetadata = buildSpeakerMetadata({
           speaker,
           segment_type: 'dialogue_quote',
@@ -958,7 +986,19 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
         const speakerColorKey = fallbackColorKeyByAlias.get(alias) || speakerMetadata.speaker_color_key;
         speakerMetadata.speaker_color_key = speakerColorKey;
         const captionColor = resolveCaptionColor({ speakerAlias: alias, speakerColorKey });
-        if (!captionText) warnings.push(`${segId} has no Korean caption (caption_kr_dialogue[${index}] empty)`);
+        if (!captionText) {
+          // Not a cosmetic gap: a dialogue segment with no caption does not reach the timeline, so
+          // the line - and sometimes the whole slot with it - disappears from the cut. Recorded for
+          // the preflight gate (dialogue_lines_all_captioned) rather than left as a warning nobody
+          // reads until the recap stops making sense.
+          uncaptionedDialogueLines.push({
+            segment_id: segId,
+            line: String(win.line || '').slice(0, 80),
+            caption_index: captionIndex,
+            authored_captions: captionKr.length
+          });
+          warnings.push(`${segId} has no Korean caption (caption_kr_dialogue[${captionIndex}] empty of ${captionKr.length}) - the line would be MISSING from the cut`);
+        }
         slots.push({
           slot_id: segId,
           type: 'dialogue',
@@ -1231,7 +1271,7 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
     created_at: new Date().toISOString()
   };
 
-  return { slotMap, script, warnings };
+  return { slotMap, script, warnings, uncaptionedDialogueLines };
 }
 
 function writeJson(filePath, data) {
@@ -1297,7 +1337,7 @@ function assembleBootstrapArtifacts(runIdOrPath, options = {}) {
   const energyPeaks = fs.existsSync(energyProfilePath)
     ? ((readJson(energyProfilePath) || {}).peaks || [])
     : [];
-  const { slotMap, script, warnings: sW } = buildBootstrapSlotMapAndScript(editPlan, slotFills, {
+  const { slotMap, script, warnings: sW, uncaptionedDialogueLines } = buildBootstrapSlotMapAndScript(editPlan, slotFills, {
     scriptId: manifest.runId || path.basename(runDir),
     title: manifest.title || '',
     sourceDurationSec,
@@ -1339,6 +1379,7 @@ function assembleBootstrapArtifacts(runIdOrPath, options = {}) {
         : [])
     ],
     stats: transcriptStats,
+    uncaptionedDialogueLines,
     dialogue_window_trim: dialogueTrim,
     dialogue_cue_clamp: dialogueCueClamp,
     dialogue_floor: dialogueFloor,
@@ -1376,6 +1417,16 @@ function runBootstrapPreflight(assembled, options = {}) {
     .filter((t) => t.decision === 'KEEP_DIALOGUE' && t.dialogue_line_window_ok !== true)
     .map((t) => t.slot_id);
   add('dialogue_line_window_ok', notOkSlots.length === 0, notOkSlots.length ? `not ok: ${notOkSlots.join(', ')}` : '');
+
+  // 2b. Every kept dialogue line must carry a caption. A captionless dialogue segment never reaches
+  //     the timeline, so this used to remove a line - and, where the slot had only that one line,
+  //     the slot and its beat - from the cut with nothing but a warning in the log. The Housemaid
+  //     night recap lost the two beats that explained its whole second half that way.
+  const uncaptioned = Array.isArray(assembled.uncaptionedDialogueLines) ? assembled.uncaptionedDialogueLines : [];
+  add('dialogue_lines_all_captioned', uncaptioned.length === 0,
+    uncaptioned.length
+      ? `${uncaptioned.length} kept line(s) would ship with no caption and vanish: ${uncaptioned.map((entry) => `${entry.segment_id} "${entry.line}"`).join(' | ')}`
+      : '');
 
   const missingSourceType = (Array.isArray(script.segments) ? script.segments : [])
     .filter((segment) => !segment.source_type)
