@@ -3551,6 +3551,41 @@ function keepQuotesByText(quotes, keptWindows) {
 // twice and both matched there. The plan then carries two windows with one start, which is both a
 // reserved-range violation and a cross-segment overlap, so preflight rejects the whole plan and the
 // run falls back to an older compression. Keep the longer window and drop the one it swallows.
+// A rolling caption re-displays the tail of the line just spoken together with the head of the next
+// one, and that re-display survives as a window of its own: The Housemaid's police interview shipped
+// "he likes things to be a certain way." / "Everything perfect." and then, between them,
+// "he likes things to be a certain way. Everything perfect." - so the recap said the same sentence
+// three times and the viewer reads it as a stutter. Drop a window whose whole text sits inside its
+// two neighbours' texts AND straddles their boundary; that pattern is only ever a re-display, never
+// a character repeating themselves (a real repeat is not glued to the next line's opening words).
+function dropRestatedWindows(timeline) {
+  const norm = (value) => normalizeComparableText(value);
+  return (Array.isArray(timeline) ? timeline : []).map((item) => {
+    if (item?.decision !== 'KEEP_DIALOGUE' || !Array.isArray(item.dialogue_line_windows)) return item;
+    const ordered = item.dialogue_line_windows
+      .map((win, index) => ({ win, index }))
+      .filter((entry) => entry.win && entry.win.matched === true && Number(entry.win.end_sec) > Number(entry.win.start_sec))
+      .sort((left, right) => Number(left.win.start_sec) - Number(right.win.start_sec));
+    const drop = new Set();
+    for (let position = 1; position < ordered.length - 1; position += 1) {
+      const previous = norm(ordered[position - 1].win.line);
+      const current = norm(ordered[position].win.line);
+      const next = norm(ordered[position + 1].win.line);
+      if (!previous || !current || !next) continue;
+      if (current.split(' ').filter(Boolean).length < 3) continue;
+      const joined = `${previous} ${next}`;
+      const at = joined.indexOf(current);
+      if (at < 0) continue;
+      // The match has to begin inside the previous line and run into the next one - the signature
+      // of a re-display. A line merely repeated verbatim later matches at a single side and stays.
+      if (at >= previous.length || at + current.length <= previous.length + 1) continue;
+      drop.add(ordered[position].index);
+    }
+    if (!drop.size) return item;
+    return { ...item, dialogue_line_windows: item.dialogue_line_windows.filter((_, index) => !drop.has(index)) };
+  });
+}
+
 function dropWindowsSwallowedByTheirNeighbour(timeline) {
   return (Array.isArray(timeline) ? timeline : []).map((item) => {
     if (item?.decision !== 'KEEP_DIALOGUE' || !Array.isArray(item.dialogue_line_windows)) return item;
@@ -3806,10 +3841,25 @@ function clampColdOpenToTeaser(timeline) {
   return timeline;
 }
 
-function trimTimelineToTargetRuntime(timeline, targetSec) {
+function trimTimelineToTargetRuntime(timeline, targetSec, beats = []) {
   const target = Number(targetSec || 0);
   const items = (Array.isArray(timeline) ? timeline : []).map((item) => ({ ...item }));
   if (!(target > 0)) return items;
+
+  // The beat carrying the event the scene turns on is not spare runtime. It usually has no
+  // dialogue (a fall, a body, a locked door), so it is neither a protected role nor anchored
+  // dialogue, and its slot carries no weight fields of its own - which sorted it FIRST for
+  // eviction. The Housemaid ending lost the killing exactly here, and the surviving beats then
+  // had no cause. Runtime is an output, not a quota: shrink narration, drop side branches, but
+  // never drop the event.
+  const beatWeight = new Map((Array.isArray(beats) ? beats : [])
+    .map((beat) => [String(beat?.beat_id || '').trim(), {
+      dramatic_weight: Number(beat?.dramatic_weight || 0),
+      hook_potential: Number(beat?.hook_potential || 0)
+    }]));
+  const causalBeatIds = new Set([...beatWeight.entries()]
+    .filter(([, weight]) => weight.dramatic_weight >= CAUSAL_BEAT_MIN_WEIGHT)
+    .map(([beatId]) => beatId));
 
   // body_peak belongs here too: validateEditPlan requires it to outlast the teaser, so
   // trimming it away leaves a plan its own validator rejects.
@@ -3822,9 +3872,17 @@ function trimTimelineToTargetRuntime(timeline, targetSec) {
     && (Array.isArray(item.dialogue_focus_quotes) ? item.dialogue_focus_quotes.filter(Boolean).length : 0) > 0;
   const droppable = () => items
     .map((item, index) => ({ item, index }))
-    .filter(({ item }) => item.decision !== 'DROP' && !protectedRoles.has(String(item.role || '').trim()) && !hasAnchoredDialogue(item))
+    .filter(({ item }) => item.decision !== 'DROP' && !protectedRoles.has(String(item.role || '').trim()) && !hasAnchoredDialogue(item)
+      && !causalBeatIds.has(String(item.beat_id || '').trim()))
     .sort((left, right) => {
-      const weight = (entry) => Number(entry.item.hook_potential || 0) + Number(entry.item.dramatic_weight || 0);
+      // Slots rarely carry these fields themselves; fall back to the beat they came from, or the
+      // ordering is effectively arbitrary and the trim evicts whatever happens to be first.
+      const weight = (entry) => {
+        const own = Number(entry.item.hook_potential || 0) + Number(entry.item.dramatic_weight || 0);
+        if (own > 0) return own;
+        const fromBeat = beatWeight.get(String(entry.item.beat_id || '').trim());
+        return fromBeat ? fromBeat.hook_potential + fromBeat.dramatic_weight : 0;
+      };
       // Weakest first; on a tie drop the longest, so one cut buys the most room.
       return weight(left) - weight(right)
         || realisticSlotDurationSec(right.item) - realisticSlotDurationSec(left.item);
@@ -4609,11 +4667,11 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec, usableEndSec =
   // Word snap runs BEFORE separation so both the clip windows and the caption coordinates the
   // separation stamps inherit word-accurate edges.
   const wordSnappedTimeline = snapDialogueWindowsToWords(filledTimeline, wordTimestamps);
-  const dedupedTimeline = separateOverlappingDialogueWindows(dropWindowsSwallowedByTheirNeighbour(wordSnappedTimeline));
+  const dedupedTimeline = separateOverlappingDialogueWindows(dropRestatedWindows(dropWindowsSwallowedByTheirNeighbour(wordSnappedTimeline)));
   // Write the corrected measure back onto the slot. Fixing only realisticSlotDurationSec left
   // estimated_duration_sec holding the raw span - slot_02 still read 151.3s for four lines - so
   // every consumer that reads the field directly still saw the dead air between them.
-  const measuredTimeline = clampColdOpenToTeaser(leadColdOpenWithStrongestLine(dropWindowsPastUsableEnd(trimTimelineToTargetRuntime(dedupedTimeline, narrationCeilingSec), usableEndSec)));
+  const measuredTimeline = clampColdOpenToTeaser(leadColdOpenWithStrongestLine(dropWindowsPastUsableEnd(trimTimelineToTargetRuntime(dedupedTimeline, narrationCeilingSec, beats), usableEndSec)));
   const trimmedTimeline = measuredTimeline.map((item) => (
     item.decision === 'KEEP_DIALOGUE'
       ? { ...item, estimated_duration_sec: realisticSlotDurationSec(item) }
@@ -6702,6 +6760,7 @@ module.exports = {
     buildSourceCaseGuidance,
     detectPromoTail,
     separateOverlappingDialogueWindows,
+    dropRestatedWindows,
     fillUncaptionedCuesInsideCuts,
     topUpTimelineToTargetRuntime,
     buildSlotQcReport,
