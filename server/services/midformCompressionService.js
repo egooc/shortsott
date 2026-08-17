@@ -4064,6 +4064,9 @@ function trimTimelineToTargetRuntime(timeline, targetSec, beats = []) {
       // was shaved away. Everything downstream is built to pay that line off.
       .filter(({ item }) => item.decision === 'KEEP_DIALOGUE'
         && String(item.role || '').trim() !== 'cold_open'
+        // An authored slot's lines are the owner's choice; buying runtime out of them is the same
+        // silent undo the authored flag exists to stop.
+        && item.authored_lines !== true
         && (Array.isArray(item.dialogue_line_windows) ? item.dialogue_line_windows : []).filter((w) => w && w.matched === true).length > 1)
       // Same weight fallback as the drop loop: slots rarely carry these fields, so without the beat's
       // numbers every slot scored 0 and the shave ate whichever happened to be first in the array -
@@ -4438,7 +4441,13 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec, usableEndSec =
   });
 
   const coldIndex = timeline.findIndex((item) => item.role === 'cold_open');
-  if (coldIndex >= 0) {
+  // An authored dialogue teaser skips this whole block. It rebuilds the cold open from the beats and
+  // from visual-source rules, and one of its fallbacks flips the slot to NARRATE - which silently
+  // turned The Housemaid night's hand-set teaser into narration, so the hook never played at all and
+  // the cut opened on the bridge.
+  const coldAuthored = coldIndex >= 0 && timeline[coldIndex]?.authored_lines === true
+    && timeline[coldIndex]?.decision === 'KEEP_DIALOGUE';
+  if (coldIndex >= 0 && !coldAuthored) {
     const cold = { ...timeline[coldIndex] };
     const isSceneHookCold = String(cold.visual_source_mode || '').trim() === 'source_audio_teaser';
     // A scene hook deliberately carries no captions — designed for action peaks. When the heatmap
