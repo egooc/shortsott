@@ -31,12 +31,14 @@ function isKoreanLocale(locale) {
 // Same identity rule the uploader uses: a video is spent once it has been
 // uploaded (moved to uploaded/) or held back, so only the top level counts.
 function bufferCountsByChannel(exportDir = EXPORT_DIR) {
-  const counts = { ko: 0, ja: 0 };
+  const counts = { ko: 0, ja: 0, ko_full: 0, ja_full: 0, ko_hl: 0, ja_hl: 0 };
   if (!fs.existsSync(exportDir)) return counts;
   for (const name of fs.readdirSync(exportDir)) {
     if (!name.toLowerCase().endsWith('.mp4')) continue;
-    if (/[가-힣]/.test(name)) counts.ko += 1;
-    else counts.ja += 1;
+    const channel = /[가-힣]/.test(name) ? 'ko' : 'ja';
+    const variant = /-F-/.test(name) ? 'full' : 'hl';
+    counts[channel] += 1;
+    counts[`${channel}_${variant}`] += 1;
   }
   return counts;
 }
@@ -48,18 +50,27 @@ function balanceLocalePlan(localePlan = [], counts = { ko: 0, ja: 0 }) {
   const total = plan.reduce((sum, entry) => sum + Number(entry.count || 0), 0);
   if (!total) return plan;
 
-  const koStock = Number(counts.ko) || 0;
-  const jaStock = Number(counts.ja) || 0;
-  const stock = koStock + jaStock;
-
-  // With nothing on hand there is no signal to act on - keep the configured plan.
-  if (!stock) return plan;
-
-  // Deficit share: the channel holding less of the stock gets more of the day.
-  let koShare = jaStock / stock;
-  koShare = Math.min(MAX_SHARE, Math.max(MIN_SHARE, koShare));
-  const koTotal = Math.round(total * koShare);
-  const jaTotal = total - koTotal;
+  // Balance each variant against its own stock, not against the channel total.
+  //
+  // Counting whole channels let highlights mask a Full shortage: a longform
+  // source yields several highlights but only one Full, so the KR buffer looked
+  // healthy at 30 videos while its Full lane was starving. Measured 2026-08-18 -
+  // ja_full had been assigned 52 sources against kr_full's 28, and the KR channel
+  // had shipped 11 Fulls to the JP channel's 21, even though kr_full converts
+  // sources into Fulls at a better rate (50% vs 31%). Full is the audio-language
+  // signal for its channel, so it cannot be left to drift.
+  const isFullLane = (entry) => String(entry.lane || '').endsWith('_full');
+  const splitByStock = (entries, groupTotal, koStock, jaStock) => {
+    const koEntries = entries.filter((entry) => isKoreanLocale(entry.locale));
+    const jaEntries = entries.filter((entry) => !isKoreanLocale(entry.locale));
+    if (!koEntries.length || !jaEntries.length) return { koEntries, jaEntries, koTotal: 0, jaTotal: 0 };
+    const stock = koStock + jaStock;
+    // Nothing on hand is no signal - split it evenly.
+    let koShare = stock ? jaStock / stock : 0.5;
+    koShare = Math.min(MAX_SHARE, Math.max(MIN_SHARE, koShare));
+    const koTotal = Math.round(groupTotal * koShare);
+    return { koEntries, jaEntries, koTotal, jaTotal: groupTotal - koTotal };
+  };
 
   const scaleGroup = (entries, groupTotal) => {
     const groupSum = entries.reduce((sum, entry) => sum + Number(entry.count || 0), 0);
@@ -82,12 +93,27 @@ function balanceLocalePlan(localePlan = [], counts = { ko: 0, ja: 0 }) {
     return scaled;
   };
 
-  const koEntries = plan.filter((entry) => isKoreanLocale(entry.locale));
-  const jaEntries = plan.filter((entry) => !isKoreanLocale(entry.locale));
-  if (!koEntries.length || !jaEntries.length) return plan;
+  // Full lanes are balanced against Full stock, highlight entries against
+  // highlight stock, and each variant keeps the share of the day it was
+  // configured with - so correcting a Full shortage cannot come out of the
+  // highlight quota or the other way round.
+  const fullEntries = plan.filter(isFullLane);
+  const hlEntries = plan.filter((entry) => !isFullLane(entry));
+  const sum = (entries) => entries.reduce((acc, entry) => acc + Number(entry.count || 0), 0);
+  const fullTotal = sum(fullEntries);
+  const hlTotal = total - fullTotal;
 
-  const balanced = [...scaleGroup(jaEntries, jaTotal), ...scaleGroup(koEntries, koTotal)];
-  return balanced.filter((entry) => entry.count > 0);
+  const out = [];
+  for (const [entries, groupTotal, koStock, jaStock] of [
+    [fullEntries, fullTotal, Number(counts.ko_full) || 0, Number(counts.ja_full) || 0],
+    [hlEntries, hlTotal, Number(counts.ko_hl) || 0, Number(counts.ja_hl) || 0]
+  ]) {
+    if (!entries.length || groupTotal <= 0) { out.push(...entries); continue; }
+    const split = splitByStock(entries, groupTotal, koStock, jaStock);
+    if (!split.koEntries.length || !split.jaEntries.length) { out.push(...entries); continue; }
+    out.push(...scaleGroup(split.jaEntries, split.jaTotal), ...scaleGroup(split.koEntries, split.koTotal));
+  }
+  return out.filter((entry) => entry.count > 0);
 }
 
 function describePlan(plan = []) {
