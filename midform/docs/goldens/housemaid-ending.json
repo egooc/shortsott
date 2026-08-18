@@ -1,12 +1,12 @@
 {
  "draft_name": "draft_ko",
  "source_duration_sec": 600.261,
- "dialogue_clips": 29,
+ "dialogue_clips": 31,
  "note": "",
  "clips": {
   "slot_01_L01": {
-   "start": 488.73,
-   "end": 502.31,
+   "start": 488.74,
+   "end": 494,
    "speaker": "밀리"
   },
   "slot_03_L01": {
@@ -148,6 +148,16 @@
    "start": 438.52,
    "end": 445.53,
    "speaker": "앤드류 엄마"
+  },
+  "slot_12a_L01": {
+   "start": 486.9,
+   "end": 488.7,
+   "speaker": "니나"
+  },
+  "slot_12a_L02": {
+   "start": 506.2,
+   "end": 508.9,
+   "speaker": "니나"
   }
  }
 }
