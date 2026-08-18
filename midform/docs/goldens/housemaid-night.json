@@ -7,7 +7,7 @@
   "slot_01_L01": {
    "start": 167.72,
    "end": 172.6,
-   "speaker": "여자"
+   "speaker": "이웃"
   },
   "slot_01_L02": {
    "start": 172.6,
@@ -27,7 +27,7 @@
   "slot_04_L02": {
    "start": 175.959,
    "end": 185.239,
-   "speaker": "여자"
+   "speaker": "이웃"
   },
   "slot_05_L01": {
    "start": 222.995,
