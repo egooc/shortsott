@@ -4021,7 +4021,15 @@ function trimTimelineToTargetRuntime(timeline, targetSec, beats = []) {
     const shrinkable = items
       .map((item, index) => ({ item, index }))
       .filter(({ item }) => item.decision === 'NARRATE' && Number(item.estimated_duration_sec || 0) > NARRATION_TRIM_FLOOR_SEC)
-      .sort((left, right) => Number(right.item.estimated_duration_sec || 0) - Number(left.item.estimated_duration_sec || 0));
+      // Arc necessity outranks length (owner principle): a transition seam gives way before the
+      // narration that STATES a causal event - the Housemaid ending's "앤드류는 계단 아래로
+      // 떨어져…" is the event itself, not seam material, and used to shrink first just for being
+      // long. Causal-beat narration only shrinks once every ordinary seam is already at the floor.
+      .sort((left, right) => {
+        const causal = (entry) => (causalBeatIds.has(String(entry.item.beat_id || '').trim()) ? 1 : 0);
+        return causal(left) - causal(right)
+          || Number(right.item.estimated_duration_sec || 0) - Number(left.item.estimated_duration_sec || 0);
+      });
     if (!shrinkable.length) break;
     const { item, index } = shrinkable[0];
     items[index] = {
@@ -4064,6 +4072,9 @@ function trimTimelineToTargetRuntime(timeline, targetSec, beats = []) {
       // was shaved away. Everything downstream is built to pay that line off.
       .filter(({ item }) => item.decision === 'KEEP_DIALOGUE'
         && String(item.role || '').trim() !== 'cold_open'
+        // The protected peak is the climax the whole cut builds to; its last line is usually the
+        // payoff, and the shave drops lines from the END.
+        && item.protected_peak !== true
         // An authored slot's lines are the owner's choice; buying runtime out of them is the same
         // silent undo the authored flag exists to stop.
         && item.authored_lines !== true
