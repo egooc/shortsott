@@ -1,8 +1,8 @@
 {
  "draft_name": "draft_ko",
  "source_duration_sec": 557.621,
- "dialogue_clips": 35,
- "note": "",
+ "dialogue_clips": 32,
+ "note": "20260819 comprehension seams + window snaps; audio-verified FAIL 0 ko/ja",
  "clips": {
   "slot_01_L01": {
    "start": 326.64,
@@ -32,11 +32,6 @@
   "slot_07_L02": {
    "start": 341.14,
    "end": 342.8,
-   "speaker": "소니"
-  },
-  "slot_07_L03": {
-   "start": 342.8,
-   "end": 348.92,
    "speaker": "소니"
   },
   "slot_08_L01": {
@@ -114,11 +109,6 @@
    "end": 417,
    "speaker": "코치"
   },
-  "slot_09_L04": {
-   "start": 417,
-   "end": 420,
-   "speaker": "소니"
-  },
   "slot_10_L01": {
    "start": 463.195,
    "end": 465.52,
@@ -130,11 +120,6 @@
    "speaker": "소니"
   },
   "slot_10_L03": {
-   "start": 469.04,
-   "end": 473.493,
-   "speaker": "소니"
-  },
-  "slot_10_L04": {
    "start": 506.395,
    "end": 515.07,
    "speaker": "소니"

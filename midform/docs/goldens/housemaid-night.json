@@ -1,8 +1,8 @@
 {
  "draft_name": "draft_ko",
  "source_duration_sec": 596.821,
- "dialogue_clips": 47,
- "note": "",
+ "dialogue_clips": 43,
+ "note": "20260819 comprehension seams + window snaps; audio-verified FAIL 0 ko/ja",
  "clips": {
   "slot_01_L01": {
    "start": 167.72,
@@ -100,24 +100,9 @@
    "speaker": "밀리"
   },
   "slot_08_L01": {
-   "start": 394.875,
-   "end": 399.88,
-   "speaker": "앤드류"
-  },
-  "slot_08_L02": {
-   "start": 399.88,
-   "end": 405.08,
-   "speaker": "앤드류"
-  },
-  "slot_08_L03": {
    "start": 405.08,
    "end": 412.36,
    "speaker": "밀리"
-  },
-  "slot_08_L04": {
-   "start": 412.411,
-   "end": 414.286,
-   "speaker": "앤드류"
   },
   "slot_09_L01": {
    "start": 425.524,
@@ -150,11 +135,6 @@
    "speaker": "앤드류"
   },
   "slot_09_L07": {
-   "start": 448.4,
-   "end": 452.395,
-   "speaker": "앤드류"
-  },
-  "slot_09_L08": {
    "start": 452.395,
    "end": 454.05,
    "speaker": "밀리"
@@ -236,7 +216,7 @@
   },
   "slot_11_L16": {
    "start": 581.96,
-   "end": 586,
+   "end": 583.4,
    "speaker": "앤드류"
   }
  }

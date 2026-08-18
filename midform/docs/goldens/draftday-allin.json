@@ -1,12 +1,12 @@
 {
  "draft_name": "draft_ko",
  "source_duration_sec": 566.381,
- "dialogue_clips": 37,
- "note": "",
+ "dialogue_clips": 32,
+ "note": "20260819 comprehension seams + window snaps; audio-verified FAIL 0 ko/ja",
  "clips": {
   "slot_001_L01": {
    "start": 339.64,
-   "end": 344.81,
+   "end": 342.36,
    "speaker": "톰"
   },
   "slot_003_L01": {
@@ -14,32 +14,12 @@
    "end": 136.68,
    "speaker": "구단주"
   },
-  "slot_003_L02": {
-   "start": 136.68,
-   "end": 139.72,
-   "speaker": "써니"
-  },
-  "slot_003_L06": {
-   "start": 139.72,
-   "end": 143.64,
-   "speaker": "구단주"
-  },
-  "slot_003_L04": {
-   "start": 143.64,
-   "end": 150.247,
-   "speaker": "구단주"
-  },
-  "slot_003_L05": {
+  "slot_003_L03": {
    "start": 152.948,
    "end": 156.386,
    "speaker": "써니"
   },
   "slot_004_L01": {
-   "start": 181.755,
-   "end": 186.6,
-   "speaker": "써니"
-  },
-  "slot_004_L02": {
    "start": 229.64,
    "end": 231.484,
    "speaker": "구단주"
@@ -52,11 +32,6 @@
   "slot_005_L02": {
    "start": 302.555,
    "end": 305.24,
-   "speaker": "써니"
-  },
-  "slot_005_L05": {
-   "start": 305.24,
-   "end": 311.76,
    "speaker": "써니"
   },
   "slot_006_L01": {

@@ -1,12 +1,12 @@
 {
  "draft_name": "draft_ko",
  "source_duration_sec": 553.121,
- "dialogue_clips": 38,
- "note": "",
+ "dialogue_clips": 35,
+ "note": "20260819 comprehension seams + window snaps; audio-verified FAIL 0 ko/ja",
  "clips": {
   "slot_001_L01": {
    "start": 396.36,
-   "end": 399.24,
+   "end": 400.15,
    "speaker": "샬롯"
   },
   "slot_003_L01": {
@@ -15,21 +15,11 @@
    "speaker": "대통령"
   },
   "slot_004_L01": {
-   "start": 189.131,
-   "end": 193.954,
+   "start": 190.514,
+   "end": 195.08,
    "speaker": "샬롯"
   },
   "slot_005_L01": {
-   "start": 228.119,
-   "end": 229.325,
-   "speaker": "샬롯"
-  },
-  "slot_005_L02": {
-   "start": 235.715,
-   "end": 239.077,
-   "speaker": "샬롯"
-  },
-  "slot_005_L03": {
    "start": 252.64,
    "end": 257.079,
    "speaker": "샬롯"
@@ -39,18 +29,13 @@
    "end": 364.88,
    "speaker": "프레드"
   },
-  "slot_007_L03": {
-   "start": 370.92,
-   "end": 373.04,
-   "speaker": "샬롯"
-  },
   "slot_008_L01": {
-   "start": 399.51,
-   "end": 402.766,
+   "start": 401.15,
+   "end": 402.35,
    "speaker": "프레드"
   },
   "slot_008_L02": {
-   "start": 403.035,
+   "start": 403.32,
    "end": 407.4,
    "speaker": "프레드"
   },
@@ -65,7 +50,7 @@
    "speaker": "샬롯"
   },
   "slot_009_L01": {
-   "start": 417.02,
+   "start": 417.99,
    "end": 422.24,
    "speaker": "보좌관"
   },

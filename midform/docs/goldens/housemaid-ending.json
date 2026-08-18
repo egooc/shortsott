@@ -2,11 +2,11 @@
  "draft_name": "draft_ko",
  "source_duration_sec": 600.261,
  "dialogue_clips": 31,
- "note": "",
+ "note": "20260819 comprehension seams + window snaps; audio-verified FAIL 0 ko/ja",
  "clips": {
   "slot_01_L01": {
-   "start": 488.74,
-   "end": 494,
+   "start": 488.75,
+   "end": 491.45,
    "speaker": "밀리"
   },
   "slot_03_L01": {
