@@ -133,3 +133,39 @@ silero-vad로 갈아끼워야 할 것 같지만, 실제 클립 경계를 재보�
 
 신뢰도 하한 0.6은 117줄로 보정: 플랜이 이미 0.3초 이내로 맞힌 줄은 p10 0.6, 2초 이상 어긋난 줄은
 p50 0.56이며 그중 92%가 `ambiguous`였다.
+
+## 2026-08-19 — 이해 시임(comprehension seam) 롤아웃의 플랜/필 수술 기록
+
+다섯 소스 전부에 자동 이해 시임(`insertComprehensionSeams`)을 적용하면서 런 디렉터리에 가한
+수동 수술. 플랜은 git 밖이므로 여기가 되돌릴 수 있는 기록이다.
+
+- **allin** (`compress_20260813154112_EA-lJxd2NGs`)
+  - refresh 회귀로 사라진 검증본을 골든(`draftday-allin.json`)에서 복원:
+    slot_001 콜드오픈 창 339.64~342.36(비주얼 ~344.81), slot_006 단일 창 347.113~350.789
+    (">> Correction. Your next three first-round picks."). 두 슬롯 `authored_lines: true` 동결.
+  - 시임 변질 슬롯 제거: `slot_006_reanchor`(NARRATE였다가 KEEP_DIALOGUE 311.76~339.64로
+    변질) + 그 위에 쌓인 `slot_006_reanchor_reanchor`. 코드 가드는 909871a.
+  - ja `slot_005_seam` 나레이션이 7.5초 창을 넘겨 b-roll이 다음 장면을 침범
+    (`narration_broll_semantic_bounds`) → 한 문장으로 축약. ko는 자막 표기 통일(소니→써니)
+    겸 톰 이름 소개로 재작성.
+  - 정렬 스냅: slot_005_L01 299.12→298.074, slot_008_L01 447.67→446.477,
+    slot_010_L01 536.04→534.741 (+끝단 2건).
+- **ending** (`compress_20260813110559_5qWm_kVDhQQ`)
+  - apply가 제목 열린-질문 검증에 연속 실패해 시임 필이 비어 있었음 → `slot_08_reanchor`
+    나레이션 ko/ja 직접 저작("니나를 조사하던 경찰관이, 문득 뜻밖의 이야기를 꺼냅니다." —
+    경찰관의 비밀은 스포일하지 않음).
+  - 정렬 스냅: slot_08_L01 278.39→277.037, slot_10_L01 417.04→415.573.
+- **night** (`compress_20260813142233_EdSQ4rNB6QU`)
+  - 머신아이 지적 2건 프레임 근거 재작성: ko `slot_07_reanchor` '앤드류가 감싸줍니다'→
+    '집으로 돌아옵니다'(화면=짐 들고 귀가), 2문장째 '아내가 집을 비운 사이'→'꽃을 들고'
+    (화면=꽃). ja `slot_04_reanchor` 발레교실 장소 단정 제거.
+- **outsmart** (`compress_20260812212005_NlNUM5YctEo`)
+  - ja `slot_09_reanchor` '반격이 시작된다'(화면에 없음)→'取引の主導権は、今やソニーの手の中'
+    (화면=TRADE 그래픽).
+- **longshot** (`compress_20260813150321_jwyHe0XYmgU`)
+  - ko/ja `slot_008_reanchor` '보좌관의 등장'(화면에 없음)→'인질 사태 소식이 날아듭니다'
+    (화면=파티에서 놀라는 샬롯). ja `slot_004_seam` '샬롯이 무너진다'(화면=프레드)→
+    ko와 같은 '프레드만 남기고 인원 정리'로.
+
+검증: 5소스 모두 드래프트 통과 + 강제정렬 클립 검증 FAIL 0(ko/ja), 뷰어패스 5문항 통과.
+골든 드리프트는 전부 의도된 변화(시임 추가로 인한 아크 우선 트림 + 창 스냅)로 확인 후 재동결.
