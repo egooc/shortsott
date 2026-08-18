@@ -3725,6 +3725,165 @@ function dropUnplayableFocusLines(timeline) {
   });
 }
 
+// Spoken-word rate shared with the adapter's trim ceiling (measured on this channel's sources).
+const SPOKEN_WORDS_PER_SEC = 2.2;
+
+// ---- Code-level source fitting (owner directive 2026-08-19: classify and fit in code, not by
+// hand-tailoring each source). Each pass below encodes a surgery this session performed manually.
+
+// A rolling caption's cue end is when the text LEFT THE SCREEN, not when the words stopped: the
+// Housemaid hook cue ran 488.7~502.3 and shipped a 14s cold open with 3s of speech. Cap every
+// cold-open window at the time its words need to be spoken; the reaction room is added on top.
+function capColdOpenWindowsToSpokenEstimate(timeline) {
+  const COLD_REACTION_ROOM_SEC = 2.6;
+  return (Array.isArray(timeline) ? timeline : []).map((item) => {
+    if (item?.role !== 'cold_open' || item.decision !== 'KEEP_DIALOGUE') return item;
+    const windows = (Array.isArray(item.dialogue_line_windows) ? item.dialogue_line_windows : []).map((win) => {
+      if (!win || win.matched !== true) return win;
+      const start = Number(win.start_sec);
+      const end = Number(win.end_sec);
+      const words = String(win.line || '').trim().split(/\s+/).filter(Boolean).length;
+      if (!Number.isFinite(start) || !Number.isFinite(end) || words < 1) return win;
+      const spokenEnd = start + words / SPOKEN_WORDS_PER_SEC + 1.2;
+      if (end <= spokenEnd) return win;
+      const next = { ...win, end_sec: roundSec(spokenEnd) };
+      if (Number.isFinite(Number(next.caption_end_sec))) next.caption_end_sec = Math.min(Number(next.caption_end_sec), next.end_sec);
+      return next;
+    });
+    const matched = windows.filter((win) => win && win.matched === true);
+    if (!matched.length) return { ...item, dialogue_line_windows: windows };
+    const lastEnd = Math.max(...matched.map((win) => Number(win.end_sec)));
+    return {
+      ...item,
+      dialogue_line_windows: windows,
+      end_sec: roundSec(Math.min(Number(item.end_sec) || lastEnd + COLD_REACTION_ROOM_SEC, lastEnd + COLD_REACTION_ROOM_SEC)),
+      visual_source_end_sec: Number.isFinite(Number(item.visual_source_end_sec))
+        ? roundSec(Math.min(Number(item.visual_source_end_sec), lastEnd + COLD_REACTION_ROOM_SEC))
+        : item.visual_source_end_sec
+    };
+  });
+}
+
+// Every place/time jump needs a seam (viewer-pass rule 3, encoded): when two kept dialogue slots
+// sit more than SCENE_JUMP_SEC apart in the source with no narration between them, the viewer
+// changes rooms with no hand on their shoulder - the Housemaid ending jumped police(297s) to the
+// mother-in-law(416s) cold. Insert a short NARRATE seam whose reason carries the skipped beats'
+// summaries so the fills writer knows what to say.
+const SCENE_JUMP_SEC = 45;
+const MAX_AUTO_SEAMS = 2;
+function insertSceneJumpSeams(timeline, beats) {
+  const items = (Array.isArray(timeline) ? timeline : []).map((item) => ({ ...item }));
+  const beatList = Array.isArray(beats) ? beats : [];
+  let inserted = 0;
+  for (let index = 0; index < items.length - 1 && inserted < MAX_AUTO_SEAMS; index += 1) {
+    const prev = items[index];
+    const next = items[index + 1];
+    if (prev?.decision !== 'KEEP_DIALOGUE' || next?.decision !== 'KEEP_DIALOGUE') continue;
+    const skipRoles = new Set(['cold_open', 'bridge', 'closing']);
+    if (skipRoles.has(String(prev.role || '')) || skipRoles.has(String(next.role || ''))) continue;
+    const gap = Number(next.start_sec) - Number(prev.end_sec);
+    if (!Number.isFinite(gap) || gap < SCENE_JUMP_SEC) continue;
+    const skipped = beatList
+      .filter((beat) => Number(beat.start_sec) >= Number(prev.end_sec) - 2 && Number(beat.end_sec) <= Number(next.start_sec) + 2)
+      .map((beat) => String(beat.summary || '').replace(/\s+/g, ' ').slice(0, 90));
+    const nextBeat = beatList.find((beat) => String(beat.beat_id || '') === String(next.beat_id || ''));
+    items.splice(index + 1, 0, {
+      slot_id: `${String(next.slot_id || 'slot')}_seam`,
+      beat_id: String(next.beat_id || ''),
+      role: 'body',
+      decision: 'NARRATE',
+      mode: 'NARRATE',
+      start_sec: roundSec(Math.max(0, Number(next.start_sec) - 9)),
+      end_sec: roundSec(Math.max(1, Number(next.start_sec) - 1.5)),
+      estimated_duration_sec: 4.5,
+      narration_estimated_duration_sec: 4.5,
+      auto_seam: true,
+      reason: `Auto seam over a ${Math.round(gap)}s source jump: name the place/person the next exchange happens in. `
+        + `Upcoming beat: ${String(nextBeat?.summary || '').replace(/\s+/g, ' ').slice(0, 110)}`
+        + (skipped.length ? ` Skipped between: ${skipped.join(' / ')}` : '')
+    });
+    inserted += 1;
+    index += 1;
+  }
+  return items;
+}
+
+// The cold-open hook is a promise (gate: cold-open hook is never paid off). When the plan itself
+// never returns to the hook's beat - the Housemaid ending's giant cues broke the normal callback
+// builder silently - construct the payoff from the beat's remaining key lines, windows estimated
+// from cue starts by word count (the same arithmetic the hand surgery used; alignment refines it).
+function buildHookPayoffIfMissing(timeline, beats, transcript) {
+  const items = (Array.isArray(timeline) ? timeline : []).map((item) => ({ ...item }));
+  const cold = items.find((item) => item?.role === 'cold_open' && item.decision === 'KEEP_DIALOGUE');
+  if (!cold) return items;
+  const coldBeatId = String(cold.beat_id || '').trim();
+  const coldId = String(cold.slot_id || '').trim();
+  const alreadyPaid = items.some((item) => item !== cold && item.decision !== 'DROP' && (
+    String(item.beat_id || '').trim() === coldBeatId
+    || String(item.replay_of_slot_id || '').trim() === coldId
+    || String(item.callback_slot_id || '').trim() === coldId
+  ));
+  if (alreadyPaid) return items;
+  const beat = (Array.isArray(beats) ? beats : []).find((entry) => String(entry.beat_id || '').trim() === coldBeatId);
+  if (!beat) return items;
+  const coldLines = new Set((cold.dialogue_line_windows || [])
+    .map((win) => normalizeComparableText(win?.line)).filter(Boolean));
+  const cues = (Array.isArray(transcript) ? transcript : [])
+    .map((cue) => ({ start: Number(cue?.start_sec), end: Number(cue?.end_sec), text: String(cue?.text || '') }))
+    .filter((cue) => Number.isFinite(cue.start) && Number.isFinite(cue.end));
+  const beatLo = Number(beat.start_sec) - 10;
+  const beatHi = Number(beat.end_sec) + 10;
+  const windows = [];
+  for (const line of Array.isArray(beat.key_dialogue) ? beat.key_dialogue : []) {
+    const key = normalizeComparableText(line);
+    if (!key || coldLines.has(key)) continue;
+    const cue = cues.find((entry) => entry.start >= beatLo && entry.start <= beatHi
+      && (normalizeComparableText(entry.text) === key
+        || normalizeComparableText(entry.text).includes(key)
+        || key.includes(normalizeComparableText(entry.text))));
+    if (!cue) continue;
+    const words = String(line).trim().split(/\s+/).filter(Boolean).length;
+    const end = Math.min(cue.end, cue.start + words / SPOKEN_WORDS_PER_SEC + 0.6);
+    if (!(end > cue.start + 0.3)) continue;
+    windows.push({
+      matched: true, line: String(line).trim(),
+      start_sec: roundSec(cue.start), end_sec: roundSec(end),
+      raw_start_sec: roundSec(cue.start), raw_end_sec: roundSec(end),
+      caption_start_sec: roundSec(cue.start), caption_end_sec: roundSec(end),
+      score: 70, window_source: 'hook_payoff_word_estimate'
+    });
+    if (windows.length >= 2) break;
+  }
+  if (!windows.length) return items; // the gate will reject with its message - honest failure
+  const insertAt = (() => {
+    const closingIndex = items.findIndex((item) => String(item.role || '') === 'closing' || /closing/.test(String(item.slot_id || '')));
+    return closingIndex >= 0 ? closingIndex : items.length;
+  })();
+  items.splice(insertAt, 0, {
+    slot_id: `${coldId}_payoff`,
+    beat_id: coldBeatId,
+    role: 'payoff',
+    decision: 'KEEP_DIALOGUE',
+    mode: 'KEEP_DIALOGUE',
+    start_sec: Math.min(...windows.map((win) => win.start_sec)),
+    end_sec: Math.max(...windows.map((win) => win.end_sec)),
+    estimated_duration_sec: roundSec(windows.reduce((sum, win) => sum + (win.end_sec - win.start_sec), 0)),
+    dialogue_focus_lines: windows.map((win) => win.line),
+    dialogue_focus_quotes: windows.map((win) => win.line),
+    dialogue_line_windows: windows,
+    dialogue_line_window_ok: true,
+    dialogue_line_window_warnings: [],
+    teaser_slot_id: coldId,
+    callback_slot_id: coldId,
+    replay_of_slot_id: coldId,
+    replay_mode: 'remaining_dialogue_after_cold_open',
+    callback_relation: 'answers',
+    auto_hook_payoff: true,
+    reason: 'Auto payoff: returns to the conversation the hook came from, using its remaining lines (fresh audio).'
+  });
+  return items;
+}
+
 function separateOverlappingDialogueWindows(timeline) {
   const items = (Array.isArray(timeline) ? timeline : []).map((item) => {
     if (item.decision !== 'KEEP_DIALOGUE' || !Array.isArray(item.dialogue_line_windows)) return item;
@@ -4840,10 +4999,11 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec, usableEndSec =
   // separation stamps inherit word-accurate edges.
   const wordSnappedTimeline = snapDialogueWindowsToWords(filledTimeline, wordTimestamps);
   const dedupedTimeline = dropUnplayableFocusLines(alignFocusLinesToWindows(separateOverlappingDialogueWindows(dropRestatedWindows(dropWindowsSwallowedByTheirNeighbour(wordSnappedTimeline)))));
+  const fittedTimeline = buildHookPayoffIfMissing(insertSceneJumpSeams(capColdOpenWindowsToSpokenEstimate(dedupedTimeline), beats), beats, transcript);
   // Write the corrected measure back onto the slot. Fixing only realisticSlotDurationSec left
   // estimated_duration_sec holding the raw span - slot_02 still read 151.3s for four lines - so
   // every consumer that reads the field directly still saw the dead air between them.
-  const measuredTimeline = clampColdOpenToTeaser(leadColdOpenWithStrongestLine(dropWindowsPastUsableEnd(trimTimelineToTargetRuntime(dedupedTimeline, narrationCeilingSec, beats), usableEndSec)));
+  const measuredTimeline = clampColdOpenToTeaser(leadColdOpenWithStrongestLine(dropWindowsPastUsableEnd(trimTimelineToTargetRuntime(fittedTimeline, narrationCeilingSec, beats), usableEndSec)));
   const trimmedTimeline = measuredTimeline.map((item) => (
     item.decision === 'KEEP_DIALOGUE'
       ? { ...item, estimated_duration_sec: realisticSlotDurationSec(item) }
@@ -5080,6 +5240,23 @@ function buildEditPlanPrompt(beats, heatmap, targetSec, metadata) {
     '- KEEP for multi-fact reveal/payoff: "descended from wolves" / "we made a treaty with them" / "What are they really?"',
     '- DROP: "Eggshells, carrot tops" / "radioactive spiders" / "No, our bus is full" / "I can keep a secret" / "I\'m not really supposed to say anything about it" / "old scary story"',
     '',
+    // Source classification, computed - not hand-judged per source: allusive dialogue (short,
+    // pronoun-heavy lines that lean on off-screen context) needs seams allocated by CONTEXT
+    // DEPENDENCY, not just by structural position. The Housemaid ending is the canonical case.
+    ...(function allusiveNote() {
+      const lines = (Array.isArray(beats) ? beats : []).flatMap((beat) => Array.isArray(beat.key_dialogue) ? beat.key_dialogue : []);
+      if (lines.length < 4) return [];
+      const allusive = lines.filter((line) => {
+        const text = String(line || '');
+        const words = text.trim().split(/\s+/).filter(Boolean).length;
+        return words <= 6 || /(it|that|this|he|she|they|him|her|them)/i.test(text);
+      }).length / lines.length;
+      if (allusive < 0.55) return [];
+      return [
+        '',
+        `SOURCE CLASSIFICATION: allusive dialogue (${Math.round(allusive * 100)}% of key lines are short or pronoun-dependent). These lines lean on off-screen context, so allocate MORE narration seams than the structure alone suggests: every exchange whose meaning depends on something not yet shown gets a one-line frame before it, and every place/time jump gets a seam. Prefer one extra seam over one extra dialogue line.`
+      ];
+    })(),
     `Video title: ${metadata?.title || ''}`,
     `Target seconds: ${targetSec}`,
     '',
@@ -7094,6 +7271,9 @@ module.exports = {
     dropRestatedWindows,
     alignFocusLinesToWindows,
     dropUnplayableFocusLines,
+    capColdOpenWindowsToSpokenEstimate,
+    insertSceneJumpSeams,
+    buildHookPayoffIfMissing,
     keepAuthoredSlotFills,
     stampCaptionSourceLines,
     fillUncaptionedCuesInsideCuts,
