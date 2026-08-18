@@ -1,29 +1,51 @@
 {
   "type": "object",
   "properties": {
-    "script_id": { "type": "string" },
+    "script_id": {
+      "type": "string"
+    },
     "upload_text": {
       "type": "object",
       "properties": {
         "title_candidates": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "minItems": 3,
           "maxItems": 3
         },
         "overlay_title": {
           "type": "object",
           "properties": {
-            "top": { "type": "string", "maxLength": 8 },
-            "bottom": { "type": "string", "maxLength": 8 }
+            "top": {
+              "type": "string",
+              "maxLength": 8
+            },
+            "bottom": {
+              "type": "string",
+              "maxLength": 8
+            }
           },
-          "required": ["top", "bottom"],
+          "required": [
+            "top",
+            "bottom"
+          ],
           "additionalProperties": false
         },
-        "description": { "type": "string" },
-        "pinned_comment": { "type": "string" }
+        "description": {
+          "type": "string"
+        },
+        "pinned_comment": {
+          "type": "string"
+        }
       },
-      "required": ["title_candidates", "overlay_title", "description", "pinned_comment"],
+      "required": [
+        "title_candidates",
+        "overlay_title",
+        "description",
+        "pinned_comment"
+      ],
       "additionalProperties": false
     },
     "slot_fills": {
@@ -31,39 +53,79 @@
       "items": {
         "type": "object",
         "properties": {
-          "slot_id": { "type": "string" },
-          "narration": { "type": "string" },
+          "slot_id": {
+            "type": "string"
+          },
+          "narration": {
+            "type": "string"
+          },
           "caption_units": {
             "type": "array",
-            "items": { "type": "string" }
+            "items": {
+              "type": "string"
+            }
           },
-          "caption_kr": { "type": "string" },
+          "caption_kr": {
+            "type": "string"
+          },
           "caption_kr_dialogue": {
             "type": "array",
-            "items": { "type": "string" }
+            "items": {
+              "type": "string"
+            }
           },
-          "speaker": { "type": "string" },
+          "speaker": {
+            "type": "string"
+          },
           "speakers": {
             "type": "array",
-            "items": { "type": "string" }
+            "items": {
+              "type": "string"
+            }
           },
           "translation_mode": {
             "type": "string",
-            "enum": ["", "faithful_dialogue"]
+            "enum": [
+              "",
+              "faithful_dialogue"
+            ]
+          },
+          "cards": {
+            "type": "array",
+            "description": "On-screen situation/time-jump cards (benchmark B-form). 1-2 short strings, <=16 Korean chars each. Only for scene-hook cold opens (two situation cards) or a pure time-jump seam (one card like 며칠후). The segment then plays original audio with no TTS.",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 2
           }
         },
-        "required": ["slot_id", "narration", "caption_units", "caption_kr"],
+        "required": [
+          "slot_id",
+          "narration",
+          "caption_units",
+          "caption_kr"
+        ],
         "additionalProperties": false
       }
     },
     "quality_check": {
       "type": "object",
       "properties": {
-        "all_slots_filled": { "type": "boolean" },
-        "slot_order_preserved": { "type": "boolean" },
-        "forbidden_eomi_count": { "type": "number" },
-        "translationese_risk_count": { "type": "number" },
-        "budget_violations": { "type": "number" }
+        "all_slots_filled": {
+          "type": "boolean"
+        },
+        "slot_order_preserved": {
+          "type": "boolean"
+        },
+        "forbidden_eomi_count": {
+          "type": "number"
+        },
+        "translationese_risk_count": {
+          "type": "number"
+        },
+        "budget_violations": {
+          "type": "number"
+        }
       },
       "required": [
         "all_slots_filled",
@@ -75,6 +137,11 @@
       "additionalProperties": false
     }
   },
-  "required": ["script_id", "upload_text", "slot_fills", "quality_check"],
+  "required": [
+    "script_id",
+    "upload_text",
+    "slot_fills",
+    "quality_check"
+  ],
   "additionalProperties": false
 }

@@ -950,7 +950,19 @@ function buildJapaneseScript(baseScript, japaneseSlotFills) {
       if (!text && koText) missing.push(String(segment?.segment_id || ''));
       return { ...segment, translated_caption_ko: text, caption_text: text, tts_enabled: text ? segment?.tts_enabled : false };
     }
-    if (segmentType === 'scene_hook') return { ...segment };
+    if (segmentType === 'scene_hook') {
+      // Story cards are viewer-facing text: swap in the ja fill's cards positionally when present.
+      if (Array.isArray(segment.story_cards) && segment.story_cards.length && Array.isArray(fill.cards) && fill.cards.length) {
+        return {
+          ...segment,
+          story_cards: segment.story_cards.map((card, index) => ({
+            ...card,
+            text: String(fill.cards[index] || card.text || '').trim() || card.text
+          }))
+        };
+      }
+      return { ...segment };
+    }
     const narration = String(fill.narration || '').trim();
     const caption = String(fill.caption_kr || '').trim() || narration;
     // Same rule the dialogue branch already uses: a ja blank is only MISSING when the ko segment has

@@ -2290,6 +2290,7 @@ def apply_template_clone_mode(
     template_doc,
     srt_entries,
     claude_script,
+    story_card_entries=None,
 ):
     with open(generated_draft_content_path, "r", encoding="utf-8-sig") as file:
         generated = json.load(file)
@@ -2497,11 +2498,41 @@ def apply_template_clone_mode(
             fixed_overlay_texts[role_name]["end_sec"] = total_tts_duration_sec
             fixed_overlay_texts[role_name]["generated"] = True
 
+    # Story cards (benchmark B-form): big centered text over the clip's original audio - the
+    # situation-card hook and the time-jump card. Cloned from the TITLE marker style so they
+    # match the template's typography.
+    story_cards_placed = 0
+    if story_card_entries:
+        card_marker_name, card_entry, _card_fb = pick_base_marker(
+            "TEMPLATE_TITLE", ["TEMPLATE_TITLE_SUBLINE", "TEMPLATE_MOVIE_TITLE", "TEMPLATE_SUBTITLE"]
+        )
+        if card_entry is not None:
+            card_track = get_or_create_text_track("story_cards")
+            for card in story_card_entries:
+                text_value = str(card.get("text") or "").strip()
+                start_sec = safe_float(card.get("start_sec"), -1)
+                duration_sec = safe_float(card.get("duration_sec"), 0)
+                if not text_value or start_sec < 0 or duration_sec <= 0.2:
+                    continue
+                card_segment = clone_segment_from_entry(
+                    card_entry,
+                    text_value,
+                    int(round(start_sec * 1_000_000)),
+                    int(round(duration_sec * 1_000_000)),
+                    fixed_y=0.0,
+                )
+                if card_segment is None:
+                    continue
+                scale_overlay_title_font(card_segment, MIDFORM_TITLE_FONT_SCALE)
+                card_track["segments"].append(card_segment)
+                story_cards_placed += 1
+
     with open(generated_draft_content_path, "w", encoding="utf-8") as file:
         json.dump(generated, file, ensure_ascii=False, indent=4)
 
     return {
         "template_clone_mode": True,
+        "story_cards_placed": story_cards_placed,
         "template_markers_found": sorted(list(template_markers.keys())),
         "missing_template_markers": missing_markers,
         "subtitle_template_source": template_sources["subtitle"],
@@ -11576,11 +11607,36 @@ def create_draft(input_json_path):
     }
     if use_capcut_template and template_draft_content and os.path.exists(generated_draft_content_path):
         try:
+            story_card_entries = []
+            placement_start_by_segment = {}
+            for placement in video_cut_placements or []:
+                seg_key = str(placement.get("segment_id") or "")
+                if seg_key and seg_key not in placement_start_by_segment:
+                    placement_start_by_segment[seg_key] = safe_float(placement.get("timeline_start_sec"), -1)
+            for script_segment in (claude_script or {}).get("segments") or []:
+                cards = script_segment.get("story_cards")
+                if not isinstance(cards, list) or not cards:
+                    continue
+                seg_start = placement_start_by_segment.get(str(script_segment.get("segment_id") or ""), -1)
+                if seg_start < 0:
+                    warnings.append(f"story cards on {script_segment.get('segment_id')} skipped: no timeline placement")
+                    continue
+                for card in cards:
+                    if not isinstance(card, dict):
+                        continue
+                    story_card_entries.append(
+                        {
+                            "text": card.get("text"),
+                            "start_sec": seg_start + safe_float(card.get("offset_sec"), 0),
+                            "duration_sec": safe_float(card.get("duration_sec"), 0),
+                        }
+                    )
             template_clone_summary = apply_template_clone_mode(
                 generated_draft_content_path=generated_draft_content_path,
                 template_doc=template_draft_content,
                 srt_entries=srt_entries,
                 claude_script=claude_script,
+                story_card_entries=story_card_entries,
             )
         except Exception as clone_error:
             warnings.append(f"template clone mode failed, fallback to pycapcut style mapping: {clone_error}")

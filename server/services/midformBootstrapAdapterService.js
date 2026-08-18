@@ -1111,7 +1111,13 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
     // (visual_source_mode source_audio_action) are the same mechanism promoted to the body:
     // measured energy peaks playing their own fight audio between narration/dialogue slots.
     const isActionBeat = normalizeText(item.visual_source_mode) === 'source_audio_action';
-    const isSceneHook = (isColdOpen && normalizeText(item.visual_source_mode) === 'source_audio_teaser') || isActionBeat;
+    // On-screen cards (benchmark B-form): 1-2 short strings from the fill, shown as big centered
+    // text over the clip while its ORIGINAL audio plays - no TTS. A NARRATE slot whose fill has
+    // cards and no narration is a pure card seam ("며칠후") and renders like a scene hook.
+    const storyCardTexts = (Array.isArray(fill.cards) ? fill.cards : [])
+      .map((value) => normalizeText(value)).filter(Boolean).slice(0, 2);
+    const isCardOnly = storyCardTexts.length > 0 && !normalizeText(fill.narration || '');
+    const isSceneHook = (isColdOpen && normalizeText(item.visual_source_mode) === 'source_audio_teaser') || isActionBeat || isCardOnly;
     const narration = isSceneHook ? '' : normalizeText(fill.narration || '');
     const captionKr = isSceneHook ? '' : normalizeText(fill.caption_kr || '');
     if (!narration && !isSceneHook) warnings.push(`${slotId} (${role}) NARRATE has empty narration`);
@@ -1200,6 +1206,15 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
       narration_background: true,
       dialogue_heavy_role: role
     });
+    // Spread the cards across the clip: sequential, a beat of clean footage before and between.
+    const cardSpanSec = Number((sourceRange[1] - sourceRange[0]).toFixed(3));
+    const storyCards = storyCardTexts.length && cardSpanSec > 1.2
+      ? storyCardTexts.map((text, index) => {
+          const count = storyCardTexts.length;
+          const per = Math.max(1.2, Math.min(3.5, (cardSpanSec - 0.4 - 0.3 * (count - 1)) / count));
+          return { text, offset_sec: Number((0.2 + index * (per + 0.3)).toFixed(3)), duration_sec: Number(per.toFixed(3)) };
+        }).filter((card) => card.offset_sec + card.duration_sec <= cardSpanSec + 0.05)
+      : [];
     segments.push({
       segment_id: slotId,
       segment_type: isSceneHook ? 'scene_hook' : 'recap',
@@ -1220,7 +1235,8 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
       source_scenes: clampScenesToUsableEnd(sourceScenes, footageEndSec),
       edit_instruction: defaultEditInstruction(role || 'narration'),
       // Exempts narration b-roll from the reserved-range gate's narration_overlaps_dialogue_map rule.
-      narration_background: true
+      narration_background: true,
+      ...(storyCards.length ? { story_cards: storyCards } : {})
     });
   }
 
