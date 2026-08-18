@@ -9460,7 +9460,7 @@ def apply_midform_hybrid_video_audio_policy(draft_content_path, video_cut_placem
         segment_type = str(segment_type_map.get(segment_id) or "recap")
         # Closing afterglow: the tail after the last narration is BGM-only - the source audio is
         # muted entirely so whatever music the owner lays in CapCut carries the ending.
-        if str(placement.get("clip_id") or "").endswith("_afterglow"):
+        if "_afterglow" in str(placement.get("clip_id") or ""):
             segment["volume"] = 0
             segment["last_nonzero_volume"] = MIDFORM_HYBRID_DUCKED_SOURCE_VOLUME
             summary["ducked_narration_video_segments"] += 1
@@ -11335,27 +11335,56 @@ def create_draft(input_json_path):
                     and isinstance(last_segment_clip_ref, dict)
                 )
                 if is_closing_afterglow_segment:
+                    # Leftover footage first; a freeze of the last frame covers the remainder. The
+                    # closing clip is routinely trimmed short by packing constraints (semantic
+                    # bounds, reserved ranges), so footage alone made the afterglow a lottery -
+                    # 0.5s on three sources, nothing at all on ja. A held final frame under BGM is
+                    # the same ending the benchmark channel uses.
+                    target_afterglow_us = int(round(MIDFORM_CLOSING_AFTERGLOW_SEC * 1_000_000))
                     leftover_us = int(last_segment_clip_ref.get("leftover_source_us") or 0)
                     afterglow_source_start_us = int(last_segment_clip_ref.get("placed_source_end_us") or 0)
                     if source_duration_us > 0:
                         leftover_us = min(leftover_us, max(0, source_duration_us - afterglow_source_start_us))
-                    afterglow_us = min(int(round(MIDFORM_CLOSING_AFTERGLOW_SEC * 1_000_000)), leftover_us)
-                    if afterglow_us >= 500_000 and afterglow_source_start_us > 0:
+                    footage_us = min(target_afterglow_us, max(0, leftover_us))
+                    if footage_us >= 400_000 and afterglow_source_start_us > 0:
                         afterglow_end_us = add_video_segment_with_manifest(
                             segment_id=segment_id,
                             clip_id=f"{last_segment_clip_ref.get('clip_id') or segment_id}_afterglow",
                             source_start_tc="afterglow",
                             source_end_tc="afterglow",
                             source_start_us=afterglow_source_start_us,
-                            source_duration_for_segment_us=afterglow_us,
-                            place_duration_us=afterglow_us,
+                            source_duration_for_segment_us=footage_us,
+                            place_duration_us=footage_us,
                             timeline_start_us=timeline_cursor_us,
                             tts_duration_us=0,
-                            placement_warnings=[f"closing afterglow: {round(afterglow_us / 1_000_000, 3)}s of muted footage after the last narration (BGM-only tail)"],
+                            placement_warnings=[f"closing afterglow: {round(footage_us / 1_000_000, 3)}s of muted footage after the last narration (BGM-only tail)"],
                         )
                         timeline_cursor_us = afterglow_end_us
                         segment_video_end_us = max(segment_video_end_us, afterglow_end_us)
-                        segment_warnings.append("closing afterglow appended")
+                        segment_warnings.append("closing afterglow footage appended")
+                    else:
+                        footage_us = 0
+                    freeze_tail_us = target_afterglow_us - footage_us
+                    if freeze_tail_us >= 400_000:
+                        fps_value = max(1.0, safe_float(data.get("fps"), 30.0))
+                        frame_duration_us = max(1, int(round(1_000_000 / fps_value)))
+                        freeze_end_source_us = afterglow_source_start_us + footage_us
+                        freeze_start_source_us = max(0, freeze_end_source_us - frame_duration_us)
+                        afterglow_end_us = add_video_segment_with_manifest(
+                            segment_id=segment_id,
+                            clip_id=f"{last_segment_clip_ref.get('clip_id') or segment_id}_freeze_afterglow",
+                            source_start_tc="afterglow_freeze",
+                            source_end_tc="afterglow_freeze",
+                            source_start_us=freeze_start_source_us,
+                            source_duration_for_segment_us=frame_duration_us,
+                            place_duration_us=freeze_tail_us,
+                            timeline_start_us=timeline_cursor_us,
+                            tts_duration_us=0,
+                            placement_warnings=[f"closing afterglow: {round(freeze_tail_us / 1_000_000, 3)}s freeze-frame hold (BGM-only tail)"],
+                        )
+                        timeline_cursor_us = afterglow_end_us
+                        segment_video_end_us = max(segment_video_end_us, afterglow_end_us)
+                        segment_warnings.append("closing afterglow freeze appended")
 
                 segment_video_duration_us = max(0, segment_video_end_us - segment_video_start_us)
                 duration_diff_sec = round((tts_duration_us - segment_video_duration_us) / 1_000_000, 6)

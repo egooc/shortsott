@@ -401,14 +401,8 @@ function normalizeDraftSpecSourceRanges(draftSpec, baseDraftInput = {}) {
     const placementSlotKey = String(placement?.clip_id || '').replace(/^(ko|ja)_/, '') || String(placement?.slot_id || '');
     const estimatedNeedSec = rangeDuration(Array.isArray(placement?.timeline_range) ? placement.timeline_range.map(Number) : []);
     const narrationNeedSec = realTtsSecBySlot.get(placementSlotKey) || estimatedNeedSec;
-    // The closing slot alone keeps 3s past its narration: the renderer appends that leftover as the
-    // muted afterglow tail (owner directive - the cut ends on breathing footage, BGM only). Without
-    // this allowance the measured-TTS cap here stripped the room the adapter reserved, and the
-    // afterglow came out 0.5s or vanished entirely.
-    const isClosingPlacement = /closing/.test(placementSlotKey);
-    const tailAllowanceSec = isClosingPlacement ? 3.0 : 0;
     const duration = narrationNeedSec > 0
-      ? Math.min(cappedDurations[index], narrationNeedSec + 0.5 + tailAllowanceSec)
+      ? Math.min(cappedDurations[index], narrationNeedSec + 0.5)
       : cappedDurations[index];
     const minStart = lastEnd > 0 ? lastEnd + PHYSICAL_SOURCE_GAP_SEC : 0;
     let start = Math.max(Number(sourceRange[0]), minStart);
@@ -581,8 +575,8 @@ function normalizeDraftSpecSourceRanges(draftSpec, baseDraftInput = {}) {
     // The shot snap may stretch the end back out; the narration-length invariant wins over
     // a prettier cut point (slot_07 came back 9.6s under 7.2s of narration - 2s of the fall
     // returned to the screen).
-    if (narrationNeedSec > 0 && end - start > narrationNeedSec + 0.5 + tailAllowanceSec) {
-      end = start + narrationNeedSec + 0.5 + tailAllowanceSec;
+    if (narrationNeedSec > 0 && end - start > narrationNeedSec + 0.5) {
+      end = start + narrationNeedSec + 0.5;
       adjusted = true;
     }
     // And the end must land ON a cut, downward: a differentiated (later) start left the played
