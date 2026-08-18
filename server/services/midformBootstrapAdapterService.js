@@ -1164,8 +1164,14 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
       // clip into the slot): cap at the estimated need - the base draft is pre-TTS, so the
       // estimate is the best truth available here, and the locale packer re-caps with the
       // measured TTS.
-      if (broll && narrationNeedSec > 0 && broll[1] - broll[0] > narrationNeedSec + 0.5) {
-        broll = [broll[0], roundSec3 ? roundSec3(broll[0] + narrationNeedSec + 0.5) : Number((broll[0] + narrationNeedSec + 0.5).toFixed(3))];
+      // The closing slot keeps 3s beyond the narration: the renderer turns that leftover into the
+      // afterglow tail (muted footage after the last word, BGM-only) - without the extra footage
+      // here there is nothing for it to play.
+      const CLOSING_AFTERGLOW_ALLOWANCE_SEC = 3.0;
+      const brollCapSec = narrationNeedSec + 0.5
+        + ((role === 'closing' || slotId === 'slot_closing') ? CLOSING_AFTERGLOW_ALLOWANCE_SEC : 0);
+      if (broll && narrationNeedSec > 0 && broll[1] - broll[0] > brollCapSec) {
+        broll = [broll[0], roundSec3 ? roundSec3(broll[0] + brollCapSec) : Number((broll[0] + brollCapSec).toFixed(3))];
       }
       if (broll) {
         sourceRange = broll;

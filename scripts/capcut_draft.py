@@ -21,6 +21,10 @@ FFMPEG_BIN = os.environ.get("FFMPEG_PATH") or "ffmpeg"
 FFPROBE_BIN = os.environ.get("FFPROBE_PATH") or "ffprobe"
 MIDFORM_HYBRID_DUCKED_SOURCE_VOLUME = 0.3
 MIDFORM_FINAL_SLOT_TAIL_ALLOWANCE_SEC = float(os.environ.get("MIDFORM_FINAL_SLOT_TAIL_ALLOWANCE_SEC") or 7.0)
+# Afterglow: after the closing narration ends, let the footage breathe for a few seconds with the
+# source audio muted - only the BGM the owner lays in CapCut carries the tail (owner directive
+# 2026-08-18: "마지막 나레이션 나오고 살짝 여운있게 영상 보여주다가 끝나야될거같아. bgm만 나오도록.").
+MIDFORM_CLOSING_AFTERGLOW_SEC = float(os.environ.get("MIDFORM_CLOSING_AFTERGLOW_SEC") or 3.0)
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 CAPTION_COLORS_CONFIG_PATH = os.path.join(PROJECT_ROOT, "midform", "config", "caption_colors.json")
 DURATION_CONFIG_PATH = os.path.join(PROJECT_ROOT, "midform", "config", "duration.json")
@@ -9454,6 +9458,13 @@ def apply_midform_hybrid_video_audio_policy(draft_content_path, video_cut_placem
             continue
         segment_id = str(placement.get("segment_id") or "")
         segment_type = str(segment_type_map.get(segment_id) or "recap")
+        # Closing afterglow: the tail after the last narration is BGM-only - the source audio is
+        # muted entirely so whatever music the owner lays in CapCut carries the ending.
+        if str(placement.get("clip_id") or "").endswith("_afterglow"):
+            segment["volume"] = 0
+            segment["last_nonzero_volume"] = MIDFORM_HYBRID_DUCKED_SOURCE_VOLUME
+            summary["ducked_narration_video_segments"] += 1
+            continue
         # scene_hook: heatmap-peak cold open that plays its original action audio at full volume.
         if segment_type in {"dialogue_quote", "dialogue", "scene_hook"}:
             segment["volume"] = 1
@@ -11062,6 +11073,12 @@ def create_draft(input_json_path):
                 )
                 return timeline_end_us
 
+            # The afterglow belongs to the LAST narration segment (normally slot_closing).
+            closing_afterglow_segment_id = ""
+            for entry in segment_timeline_entries_for_video:
+                _entry_type = str(segment_type_map.get(entry["segment_id"], "recap"))
+                if _entry_type not in {"dialogue_quote", "dialogue", "scene_hook"}:
+                    closing_afterglow_segment_id = entry["segment_id"]
             for entry in segment_timeline_entries_for_video:
                 segment_id = entry["segment_id"]
                 segment_info = segment_map.get(segment_id, {})
@@ -11203,6 +11220,8 @@ def create_draft(input_json_path):
                             "source_start_us": clip_source_start_us,
                             "source_duration_us": max(1, min(usable_source_us, clip_source_duration_us)),
                             "clip_id": clip_id,
+                            "placed_source_end_us": clip_source_start_us + source_duration_for_segment_us,
+                            "leftover_source_us": max(0, usable_source_us - source_duration_for_segment_us),
                         }
                         last_valid_clip_ref = last_segment_clip_ref
 
@@ -11306,6 +11325,37 @@ def create_draft(input_json_path):
                         else:
                             segment_warnings.append("cannot fill missing video timeline (source duration unavailable)")
                             warnings.append(f"{segment_id}: cannot fill missing video timeline (source duration unavailable)")
+
+                # Closing afterglow (owner directive): after the last narration ends, the footage
+                # breathes for a few seconds with the source audio muted - only BGM carries the tail.
+                is_closing_afterglow_segment = (
+                    MIDFORM_CLOSING_AFTERGLOW_SEC > 0
+                    and segment_id == closing_afterglow_segment_id
+                    and remaining_us <= 0
+                    and isinstance(last_segment_clip_ref, dict)
+                )
+                if is_closing_afterglow_segment:
+                    leftover_us = int(last_segment_clip_ref.get("leftover_source_us") or 0)
+                    afterglow_source_start_us = int(last_segment_clip_ref.get("placed_source_end_us") or 0)
+                    if source_duration_us > 0:
+                        leftover_us = min(leftover_us, max(0, source_duration_us - afterglow_source_start_us))
+                    afterglow_us = min(int(round(MIDFORM_CLOSING_AFTERGLOW_SEC * 1_000_000)), leftover_us)
+                    if afterglow_us >= 500_000 and afterglow_source_start_us > 0:
+                        afterglow_end_us = add_video_segment_with_manifest(
+                            segment_id=segment_id,
+                            clip_id=f"{last_segment_clip_ref.get('clip_id') or segment_id}_afterglow",
+                            source_start_tc="afterglow",
+                            source_end_tc="afterglow",
+                            source_start_us=afterglow_source_start_us,
+                            source_duration_for_segment_us=afterglow_us,
+                            place_duration_us=afterglow_us,
+                            timeline_start_us=timeline_cursor_us,
+                            tts_duration_us=0,
+                            placement_warnings=[f"closing afterglow: {round(afterglow_us / 1_000_000, 3)}s of muted footage after the last narration (BGM-only tail)"],
+                        )
+                        timeline_cursor_us = afterglow_end_us
+                        segment_video_end_us = max(segment_video_end_us, afterglow_end_us)
+                        segment_warnings.append("closing afterglow appended")
 
                 segment_video_duration_us = max(0, segment_video_end_us - segment_video_start_us)
                 duration_diff_sec = round((tts_duration_us - segment_video_duration_us) / 1_000_000, 6)
