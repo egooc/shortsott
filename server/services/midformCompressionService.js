@@ -5813,9 +5813,40 @@ function findUncoveredCausalBeats(editPlan, beats) {
   });
 }
 
+// A cold-open hook line is a promise: the cut must RETURN to that conversation. The Housemaid
+// ending opened on "Can't run. I'm Pearl, remember?" and never came back - the giant rolling cues
+// around it (16s and 27s) broke window resolution for the surrounding lines, the callback slot was
+// silently never built, and every other gate still passed. Presence gates can't see a promise;
+// this one checks it mechanically: a KEEP_DIALOGUE cold open needs a later slot on the same beat
+// (or an explicit callback/replay reference to it), or narration that lands its line.
+function findUnpaidColdOpenHook(editPlan) {
+  const timeline = Array.isArray(editPlan?.timeline) ? editPlan.timeline : [];
+  const cold = timeline.find((item) => item?.role === 'cold_open' && item.decision === 'KEEP_DIALOGUE');
+  if (!cold) return null;
+  const coldBeat = String(cold.beat_id || '').trim();
+  const coldId = String(cold.slot_id || '').trim();
+  const kept = timeline.filter((item) => item !== cold && item?.decision !== 'DROP');
+  const paid = kept.some((item) => (
+    String(item.beat_id || '').trim() === coldBeat
+    || String(item.teaser_slot_id || '').trim() === coldId
+    || String(item.callback_slot_id || '').trim() === coldId
+    || String(item.replay_of_slot_id || '').trim() === coldId
+  ));
+  return paid ? null : { slot_id: coldId, beat_id: coldBeat };
+}
+
 function validateEditPlanAgainstBeats(editPlan, beats) {
   const beatMap = new Map((Array.isArray(beats) ? beats : []).map((beat) => [String(beat?.beat_id || '').trim(), beat]));
   const timeline = Array.isArray(editPlan?.timeline) ? editPlan.timeline : [];
+  const unpaidHook = findUnpaidColdOpenHook(editPlan);
+  if (unpaidHook) {
+    throw new Error(
+      `cold-open hook is never paid off: ${unpaidHook.slot_id} opens on a line from beat ${unpaidHook.beat_id} `
+      + 'and no later slot returns to that beat or references it as a callback/replay. The hook is a promise; '
+      + 'add a payoff slot from the same conversation (its surrounding lines are fresh audio) or a narration '
+      + 'that lands the line, or open on a different moment.'
+    );
+  }
   const uncovered = findUncoveredCausalBeats(editPlan, beats);
   if (uncovered.length) {
     const detail = uncovered

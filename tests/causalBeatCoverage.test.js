@@ -112,3 +112,31 @@ test('the line shave never takes a line out of the protected peak', () => {
   assert.equal((peak.dialogue_line_windows || []).filter((entry) => entry.matched === true).length, 3,
     'all three peak lines survive the runtime squeeze');
 });
+
+// The hook is a promise (Housemaid ending shipped one that was never kept).
+test('a cold-open hook with no payoff is rejected', () => {
+  const plan = {
+    timeline: [
+      slot('slot_01', 'beat_10', 'KEEP_DIALOGUE', { role: 'cold_open' }),
+      slot('slot_02', 'beat_02', 'KEEP_DIALOGUE'),
+      slot('slot_03', 'beat_04', 'KEEP_DIALOGUE'),
+      slot('slot_04', 'beat_03', 'NARRATE'),
+      slot('slot_05', 'beat_06', 'KEEP_DIALOGUE')
+    ]
+  };
+  assert.throws(() => _test.validateEditPlanAgainstBeats(plan, BEATS), /hook is never paid off/);
+});
+
+test('a payoff slot on the hook beat satisfies the promise', () => {
+  const plan = {
+    timeline: [
+      slot('slot_01', 'beat_10', 'KEEP_DIALOGUE', { role: 'cold_open' }),
+      slot('slot_02', 'beat_02', 'KEEP_DIALOGUE'),
+      slot('slot_04', 'beat_03', 'NARRATE'),
+      slot('slot_05', 'beat_06', 'KEEP_DIALOGUE'),
+      slot('slot_06', 'beat_04', 'KEEP_DIALOGUE'),
+      slot('slot_07', 'beat_10', 'KEEP_DIALOGUE', { role: 'payoff', replay_of_slot_id: 'slot_01', replay_mode: 'remaining_dialogue_after_cold_open' })
+    ]
+  };
+  assert.doesNotThrow(() => _test.validateEditPlanAgainstBeats(plan, BEATS));
+});
