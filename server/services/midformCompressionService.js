@@ -3855,6 +3855,11 @@ function insertComprehensionSeams(timeline, beats) {
       let bestGap = 8; // a seam needs at least this much source room to say anything true
       for (let pair = runStart; pair < index; pair += 1) {
         if (items[pair].decision === 'DROP' || items[pair + 1].decision === 'DROP') continue;
+        // Never seam against an existing seam: a re-run must not stack slot_X_reanchor_reanchor,
+        // and a seam slot that later passes mutate into dialogue is still not a valid anchor point.
+        const nextId = String(items[pair + 1].slot_id || '');
+        if (items[pair + 1].auto_seam === true || /_reanchor$|_seam$/.test(nextId)) continue;
+        if (items.some((other) => String(other.slot_id || '') === `${nextId}_reanchor`)) continue;
         const gap = Number(items[pair + 1].start_sec) - Number(items[pair].end_sec);
         if (Number.isFinite(gap) && gap > bestGap) { bestGap = gap; bestPair = pair; }
       }

@@ -136,3 +136,20 @@ test('the protected peak gets a pre-peak seam when entered cold', () => {
   assert.equal(out.indexOf(seam), out.findIndex((item) => item.protected_peak === true) - 1, 'right before the peak');
   assert.ok(seam.reason.includes('UNRESOLVED'), 'the seam carries the suspension instruction');
 });
+
+test('a re-run never stacks a seam on an existing seam slot', () => {
+  const mk = (id, start, end, extra = {}) => ({
+    slot_id: id, beat_id: 'B1', role: 'body', decision: 'KEEP_DIALOGUE',
+    start_sec: start, end_sec: end,
+    dialogue_line_windows: [{ matched: true, line: 'y '.repeat(30).trim(), start_sec: start, end_sec: end }],
+    ...extra
+  });
+  // slot_c_reanchor is a seam from a previous run that a later pass mutated into
+  // dialogue (the allin regression): it may never become an anchor point again.
+  const out = _test.insertComprehensionSeams([
+    mk('a', 100, 125),
+    mk('c_reanchor', 140, 168, { auto_seam: true }),
+    mk('c', 180, 210)
+  ], []);
+  assert.ok(!out.some((item) => /_reanchor_reanchor$/.test(String(item.slot_id))), 'no stacked seam');
+});
