@@ -5468,6 +5468,52 @@ def sync_full_caption_segments_to_video_timeline(draft_content_path, explainer_b
             return []
         if len(text) <= max_chars:
             return [text]
+        if language == "ko" and " " in text:
+            # Words that modify what FOLLOWS them may never end a chunk: glue them forward.
+            glue_heads = {"이", "그", "저", "안", "못", "더", "왜", "잘", "다", "또", "꼭", "좀",
+                          "한", "두", "세", "네", "첫", "새", "옛", "온", "그런", "어느", "무슨"}
+            words = text.split()
+            glued = []
+            index = 0
+            while index < len(words):
+                word = words[index]
+                is_short_possessive = len(word) <= 3 and word.endswith("의")
+                if (word in glue_heads or is_short_possessive) and index + 1 < len(words) and len(word) + 1 + len(words[index + 1]) <= max_chars:
+                    glued.append(word + " " + words[index + 1])
+                    index += 2
+                else:
+                    glued.append(word)
+                    index += 1
+            units = []
+            current = ""
+            for token in glued:
+                candidate = (current + " " + token).strip() if current else token
+                if len(candidate) <= max_chars:
+                    current = candidate
+                    continue
+                if current:
+                    units.append(current)
+                while len(token) > max_chars:
+                    units.append(token[:max_chars])
+                    token = token[max_chars:]
+                current = token
+            if current:
+                units.append(current)
+            # A tiny orphan chunk reads as a stutter ("니나가 | 아니라, | ..."): pull the previous
+            # chunk's last word down wherever a short chunk follows a multi-word one. Right to left
+            # so a donation cannot re-orphan an already balanced chunk.
+            for position in range(len(units) - 1, 0, -1):
+                if len(units[position]) > 5:
+                    continue
+                prev_tokens = units[position - 1].split()
+                if len(prev_tokens) < 2:
+                    continue
+                moved = (prev_tokens[-1] + " " + units[position]).strip()
+                if len(moved) <= max_chars:
+                    units[position - 1] = " ".join(prev_tokens[:-1])
+                    units[position] = moved
+            if units:
+                return sanitize_screen_units(units, language, max_chars)
         markers = (
             ["습니다", "합니다", "됩니다", "입니다", "어요", "아요", "고", "며", "서", "을 ", "를 ", "이 ", "가 ", "은 ", "는 ", "에 ", "로 ", " "]
             if language == "ko"
