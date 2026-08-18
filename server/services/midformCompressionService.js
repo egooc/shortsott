@@ -5887,7 +5887,12 @@ function validateSlotFillsDialogueCaptions(slotFills, editPlan, locale = 'ko') {
       // relation are precisely what the eye CANNOT read, so the premise line is allowed to set them
       // up once; every later slot still has to earn it from the scene.
       const nameplate = findNarrationNameplate(fill?.narration, [...new Set(speakerNames)]);
-      if (nameplate && !isPremiseNarration) {
+      // A re-anchor seam exists to RE-state who is on screen for a viewer who joined mid-scroll -
+      // naming a person by role there is the point, not a leak (benchmark practice: the top channel
+      // re-anchors names constantly). Only genuinely new mid-cut introductions stay banned.
+      const isReanchorSeam = /_reanchor$|_seam$/.test(String(fill?.slot_id || ''))
+        || (Array.isArray(editPlan?.timeline) && editPlan.timeline.some((item) => String(item.slot_id || '') === String(fill?.slot_id || '') && item.auto_seam === true));
+      if (nameplate && !isPremiseNarration && !isReanchorSeam) {
         throw new Error(
           `${fill?.slot_id} narration introduces a character (${nameplate}) outside the premise line. `
           + 'Only the first narration may say who these people are; after that the scene has to show it.'
