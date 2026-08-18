@@ -91,3 +91,48 @@ test('a hook already paid gets no duplicate payoff', () => {
   ], [{ beat_id: 'B10', start_sec: 0, end_sec: 10, key_dialogue: [] }], []);
   assert.equal(out.length, 2);
 });
+
+// Comprehension seams: no dialogue run longer than ~45s of played time without a re-anchor.
+test('a long dialogue run gets a re-anchor seam at its widest source gap', () => {
+  const mk = (id, start, end) => ({
+    slot_id: id, beat_id: 'B1', role: 'body', decision: 'KEEP_DIALOGUE',
+    start_sec: start, end_sec: end,
+    dialogue_line_windows: [{ matched: true, line: 'x '.repeat(20).trim(), start_sec: start, end_sec: end }]
+  });
+  // Three 20s slots = 60s run; the widest gap (40s) sits between b and c.
+  const out = _test.insertComprehensionSeams([
+    mk('a', 100, 120), mk('b', 125, 145), mk('c', 185, 205)
+  ], [{ beat_id: 'B1', start_sec: 90, end_sec: 210, summary: 'the confrontation continues' }]);
+  const seam = out.find((item) => item.auto_seam === true);
+  assert.ok(seam, 'seam inserted');
+  assert.equal(out.indexOf(seam), 2, 'at the widest gap (between b and c)');
+  assert.ok(seam.reason.includes('Re-anchor'), 'reason instructs a re-anchor');
+});
+
+test('a wall-to-wall scene with no honest gap gets no seam', () => {
+  const mk = (id, start, end) => ({
+    slot_id: id, beat_id: 'B1', role: 'body', decision: 'KEEP_DIALOGUE',
+    start_sec: start, end_sec: end,
+    dialogue_line_windows: [{ matched: true, line: 'y '.repeat(20).trim(), start_sec: start, end_sec: end }]
+  });
+  const out = _test.insertComprehensionSeams([
+    mk('a', 100, 120), mk('b', 121, 141), mk('c', 142, 162)
+  ], []);
+  assert.ok(!out.some((item) => item.auto_seam === true), 'no seam without source room');
+});
+
+test('the protected peak gets a pre-peak seam when entered cold', () => {
+  const mk = (id, start, end, extra = {}) => ({
+    slot_id: id, beat_id: 'B1', role: 'body', decision: 'KEEP_DIALOGUE',
+    start_sec: start, end_sec: end,
+    dialogue_line_windows: [{ matched: true, line: 'short line here', start_sec: start, end_sec: end }],
+    ...extra
+  });
+  const out = _test.insertComprehensionSeams([
+    mk('a', 100, 106), mk('peak', 200, 215, { protected_peak: true, role: 'payoff' })
+  ], [{ beat_id: 'B1', start_sec: 90, end_sec: 220, summary: 'the reveal' }]);
+  const seam = out.find((item) => item.auto_seam === true);
+  assert.ok(seam, 'pre-peak seam inserted');
+  assert.equal(out.indexOf(seam), out.findIndex((item) => item.protected_peak === true) - 1, 'right before the peak');
+  assert.ok(seam.reason.includes('UNRESOLVED'), 'the seam carries the suspension instruction');
+});

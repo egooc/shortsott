@@ -3808,6 +3808,80 @@ function insertSceneJumpSeams(timeline, beats) {
   return items;
 }
 
+// Comprehension seams (owner directive): the benchmark re-anchors names and stakes constantly;
+// our cuts ran 106-135s of unbroken dialogue after the premise, and the one source that received
+// seam surgery (58s max run) is the one that reads well. Rule A caps the unbroken run at
+// DIALOGUE_RUN_CAP_SEC of played time, inserting a re-anchor seam at the widest source gap inside
+// the run - the place the scene actually shifts. Rule B guarantees a narration right before the
+// protected peak, so the suspension cut-in has a sentence to hang on.
+const DIALOGUE_RUN_CAP_SEC = 45;
+function insertComprehensionSeams(timeline, beats) {
+  let items = (Array.isArray(timeline) ? timeline : []).map((item) => ({ ...item }));
+  const beatList = Array.isArray(beats) ? beats : [];
+  const makeSeam = (nextItem, why) => {
+    const nextBeat = beatList.find((beat) => String(beat.beat_id || '') === String(nextItem.beat_id || ''));
+    return {
+      slot_id: `${String(nextItem.slot_id || 'slot')}_reanchor`,
+      beat_id: String(nextItem.beat_id || ''),
+      role: 'body',
+      decision: 'NARRATE',
+      mode: 'NARRATE',
+      start_sec: roundSec(Math.max(0, Number(nextItem.start_sec) - 9)),
+      end_sec: roundSec(Math.max(1, Number(nextItem.start_sec) - 1.5)),
+      estimated_duration_sec: 4.5,
+      narration_estimated_duration_sec: 4.5,
+      auto_seam: true,
+      reason: `${why} Re-anchor the situation in ONE short sentence: WHO is in the scene (names, never pronouns) and what is at stake right now. `
+        + `Upcoming beat: ${String(nextBeat?.summary || '').replace(/\s+/g, ' ').slice(0, 110)}`
+    };
+  };
+
+  // Rule A - cap the unbroken dialogue run.
+  for (let guard = 0; guard < 4; guard += 1) {
+    let runStart = -1;
+    let runSec = 0;
+    let inserted = false;
+    for (let index = 0; index < items.length; index += 1) {
+      const item = items[index];
+      if (item.decision === 'DROP') continue;
+      const isSeamBreak = item.decision === 'NARRATE';
+      if (isSeamBreak) { runStart = -1; runSec = 0; continue; }
+      if (runStart < 0) runStart = index;
+      runSec += Number(realisticSlotDurationSec(item)) || 0;
+      if (runSec <= DIALOGUE_RUN_CAP_SEC || index === runStart) continue;
+      // Find the widest SOURCE gap between adjacent kept slots inside this run - skip the pair
+      // right at the run start so the seam lands mid-run, not against the previous narration.
+      let bestPair = -1;
+      let bestGap = 8; // a seam needs at least this much source room to say anything true
+      for (let pair = runStart; pair < index; pair += 1) {
+        if (items[pair].decision === 'DROP' || items[pair + 1].decision === 'DROP') continue;
+        const gap = Number(items[pair + 1].start_sec) - Number(items[pair].end_sec);
+        if (Number.isFinite(gap) && gap > bestGap) { bestGap = gap; bestPair = pair; }
+      }
+      if (bestPair < 0) { runStart = -1; runSec = 0; continue; } // wall-to-wall scene: nothing honest to cut to
+      items.splice(bestPair + 1, 0, makeSeam(items[bestPair + 1], `Auto re-anchor: ${Math.round(runSec)}s of unbroken dialogue.`));
+      inserted = true;
+      break;
+    }
+    if (!inserted) break;
+  }
+
+  // Rule B - a narration right before the protected peak.
+  const peakIndex = items.findIndex((item) => item.protected_peak === true && item.decision !== 'DROP');
+  if (peakIndex > 0) {
+    const before = items.slice(Math.max(0, peakIndex - 2), peakIndex).filter((item) => item.decision !== 'DROP');
+    const hasSeam = before.some((item) => item.decision === 'NARRATE');
+    const peak = items[peakIndex];
+    const prev = items[peakIndex - 1];
+    const gapToPeak = Number(peak.start_sec) - Number(prev?.end_sec);
+    if (!hasSeam && Number.isFinite(gapToPeak) && gapToPeak > 8) {
+      items.splice(peakIndex, 0, makeSeam(peak,
+        'Auto pre-peak seam: load the stakes and end UNRESOLVED (suspension cut-in) - the peak scene answers.'));
+    }
+  }
+  return items;
+}
+
 // The cold-open hook is a promise (gate: cold-open hook is never paid off). When the plan itself
 // never returns to the hook's beat - the Housemaid ending's giant cues broke the normal callback
 // builder silently - construct the payoff from the beat's remaining key lines, windows estimated
@@ -4999,7 +5073,7 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec, usableEndSec =
   // separation stamps inherit word-accurate edges.
   const wordSnappedTimeline = snapDialogueWindowsToWords(filledTimeline, wordTimestamps);
   const dedupedTimeline = dropUnplayableFocusLines(alignFocusLinesToWindows(separateOverlappingDialogueWindows(dropRestatedWindows(dropWindowsSwallowedByTheirNeighbour(wordSnappedTimeline)))));
-  const fittedTimeline = buildHookPayoffIfMissing(insertSceneJumpSeams(capColdOpenWindowsToSpokenEstimate(dedupedTimeline), beats), beats, transcript);
+  const fittedTimeline = buildHookPayoffIfMissing(insertComprehensionSeams(insertSceneJumpSeams(capColdOpenWindowsToSpokenEstimate(dedupedTimeline), beats), beats), beats, transcript);
   // Write the corrected measure back onto the slot. Fixing only realisticSlotDurationSec left
   // estimated_duration_sec holding the raw span - slot_02 still read 151.3s for four lines - so
   // every consumer that reads the field directly still saw the dead air between them.
@@ -5215,6 +5289,7 @@ function buildEditPlanPrompt(beats, heatmap, targetSec, metadata) {
     '- dialogue_focus_quotes for a KEEP_DIALOGUE slot should hold 1 or 2 lines — a line, or a line and the answer to it. Three or more turns crams a whole conversation into one block and flattens the rhythm; split them into separate slots instead, and never exceed 4.',
     '- Run KEEP_DIALOGUE slots back to back wherever the scene allows it. Long chains of preserved dialogue are what this format is built on; the viewer reads the situation from the exchange itself. Break the chain only where the scene actually moves.',
     '- Narration is for the SEAM between scenes, so keep NARRATE slots few and short. A narration stretch beyond about 12 seconds means the cut is explaining instead of showing — replace it with the lines from the scene.',
+    '- NARRATION CADENCE: after the premise, never let more than ~45 seconds of dialogue play without a one-sentence situation re-anchor (who is in the scene, what is at stake now - names, never pronouns). The benchmark channel re-anchors constantly; a viewer who joined mid-scroll must be able to rebuild the situation at every seam. This is enforced mechanically, so plan the seams yourself where they read best.',
     '- Exclude environment description, transitions, cushion setup, joke detours, and side-branch lines even if they happen inside the same beat.',
     '',
     'Causal chain (this outranks line quality - a cut whose viewer cannot follow the cause is a failed cut):',
@@ -7273,6 +7348,7 @@ module.exports = {
     dropUnplayableFocusLines,
     capColdOpenWindowsToSpokenEstimate,
     insertSceneJumpSeams,
+    insertComprehensionSeams,
     buildHookPayoffIfMissing,
     keepAuthoredSlotFills,
     stampCaptionSourceLines,
