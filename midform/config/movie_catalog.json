@@ -1,0 +1,41 @@
+{
+  "_doc": "영화 정보 카탈로그 — 업로드 메타데이터 자동 입력과 소스 프리플라이트(배급사 티어)의 단일 출처. match는 드래프트 폴더명/소스 제목에 대한 정규식. distributor_tier: banned(발행 금지)/preflight(비공개 업로드 검사 후 공개)/unknown(조사 필요). title_ja는 일본 개봉명 — ja 해시태그는 반드시 이 값을 쓴다(플랫폼 패키지 규칙).",
+  "movies": {
+    "the-housemaid": {
+      "match": "housemaid|하우스메이드|하녀",
+      "title_ko": "하우스메이드",
+      "title_en": "The Housemaid",
+      "title_ja": "ハウスメイド",
+      "year": 2025,
+      "distributor": "Lionsgate",
+      "distributor_tier": "preflight",
+      "credit_ko": "프리다 맥패든의 소설 '하녀(The Housemaid)'를 원작으로 한 영화입니다.",
+      "credit_ja": "フリーダ・マクファーデンの小説『ザ・ハウスメイド』を原作とした映画です。"
+    },
+    "draft-day": {
+      "match": "draftday|draft.?day|드래프트 ?데이",
+      "title_ko": "드래프트 데이",
+      "title_en": "Draft Day",
+      "title_ja": "ドラフト・デイ",
+      "year": 2014,
+      "distributor": "Summit Entertainment (Lionsgate)",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '드래프트 데이'(2014)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『ドラフト・デイ』(2014)のシーンから制作しました。"
+    },
+    "long-shot": {
+      "match": "longshot|long.?shot|롱 ?샷",
+      "title_ko": "롱 샷",
+      "title_en": "Long Shot",
+      "title_ja": "ロング・ショット 僕と彼女のありえない恋",
+      "year": 2019,
+      "distributor": "Lionsgate",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '롱 샷'(2019)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『ロング・ショット 僕と彼女のありえない恋』(2019)のシーンから制作しました。"
+    }
+  },
+  "banned_distributors": [
+    "Sony", "Columbia", "Screen Gems", "TriStar"
+  ]
+}
