@@ -37,7 +37,7 @@ auto-publish.js: CapCut 내보내기 → 길이 검증 → 라우드니스 → p
      (검색 오작동으로 다른 프로젝트가 내보내진 사건 방지).
    - 라우드니스: -14 LUFS 계약으로 정규화(fail-open).
    - 업로드: 로케일→채널 매칭(ko→ko_highlight 프로필, ja→jp_highlight 프로필),
-     `private + publishAt`. 슬롯은 채널별 첫 편 +60분, 이후 120분 간격.
+     `private + publishAt`. 슬롯은 채널별 08:00·18:00(UTC+9) 고정 — 운영 절 참고.
    - 상태: `server/data/auto_publish_state.json` — 같은 드래프트는 두 번 안 나간다.
 
 ## Content ID 프리플라이트 3층 (케이스북 교리)
