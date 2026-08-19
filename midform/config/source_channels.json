@@ -1,0 +1,11 @@
+{
+  "_doc": "소스 수급 채널 목록. scout-sources.js가 여기서 최신 업로드를 정찰한다.",
+  "channels": [
+    {
+      "id": "UCtMEpYpBm3YVo5ijQzUZdLg",
+      "name": "Clip Empire",
+      "url": "https://www.youtube.com/channel/UCtMEpYpBm3YVo5ijQzUZdLg/videos",
+      "note": "영화 클립 채널 — 기존 5개 소스(하우스메이드/드래프트 데이/롱 샷) 전부 이 채널"
+    }
+  ]
+}

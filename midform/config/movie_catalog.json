@@ -23,6 +23,17 @@
       "credit_ko": "영화 '드래프트 데이'(2014)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『ドラフト・デイ』(2014)のシーンから制作しました。"
     },
+    "breaking-dawn-1": {
+      "match": "breaking.?dawn|브레이킹 ?던|ブレイキング・ドーン",
+      "title_ko": "브레이킹 던 part1",
+      "title_en": "The Twilight Saga: Breaking Dawn - Part 1",
+      "title_ja": "トワイライト・サーガ ブレイキング・ドーン Part1",
+      "year": 2011,
+      "distributor": "Summit Entertainment (Lionsgate)",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '브레이킹 던 part1'(2011)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『トワイライト・サーガ ブレイキング・ドーン Part1』(2011)のシーンから制作しました。"
+    },
     "long-shot": {
       "match": "longshot|long.?shot|롱 ?샷",
       "title_ko": "롱 샷",
