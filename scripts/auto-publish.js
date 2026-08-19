@@ -39,9 +39,41 @@ const HELD_DIR = path.join(EXPORT_DIR, 'held');
 const STATE_PATH = path.join(ROOT, 'server', 'data', 'auto_publish_state.json');
 const REPORTS_DIR = path.join(ROOT, 'server', 'output', 'auto-publish-reports');
 
-const FIRST_PUBLISH_DELAY_MIN = 60;
-const PUBLISH_INTERVAL_MIN = 120;
+// Publish slots are FIXED per channel: 08:00 and 18:00 KST/JST (UTC+9), two videos per
+// channel per day (owner directive 2026-08-20: work runs 00:00-07:00, publishes land on
+// the fixed slots). A slot needs SLOT_LEAD_MIN of margin so the upload finishes and the
+// Studio Checks glance (Content ID layer 3) has a window before the video goes public.
+const SLOT_HOURS_UTC9 = [8, 18];
+const SLOT_LEAD_MIN = 45;
 const DURATION_TOLERANCE_SEC = 2.0;
+
+// Earliest fixed slot after `fromMs` that is not already taken for this channel.
+function nextFreeSlot(locale, fromMs, taken) {
+  const dayMs = 24 * 60 * 60 * 1000;
+  // Work in UTC+9 by shifting the clock; slots are whole hours so DST-free UTC+9 is safe.
+  const shifted = new Date(fromMs + 9 * 3600 * 1000);
+  const base = Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate());
+  for (let day = 0; day < 14; day += 1) {
+    for (const hour of SLOT_HOURS_UTC9) {
+      const slotMs = base + day * dayMs + hour * 3600 * 1000 - 9 * 3600 * 1000;
+      if (slotMs < fromMs + SLOT_LEAD_MIN * 60 * 1000) continue;
+      const iso = new Date(slotMs).toISOString();
+      const key = `${locale}:${iso}`;
+      if (taken.has(key)) continue;
+      taken.add(key);
+      return iso;
+    }
+  }
+  throw new Error(`no free ${locale} slot within 14 days`);
+}
+
+function takenSlotsFromState(state) {
+  const taken = new Set();
+  for (const entry of state.history || []) {
+    if (entry.publishAt && entry.locale) taken.add(`${entry.locale}:${entry.publishAt}`);
+  }
+  return taken;
+}
 
 function parseArgs(argv) {
   const args = { prefix: '', only: '', dryRun: false, skipExport: false, limit: 0 };
@@ -146,7 +178,7 @@ async function main() {
   }
 
   fs.mkdirSync(EXPORT_DIR, { recursive: true });
-  const channelCounters = new Map();
+  const takenSlots = takenSlotsFromState(state);
   const items = [];
 
   for (const draftDir of targets) {
@@ -208,11 +240,9 @@ async function main() {
       }
     }
 
-    // 5. Per-channel publishAt slot.
-    const indexInChannel = channelCounters.get(locale) || 0;
-    channelCounters.set(locale, indexInChannel + 1);
-    const publishAt = new Date(Date.now()
-      + (FIRST_PUBLISH_DELAY_MIN + indexInChannel * PUBLISH_INTERVAL_MIN) * 60 * 1000).toISOString();
+    // 5. Fixed per-channel slot: next free 08:00/18:00 (UTC+9), booked slots come from
+    //    state history so a morning re-run cannot double-book the evening slot.
+    const publishAt = nextFreeSlot(locale, Date.now(), takenSlots);
 
     items.push({
       filePath: uploadPath,

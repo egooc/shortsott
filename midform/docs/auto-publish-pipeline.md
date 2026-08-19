@@ -56,8 +56,13 @@ auto-publish.js: CapCut 내보내기 → 길이 검증 → 라우드니스 → p
   또는 서버의 OAuth 연결 플로우(getAuthorizationUrl)로 새로 연결.
 - 프로필 purpose ↔ variant: `ko_highlight`↔`ko_highlight`, `jp_highlight`↔`highlight`.
 
-## 운영
+## 운영 (소유주 확정 2026-08-20)
 
-- 정기 실행은 Task Scheduler(잠금 해제 데스크톱 필요 — 에이전트 셸에서 CapCut 화면 자동화
-  금지). 권장: scout 1일 1회, auto-publish는 설치 배치가 생길 때.
-- 리포트: `server/output/scout-reports/`, `server/output/auto-publish-reports/`.
+- **야간 배치**: 매일 00:05 Task Scheduler(`midform-nightly`, Interactive only)가
+  `scripts/nightly-batch.js` 실행. 자정~07:00 사이에만 작업하고(07:00 데드라인 가드 —
+  넘길 작업은 시작하지 않고 다음 밤으로), 밤당 소스 2개 → ko/ja 4편 제작·설치·내보내기.
+- **발행 슬롯 고정**: 채널별 08:00·18:00(UTC+9), 하루 2편/채널. auto-publish가 state의
+  기예약 슬롯을 피해서 다음 빈 슬롯에 `private+publishAt` 예약. 슬롯 마감 45분 전
+  리드타임 미달이면 다음 슬롯으로 밀린다(Studio Checks 확인 창 확보).
+- 잠금 해제된 데스크톱 필수(CapCut 화면 자동화). 스케줄 해제: `schtasks /Delete /TN midform-nightly /F`.
+- 리포트: `server/output/nightly-reports/`, `scout-reports/`, `auto-publish-reports/`.
