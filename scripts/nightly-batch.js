@@ -27,11 +27,12 @@ const SCOUT_REPORTS_DIR = path.join(ROOT, 'server', 'output', 'scout-reports');
 const REPORTS_DIR = path.join(ROOT, 'server', 'output', 'nightly-reports');
 
 function parseArgs(argv) {
-  const args = { sources: 2, deadlineHour: 7, dryRun: false, skipScout: false, skipProduce: false };
+  const args = { sources: 2, deadlineHour: 7, dryRun: false, skipScout: false, skipProduce: false, produceOnly: false };
   for (let i = 2; i < argv.length; i += 1) {
     if (argv[i] === '--dry-run') args.dryRun = true;
     else if (argv[i] === '--skip-scout') args.skipScout = true;
     else if (argv[i] === '--skip-produce') args.skipProduce = true;
+    else if (argv[i] === '--produce-only') args.produceOnly = true; // stop after install: no export, no upload
     else if (argv[i] === '--sources') { args.sources = Number(argv[i + 1]) || 2; i += 1; }
     else if (argv[i] === '--deadline-hour') { args.deadlineHour = Number(argv[i + 1]); i += 1; }
   }
@@ -136,11 +137,14 @@ async function main() {
       if (guard.expired()) { lines.push(`- DEADLINE before producing: ${candidate.title}`); break; }
       console.log(`[stage] produce ${index + 1}/${picked.length}: ${candidate.title} (${guard.remainMin()}min left)`);
       const before = listTemplateRunDirs();
+      const startedMs = Date.now();
       try {
         const summary = await runMidformFullAutoWorkflow({ source: candidate.url });
-        lines.push(`- produce ${summary.status || 'done'}: ${candidate.title}`);
+        // Per-source wall time goes in the report: the owner decides from tonight's numbers
+        // whether two sources fit the 00:00-07:00 window or the plan needs rework.
+        lines.push(`- produce ${summary.status || 'done'} (${Math.round((Date.now() - startedMs) / 60000)}min): ${candidate.title}`);
       } catch (error) {
-        lines.push(`- produce FAILED: ${candidate.title} — ${String(error.message || error).slice(0, 200)}`);
+        lines.push(`- produce FAILED (${Math.round((Date.now() - startedMs) / 60000)}min): ${candidate.title} — ${String(error.message || error).slice(0, 200)}`);
         console.log(`  FAILED: ${String(error.message || error).slice(0, 200)}`);
         continue;
       }
@@ -154,6 +158,15 @@ async function main() {
     }
   }
   if (!installedFolders.length && !args.skipProduce) { finish('nothing_installed'); return; }
+
+  // --produce-only: the drafts are installed and that is tonight's whole job (export and
+  // upload stay off until the owner turns them on).
+  if (args.produceOnly) {
+    lines.push('', `- 설치 완료 ${installedFolders.length}편 (produce-only — 내보내기/업로드 생략):`,
+      ...installedFolders.map((name) => `  - ${name}`));
+    finish('produced_only');
+    return;
+  }
 
   // 4. Publish (CapCut export + fixed-slot scheduled upload). auto-publish has its own
   //    per-draft guards; the deadline only decides whether we start it at all.
