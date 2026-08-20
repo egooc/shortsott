@@ -143,6 +143,13 @@ async function main() {
         // Per-source wall time goes in the report: the owner decides from tonight's numbers
         // whether two sources fit the 00:00-07:00 window or the plan needs rework.
         lines.push(`- produce ${summary.status || 'done'} (${Math.round((Date.now() - startedMs) / 60000)}min): ${candidate.title}`);
+        // A returned-but-failed summary is a failure: record WHY (the 2026-08-20 night lost
+        // both sources to a yt-dlp 403 and the report said only "failed").
+        if (summary.status === 'failed') {
+          lines.push(`  - failure: ${JSON.stringify(summary.failure_reason || {}).slice(0, 300)}`);
+          console.log(`  failed: ${JSON.stringify(summary.failure_reason || {}).slice(0, 200)}`);
+          continue;
+        }
       } catch (error) {
         lines.push(`- produce FAILED (${Math.round((Date.now() - startedMs) / 60000)}min): ${candidate.title} — ${String(error.message || error).slice(0, 200)}`);
         console.log(`  FAILED: ${String(error.message || error).slice(0, 200)}`);
