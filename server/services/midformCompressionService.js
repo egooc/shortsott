@@ -3771,6 +3771,67 @@ function capColdOpenWindowsToSpokenEstimate(timeline) {
 // summaries so the fills writer knows what to say.
 const SCENE_JUMP_SEC = 45;
 const MAX_AUTO_SEAMS = 2;
+// A narration slot's b-roll may only come from its plan window (+-8.5s, the semantic-bounds
+// gate) and never from reserved dialogue footage (the hybrid overlap gate). When a source ends
+// wall-to-wall with dialogue, the closing slot's window sits where BOTH rules forbid every
+// second - the 2026-08-20 Long Shot night burned 42 minutes and died at the final gate. The
+// window is the movable part: relocate it onto the nearest free source gap so the packer and
+// the gates agree before any expensive stage runs.
+function relocateNarrationWindowsToFreeFootage(timeline, usableEndSec = 0) {
+  const items = Array.isArray(timeline) ? timeline : [];
+  const reserved = [];
+  for (const item of items) {
+    if (item.decision === 'DROP') continue;
+    for (const win of item.dialogue_line_windows || []) {
+      const start = Number(win.start_sec);
+      const end = Number(win.end_sec);
+      if (Number.isFinite(start) && end > start) reserved.push([start, end]);
+    }
+  }
+  reserved.sort((left, right) => left[0] - right[0]);
+  // Free footage stops at usable_end (endcard/credits past it - the 'past_usable_end' gate).
+  // Without a measured usable end, fall back to the furthest slot end in the plan.
+  const sourceTail = Number(usableEndSec) > 0
+    ? Number(usableEndSec)
+    : Math.max(0, ...reserved.map(([, re]) => re), ...items.map((item) => Number(item.end_sec) || 0));
+  const freeSpanAround = (start, end) => {
+    const cappedEnd = Math.min(end, sourceTail);
+    let free = Math.max(0, cappedEnd - start);
+    for (const [rs, re] of reserved) free -= Math.max(0, Math.min(cappedEnd, re) - Math.max(start, rs));
+    return free;
+  };
+  const gaps = [];
+  let cursor = 0;
+  for (const [rs, re] of [...reserved, [sourceTail, sourceTail]]) {
+    if (rs - cursor >= 1.5) gaps.push([cursor, rs]);
+    cursor = Math.max(cursor, re);
+  }
+  return items.map((item) => {
+    if (item.decision !== 'NARRATE' || item.role !== 'closing') return item;
+    const start = Number(item.start_sec);
+    const end = Number(item.end_sec);
+    if (!Number.isFinite(start) || !(end > start)) return item;
+    if (freeSpanAround(start - 8.5, end + 8.5) >= 1.5) return item; // packer can work with this
+    const need = Math.min(4.5, Math.max(1.5, end - start));
+    const usable = gaps.filter(([gs, ge]) => ge - gs >= need);
+    if (!usable.length) return item;
+    const nearest = usable.sort((left, right) =>
+      Math.min(Math.abs(left[0] - start), Math.abs(left[1] - start))
+      - Math.min(Math.abs(right[0] - start), Math.abs(right[1] - start)))[0];
+    const newStart = roundSec(Math.max(nearest[0], Math.min(nearest[1] - need, start)));
+    const newEnd = roundSec(newStart + need);
+    return {
+      ...item,
+      start_sec: newStart,
+      end_sec: newEnd,
+      visual_source_start_sec: newStart,
+      visual_source_end_sec: newEnd,
+      window_relocated_for_free_footage: true,
+      reason: `${String(item.reason || '').trim()} [window relocated: original ${start}~${end} had no free b-roll footage]`.trim()
+    };
+  });
+}
+
 function insertSceneJumpSeams(timeline, beats) {
   const items = (Array.isArray(timeline) ? timeline : []).map((item) => ({ ...item }));
   const beatList = Array.isArray(beats) ? beats : [];
@@ -5078,7 +5139,7 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec, usableEndSec =
   // separation stamps inherit word-accurate edges.
   const wordSnappedTimeline = snapDialogueWindowsToWords(filledTimeline, wordTimestamps);
   const dedupedTimeline = dropUnplayableFocusLines(alignFocusLinesToWindows(separateOverlappingDialogueWindows(dropRestatedWindows(dropWindowsSwallowedByTheirNeighbour(wordSnappedTimeline)))));
-  const fittedTimeline = buildHookPayoffIfMissing(insertComprehensionSeams(insertSceneJumpSeams(capColdOpenWindowsToSpokenEstimate(dedupedTimeline), beats), beats), beats, transcript);
+  const fittedTimeline = relocateNarrationWindowsToFreeFootage(buildHookPayoffIfMissing(insertComprehensionSeams(insertSceneJumpSeams(capColdOpenWindowsToSpokenEstimate(dedupedTimeline), beats), beats), beats, transcript), usableEndSec);
   // Write the corrected measure back onto the slot. Fixing only realisticSlotDurationSec left
   // estimated_duration_sec holding the raw span - slot_02 still read 151.3s for four lines - so
   // every consumer that reads the field directly still saw the dead air between them.
@@ -7359,6 +7420,7 @@ module.exports = {
     capColdOpenWindowsToSpokenEstimate,
     insertSceneJumpSeams,
     insertComprehensionSeams,
+    relocateNarrationWindowsToFreeFootage,
     buildHookPayoffIfMissing,
     keepAuthoredSlotFills,
     stampCaptionSourceLines,

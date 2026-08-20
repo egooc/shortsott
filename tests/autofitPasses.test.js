@@ -153,3 +153,30 @@ test('a re-run never stacks a seam on an existing seam slot', () => {
   ], []);
   assert.ok(!out.some((item) => /_reanchor_reanchor$/.test(String(item.slot_id))), 'no stacked seam');
 });
+
+test('a closing window buried in wall-to-wall dialogue relocates to the nearest free gap', () => {
+  const dlg = (id, start, end) => ({
+    slot_id: id, beat_id: 'B1', role: 'body', decision: 'KEEP_DIALOGUE',
+    start_sec: start, end_sec: end,
+    dialogue_line_windows: [{ matched: true, line: 'x', start_sec: start, end_sec: end }]
+  });
+  // One free gap at 578.2~581.2; everything around the closing window is reserved.
+  const out = _test.relocateNarrationWindowsToFreeFootage([
+    dlg('a', 569.5, 578.2), dlg('b', 581.2, 594.1),
+    { slot_id: 'slot_closing', beat_id: 'B9', role: 'closing', decision: 'NARRATE', start_sec: 590.2, end_sec: 592.5 }
+  ], 592.5);
+  const closing = out.find((item) => item.slot_id === 'slot_closing');
+  assert.equal(closing.window_relocated_for_free_footage, true, 'relocated');
+  assert.ok(closing.start_sec >= 578.2 && closing.end_sec <= 581.2, `lands in the free gap (${closing.start_sec}~${closing.end_sec})`);
+});
+
+test('a closing window with free footage nearby stays put', () => {
+  const out = _test.relocateNarrationWindowsToFreeFootage([
+    { slot_id: 'a', beat_id: 'B1', role: 'body', decision: 'KEEP_DIALOGUE', start_sec: 100, end_sec: 110,
+      dialogue_line_windows: [{ matched: true, line: 'x', start_sec: 100, end_sec: 110 }] },
+    { slot_id: 'slot_closing', beat_id: 'B9', role: 'closing', decision: 'NARRATE', start_sec: 120, end_sec: 124 }
+  ], 200);
+  const closing = out.find((item) => item.slot_id === 'slot_closing');
+  assert.ok(!closing.window_relocated_for_free_footage, 'not relocated');
+  assert.equal(closing.start_sec, 120);
+});
