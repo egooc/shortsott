@@ -536,9 +536,24 @@ function normalizeDraftSpecSourceRanges(draftSpec, baseDraftInput = {}) {
       // Only gaps that intersect the slot's semantic neighbourhood may carry its b-roll;
       // a too-short in-scene clip (the freeze-frame path covers the shortfall) beats a
       // full-length clip of the WRONG scene.
-      const inBounds = gaps
+      let inBounds = gaps
         .map(([gs, ge]) => [Math.max(gs, semanticStart), Math.min(ge, semanticEnd)])
         .filter(([gs, ge]) => ge - gs >= 1.0);
+      // The CLOSING slot widens its neighbourhood instead of falling back onto reserved
+      // dialogue: its scene often ends wall-to-wall with the final exchange, and the
+      // "visible failure" fallback below killed a whole unattended run at the last stage
+      // (2026-08-20: ko closing landed on S014_L06/L07, hybrid gate fatal after 42min).
+      // Closing narration is thematic, so nearby footage is acceptable — and the
+      // narration_visual_match gate still judges whatever this picks.
+      if (!inBounds.length && /closing/i.test(String(placement?.clip_id || placement?.slot_id || ''))) {
+        for (const widenSec of [60, Number.POSITIVE_INFINITY]) {
+          const widenedStart = Math.max(0, semanticStart - widenSec);
+          inBounds = gaps
+            .map(([gs, ge]) => [Math.max(gs, widenedStart), Math.min(ge, semanticEnd)])
+            .filter(([gs, ge]) => ge - gs >= 1.0);
+          if (inBounds.length) break;
+        }
+      }
       const sufficient = inBounds.filter(([gs, ge]) => ge - gs >= wantSec);
       const byDistance = (gs, ge) => Math.min(Math.abs(gs - intendedStart), Math.abs(ge - intendedStart));
       const pool = sufficient.length ? sufficient : inBounds;
