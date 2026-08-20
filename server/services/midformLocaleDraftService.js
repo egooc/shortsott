@@ -815,10 +815,17 @@ function buildLocaleDraftInput(baseDraftInput, draftSpec, locale) {
     const segmentId = String(segment?.segment_id || '');
     const parentSlotId = String(segment?.parent_slot_id || '').trim();
     const placement = bySlot.get(segmentId) || (parentSlotId ? bySlot.get(parentSlotId) : null);
+    // The closing slot closes - always. A locale spec that lists it first (the ko planner
+    // sorted clip_placement by source position after the closing window was relocated
+    // backward) would put the ending at timeline 0 and hand the afterglow to a mid-cut
+    // seam (2026-08-20 Long Shot: SegmentOverlap crash in the renderer).
+    const isClosingSegment = segmentId === 'slot_closing' || parentSlotId === 'slot_closing';
     return {
       ...(placement ? applyDraftSpecToSegment(segment, placement) : { ...segment }),
       locale_original_order: originalIndex,
-      locale_draft_order: orderBySlot.has(slotKeyForSegment(segment)) ? orderBySlot.get(slotKeyForSegment(segment)) : originalIndex + 10_000
+      locale_draft_order: isClosingSegment
+        ? Number.MAX_SAFE_INTEGER
+        : (orderBySlot.has(slotKeyForSegment(segment)) ? orderBySlot.get(slotKeyForSegment(segment)) : originalIndex + 10_000)
     };
   }).sort((left, right) => Number(left.locale_draft_order || 0) - Number(right.locale_draft_order || 0) || Number(left.locale_original_order || 0) - Number(right.locale_original_order || 0));
   const segmentById = new Map(segments.map((segment) => [String(segment?.segment_id || ''), segment]));

@@ -11090,6 +11090,8 @@ def create_draft(input_json_path):
             ):
                 nonlocal total_video_timeline_end_us
                 timeline_end_us = timeline_start_us + place_duration_us
+                if os.environ.get("MIDFORM_PLACE_DEBUG"):
+                    print(f"[place] {segment_id}/{clip_id} tl={timeline_start_us/1e6:.3f}~{timeline_end_us/1e6:.3f} src={source_start_us/1e6:.3f}+{source_duration_for_segment_us/1e6:.3f}", file=sys.stderr)
                 video_segment_kwargs = {
                     "material": source_video_material,
                     "source_timerange": cc.Timerange(start=source_start_us, duration=source_duration_for_segment_us),
