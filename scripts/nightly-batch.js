@@ -122,26 +122,37 @@ async function main() {
   }
   const report = latestScoutReport();
   const candidates = (report?.candidates || []).filter((c) => (c.recon?.live_results ?? 1) > 0);
-  const picked = pickSources(candidates, args.sources);
-  lines.push(`- 후보 ${candidates.length}건 중 ${picked.length}건 선택:`,
-    ...picked.map((c) => `  - [${c.movie?.key}] ${c.title} — ${c.url}`));
-  console.log(`picked ${picked.length}/${args.sources} source(s)`);
-  if (!picked.length) { finish('no_candidates'); return; }
+  // The whole verified pool is the work queue: diversity-first picks lead, the rest stand by
+  // as fallbacks. A gate-failed source costs its own minutes, not the night's quota — the
+  // batch keeps pulling candidates until `sources` of them SUCCEED or the deadline lands
+  // (2026-08-20 daytime trial: one source burned 35min on a caption gate and shipped nothing).
+  const primary = pickSources(candidates, args.sources);
+  const primaryIds = new Set(primary.map((c) => c.id));
+  const queue = [...primary, ...candidates.filter((c) => !primaryIds.has(c.id))];
+  lines.push(`- 후보 ${candidates.length}건, 목표 ${args.sources}개 성공 (예비 ${queue.length - primary.length}건):`,
+    ...primary.map((c) => `  - [${c.movie?.key}] ${c.title} — ${c.url}`));
+  console.log(`queue ${queue.length} candidate(s), target ${args.sources} success(es)`);
+  if (!queue.length) { finish('no_candidates'); return; }
   if (args.dryRun) { finish('dry_run'); return; }
 
-  // 2-3. Produce + install, one source at a time so a failure costs one source, not the night.
+  // 2-3. Produce + install: walk the queue until `sources` candidates SUCCEED (a failed one
+  //  costs only its own minutes) or the deadline lands.
   const installedFolders = [];
   if (!args.skipProduce) {
     const { runMidformFullAutoWorkflow } = require('../server/services/midformFullAutoService');
-    for (const [index, candidate] of picked.entries()) {
-      if (guard.expired()) { lines.push(`- DEADLINE before producing: ${candidate.title}`); break; }
-      console.log(`[stage] produce ${index + 1}/${picked.length}: ${candidate.title} (${guard.remainMin()}min left)`);
+    let successes = 0;
+    let attempts = 0;
+    for (const candidate of queue) {
+      if (successes >= args.sources) break;
+      if (guard.expired()) { lines.push(`- DEADLINE with ${successes}/${args.sources} succeeded`); break; }
+      attempts += 1;
+      console.log(`[stage] produce attempt ${attempts} (${successes}/${args.sources} ok): ${candidate.title} (${guard.remainMin()}min left)`);
       const before = listTemplateRunDirs();
       const startedMs = Date.now();
       try {
         const summary = await runMidformFullAutoWorkflow({ source: candidate.url });
-        // Per-source wall time goes in the report: the owner decides from tonight's numbers
-        // whether two sources fit the 00:00-07:00 window or the plan needs rework.
+        // Per-source wall time goes in the report: the owner decides from real numbers
+        // whether the 00:00-07:00 window holds or the plan needs rework.
         lines.push(`- produce ${summary.status || 'done'} (${Math.round((Date.now() - startedMs) / 60000)}min): ${candidate.title}`);
         // A returned-but-failed summary is a failure: record WHY (the 2026-08-20 night lost
         // both sources to a yt-dlp 403 and the report said only "failed").
@@ -156,12 +167,16 @@ async function main() {
         continue;
       }
       const fresh = [...listTemplateRunDirs()].filter((dir) => !before.has(dir));
+      let installedForCandidate = 0;
       for (const dir of fresh) {
         const folderName = `${prefix}-${candidate.movie?.key || 'movie'}-${String(candidate.id).slice(0, 6)}`;
         const installed = installDraft(path.join(TEMPLATE_RUNS_DIR, dir), folderName);
         installedFolders.push(...installed);
+        installedForCandidate += installed.length;
         if (installed.length) lines.push(`  - installed: ${installed.join(', ')}`);
       }
+      if (installedForCandidate > 0) successes += 1;
+      else lines.push(`  - no draft to install (counted as failure): ${candidate.title}`);
     }
   }
   if (!installedFolders.length && !args.skipProduce) { finish('nothing_installed'); return; }
