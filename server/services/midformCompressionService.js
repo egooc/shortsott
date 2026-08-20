@@ -5958,7 +5958,20 @@ function validateSlotFillsDialogueCaptions(slotFills, editPlan, locale = 'ko') {
       // re-anchors names constantly). Only genuinely new mid-cut introductions stay banned.
       const isReanchorSeam = /_reanchor$|_seam$/.test(String(fill?.slot_id || ''))
         || (Array.isArray(editPlan?.timeline) && editPlan.timeline.some((item) => String(item.slot_id || '') === String(fill?.slot_id || '') && item.auto_seam === true));
-      if (nameplate && !isPremiseNarration && !isReanchorSeam) {
+      // A character's FIRST appearance may be introduced where it happens: the viewer has not
+      // met them, so 'the scene has to show it' cannot apply yet (Long Shot 2026-08-20: S011
+      // introducing 프레드 at his first scene was refused and the run died). Banned stays: 
+      // re-explaining someone the cut already put on screen.
+      const nameplateName = String(nameplate || '').split(' ')[0];
+      const orderedSlotIds = (Array.isArray(editPlan?.timeline) ? editPlan.timeline : []).map((item) => String(item.slot_id || ''));
+      const fillIndex = orderedSlotIds.indexOf(String(fill?.slot_id || ''));
+      const seenEarlier = nameplateName && (Array.isArray(slotFills?.slot_fills) ? slotFills.slot_fills : []).some((other) => {
+        const otherIndex = orderedSlotIds.indexOf(String(other?.slot_id || ''));
+        if (otherIndex < 0 || fillIndex < 0 || otherIndex >= fillIndex) return false;
+        return (other?.speakers || []).some((speaker) => String(speaker || '').includes(nameplateName))
+          || (other?.caption_kr_dialogue || []).some((line) => String(line || '').includes(nameplateName));
+      });
+      if (nameplate && !isPremiseNarration && !isReanchorSeam && seenEarlier) {
         throw new Error(
           `${fill?.slot_id} narration introduces a character (${nameplate}) outside the premise line. `
           + 'Only the first narration may say who these people are; after that the scene has to show it.'
