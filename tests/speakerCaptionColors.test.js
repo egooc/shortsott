@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 
-const { readJson, colorEvidenceBySpeaker, validateSpeakerColorMetadata } = require('./artifactQaHelpers');
+const { readJson, artifactExists, colorEvidenceBySpeaker, validateSpeakerColorMetadata } = require('./artifactQaHelpers');
 const { evaluateEditorialAcceptance } = require('../server/services/midformEditorialAcceptanceService');
 
 test('caption color config maps Jobs and Sculley to distinct visible colors', () => {
@@ -112,7 +112,11 @@ test('speaker color metadata gate passes separated narration and dialogue colors
   assert.deepEqual(validation.failed, []);
 });
 
-test('current Steve Jobs render has speaker metadata but no speaker color evidence', () => {
+test('current Steve Jobs render has speaker metadata but no speaker color evidence', (t) => {
+  if (!artifactExists('server/output/drafts/pipeline_1785135546/edit_manifest.json')) {
+    t.skip('render artifact not on this machine');
+    return;
+  }
   const manifest = readJson('server/output/drafts/pipeline_1785135546/edit_manifest.json');
   const evidence = colorEvidenceBySpeaker(manifest);
 

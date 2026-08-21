@@ -8,6 +8,14 @@ function readJson(relativePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8').replace(/^\uFEFF/, ''));
 }
 
+// Artifact-QA tests read renders that exist only on the machine that produced them - server/output
+// is neither in the repo nor in the handover payload. On any other machine they can only ENOENT,
+// which reads as a regression that is not there, so those tests guard on this and skip.
+function artifactExists(relativePath) {
+  const filePath = path.isAbsolute(relativePath) ? relativePath : path.join(PROJECT_ROOT, relativePath);
+  return fs.existsSync(filePath);
+}
+
 function activeSegmentsFromManifest(manifest) {
   const segments = Array.isArray(manifest?.segments) ? manifest.segments : [];
   return segments
@@ -284,6 +292,7 @@ function assertCleanViewerSubtitleText(text) {
 module.exports = {
   PROJECT_ROOT,
   readJson,
+  artifactExists,
   activeSegmentsFromManifest,
   firstDialogueStartSec,
   callbackDialogueStartSec,

@@ -30,8 +30,41 @@ test('the premise line may say who these people are', (t) => {
   assert.doesNotThrow(() => validate(fills, plan, 'ko'));
 });
 
+// Since 79efd84 a character's FIRST appearance may be introduced where it happens (Long Shot's
+// S011 introducing 프레드 was legitimate - the viewer had not met him). What stays banned is
+// re-explaining someone the cut has already put on screen, so the fixture shows 니나 speaking in
+// an earlier slot first, and the plan carries the slot order the rule reads.
 test('a later slot still may not pin a role to a name', (t) => {
   if (!validate) { t.skip('validator not exported'); return; }
+  const orderedPlan = {
+    timeline: [
+      { slot_id: 'slot_02' },
+      { slot_id: 'slot_05' },
+      { slot_id: 'slot_07' },
+      { slot_id: 'slot_09' },
+    ],
+  };
+  const fills = {
+    ...base,
+    slot_fills: [
+      { slot_id: 'slot_02', narration: '그 밤, 모든 것이 달라집니다.' },
+      { slot_id: 'slot_05', caption_kr_dialogue: ['니나, 이쪽이에요.'], speakers: ['니나'] },
+      { slot_id: 'slot_07', narration: '그의 아내 니나는 초대를 받아들입니다.' },
+      { slot_id: 'slot_09', caption_kr_dialogue: ['그럼 같이 갈까요?'], speakers: ['니나'] },
+    ],
+  };
+  assert.throws(() => validate(fills, orderedPlan, 'ko'), /outside the premise line/);
+});
+
+test('a first appearance may be introduced where it happens', (t) => {
+  if (!validate) { t.skip('validator not exported'); return; }
+  const orderedPlan = {
+    timeline: [
+      { slot_id: 'slot_02' },
+      { slot_id: 'slot_07' },
+      { slot_id: 'slot_09' },
+    ],
+  };
   const fills = {
     ...base,
     slot_fills: [
@@ -40,5 +73,5 @@ test('a later slot still may not pin a role to a name', (t) => {
       { slot_id: 'slot_09', caption_kr_dialogue: ['그럼 같이 갈까요?'], speakers: ['니나'] },
     ],
   };
-  assert.throws(() => validate(fills, plan, 'ko'), /outside the premise line/);
+  assert.doesNotThrow(() => validate(fills, orderedPlan, 'ko'));
 });

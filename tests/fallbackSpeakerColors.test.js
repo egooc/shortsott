@@ -10,8 +10,13 @@ const paletteSize = Object.keys(config.fallback_roles || {}).length;
 // Each alias used to be hashed independently, which says nothing about whether two speakers in
 // the same scene differ: "대릴" and "여자" both hashed to 기타1 and the exchange played out in
 // a single colour, so the viewer could not tell who was speaking.
+// The shipped config keeps growing named casts ("여자" is registered as 여주 since the Housemaid
+// cast landed), so unknown-speaker tests carry their own config - the point is the fallback
+// path, not whichever aliases happen to be unregistered this week.
+const unknownOnlyConfig = { fallback_roles: config.fallback_roles, roles: {}, speakers: {} };
+
 test('two unknown speakers never share a fallback colour', () => {
-  const assignment = assignFallbackSpeakerColorKeys(['대릴', '여자']);
+  const assignment = assignFallbackSpeakerColorKeys(['대릴', '여자'], unknownOnlyConfig);
   assert.equal(assignment.size, 2);
   assert.notEqual(assignment.get('대릴'), assignment.get('여자'));
 });
@@ -108,6 +113,6 @@ test('generated colours stay clear of the named cast colours', () => {
 });
 
 test('a flat list of aliases is still accepted', () => {
-  const assignment = assignFallbackSpeakerColorKeys(['대릴', '여자']);
+  const assignment = assignFallbackSpeakerColorKeys(['대릴', '여자'], unknownOnlyConfig);
   assert.notEqual(assignment.get('대릴'), assignment.get('여자'));
 });

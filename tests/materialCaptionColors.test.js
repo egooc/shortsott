@@ -5,6 +5,7 @@ const test = require('node:test');
 
 const {
   readJson,
+  artifactExists,
   extractSubtitleTextMaterials,
   validateManifestMaterialColors,
   rgbFloatMatchesHex
@@ -94,7 +95,11 @@ test('material color validator ignores orphan materials and consumes duplicate t
   assert.equal(validation.failed[0].material_id, '');
 });
 
-test('latest Steve Jobs draft has material-level colors matching dialogue manifest colors', () => {
+test('latest Steve Jobs draft has material-level colors matching dialogue manifest colors', (t) => {
+  if (!artifactExists('server/output/drafts/pipeline_1785150227/edit_manifest.json')) {
+    t.skip('render artifact not on this machine');
+    return;
+  }
   const manifest = readJson('server/output/drafts/pipeline_1785150227/edit_manifest.json');
   const draftContent = readJson('server/output/drafts/pipeline_1785150227/draft_content.json');
   const validation = validateManifestMaterialColors(manifest, draftContent);
