@@ -11121,12 +11121,20 @@ def create_draft(input_json_path):
                 )
                 return timeline_end_us
 
-            # The afterglow belongs to the LAST narration segment (normally slot_closing).
+            # The afterglow belongs to the segment that ENDS the video, and only when that is a
+            # narration. Picking "the last narration anywhere" extended a MID-timeline narration
+            # into the dialogue that followed it - dialogue-led cuts routinely end on a dialogue
+            # punch, so the last narration is not the last segment, and the afterglow clips landed
+            # exactly where the next dialogue clip was placed (SegmentOverlap on Long Shot
+            # 2026-08-22 tl=90.572 and The Housemaid Millie 2026-08-21 tl=113.242 - both
+            # dialogue-ending plans). A cut that ends on dialogue ends on the dialogue; the
+            # BGM-only breathing tail is for narration endings.
             closing_afterglow_segment_id = ""
-            for entry in segment_timeline_entries_for_video:
-                _entry_type = str(segment_type_map.get(entry["segment_id"], "recap"))
-                if _entry_type not in {"dialogue_quote", "dialogue", "scene_hook"}:
-                    closing_afterglow_segment_id = entry["segment_id"]
+            if segment_timeline_entries_for_video:
+                _last_entry = segment_timeline_entries_for_video[-1]
+                _last_type = str(segment_type_map.get(_last_entry["segment_id"], "recap"))
+                if _last_type not in {"dialogue_quote", "dialogue", "scene_hook"}:
+                    closing_afterglow_segment_id = _last_entry["segment_id"]
             for entry in segment_timeline_entries_for_video:
                 segment_id = entry["segment_id"]
                 segment_info = segment_map.get(segment_id, {})
