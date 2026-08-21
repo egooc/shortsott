@@ -81,6 +81,13 @@ async function main() {
   const channels = JSON.parse(fs.readFileSync(CHANNELS_PATH, 'utf8')).channels || [];
   const catalog = JSON.parse(fs.readFileSync(CATALOG_PATH, 'utf8'));
   const used = usedSourceIds();
+  // Transient failures (network, quota, download) stay eligible for up to 3 attempts even
+  // though their aborted run dirs would otherwise mark them 'used' forever.
+  let retryable = {};
+  try { retryable = JSON.parse(fs.readFileSync(path.join(ROOT, 'server', 'data', 'retry_sources.json'), 'utf8')); } catch { /* none */ }
+  for (const [id, entry] of Object.entries(retryable)) {
+    if (Number(entry?.attempts || 0) < 3) used.delete(id);
+  }
   const report = { at: new Date().toISOString(), channels: [], candidates: [], needs_research: [], dropped: [] };
 
   for (const channel of channels) {

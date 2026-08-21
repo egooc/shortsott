@@ -64,6 +64,23 @@ function latestScoutReport() {
   return JSON.parse(fs.readFileSync(path.join(SCOUT_REPORTS_DIR, files[files.length - 1]), 'utf8'));
 }
 
+const RETRY_PATH = path.join(ROOT, 'server', 'data', 'retry_sources.json');
+function readRetrySources() {
+  try { return JSON.parse(fs.readFileSync(RETRY_PATH, 'utf8')); } catch { return {}; }
+}
+function writeRetrySources(map) {
+  fs.mkdirSync(path.dirname(RETRY_PATH), { recursive: true });
+  fs.writeFileSync(RETRY_PATH, `${JSON.stringify(map, null, 2)}
+`, 'utf8');
+}
+// A source that died to the WORLD (network, quota, download) deserves another night; a source
+// the GATES rejected does not (its run dir keeps it out of scout forever). The 2026-08-21
+// morning run lost a 27-minute Long Shot to a wifi drop and the used-ids scan would have
+// blacklisted it permanently.
+function isTransientFailure(failureText) {
+  return /ENOTFOUND|ETIMEDOUT|ECONNRESET|EAI_AGAIN|HTTP Error 403|HTTP Error 5\d\d|429|yt-dlp/i.test(String(failureText || ''));
+}
+
 // Prefer variety: one candidate per movie first, then refill from the remainder.
 function pickSources(candidates, count) {
   const byMovie = new Map();
@@ -157,13 +174,29 @@ async function main() {
         // A returned-but-failed summary is a failure: record WHY (the 2026-08-20 night lost
         // both sources to a yt-dlp 403 and the report said only "failed").
         if (summary.status === 'failed') {
-          lines.push(`  - failure: ${JSON.stringify(summary.failure_reason || {}).slice(0, 300)}`);
-          console.log(`  failed: ${JSON.stringify(summary.failure_reason || {}).slice(0, 200)}`);
+          const failureText = JSON.stringify(summary.failure_reason || {});
+          lines.push(`  - failure: ${failureText.slice(0, 800)}`);
+          console.log(`  failed: ${failureText.slice(0, 200)}`);
+          if (isTransientFailure(failureText)) {
+            const retry = readRetrySources();
+            const entry = retry[candidate.id] || { attempts: 0 };
+            retry[candidate.id] = { attempts: entry.attempts + 1, last_code: String(summary.failure_reason?.code || ''), at: new Date().toISOString() };
+            writeRetrySources(retry);
+            lines.push('  - transient: retry-listed for the next scout');
+          }
           continue;
         }
       } catch (error) {
-        lines.push(`- produce FAILED (${Math.round((Date.now() - startedMs) / 60000)}min): ${candidate.title} — ${String(error.message || error).slice(0, 200)}`);
-        console.log(`  FAILED: ${String(error.message || error).slice(0, 200)}`);
+        const failureText = String(error.message || error);
+        lines.push(`- produce FAILED (${Math.round((Date.now() - startedMs) / 60000)}min): ${candidate.title} — ${failureText.slice(0, 300)}`);
+        console.log(`  FAILED: ${failureText.slice(0, 200)}`);
+        if (isTransientFailure(failureText)) {
+          const retry = readRetrySources();
+          const entry = retry[candidate.id] || { attempts: 0 };
+          retry[candidate.id] = { attempts: entry.attempts + 1, last_code: 'exception', at: new Date().toISOString() };
+          writeRetrySources(retry);
+          lines.push('  - transient: retry-listed for the next scout');
+        }
         continue;
       }
       const fresh = [...listTemplateRunDirs()].filter((dir) => !before.has(dir));
@@ -175,7 +208,11 @@ async function main() {
         installedForCandidate += installed.length;
         if (installed.length) lines.push(`  - installed: ${installed.join(', ')}`);
       }
-      if (installedForCandidate > 0) successes += 1;
+      if (installedForCandidate > 0) {
+        successes += 1;
+        const retry = readRetrySources();
+        if (retry[candidate.id]) { delete retry[candidate.id]; writeRetrySources(retry); }
+      }
       else lines.push(`  - no draft to install (counted as failure): ${candidate.title}`);
     }
   }
