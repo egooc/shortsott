@@ -1555,11 +1555,24 @@ function runBootstrapPreflight(assembled, options = {}) {
       .filter((win) => win && win.matched === true && Number(win.end_sec) > Number(win.start_sec))
       .map((win) => [Number(win.start_sec), Number(win.end_sec)]));
   let coldOverlap = '';
-  if (coldOpen && Number.isFinite(Number(coldOpen.visual_source_start_sec))) {
-    const cs = Number(coldOpen.visual_source_start_sec);
-    const ce = Number(coldOpen.visual_source_end_sec);
-    const hit = reserved.find(([rs, re]) => ce > rs + 0.001 && cs < re - 0.001);
-    if (hit) coldOverlap = `cold-open teaser [${cs},${ce}] overlaps dialogue window [${hit[0]},${hit[1]}]`;
+  if (coldOpen) {
+    // The teaser side gets the same treatment as the reserved side above: what it actually CUTS.
+    // A dialogue teaser cuts its per-line windows, not its envelope - an interleaved exchange
+    // leaves other slots' lines in the gaps BETWEEN the teaser's lines, and comparing the envelope
+    // rejected a teaser that never touches them (2026-08-21: slot 12's line at [532.68,533.56]
+    // sat between the teaser's windows and helped kill every candidate that night). NARRATE and
+    // scene-hook teasers still cut one continuous clip, so the envelope stays right for them.
+    const teaserRanges = coldOpen.decision === 'KEEP_DIALOGUE'
+      ? (Array.isArray(coldOpen.dialogue_line_windows) ? coldOpen.dialogue_line_windows : [])
+        .filter((win) => win && win.matched === true && Number(win.end_sec) > Number(win.start_sec))
+        .map((win) => [Number(win.start_sec), Number(win.end_sec)])
+      : (Number.isFinite(Number(coldOpen.visual_source_start_sec))
+        ? [[Number(coldOpen.visual_source_start_sec), Number(coldOpen.visual_source_end_sec)]]
+        : []);
+    for (const [cs, ce] of teaserRanges) {
+      const hit = reserved.find(([rs, re]) => ce > rs + 0.001 && cs < re - 0.001);
+      if (hit) { coldOverlap = `cold-open teaser [${cs},${ce}] overlaps dialogue window [${hit[0]},${hit[1]}]`; break; }
+    }
   }
   add('cold_open_no_reserved_overlap', !coldOverlap, coldOverlap);
 

@@ -92,6 +92,32 @@ test('a hook already paid gets no duplicate payoff', () => {
   assert.equal(out.length, 2);
 });
 
+// Text exclusion alone missed a duplicate whose cue was split differently: the teaser carried a
+// merged rolling cue ("What was that? >> What?") while the beat listed the single line, so the
+// exact-match filter let the payoff replay the hook's own seconds (2026-08-21 batch). A payoff
+// line overlapping the hook's window in TIME is not fresh audio, whatever its text says.
+test('a payoff never replays the hook window even when the cue text is split differently', () => {
+  const beats = [{
+    beat_id: 'B02', start_sec: 130, end_sec: 160, dramatic_weight: 4,
+    key_dialogue: ['What was that?', 'They say the first year is the hardest.'],
+    anchor_dialogue: []
+  }];
+  const transcript = [
+    { start_sec: 137.03, end_sec: 141.07, text: 'They say the first year is the hardest.' },
+    { start_sec: 145.12, end_sec: 146.56, text: 'What was that?' }
+  ];
+  const out = _test.buildHookPayoffIfMissing([
+    { slot_id: 'slot_001', beat_id: 'B02', role: 'cold_open', decision: 'KEEP_DIALOGUE',
+      dialogue_line_windows: [{ matched: true, line: 'What was that? >> What?', start_sec: 145.115, end_sec: 147.679 }] },
+    { slot_id: 'slot_closing', beat_id: 'B09', role: 'closing', decision: 'NARRATE', start_sec: 560, end_sec: 580 }
+  ], beats, transcript);
+  const payoff = out.find((item) => item.auto_hook_payoff === true);
+  assert.ok(payoff, 'payoff slot built from the fresh line');
+  const lines = payoff.dialogue_line_windows.map((win) => win.line);
+  assert.ok(lines.includes('They say the first year is the hardest.'));
+  assert.ok(!lines.includes('What was that?'), 'the time-duplicated line is not replayed');
+});
+
 // Comprehension seams: no dialogue run longer than ~45s of played time without a re-anchor.
 test('a long dialogue run gets a re-anchor seam at its widest source gap', () => {
   const mk = (id, start, end) => ({

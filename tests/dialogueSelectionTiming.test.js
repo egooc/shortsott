@@ -4,13 +4,18 @@ const test = require('node:test');
 const { _test } = require('../server/services/midformCompressionService');
 const {
   readJson,
+  artifactExists,
   activeSegmentsFromManifest,
   firstDialogueStartSec,
   callbackDialogueStartSec,
   maxContinuousNarrationRunSec
 } = require('./artifactQaHelpers');
 
-test('artifact helper detects the current Steve Jobs render enters KEEP_DIALOGUE too late', () => {
+test('artifact helper detects the current Steve Jobs render enters KEEP_DIALOGUE too late', (t) => {
+  if (!artifactExists('server/output/drafts/pipeline_1785135546/edit_manifest.json')) {
+    t.skip('render artifact not on this machine');
+    return;
+  }
   const manifest = readJson('server/output/drafts/pipeline_1785135546/edit_manifest.json');
   const segments = activeSegmentsFromManifest(manifest);
 
@@ -228,7 +233,38 @@ test('slot fill editorial guide preserves non-confrontation scene type without f
   assert.ok(guide.slot_rules.every((slot) => !slot.callback_relation));
 });
 
+// Since be6fe43 a dialogue cold open is a promise the plan must keep: some later slot has to
+// return to its beat (or reference it as callback/replay). The payoff slot here carries the
+// beat's OTHER anchor line - which is also the partial-anchor point this test protects: neither
+// slot carries the full anchor set, and that is fine because the UNION does.
 test('validateEditPlanAgainstBeats allows hook teaser slots to carry only part of a beat anchor set', () => {
+  const editPlan = {
+    editorial_pattern: 'cold_open_callback',
+    timeline: [{
+      slot_id: 'slot_01',
+      beat_id: 'B004',
+      role: 'cold_open',
+      decision: 'KEEP_DIALOGUE',
+      editorial_role: 'hook_teaser',
+      dialogue_focus_quotes: ['I did not kill the ad, Steve']
+    }, {
+      slot_id: 'slot_05',
+      beat_id: 'B004',
+      role: 'body_peak',
+      decision: 'KEEP_DIALOGUE',
+      editorial_role: 'callback_payoff',
+      dialogue_focus_quotes: ['I was the only thing protecting it']
+    }]
+  };
+  const beats = [{
+    beat_id: 'B004',
+    anchor_dialogue: ['I did not kill the ad, Steve', 'I was the only thing protecting it']
+  }];
+
+  assert.doesNotThrow(() => _test.validateEditPlanAgainstBeats(editPlan, beats));
+});
+
+test('validateEditPlanAgainstBeats rejects a dialogue cold open no later slot pays off', () => {
   const editPlan = {
     editorial_pattern: 'cold_open_callback',
     timeline: [{
@@ -245,7 +281,7 @@ test('validateEditPlanAgainstBeats allows hook teaser slots to carry only part o
     anchor_dialogue: ['I did not kill the ad, Steve', 'I was the only thing protecting it']
   }];
 
-  assert.doesNotThrow(() => _test.validateEditPlanAgainstBeats(editPlan, beats));
+  assert.throws(() => _test.validateEditPlanAgainstBeats(editPlan, beats), /never paid off/);
 });
 
 test('finalizeEditPlan keeps hook teaser focused instead of expanding to every later anchor in the same beat', () => {

@@ -3968,6 +3968,14 @@ function buildHookPayoffIfMissing(timeline, beats, transcript) {
   if (!beat) return items;
   const coldLines = new Set((cold.dialogue_line_windows || [])
     .map((win) => normalizeComparableText(win?.line)).filter(Boolean));
+  // Text exclusion alone misses a duplicate whose cue is split differently - a merged rolling cue
+  // ("What was that? >> What?") on the teaser against the beat's single-line keys sailed past the
+  // exact match and the payoff replayed the hook's own seconds (2026-08-21, first-year-hardest
+  // source: payoff [145.12,147.88] inside the teaser's [145.115,147.679]). A payoff line that
+  // replays the hook's own footage is not fresh audio, so exclude by TIME as well.
+  const coldWindows = (cold.dialogue_line_windows || [])
+    .filter((win) => win && win.matched === true && Number(win.end_sec) > Number(win.start_sec))
+    .map((win) => [Number(win.start_sec), Number(win.end_sec)]);
   const cues = (Array.isArray(transcript) ? transcript : [])
     .map((cue) => ({ start: Number(cue?.start_sec), end: Number(cue?.end_sec), text: String(cue?.text || '') }))
     .filter((cue) => Number.isFinite(cue.start) && Number.isFinite(cue.end));
@@ -3985,6 +3993,7 @@ function buildHookPayoffIfMissing(timeline, beats, transcript) {
     const words = String(line).trim().split(/\s+/).filter(Boolean).length;
     const end = Math.min(cue.end, cue.start + words / SPOKEN_WORDS_PER_SEC + 0.6);
     if (!(end > cue.start + 0.3)) continue;
+    if (coldWindows.some(([winStart, winEnd]) => end > winStart + 0.001 && cue.start < winEnd - 0.001)) continue;
     windows.push({
       matched: true, line: String(line).trim(),
       start_sec: roundSec(cue.start), end_sec: roundSec(end),
@@ -4666,6 +4675,33 @@ function insertActionBeatSlots(timeline, energyPeaks, targetSec, usableEndSec, b
   return items;
 }
 
+// The dialogue teaser's visual window must follow its lines wherever the later passes move them.
+// finalizeEditPlan sets visual_source_* = start/end when it builds the dialogue cold open, but the
+// front-trim clamp and the give-back pass re-select lines AFTER that - the visual kept the old
+// early start, swallowed neighbouring slots' reserved line windows, and every plan in the
+// 2026-08-21 batch died at cold_open_no_reserved_overlap (teaser [533.95,544.17] against its own
+// lines at [540.955,545.48]). The envelope of the kept matched windows is the only coordinate the
+// teaser actually cuts, so it is the only honest visual window.
+function syncColdOpenVisualToKeptLines(timeline) {
+  return (Array.isArray(timeline) ? timeline : []).map((item) => {
+    if (item?.role !== 'cold_open' || item.decision !== 'KEEP_DIALOGUE') return item;
+    const matched = (Array.isArray(item.dialogue_line_windows) ? item.dialogue_line_windows : [])
+      .filter((win) => win && win.matched === true && Number(win.end_sec) > Number(win.start_sec));
+    if (!matched.length) return item;
+    const startSec = roundSec(Math.min(...matched.map((win) => Number(win.start_sec))));
+    const endSec = roundSec(Math.max(...matched.map((win) => Number(win.end_sec))));
+    return {
+      ...item,
+      start_sec: startSec,
+      end_sec: endSec,
+      visual_source_start_sec: startSec,
+      visual_source_end_sec: endSec,
+      visual_source_center_sec: roundSec((startSec + endSec) / 2),
+      estimated_duration_sec: realisticSlotDurationSec(item)
+    };
+  });
+}
+
 function finalizeEditPlan(editPlan, beats, transcript, targetSec, usableEndSec = 0, wordTimestamps = null, energyPeaks = null) {
   const beatMap = new Map((Array.isArray(beats) ? beats : []).map((beat) => [String(beat?.beat_id || '').trim(), beat]));
   const sortedBeatStarts = (Array.isArray(beats) ? beats : []).map((b) => Number(b.start_sec)).filter((n) => Number.isFinite(n)).sort((a, b) => a - b);
@@ -5236,6 +5272,9 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec, usableEndSec =
     }
     return next;
   });
+  // Last: every pass above that re-selects the teaser's lines is done, so the visual window can
+  // finally be pinned to what survived.
+  finalizedTimeline = syncColdOpenVisualToKeptLines(finalizedTimeline);
   const callbackMetadata = buildColdOpenCallbackMetadata(finalizedTimeline, editPlan, beats, transcript);
   const dialogueTimingQc = evaluateDialogueTimingQc(finalizedTimeline, {
     dialogueDrivenConfrontation: isDialogueDrivenConfrontation(editPlan, beats),
@@ -7407,6 +7446,7 @@ module.exports = {
   extractHeatmap,
   _test: {
     clampColdOpenToTeaser,
+    syncColdOpenVisualToKeptLines,
     trimTimelineToTargetRuntime,
     dropDuplicateDialogueSlots,
     isNonSpeechCaption,
