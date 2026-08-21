@@ -21,8 +21,10 @@ Output JSON: { status: exported|timeout|error, output_path, elapsed_sec }
 
 import argparse
 import ctypes
+import errno
 import json
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -318,24 +320,35 @@ def snapshot_dir(export_dir):
         return {}
 
 
-def wait_for_new_export(export_dir, before, timeout_sec):
+# The export dialog REMEMBERS its output folder per machine - on a machine where
+# nobody has pointed it at the automation folder yet, the mp4 lands in CapCut's
+# own default and the watcher below stares at an empty folder until timeout.
+# Both exports on the fresh 2026-08-22 install "failed" exactly this way while
+# the finished mp4 sat in %LOCALAPPDATA%\CapCut\Videos. Watch the default too,
+# and let the rename step relocate the file to where it belongs.
+def _default_capcut_export_dir():
+    return os.path.expandvars(r"%LOCALAPPDATA%\CapCut\Videos")
+
+
+def wait_for_new_export(watch_dirs, before, timeout_sec):
     deadline = time.time() + timeout_sec
     while time.time() < deadline:
         time.sleep(3)
-        current = snapshot_dir(export_dir)
-        fresh = [name for name in current if name not in before]
-        if not fresh:
-            continue
-        target = fresh[0]
-        stable = 0
-        last_size = -1
-        while stable < SIZE_STABLE_CHECKS and time.time() < deadline:
-            size = snapshot_dir(export_dir).get(target, -1)
-            stable = stable + 1 if (size == last_size and size > 0) else 0
-            last_size = size
-            time.sleep(SIZE_STABLE_INTERVAL_SEC)
-        if stable >= SIZE_STABLE_CHECKS:
-            return os.path.join(export_dir, target)
+        for watch_dir in watch_dirs:
+            current = snapshot_dir(watch_dir)
+            fresh = [name for name in current if name not in before.get(watch_dir, {})]
+            if not fresh:
+                continue
+            target = fresh[0]
+            stable = 0
+            last_size = -1
+            while stable < SIZE_STABLE_CHECKS and time.time() < deadline:
+                size = snapshot_dir(watch_dir).get(target, -1)
+                stable = stable + 1 if (size == last_size and size > 0) else 0
+                last_size = size
+                time.sleep(SIZE_STABLE_INTERVAL_SEC)
+            if stable >= SIZE_STABLE_CHECKS:
+                return os.path.join(watch_dir, target)
     return None
 
 
@@ -349,10 +362,13 @@ def wait_for_new_export(export_dir, before, timeout_sec):
 #
 # The exported file is therefore renamed to the draft name here, at the one
 # place that knows both.
-def normalize_export_name(output_path, draft_name):
+def normalize_export_name(output_path, draft_name, export_dir=None):
     if not output_path:
         return output_path, ""
-    export_dir = os.path.dirname(output_path)
+    # export_dir doubles as the relocation target: a file caught in CapCut's
+    # default output folder is renamed INTO the requested export dir here.
+    if not export_dir:
+        export_dir = os.path.dirname(output_path)
     desired = os.path.join(export_dir, draft_name + ".mp4")
     if os.path.normcase(desired) == os.path.normcase(output_path):
         return output_path, ""
@@ -367,6 +383,19 @@ def normalize_export_name(output_path, draft_name):
             os.replace(output_path, desired)
             return desired, ""
         except OSError as error:
+            # os.replace refuses to cross volumes (WinError 17 / EXDEV) - and the
+            # automation folder sits behind a junction onto another drive on the
+            # 2026-08-22 machine, so every relocation from CapCut's default output
+            # died here while the finished mp4 sat one copy away. shutil.move
+            # copies across the boundary and removes the source.
+            if getattr(error, "winerror", None) == 17 or error.errno == getattr(errno, "EXDEV", 18):
+                try:
+                    shutil.move(output_path, desired)
+                    return desired, ""
+                except OSError as move_error:
+                    last = str(move_error)
+                    time.sleep(RENAME_RETRY_SEC)
+                    continue
             last = str(error)
             time.sleep(RENAME_RETRY_SEC)
     return output_path, last
@@ -386,7 +415,8 @@ def main():
         coords, resolution_key, scaled = load_coords()
         result["resolution"] = resolution_key
         result["coords_scaled_fallback"] = scaled
-        before = snapshot_dir(args.export_dir)
+        watch_dirs = [args.export_dir, _default_capcut_export_dir()]
+        before = {watch_dir: snapshot_dir(watch_dir) for watch_dir in watch_dirs}
         # Park the cursor mid-screen so a corner-parked mouse cannot swallow
         # the first click.
         screen_w, screen_h = pyautogui.size()
@@ -408,6 +438,12 @@ def main():
         # "editor did not open" (2026-08-15). Give the grid time, and report
         # each step so a failure says where it stopped.
         time.sleep(HOME_GRID_SETTLE_SEC)
+        # CapCut 9.3 opens a "Recommended" promo modal over the home screen on a
+        # cold start (observed 2026-08-22); it swallows the search click and the
+        # export dies at "filter never settled". Esc dismisses it and is a no-op
+        # when no modal is up, so press it unconditionally.
+        pyautogui.press("esc")
+        time.sleep(1)
         print(json.dumps({"step": "home_ready"}, ensure_ascii=False), flush=True)
 
         def search_for_draft(label):
@@ -498,7 +534,7 @@ def main():
             raise RuntimeError("export dialog did not open after 3 attempts")
         pyautogui.click(*coords["export_confirm"])
 
-        output_path = wait_for_new_export(args.export_dir, before, EXPORT_TIMEOUT_SEC)
+        output_path = wait_for_new_export(watch_dirs, before, EXPORT_TIMEOUT_SEC)
         if output_path:
             # CapCut sits on the export-complete dialog holding the file open, so
             # renaming it there fails with a sharing violation for as long as the
@@ -507,7 +543,7 @@ def main():
             # once it is already gone.
             kill_capcut()
             time.sleep(2)
-            output_path, rename_error = normalize_export_name(output_path, args.draft_name)
+            output_path, rename_error = normalize_export_name(output_path, args.draft_name, args.export_dir)
             if rename_error:
                 raise RuntimeError(f"could not rename export to draft name: {rename_error}")
             result["status"] = "exported"
