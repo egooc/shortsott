@@ -25,12 +25,16 @@ const CATALOG_PATH = path.join(ROOT, 'midform', 'config', 'movie_catalog.json');
 const TEST_RUNS_DIR = path.join(ROOT, 'midform', 'test_runs');
 const REPORTS_DIR = path.join(ROOT, 'server', 'output', 'scout-reports');
 
+// The channel's newest 30 uploads are the WRONG 30: the owner picks old clips whose engagement
+// has already plateaued, and Clip Empire carries 386 videos - the old default saw 7.8% of the
+// shelf and reported "queue exhausted" with 48 registered, unused clips sitting behind it
+// (2026-08-22). Read the whole channel; the ledger filters what is already produced.
 function parseArgs(argv) {
-  const args = { limit: 30, recon: false, launch: 0, json: false };
+  const args = { limit: 500, recon: false, launch: 0, json: false };
   for (let i = 2; i < argv.length; i += 1) {
     if (argv[i] === '--recon') args.recon = true;
     else if (argv[i] === '--json') args.json = true;
-    else if (argv[i] === '--limit') { args.limit = Number(argv[i + 1]) || 30; i += 1; }
+    else if (argv[i] === '--limit') { args.limit = Number(argv[i + 1]) || 500; i += 1; }
     else if (argv[i] === '--launch') { args.launch = Number(argv[i + 1]) || 0; i += 1; }
   }
   return args;
@@ -102,7 +106,8 @@ async function main() {
         title: entry.title || '',
         url: `https://www.youtube.com/watch?v=${entry.id}`,
         channel: channel.name,
-        duration_sec: Number(entry.duration) || null
+        duration_sec: Number(entry.duration) || null,
+        view_count: Number(entry.view_count) || null
       };
       if (used.has(entry.id)) continue; // already produced — silence, not noise
       const movie = classify(row.title, catalog);
@@ -120,8 +125,12 @@ async function main() {
     }
   }
 
-  // Order: recon survivors first (when measured), then longer sources (more material).
+  // Order: recon survivors first (when measured), then the clips that already PROVED they hold an
+  // audience. The owner's own selection rule is "an old clip whose engagement has plateaued" -
+  // a view count is that proof, and the shelf spans 20K to 2M, so ordering by duration first
+  // spent a whole night on 100K-tier clips while 2M-tier ones sat unproduced (2026-08-22).
   report.candidates.sort((a, b) => ((b.recon?.live_results ?? 0) - (a.recon?.live_results ?? 0))
+    || ((b.view_count || 0) - (a.view_count || 0))
     || ((b.duration_sec || 0) - (a.duration_sec || 0)));
 
   fs.mkdirSync(REPORTS_DIR, { recursive: true });
