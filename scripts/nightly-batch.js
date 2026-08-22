@@ -22,9 +22,25 @@ const ROOT = path.join(__dirname, '..');
 require('dotenv').config({ path: path.join(ROOT, '.env') });
 
 const DRAFTS_DIR = path.join(os.homedir(), 'Desktop', '캡컷아웃풋', 'CapCut Drafts');
+const TEST_RUNS_DIR = path.join(ROOT, 'midform', 'test_runs');
 const TEMPLATE_RUNS_DIR = path.join(ROOT, 'midform', 'test_runs', 'template_runs');
 const SCOUT_REPORTS_DIR = path.join(ROOT, 'server', 'output', 'scout-reports');
 const REPORTS_DIR = path.join(ROOT, 'server', 'output', 'nightly-reports');
+
+// The scout excludes already-produced sources, but --skip-scout reuses an OLDER report - so a
+// source produced after that report was written stays in the queue and gets re-produced from
+// scratch (The Arrival's signal-detection clip burned two full attempts on 2026-08-22 while its
+// finished draft sat installed). Read the same ledger the scout reads, at queue-build time.
+function usedSourceIds() {
+  const ids = new Set();
+  if (!fs.existsSync(TEST_RUNS_DIR)) return ids;
+  for (const run of fs.readdirSync(TEST_RUNS_DIR)) {
+    const infoPath = path.join(TEST_RUNS_DIR, run, 'source_info.json');
+    try { ids.add(String(JSON.parse(fs.readFileSync(infoPath, 'utf8')).id || '')); } catch { /* not a run dir */ }
+  }
+  ids.delete('');
+  return ids;
+}
 
 function parseArgs(argv) {
   const args = { sources: 2, deadlineHour: 7, dryRun: false, skipScout: false, skipProduce: false, produceOnly: false };
@@ -121,7 +137,10 @@ async function main() {
     if (scout.status !== 0) console.log(String(scout.stderr || '').slice(-300));
   }
   const report = latestScoutReport();
-  const candidates = (report?.candidates || []).filter((c) => (c.recon?.live_results ?? 1) > 0);
+  const used = usedSourceIds();
+  const candidates = (report?.candidates || [])
+    .filter((c) => (c.recon?.live_results ?? 1) > 0)
+    .filter((c) => !used.has(String(c.id || '')));
   // The whole verified pool is the work queue: diversity-first picks lead, the rest stand by
   // as fallbacks. A gate-failed source costs its own minutes, not the night's quota — the
   // batch keeps pulling candidates until `sources` of them SUCCEED or the deadline lands
