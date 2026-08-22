@@ -44,6 +44,50 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '롱 샷'(2019)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『ロング・ショット 僕と彼女のありえない恋』(2019)のシーンから制作しました。"
+    },
+    "the-arrival": {
+      "match": "the.?arrival|어라이벌|アライバル",
+      "title_ko": "어라이벌",
+      "title_en": "The Arrival",
+      "title_ja": "アライバル/侵略者",
+      "year": 1996,
+      "distributor": "Orion Pictures (MGM/Amazon)",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '어라이벌'(1996)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『アライバル/侵略者』(1996)のシーンから制作しました。"
+    },
+    "daybreakers": {
+      "match": "daybreakers?|데이브레이커|デイブレイカー",
+      "title_ko": "데이브레이커스",
+      "title_en": "Daybreakers",
+      "title_ja": "デイブレイカー",
+      "year": 2009,
+      "distributor": "Lionsgate",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '데이브레이커스'(2009)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『デイブレイカー』(2009)のシーンから制作しました。"
+    },
+    "wishmaster-2": {
+      "match": "wishmaster.?2|위시마스터 ?2|ウィッシュマスター",
+      "title_ko": "위시마스터 2",
+      "title_en": "Wishmaster 2: Evil Never Dies",
+      "title_ja": "ウィッシュマスター～スーペリア～",
+      "year": 1999,
+      "distributor": "Artisan Entertainment (Lionsgate)",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '위시마스터 2'(1999)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『ウィッシュマスター～スーペリア～』(1999)のシーンから制作しました。"
+    },
+    "new-moon": {
+      "match": "new.?moon|뉴 ?문|ニュームーン",
+      "title_ko": "뉴문",
+      "title_en": "The Twilight Saga: New Moon",
+      "title_ja": "ニュームーン／トワイライト・サーガ",
+      "year": 2009,
+      "distributor": "Summit Entertainment (Lionsgate)",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '뉴문'(2009)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『ニュームーン／トワイライト・サーガ』(2009)のシーンから制作しました。"
     }
   },
   "banned_distributors": [
