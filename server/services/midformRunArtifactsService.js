@@ -880,6 +880,72 @@ async function evaluateFinalLocaleGates({ workspaceDir, pipelineRunDir, sourceVi
     if (pronounSubjects.length || summaryClosers.length) gates.warnings.push('narration_benchmark_style');
   } catch { /* style guard is best-effort */ }
 
+  // Narration ECONOMY (눈물한가득 실측 2026-08-22 - the 17.7M and 16M cuts of a same-genre,
+  // same-format channel): their narration runs 1.1~2.5 sentences/min with ZERO declarative
+  // closers, and the top cut hands its last 65s to source audio alone. Ours measured 4.5~4.9/min
+  // with 11 declarative closers and zero suspended endings - the suspension rule lived only in
+  // the fills prompt, so the model wrote "…시작됩니다." every time and nothing caught it.
+  try {
+    const economy = { locales: {} };
+    let worst = 'pass';
+    for (const locale of ['ko', 'ja']) {
+      const manifestPath = path.join(workspaceDir, `draft_${locale}`, 'edit_manifest.json');
+      if (!fs.existsSync(manifestPath)) continue;
+      const manifest = readJson(manifestPath);
+      const seen = new Set();
+      const recaps = [];
+      let totalSec = 0;
+      for (const segment of manifest.segments || []) {
+        totalSec = Math.max(totalSec, Number(segment.timeline_end_sec) || 0);
+        if (segment.segment_type !== 'recap') continue;
+        const text = String(segment.narration || segment.caption_text || '').trim();
+        if (!text || seen.has(text)) continue;
+        seen.add(text);
+        recaps.push({ id: segment.segment_id, start: Number(segment.timeline_start_sec) || 0, text });
+      }
+      if (!recaps.length || !(totalSec > 0)) continue;
+
+      // ja's plain form (…しました/…です) is the same closed ending as ko's ~습니다.
+      const DECLARATIVE = locale === 'ja'
+        ? /(ました|します|しました|です|でした|である|だった)。?$/
+        : /(습니다|했다|이다|입니다|됩니다|합니다|였다|왔다|갔다)\.?$/;
+      const SUSPENDED = locale === 'ja'
+        ? /(が|けれど|ものの|ながら|のに)。?$|…$/
+        : /(는데|는데요|고|지만|며|면서|채|자)\.?$|…$/;
+
+      const declarative = recaps.filter((r) => DECLARATIVE.test(r.text));
+      const suspended = recaps.filter((r) => SUSPENDED.test(r.text));
+      const perMin = recaps.length / (totalSec / 60);
+      const lastNarrationStart = Math.max(...recaps.map((r) => r.start));
+      const tailSilenceSec = totalSec - lastNarrationStart;
+
+      const entry = {
+        total_sec: Number(totalSec.toFixed(1)),
+        sentences: recaps.length,
+        per_min: Number(perMin.toFixed(1)),
+        declarative_closers: declarative.length,
+        suspended_closers: suspended.length,
+        tail_silence_sec: Number(tailSilenceSec.toFixed(1)),
+        declarative_samples: declarative.slice(0, 4).map((r) => ({ segment_id: r.id, sentence: r.text.slice(0, 60) })),
+        issues: []
+      };
+      // Thresholds sit between the benchmark (1.1~2.5/min, 68s tail) and our own best cut
+      // (어라이벌 1.8/min, 60s tail), so a cut we already ship passes and the 4.9/min ones do not.
+      if (perMin > 3.0) entry.issues.push(`narration density ${entry.per_min}/min exceeds 3.0 (benchmark 1.1~2.5)`);
+      if (declarative.length) entry.issues.push(`${declarative.length} declarative closer(s); the benchmark uses none - end on 미결(~는데) or 부드러운 단정(~죠)`);
+      if (!suspended.length) entry.issues.push('no suspended closer: at least one narration must hand off to the source audio unresolved');
+      if (tailSilenceSec < 20) entry.issues.push(`tail silence ${entry.tail_silence_sec}s under 20s - the closing stretch should run on source audio`);
+      if (entry.issues.length) worst = 'warning';
+      economy.locales[locale] = entry;
+    }
+    if (Object.keys(economy.locales).length) {
+      gates.results = (gates.results || []).filter((e) => e.id !== 'narration_economy');
+      gates.warnings = (gates.warnings || []).filter((id) => id !== 'narration_economy');
+      gates.results.push({ id: 'narration_economy', status: worst, ...economy });
+      if (worst !== 'pass') gates.warnings.push('narration_economy');
+    }
+  } catch { /* style guard is best-effort */ }
+
   writeJson(acceptanceFile, gates);
   return { status, judged, issues };
 }
