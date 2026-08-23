@@ -251,4 +251,21 @@ for (const finding of findings.sort((a, b) => (a.level === b.level ? 0 : a.level
   console.log(`  ${finding.level} ${finding.kind} ${finding.clip}: ${finding.detail}`);
 }
 if (jsonOut) fs.writeFileSync(jsonOut, JSON.stringify({ summary, findings, rows }, null, 1));
+// An alignment that matches NO clip is not a clean run - it is a run that checked nothing, and
+// it used to print "FAIL 0" and exit 0. On 2026-08-24 a re-verify of the Jacob imprint cut read
+// green that way: the cut had been rebuilt after surgery and its slots renumbered (slot_01_L01
+// -> 001_L01), so the pre-surgery align.json matched nothing at all. A verification that cannot
+// see its subject must say so, or every stale alignment reads as a pass.
+if (summary.clips > 0 && summary.checked === 0) {
+  console.log('  FAIL no_alignment_match: the alignment matches none of the clips - it is stale or '
+    + 'belongs to another run (utt_id scheme differs). Re-run align_dialogue_lines.py against THIS plan.');
+  if (jsonOut) {
+    fs.writeFileSync(jsonOut, JSON.stringify({
+      summary: { ...summary, fail: summary.fail + 1 },
+      findings: [...findings, { level: 'FAIL', kind: 'no_alignment_match', clip: '-', detail: 'alignment matches no clip' }],
+      rows
+    }, null, 1));
+  }
+  process.exit(1);
+}
 process.exit(summary.fail > 0 ? 1 : 0);
