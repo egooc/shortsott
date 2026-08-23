@@ -145,6 +145,31 @@ function inferSourceDurationSec(baseDraftInput, draftSpec) {
   return Math.max(0, ...candidates);
 }
 
+// Every gate here fails by being TOO HIGH - the two locales must not converge - so "improved"
+// means a lower number on at least one of them.
+const FINAL_OVERLAP_SCORE_KEYS = [
+  'pairwise_overlap_score',
+  'opening_similarity_score',
+  'chain_similarity_score',
+  'top_highlight_cluster_ordering_similarity_score',
+  'shared_contiguous_block_max_sec'
+];
+
+function gateScoreSnapshot(report) {
+  const snapshot = {};
+  for (const key of FINAL_OVERLAP_SCORE_KEYS) {
+    const value = Number(report?.[key]);
+    if (Number.isFinite(value)) snapshot[key] = value;
+  }
+  return snapshot;
+}
+
+function replanImprovedSomething(before, after) {
+  if (!before || !after) return true; // no basis to stop on
+  // A hair of float movement is not progress; require something a person would call a change.
+  return FINAL_OVERLAP_SCORE_KEYS.some((key) => Number(after[key]) < Number(before[key]) - 0.001);
+}
+
 function replanJaDraftSpecForFinalOverlap(draftSpec, finalOverlapReport, attempt, baseDraftInput = {}) {
   const next = cloneJson(draftSpec);
   const placements = Array.isArray(next?.clip_placement) ? next.clip_placement : [];
@@ -1265,18 +1290,36 @@ async function generateLocaleDraftArtifacts({ workspaceDir, baseDraftInputPath, 
   const fixedSourceWindows = [...collectFixedSourceWindowsBySlot(baseDraftInput).values()].flat();
   let finalOverlapReport = compareFinalDraftFiles(localeResults.ko.draft_content_path, localeResults.ja.draft_content_path, undefined, fixedSourceWindows);
   let replanAttempts = 0;
+  // Every attempt is a full ja render, so track whether the last one actually moved anything.
+  // The replan only reframes a clip inside its own scene (capped at 8s); it never reorders the
+  // timeline. A run failing ONLY on top_highlight_cluster_ordering therefore cannot be recovered
+  // here at all - the Daybreakers cut spent four ja renders to arrive back at the same score of
+  // 1.0 (2026-08-24). Stop as soon as an attempt stops improving, and keep the trajectory so the
+  // next reader can see whether the loop was making progress or spinning.
+  const replanTrace = [gateScoreSnapshot(finalOverlapReport)];
   while (finalOverlapReport.final_status !== 'pass' && replanAttempts < MAX_FINAL_DRAFT_REPLAN_ATTEMPTS) {
     replanAttempts += 1;
     draftSpecs.ja = replanJaDraftSpecForFinalOverlap(draftSpecs.ja, finalOverlapReport, replanAttempts, baseInputForLocale('ja'));
     writeJson(path.join(workspaceDir, 'draft_spec.ja.json'), draftSpecs.ja);
     await renderLocale('ja', draftSpecs.ja, replanAttempts);
-    finalOverlapReport = compareFinalDraftFiles(localeResults.ko.draft_content_path, localeResults.ja.draft_content_path, undefined, fixedSourceWindows);
+    const nextReport = compareFinalDraftFiles(localeResults.ko.draft_content_path, localeResults.ja.draft_content_path, undefined, fixedSourceWindows);
+    const before = replanTrace[replanTrace.length - 1];
+    const after = gateScoreSnapshot(nextReport);
+    replanTrace.push(after);
+    finalOverlapReport = nextReport;
+    if (nextReport.final_status === 'pass') break;
+    if (!replanImprovedSomething(before, after)) break;
   }
   finalOverlapReport = {
     ...finalOverlapReport,
     regeneration_attempts: replanAttempts,
     replan_applied: replanAttempts > 0,
-    replan_policy: replanAttempts > 0 ? 'ja_video_clip_chain_replan' : 'not_needed'
+    replan_policy: replanAttempts > 0 ? 'ja_video_clip_chain_replan' : 'not_needed',
+    replan_score_trace: replanTrace,
+    // Named so a failure report can say "the replan cannot fix this" instead of implying the
+    // retries were merely unlucky.
+    replan_stalled: replanAttempts > 0 && finalOverlapReport.final_status !== 'pass'
+      && !replanImprovedSomething(replanTrace[replanTrace.length - 2], replanTrace[replanTrace.length - 1])
   };
   const finalOverlapPath = path.join(workspaceDir, 'overlap_report_final_draft.ko_vs_ja.json');
   writeJson(finalOverlapPath, finalOverlapReport);
