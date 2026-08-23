@@ -517,7 +517,27 @@ async function main() {
   finish(publish.status === 0 ? 'ok' : 'publish_failed');
 }
 
-main().catch((error) => {
-  console.error('nightly-batch fatal:', error.message || error);
-  process.exitCode = 1;
-});
+// The morning pass works the same failure queue with the same classification, so it imports these
+// rather than keeping a second copy of the regex list that would drift out of step.
+module.exports = {
+  FAILURE_QUEUE_PATH,
+  FILLS_REGENERABLE,
+  RECOVERY_ATTEMPTS,
+  readFailureQueue,
+  isFillsRegenerable,
+  mismatchIssues,
+  recordNarrationRejections,
+  regenerateFills,
+  resumeFromBootstrap,
+  installDraft,
+  readJsonQuiet,
+  failureText,
+  TEMPLATE_RUNS_DIR
+};
+
+if (require.main === module) {
+  main().catch((error) => {
+    console.error('nightly-batch fatal:', error.message || error);
+    process.exitCode = 1;
+  });
+}
