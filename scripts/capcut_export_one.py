@@ -362,6 +362,33 @@ def wait_for_new_export(watch_dirs, before, timeout_sec):
 #
 # The exported file is therefore renamed to the draft name here, at the one
 # place that knows both.
+# CapCut writes a slightly longer file than the draft timeline (tail frame padding); the gap has
+# measured 0.03~0.06s across every export so far, while a wrong project differs by seconds.
+EXPORT_DURATION_TOLERANCE_SEC = 1.5
+
+
+def draft_duration_sec(draft_name):
+    """Timeline length of the installed draft, from its own draft_content.json (microseconds)."""
+    drafts_dir = os.path.join(os.path.expandvars(r"%USERPROFILE%"), "Desktop", "캡컷아웃풋", "CapCut Drafts")
+    path = os.path.join(drafts_dir, draft_name, "draft_content.json")
+    try:
+        with open(path, encoding="utf-8") as fh:
+            return float(json.load(fh).get("duration") or 0) / 1_000_000
+    except Exception:  # noqa: BLE001 - an unreadable draft just skips the check
+        return 0.0
+
+
+def probe_duration_sec(path):
+    try:
+        out = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", path],
+            capture_output=True, text=True, timeout=60
+        )
+        return float((out.stdout or "0").strip() or 0)
+    except Exception:  # noqa: BLE001 - no ffprobe means no check, not a failed export
+        return 0.0
+
+
 def normalize_export_name(output_path, draft_name, export_dir=None):
     if not output_path:
         return output_path, ""
@@ -546,6 +573,21 @@ def main():
             output_path, rename_error = normalize_export_name(output_path, args.draft_name, args.export_dir)
             if rename_error:
                 raise RuntimeError(f"could not rename export to draft name: {rename_error}")
+            # An mp4 appearing is NOT proof it is the draft we asked for. CapCut opened the wrong
+            # project on 2026-08-24 (jacob_learns-ko came out 108.58s, which is bella_blood's
+            # length exactly) even though the search filter reported settled - and the old
+            # success test, "a new file appeared and its size went stable", passed it happily.
+            # The same shape shipped two wrong videos to YouTube on 2026-08-17. The draft knows
+            # how long it is; compare and refuse a mismatch.
+            expected = draft_duration_sec(args.draft_name)
+            actual = probe_duration_sec(output_path)
+            result["expected_duration_sec"] = expected
+            result["actual_duration_sec"] = actual
+            if expected and actual and abs(expected - actual) > EXPORT_DURATION_TOLERANCE_SEC:
+                raise RuntimeError(
+                    f"exported video is not this draft: {args.draft_name} is {expected:.2f}s "
+                    f"but the export runs {actual:.2f}s - CapCut opened a different project"
+                )
             result["status"] = "exported"
             result["output_path"] = output_path
         else:
