@@ -126,7 +126,14 @@ const FILLS_REGENERABLE = [
   // The narration truth rules - the sentence claims something the footage or transcript does not
   // show. Re-rolling the fills gives the generator another pass at that slot.
   /stages a revelation the source never shows/i,
-  /narration states only what the transcript or footage shows/i
+  /narration states only what the transcript or footage shows/i,
+  // Caption arrays the generator got wrong. These are checked during generation and retried
+  // there, so reaching the queue means the retries ran out - but a fresh generation samples
+  // differently and does land it, and the alternative is discarding a paid-for compress run.
+  /caption_kr_dialogue must have exactly/i,
+  /translation_mode must be faithful_dialogue/i,
+  // An empty NARRATE slot (casebook 21). Same reasoning.
+  /empty (Japanese )?narration slots/i
 ];
 const RECOVERY_ATTEMPTS = 2;
 
