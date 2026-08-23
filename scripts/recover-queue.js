@@ -34,6 +34,33 @@ const {
 const ROOT = path.join(__dirname, '..');
 const STEP_TIMEOUT_MS = 45 * 60 * 1000;
 
+// A validation wall and a rate limit both come back as "compress-apply exited non-zero", but only
+// one of them is worth waiting out. The first recovery run marked three sources failed in a row;
+// re-running compress-apply on one of them by hand a few minutes later exited 0 with nothing
+// changed, so what actually happened was the pass hammering Vertex with five back-to-back
+// generations (2026-08-24, casebook 28).
+const TRANSIENT_FAILURE = /\b(429|quota|rate.?limit|RESOURCE_EXHAUSTED|UNAVAILABLE|ETIMEDOUT|ECONNRESET|socket hang up|timed? ?out)\b/i;
+const TRANSIENT_RETRIES = 2;
+const TRANSIENT_BACKOFF_MS = 90 * 1000;
+// Space the sources out even on success - the quota is per minute, and finishing one generation
+// does not mean the window has refilled.
+const BETWEEN_SOURCES_MS = 20 * 1000;
+
+const sleep = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
+
+// Regenerate, waiting out a transient rather than burning the entry on it.
+async function regenerateWithBackoff(compressRunId, log) {
+  for (let attempt = 0; attempt <= TRANSIENT_RETRIES; attempt += 1) {
+    const reason = regenerateFillsWithReason(compressRunId, STEP_TIMEOUT_MS);
+    if (!reason) return '';
+    if (!TRANSIENT_FAILURE.test(reason) || attempt === TRANSIENT_RETRIES) return reason;
+    const waitMs = TRANSIENT_BACKOFF_MS * (attempt + 1);
+    log(`  transient (${reason.slice(0, 80)}) - waiting ${Math.round(waitMs / 1000)}s`);
+    await sleep(waitMs);
+  }
+  return 'unreachable';
+}
+
 function parseArgs(argv) {
   const args = { limit: Infinity, dryRun: false };
   for (let i = 0; i < argv.length; i += 1) {
@@ -97,7 +124,8 @@ async function main() {
       recordNarrationRejections(entry.compress_run_id, issues);
       console.log(`  fed back ${issues.length} rejected sentence(s)`);
     }
-    const regenReason = regenerateFillsWithReason(entry.compress_run_id, STEP_TIMEOUT_MS);
+    if (index > 0) await sleep(BETWEEN_SOURCES_MS);
+    const regenReason = await regenerateWithBackoff(entry.compress_run_id, (line) => console.log(line));
     if (regenReason) {
       console.log(`  fills regeneration failed: ${regenReason}`);
       // Keep the reason in the queue: next pass classifies against why THIS attempt died, and a
@@ -113,19 +141,36 @@ async function main() {
     } else {
       const reason = summary ? failureText(summary) : 'no run summary for this compress run';
       console.log(`  still failing: ${String(reason).slice(0, 160)}`);
-      stillFailing.push({ entry, reason });
+      // A pipeline verdict, so it REPLACES the queued failure - the source hit a new wall.
+      stillFailing.push({ entry, reason, isPipelineVerdict: Boolean(summary) });
     }
   }
 
-  // Rewrite the queue: recovered entries leave, the rest stay with their newest failure text so a
-  // second pass classifies against what failed THIS time, not what failed last night.
+  // Rewrite the queue. A new PIPELINE failure replaces the recorded one: the source got further
+  // and hit a different wall, and the next pass should classify against that. A failure of the
+  // recovery machinery itself must NOT - it is not a verdict on the source. Overwriting with one
+  // cost three recoverable entries: a Vertex rate limit wrote "fills regeneration failed" over
+  // their real failure text, which matches no classification rule, and they were demoted to manual
+  // for good (2026-08-24, casebook 28).
   const recoveredIds = new Set(recovered.map((item) => item.entry.source_id));
-  const failureById = new Map(stillFailing.map((item) => [item.entry.source_id, String(item.reason)]));
+  const resultById = new Map(stillFailing.map((item) => [item.entry.source_id, item]));
   queue.entries = entries
     .filter((entry) => !recoveredIds.has(entry.source_id))
-    .map((entry) => (failureById.has(entry.source_id)
-      ? { ...entry, failure: failureById.get(entry.source_id), failed_at: new Date().toISOString(), recovery_attempted: true }
-      : entry));
+    .map((entry) => {
+      const result = resultById.get(entry.source_id);
+      if (!result) return entry;
+      const attempts = Number(entry.recovery_attempts || 0) + 1;
+      if (!result.isPipelineVerdict) {
+        return { ...entry, recovery_attempts: attempts, last_recovery_error: String(result.reason).slice(0, 400) };
+      }
+      return {
+        ...entry,
+        failure: String(result.reason),
+        failed_at: new Date().toISOString(),
+        recovery_attempts: attempts,
+        last_recovery_error: ''
+      };
+    });
   queue.updated_at = new Date().toISOString();
   fs.writeFileSync(FAILURE_QUEUE_PATH, JSON.stringify(queue, null, 2), 'utf8');
 
