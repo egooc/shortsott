@@ -6625,6 +6625,44 @@ function buildNarrativeBeatsMarkdown({ runId, metadata, heatmap, beatsObject, ed
   ].join('\n');
 }
 
+const NARRATION_REJECTIONS_FILE = 'narration_visual_rejections.json';
+
+// The machine eye watches the finished cut and rejects narration that claims something the frames
+// do not show. Until now that verdict went into a report for a human and NOWHERE else: the batch's
+// "recovery" re-ran the pipeline over the same fills, so the generator never learned it had been
+// caught and the same sentence failed again. This feeds the verdict back in.
+//
+// What it deliberately does NOT do is hand the generator the judge's suggested_rewrite to copy.
+// That suggestion is a description of the frame, and pasting it turns narration into a caption
+// ("두 여자가 넓은 부엌에서 이야기를 나눕니다" - a real incident). The frame fact is EVIDENCE; the
+// sentence written from it must still say what happened, or the slot should lose its narration
+// altogether. Subtraction is the house rule.
+function buildNarrationRejectionSection(rejections) {
+  const list = Array.isArray(rejections) ? rejections.filter((item) => item && item.segment_id) : [];
+  if (!list.length) return '';
+  const bySlot = new Map();
+  for (const item of list) {
+    const key = String(item.segment_id);
+    if (!bySlot.has(key)) bySlot.set(key, { onScreen: '', rejected: [] });
+    const entry = bySlot.get(key);
+    if (!entry.onScreen && item.on_screen) entry.onScreen = String(item.on_screen);
+    if (item.sentence) entry.rejected.push(String(item.sentence));
+  }
+  const lines = ['', '', '## Sentences a previous attempt got REJECTED for (do not repeat them)',
+    '- A multimodal judge watched the actual frames for these slots and found the narration claimed',
+    '  something not on screen. The "on screen" note is ground truth about the footage.',
+    '- Write these slots again from the on-screen fact. State the EVENT, the premise, or what it',
+    '  costs a character - not a description of the picture. A sentence that only says what the',
+    '  viewer can already see is a caption, and will be rejected as narration.',
+    '- If the slot genuinely has no event to report, leave its narration empty rather than filling',
+    '  it with description. Dropping a sentence is always allowed.'];
+  for (const [slotId, entry] of bySlot) {
+    lines.push(`- ${slotId}: on screen = ${entry.onScreen || '(unrecorded)'}`);
+    for (const sentence of entry.rejected) lines.push(`    REJECTED: ${sentence}`);
+  }
+  return lines.join(String.fromCharCode(10));
+}
+
 const VISION_SCENE_MAP_FILE = 'vision_scene_map.json';
 
 function transcriptCuesToUtterances(transcript) {
@@ -7226,7 +7264,11 @@ async function runCompressionApply(runIdOrPath, applyOptions = {}) {
   const applyCaseGuidance = buildSourceCaseGuidance(applySourceCase).join(String.fromCharCode(10));
   const applySceneMapPath = path.join(runDir, VISION_SCENE_MAP_FILE);
   const applyVisionSection = fs.existsSync(applySceneMapPath) ? buildVisionSceneSection(readJson(applySceneMapPath)) : '';
-  const slotFillsPrompt = buildSlotFillsPrompt(beatsObject.beats || [], finalizedEditPlan, movieTitle, recapContext.contextMarkdown) + applyCaseGuidance + applyVisionSection;
+  const applyRejectionsPath = path.join(runDir, NARRATION_REJECTIONS_FILE);
+  const applyRejectionSection = fs.existsSync(applyRejectionsPath)
+    ? buildNarrationRejectionSection(readJson(applyRejectionsPath)) : '';
+  const slotFillsPrompt = buildSlotFillsPrompt(beatsObject.beats || [], finalizedEditPlan, movieTitle, recapContext.contextMarkdown)
+    + applyCaseGuidance + applyVisionSection + applyRejectionSection;
   const validateStructure = (parsed) => {
     const normalized = validateSlotFillsDialogueCaptions(
       reconcileDialogueCaptionCounts(normalizeSlotFillsForStyle(parsed, finalizedEditPlan), finalizedEditPlan),

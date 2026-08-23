@@ -215,7 +215,10 @@ function mismatchIssues(text) {
       if (depth === 0) {
         try {
           const parsed = JSON.parse(tail.slice(start, i + 1));
-          return Array.isArray(parsed) ? parsed.filter((issue) => issue && issue.segment_id && issue.suggested_rewrite) : [];
+          // on_screen is what makes an issue actionable - it is the frame fact the next pass has
+          // to write from. suggested_rewrite is deliberately NOT required, and deliberately not
+          // used: it describes the picture, and narration that describes the picture is a caption.
+          return Array.isArray(parsed) ? parsed.filter((issue) => issue && issue.segment_id && issue.on_screen) : [];
         } catch { return []; }
       }
     }
@@ -223,22 +226,42 @@ function mismatchIssues(text) {
   return []; // unbalanced - a truncated record, which is exactly what the 600-char cap produced
 }
 
-function applyMismatchRewrites(compressRunId, issues) {
-  const runDir = path.join(ROOT, 'midform', 'test_runs', compressRunId);
-  const issuesFile = path.join(runDir, 'mismatch_rewrites.json');
+// Hand the judge's verdict to the generator for the next pass. runCompressionApply reads this
+// file out of the compress run and turns it into a "do not repeat these sentences" section.
+function recordNarrationRejections(compressRunId, issues) {
+  const file = path.join(ROOT, 'midform', 'test_runs', compressRunId, 'narration_visual_rejections.json');
   try {
-    fs.writeFileSync(issuesFile, JSON.stringify(issues, null, 2), 'utf8');
-    const result = spawnSync('node', [
-      path.join(ROOT, 'midform', 'scripts', 'apply_mismatch_rewrites.js'),
-      runDir, '--issues', issuesFile, '--apply'
-    ], { encoding: 'utf8', cwd: ROOT });
-    if (result.status !== 0) return false;
-    // finalizeEditPlan has to see the edited fills, so refresh before resuming.
-    const refresh = spawnSync('node', [
-      path.join(ROOT, 'scripts', 'midform.js'), 'compress-refresh', compressRunId
-    ], { encoding: 'utf8', cwd: ROOT });
-    return refresh.status === 0;
+    // Accumulate: a sentence rejected on attempt 1 must still be off the table on attempt 2.
+    let existing = [];
+    try { existing = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { /* first rejection */ }
+    const merged = [...(Array.isArray(existing) ? existing : []), ...issues];
+    const seen = new Set();
+    const deduped = merged.filter((item) => {
+      const key = `${item.locale}|${item.segment_id}|${item.sentence}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    fs.writeFileSync(file, JSON.stringify(deduped, null, 2), 'utf8');
+    return true;
   } catch { return false; }
+}
+
+// The step the old recovery loop was missing entirely. `run --resume bootstrap` CONVERTS
+// compression_slot_fills.json into the pipeline contract - it does not rewrite it, and
+// runCompressionApply has exactly one caller, the compress-apply subcommand. So the previous
+// "regenerating fills" retry re-ran the whole pipeline over byte-identical narration and failed
+// the same way, twice, at full cost. Regenerate the fills first, then resume.
+function regenerateFills(compressRunId, timeoutMs) {
+  const apply = spawnSync('node', [
+    path.join(ROOT, 'scripts', 'midform.js'), 'compress-apply', compressRunId
+  ], { encoding: 'utf8', timeout: timeoutMs, cwd: ROOT });
+  if (apply.status !== 0) return false;
+  // finalizeEditPlan runs over the new fills before bootstrap reads the plan.
+  const refresh = spawnSync('node', [
+    path.join(ROOT, 'scripts', 'midform.js'), 'compress-refresh', compressRunId
+  ], { encoding: 'utf8', timeout: timeoutMs, cwd: ROOT });
+  return refresh.status === 0;
 }
 
 // Resume the SAME compress run: download, transcript, vision and beats are reused, only the
@@ -351,21 +374,23 @@ async function main() {
           // Cheap recovery: anything decided while writing slot_fills gets another pass against
           // the compress run we already paid for, instead of costing the whole source.
           const ctx = findRunContext([...listTemplateRunDirs()].filter((d) => !before.has(d)));
-          const issues = mismatchIssues(failedText);
-          if (ctx && issues.length) {
-            // Attempt zero, and the cheapest one: rewrite the offending sentences to what the eye
-            // says is on screen, then rebuild. Only the sentences it named change.
-            console.log(`  [recover 0] applying ${issues.length} suggested rewrite(s) on ${ctx.compressRunId}`);
-            lines.push(`  - recover 0: applied ${issues.length} machine-eye rewrite(s)`);
-            if (!applyMismatchRewrites(ctx.compressRunId, issues)) {
-              lines.push('  - recover 0 failed to apply cleanly; falling back to a fills re-roll');
-            }
-          }
+          let issues = mismatchIssues(failedText);
           if (ctx && (issues.length || isFillsRegenerable(failedText))) {
             for (let recovery = 1; recovery <= RECOVERY_ATTEMPTS && !guard.expired(); recovery += 1) {
+              const budgetMs = Math.max(60_000, guard.remainMin() * 60_000);
+              // Tell the generator what the judge caught, so this pass is not a coin flip on the
+              // same prompt. Nothing is pasted in for it - only the frame fact and the ban.
+              if (issues.length) {
+                recordNarrationRejections(ctx.compressRunId, issues);
+                lines.push(`  - recover ${recovery}: ${issues.length} rejected sentence(s) fed back`);
+              }
               console.log(`  [recover ${recovery}/${RECOVERY_ATTEMPTS}] regenerating fills on ${ctx.compressRunId}`);
-              lines.push(`  - recover ${recovery}: resume bootstrap on ${ctx.compressRunId}`);
-              resumeFromBootstrap(ctx.templatePath, ctx.compressRunId, Math.max(60_000, guard.remainMin() * 60_000));
+              lines.push(`  - recover ${recovery}: regenerate fills + resume bootstrap on ${ctx.compressRunId}`);
+              if (!regenerateFills(ctx.compressRunId, budgetMs)) {
+                lines.push('  - recover: fills regeneration failed; giving up on this source');
+                break;
+              }
+              resumeFromBootstrap(ctx.templatePath, ctx.compressRunId, budgetMs);
               const after = readJsonQuiet(path.join(TEMPLATE_RUNS_DIR, ctx.workspaceDir, 'run_summary.json'));
               if (after && after.status !== 'failed') {
                 summary = after;
@@ -375,8 +400,9 @@ async function main() {
                 break;
               }
               failedText = failureText(after);
+              issues = mismatchIssues(failedText);
               // a different wall now - stop paying for retries
-              if (!isFillsRegenerable(failedText) && !mismatchIssues(failedText).length) break;
+              if (!isFillsRegenerable(failedText) && !issues.length) break;
             }
           }
           if (failedText) {

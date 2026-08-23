@@ -1,22 +1,26 @@
 #!/usr/bin/env node
 'use strict';
 
-// Apply the machine eye's own suggested_rewrite to a compress run's slot fills.
+// Splice AUTHORED replacement sentences into a compress run's slot fills.
 //
-// When narration_visual_match fails it does not just say "wrong" - for every sentence it rejects
-// it reports what the frames actually show and writes a replacement sentence grounded in that.
-// Until now the batch threw all of that away and either re-rolled the fills blind (the generator
-// cannot see the frames, so it can miss the same way twice) or queued the source for a human.
-// Applying the suggested rewrite is deterministic, costs no generation tokens, and is exactly the
-// surgery a person would perform by hand.
+// This is the hand-surgery tool for the rebuild loop: you have decided what a slot should say, and
+// this puts it in without desyncing anything. Editing narration by hand is easy to get wrong -
+// caption_units must still concatenate to the narration, and a shifted unit slides every subtitle
+// after it - so the splice is done by finding the contiguous run of units that spells the old
+// sentence and refusing the edit outright if they do not add up.
 //
-//   node midform/scripts/apply_mismatch_rewrites.js <compress_run_dir> --issues <file|-> [--apply]
+//   node midform/scripts/apply_narration_rewrites.js <compress_run_dir> --edits <file|-> [--apply]
 //
-// --issues takes the JSON array the gate emits (also embedded in the failure text recorded in
-// production_failure_queue.json). Without --apply this is a dry run and prints the diff.
+// --edits takes a JSON array of {locale, segment_id, sentence, replacement}. Without --apply this
+// is a dry run and prints the diff. Rewritten slots are marked "authored": true so compress-apply
+// does not overwrite them. Run compress-refresh and resume from bootstrap afterwards.
 //
-// Rewritten slots are marked "authored": true so compress-apply does not overwrite them, per the
-// rebuild-loop doctrine. Run compress-refresh and resume from bootstrap afterwards.
+// DO NOT feed this the machine eye's suggested_rewrite. That field describes what is in the frame;
+// it is evidence for writing a sentence, not the sentence. Pasted verbatim it turns narration into
+// a caption ("두 여자가 넓은 부엌에서 이야기를 나눕니다" - a real incident, and the reason the
+// mismatch report leads with that warning). Write from the frame fact what actually HAPPENED, or
+// drop the slot's narration - subtraction is the house rule. The nightly batch feeds rejected
+// sentences plus the frame fact back into regeneration instead; see recordNarrationRejections.
 
 const fs = require('fs');
 const path = require('path');
@@ -28,10 +32,8 @@ const CAPTION_UNIT_TARGET_CHARS = 14;
 // into the unit before it.
 const CAPTION_UNIT_MIN_CHARS = 6;
 
-// The rewrite is grounded in the frames but written as flat description, and flat description in
-// Korean lands on a declarative ending. The narration economy rule allows at most one of those per
-// cut, so a rewrite can trade a machine-eye failure for an economy failure. Warn rather than
-// refuse - the sentence is still true, and a human may want it.
+// The narration economy rule allows at most one declarative ending per cut, so a hand edit can
+// trade one gate failure for another. Warn rather than refuse - it is the author's call.
 const DECLARATIVE_CLOSER = { ko: /(습니다|했다|이다|입니다|됩니다|합니다|였다)\.?$/, ja: /(ました|します|しました|です|でした|である|だった)。?$/ };
 
 function chunkSentence(sentence) {
@@ -89,7 +91,7 @@ function applyToFill(fill, oldSentence, newSentence) {
   return { ok: true, fill: next, before: narration, after: nextNarration };
 }
 
-function loadIssues(source) {
+function loadEdits(source) {
   const raw = source === '-' ? fs.readFileSync(0, 'utf8') : fs.readFileSync(source, 'utf8');
   const text = raw.trim();
   // Accept either the bare array or the whole failure record the queue stores.
@@ -101,16 +103,16 @@ function loadIssues(source) {
 function main() {
   const argv = process.argv.slice(2);
   const runDir = argv.find((a) => !a.startsWith('--'));
-  const issuesArg = argv[argv.indexOf('--issues') + 1];
+  const editsArg = argv[argv.indexOf('--edits') + 1];
   const apply = argv.includes('--apply');
-  if (!runDir || !argv.includes('--issues')) {
-    console.error('usage: apply_mismatch_rewrites.js <compress_run_dir> --issues <file|-> [--apply]');
+  if (!runDir || !argv.includes('--edits')) {
+    console.error('usage: apply_narration_rewrites.js <compress_run_dir> --edits <file|-> [--apply]');
     process.exit(2);
   }
 
-  const issues = loadIssues(issuesArg);
+  const issues = loadEdits(editsArg);
   if (!issues.length) {
-    console.error('no issues to apply');
+    console.error('no edits to apply');
     process.exit(2);
   }
 
@@ -140,7 +142,7 @@ function main() {
         skipped += 1;
         continue;
       }
-      const result = applyToFill(fills[index], issue.sentence, issue.suggested_rewrite);
+      const result = applyToFill(fills[index], issue.sentence, issue.replacement);
       if (!result.ok) {
         console.error(`SKIP ${locale} ${issue.segment_id}: ${result.reason}`);
         skipped += 1;
@@ -151,10 +153,10 @@ function main() {
       applied += 1;
       console.log(`${locale} ${issue.segment_id}`);
       console.log(`  - ${issue.sentence}`);
-      console.log(`  + ${issue.suggested_rewrite}`);
+      console.log(`  + ${issue.replacement}`);
       console.log(`    units: ${result.fill.caption_units.join(' | ')}`);
       const closer = DECLARATIVE_CLOSER[locale];
-      if (closer && closer.test(String(issue.suggested_rewrite).trim())) {
+      if (closer && closer.test(String(issue.replacement).trim())) {
         console.log('    WARN: declarative ending - check narration_economy after the rebuild');
       }
     }

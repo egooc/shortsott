@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { chunkSentence, rewriteCaptionUnits, applyToFill } = require('../midform/scripts/apply_mismatch_rewrites');
+const { chunkSentence, rewriteCaptionUnits, applyToFill } = require('../midform/scripts/apply_narration_rewrites');
 
 // The whole point of splicing units rather than regenerating them: caption_units must still
 // concatenate to the narration. A desync here shifts every subtitle after the edit.
