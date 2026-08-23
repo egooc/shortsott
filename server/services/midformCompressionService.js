@@ -7260,6 +7260,9 @@ async function runCompressionApply(runIdOrPath, applyOptions = {}) {
     if (!isEconomy && !message.includes('far too short for the requested runtime')) throw error;
     if (isEconomy) narrationEconomyShortfall = message;
     else runtimeShortfall = message;
+    // Say so. A silent degrade looks identical to a rule that never ran - which is exactly how
+    // the first economy-enforced batch read until the manifests were measured by hand.
+    console.log(`[midform] ${isEconomy ? 'narration economy' : 'runtime'} not met after retry - shipping with a warning: ${message.slice(0, 300)}`);
     // Structure still has to hold - only the style layer is dropped for this fallback pass.
     const structureOnly = (parsed) => validateSlotFillsDialogueCaptions(
       reconcileDialogueCaptionCounts(normalizeSlotFillsForStyle(parsed, finalizedEditPlan), finalizedEditPlan),
@@ -7536,6 +7539,7 @@ module.exports = {
     validateKoreanNarrationStyle,
     applyColdOpenVisualOverlapSafety,
     validateSlotFillsDialogueCaptions,
+    narrationEconomyProblems,
     resolveDialogueLineWindows,
     splitMultiTurnDialogueLine,
     completeBeatDialogueFromCues,
