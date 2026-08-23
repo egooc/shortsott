@@ -6129,13 +6129,38 @@ function validateSlotFillsDialogueCaptions(slotFills, editPlan, locale = 'ko') {
   };
   uploadText.overlay_title.top = clampOverlayLine(uploadText.overlay_title.top);
   uploadText.overlay_title.bottom = clampOverlayLine(uploadText.overlay_title.bottom);
-  for (const title of isKorean ? uploadText.title_candidates : []) {
-    if (!isCuriosityTitle(title)) {
+  // normalizeUploadText returns a COPY, and this function returns slotFills - so every repair
+  // above was being written to an object that is thrown away, and the "safe auto-fix" the comment
+  // describes never reached the draft. Write the repaired fields back onto the original
+  // (2026-08-24; found by a test for the title salvage below, which had the same problem).
+  const writeBackUploadText = () => {
+    if (!slotFills || typeof slotFills.upload_text !== 'object' || !slotFills.upload_text) return;
+    slotFills.upload_text.overlay_title = { ...(slotFills.upload_text.overlay_title || {}), ...uploadText.overlay_title };
+    slotFills.upload_text.title_candidates = uploadText.title_candidates;
+  };
+  writeBackUploadText();
+  // title_candidates is a LIST, and the same reasoning as the overlay clamp above applies: one bad
+  // entry used to throw away the whole generation, and after the single retry the entire source
+  // went to the queue - a paid-for download, transcript and vision pass lost to one headline. It
+  // was the most common wall in the morning pass, twice in four sources (2026-08-24).
+  // Dropping the closed ones is a safe auto-fix while an open candidate survives; only an
+  // all-closed list is still a failure, because then there is nothing to publish with.
+  if (isKorean && Array.isArray(uploadText.title_candidates)) {
+    const closed = uploadText.title_candidates.filter((title) => !isCuriosityTitle(title));
+    const open = uploadText.title_candidates.filter((title) => isCuriosityTitle(title));
+    if (!open.length) {
       throw new Error(
         'upload_text.title_candidates must leave the answer open: ask a question ("왜 ~했을까?") '
-        + 'or end on a noun that promises it ("~한 이유", "~의 정체", "~한 계기"). This one closes '
-        + `the gap by finishing as a statement or labelling the clip: ${title}`
+        + 'or end on a noun that promises it ("~한 이유", "~의 정체", "~한 계기"). Every candidate '
+        + `closes the gap by finishing as a statement or labelling the clip: ${closed.join(' | ')}`
       );
+    }
+    if (closed.length) {
+      uploadText.title_candidates = open;
+      writeBackUploadText();
+      // Say what was dropped - a silently shortened list reads as "the model gave us three" when
+      // it gave five and two were unusable.
+      console.log(`[midform] dropped ${closed.length} closed title candidate(s): ${closed.join(' | ')}`);
     }
   }
   if (!uploadText.description) throw new Error('upload_text.description is required');
