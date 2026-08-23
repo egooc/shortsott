@@ -417,9 +417,15 @@ function detectSpeechRanges(sourceVideoPath, cues) {
 
 const DIALOGUE_WINDOW_MIN_SEC = 0.8;
 const DIALOGUE_WINDOW_TRIM_MIN_GAIN_SEC = 0.4;
-// Unhurried conversational English, kept deliberately slow so the ceiling only catches
-// windows that are clearly impossible rather than trimming real delivery.
+// Unhurried conversational English. Used to decide a window is ALREADY tight enough to leave
+// alone - erring fast there is safe, because it only skips a trim.
 const DIALOGUE_WORDS_PER_SEC = 2.2;
+// The ceiling that CUTS a window needs the opposite bias: a rate slow enough that no real
+// delivery can breach it. 2.2 w/s capped a 9-word line at 5.29s against 7.48s of measured
+// speech and shipped it a third short (2026-08-23, Breaking Dawn "If she dies, you get what
+// you always wanted."). Dramatic delivery runs near 1.2 w/s; 1.0 leaves headroom and still
+// catches the runaway this ceiling exists for.
+const DIALOGUE_CEILING_WORDS_PER_SEC = 1.0;
 // silencedetect marks the -26dB crossing as the speech edge, but a consonant's attack and a
 // vowel's release live BELOW that threshold - cutting exactly at the detected edge clips them
 // on every line. Land the cut inside the silence trough instead (ClippyMe technique, MIT):
@@ -652,9 +658,16 @@ function trimDialogueWindowsToSpeech(editPlan, speechRanges, sourceDurationSec =
       // Silence detection alone cannot find the pauses under a continuous score, so a line
       // can still come back far longer than anyone could have spoken it. The word count is
       // independent of both the audio and the cue timing, so use it as a ceiling.
+      // The ceiling has to be a SLOW-speech rate, not the conversational one. At 2.2 words/sec a
+      // 9-word line was capped at 5.29s, but Edward delivers "If she dies, you get what you always
+      // wanted." over 7.48s of measured speech (forced alignment 219.926-227.409) - the estimate
+      // overruled the audio and the clip shipped without its last third, which is exactly the
+      // failure this ceiling was added to prevent, in the other direction. A dramatic delivery
+      // runs near 1.2 words/sec, so the ceiling assumes 1.0 and still catches the runaway case it
+      // is for (a 9-word line coming back 30s long).
       const wordCount = String(win.line || '').trim().split(/\s+/).filter(Boolean).length;
       if (wordCount > 0) {
-        const plausibleEnd = speechStart + (wordCount / DIALOGUE_WORDS_PER_SEC) + DIALOGUE_WORD_ESTIMATE_MARGIN_SEC;
+        const plausibleEnd = speechStart + (wordCount / DIALOGUE_CEILING_WORDS_PER_SEC) + DIALOGUE_WORD_ESTIMATE_MARGIN_SEC;
         if (plausibleEnd < speechEnd) speechEnd = Math.max(speechStart + DIALOGUE_WINDOW_MIN_SEC, plausibleEnd);
       }
       if (!(speechEnd - speechStart >= DIALOGUE_WINDOW_MIN_SEC)) continue;
