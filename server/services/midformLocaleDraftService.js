@@ -1077,19 +1077,31 @@ function computeLoudnessAlignment(baseInput, sourceVideoPath) {
     const narrationValues = ttsPaths
       .map((filePath) => measureLufsSpawn(['-i', filePath]))
       .filter((value) => Number.isFinite(value) && value > TTS_SILENCE_FLOOR_LUFS);
-    const dialogueWindows = [];
+    // Dialogue loudness varies enormously WITHIN one source - a Daybreakers cut spread 19.2 LU
+    // across its 22 windows, from a -35.3 murmur to a -16.1 shout. Taking the first four in plan
+    // order sampled the three quietest scenes and read -33.9 where the median was -27.6, which
+    // pinned the correction at the +10 dB cap and cut the TTS 3.8 dB on top (2026-08-24). Sample
+    // ACROSS the cut instead of off the front, and take the median so one shout or one whisper
+    // cannot move the whole mix.
+    const allDialogueWindows = [];
     for (const seg of (Array.isArray(baseInput?.segments) ? baseInput.segments : [])) {
       const range = seg?.dialogue_speech_range_sec;
-      if (Array.isArray(range) && Number(range[1]) - Number(range[0]) > 0.8) dialogueWindows.push([Number(range[0]), Number(range[1])]);
-      if (dialogueWindows.length >= 4) break;
+      if (Array.isArray(range) && Number(range[1]) - Number(range[0]) > 0.8) allDialogueWindows.push([Number(range[0]), Number(range[1])]);
     }
+    const DIALOGUE_SAMPLE_COUNT = 8;
+    const stride = Math.max(1, Math.ceil(allDialogueWindows.length / DIALOGUE_SAMPLE_COUNT));
+    const dialogueWindows = allDialogueWindows.filter((_, index) => index % stride === 0).slice(0, DIALOGUE_SAMPLE_COUNT);
     const dialogueValues = (sourceVideoPath && fs.existsSync(sourceVideoPath))
       ? dialogueWindows.map(([start, end]) => measureLufsSpawn(['-ss', start.toFixed(3), '-t', (end - start).toFixed(3), '-i', sourceVideoPath, '-vn'])).filter(Number.isFinite)
       : [];
     if (!narrationValues.length || !dialogueValues.length) return null;
-    const mean = (values) => values.reduce((sum, value) => sum + value, 0) / values.length;
-    const narrationLufs = Number(mean(narrationValues).toFixed(1));
-    const dialogueLufs = Number(mean(dialogueValues).toFixed(1));
+    const median = (values) => {
+      const sorted = [...values].sort((a, b) => a - b);
+      const middle = sorted.length >> 1;
+      return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+    };
+    const narrationLufs = Number(median(narrationValues).toFixed(1));
+    const dialogueLufs = Number(median(dialogueValues).toFixed(1));
     const needed = (narrationLufs - dialogueLufs) - 3;
     // Caps default to +10/-6 (16 LU total). Extremely quietly-mastered dialogue (a psych-ward
     // whisper measured -41 LUFS, 20.7 LU of correction needed) leaves a residual delta at the

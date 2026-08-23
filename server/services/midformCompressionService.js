@@ -5748,6 +5748,7 @@ function buildJapaneseSlotFillsPrompt(beats, editPlan, movieTitle, recapContextM
     '- caption_kr_dialogue must read as natural spoken Japanese, not a stiff literal rendering.',
     '- For KEEP_DIALOGUE slots you MUST fill speakers with exactly one name per line, using a short stable descriptor when the captions do not name someone. Each speaker gets their own caption colour.',
     '- If the cold_open slot rule shows visual_source_mode "source_audio_teaser", leave its narration, caption_kr and caption_units empty: the original action audio is the hook.',
+    '- That applies to the COLD OPEN ONLY. A later NARRATE slot with visual_source_mode "source_audio_teaser" is a wordless event the story turns on - a scene change, a character\'s first appearance, the ending - and it must still be narrated. Its narration_target_sec is above zero; leaving it empty drops that beat from the Japanese cut and the locale is discarded for missing text.',
     '- If cold_open is NARRATE without that mode, write a single short hook sentence that plants a question and reveals no answer.',
     '- Never resolve the curiosity the opening created before the payoff slot.',
     '- The payoff slot must land its reversal as a reveal, not a calm report.',
@@ -5780,6 +5781,13 @@ const KOREAN_SCRIPT_RE = /[가-힣]/;
 // Korean script under a ja label.
 function validateJapaneseSlotFills(slotFills, editPlan) {
   const offenders = [];
+  // The ko side rejects an empty NARRATE slot at generation time; ja needs the same guard or the
+  // locale is silently discarded much later, at the final overlap check, with only
+  // "Japanese script is missing text for segments: s8, s12" to show for it (2026-08-24). Thrown
+  // separately from the language check below - telling the model to "write it in Japanese" when
+  // the real complaint is that it wrote nothing sends the retry after the wrong fix.
+  const empty = emptyNarrationSlots(slotFills, editPlan);
+  if (empty.length) throw new Error(`empty Japanese narration slots: ${empty.join(' | ')}`);
   const checkText = (label, value) => {
     const text = String(value || '').trim();
     if (!text) return;
