@@ -5950,6 +5950,58 @@ function validateKoreanNarrationStyle(narration, speakerNames, isClosingSlot) {
   return problems;
 }
 
+// Narration economy, enforced where regeneration is CHEAP: runJsonGeneration feeds a thrown
+// message back to the model and asks for one more pass, so a style rule caught here costs a
+// prompt round-trip instead of a whole rendered cut. The same rules live in the post-render
+// narration_economy gate, but that one can only report - by then the TTS and the render are paid
+// for. Benchmark 눈물한가득 (2026-08-22, same genre/format, 17.7M + 16M cuts): zero declarative
+// closers, 1.1~2.5 sentences/min, the last third on source audio. Our first cut written under the
+// prompt-only version of these rules still shipped 2 declarative closers and 0 suspended ones -
+// a rule nothing throws on is a rule the model rounds off.
+function narrationEconomyProblems(slotFills, editPlan, locale = 'ko') {
+  const problems = [];
+  const isJa = String(locale || 'ko') === 'ja';
+  const DECLARATIVE = isJa
+    ? /(ました|します|しました|です|でした|である|だった)。?$/
+    : /(습니다|했다|이다|입니다|됩니다|합니다|였다|왔다|갔다)\.?$/;
+  const SUSPENDED = isJa
+    ? /(が|けれど|ものの|ながら|のに)。?$|…$/
+    : /(는데|는데요|고|지만|며|면서|채|자)\.?$|…$/;
+
+  const fills = Array.isArray(slotFills?.slot_fills) ? slotFills.slot_fills : [];
+  const sentences = [];
+  for (const fill of fills) {
+    for (const unit of (Array.isArray(fill?.caption_units) && fill.caption_units.length
+      ? fill.caption_units
+      : String(fill?.narration || '').split(/(?<=[.!?。])\s+/))) {
+      const text = String(unit || '').trim();
+      if (text) sentences.push({ slot: String(fill?.slot_id || ''), text });
+    }
+  }
+  if (!sentences.length) return problems;
+
+  const declarative = sentences.filter((s) => DECLARATIVE.test(s.text));
+  const suspended = sentences.filter((s) => SUSPENDED.test(s.text));
+  // One closed sentence is allowed for a beat that truly has to land; a wall of them is the
+  // pattern that made every cut read as a running commentary.
+  if (declarative.length > 1) {
+    problems.push(`${declarative.length} narration sentences end declaratively (${isJa ? '…ました/…です' : '~습니다/~했다'}); at most 1 per cut is allowed. Rewrite the rest to end unresolved (${isJa ? '…が / …のに' : '~는데'}) or soft (${isJa ? '…でしょう' : '~죠'}). Offenders: ${declarative.slice(0, 4).map((s) => `${s.slot}:"${s.text.slice(0, 30)}"`).join(', ')}`);
+  }
+  if (!suspended.length) {
+    problems.push(`no narration sentence hands off to the scene unresolved: at least one must end ${isJa ? '…が / …のに' : '~는데/~는데요'} so the footage answers it`);
+  }
+  // Density is measured against the plan's own runtime budget, which is the only runtime known
+  // at fills time (the render has not happened yet).
+  const targetSec = Number(editPlan?.duration_budget?.estimated_total_sec || 0);
+  if (targetSec > 30) {
+    const perMin = sentences.length / (targetSec / 60);
+    if (perMin > 3.0) {
+      problems.push(`narration density ${perMin.toFixed(1)} sentences/min over a ${Math.round(targetSec)}s cut exceeds 3.0 (benchmark 1.1~2.5). Cut narration sentences - keep only the premise, a rule, a time jump, or a motive; delete anything the footage already shows`);
+    }
+  }
+  return problems;
+}
+
 function validateSlotFillsDialogueCaptions(slotFills, editPlan, locale = 'ko') {
   // Structural checks apply to every locale; the wording checks below are Korean-specific.
   const isKorean = String(locale || 'ko') === 'ko';
@@ -7175,11 +7227,21 @@ async function runCompressionApply(runIdOrPath, applyOptions = {}) {
   const applySceneMapPath = path.join(runDir, VISION_SCENE_MAP_FILE);
   const applyVisionSection = fs.existsSync(applySceneMapPath) ? buildVisionSceneSection(readJson(applySceneMapPath)) : '';
   const slotFillsPrompt = buildSlotFillsPrompt(beatsObject.beats || [], finalizedEditPlan, movieTitle, recapContext.contextMarkdown) + applyCaseGuidance + applyVisionSection;
-  const validateStructure = (parsed) => validateSlotFillsDialogueCaptions(
-    reconcileDialogueCaptionCounts(normalizeSlotFillsForStyle(parsed, finalizedEditPlan), finalizedEditPlan),
-    finalizedEditPlan
-  );
+  const validateStructure = (parsed) => {
+    const normalized = validateSlotFillsDialogueCaptions(
+      reconcileDialogueCaptionCounts(normalizeSlotFillsForStyle(parsed, finalizedEditPlan), finalizedEditPlan),
+      finalizedEditPlan
+    );
+    // Style, so it rides the SAME retry as the structural checks but must never be the reason a
+    // cut fails outright - the caller below degrades a surviving violation to a warning.
+    const economy = narrationEconomyProblems(normalized, finalizedEditPlan, 'ko');
+    if (economy.length) {
+      throw Object.assign(new Error(`narration economy: ${economy.join(' | ')}`), { code: 'MIDFORM_NARRATION_ECONOMY' });
+    }
+    return normalized;
+  };
   let runtimeShortfall = '';
+  let narrationEconomyShortfall = '';
   let result;
   try {
     result = await runJsonGeneration(
@@ -7188,12 +7250,22 @@ async function runCompressionApply(runIdOrPath, applyOptions = {}) {
       (parsed) => validateSlotFillsRuntime(validateStructure(parsed), finalizedEditPlan, targetSec)
     );
   } catch (error) {
-    // Runtime is a quality target, not a correctness invariant. The retries above push the
-    // script toward the target; if it still falls short, ship the cut with a warning rather
-    // than failing the whole run and producing nothing.
-    if (!String(error?.message || '').includes('far too short for the requested runtime')) throw error;
-    runtimeShortfall = String(error.message);
-    result = await runJsonGeneration(slotFillsPrompt, MIDFORM_SLOT_FILLS_SCHEMA_PATH, validateStructure);
+    // Runtime and narration economy are quality targets, not correctness invariants. The retry
+    // inside runJsonGeneration already pushed the script once with the specific violations fed
+    // back; if the model still will not comply, ship the cut with a warning rather than failing
+    // the run and producing nothing. The post-render narration_economy gate records what survived
+    // so the morning pass can hand-fix those sentences.
+    const message = String(error?.message || '');
+    const isEconomy = error?.code === 'MIDFORM_NARRATION_ECONOMY' || message.startsWith('narration economy:');
+    if (!isEconomy && !message.includes('far too short for the requested runtime')) throw error;
+    if (isEconomy) narrationEconomyShortfall = message;
+    else runtimeShortfall = message;
+    // Structure still has to hold - only the style layer is dropped for this fallback pass.
+    const structureOnly = (parsed) => validateSlotFillsDialogueCaptions(
+      reconcileDialogueCaptionCounts(normalizeSlotFillsForStyle(parsed, finalizedEditPlan), finalizedEditPlan),
+      finalizedEditPlan
+    );
+    result = await runJsonGeneration(slotFillsPrompt, MIDFORM_SLOT_FILLS_SCHEMA_PATH, structureOnly);
   }
   const slotFillsPath = path.join(runDir, 'compression_slot_fills.json');
   const normalizedSlotFills = stampCaptionSourceLines(
@@ -7263,6 +7335,7 @@ async function runCompressionApply(runIdOrPath, applyOptions = {}) {
     slotFillsPath,
     japaneseSlotFillsPath,
     runtimeShortfall,
+    narrationEconomyShortfall,
     uploadTextPath,
     editPlanPath,
     slotQcReportPath,
