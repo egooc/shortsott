@@ -23,7 +23,7 @@ const {
   isFillsRegenerable,
   mismatchIssues,
   recordNarrationRejections,
-  regenerateFills,
+  regenerateFillsWithReason,
   resumeFromBootstrap,
   installDraft,
   readJsonQuiet,
@@ -97,9 +97,12 @@ async function main() {
       recordNarrationRejections(entry.compress_run_id, issues);
       console.log(`  fed back ${issues.length} rejected sentence(s)`);
     }
-    if (!regenerateFills(entry.compress_run_id, STEP_TIMEOUT_MS)) {
-      console.log('  fills regeneration failed');
-      stillFailing.push({ entry, reason: 'fills regeneration failed' });
+    const regenReason = regenerateFillsWithReason(entry.compress_run_id, STEP_TIMEOUT_MS);
+    if (regenReason) {
+      console.log(`  fills regeneration failed: ${regenReason}`);
+      // Keep the reason in the queue: next pass classifies against why THIS attempt died, and a
+      // transient (a 429, a timeout) should not read the same as a validation wall.
+      stillFailing.push({ entry, reason: `fills regeneration failed: ${regenReason}` });
       continue;
     }
     resumeFromBootstrap(entry.template_path, entry.compress_run_id, STEP_TIMEOUT_MS);

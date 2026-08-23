@@ -259,16 +259,33 @@ function recordNarrationRejections(compressRunId, issues) {
 // runCompressionApply has exactly one caller, the compress-apply subcommand. So the previous
 // "regenerating fills" retry re-ran the whole pipeline over byte-identical narration and failed
 // the same way, twice, at full cost. Regenerate the fills first, then resume.
-function regenerateFills(compressRunId, timeoutMs) {
-  const apply = spawnSync('node', [
-    path.join(ROOT, 'scripts', 'midform.js'), 'compress-apply', compressRunId
+// Returns '' on success, otherwise WHY it failed. A bare false told the morning pass nothing:
+// "fills regeneration failed" appeared twice in one run with no way to tell a validation wall from
+// a Vertex outage, and the two want opposite responses (2026-08-24).
+function regenerateFillsWithReason(compressRunId, timeoutMs) {
+  const step = (subcommand) => spawnSync('node', [
+    path.join(ROOT, 'scripts', 'midform.js'), subcommand, compressRunId
   ], { encoding: 'utf8', timeout: timeoutMs, cwd: ROOT });
-  if (apply.status !== 0) return false;
+  const lastMeaningfulLine = (result) => {
+    const text = `${result.stderr || ''}\n${result.stdout || ''}`;
+    const lines = text.split('\n').map((line) => line.trim()).filter(Boolean);
+    if (result.error) return String(result.error.message || result.error);
+    // The stack trace is noise; the thrown message is the one line worth keeping.
+    const thrown = lines.find((line) => /^(Error|TypeError|MIDFORM_|\[midform\])/.test(line));
+    return (thrown || lines[lines.length - 1] || 'no output').slice(0, 300);
+  };
+  const apply = step('compress-apply');
+  if (apply.status !== 0) return `compress-apply exit ${apply.status}: ${lastMeaningfulLine(apply)}`;
   // finalizeEditPlan runs over the new fills before bootstrap reads the plan.
-  const refresh = spawnSync('node', [
-    path.join(ROOT, 'scripts', 'midform.js'), 'compress-refresh', compressRunId
-  ], { encoding: 'utf8', timeout: timeoutMs, cwd: ROOT });
-  return refresh.status === 0;
+  const refresh = step('compress-refresh');
+  if (refresh.status !== 0) return `compress-refresh exit ${refresh.status}: ${lastMeaningfulLine(refresh)}`;
+  return '';
+}
+
+function regenerateFills(compressRunId, timeoutMs) {
+  const reason = regenerateFillsWithReason(compressRunId, timeoutMs);
+  if (reason) console.log(`  fills regeneration failed: ${reason}`);
+  return !reason;
 }
 
 // Resume the SAME compress run: download, transcript, vision and beats are reused, only the
@@ -528,6 +545,7 @@ module.exports = {
   mismatchIssues,
   recordNarrationRejections,
   regenerateFills,
+  regenerateFillsWithReason,
   resumeFromBootstrap,
   installDraft,
   readJsonQuiet,

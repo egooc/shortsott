@@ -1084,6 +1084,19 @@ function measureLufsSpawn(inputArgs) {
   return match ? Number(match[1]) : null;
 }
 
+// Loudness says how loud something SEEMS; true peak says how much room is left before the signal
+// clips. The gain cap was applied without ever asking, so a source already peaking near 0 dBFS
+// would have been pushed straight through it.
+function measureTruePeakSpawn(inputArgs) {
+  const ffmpeg = process.env.FFMPEG_PATH || 'ffmpeg';
+  const { spawnSync } = require('child_process');
+  const probe = spawnSync(ffmpeg, ['-hide_banner', '-nostats', ...inputArgs, '-af', 'ebur128=peak=true', '-f', 'null', '-'], { encoding: 'utf8', timeout: 120000, maxBuffer: 32 * 1024 * 1024 });
+  // The summary block prints "True peak:" then "Peak: -9.2 dBFS"; per-frame lines carry FTPK, so
+  // anchor on the summary label rather than grabbing the last peak-looking number.
+  const match = String(probe.stderr || '').match(/True peak:[\s\S]*?Peak:\s*(-?[\d.]+)\s*dBFS/);
+  return match ? Number(match[1]) : null;
+}
+
 function computeLoudnessAlignment(baseInput, sourceVideoPath) {
   try {
     // An empty narration slot still produces a 0.232s placeholder mp3 that measures -70 LUFS, and
@@ -1134,7 +1147,18 @@ function computeLoudnessAlignment(baseInput, sourceVideoPath) {
     // (owner-approved trade-off: background ambience rises with the dialogue).
     const maxVideoGain = Number(process.env.MIDFORM_MAX_VIDEO_GAIN_DB) > 0 ? Number(process.env.MIDFORM_MAX_VIDEO_GAIN_DB) : 10;
     const maxTtsCut = Number(process.env.MIDFORM_MAX_TTS_CUT_DB) > 0 ? Number(process.env.MIDFORM_MAX_TTS_CUT_DB) : 6;
-    const videoGainDb = needed > 1 ? Number(Math.min(maxVideoGain, needed).toFixed(1)) : 0;
+    // ...and neither cap knows anything about headroom. Draft Day measures -32.7 LUFS integrated
+    // with a true peak of -9.2 dBFS, so the +10 dB this asks for lands the peak at -0.2 dBFS -
+    // clipping on the next transient. Raising MIDFORM_MAX_VIDEO_GAIN_DB, which the comment above
+    // offers as the escape hatch for quietly-mastered sources, would only clip harder. Ask the
+    // source how much room it has and take the smaller of the two limits; what the gain cannot
+    // deliver falls through to the TTS cut, which has no such constraint (2026-08-24).
+    const TRUE_PEAK_CEILING_DBFS = -1;
+    const sourceTruePeak = (needed > 1 && sourceVideoPath && fs.existsSync(sourceVideoPath))
+      ? measureTruePeakSpawn(['-i', sourceVideoPath, '-vn']) : null;
+    const headroomDb = Number.isFinite(sourceTruePeak) ? Math.max(0, TRUE_PEAK_CEILING_DBFS - sourceTruePeak) : maxVideoGain;
+    const videoGainLimit = Math.min(maxVideoGain, headroomDb);
+    const videoGainDb = needed > 1 ? Number(Math.min(videoGainLimit, needed).toFixed(1)) : 0;
     const ttsCutDb = needed > 1 ? Number(Math.min(maxTtsCut, Math.max(0, needed - videoGainDb)).toFixed(1)) : 0;
     // The other direction was a blind spot: this only ever quietened a narration that was too LOUD, so
     // a narration mixed 6.3 LU under the dialogue (Housemaid night) stayed inaudible at the seams and
@@ -1148,6 +1172,12 @@ function computeLoudnessAlignment(baseInput, sourceVideoPath) {
     return {
       narration_lufs: narrationLufs,
       dialogue_lufs: dialogueLufs,
+      source_true_peak_dbfs: Number.isFinite(sourceTruePeak) ? sourceTruePeak : null,
+      // Which limit bound the gain - without this a residual delta reads as "the correction did
+      // not work" when it means "there was no room left".
+      video_gain_limited_by: needed <= 1 ? 'not_needed'
+        : (headroomDb < maxVideoGain && videoGainDb >= headroomDb - 0.05 ? 'true_peak_headroom'
+          : (videoGainDb >= maxVideoGain - 0.05 ? 'configured_cap' : 'none')),
       delta_lu: Number((narrationLufs - dialogueLufs).toFixed(1)),
       video_gain_db: videoGainDb,
       tts_cut_db: ttsCutDb,
