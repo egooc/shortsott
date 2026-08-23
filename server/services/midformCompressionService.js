@@ -5492,7 +5492,15 @@ function buildSlotFillEditorialGuide(editPlan = {}) {
       // each narration slot has to carry.
       const isNarrate = String(item.decision || item.mode || '').trim() === 'NARRATE';
       const plannedSec = Number(item.estimated_duration_sec || 0);
-      const sceneHook = String(item.visual_source_mode || '').trim() === 'source_audio_teaser';
+      // A cold-open scene hook plays its peak's own audio and must stay wordless. Everywhere ELSE
+      // this mode means the opposite: the beat a scene turns on often has no dialogue (a body on
+      // the floor, a door locked), and the plan rule for those slots is to keep the footage AND
+      // narrate what just happened. Zeroing the budget for every teaser slot silenced them - a
+      // 117s Daybreakers cut came back with the Frankie confrontation arriving unintroduced and
+      // no closing line at all, because its seam slot and its payoff slot were both teasers
+      // (2026-08-24).
+      const teaserMode = String(item.visual_source_mode || '').trim() === 'source_audio_teaser';
+      const sceneHook = teaserMode && String(item.role || '').trim() === 'cold_open';
       const narrationTargetSec = isNarrate && !sceneHook && plannedSec > 0 ? roundSec(plannedSec) : 0;
       const narrationTargetChars = narrationTargetSec > 0
         ? Math.max(0, Math.round((narrationTargetSec - KOREAN_NARRATION_PAUSE_BUFFER_SEC) * koreanNarrationCharsPerSec()))
@@ -5652,6 +5660,7 @@ function buildSlotFillsPrompt(beats, editPlan, movieTitle, recapContextMarkdown)
     '- Do not repeat a preserved dialogue line in narration with the same informational content. If KEEP_DIALOGUE already says the core beat, narration must add setup, consequence, stakes, or interpretation instead of paraphrasing the same line.',
     '- If cold_open is NARRATE, its narration must plant a question and must not reveal the answer.',
     '- EXCEPTION: if the cold_open slot rule shows visual_source_mode "source_audio_teaser" (heatmap scene hook), set narration to an empty string and leave caption_kr and caption_units empty — the original action audio of the peak moment IS the hook, and any voiceover would smother it.',
+    '- That exception is for the COLD OPEN ONLY. A later slot with visual_source_mode "source_audio_teaser" is a wordless event the story turns on, and it still needs narration saying what just happened — it carries a narration_target_sec above zero. Leaving one of those empty drops a scene change, a character\'s first appearance, or the ending itself out of the cut.',
     '- EXCEPTION: any slot with visual_source_mode "source_audio_action" (role action_beat) is a measured action peak that plays its OWN action audio. Set narration to an empty string and leave caption_kr, caption_units and caption_kr_dialogue empty for these slots — no voiceover, no captions.',
     '- cards (optional, benchmark B-form): a scene-hook cold open may carry TWO situation cards, and a pure time-jump NARRATE seam may carry ONE card ("며칠후") with narration left EMPTY - the slot then renders as big centered text over the clip and its original audio, no TTS. Each card is one clause, 16 Korean characters or fewer, no punctuation-heavy sentences. Never put cards on a slot that has narration or dialogue.',
     '- If cold_open is NARRATE, write a single hook sentence only: one question or reversal, no explanation, no setup, no answer.',
@@ -5958,6 +5967,30 @@ function validateKoreanNarrationStyle(narration, speakerNames, isClosingSlot) {
 // closers, 1.1~2.5 sentences/min, the last third on source audio. Our first cut written under the
 // prompt-only version of these rules still shipped 2 declarative closers and 0 suspended ones -
 // a rule nothing throws on is a rule the model rounds off.
+// A NARRATE slot that came back with nothing to say is a hole in the story, and it is silent in
+// both senses: no voice on the timeline and no gate complaining. The Daybreakers cut shipped its
+// scene-change seam and its entire ending as four seconds of source audio because the two slots
+// carrying them were left empty (2026-08-24). Only the cold-open scene hook is allowed to be
+// wordless - it is the one slot whose plan budget is deliberately zero.
+function emptyNarrationSlots(slotFills, editPlan) {
+  const fills = Array.isArray(slotFills?.slot_fills) ? slotFills.slot_fills : [];
+  const byId = new Map(fills.map((fill) => [String(fill?.slot_id || '').trim(), fill]));
+  const problems = [];
+  for (const item of (Array.isArray(editPlan?.timeline) ? editPlan.timeline : [])) {
+    if (String(item?.decision || item?.mode || '').trim() !== 'NARRATE') continue;
+    const role = String(item.role || '').trim();
+    const mode = String(item.visual_source_mode || '').trim();
+    // Wordless by design: the cold-open hook, and a measured action peak that plays its own audio.
+    if (role === 'cold_open' && mode === 'source_audio_teaser') continue;
+    if (mode === 'source_audio_action') continue;
+    const slotId = String(item.slot_id || '').trim();
+    const fill = byId.get(slotId);
+    if (String(fill?.narration || '').trim()) continue;
+    problems.push(`${slotId} (${role || 'body'}) is a NARRATE slot with no narration`);
+  }
+  return problems;
+}
+
 function narrationEconomyProblems(slotFills, editPlan, locale = 'ko') {
   const problems = [];
   const isJa = String(locale || 'ko') === 'ja';
@@ -7280,6 +7313,10 @@ async function runCompressionApply(runIdOrPath, applyOptions = {}) {
     if (economy.length) {
       throw Object.assign(new Error(`narration economy: ${economy.join(' | ')}`), { code: 'MIDFORM_NARRATION_ECONOMY' });
     }
+    // Structural, not stylistic: unlike the economy check this one is not degraded to a warning
+    // below, because an empty slot loses content rather than phrasing it badly.
+    const empty = emptyNarrationSlots(normalized, finalizedEditPlan);
+    if (empty.length) throw new Error(`empty narration slots: ${empty.join(' | ')}`);
     return normalized;
   };
   let runtimeShortfall = '';
@@ -7582,6 +7619,7 @@ module.exports = {
     applyColdOpenVisualOverlapSafety,
     validateSlotFillsDialogueCaptions,
     narrationEconomyProblems,
+    emptyNarrationSlots,
     resolveDialogueLineWindows,
     splitMultiTurnDialogueLine,
     completeBeatDialogueFromCues,
