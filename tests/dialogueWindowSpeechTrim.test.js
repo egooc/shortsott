@@ -45,7 +45,12 @@ test('a window longer than the words could take is capped by word count', () => 
   trimDialogueWindowsToSpeech(plan, [[17.2, 26.6]]);
   const win = plan.timeline[0].dialogue_line_windows[0];
   const duration = win.end_sec - win.start_sec;
-  assert.ok(duration < 5, `five words cannot take ${duration}s`);
+  // The ceiling is deliberately generous (1.0 w/s + 1.2s margin = 6.2s for five words). It
+  // exists to reject a runaway window, not to fit the line snugly - a tight 2.2 w/s ceiling
+  // shipped a nine-word line a third short of its measured speech (casebook 15). So assert
+  // the 9.4s runaway was cut, and that the cut landed at the documented ceiling.
+  assert.ok(duration < 9.4, `the runaway window should be cut, got ${duration}s`);
+  assert.ok(duration <= 6.3, `five words cannot take ${duration}s`);
   assert.ok(duration >= 0.8, 'but the line still needs to be readable');
 });
 

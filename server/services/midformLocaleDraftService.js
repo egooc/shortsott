@@ -1061,11 +1061,22 @@ function measureLufsSpawn(inputArgs) {
 
 function computeLoudnessAlignment(baseInput, sourceVideoPath) {
   try {
+    // An empty narration slot still produces a 0.232s placeholder mp3 that measures -70 LUFS, and
+    // averaging those in dragged the narration figure to -43 while every real clip sat at -17
+    // (2026-08-24: the numbers looked like three populations across 48 runs; two of them were just
+    // this arithmetic). The aligner then "corrected" a 23 LU gap that did not exist. Skip the
+    // placeholders, and drop any measurement below the silence floor in case one slips through
+    // without a duration.
+    const TTS_MIN_DURATION_SEC = 0.5;
+    const TTS_SILENCE_FLOOR_LUFS = -50;
     const ttsPaths = (Array.isArray(baseInput?.ttsFiles) ? baseInput.ttsFiles : [])
+      .filter((file) => !(Number(file?.duration_sec) > 0) || Number(file.duration_sec) >= TTS_MIN_DURATION_SEC)
       .map((file) => file && (file.filepath || file.path))
       .filter((filePath) => filePath && fs.existsSync(filePath))
       .slice(0, 4);
-    const narrationValues = ttsPaths.map((filePath) => measureLufsSpawn(['-i', filePath])).filter(Number.isFinite);
+    const narrationValues = ttsPaths
+      .map((filePath) => measureLufsSpawn(['-i', filePath]))
+      .filter((value) => Number.isFinite(value) && value > TTS_SILENCE_FLOOR_LUFS);
     const dialogueWindows = [];
     for (const seg of (Array.isArray(baseInput?.segments) ? baseInput.segments : [])) {
       const range = seg?.dialogue_speech_range_sec;
