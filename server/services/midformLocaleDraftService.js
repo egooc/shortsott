@@ -1212,21 +1212,43 @@ function computeLoudnessAlignment(baseInput, sourceVideoPath) {
     const headroomDb = Number.isFinite(sourceTruePeak) ? Math.max(0, TRUE_PEAK_CEILING_DBFS - sourceTruePeak) : maxVideoGain;
     const videoGainLimit = Math.min(maxVideoGain, headroomDb);
     let videoGainDb = needed > 1 ? Number(Math.min(videoGainLimit, needed).toFixed(1)) : 0;
-    const ttsCutDb = needed > 1 ? Number(Math.min(maxTtsCut, Math.max(0, needed - videoGainDb)).toFixed(1)) : 0;
+    let ttsCutDb = needed > 1 ? Number(Math.min(maxTtsCut, Math.max(0, needed - videoGainDb)).toFixed(1)) : 0;
     // A whisper-mastered source (C1iayHkXkMc: dialogue -46.2 LUFS, 28.9 LU raw delta) cannot
     // reach the gate's fail line under the configured caps. The documented escape is raising
     // MIDFORM_MAX_VIDEO_GAIN_DB per source - ambience rises with the dialogue, owner-approved.
     // Apply that trade-off automatically, but ONLY when the render would otherwise fail the
     // gate, and never past the measured true-peak headroom: ordinary sources keep the house cap.
     const GATE_FAIL_DELTA_LU = 6;
-    const residualDelta = (narrationLufs - dialogueLufs) - videoGainDb - ttsCutDb;
+    // Aim the rescue at residual 2, not "just under 6": the gate re-measures the render, and its
+    // medians drift from the alignment-time medians - C1iayHkXkMc landed at 6.1 after a rescue
+    // that predicted 4.8, one measurement 1.3 LU apart killing a 3 LU margin (2026-08-24).
+    const RESCUE_TARGET_RESIDUAL_LU = 2;
+    // The gate re-measures the render with its own sampling, and the two measurements disagree
+    // by over a LU (alignment predicted 4.8, the gate read 6.1). A rescue that stops "just under
+    // the line" therefore still fails; trigger it inside a variance margin of the line and push
+    // to the target, not to the line.
+    const MEASUREMENT_VARIANCE_LU = 1.5;
+    let residualDelta = (narrationLufs - dialogueLufs) - videoGainDb - ttsCutDb;
     let gateRescue = false;
-    if (needed > 1 && residualDelta > GATE_FAIL_DELTA_LU && headroomDb > videoGainDb) {
-      // Aim for the middle of the warning band, not just under the fail line.
-      const target = videoGainDb + (residualDelta - 3);
-      const rescued = Number(Math.min(headroomDb, target).toFixed(1));
-      gateRescue = rescued > videoGainDb;
-      videoGainDb = rescued;
+    if (needed > 1 && residualDelta > GATE_FAIL_DELTA_LU - MEASUREMENT_VARIANCE_LU) {
+      if (headroomDb > videoGainDb) {
+        const target = videoGainDb + (residualDelta - RESCUE_TARGET_RESIDUAL_LU);
+        const rescued = Number(Math.min(headroomDb, target).toFixed(1));
+        gateRescue = rescued > videoGainDb;
+        videoGainDb = rescued;
+        residualDelta = (narrationLufs - dialogueLufs) - videoGainDb - ttsCutDb;
+      }
+      // What the gain cannot deliver falls through to the TTS cut, which has no clipping
+      // constraint - the same fall-through the base correction already uses, extended past its
+      // configured cap only inside a rescue. The narration gets quieter, and that is the point:
+      // the gate is failing because it is too far ABOVE the dialogue.
+      if (residualDelta > RESCUE_TARGET_RESIDUAL_LU) {
+        const extraCut = Number((residualDelta - RESCUE_TARGET_RESIDUAL_LU).toFixed(1));
+        if (extraCut > 0) {
+          gateRescue = true;
+          ttsCutDb = Number((ttsCutDb + extraCut).toFixed(1));
+        }
+      }
     }
     // The other direction was a blind spot: this only ever quietened a narration that was too LOUD, so
     // a narration mixed 6.3 LU under the dialogue (Housemaid night) stayed inaudible at the seams and
