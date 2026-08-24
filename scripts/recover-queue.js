@@ -25,6 +25,7 @@ const {
   recordNarrationRejections,
   regenerateFillsWithReason,
   resumeFromBootstrap,
+  refreshPlanWithReason,
   installDraft,
   readJsonQuiet,
   failureText,
@@ -70,11 +71,52 @@ function parseArgs(argv) {
   return args;
 }
 
+// Entries queued before 2026-08-24 carry a failure text cut at 600 chars, which beheads the
+// machine-eye issue array mid-string - the entry names narration_visual_match but classifies as
+// manual because the array cannot be parsed. The full issues still exist in the workspace's
+// acceptance_gates.json; trust it only while run_summary lineage still names this entry's
+// compress run (workspaces are reused - casebook 17).
+function issuesFromGatesFile(entry) {
+  if (!String(entry.failure || '').includes('narration_visual_match')) return [];
+  const wsDir = path.join(TEMPLATE_RUNS_DIR, entry.workspace_dir || '');
+  const summary = readJsonQuiet(path.join(wsDir, 'run_summary.json'));
+  if (!summary || (summary.internal?.compression_run_id || '') !== entry.compress_run_id) return [];
+  const gates = readJsonQuiet(path.join(wsDir, 'acceptance_gates.json'));
+  const gate = (Array.isArray(gates?.results) ? gates.results : []).find((result) => result?.id === 'narration_visual_match');
+  return (Array.isArray(gate?.issues) ? gate.issues : []).filter((issue) => issue && issue.segment_id && issue.on_screen);
+}
+
+// Failures whose MEASUREMENT has been fixed since the entry was queued. The source did nothing
+// wrong; the code judging it did. These need no new fills - resume from bootstrap and let the
+// corrected code re-measure. Each signature must name what fixed it, so that when the list grows
+// stale it can be audited instead of trusted.
+const CODE_FIXED_REBUILD = [
+  {
+    // Loudness alignment was polluted by 0.232s TTS stubs, sampled with bias, and judged from
+    // different numbers than the correction used (casebook 18/22, commits d1a683a + a77b118).
+    signature: /narration_dialogue_loudness_delta/,
+    fixedBy: 'loudness measurement repairs, 2026-08-24'
+  }
+];
+
 function classify(entry) {
   const text = String(entry.failure || '');
   const issues = mismatchIssues(text);
   if (issues.length) return { kind: 'mismatch', issues };
+  const recovered = issuesFromGatesFile(entry);
+  if (recovered.length) return { kind: 'mismatch', issues: recovered };
   if (isFillsRegenerable(text)) return { kind: 'fills', issues: [] };
+  const codeFixed = CODE_FIXED_REBUILD.find((route) => route.signature.test(text));
+  if (codeFixed) return { kind: 'rebuild', issues: [], fixedBy: codeFixed.fixedBy };
+  // A bootstrap preflight failure is plan geometry - window resolution, overlaps, closing
+  // placement - and those rules keep getting fixed in finalize (casebook: closing relocation,
+  // b-roll widening, sort order). compress-refresh re-derives the plan under today's rules for
+  // free, so try that before writing the source off. Capped: if two refreshed attempts still
+  // fail preflight, the geometry problem is real and a human should look.
+  if (/MIDFORM_BOOTSTRAP_PREFLIGHT_FAILED|Bootstrap preflight failed/.test(text)
+      && Number(entry.recovery_attempts || 0) < 2) {
+    return { kind: 'refresh', issues: [] };
+  }
   return { kind: 'manual', issues: [] };
 }
 
@@ -125,7 +167,14 @@ async function main() {
       console.log(`  fed back ${issues.length} rejected sentence(s)`);
     }
     if (index > 0) await sleep(BETWEEN_SOURCES_MS);
-    const regenReason = await regenerateWithBackoff(entry.compress_run_id, (line) => console.log(line));
+    // A code-fixed failure keeps its fills: the draft was fine, the measurement was not, and a
+    // regeneration would gamble away validated text to fix a bug that is already fixed.
+    let regenReason = '';
+    if (item.kind === 'refresh') {
+      regenReason = refreshPlanWithReason(entry.compress_run_id, STEP_TIMEOUT_MS);
+    } else if (item.kind !== 'rebuild') {
+      regenReason = await regenerateWithBackoff(entry.compress_run_id, (line) => console.log(line));
+    }
     if (regenReason) {
       console.log(`  fills regeneration failed: ${regenReason}`);
       // Keep the reason in the queue: next pass classifies against why THIS attempt died, and a

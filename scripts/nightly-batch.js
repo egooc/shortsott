@@ -134,7 +134,12 @@ const FILLS_REGENERABLE = [
   /caption_kr_dialogue has \d+ blank caption/i,
   /translation_mode must be faithful_dialogue/i,
   // An empty NARRATE slot (casebook 21). Same reasoning.
-  /empty (Japanese )?narration slots/i
+  /empty (Japanese )?narration slots/i,
+  // The premise-line introduction ban was relaxed on 2026-08-20 (79efd84: a first appearance may
+  // be introduced where it happens; re-anchor seams may restate a name). Entries rejected by the
+  // OLD rule regenerate against today's rule - and if the narration really does re-explain someone
+  // already on screen, the new validation rejects it again and the entry returns to the queue.
+  /narration introduces a character .* outside the premise line/i
 ];
 const RECOVERY_ATTEMPTS = 2;
 
@@ -281,6 +286,21 @@ function regenerateFillsWithReason(compressRunId, timeoutMs) {
   const refresh = step('compress-refresh');
   if (refresh.status !== 0) return `compress-refresh exit ${refresh.status}: ${lastMeaningfulLine(refresh)}`;
   return '';
+}
+
+// Refresh alone: re-run finalizeEditPlan over the EXISTING fills. Deterministic and free - no
+// generation. This is the route for a bootstrap-preflight failure whose window/geometry rule has
+// been fixed in code since the entry was queued: the plan re-derives under today's rules, and if
+// the geometry is still bad it fails again with a fresh, full verdict.
+function refreshPlanWithReason(compressRunId, timeoutMs) {
+  const result = spawnSync('node', [
+    path.join(ROOT, 'scripts', 'midform.js'), 'compress-refresh', compressRunId
+  ], { encoding: 'utf8', timeout: timeoutMs, cwd: ROOT });
+  if (result.status === 0) return '';
+  const text = `${result.stderr || ''}\n${result.stdout || ''}`;
+  const lines = text.split('\n').map((line) => line.trim()).filter(Boolean);
+  const thrown = lines.find((line) => /^(Error|TypeError|MIDFORM_|\[midform\])/.test(line));
+  return `compress-refresh exit ${result.status}: ${(thrown || lines[lines.length - 1] || 'no output').slice(0, 300)}`;
 }
 
 function regenerateFills(compressRunId, timeoutMs) {
@@ -548,6 +568,7 @@ module.exports = {
   regenerateFills,
   regenerateFillsWithReason,
   resumeFromBootstrap,
+  refreshPlanWithReason,
   installDraft,
   readJsonQuiet,
   failureText,
