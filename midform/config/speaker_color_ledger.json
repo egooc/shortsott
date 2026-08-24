@@ -146,7 +146,43 @@
       ],
       "first_seen": "20260824q-daybreakers_cure-V7np-ja",
       "updated_at": "2026-08-24T11:45:32.886Z"
+    },
+    "모르가나": {
+      "color": "#B48CFF",
+      "role": "기타1",
+      "shipped_colors": [
+        "#B48CFF"
+      ],
+      "first_seen": "20260825a-master_morgana-xBa1k2-ja",
+      "updated_at": "2026-08-24T16:11:03.468Z"
+    },
+    "데머레스트": {
+      "color": "#4DDCCB",
+      "role": "기타2",
+      "shipped_colors": [
+        "#4DDCCB"
+      ],
+      "first_seen": "20260825a-master_morgana-xBa1k2-ja",
+      "updated_at": "2026-08-24T16:11:03.469Z"
+    },
+    "그레고리": {
+      "color": "#FF8A5C",
+      "role": "기타3",
+      "shipped_colors": [
+        "#FF8A5C"
+      ],
+      "first_seen": "20260825a-master_morgana-xBa1k2-ja",
+      "updated_at": "2026-08-24T16:11:03.469Z"
+    },
+    "쿠치코": {
+      "color": "#D3E84C",
+      "role": "기타4",
+      "shipped_colors": [
+        "#D3E84C"
+      ],
+      "first_seen": "20260825a-master_morgana-xBa1k2-ja",
+      "updated_at": "2026-08-24T16:11:03.469Z"
     }
   },
-  "updated_at": "2026-08-24T12:06:33.477Z"
+  "updated_at": "2026-08-24T16:11:03.469Z"
 }
