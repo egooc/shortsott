@@ -46,7 +46,12 @@ test('two separate runs are both reported', () => {
   assert.equal(runs.length, 2);
 });
 
-test('the economy check carries the run as a problem the retry can act on', () => {
+// Deliberately NOT wired into the fills-time throw. Enforcing it there was unsatisfiable: an
+// empty slot breaks a run, so the model resolved the complaint by emptying one, which the
+// empty-slot rule then rejected - with three consecutive NARRATE slots in the plan, no output
+// could satisfy both (casebook 46). The run is a property of the plan; detection stays so it can
+// be reported, and the fix belongs upstream.
+test('the economy check does NOT throw on a run - the two rules would deadlock', () => {
   const problems = _test.narrationEconomyProblems(fills('가.', '나.', '다.'), plan(N, N, N), 'ko');
-  assert.ok(problems.some((p) => /back to back/.test(p)));
+  assert.ok(!problems.some((p) => /back to back/.test(p)));
 });

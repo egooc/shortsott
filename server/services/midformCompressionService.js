@@ -6012,6 +6012,13 @@ function emptyNarrationSlots(slotFills, editPlan) {
 // 엘비스는 운전대를 낚아채는데 / 막힌 다리에 승부를 거는데" - every one a name plus an action the
 // footage is already showing, every one ending the same way. The density rule did not catch it
 // because density is an average over the whole cut and this is a local burst (2026-08-24).
+//
+// This is a property of the PLAN, not of the fills, and it must not be enforced at fills time.
+// Enforcing it there was unsatisfiable: an empty slot breaks a run, so the model resolved the
+// complaint by emptying one - which the empty-slot rule then rejected. With three consecutive
+// NARRATE slots in the plan, no output could satisfy both, and the source failed outright rather
+// than shipping a slightly monotonous stretch. Reported as an observation instead; the real fix
+// is for the plan to stop emitting the run.
 const MAX_CONSECUTIVE_NARRATION_SLOTS = 2;
 
 function consecutiveNarrationRuns(slotFills, editPlan) {
@@ -6074,13 +6081,6 @@ function narrationEconomyProblems(slotFills, editPlan, locale = 'ko') {
     if (perMin > 3.0) {
       problems.push(`narration density ${perMin.toFixed(1)} sentences/min over a ${Math.round(targetSec)}s cut exceeds 3.0 (benchmark 1.1~2.5). Cut narration sentences - keep only the premise, a rule, a time jump, or a motive; delete anything the footage already shows`);
     }
-  }
-  for (const run of consecutiveNarrationRuns(slotFills, editPlan)) {
-    problems.push(
-      `${run.length} narration slots run back to back (${run.join(' -> ')}); at most ${MAX_CONSECUTIVE_NARRATION_SLOTS} in a row. `
-      + 'Narration is the seam between scenes, not the scene. MERGE them into one or two lines that '
-      + 'carry the same events - do not solve this by emptying a different slot.'
-    );
   }
   return problems;
 }
