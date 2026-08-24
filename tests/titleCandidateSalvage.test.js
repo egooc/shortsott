@@ -70,3 +70,50 @@ test('the rule is Korean-only; a ja list is not filtered', () => {
   const result = validateSlotFillsDialogueCaptions(fills(titles), EMPTY_PLAN, 'ja');
   assert.deepEqual(result.upload_text.title_candidates, titles);
 });
+
+test('a blank caption is rejected at generation time, not left for the preflight', () => {
+  // A blank entry satisfies the count and then deletes the line from the cut.
+  const doc = {
+    slot_fills: [{ slot_id: 's7', caption_kr_dialogue: ['첫 줄이야.', '   '] }],
+    upload_text: {
+      title_candidates: [OPEN, OPEN_Q, '그가 사라진 계기'],
+      description: 'd',
+      pinned_comment: 'p',
+      overlay_title: { top: '위', bottom: '아래' }
+    }
+  };
+  const plan = {
+    timeline: [{
+      slot_id: 's7',
+      decision: 'KEEP_DIALOGUE',
+      dialogue_focus_lines: [{ text: 'first line' }, { text: "gun down. Don't make things" }]
+    }]
+  };
+  assert.throws(() => validateSlotFillsDialogueCaptions(doc, plan, 'ko'), /blank caption/);
+  try {
+    validateSlotFillsDialogueCaptions(doc, plan, 'ko');
+  } catch (error) {
+    // The retry has to know WHICH line came back empty.
+    assert.match(error.message, /gun down/);
+  }
+});
+
+test('a fully captioned dialogue slot passes', () => {
+  const doc = {
+    slot_fills: [{ slot_id: 's7', caption_kr_dialogue: ['첫 줄이야.', '총 내려.'] }],
+    upload_text: {
+      title_candidates: [OPEN, OPEN_Q, '그가 사라진 계기'],
+      description: 'd',
+      pinned_comment: 'p',
+      overlay_title: { top: '위', bottom: '아래' }
+    }
+  };
+  const plan = {
+    timeline: [{
+      slot_id: 's7',
+      decision: 'KEEP_DIALOGUE',
+      dialogue_focus_lines: [{ text: 'first line' }, { text: 'put the gun down' }]
+    }]
+  };
+  assert.doesNotThrow(() => validateSlotFillsDialogueCaptions(doc, plan, 'ko'));
+});

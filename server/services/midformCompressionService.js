@@ -6209,6 +6209,21 @@ function validateSlotFillsDialogueCaptions(slotFills, editPlan, locale = 'ko') {
         `${item.slot_id} caption_kr_dialogue must have exactly ${dialogueFocusLines.length} line(s) to match dialogue_focus_lines, got ${captionKrDialogue.length}`
       );
     }
+    // Counting entries is not enough: a blank one satisfies the count and then deletes the line
+    // from the cut, because a dialogue segment with no caption never reaches the timeline. The
+    // bootstrap preflight does catch it (dialogue_lines_all_captioned), but by then the generation
+    // is over and the whole source goes to the queue. Reject it here, where a retry can still fix
+    // it, and name the line so the retry knows which one (2026-08-24: a fragmentary cue,
+    // slot_07_L06 "gun down. Don't make things", came back blank twice in a row).
+    const blank = captionKrDialogue
+      .map((caption, index) => ({ caption: String(caption || '').trim(), line: dialogueFocusLines[index], index }))
+      .filter((entry) => !entry.caption);
+    if (blank.length) {
+      throw new Error(
+        `${item.slot_id} caption_kr_dialogue has ${blank.length} blank caption(s); every kept line needs one or it vanishes from the cut. `
+        + `Blank at: ${blank.map((entry) => `[${entry.index}] "${String(entry.line?.text || entry.line || '').slice(0, 60)}"`).join(' | ')}`
+      );
+    }
   }
   return slotFills;
 }

@@ -131,6 +131,7 @@ const FILLS_REGENERABLE = [
   // there, so reaching the queue means the retries ran out - but a fresh generation samples
   // differently and does land it, and the alternative is discarding a paid-for compress run.
   /caption_kr_dialogue must have exactly/i,
+  /caption_kr_dialogue has \d+ blank caption/i,
   /translation_mode must be faithful_dialogue/i,
   // An empty NARRATE slot (casebook 21). Same reasoning.
   /empty (Japanese )?narration slots/i
