@@ -281,7 +281,7 @@ function regenerateFillsWithReason(compressRunId, timeoutMs) {
     // Error line and masked WHY an apply failed (qcsfu5sySus, 2026-08-24). Of the [midform]
     // lines the LAST is the one nearest the death.
     const thrown = lines.find((line) => /^(Error|TypeError|MIDFORM_)/.test(line))
-      || lines.findLast((line) => /^\[midform\]/.test(line));
+      || lines.findLast((line) => !/^\[midform\]/.test(line));
     return (thrown || lines[lines.length - 1] || 'no output').slice(0, 300);
   };
   const apply = step('compress-apply');

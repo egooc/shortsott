@@ -99,12 +99,25 @@ const CODE_FIXED_REBUILD = [
   }
 ];
 
+// The failure text names segments like slot_004_L01; the fills know whether that slot has been
+// hand-authored since. If every named slot is authored, the wall this entry records has already
+// been fixed by hand - regenerating would gamble the surgery away and pay Codex to do it.
+function namedSlotsAllAuthored(entry) {
+  const text = String(entry.failure || '');
+  const named = [...new Set([...text.matchAll(/\b(slot_[0-9]+[a-z_]*?)_L\d+\b/g)].map((m) => m[1]))];
+  if (!named.length) return false;
+  const fills = readJsonQuiet(path.join(ROOT, 'midform', 'test_runs', entry.compress_run_id || '', 'compression_slot_fills.json'));
+  const bySlot = new Map((fills?.slot_fills || []).map((sf) => [String(sf.slot_id), sf]));
+  return named.every((slotId) => bySlot.get(slotId)?.authored === true);
+}
+
 function classify(entry) {
   const text = String(entry.failure || '');
   const issues = mismatchIssues(text);
   if (issues.length) return { kind: 'mismatch', issues };
   const recovered = issuesFromGatesFile(entry);
   if (recovered.length) return { kind: 'mismatch', issues: recovered };
+  if (namedSlotsAllAuthored(entry)) return { kind: 'rebuild', issues: [], fixedBy: 'hand-authored slots' };
   if (isFillsRegenerable(text)) return { kind: 'fills', issues: [] };
   const codeFixed = CODE_FIXED_REBUILD.find((route) => route.signature.test(text));
   if (codeFixed) return { kind: 'rebuild', issues: [], fixedBy: codeFixed.fixedBy };
