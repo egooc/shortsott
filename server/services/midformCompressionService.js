@@ -5999,6 +5999,34 @@ function emptyNarrationSlots(slotFills, editPlan) {
   return problems;
 }
 
+// House style is dialogue-led with narration as the seam between scenes, so a run of narration
+// slots back to back is the shape the style is defined against. A Codex-written Daybreakers cut
+// put FOUR in eleven seconds - "에드워드는 군 병력을 피해 달아나는데 / 둘을 태우고 질주하는데 /
+// 엘비스는 운전대를 낚아채는데 / 막힌 다리에 승부를 거는데" - every one a name plus an action the
+// footage is already showing, every one ending the same way. The density rule did not catch it
+// because density is an average over the whole cut and this is a local burst (2026-08-24).
+const MAX_CONSECUTIVE_NARRATION_SLOTS = 2;
+
+function consecutiveNarrationRuns(slotFills, editPlan) {
+  const fills = Array.isArray(slotFills?.slot_fills) ? slotFills.slot_fills : [];
+  const byId = new Map(fills.map((fill) => [String(fill?.slot_id || '').trim(), fill]));
+  const runs = [];
+  let current = [];
+  for (const item of (Array.isArray(editPlan?.timeline) ? editPlan.timeline : [])) {
+    const slotId = String(item?.slot_id || '').trim();
+    const isNarrated = String(item?.decision || item?.mode || '').trim() === 'NARRATE'
+      && String(byId.get(slotId)?.narration || '').trim().length > 0;
+    if (isNarrated) {
+      current.push(slotId);
+      continue;
+    }
+    if (current.length > MAX_CONSECUTIVE_NARRATION_SLOTS) runs.push([...current]);
+    current = [];
+  }
+  if (current.length > MAX_CONSECUTIVE_NARRATION_SLOTS) runs.push(current);
+  return runs;
+}
+
 function narrationEconomyProblems(slotFills, editPlan, locale = 'ko') {
   const problems = [];
   const isJa = String(locale || 'ko') === 'ja';
@@ -6039,6 +6067,12 @@ function narrationEconomyProblems(slotFills, editPlan, locale = 'ko') {
     if (perMin > 3.0) {
       problems.push(`narration density ${perMin.toFixed(1)} sentences/min over a ${Math.round(targetSec)}s cut exceeds 3.0 (benchmark 1.1~2.5). Cut narration sentences - keep only the premise, a rule, a time jump, or a motive; delete anything the footage already shows`);
     }
+  }
+  for (const run of consecutiveNarrationRuns(slotFills, editPlan)) {
+    problems.push(
+      `${run.length} narration slots run back to back (${run.join(' -> ')}); at most ${MAX_CONSECUTIVE_NARRATION_SLOTS} in a row. `
+      + 'Narration is the seam between scenes, not the scene - keep the strongest one and let the footage carry the rest.'
+    );
   }
   return problems;
 }
@@ -7689,6 +7723,7 @@ module.exports = {
     applyColdOpenVisualOverlapSafety,
     validateSlotFillsDialogueCaptions,
     narrationEconomyProblems,
+    consecutiveNarrationRuns,
     emptyNarrationSlots,
     resolveDialogueLineWindows,
     splitMultiTurnDialogueLine,
