@@ -1,0 +1,23 @@
+{
+  "type": "object",
+  "properties": {
+    "match": {
+      "type": "boolean",
+      "description": "true when the frames are consistent with the narration, false only on a genuine contradiction"
+    },
+    "on_screen": {
+      "type": "string",
+      "description": "One short sentence: what the frames actually show"
+    },
+    "reason": {
+      "type": "string",
+      "description": "One short sentence explaining the verdict"
+    },
+    "suggested_rewrite": {
+      "type": "string",
+      "description": "When match is false, a frame-true replacement sentence in the same language as the narration; empty string when no faithful rewrite is possible"
+    }
+  },
+  "required": ["match", "on_screen", "reason", "suggested_rewrite"],
+  "additionalProperties": false
+}

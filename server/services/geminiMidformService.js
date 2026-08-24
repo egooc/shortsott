@@ -72,6 +72,13 @@ function getVertexConfig() {
   };
 }
 
+// Which provider serves the multimodal calls. Vertex billed far more than expected and the
+// project went to PERMISSION_DENIED ("Lightning dunning decision is deny"), so this has to be
+// switchable without touching call sites (2026-08-24, owner directive).
+function visionProvider() {
+  return String(process.env.MIDFORM_VISION_LLM || 'vertex').trim().toLowerCase();
+}
+
 function vertexAuthHeaders(token) {
   const config = getVertexConfig();
   if (config.provider === 'genai') return { 'x-goog-api-key': config.apiKey };
@@ -776,15 +783,14 @@ async function generateVertexJson({ prompt, responseSchema, model, temperature =
 // every prior gate measured proxies - position, length, boundaries - while the defect class
 // is SEMANTIC. This is the machine version of the human eye check: frames from the actually
 // played window, judged against the narration sentence.
-async function judgeFramesAgainstText({ framePaths, text }) {
-  const config = getVertexConfig();
-  if (!config.project) throw createError(400, 'GOOGLE_CLOUD_PROJECT_REQUIRED', 'GOOGLE_CLOUD_PROJECT is required');
-  const token = await getVertexAccessToken();
-  const endpoint = buildVertexEndpoint(config);
-  const parts = framePaths.map((framePath) => ({
-    inlineData: { mimeType: 'image/png', data: fs.readFileSync(framePath).toString('base64') }
-  }));
-  parts.push({ text: [
+// The judge's wording is tuned line by line and MUST be identical on every provider - a provider
+// that reads a different brief is a different judge, and the difference would show up as drifting
+// verdicts rather than as an error.
+function buildFrameJudgeInstructions(text) {
+  const langHint = /[\uac00-\ud7a3]/.test(String(text || ''))
+    ? 'Korean'
+    : (/[\u3041-\u309f\u30a1-\u30f4\u4e00-\u9fef]/.test(String(text || '')) ? 'Japanese' : 'the original language');
+  return [
     'These frames are CHRONOLOGICAL samples of what plays ON SCREEN while a narration line is heard.',
     `Narration: "${String(text || '').slice(0, 300)}"`,
     'Judge whether the footage CONTRADICTS the narration - NOT whether it literally depicts it. Recap narration summarizes the STORY (facts and beats the clip\'s own dialogue establishes: a phone call, a demand, a decision, who someone is, what they just did); it is a bridge over the scene, not a caption of this one shot, so it does NOT have to be visible in these frames. Default to MATCH. Return MATCH when the frames are consistent with - or merely neither show nor contradict - the narration, including narration that references an off-screen or earlier beat (a call being made, terms being demanded, a gamble being taken) while the frames show the people or the room involved.',
@@ -796,9 +802,25 @@ async function judgeFramesAgainstText({ framePaths, text }) {
     'CRITICAL nuance - IDENTITY, ROLE and PREMISE are NOT visual claims. A sentence that names WHO someone is (a name, a job, a role), or states the situation\'s PREMISE - the setup fact a viewer needs to follow the scene: who these people are, what they just did, the stakes, that they are drunk/high/undercover/lying - MATCHES footage that is merely CONSISTENT with it. The frames do NOT have to depict the fact; they only must not CONTRADICT it. A recap opener legitimately supplies this context, established by the scene\'s dialogue rather than a single frame. Example: narration "the Secretary of State and her speechwriter are high on Molly" over frames of two people talking in a room = MATCH (talking in a room neither shows nor contradicts their roles or their being high). Example: narration "cornered and about to be fired, the GM makes one last gamble" over frames of a man on a phone in an office = MATCH. Only mark MISMATCH when the frames actively CONTRADICT the premise (it says "at a nightclub" but the frames clearly show a courtroom; it says "alone" but a crowd fills the frame) OR when the sentence asserts a specific VISIBLE ACTION or EVENT the frames contradict - that always stays a mismatch ("he lunges at them" over footage of him falling FAILS; "the two seem to be a couple" is a read, not a premise, and still needs support). Do not fail a premise sentence merely because the frame does not literally show the job title or the drug.',
     'If match is FALSE, also propose "suggested_rewrite": a single replacement narration sentence in the SAME language as the original that states only what the frames actually show. It must NOT invent events beyond the frames, must NOT name emotions or pass judgment, and must NOT reference anything outside this clip. If a faithful one-sentence rewrite is not possible, return an empty string.',
     'Respond JSON: {"match": true|false, "on_screen": "<one short sentence: what the frames actually show>", "reason": "<one short sentence>", "suggested_rewrite": "<frame-true replacement sentence, or empty>"}'
-  ].join('\n') });
-  const langHint = /[가-힣]/.test(String(text || '')) ? 'Korean' : (/[ぁ-んァ-ヴ一-龯]/.test(String(text || '')) ? 'Japanese' : 'the original language');
-  parts.push({ text: `The narration language is ${langHint}; write suggested_rewrite in ${langHint}.` });
+  ].join('\n')
+    + `\nThe narration language is ${langHint}; write suggested_rewrite in ${langHint}.`;
+}
+
+// Frames + narration -> verdict. Vertex takes the frames as inlineData; Codex takes them as
+// `codex exec --image` attachments. Same frames, same brief, same schema.
+async function judgeFramesAgainstText({ framePaths, text }) {
+  if (visionProvider() === 'codex') {
+    const { judgeFramesWithCodex } = require('./gptMidformCliService');
+    return judgeFramesWithCodex({ framePaths, instructions: buildFrameJudgeInstructions(text) });
+  }
+  const config = getVertexConfig();
+  if (!config.project) throw createError(400, 'GOOGLE_CLOUD_PROJECT_REQUIRED', 'GOOGLE_CLOUD_PROJECT is required');
+  const token = await getVertexAccessToken();
+  const endpoint = buildVertexEndpoint(config);
+  const parts = framePaths.map((framePath) => ({
+    inlineData: { mimeType: 'image/png', data: fs.readFileSync(framePath).toString('base64') }
+  }));
+  parts.push({ text: buildFrameJudgeInstructions(text) });
   const body = {
     contents: [{ role: 'user', parts }],
     generationConfig: {
@@ -890,6 +912,8 @@ async function judgeDialogueTranslation({ lines, targetLang = 'Korean' }) {
 
 module.exports = {
   analyzeMidformVideo,
+  buildFrameJudgeInstructions,
+  visionProvider,
   judgeFramesAgainstText,
   judgeDialogueTranslation,
   buildChunkPlan,

@@ -11,6 +11,7 @@ const MIDFORM_SLOT_FILLS_SCHEMA_PATH = path.join(PROJECT_ROOT, 'midform', 'schem
 const MIDFORM_STORY_OUTLINE_SCHEMA_PATH = path.join(PROJECT_ROOT, 'midform', 'schemas', 'midform_story_outline_schema.json');
 const MIDFORM_NATURALIZATION_VALIDATION_SCHEMA_PATH = path.join(PROJECT_ROOT, 'midform', 'schemas', 'midform_naturalization_validation_schema.json');
 const MIDFORM_CLOSING_DRIP_VALIDATION_SCHEMA_PATH = path.join(PROJECT_ROOT, 'midform', 'schemas', 'closing_drip_validation_schema.json');
+const MIDFORM_FRAME_VERDICT_SCHEMA_PATH = path.join(PROJECT_ROOT, 'midform', 'schemas', 'midform_frame_verdict_schema.json');
 const MIDFORM_COMPRESSION_BEATS_SCHEMA_PATH = path.join(PROJECT_ROOT, 'midform', 'schemas', 'midform_compression_beats_schema.json');
 const MIDFORM_COMPRESSION_EDIT_PLAN_SCHEMA_PATH = path.join(PROJECT_ROOT, 'midform', 'schemas', 'midform_compression_edit_plan_schema.json');
 const GPT_WORK_DIR = path.join(PROJECT_ROOT, 'midform', 'work', 'gpt_cli');
@@ -113,7 +114,7 @@ function resolveCodexBaseCommand() {
   return { command: 'codex', argsPrefix: [] };
 }
 
-function buildCodexArgs({ outputPath, model, outputSchemaPath = MIDFORM_SCHEMA_PATH }) {
+function buildCodexArgs({ outputPath, model, outputSchemaPath = MIDFORM_SCHEMA_PATH, images = [] }) {
   const effectiveModel = String(model || process.env.GPT_MIDFORM_MODEL || DEFAULT_MODEL).trim();
   const baseArgs = [
     'exec',
@@ -125,6 +126,14 @@ function buildCodexArgs({ outputPath, model, outputSchemaPath = MIDFORM_SCHEMA_P
     outputPath,
     '-'
   ];
+  // `codex exec -i <FILE>...` attaches images to the initial prompt, which is what lets the frame
+  // judge and the scene map run here instead of on Vertex (verified against codex-cli 0.149.1).
+  // The trailing '-' has to stay last: it is the prompt-from-stdin marker, so the image flags are
+  // spliced in ahead of it.
+  const imageList = (Array.isArray(images) ? images : []).filter((file) => file && fs.existsSync(file));
+  if (imageList.length) {
+    baseArgs.splice(baseArgs.length - 1, 0, ...imageList.flatMap((file) => ['--image', file]));
+  }
   if (effectiveModel) {
     baseArgs.splice(1, 0, '--model', effectiveModel);
   }
@@ -135,6 +144,7 @@ function safeOutputSchemaPath(outputSchemaPath) {
   const allowed = new Set([
     MIDFORM_SCHEMA_PATH,
     MIDFORM_SLOT_FILLS_SCHEMA_PATH,
+    MIDFORM_FRAME_VERDICT_SCHEMA_PATH,
     MIDFORM_STORY_OUTLINE_SCHEMA_PATH,
     MIDFORM_NATURALIZATION_VALIDATION_SCHEMA_PATH,
     MIDFORM_CLOSING_DRIP_VALIDATION_SCHEMA_PATH,
@@ -155,7 +165,12 @@ function runCodexCli(prompt, options = {}) {
     fs.writeFileSync(promptPath, `${prompt}\n`, 'utf8');
 
     const base = resolveCodexBaseCommand();
-    const codexArgs = buildCodexArgs({ outputPath, model: options.model, outputSchemaPath: safeOutputSchemaPath(options.outputSchemaPath) });
+    const codexArgs = buildCodexArgs({
+      outputPath,
+      model: options.model,
+      outputSchemaPath: safeOutputSchemaPath(options.outputSchemaPath),
+      images: options.images
+    });
     const command = base.command;
     const args = [...base.argsPrefix, ...codexArgs];
     const env = {
@@ -2395,7 +2410,42 @@ async function generateMidformScriptWithGptCli(geminiAnalysis, options = {}) {
   });
 }
 
+
+// Frames + a narration brief -> the same verdict shape Vertex returns. The brief is built by
+// geminiMidformService so both providers read identical wording; only the transport differs.
+// Codex attaches the frames with `--image`, verified against codex-cli 0.149.1.
+async function judgeFramesWithCodex({ framePaths, instructions }) {
+  const images = (Array.isArray(framePaths) ? framePaths : []).filter((file) => file && fs.existsSync(file));
+  if (!images.length) {
+    throw createHttpError(400, 'CODEX_FRAME_JUDGE_NO_FRAMES', 'no frames to judge');
+  }
+  const prompt = [
+    'You are given image frames attached to this prompt, in chronological order.',
+    String(instructions || ''),
+    'Return ONLY the JSON object described by the output schema.'
+  ].join('\n\n');
+  const result = await runCodexCli(prompt, {
+    outputSchemaPath: MIDFORM_FRAME_VERDICT_SCHEMA_PATH,
+    images
+  });
+  const text = result.outputText || result.stdout || '';
+  const parsed = extractJson(text);
+  if (!parsed || typeof parsed.match !== 'boolean') {
+    throw createHttpError(502, 'CODEX_FRAME_JUDGE_BAD_OUTPUT', 'frame judge did not return a verdict', {
+      outputPreview: String(text).slice(0, 400)
+    });
+  }
+  return {
+    match: parsed.match,
+    on_screen: String(parsed.on_screen || ''),
+    reason: String(parsed.reason || ''),
+    suggested_rewrite: String(parsed.suggested_rewrite || '')
+  };
+}
+
 module.exports = {
+  judgeFramesWithCodex,
+  MIDFORM_FRAME_VERDICT_SCHEMA_PATH,
   DEFAULT_MODEL,
   GPT_WORK_DIR,
   MIDFORM_SCHEMA_PATH,
