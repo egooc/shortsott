@@ -1,0 +1,33 @@
+{
+  "type": "object",
+  "properties": {
+    "frames": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "index": {
+            "type": "integer",
+            "description": "1-based position of the frame in the attached batch"
+          },
+          "visible_action": {
+            "type": "string",
+            "description": "One Korean sentence describing only what is visible in this frame"
+          },
+          "shot_type": {
+            "type": "string",
+            "enum": ["wide", "medium", "close", "insert", "other"]
+          },
+          "characters_visible": {
+            "type": "integer",
+            "description": "How many people are visible in the frame"
+          }
+        },
+        "required": ["index", "visible_action", "shot_type", "characters_visible"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["frames"],
+  "additionalProperties": false
+}

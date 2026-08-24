@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { spawn, execFileSync } = require('child_process');
+const { spawn, spawnSync, execFileSync } = require('child_process');
 const { createHttpError } = require('./errorService');
 const { condenseGeminiAnalysis } = require('./midformSceneCondensationService');
 
@@ -12,6 +12,7 @@ const MIDFORM_STORY_OUTLINE_SCHEMA_PATH = path.join(PROJECT_ROOT, 'midform', 'sc
 const MIDFORM_NATURALIZATION_VALIDATION_SCHEMA_PATH = path.join(PROJECT_ROOT, 'midform', 'schemas', 'midform_naturalization_validation_schema.json');
 const MIDFORM_CLOSING_DRIP_VALIDATION_SCHEMA_PATH = path.join(PROJECT_ROOT, 'midform', 'schemas', 'closing_drip_validation_schema.json');
 const MIDFORM_FRAME_VERDICT_SCHEMA_PATH = path.join(PROJECT_ROOT, 'midform', 'schemas', 'midform_frame_verdict_schema.json');
+const MIDFORM_SCENE_BATCH_SCHEMA_PATH = path.join(PROJECT_ROOT, 'midform', 'schemas', 'midform_scene_batch_schema.json');
 const MIDFORM_COMPRESSION_BEATS_SCHEMA_PATH = path.join(PROJECT_ROOT, 'midform', 'schemas', 'midform_compression_beats_schema.json');
 const MIDFORM_COMPRESSION_EDIT_PLAN_SCHEMA_PATH = path.join(PROJECT_ROOT, 'midform', 'schemas', 'midform_compression_edit_plan_schema.json');
 const GPT_WORK_DIR = path.join(PROJECT_ROOT, 'midform', 'work', 'gpt_cli');
@@ -145,6 +146,7 @@ function safeOutputSchemaPath(outputSchemaPath) {
     MIDFORM_SCHEMA_PATH,
     MIDFORM_SLOT_FILLS_SCHEMA_PATH,
     MIDFORM_FRAME_VERDICT_SCHEMA_PATH,
+    MIDFORM_SCENE_BATCH_SCHEMA_PATH,
     MIDFORM_STORY_OUTLINE_SCHEMA_PATH,
     MIDFORM_NATURALIZATION_VALIDATION_SCHEMA_PATH,
     MIDFORM_CLOSING_DRIP_VALIDATION_SCHEMA_PATH,
@@ -2443,8 +2445,131 @@ async function judgeFramesWithCodex({ framePaths, instructions }) {
   };
 }
 
+
+// --- vision scene map without a video upload -------------------------------------------------
+// Vertex watched the whole mp4; Codex takes images only. Sampling decides how faithful the
+// replacement is, so the interval is measured rather than guessed: ffmpeg scene detection at
+// threshold 0.30 found 16 shots in a 534s source (one of them 152 seconds long) and cost 120s of
+// CPU, while the Vertex map for that same source has 76 scenes - about seven seconds each. Fixed
+// sampling at that period reproduces the granularity downstream relies on, deterministically and
+// for free (2026-08-24).
+const SCENE_SAMPLE_PERIOD_SEC = 7;
+const SCENE_FRAMES_PER_CALL = 12;
+const SCENE_FRAME_WIDTH = 448;
+
+function probeDurationSec(videoPath) {
+  const out = spawnSync(process.env.FFPROBE_PATH || 'ffprobe',
+    ['-v', 'error', '-show_entries', 'format=duration', '-of', 'default=nw=1:nk=1', videoPath],
+    { encoding: 'utf8' });
+  const value = Number(String(out.stdout || '').trim());
+  return Number.isFinite(value) ? value : 0;
+}
+
+function extractSceneFrames(videoPath, workDir, durationSec) {
+  ensureDir(workDir);
+  const frames = [];
+  for (let t = 0; t < durationSec; t += SCENE_SAMPLE_PERIOD_SEC) {
+    const mid = Math.min(durationSec - 0.1, t + SCENE_SAMPLE_PERIOD_SEC / 2);
+    const file = path.join(workDir, `scene_${String(frames.length).padStart(4, '0')}.jpg`);
+    const res = spawnSync(process.env.FFMPEG_PATH || 'ffmpeg',
+      ['-y', '-loglevel', 'error', '-ss', mid.toFixed(3), '-i', videoPath,
+        '-frames:v', '1', '-vf', `scale=${SCENE_FRAME_WIDTH}:-2`, file],
+      { encoding: 'utf8', timeout: 120000 });
+    if (res.status === 0 && fs.existsSync(file)) {
+      frames.push({ file, start_sec: Number(t.toFixed(3)), end_sec: Number(Math.min(durationSec, t + SCENE_SAMPLE_PERIOD_SEC).toFixed(3)) });
+    }
+  }
+  return frames;
+}
+
+// Dialogue text comes from the transcript we already have, not from the model - it is exact there
+// and guessed here, and a scene map that paraphrases dialogue would poison every downstream check
+// that matches narration against what was said.
+function dialogueForWindow(transcript, startSec, endSec) {
+  const rows = Array.isArray(transcript) ? transcript : [];
+  const hits = rows.filter((row) => {
+    const a = Number(row.start_sec ?? row.start ?? NaN);
+    const b = Number(row.end_sec ?? row.end ?? NaN);
+    return Number.isFinite(a) && Number.isFinite(b) && b > startSec && a < endSec;
+  });
+  return {
+    text: hits.map((row) => String(row.text || '').trim()).filter(Boolean).join(' ').slice(0, 400),
+    utt_refs: hits.map((row) => String(row.id || row.utt_id || '')).filter(Boolean)
+  };
+}
+
+async function buildSceneMapWithCodex({ videoPath, transcript = [], sourceId = '' }) {
+  if (!fs.existsSync(videoPath)) {
+    throw createHttpError(400, 'CODEX_SCENE_MAP_NO_VIDEO', `video not found: ${videoPath}`);
+  }
+  const durationSec = probeDurationSec(videoPath);
+  if (!(durationSec > 0)) {
+    throw createHttpError(400, 'CODEX_SCENE_MAP_NO_DURATION', 'could not read video duration');
+  }
+  const workDir = path.join(GPT_WORK_DIR, `scene_frames_${timestamp()}_${crypto.randomUUID()}`);
+  const frames = extractSceneFrames(videoPath, workDir, durationSec);
+  if (!frames.length) {
+    throw createHttpError(500, 'CODEX_SCENE_MAP_NO_FRAMES', 'frame extraction produced nothing');
+  }
+
+  const scenes = [];
+  try {
+    for (let offset = 0; offset < frames.length; offset += SCENE_FRAMES_PER_CALL) {
+      const batch = frames.slice(offset, offset + SCENE_FRAMES_PER_CALL);
+      const listing = batch
+        .map((frame, i) => `${i + 1}. ${frame.start_sec.toFixed(1)}s-${frame.end_sec.toFixed(1)}s`)
+        .join('\n');
+      const prompt = [
+        'The attached images are frames sampled from one video, in chronological order.',
+        'For each frame, describe ONLY what is visible - no story inference, no emotions, no names you cannot see.',
+        'Frames and the time window each one represents:',
+        listing,
+        '',
+        'Return JSON: {"frames":[{"index":<1-based>,"visible_action":"<one sentence, Korean>","shot_type":"<wide|medium|close|insert|other>","characters_visible":<count of people you can see>}]}',
+        'Return exactly one entry per frame, in order.'
+      ].join('\n');
+      const result = await runCodexCli(prompt, {
+        outputSchemaPath: MIDFORM_SCENE_BATCH_SCHEMA_PATH,
+        images: batch.map((frame) => frame.file)
+      });
+      const parsed = extractJson(result.outputText || result.stdout || '') || {};
+      const rows = Array.isArray(parsed.frames) ? parsed.frames : [];
+      batch.forEach((frame, i) => {
+        const row = rows.find((entry) => Number(entry.index) === i + 1) || rows[i] || {};
+        const dialogue = dialogueForWindow(transcript, frame.start_sec, frame.end_sec);
+        scenes.push({
+          scene_id: `scene_${String(scenes.length + 1).padStart(3, '0')}`,
+          start_sec: frame.start_sec,
+          end_sec: frame.end_sec,
+          duration_sec: Number((frame.end_sec - frame.start_sec).toFixed(3)),
+          visible_action: String(row.visible_action || '').trim(),
+          dialogue_or_caption: dialogue.text,
+          utt_refs: dialogue.utt_refs,
+          shot_type: String(row.shot_type || 'other').trim(),
+          characters_visible: Number(row.characters_visible) || 0,
+          sampled_frame_sec: Number(((frame.start_sec + frame.end_sec) / 2).toFixed(3))
+        });
+      });
+    }
+  } finally {
+    // The frames are large and numerous; keep the run directory from growing without bound.
+    try { fs.rmSync(workDir, { recursive: true, force: true }); } catch { /* best effort */ }
+  }
+
+  return {
+    source_id: sourceId,
+    generated_at: new Date().toISOString(),
+    analyzer: 'codex_frame_sampling',
+    sample_period_sec: SCENE_SAMPLE_PERIOD_SEC,
+    scenes
+  };
+}
+
 module.exports = {
   judgeFramesWithCodex,
+  buildSceneMapWithCodex,
+  extractSceneFrames,
+  dialogueForWindow,
   MIDFORM_FRAME_VERDICT_SCHEMA_PATH,
   DEFAULT_MODEL,
   GPT_WORK_DIR,
