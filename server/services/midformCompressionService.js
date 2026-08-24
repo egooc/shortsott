@@ -5991,6 +5991,13 @@ function emptyNarrationSlots(slotFills, editPlan) {
     // Wordless by design: the cold-open hook, and a measured action peak that plays its own audio.
     if (role === 'cold_open' && mode === 'source_audio_teaser') continue;
     if (mode === 'source_audio_action') continue;
+    // ...and the closing, which the prompt explicitly offers as a choice: "leave the closing
+    // narration EMPTY and let the source audio finish". The benchmark channel ends on the peak
+    // scene itself. Vertex happened to always write one, so this rule and that permission never
+    // met; Codex takes the permission at its word and the two contradicted each other, failing
+    // the source outright (2026-08-24). A closing that IS written is still checked for length
+    // and for retelling elsewhere.
+    if (role === 'closing') continue;
     const slotId = String(item.slot_id || '').trim();
     const fill = byId.get(slotId);
     if (String(fill?.narration || '').trim()) continue;
@@ -6071,7 +6078,8 @@ function narrationEconomyProblems(slotFills, editPlan, locale = 'ko') {
   for (const run of consecutiveNarrationRuns(slotFills, editPlan)) {
     problems.push(
       `${run.length} narration slots run back to back (${run.join(' -> ')}); at most ${MAX_CONSECUTIVE_NARRATION_SLOTS} in a row. `
-      + 'Narration is the seam between scenes, not the scene - keep the strongest one and let the footage carry the rest.'
+      + 'Narration is the seam between scenes, not the scene. MERGE them into one or two lines that '
+      + 'carry the same events - do not solve this by emptying a different slot.'
     );
   }
   return problems;

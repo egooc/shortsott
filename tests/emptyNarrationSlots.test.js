@@ -64,3 +64,22 @@ test('a filled slot passes', () => {
   );
   assert.deepEqual(problems, []);
 });
+
+test('the closing may be empty - the prompt offers that as a choice', () => {
+  // "leave the closing narration EMPTY and let the source audio finish". The benchmark channel
+  // ends on the peak scene itself, so this rule must not contradict the brief the model is given.
+  const problems = emptyNarrationSlots(
+    fills({ slot_id: 's12', narration: '' }),
+    plan({ slot_id: 's12', decision: 'NARRATE', role: 'closing' })
+  );
+  assert.deepEqual(problems, []);
+});
+
+test('a payoff slot is still not allowed to be empty', () => {
+  // The exemption is for role "closing" only - an empty payoff loses the ending (casebook 21).
+  const problems = emptyNarrationSlots(
+    fills({ slot_id: 's12', narration: '' }),
+    plan({ slot_id: 's12', decision: 'NARRATE', role: 'payoff' })
+  );
+  assert.equal(problems.length, 1);
+});
