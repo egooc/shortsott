@@ -7368,16 +7368,18 @@ async function runCompressionApply(runIdOrPath, applyOptions = {}) {
       reconcileDialogueCaptionCounts(normalizeSlotFillsForStyle(parsed, finalizedEditPlan), finalizedEditPlan),
       finalizedEditPlan
     );
+    // Structure BEFORE style. The economy throw is degraded to a warning by the caller, and when
+    // it fired first it short-circuited this check - a Codex run shipped with slot_closing empty
+    // and exit 0, because economy threw on both attempts and the check below never ran
+    // (2026-08-24). An empty slot loses content; bad phrasing only phrases it badly.
+    const empty = emptyNarrationSlots(normalized, finalizedEditPlan);
+    if (empty.length) throw new Error(`empty narration slots: ${empty.join(' | ')}`);
     // Style, so it rides the SAME retry as the structural checks but must never be the reason a
     // cut fails outright - the caller below degrades a surviving violation to a warning.
     const economy = narrationEconomyProblems(normalized, finalizedEditPlan, 'ko');
     if (economy.length) {
       throw Object.assign(new Error(`narration economy: ${economy.join(' | ')}`), { code: 'MIDFORM_NARRATION_ECONOMY' });
     }
-    // Structural, not stylistic: unlike the economy check this one is not degraded to a warning
-    // below, because an empty slot loses content rather than phrasing it badly.
-    const empty = emptyNarrationSlots(normalized, finalizedEditPlan);
-    if (empty.length) throw new Error(`empty narration slots: ${empty.join(' | ')}`);
     return normalized;
   };
   let runtimeShortfall = '';
@@ -7403,11 +7405,18 @@ async function runCompressionApply(runIdOrPath, applyOptions = {}) {
     // Say so. A silent degrade looks identical to a rule that never ran - which is exactly how
     // the first economy-enforced batch read until the manifests were measured by hand.
     console.log(`[midform] ${isEconomy ? 'narration economy' : 'runtime'} not met after retry - shipping with a warning: ${message.slice(0, 300)}`);
-    // Structure still has to hold - only the style layer is dropped for this fallback pass.
-    const structureOnly = (parsed) => validateSlotFillsDialogueCaptions(
-      reconcileDialogueCaptionCounts(normalizeSlotFillsForStyle(parsed, finalizedEditPlan), finalizedEditPlan),
-      finalizedEditPlan
-    );
+    // Structure still has to hold - only the style layer is dropped for this fallback pass. That
+    // sentence was true of the caption checks and false of the empty-slot check, which was left
+    // out and so got dropped together with the style layer.
+    const structureOnly = (parsed) => {
+      const normalized = validateSlotFillsDialogueCaptions(
+        reconcileDialogueCaptionCounts(normalizeSlotFillsForStyle(parsed, finalizedEditPlan), finalizedEditPlan),
+        finalizedEditPlan
+      );
+      const empty = emptyNarrationSlots(normalized, finalizedEditPlan);
+      if (empty.length) throw new Error(`empty narration slots: ${empty.join(' | ')}`);
+      return normalized;
+    };
     result = await runJsonGeneration(slotFillsPrompt, MIDFORM_SLOT_FILLS_SCHEMA_PATH, structureOnly);
   }
   const slotFillsPath = path.join(runDir, 'compression_slot_fills.json');
