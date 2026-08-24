@@ -955,6 +955,13 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
           });
           if (loose >= 0 && String(captionKr[loose] || '').trim()) return loose;
         }
+        // No text match. When the captions record their own source lines, position means
+        // nothing: the caption at fallbackIndex was written for a DIFFERENT sentence, and
+        // captioning this line with it puts a lie on screen (Morgana: the untranslated L04
+        // wore L05's confession, so the same sentence played twice three seconds apart and
+        // the check below - which only sees EMPTY captions - never fired). Returning -1
+        // makes the caption empty, which the uncaptioned gate catches at preflight.
+        if (Array.isArray(fill.caption_source_lines) && fill.caption_source_lines.length) return -1;
         return fallbackIndex;
       };
       // Emit per-line dialogue segments in CHRONOLOGICAL (source-time) order, not the LLM's list
