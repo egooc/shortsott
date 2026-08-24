@@ -5263,7 +5263,12 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec, usableEndSec =
   // Again after the shave: it drops the LAST MATCHED line of a slot to buy runtime, so a slot can end
   // up holding only lines that never play - which is what left The Housemaid night's gaslighting slot
   // with the unplayable planned line and nothing else.
-  let finalizedTimeline = dropUnplayableFocusLines(windowSafeTimeline).map((item) => {
+  // Both directions, one last time. The pass at the head of finalize keeps the two lists equal,
+  // but the shave, the relocations and the action inserts all run after it, and a window can
+  // outlive its focus line through them (Breaking Dawn: slot_015 kept the matched window for
+  // "Forever." while its focus list held only the long line - the preflight then failed the run
+  // on a line nobody was ever asked to caption, seven recovery attempts in a row, 2026-08-24).
+  let finalizedTimeline = dropUnplayableFocusLines(alignFocusLinesToWindows(windowSafeTimeline)).map((item) => {
     if (item.decision === 'KEEP_DIALOGUE') return annotateDialogueSlotForQc(item, { windows: item.dialogue_line_windows || [] }, item);
     return annotateNarrationSlotForQc(item);
   });
