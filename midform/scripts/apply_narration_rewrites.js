@@ -60,6 +60,16 @@ function chunkSentence(sentence) {
   return units;
 }
 
+// Re-chunk a whole narration when its existing units cannot be trusted. Sentences stay apart so a
+// unit never straddles a full stop, which is where a subtitle break reads worst.
+function splitNarrationIntoUnits(narration) {
+  const sentences = String(narration || '')
+    .split(/(?<=[.!?…。！？])\s*/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  return sentences.flatMap((sentence) => chunkSentence(sentence));
+}
+
 // caption_units must concatenate back to the narration with spaces only, so the units covering the
 // replaced sentence have to be found as a contiguous run rather than matched one by one.
 function rewriteCaptionUnits(units, oldSentence, newSentence) {
@@ -83,12 +93,23 @@ function applyToFill(fill, oldSentence, newSentence) {
   const narration = String(fill.narration || '');
   if (!narration.includes(oldSentence)) return { ok: false, reason: 'sentence not found in narration' };
   const nextNarration = narration.replace(oldSentence, newSentence);
-  const nextUnits = rewriteCaptionUnits(fill.caption_units, oldSentence, newSentence);
-  if (!nextUnits) return { ok: false, reason: 'caption_units do not spell the sentence - needs a hand pass' };
+  let nextUnits = rewriteCaptionUnits(fill.caption_units, oldSentence, newSentence);
+  let rechunked = false;
+  if (!nextUnits) {
+    // The splice needs the units to spell the sentence, and in about a fifth of generated slots
+    // they do not - the model drops a word or two when chunking. That used to abort the edit.
+    // It does not have to: the draft builder re-chunks captions from the narration sentences
+    // themselves (verified against a shipped ja draft, whose caption text concatenates to its
+    // narration exactly), so compression's caption_units are not what reaches the timeline.
+    // Re-chunk the whole narration instead of refusing - it leaves the two fields consistent,
+    // which is strictly better than the state we found (2026-08-24).
+    nextUnits = splitNarrationIntoUnits(nextNarration);
+    rechunked = true;
+  }
   const captionKey = typeof fill.caption_kr === 'string' ? 'caption_kr' : null;
   const next = { ...fill, narration: nextNarration, caption_units: nextUnits, authored: true };
   if (captionKey) next[captionKey] = nextUnits.join(' ');
-  return { ok: true, fill: next, before: narration, after: nextNarration };
+  return { ok: true, fill: next, before: narration, after: nextNarration, rechunked };
 }
 
 function loadEdits(source) {
@@ -155,6 +176,7 @@ function main() {
       console.log(`  - ${issue.sentence}`);
       console.log(`  + ${issue.replacement}`);
       console.log(`    units: ${result.fill.caption_units.join(' | ')}`);
+      if (result.rechunked) console.log('    (existing units did not spell the sentence - whole narration re-chunked)');
       const closer = DECLARATIVE_CLOSER[locale];
       if (closer && closer.test(String(issue.replacement).trim())) {
         console.log('    WARN: declarative ending - check narration_economy after the rebuild');
@@ -172,4 +194,4 @@ function main() {
 }
 
 if (require.main === module) main();
-module.exports = { chunkSentence, rewriteCaptionUnits, applyToFill };
+module.exports = { chunkSentence, rewriteCaptionUnits, applyToFill, splitNarrationIntoUnits };
