@@ -147,8 +147,10 @@ function resolveSpeakerColorKeyFromConfig(speakerAlias, config = readCaptionColo
   if (!alias || !config || typeof config !== 'object') return '';
   const speakers = config.speakers && typeof config.speakers === 'object' ? config.speakers : {};
   const roles = config.roles && typeof config.roles === 'object' ? config.roles : {};
+  // Named is named, whether the config names a role or a colour. This is what tells
+  // assignFallbackSpeakerColorKeys to leave a character alone.
   const mapped = normalizeText(speakers[alias]);
-  if (mapped && !mapped.startsWith('#')) return mapped;
+  if (mapped) return mapped;
   if (roles[alias]) return alias;
   return '';
 }
@@ -159,7 +161,12 @@ function resolveSpeakerColorKey(speakerAlias, config = readCaptionColorConfig())
   const speakers = config.speakers && typeof config.speakers === 'object' ? config.speakers : {};
   const roles = config.roles && typeof config.roles === 'object' ? config.roles : {};
   const mapped = normalizeText(speakers[alias]);
-  if (mapped && !mapped.startsWith('#')) return mapped;
+  // A per-person hex IS the key. Skipping it here used to fall through to the hash fallback, and
+  // because resolveCaptionColor checks the KEY before the alias, that stale key ('기타1') resolved
+  // through fallback_roles and silently overrode the character's own colour - the per-person
+  // assignment would have had no effect anywhere the pipeline passes a key, which is everywhere
+  // (2026-08-24, owner directive that colour follows the person).
+  if (mapped) return mapped;
   if (roles[alias]) return alias;
   return fallbackSpeakerColorKey(alias, config);
 }

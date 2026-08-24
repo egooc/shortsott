@@ -29,13 +29,14 @@
       "updated_at": "2026-08-24T11:45:32.886Z"
     },
     "재스퍼": {
-      "color": "#37FF3D",
-      "role": "남조연",
+      "color": "#56FB56",
+      "role": "",
       "shipped_colors": [
-        "#37FF3D"
+        "#37FF3D",
+        "#56FB56"
       ],
       "first_seen": "20260822c-jacob_imprints-ja",
-      "updated_at": "2026-08-24T11:45:32.886Z"
+      "updated_at": "2026-08-24T12:06:33.473Z"
     },
     "제인": {
       "color": "#FFC137",
@@ -147,5 +148,5 @@
       "updated_at": "2026-08-24T11:45:32.886Z"
     }
   },
-  "updated_at": "2026-08-24T11:45:32.886Z"
+  "updated_at": "2026-08-24T12:06:33.477Z"
 }
