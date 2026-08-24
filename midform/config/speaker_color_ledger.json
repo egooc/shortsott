@@ -227,7 +227,16 @@
       ],
       "first_seen": "20260825c-bella_volterra-phDAOn-ja",
       "updated_at": "2026-08-24T17:56:50.760Z"
+    },
+    "에멧": {
+      "color": "#B48CFF",
+      "role": "기타1",
+      "shipped_colors": [
+        "#B48CFF"
+      ],
+      "first_seen": "20260825e-cullen_confession-59RKXq-ja",
+      "updated_at": "2026-08-24T20:52:08.695Z"
     }
   },
-  "updated_at": "2026-08-24T18:58:40.001Z"
+  "updated_at": "2026-08-24T20:52:08.696Z"
 }
