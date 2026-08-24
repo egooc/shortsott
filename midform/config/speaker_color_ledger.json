@@ -182,7 +182,43 @@
       ],
       "first_seen": "20260825a-master_morgana-xBa1k2-ja",
       "updated_at": "2026-08-24T16:11:03.469Z"
+    },
+    "톰": {
+      "color": "#37FF3D",
+      "role": "남조연",
+      "shipped_colors": [
+        "#37FF3D"
+      ],
+      "first_seen": "20260825b-draftday_sonny-C1iayH-ja",
+      "updated_at": "2026-08-24T16:31:57.220Z"
+    },
+    "월트": {
+      "color": "#B48CFF",
+      "role": "기타1",
+      "shipped_colors": [
+        "#B48CFF"
+      ],
+      "first_seen": "20260825b-draftday_sonny-C1iayH-ja",
+      "updated_at": "2026-08-24T16:31:57.221Z"
+    },
+    "해설가": {
+      "color": "#4DDCCB",
+      "role": "기타2",
+      "shipped_colors": [
+        "#4DDCCB"
+      ],
+      "first_seen": "20260825b-draftday_sonny-C1iayH-ja",
+      "updated_at": "2026-08-24T16:31:57.222Z"
+    },
+    "써니": {
+      "color": "#00A9F7",
+      "role": "남주",
+      "shipped_colors": [
+        "#00A9F7"
+      ],
+      "first_seen": "20260825b-draftday_sonny-C1iayH-ja",
+      "updated_at": "2026-08-24T16:31:57.222Z"
     }
   },
-  "updated_at": "2026-08-24T16:11:03.469Z"
+  "updated_at": "2026-08-24T16:31:57.222Z"
 }
