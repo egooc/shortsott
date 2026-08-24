@@ -115,7 +115,16 @@ function resolveCodexBaseCommand() {
   return { command: 'codex', argsPrefix: [] };
 }
 
-function buildCodexArgs({ outputPath, model, outputSchemaPath = MIDFORM_SCHEMA_PATH, images = [] }) {
+// Reasoning depth is a per-call decision, not a per-model one: the same model runs a scene-frame
+// description and an edit_plan. Codex exposes it as a config override rather than a flag.
+function reasoningArgs(effort) {
+  const level = String(effort || '').trim().toLowerCase();
+  return level ? ['-c', `model_reasoning_effort="${level}"`] : [];
+}
+
+function buildCodexArgs({ outputPath, model, outputSchemaPath = MIDFORM_SCHEMA_PATH, images = [], reasoningEffort = '' }) {
+  // Pin the model rather than inherit whatever the CLI defaults to today - that default moves
+  // with the CLI version, and a silently upgraded model is a silently changed pipeline.
   const effectiveModel = String(model || process.env.GPT_MIDFORM_MODEL || DEFAULT_MODEL).trim();
   const baseArgs = [
     'exec',
@@ -138,6 +147,8 @@ function buildCodexArgs({ outputPath, model, outputSchemaPath = MIDFORM_SCHEMA_P
   if (effectiveModel) {
     baseArgs.splice(1, 0, '--model', effectiveModel);
   }
+  const effort = reasoningArgs(reasoningEffort || process.env.MIDFORM_CODEX_REASONING);
+  if (effort.length) baseArgs.splice(1, 0, ...effort);
   return baseArgs;
 }
 
@@ -171,7 +182,8 @@ function runCodexCli(prompt, options = {}) {
       outputPath,
       model: options.model,
       outputSchemaPath: safeOutputSchemaPath(options.outputSchemaPath),
-      images: options.images
+      images: options.images,
+      reasoningEffort: options.reasoningEffort
     });
     const command = base.command;
     const args = [...base.argsPrefix, ...codexArgs];
@@ -2428,7 +2440,9 @@ async function judgeFramesWithCodex({ framePaths, instructions }) {
   ].join('\n\n');
   const result = await runCodexCli(prompt, {
     outputSchemaPath: MIDFORM_FRAME_VERDICT_SCHEMA_PATH,
-    images
+    images,
+    model: process.env.MIDFORM_CODEX_VISION_MODEL,
+    reasoningEffort: process.env.MIDFORM_CODEX_VISION_REASONING
   });
   const text = result.outputText || result.stdout || '';
   const parsed = extractJson(text);
@@ -2530,7 +2544,9 @@ async function buildSceneMapWithCodex({ videoPath, transcript = [], sourceId = '
       ].join('\n');
       const result = await runCodexCli(prompt, {
         outputSchemaPath: MIDFORM_SCENE_BATCH_SCHEMA_PATH,
-        images: batch.map((frame) => frame.file)
+        images: batch.map((frame) => frame.file),
+        model: process.env.MIDFORM_CODEX_VISION_MODEL,
+        reasoningEffort: process.env.MIDFORM_CODEX_VISION_REASONING
       });
       const parsed = extractJson(result.outputText || result.stdout || '') || {};
       const rows = Array.isArray(parsed.frames) ? parsed.frames : [];
@@ -2567,6 +2583,7 @@ async function buildSceneMapWithCodex({ videoPath, transcript = [], sourceId = '
 
 module.exports = {
   judgeFramesWithCodex,
+  buildCodexArgs,
   buildSceneMapWithCodex,
   extractSceneFrames,
   dialogueForWindow,
