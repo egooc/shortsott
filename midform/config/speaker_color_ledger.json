@@ -236,7 +236,16 @@
       ],
       "first_seen": "20260825e-cullen_confession-59RKXq-ja",
       "updated_at": "2026-08-24T20:52:08.695Z"
+    },
+    "카우레": {
+      "color": "#B48CFF",
+      "role": "기타1",
+      "shipped_colors": [
+        "#B48CFF"
+      ],
+      "first_seen": "20260825f-bella_pregnant-qcsfu5-ja",
+      "updated_at": "2026-08-24T21:47:03.902Z"
     }
   },
-  "updated_at": "2026-08-24T20:52:08.696Z"
+  "updated_at": "2026-08-24T21:47:03.903Z"
 }
