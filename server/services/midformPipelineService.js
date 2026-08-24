@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const { execFile } = require('child_process');
 const archiver = require('archiver');
 const { PROJECT_ROOT } = require('./pipelinePaths');
-const { analyzeMidformVideo } = require('./geminiMidformService');
+const { analyzeMidformVideo, visionProvider } = require('./geminiMidformService');
 const { generateMidformScriptWithGptCli } = require('./gptMidformCliService');
 const { validateSlotFills, normalizeSlotFillsToScript } = require('./gptMidformCliService');
 const { generateAndSaveMovieResearch } = require('./movieResearchService');
@@ -1063,6 +1063,20 @@ async function runPreflight(state) {
 }
 
 async function runGemini(state) {
+  // The last Vertex call in the codebase, and the one that cannot follow the Codex migration: it
+  // uploads the whole video, which Codex has no equivalent for (the compress path replaced this
+  // with a frame-sampled scene map). The stage belongs to the legacy from-scratch pipeline; the
+  // produce flow goes compress -> `run --resume bootstrap` and never reaches it. Say that here
+  // rather than letting the call hit a provider that has answered HTTP 403 since the billing
+  // block on 2026-08-24 - a dead 403 tells the next reader nothing about why.
+  if (visionProvider() === 'codex') {
+    throw createHttpError(
+      501,
+      'MIDFORM_LEGACY_VERTEX_STAGE',
+      'gemini_analysis uploads the full video to Vertex and has no Codex equivalent. Run this source through the compress path instead: `midform.js compress` then `run --resume bootstrap --bootstrap-run <id>`.',
+      { visionProvider: visionProvider() }
+    );
+  }
   const transcript = readJson(state.artifacts.transcriptPath);
   const gemini = await analyzeMidformVideo(state.artifacts.sourceVideoPath, state.input.contentType, { transcript });
   const outputPath = path.join(state.runDir, GEMINI_FILE);
