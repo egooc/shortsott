@@ -209,6 +209,14 @@ function normalizeClosingSlotFill(fill) {
   };
 }
 
+// "포크스를?." - the generator sometimes terminates a caption twice, a question mark and then a
+// period (New Moon E_9TVupNT4Q, 2026-08-24). One mark ends a sentence; the second is lint the
+// viewer reads. Deterministic cleanup beats a prompt plea: the model that wrote "?." once will
+// write it again.
+function stripDoubleTerminalPunctuation(value) {
+  return String(value || '').replace(/([?!\u2026\uFF1F\uFF01])[.\u3002]+$/u, '$1');
+}
+
 function normalizeSlotFillsForStyle(slotFills, editPlan) {
   const closingSlotIds = new Set((Array.isArray(editPlan?.timeline) ? editPlan.timeline : [])
     .filter((item) => item.role === 'closing')
@@ -221,6 +229,12 @@ function normalizeSlotFillsForStyle(slotFills, editPlan) {
     let next = fill;
     if (closingSlotIds.has(slotId)) next = normalizeClosingSlotFill(next);
     if (keepDialogueSlotIds.has(slotId)) next = { ...next, translation_mode: 'faithful_dialogue' };
+    if (Array.isArray(next?.caption_kr_dialogue)) {
+      next = { ...next, caption_kr_dialogue: next.caption_kr_dialogue.map(stripDoubleTerminalPunctuation) };
+    }
+    if (typeof next?.narration === 'string') {
+      next = { ...next, narration: stripDoubleTerminalPunctuation(next.narration) };
+    }
     return next;
   });
   return { ...slotFills, slot_fills: normalizedFills };
@@ -7756,6 +7770,7 @@ module.exports = {
   dropWindowsSwallowedByTheirNeighbour,
   extractHeatmap,
   _test: {
+    stripDoubleTerminalPunctuation,
     clampColdOpenToTeaser,
     syncColdOpenVisualToKeptLines,
     trimTimelineToTargetRuntime,
