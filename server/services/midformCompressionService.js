@@ -6246,6 +6246,18 @@ function validateSlotFillsDialogueCaptions(slotFills, editPlan, locale = 'ko') {
     if (translationMode && translationMode !== 'faithful_dialogue') {
       throw new Error(`${item.slot_id} KEEP_DIALOGUE translation_mode must be faithful_dialogue, got ${translationMode}`);
     }
+    // A speaker field naming two people is the tell that two lines were merged into one caption.
+    // The count check cannot see it - merging a question and its answer leaves the counts equal -
+    // but "에드워드·엘비스" with the caption "뭘 원하지? 당신과 같은 거." is one subtitle carrying
+    // an exchange, and it renders in one colour so the viewer cannot tell who spoke (2026-08-24).
+    const speakerList = Array.isArray(fill?.speakers) ? fill.speakers : [];
+    const merged = speakerList.filter((name) => /[·・/,&]|\band\b|\+/.test(String(name || '')));
+    if (merged.length) {
+      throw new Error(
+        `${item.slot_id} speakers name more than one person (${merged.join(', ')}); one caption is one speaker's line. `
+        + 'Split the exchange back into separate captions, one per dialogue_focus_line.'
+      );
+    }
     if (captionKrDialogue.length !== dialogueFocusLines.length) {
       throw new Error(
         `${item.slot_id} caption_kr_dialogue must have exactly ${dialogueFocusLines.length} line(s) to match dialogue_focus_lines, got ${captionKrDialogue.length}`
