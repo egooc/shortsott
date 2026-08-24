@@ -13,6 +13,7 @@ const MIDFORM_NATURALIZATION_VALIDATION_SCHEMA_PATH = path.join(PROJECT_ROOT, 'm
 const MIDFORM_CLOSING_DRIP_VALIDATION_SCHEMA_PATH = path.join(PROJECT_ROOT, 'midform', 'schemas', 'closing_drip_validation_schema.json');
 const MIDFORM_FRAME_VERDICT_SCHEMA_PATH = path.join(PROJECT_ROOT, 'midform', 'schemas', 'midform_frame_verdict_schema.json');
 const MIDFORM_SCENE_BATCH_SCHEMA_PATH = path.join(PROJECT_ROOT, 'midform', 'schemas', 'midform_scene_batch_schema.json');
+const MIDFORM_DIALOGUE_AUDIT_SCHEMA_PATH = path.join(PROJECT_ROOT, 'midform', 'schemas', 'midform_dialogue_audit_schema.json');
 const MIDFORM_COMPRESSION_BEATS_SCHEMA_PATH = path.join(PROJECT_ROOT, 'midform', 'schemas', 'midform_compression_beats_schema.json');
 const MIDFORM_COMPRESSION_EDIT_PLAN_SCHEMA_PATH = path.join(PROJECT_ROOT, 'midform', 'schemas', 'midform_compression_edit_plan_schema.json');
 const GPT_WORK_DIR = path.join(PROJECT_ROOT, 'midform', 'work', 'gpt_cli');
@@ -158,6 +159,7 @@ function safeOutputSchemaPath(outputSchemaPath) {
     MIDFORM_SLOT_FILLS_SCHEMA_PATH,
     MIDFORM_FRAME_VERDICT_SCHEMA_PATH,
     MIDFORM_SCENE_BATCH_SCHEMA_PATH,
+    MIDFORM_DIALOGUE_AUDIT_SCHEMA_PATH,
     MIDFORM_STORY_OUTLINE_SCHEMA_PATH,
     MIDFORM_NATURALIZATION_VALIDATION_SCHEMA_PATH,
     MIDFORM_CLOSING_DRIP_VALIDATION_SCHEMA_PATH,
@@ -2633,8 +2635,22 @@ async function buildSceneMapWithCodex({ videoPath, transcript = [], sourceId = '
   };
 }
 
+
+// Text-only scene audit. The brief is built by geminiMidformService so both providers judge with
+// identical wording; only the transport differs.
+async function auditDialogueWithCodex({ prompt }) {
+  const result = await runCodexCli(String(prompt || ''), {
+    outputSchemaPath: MIDFORM_DIALOGUE_AUDIT_SCHEMA_PATH,
+    model: process.env.MIDFORM_CODEX_VISION_MODEL,
+    reasoningEffort: process.env.MIDFORM_CODEX_VISION_REASONING
+  });
+  const parsed = extractJson(result.outputText || result.stdout || '');
+  return parsed && Array.isArray(parsed.issues) ? parsed : { issues: [] };
+}
+
 module.exports = {
   judgeFramesWithCodex,
+  auditDialogueWithCodex,
   toCodexStrictSchema,
   codexSchemaPath,
   buildCodexArgs,

@@ -1,0 +1,33 @@
+{
+  "type": "object",
+  "properties": {
+    "issues": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "index": {
+            "type": "integer",
+            "description": "The [i] index of the offending line as given in the scene listing"
+          },
+          "problem": {
+            "type": "string",
+            "enum": ["meaning_drift", "misalignment", "speaker_flip", "name_error"]
+          },
+          "reason": {
+            "type": "string",
+            "description": "One short clause naming the defect"
+          },
+          "suggested_tr": {
+            "type": "string",
+            "description": "A faithful natural rewrite of THAT line, or an empty string when none is possible"
+          }
+        },
+        "required": ["index", "problem", "reason", "suggested_tr"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["issues"],
+  "additionalProperties": false
+}

@@ -856,8 +856,6 @@ async function judgeDialogueTranslation({ lines, targetLang = 'Korean' }) {
     }))
     .filter((row) => row.en || row.tr);
   if (!rows.length) return { issues: [] };
-  const token = await getVertexAccessToken();
-  const endpoint = buildVertexEndpoint(config);
   const promptLines = [
     `You verify the ${targetLang} subtitle translation of ONE English movie scene, line by line.`,
     `Each line is {i, speaker, en (the English source line spoken), tr (the ${targetLang} subtitle shown)}.`,
@@ -873,6 +871,13 @@ async function judgeDialogueTranslation({ lines, targetLang = 'Korean' }) {
     'SCENE:',
     ...rows.map((row) => `[${row.i}] (${row.speaker || '?'}) en: ${row.en} | tr: ${row.tr}`)
   ];
+  // Same brief on every provider - a provider reading different wording is a different auditor.
+  if (visionProvider() === 'codex') {
+    const { auditDialogueWithCodex } = require('./gptMidformCliService');
+    return auditDialogueWithCodex({ prompt: promptLines.join('\n') });
+  }
+  const token = await getVertexAccessToken();
+  const endpoint = buildVertexEndpoint(config);
   const body = {
     contents: [{ role: 'user', parts: [{ text: promptLines.join('\n') }] }],
     generationConfig: {
