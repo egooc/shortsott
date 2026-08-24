@@ -304,6 +304,44 @@ async function collectRunArtifacts({
     } catch { /* measurement is best-effort */ }
     return issues;
   }
+  // A character must not change colour between videos. The palette is eight colours shared by 155
+  // speakers, so it identifies a ROLE - which means every edit to caption_colors.json silently
+  // repaints someone in every future cut, and until now nothing compared the result against what
+  // the channel already published. 제이콥 shipped green on 2026-08-22 and teal on 2026-08-24;
+  // the owner noticed before any check did. Warning, not failure: a reassignment is sometimes the
+  // right call (six men were colliding on 남조연), it just has to be a decision.
+  const colorDrift = (() => {
+    try {
+      const ledgerPath = path.join(PROJECT_ROOT, 'midform', 'config', 'speaker_color_ledger.json');
+      if (!fs.existsSync(ledgerPath)) return [];
+      const ledger = readJson(ledgerPath) || {};
+      const known = ledger.speakers || {};
+      const issues = [];
+      const seen = new Set();
+      for (const row of editManifest.segments || []) {
+        if (row.caption_kind !== 'dialogue') continue;
+        const name = String(row.speaker || '').trim();
+        const color = String(row.caption_color || '').trim();
+        if (!name || !color || seen.has(name)) continue;
+        seen.add(name);
+        const entry = known[name];
+        if (!entry) { issues.push({ speaker: name, color, note: 'not in the colour ledger yet' }); continue; }
+        if (color !== entry.color) {
+          issues.push({ speaker: name, color, ledger_color: entry.color, note: 'shipped in a different colour before' });
+        }
+      }
+      return issues;
+    } catch { return []; }
+  })();
+  if (colorDrift.length) {
+    gateResults.results.push({ id: 'speaker_color_stable', status: 'warning', issue_count: colorDrift.length, issues: colorDrift.slice(0, 8) });
+    if (!gateResults.warnings.includes('speaker_color_stable')) {
+      gateResults.warnings.push('speaker_color_stable');
+      if (gateResults.status === 'passed') gateResults.status = 'passed_with_warnings';
+    }
+  } else {
+    gateResults.results.push({ id: 'speaker_color_stable', status: 'pass' });
+  }
   const chunkLateness = measureCaptionChunkLateness(draftContent);
   const loudness = measureNarrationDialogueLoudness(pipelineRunDir, editManifest);
   // Draft-level volume gains (loudness auto-alignment) change what the viewer hears without

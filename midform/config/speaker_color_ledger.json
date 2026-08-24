@@ -1,0 +1,151 @@
+{
+  "speakers": {
+    "에드워드": {
+      "color": "#00A9F7",
+      "role": "남주",
+      "shipped_colors": [
+        "#00A9F7"
+      ],
+      "first_seen": "20260822c-jacob_imprints-ja",
+      "updated_at": "2026-08-24T11:45:32.882Z"
+    },
+    "제이콥": {
+      "color": "#4DDCCB",
+      "role": "기타2",
+      "shipped_colors": [
+        "#37FF3D",
+        "#4DDCCB"
+      ],
+      "first_seen": "20260822c-jacob_imprints-ja",
+      "updated_at": "2026-08-24T11:45:32.883Z"
+    },
+    "앨리스": {
+      "color": "#FFC137",
+      "role": "여조연",
+      "shipped_colors": [
+        "#FFC137"
+      ],
+      "first_seen": "20260822c-jacob_imprints-ja",
+      "updated_at": "2026-08-24T11:45:32.886Z"
+    },
+    "재스퍼": {
+      "color": "#37FF3D",
+      "role": "남조연",
+      "shipped_colors": [
+        "#37FF3D"
+      ],
+      "first_seen": "20260822c-jacob_imprints-ja",
+      "updated_at": "2026-08-24T11:45:32.886Z"
+    },
+    "제인": {
+      "color": "#FFC137",
+      "role": "여조연",
+      "shipped_colors": [
+        "#FFC137"
+      ],
+      "first_seen": "20260822d-arrival_signal-ja",
+      "updated_at": "2026-08-24T11:45:32.886Z"
+    },
+    "샤": {
+      "color": "#B48CFF",
+      "role": "기타1",
+      "shipped_colors": [
+        "#B48CFF"
+      ],
+      "first_seen": "20260822d-arrival_signal-ja",
+      "updated_at": "2026-08-24T11:45:32.886Z"
+    },
+    "캘빈": {
+      "color": "#4DDCCB",
+      "role": "기타2",
+      "shipped_colors": [
+        "#4DDCCB"
+      ],
+      "first_seen": "20260822d-arrival_signal-ja",
+      "updated_at": "2026-08-24T11:45:32.886Z"
+    },
+    "고디": {
+      "color": "#FF8A5C",
+      "role": "기타3",
+      "shipped_colors": [
+        "#FF8A5C"
+      ],
+      "first_seen": "20260822d-arrival_signal-ja",
+      "updated_at": "2026-08-24T11:45:32.886Z"
+    },
+    "칼라일": {
+      "color": "#37FF3D",
+      "role": "남조연",
+      "shipped_colors": [
+        "#37FF3D"
+      ],
+      "first_seen": "20260822e-newmoon_vote-ja",
+      "updated_at": "2026-08-24T11:45:32.886Z"
+    },
+    "벨라": {
+      "color": "#FF55B5",
+      "role": "여주",
+      "shipped_colors": [
+        "#FF55B5"
+      ],
+      "first_seen": "20260822e-newmoon_vote-ja",
+      "updated_at": "2026-08-24T11:45:32.886Z"
+    },
+    "로잘리": {
+      "color": "#B48CFF",
+      "role": "기타1",
+      "shipped_colors": [
+        "#B48CFF"
+      ],
+      "first_seen": "20260822e-newmoon_vote-ja",
+      "updated_at": "2026-08-24T11:45:32.886Z"
+    },
+    "코맥": {
+      "color": "#B48CFF",
+      "role": "기타1",
+      "shipped_colors": [
+        "#B48CFF"
+      ],
+      "first_seen": "20260824n-daybreakers-wD7scr-ja",
+      "updated_at": "2026-08-24T11:45:32.886Z"
+    },
+    "에드": {
+      "color": "#4DDCCB",
+      "role": "기타2",
+      "shipped_colors": [
+        "#4DDCCB"
+      ],
+      "first_seen": "20260824n-daybreakers-wD7scr-ja",
+      "updated_at": "2026-08-24T11:45:32.886Z"
+    },
+    "프랭키": {
+      "color": "#B48CFF",
+      "role": "기타1",
+      "shipped_colors": [
+        "#FF8A5C",
+        "#B48CFF"
+      ],
+      "first_seen": "20260824n-daybreakers-wD7scr-ja",
+      "updated_at": "2026-08-24T11:45:32.886Z"
+    },
+    "엘비스": {
+      "color": "#37FF3D",
+      "role": "남조연",
+      "shipped_colors": [
+        "#37FF3D"
+      ],
+      "first_seen": "20260824q-daybreakers_cure-V7np-ja",
+      "updated_at": "2026-08-24T11:45:32.886Z"
+    },
+    "오드리": {
+      "color": "#FF55B5",
+      "role": "여주",
+      "shipped_colors": [
+        "#FF55B5"
+      ],
+      "first_seen": "20260824q-daybreakers_cure-V7np-ja",
+      "updated_at": "2026-08-24T11:45:32.886Z"
+    }
+  },
+  "updated_at": "2026-08-24T11:45:32.886Z"
+}
