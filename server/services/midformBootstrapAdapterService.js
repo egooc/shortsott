@@ -1623,8 +1623,12 @@ function runBootstrapPreflight(assembled, options = {}) {
     add('capcut_gates', false, `gate harness failed: ${error.message}`);
   }
   if (gateVerdict) {
+    // "1 violation(s)" with no violation is a verdict nobody can act on - the queue carried a
+    // source for five passes because the failing range was never named (59RKXqC5OjQ, 2026-08-25).
     add('capcut_reserved_range', (gateVerdict.reserved_range_violations || []).length === 0,
-      `${(gateVerdict.reserved_range_violations || []).length} violation(s)`);
+      (gateVerdict.reserved_range_violations || []).length
+        ? `${gateVerdict.reserved_range_violations.length} violation(s): ${JSON.stringify(gateVerdict.reserved_range_violations).slice(0, 400)}`
+        : '');
     add('capcut_slot_map_mode_false', gateVerdict.slot_map_mode === false,
       `slot_map_mode ${gateVerdict.slot_map_mode}`);
     add('capcut_story_sync_skipped', gateVerdict.story_sync_would_run === false,
