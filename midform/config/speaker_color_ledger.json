@@ -218,7 +218,16 @@
       ],
       "first_seen": "20260825b-draftday_sonny-C1iayH-ja",
       "updated_at": "2026-08-24T16:31:57.222Z"
+    },
+    "볼투리 경비대": {
+      "color": "#B48CFF",
+      "role": "기타1",
+      "shipped_colors": [
+        "#B48CFF"
+      ],
+      "first_seen": "20260825c-bella_volterra-phDAOn-ja",
+      "updated_at": "2026-08-24T17:56:50.760Z"
     }
   },
-  "updated_at": "2026-08-24T16:31:57.222Z"
+  "updated_at": "2026-08-24T17:56:50.761Z"
 }
