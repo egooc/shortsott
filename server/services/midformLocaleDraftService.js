@@ -199,18 +199,37 @@ function replanJaDraftSpecForFinalOverlap(draftSpec, finalOverlapReport, attempt
     // onto the kiss scene while the narration still described the charge. 8s matches the
     // packer's scene tolerance.
     const replanShift = Math.min(8, shiftBase + roleBonus + (index * 0.35));
+    // The packer's scene bounds must anchor to the ORIGINAL window: re-basing them on the
+    // replanned range let +8 replan and +8 packer tolerance compound into 25s of drift.
+    // ...and the cap alone was not enough: a shift applied to an already-shifted range walked ja
+    // slot_006 to 367.0-370.5 against a plan window of 351.7-360.1, which the b-roll bounds gate
+    // rejects as another scene. Hold the result inside the ORIGINAL window's tolerance.
+    const originRange = Array.isArray(placement.semantic_origin_range) ? placement.semantic_origin_range : sourceRange;
+    const shiftedPrimary = clampToSemanticScene(
+      shiftedSourceRange(sourceRange, replanShift, sourceDurationSec),
+      originRange
+    );
+    // A montage placement PLAYS source_ranges, not source_range. Shifting only the scalar left
+    // the array byte-identical to ko, so two replan attempts changed nothing on screen and the
+    // opening similarity sat pinned at 1.0 until the run died (Bb4qURNGHqk, casebook 26). Shift
+    // every part, each clamped to its own original scene.
+    const montage = Array.isArray(placement.source_ranges) && placement.source_ranges.length
+      ? (() => {
+        const origins = Array.isArray(placement.semantic_origin_ranges) && placement.semantic_origin_ranges.length === placement.source_ranges.length
+          ? placement.semantic_origin_ranges
+          : placement.source_ranges;
+        const shifted = placement.source_ranges.map((range, part) => clampToSemanticScene(
+          shiftedSourceRange(range, replanShift, sourceDurationSec),
+          Array.isArray(origins[part]) ? origins[part] : range
+        ));
+        return { semantic_origin_ranges: origins, source_ranges: shifted };
+      })()
+      : {};
     return {
       ...placement,
-      // The packer's scene bounds must anchor to the ORIGINAL window: re-basing them on the
-      // replanned range let +8 replan and +8 packer tolerance compound into 25s of drift.
-      semantic_origin_range: Array.isArray(placement.semantic_origin_range) ? placement.semantic_origin_range : sourceRange,
-      // ...and the cap alone was not enough: a shift applied to an already-shifted range walked ja
-      // slot_006 to 367.0-370.5 against a plan window of 351.7-360.1, which the b-roll bounds gate
-      // rejects as another scene. Hold the result inside the ORIGINAL window's tolerance.
-      source_range: clampToSemanticScene(
-        shiftedSourceRange(sourceRange, replanShift, sourceDurationSec),
-        Array.isArray(placement.semantic_origin_range) ? placement.semantic_origin_range : sourceRange
-      ),
+      semantic_origin_range: originRange,
+      source_range: montage.source_ranges ? montage.source_ranges[0] : shiftedPrimary,
+      ...montage,
       final_draft_replan_reason: overlappingClipIds.size ? 'shared_contiguous_overlap' : 'final_overlap_threshold',
       final_draft_replan_attempt: attempt
     };
