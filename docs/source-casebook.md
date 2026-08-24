@@ -598,3 +598,38 @@ Codex엔 비디오 입력이 없으므로 `analyzeMidformVideo`(mp4 통째 → `
 - **분류·대응**: `근거 있는 선택` — 모델·파라미터를 고를 때 "더 좋은 것"으로 고르지 말고
   **그 작업의 정답을 아는 입력**으로 재서 고른다. 벤치는 재현 가능하게 남긴다
   (`model_bench.js`). 그래야 다음 사람이 같은 판단을 다시 내릴 수 있다.
+
+## 사례 41 — Codex 구조화 출력은 엄격 모드다: 선택 필드가 스키마를 거부시킨다
+
+- **증상**: Codex로 첫 실제 fills 생성을 돌리자 `GPT_CLI_FAILED` exit 1. 래퍼가 삼킨
+  stderr를 직접 재현해 보니:
+
+  ```
+  invalid_json_schema: In context=('properties','slot_fills','items'),
+  'required' is required to be supplied and to be an array including every key in properties.
+  Missing 'caption_kr_dialogue'.
+  ```
+
+- **원인**: Codex의 `--output-schema`는 **OpenAI structured outputs 엄격 모드**로 간다.
+  `properties`의 **모든** 키가 `required`에 있어야 하고 객체는 `additionalProperties:false`
+  여야 한다. 우리 스키마에서 `caption_kr_dialogue`는 진짜 선택 항목이다 — 나레이션 슬롯엔
+  대사가 없으니까. Vertex는 이걸 그냥 받아줬다.
+- **하면 안 되는 수리**: 공유 스키마에 `caption_kr_dialogue`를 required로 박는 것.
+  그 스키마는 Vertex·검증기·하류가 같이 쓰는 **계약**이고, 계약을 한 공급자 사정으로
+  바꾸면 나머지가 조용히 틀어진다.
+- **한 수리**: **호출 시점 번역.** `toCodexStrictSchema()`가
+  - 모든 키를 `required`로 올리고
+  - 원래 선택이던 키의 타입을 **nullable**로 바꿔(`["array","null"]`) "없음"을 여전히
+    표현 가능하게 하고
+  - 객체마다 `additionalProperties:false`를 닫는다.
+
+  Vertex 이관 때 만든 `toVertexResponseSchema`(OpenAPI subset이 거부하는 것 제거)와 정확히
+  같은 자리의 대응이다. 번역본은 `work/gpt_cli/codex-schemas/*.strict.json`에 내용 기준으로
+  캐시한다.
+- **실호출 확인**: 번역된 스키마로 exit 0, 유효 JSON, 한국어 제목 3종까지 정상.
+- **분류·대응**: `공급자 계약 차이` — 공급자를 갈아끼울 때 스키마·프롬프트 같은 **계약물은
+  건드리지 말고 어댑터를 둔다.** 계약을 고치면 그 순간 원래 공급자로 되돌릴 수 없게 되고,
+  되돌림 가능성은 이관 중에 가장 값진 자산이다.
+- **부수 교훈**: 래퍼가 stderr를 `GPT_CLI_FAILED`로만 요약해 원인이 안 보였다. 사례 27에서
+  같은 문제를 복구 경로에 대해 고쳤는데, **여기도 같았다.** 실패를 요약하는 자리는 한 군데가
+  아니다.

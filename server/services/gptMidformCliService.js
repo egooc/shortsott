@@ -170,6 +170,58 @@ function safeOutputSchemaPath(outputSchemaPath) {
   return allowed.has(resolved) ? resolved : MIDFORM_SCHEMA_PATH;
 }
 
+
+// Codex's --output-schema goes through OpenAI structured outputs, which is STRICT in a way our
+// shared schemas are not: every key in `properties` must also appear in `required`, and objects
+// must set additionalProperties:false. Passing midform_slot_fills_schema.json straight through
+// fails with "Missing 'caption_kr_dialogue'" - that field is optional for us because narration
+// slots have no dialogue (2026-08-24).
+//
+// The shared schema is the contract and does not move. Translate for the provider instead, the
+// same way toVertexResponseSchema strips what Vertex's OpenAPI subset rejects. Optional fields
+// become nullable so "absent" is still expressible; the validators downstream already treat null
+// and missing alike.
+function toCodexStrictSchema(node) {
+  if (Array.isArray(node)) return node.map(toCodexStrictSchema);
+  if (!node || typeof node !== 'object') return node;
+
+  const out = {};
+  for (const [key, value] of Object.entries(node)) {
+    if (['$schema', '$id'].includes(key)) continue;
+    out[key] = toCodexStrictSchema(value);
+  }
+
+  if (out.type === 'object' && out.properties && typeof out.properties === 'object') {
+    const keys = Object.keys(out.properties);
+    const wasRequired = new Set(Array.isArray(out.required) ? out.required : []);
+    for (const key of keys) {
+      if (wasRequired.has(key)) continue;
+      // Optional in our contract -> required-but-nullable for strict mode.
+      const child = out.properties[key];
+      if (child && typeof child === 'object' && typeof child.type === 'string' && child.type !== 'null') {
+        child.type = [child.type, 'null'];
+      }
+    }
+    out.required = keys;
+    out.additionalProperties = false;
+  }
+  return out;
+}
+
+// Writes the translated schema beside the originals, cached by content so repeated calls do not
+// churn the disk. Returns a path the allowlist accepts.
+function codexSchemaPath(originalPath) {
+  const resolved = safeOutputSchemaPath(originalPath);
+  const dir = path.join(GPT_WORK_DIR, 'codex-schemas');
+  ensureDir(dir);
+  const target = path.join(dir, path.basename(resolved).replace(/\.json$/, '.strict.json'));
+  const source = fs.readFileSync(resolved, 'utf8');
+  const translated = `${JSON.stringify(toCodexStrictSchema(JSON.parse(source)), null, 2)}\n`;
+  const current = fs.existsSync(target) ? fs.readFileSync(target, 'utf8') : '';
+  if (current !== translated) fs.writeFileSync(target, translated, 'utf8');
+  return target;
+}
+
 function runCodexCli(prompt, options = {}) {
   return new Promise((resolve, reject) => {
     ensureDir(GPT_WORK_DIR);
@@ -181,7 +233,7 @@ function runCodexCli(prompt, options = {}) {
     const codexArgs = buildCodexArgs({
       outputPath,
       model: options.model,
-      outputSchemaPath: safeOutputSchemaPath(options.outputSchemaPath),
+      outputSchemaPath: codexSchemaPath(options.outputSchemaPath),
       images: options.images,
       reasoningEffort: options.reasoningEffort
     });
@@ -2583,6 +2635,8 @@ async function buildSceneMapWithCodex({ videoPath, transcript = [], sourceId = '
 
 module.exports = {
   judgeFramesWithCodex,
+  toCodexStrictSchema,
+  codexSchemaPath,
   buildCodexArgs,
   buildSceneMapWithCodex,
   extractSceneFrames,
