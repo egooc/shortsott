@@ -11,7 +11,7 @@ const {
   runCodexCli,
   extractJson
 } = require('./gptMidformCliService');
-const { generateVertexJson, analyzeMidformVideo } = require('./geminiMidformService');
+const { generateVertexJson, analyzeMidformVideo, visionProvider } = require('./geminiMidformService');
 
 // compress LLM provider: 'vertex' (Gemini, default — off the Codex weekly quota) or 'codex' (kept
 // as fallback/opt-in). Model applies to the Vertex path only.
@@ -6777,17 +6777,30 @@ async function ensureVisionSceneMap(runDir, metadata, transcript, options = {}) 
     return readJson(outPath);
   }
   const download = await downloadCompressionSourceVideo(runDir);
-  const analysis = await analyzeMidformVideo(download.sourceVideoPath, options.contentType || 'movie_midform_recap', {
-    transcript: transcriptCuesToUtterances(transcript)
-  });
-  const sceneMap = {
-    source_id: videoId || path.basename(runDir),
-    generated_at: new Date().toISOString(),
-    analyzer: 'gemini_vertex_multimodal',
-    scenes: Array.isArray(analysis?.scenes) ? analysis.scenes : [],
-    story_context: analysis?.story_context || null,
-    characters: Array.isArray(analysis?.characters) ? analysis.characters : []
-  };
+  let sceneMap;
+  if (visionProvider() === 'codex') {
+    // Codex has no video input, so the map is rebuilt from sampled frames. story_context and
+    // characters are NOT reconstructed: they were whole-video inferences, and inventing them from
+    // stills would put guesses where the Vertex map had observations. Downstream reads scenes[].
+    const { buildSceneMapWithCodex } = require('./gptMidformCliService');
+    sceneMap = await buildSceneMapWithCodex({
+      videoPath: download.sourceVideoPath,
+      transcript: transcriptCuesToUtterances(transcript),
+      sourceId: videoId || path.basename(runDir)
+    });
+  } else {
+    const analysis = await analyzeMidformVideo(download.sourceVideoPath, options.contentType || 'movie_midform_recap', {
+      transcript: transcriptCuesToUtterances(transcript)
+    });
+    sceneMap = {
+      source_id: videoId || path.basename(runDir),
+      generated_at: new Date().toISOString(),
+      analyzer: 'gemini_vertex_multimodal',
+      scenes: Array.isArray(analysis?.scenes) ? analysis.scenes : [],
+      story_context: analysis?.story_context || null,
+      characters: Array.isArray(analysis?.characters) ? analysis.characters : []
+    };
+  }
   if (!sceneMap.scenes.length) {
     throw new Error('Vision scene analysis returned no scenes - refusing to plan without seen footage');
   }
