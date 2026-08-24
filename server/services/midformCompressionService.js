@@ -4116,21 +4116,74 @@ function dropDuplicateDialogueSlots(timeline) {
   // timing, it is the text: the same lines cannot be two slots' content unless one is a declared
   // replay.
   const claimedLines = new Set();
-  const lineKeyOf = (item) => (Array.isArray(item.dialogue_line_windows) ? item.dialogue_line_windows : [])
+  const normalizedLinesOf = (item) => (Array.isArray(item.dialogue_line_windows) ? item.dialogue_line_windows : [])
     .filter((win) => win && win.matched === true && String(win.line || '').trim())
     .map((win) => String(win.line).toLowerCase().replace(/[^a-z0-9\uac00-\ud7a3]+/g, ''))
-    .filter(Boolean)
-    .sort()
-    .join('|');
+    .filter(Boolean);
+  const lineKeyOf = (item) => [...normalizedLinesOf(item)].sort().join('|');
+  // Rolling auto-captions repeat a sentence across cue boundaries, so the same line lands in two
+  // slots at different source times - "Bella I don't want you to come" at 107s and again at 117s
+  // (New Moon, 2026-08-25). The whole-set key above misses that: the second slot is a strict
+  // subset, not an equal set. Track individual SUBSTANTIAL lines (short interjections like "no"
+  // repeat legitimately) and drop a slot whose every substantial line has already played.
+  const SUBSTANTIAL_LINE_CHARS = 10;
+  const LINE_REPEAT_ADJACENCY_SEC = 2.0;
+  const claimedLineSpans = new Map(); // normalized line -> [ [start,end], ... ]
+  const substantialWindowsOf = (item) => (Array.isArray(item.dialogue_line_windows) ? item.dialogue_line_windows : [])
+    .filter((win) => win && win.matched === true && String(win.line || '').trim())
+    .map((win) => ({
+      key: String(win.line).toLowerCase().replace(/[^a-z0-9\uac00-\ud7a3]+/g, ''),
+      start: Number(win.start_sec),
+      end: Number(win.end_sec)
+    }))
+    .filter((entry) => entry.key.length >= SUBSTANTIAL_LINE_CHARS);
+  const isAdjacentRepeat = (entry) => (claimedLineSpans.get(entry.key) || [])
+    .some(([claimedStart, claimedEnd]) => entry.start < claimedEnd + LINE_REPEAT_ADJACENCY_SEC
+      && claimedStart < entry.end + LINE_REPEAT_ADJACENCY_SEC);
 
-  for (let index = 0; index < items.length; index += 1) {
+  // A replay declaration only counts when it NAMES a slot that exists. The generator writes the
+  // string "null" into replay_of_slot_id, and Boolean("null") is true - which quietly exempted
+  // every slot from the duplicate check and let the New Moon split ship its lines twice even
+  // after the text rule landed (2026-08-25).
+  const slotIds = new Set(items.map((slot) => String(slot?.slot_id || '').trim()).filter(Boolean));
+  const namesRealSlot = (value) => slotIds.has(String(value || '').trim());
+
+  // Claim in SOURCE-TIME order, not array order. Mid-finalize the timeline array is not yet
+  // chronological (action inserts, interleave), and whichever slot happens to iterate first
+  // claims the line - on the New Moon plan the later rolling-caption repeat (slot_008) claimed
+  // "Bella I don't want you to come" before the slot that actually plays it first, so the
+  // repeat survived every in-pipeline pass and only fell in offline probes where the array
+  // was already sorted. The moment that plays first owns the line.
+  const playTimeOf = (item) => {
+    const starts = (Array.isArray(item.dialogue_line_windows) ? item.dialogue_line_windows : [])
+      .filter((win) => win && win.matched === true)
+      .map((win) => Number(win.start_sec))
+      .filter(Number.isFinite);
+    if (starts.length) return Math.min(...starts);
+    return Number.isFinite(Number(item.start_sec)) ? Number(item.start_sec) : Infinity;
+  };
+  const processingOrder = items
+    .map((item, index) => ({ index, at: playTimeOf(item) }))
+    .sort((a, b) => a.at - b.at)
+    .map((entry) => entry.index);
+
+  for (const index of processingOrder) {
     const item = items[index];
     if (item.decision !== 'KEEP_DIALOGUE') continue;
     // A callback is meant to replay its teaser; that repeat is the point, not a duplicate.
-    const isDeclaredReplay = Boolean(item.replay_of_slot_id) || Boolean(item.teaser_slot_id && item.callback_relation);
+    const isDeclaredReplay = namesRealSlot(item.replay_of_slot_id)
+      || (namesRealSlot(item.teaser_slot_id) && Boolean(item.callback_relation) && String(item.callback_relation).trim().toLowerCase() !== 'null');
 
     const lineKey = lineKeyOf(item);
-    if (lineKey && !isDeclaredReplay && claimedLines.has(lineKey)) {
+    const substantialWindows = substantialWindowsOf(item);
+    // Every substantial line is an ADJACENT repeat of one already claimed - a rolling-caption
+    // artifact, not a dramatic repeat (those come seconds later and carry their own beat).
+    // Short lines never enter the claimed map, so a slot bringing a fresh short line survives;
+    // over-keeping beats over-dropping for content.
+    const allLinesClaimed = substantialWindows.length > 0
+      && substantialWindows.every(isAdjacentRepeat)
+      && normalizedLinesOf(item).length === substantialWindows.length;
+    if (!isDeclaredReplay && ((lineKey && claimedLines.has(lineKey)) || allLinesClaimed)) {
       items[index] = {
         ...item,
         decision: 'DROP',
@@ -4141,6 +4194,10 @@ function dropDuplicateDialogueSlots(timeline) {
       continue;
     }
     if (lineKey) claimedLines.add(lineKey);
+    for (const entry of substantialWindowsOf(item)) {
+      if (!claimedLineSpans.has(entry.key)) claimedLineSpans.set(entry.key, []);
+      claimedLineSpans.get(entry.key).push([entry.start, entry.end]);
+    }
 
     const windows = Array.isArray(item.dialogue_line_windows) ? item.dialogue_line_windows : [];
     // Slots promoted by the top-up or the interleave carry focus lines but no windows yet; judge
@@ -5268,7 +5325,12 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec, usableEndSec =
   // outlive its focus line through them (Breaking Dawn: slot_015 kept the matched window for
   // "Forever." while its focus list held only the long line - the preflight then failed the run
   // on a line nobody was ever asked to caption, seven recovery attempts in a row, 2026-08-24).
-  let finalizedTimeline = dropUnplayableFocusLines(alignFocusLinesToWindows(windowSafeTimeline)).map((item) => {
+  // Duplicates once more at the end, same reason as the alignment below: the drop at the head of
+  // finalize sees windows in whatever state the early passes left them, and the adoption/fill/
+  // alignment passes can hand a slot its repeated line back afterwards. The New Moon rolling-
+  // caption repeat (slot_008) survived the early drop through exactly that and only the final
+  // timeline shows the truth. The function is idempotent, so a second pass costs nothing.
+  let finalizedTimeline = dropUnplayableFocusLines(alignFocusLinesToWindows(dropDuplicateDialogueSlots(windowSafeTimeline))).map((item) => {
     if (item.decision === 'KEEP_DIALOGUE') return annotateDialogueSlotForQc(item, { windows: item.dialogue_line_windows || [] }, item);
     return annotateNarrationSlotForQc(item);
   });

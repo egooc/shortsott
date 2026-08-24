@@ -78,3 +78,56 @@ test('slots with no matched window are left to the other checks', () => {
   assert.equal(out[0].decision, 'KEEP_DIALOGUE');
   assert.equal(out[1].decision, 'KEEP_DIALOGUE');
 });
+
+test('the string "null" is not a replay declaration', () => {
+  // The generator writes replay_of_slot_id: "null" (the string). Boolean("null") is true,
+  // which exempted every slot from the duplicate check on a real New Moon plan.
+  const out = dropDuplicateDialogueSlots([
+    slot('s2', [win('we have to leave', 16.84, 19.097)], { replay_of_slot_id: 'null' }),
+    slot('s3', [win('we have to leave', 19.097, 21.354)], { replay_of_slot_id: 'null' })
+  ]);
+  assert.equal(out[1].decision, 'DROP');
+});
+
+test('a replay must name a slot that exists', () => {
+  const out = dropDuplicateDialogueSlots([
+    slot('s2', [win('we have to leave', 16.84, 19.097)]),
+    slot('s3', [win('we have to leave', 19.097, 21.354)], { replay_of_slot_id: 's99' })
+  ]);
+  assert.equal(out[1].decision, 'DROP');
+});
+
+test('a rolling-caption repeat - the same line again in an ADJACENT window - drops', () => {
+  const out = dropDuplicateDialogueSlots([
+    slot('s7', [win("I'm coming", 102.1, 107.2), win("Bella I don't want you to come", 107.24, 111.11)]),
+    slot('s8', [win("Bella I don't want you to come", 111.11, 115.2)])
+  ]);
+  assert.equal(out[0].decision, 'KEEP_DIALOGUE');
+  assert.equal(out[1].decision, 'DROP');
+});
+
+test('a dramatic repeat seconds later carries its own beat and survives', () => {
+  // New Moon beat_06 (weight 5): Edward repeats "I don't want you to come" colder, six seconds
+  // after the first delivery. Dropping it orphaned the beat and killed the refresh at coverage.
+  const out = dropDuplicateDialogueSlots([
+    slot('s7', [win("I'm coming", 102.1, 107.2), win("Bella I don't want you to come", 107.24, 111.11)]),
+    slot('s8', [win("Bella I don't want you to come", 117.079, 122.205)])
+  ]);
+  assert.equal(out[1].decision, 'KEEP_DIALOGUE');
+});
+
+test('short interjections repeat legitimately and are never counted', () => {
+  const out = dropDuplicateDialogueSlots([
+    slot('s2', [win('no', 10, 11), win('we have to leave', 16.84, 19.097)]),
+    slot('s5', [win('no', 50, 51), win('we I mean my family', 56.44, 63.79)])
+  ]);
+  assert.equal(out[1].decision, 'KEEP_DIALOGUE');
+});
+
+test('a slot with a fresh substantial line among claimed ones survives', () => {
+  const out = dropDuplicateDialogueSlots([
+    slot('s2', [win('we have to leave', 16.84, 19.097)]),
+    slot('s3', [win('we have to leave', 19.097, 21.354), win('you promised me an answer', 30, 33)])
+  ]);
+  assert.equal(out[1].decision, 'KEEP_DIALOGUE');
+});
