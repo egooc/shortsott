@@ -740,6 +740,17 @@ function toVertexResponseSchema(node) {
   return node;
 }
 
+// Provider-aware structured JSON. Call sites that used generateVertexJson directly could not
+// follow the migration without their own branch, which is how midformSocialPostService stayed on
+// a dead provider after everything else had moved (2026-08-24).
+async function generateStructuredJson({ prompt, responseSchema, model, temperature = 0.1 }) {
+  if (visionProvider() === 'codex') {
+    const { generateJsonWithCodex } = require('./gptMidformCliService');
+    return generateJsonWithCodex({ prompt, responseSchema, model });
+  }
+  return generateVertexJson({ prompt, responseSchema, model, temperature });
+}
+
 // Text-only structured-JSON generation via Vertex Gemini, mirroring runCodexCli's contract
 // (returns the raw model text for the caller to extractJson + validate). Reuses the same auth,
 // endpoint, and response-extraction path as scene analysis.
@@ -917,6 +928,7 @@ async function judgeDialogueTranslation({ lines, targetLang = 'Korean' }) {
 
 module.exports = {
   analyzeMidformVideo,
+  generateStructuredJson,
   buildFrameJudgeInstructions,
   visionProvider,
   judgeFramesAgainstText,

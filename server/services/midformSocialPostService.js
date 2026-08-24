@@ -5,7 +5,7 @@
 // the text itself; Naver Clip: title + tags).
 const fs = require('fs');
 const path = require('path');
-const { generateVertexJson } = require('./geminiMidformService');
+const { generateStructuredJson } = require('./geminiMidformService');
 
 const SPEC_PATH = path.join(__dirname, '..', '..', 'midform', 'config', 'platform_post_specs.json');
 
@@ -258,11 +258,11 @@ async function buildSocialPosts({ workspaceDir, compressionRunDir, locale }) {
     }
     return found;
   };
-  let result = parse(await generateVertexJson({ prompt, responseSchema: RESPONSE_SCHEMA, temperature: 0.4 }));
+  let result = parse(await generateStructuredJson({ prompt, responseSchema: RESPONSE_SCHEMA, temperature: 0.4 }));
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const found = violations(result);
     if (!found.length) break;
-    result = parse(await generateVertexJson({
+    result = parse(await generateStructuredJson({
       prompt: `${prompt}\n\nYOUR PREVIOUS ATTEMPT FAILED because ${found.join('; and ')}. Rewrite ALL packages fixing this.`,
       responseSchema: RESPONSE_SCHEMA,
       temperature: 0.3

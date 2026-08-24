@@ -2514,6 +2514,26 @@ async function judgeFramesWithCodex({ framePaths, instructions }) {
 }
 
 
+// Structured JSON for callers that carry their schema inline rather than as an allowlisted file
+// (the social-post packager is one). The allowlist exists to stop an arbitrary PATH being passed
+// through to the CLI; an object defined in our own source is not that risk, and forcing every
+// caller to add a file just to switch provider is friction that keeps them on Vertex.
+async function generateJsonWithCodex({ prompt, responseSchema, model, reasoningEffort }) {
+  const dir = path.join(GPT_WORK_DIR, 'codex-schemas');
+  ensureDir(dir);
+  const strict = toCodexStrictSchema(responseSchema);
+  const body = `${JSON.stringify(strict, null, 2)}\n`;
+  const name = `inline_${crypto.createHash('sha1').update(body).digest('hex').slice(0, 12)}.strict.json`;
+  const target = path.join(dir, name);
+  if (!fs.existsSync(target) || fs.readFileSync(target, 'utf8') !== body) fs.writeFileSync(target, body, 'utf8');
+  const result = await runCodexCli(String(prompt || ''), {
+    outputSchemaPath: target,
+    model: model || process.env.GPT_MIDFORM_MODEL,
+    reasoningEffort
+  });
+  return result.outputText || result.stdout || '';
+}
+
 // --- vision scene map without a video upload -------------------------------------------------
 // Vertex watched the whole mp4; Codex takes images only. Sampling decides how faithful the
 // replacement is, so the interval is measured rather than guessed: ffmpeg scene detection at
@@ -2650,6 +2670,7 @@ async function auditDialogueWithCodex({ prompt }) {
 
 module.exports = {
   judgeFramesWithCodex,
+  generateJsonWithCodex,
   auditDialogueWithCodex,
   toCodexStrictSchema,
   codexSchemaPath,
