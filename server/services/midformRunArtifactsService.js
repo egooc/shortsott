@@ -316,6 +316,24 @@ async function collectRunArtifacts({
         loudness.raw_delta_lu = loudness.delta_lu;
         loudness.video_gain_db = alignment.video_gain_db;
         loudness.tts_cut_db = alignment.tts_cut_db;
+        // Judge against the SAME numbers the correction was sized from. This gate measured the
+        // pair itself, on its own four samples, while computeLoudnessAlignment measures eight
+        // strided windows and takes the median (casebook 22). Two measurements of one quantity
+        // disagree - dialogue came out -26.0 for the aligner and -29.3 here on the same cut - so a
+        // correction that exactly closes the gap by one reading is judged short by the other, and
+        // the gate can never be satisfied. The aligner's reading is the better-sampled one and it
+        // is the one the gain was computed from, so it wins; the local measurement stays as the
+        // fallback for runs with no alignment file (2026-08-24).
+        const alignedNarration = Number(alignment.narration_lufs);
+        const alignedDialogue = Number(alignment.dialogue_lufs);
+        const useAligned = Number.isFinite(alignedNarration) && Number.isFinite(alignedDialogue);
+        if (useAligned) {
+          loudness.measured_narration_lufs = loudness.narration_lufs;
+          loudness.measured_dialogue_lufs = loudness.dialogue_lufs;
+          loudness.narration_lufs = alignedNarration;
+          loudness.dialogue_lufs = alignedDialogue;
+          loudness.measurement_source = 'loudness_alignment';
+        }
         // Corrections run in both directions now: narration can be lifted and the video cut when the
         // narration is the quieter side.
         const narrationDb = Number(alignment.tts_gain_db || 0) - Number(alignment.tts_cut_db || 0);
@@ -323,6 +341,11 @@ async function collectRunArtifacts({
         loudness.delta_lu = Number(Math.abs(
           (loudness.narration_lufs + narrationDb) - (loudness.dialogue_lufs + videoDb)
         ).toFixed(1));
+        // What the gain could NOT deliver, so a residual reads as a limit rather than a failure.
+        if (alignment.video_gain_limited_by) loudness.video_gain_limited_by = alignment.video_gain_limited_by;
+        if (Number.isFinite(Number(alignment.source_true_peak_dbfs))) {
+          loudness.source_true_peak_dbfs = Number(alignment.source_true_peak_dbfs);
+        }
       }
     } catch { /* unaligned measurement stands */ }
   }
