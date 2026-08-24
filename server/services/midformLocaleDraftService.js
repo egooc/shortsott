@@ -198,7 +198,12 @@ function replanJaDraftSpecForFinalOverlap(draftSpec, finalOverlapReport, attempt
     // scene — the escalating shift (4 + attempt*3) walked ja slot_07 from its charge scene
     // onto the kiss scene while the narration still described the charge. 8s matches the
     // packer's scene tolerance.
-    const replanShift = Math.min(8, shiftBase + roleBonus + (index * 0.35));
+    const shiftMagnitude = Math.min(8, shiftBase + roleBonus + (index * 0.35));
+    // Attempt 1 shifts forward; attempt 2 shifts BACKWARD. Forward walked the opening bridge
+    // into the reserved dialogue right after its window and the packer's reserved-escape landed
+    // it back on ko's exact clip (traced 17.84 -> 26.89 -> 13.84, Bb4qURNGHqk). The free
+    // differentiation footage sits before the origin, not after it.
+    const replanShift = attempt >= 2 ? -shiftMagnitude : shiftMagnitude;
     // The packer's scene bounds must anchor to the ORIGINAL window: re-basing them on the
     // replanned range let +8 replan and +8 packer tolerance compound into 25s of drift.
     // ...and the cap alone was not enough: a shift applied to an already-shifted range walked ja
@@ -466,7 +471,14 @@ function normalizeDraftSpecSourceRanges(draftSpec, baseDraftInput = {}) {
     const nextKey = nextPlacement ? (String(nextPlacement?.clip_id || '').replace(/^(ko|ja)_/, '') || String(nextPlacement?.slot_id || '')) : '';
     const nextFixed = nextKey ? fixedWindowsBySlot.get(nextKey) : null;
     const nextDialogueStart = nextFixed && nextFixed.length ? Math.min(...nextFixed.map((window) => window[0])) : null;
-    const leadsIntoDialogue = nextDialogueStart != null && nextDialogueStart >= windowEndSec - 0.5 && nextDialogueStart - windowEndSec <= 4;
+    // ...but NEVER for a replan-differentiated placement: end-aligning start = windowEnd -
+    // played walked the shifted ja window (17.84-21.44) straight back to ko's exact clip
+    // (13.84-17.44 after shot snap), silently undoing the differentiation the overlap gate
+    // was about to fail the run over (Bb4qURNGHqk - the third consumer in this chain to
+    // discard the replan's work). The reveal-keeping alignment is a ko-truth heuristic; a
+    // differentiated ja window is deliberately other footage.
+    const leadsIntoDialogue = !placement.final_draft_replan_attempt
+      && nextDialogueStart != null && nextDialogueStart >= windowEndSec - 0.5 && nextDialogueStart - windowEndSec <= 4;
     let alignedEndSec = null;
     if (leadsIntoDialogue && playedSec > 0 && windowEndSec - playedSec > start) {
       // The clip ends where the window does (bounded away from the dialogue it leads into);
