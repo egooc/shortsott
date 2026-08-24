@@ -4095,11 +4095,38 @@ function dropDuplicateDialogueSlots(timeline) {
     return overlap >= DUPLICATE_DIALOGUE_OVERLAP_RATIO * Math.min(end - start, claimedEnd - claimedStart);
   });
 
+  // Time overlap misses an utterance SPLIT across two slots. A New Moon cut put "we have to leave"
+  // at 16.84-19.097 in one slot and 19.097-21.354 in the next - abutting, never overlapping, so
+  // the check above saw nothing - and both slots captioned the same sentence, so the viewer read
+  // "우리 떠나야 해 / 포크스를?" twice, three seconds apart (2026-08-24). The evidence is not the
+  // timing, it is the text: the same lines cannot be two slots' content unless one is a declared
+  // replay.
+  const claimedLines = new Set();
+  const lineKeyOf = (item) => (Array.isArray(item.dialogue_line_windows) ? item.dialogue_line_windows : [])
+    .filter((win) => win && win.matched === true && String(win.line || '').trim())
+    .map((win) => String(win.line).toLowerCase().replace(/[^a-z0-9\uac00-\ud7a3]+/g, ''))
+    .filter(Boolean)
+    .sort()
+    .join('|');
+
   for (let index = 0; index < items.length; index += 1) {
     const item = items[index];
     if (item.decision !== 'KEEP_DIALOGUE') continue;
     // A callback is meant to replay its teaser; that repeat is the point, not a duplicate.
     const isDeclaredReplay = Boolean(item.replay_of_slot_id) || Boolean(item.teaser_slot_id && item.callback_relation);
+
+    const lineKey = lineKeyOf(item);
+    if (lineKey && !isDeclaredReplay && claimedLines.has(lineKey)) {
+      items[index] = {
+        ...item,
+        decision: 'DROP',
+        estimated_duration_sec: 0,
+        duplicate_dialogue_dropped: true,
+        reason: `${item.reason || ''} Dropped: an earlier slot already carries these exact lines.`.trim()
+      };
+      continue;
+    }
+    if (lineKey) claimedLines.add(lineKey);
 
     const windows = Array.isArray(item.dialogue_line_windows) ? item.dialogue_line_windows : [];
     // Slots promoted by the top-up or the interleave carry focus lines but no windows yet; judge
