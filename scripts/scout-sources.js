@@ -23,6 +23,20 @@ require('dotenv').config({ path: path.join(ROOT, '.env') });
 const CHANNELS_PATH = path.join(ROOT, 'midform', 'config', 'source_channels.json');
 const CATALOG_PATH = path.join(ROOT, 'midform', 'config', 'movie_catalog.json');
 const TEST_RUNS_DIR = path.join(ROOT, 'midform', 'test_runs');
+// The edit plan targets roughly half the source, and the rendered cut comes in a little under that
+// (49.9s measured against a 54s target on the clip that exposed this). Require enough source that
+// the floor is reachable with that shrink allowed for, rather than discovering it after paying for
+// the whole pipeline.
+const DURATION_CONFIG_PATH = path.join(ROOT, 'midform', 'config', 'duration.json');
+const PLAN_TARGET_FRACTION_OF_SOURCE = 0.5;
+const RENDER_SHRINK_ALLOWANCE = 1.15;
+function minSourceDurationSec() {
+  let floor = 60;
+  try { floor = Number(JSON.parse(fs.readFileSync(DURATION_CONFIG_PATH, 'utf8'))?.min_duration_sec) || floor; } catch { /* default */ }
+  return Math.ceil((floor / PLAN_TARGET_FRACTION_OF_SOURCE) * RENDER_SHRINK_ALLOWANCE);
+}
+const MIN_SOURCE_DURATION_SEC = minSourceDurationSec();
+
 const REPORTS_DIR = path.join(ROOT, 'server', 'output', 'scout-reports');
 
 // The channel's newest 30 uploads are the WRONG 30: the owner picks old clips whose engagement
@@ -118,6 +132,15 @@ async function main() {
       row.movie = { key: movie.key, title_en: movie.title_en, distributor: movie.distributor, tier: movie.distributor_tier };
       if (movie.distributor_tier === 'banned') {
         report.dropped.push({ ...row, reason: `banned distributor: ${movie.distributor}` });
+        continue;
+      }
+      // A source too short to reach min_duration_sec cannot produce a midform cut, but nothing
+      // stopped it entering the queue - a 108s Breaking Dawn clip cost a download, transcript,
+      // vision pass, TTS and two locale drafts to arrive at 49.9s against a 60s floor
+      // (2026-08-24). The plan targets about half the source and the finished cut lands a little
+      // under that, so the floor here is the duration minimum with that shrink allowed for.
+      if (Number(row.duration_sec) > 0 && row.duration_sec < MIN_SOURCE_DURATION_SEC) {
+        report.dropped.push({ ...row, reason: `too short for a midform cut: ${row.duration_sec}s < ${MIN_SOURCE_DURATION_SEC}s` });
         continue;
       }
       if (args.recon) row.recon = survivalRecon(movie);
