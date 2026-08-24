@@ -1097,6 +1097,45 @@ function measureTruePeakSpawn(inputArgs) {
   return match ? Number(match[1]) : null;
 }
 
+// Clip times arrive as "MM:SS.mmm" / "HH:MM:SS.mmm" timecodes, not seconds - Number() on those
+// is NaN, which is how the first version of the used-material peak fix silently measured nothing
+// and fell back to the whole source it was written to avoid.
+function timecodeToSec(value) {
+  // Number('') is 0, so a blank field would read as second zero and invent a window at the head
+  // of the source. Blank is absent, not zero.
+  if (value === null || value === undefined) return NaN;
+  if (typeof value === 'string' && value.trim() === '') return NaN;
+  if (Number.isFinite(Number(value))) return Number(value);
+  const parts = String(value || '').trim().split(':');
+  if (!parts.length || parts.some((part) => part === '' || Number.isNaN(Number(part)))) return NaN;
+  return parts.reduce((total, part) => total * 60 + Number(part), 0);
+}
+
+// The windows the cut actually uses, merged so each span is probed once. Both the LUFS sampling
+// and the true-peak scope want this list.
+function collectUsedSourceWindows(baseInput) {
+  const clipWindows = [];
+  const pushWindow = (start, end) => {
+    const startSec = timecodeToSec(start);
+    const endSec = timecodeToSec(end);
+    if (Number.isFinite(startSec) && Number.isFinite(endSec) && endSec - startSec > 0.2) clipWindows.push([startSec, endSec]);
+  };
+  for (const seg of (Array.isArray(baseInput?.segments) ? baseInput.segments : [])) {
+    const speechRange = seg?.dialogue_speech_range_sec;
+    if (Array.isArray(speechRange)) pushWindow(speechRange[0], speechRange[1]);
+    for (const clip of (Array.isArray(seg?.source_clips) ? seg.source_clips : [])) pushWindow(clip?.start, clip?.end);
+    for (const clip of (Array.isArray(seg?.source_scenes) ? seg.source_scenes : [])) pushWindow(clip?.start, clip?.end);
+  }
+  clipWindows.sort((a, b) => a[0] - b[0]);
+  const mergedWindows = [];
+  for (const [start, end] of clipWindows) {
+    const last = mergedWindows[mergedWindows.length - 1];
+    if (last && start <= last[1] + 0.5) last[1] = Math.max(last[1], end);
+    else mergedWindows.push([start, end]);
+  }
+  return mergedWindows;
+}
+
 function computeLoudnessAlignment(baseInput, sourceVideoPath) {
   try {
     // An empty narration slot still produces a 0.232s placeholder mp3 that measures -70 LUFS, and
@@ -1154,12 +1193,41 @@ function computeLoudnessAlignment(baseInput, sourceVideoPath) {
     // source how much room it has and take the smaller of the two limits; what the gain cannot
     // deliver falls through to the TTS cut, which has no such constraint (2026-08-24).
     const TRUE_PEAK_CEILING_DBFS = -1;
+    // Whole-source true peak was the wrong scope: an explosion in a scene the cut never uses
+    // capped the gain for dialogue measuring -46 LUFS, and the residual delta failed the gate
+    // twice in one queue pass (C1iayHkXkMc 14.7 LU, xBa1k2eN6ow 7.0 LU, both stamped
+    // true_peak_headroom, 2026-08-24). Only the material actually placed on the timeline gets
+    // amplified, so only its peaks can clip - measure those. Overlapping windows are merged
+    // first so each span is probed once.
+    const mergedWindows = collectUsedSourceWindows(baseInput);
+    const measureUsedTruePeak = () => {
+      if (!mergedWindows.length) return measureTruePeakSpawn(['-i', sourceVideoPath, '-vn']);
+      const peaks = mergedWindows
+        .map(([start, end]) => measureTruePeakSpawn(['-ss', start.toFixed(3), '-t', (end - start).toFixed(3), '-i', sourceVideoPath, '-vn']))
+        .filter(Number.isFinite);
+      return peaks.length ? Math.max(...peaks) : null;
+    };
     const sourceTruePeak = (needed > 1 && sourceVideoPath && fs.existsSync(sourceVideoPath))
-      ? measureTruePeakSpawn(['-i', sourceVideoPath, '-vn']) : null;
+      ? measureUsedTruePeak() : null;
     const headroomDb = Number.isFinite(sourceTruePeak) ? Math.max(0, TRUE_PEAK_CEILING_DBFS - sourceTruePeak) : maxVideoGain;
     const videoGainLimit = Math.min(maxVideoGain, headroomDb);
-    const videoGainDb = needed > 1 ? Number(Math.min(videoGainLimit, needed).toFixed(1)) : 0;
+    let videoGainDb = needed > 1 ? Number(Math.min(videoGainLimit, needed).toFixed(1)) : 0;
     const ttsCutDb = needed > 1 ? Number(Math.min(maxTtsCut, Math.max(0, needed - videoGainDb)).toFixed(1)) : 0;
+    // A whisper-mastered source (C1iayHkXkMc: dialogue -46.2 LUFS, 28.9 LU raw delta) cannot
+    // reach the gate's fail line under the configured caps. The documented escape is raising
+    // MIDFORM_MAX_VIDEO_GAIN_DB per source - ambience rises with the dialogue, owner-approved.
+    // Apply that trade-off automatically, but ONLY when the render would otherwise fail the
+    // gate, and never past the measured true-peak headroom: ordinary sources keep the house cap.
+    const GATE_FAIL_DELTA_LU = 6;
+    const residualDelta = (narrationLufs - dialogueLufs) - videoGainDb - ttsCutDb;
+    let gateRescue = false;
+    if (needed > 1 && residualDelta > GATE_FAIL_DELTA_LU && headroomDb > videoGainDb) {
+      // Aim for the middle of the warning band, not just under the fail line.
+      const target = videoGainDb + (residualDelta - 3);
+      const rescued = Number(Math.min(headroomDb, target).toFixed(1));
+      gateRescue = rescued > videoGainDb;
+      videoGainDb = rescued;
+    }
     // The other direction was a blind spot: this only ever quietened a narration that was too LOUD, so
     // a narration mixed 6.3 LU under the dialogue (Housemaid night) stayed inaudible at the seams and
     // the loudness gate failed the render with nothing able to fix it. Correct it the same way, in
@@ -1176,8 +1244,9 @@ function computeLoudnessAlignment(baseInput, sourceVideoPath) {
       // Which limit bound the gain - without this a residual delta reads as "the correction did
       // not work" when it means "there was no room left".
       video_gain_limited_by: needed <= 1 ? 'not_needed'
-        : (headroomDb < maxVideoGain && videoGainDb >= headroomDb - 0.05 ? 'true_peak_headroom'
-          : (videoGainDb >= maxVideoGain - 0.05 ? 'configured_cap' : 'none')),
+        : (gateRescue ? 'gate_rescue_headroom'
+          : (headroomDb < maxVideoGain && videoGainDb >= headroomDb - 0.05 ? 'true_peak_headroom'
+            : (videoGainDb >= maxVideoGain - 0.05 ? 'configured_cap' : 'none'))),
       delta_lu: Number((narrationLufs - dialogueLufs).toFixed(1)),
       video_gain_db: videoGainDb,
       tts_cut_db: ttsCutDb,
@@ -1374,6 +1443,9 @@ module.exports = {
   buildJapaneseScript,
   buildJapaneseBaseDraftInput,
   _test: {
+    timecodeToSec,
+    collectUsedSourceWindows,
+    computeLoudnessAlignment,
     cloneJson,
     normalizeDraftSpecSourceRanges,
     shiftedSourceRange,

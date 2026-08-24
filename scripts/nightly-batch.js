@@ -276,8 +276,12 @@ function regenerateFillsWithReason(compressRunId, timeoutMs) {
     const text = `${result.stderr || ''}\n${result.stdout || ''}`;
     const lines = text.split('\n').map((line) => line.trim()).filter(Boolean);
     if (result.error) return String(result.error.message || result.error);
-    // The stack trace is noise; the thrown message is the one line worth keeping.
-    const thrown = lines.find((line) => /^(Error|TypeError|MIDFORM_|\[midform\])/.test(line));
+    // The stack trace is noise; the thrown message is the one line worth keeping. Errors first:
+    // a [midform] progress log ("dropped 1 closed title candidate") matched before the actual
+    // Error line and masked WHY an apply failed (qcsfu5sySus, 2026-08-24). Of the [midform]
+    // lines the LAST is the one nearest the death.
+    const thrown = lines.find((line) => /^(Error|TypeError|MIDFORM_)/.test(line))
+      || lines.findLast((line) => /^\[midform\]/.test(line));
     return (thrown || lines[lines.length - 1] || 'no output').slice(0, 300);
   };
   const apply = step('compress-apply');
