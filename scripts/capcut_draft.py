@@ -1984,6 +1984,30 @@ MIDFORM_CAPTION_LANE_OFFSETS = (0.0, 0.10)
 # disjoint for the capcut gates while the captions overlap on their lanes. Bounded so a line
 # cannot linger indefinitely over later footage.
 MIDFORM_CAPTION_SPILL_MAX_US = 2_000_000
+# How long a line may stay up AFTER it has been spoken. The hold below exists so a speaker is
+# never on screen talking with nothing to read, but it was bounded by the clip, and a clip is cut
+# with pre/post-roll around the line - so three syllables ("것뿐이야.") sat on screen for 9.9
+# seconds while nobody was saying them, and two speakers' lines overlapped for two full seconds
+# (2026-08-24, owner review). Bound the hold by the spoken length instead: long enough to finish
+# reading, short enough that the caption clears when the voice does.
+MIDFORM_CAPTION_READ_TAIL_US = 1_200_000
+# The last chunk of a line inherits whatever time the line has left, so a five-character tail
+# ("것뿐이야.") was on screen for 9.9 seconds and an eight-character line for 3.5 against 0.95s of
+# measured speech (2026-08-24, owner review). Bound every dialogue chunk by what its own text
+# needs. The rate is SPEAKING, not reading: Korean reads at roughly 8 chars/sec but is spoken at
+# about 5, and sizing by the reading rate would cut a caption while the words were still coming.
+MIDFORM_CAPTION_SPEECH_CHARS_PER_SEC = 5.0
+MIDFORM_CAPTION_CHUNK_TAIL_US = 1_000_000
+MIDFORM_CAPTION_CHUNK_MIN_US = 900_000
+
+
+def midform_caption_chunk_max_us(text):
+    """Longest this chunk may stay up: time to say it, plus a beat to finish reading."""
+    chars = len(str(text or "").strip())
+    if chars <= 0:
+        return None
+    spoken_us = int(round((chars / MIDFORM_CAPTION_SPEECH_CHARS_PER_SEC) * 1_000_000))
+    return max(MIDFORM_CAPTION_CHUNK_MIN_US, spoken_us + MIDFORM_CAPTION_CHUNK_TAIL_US)
 
 
 def midform_caption_row_y(caption_kind, lane_index, base_y=MIDFORM_CAPTION_Y):
@@ -10468,12 +10492,25 @@ def create_draft(input_json_path):
                 and int((next_unit or {}).get("order") or 0) > chunk_order
             )
             if is_dialogue_caption and video_timeline_end_us > timeline_end_us and not next_is_same_line_chunk:
-                timeline_end_us = min(caption_ceiling_us, video_timeline_end_us)
+                hold_end_us = min(caption_ceiling_us, video_timeline_end_us)
+                # Only bound by the spoken length when we actually know it; without
+                # caption_duration_sec the old clip-end hold is still the best guess available.
+                if caption_spoken_sec > 0:
+                    hold_end_us = min(
+                        hold_end_us,
+                        timeline_start_us + int(round(caption_spoken_sec * 1_000_000)) + MIDFORM_CAPTION_READ_TAIL_US,
+                    )
+                timeline_end_us = hold_end_us
             timeline_end_us = max(timeline_end_us, min(video_timeline_end_us, timeline_start_us + 1))
             # A chained chunk whose predecessors already consumed the ceiling would start AT the
             # ceiling and get a non-positive span - the SRT filter then drops it and the text
             # vanishes from the video entirely (악화시키네. was missing). Dropping text is worse
             # than slightly exceeding the spill bound: guarantee every chunk a readable floor.
+            # Shorten only - never extend. A chunk that already fits its text is untouched.
+            if is_dialogue_caption:
+                chunk_max_us = midform_caption_chunk_max_us(narration)
+                if chunk_max_us and timeline_end_us - timeline_start_us > chunk_max_us:
+                    timeline_end_us = timeline_start_us + chunk_max_us
             if is_dialogue_caption and timeline_end_us < timeline_start_us + 350_000:
                 timeline_end_us = timeline_start_us + 350_000
             duration_us = max(1, timeline_end_us - timeline_start_us)
