@@ -794,9 +794,14 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
   // slot on the very peak an action beat plays, and the two collide in the overlap gate
   // regardless of which one the timeline reaches first.
   for (const item of timeline) {
-    if (normalizeText(item.visual_source_mode) !== 'source_audio_action') continue;
-    const actionStart = Number(item.visual_source_start_sec);
-    const actionEnd = Number(item.visual_source_end_sec);
+    const itemMode = normalizeText(item.visual_source_mode);
+    // source_audio_teaser on a BODY slot is the same mechanism as an action beat - the plan
+    // reserving an action sequence to play under its own audio - and gets the same reservation.
+    const isReservedAction = itemMode === 'source_audio_action'
+      || (itemMode === 'source_audio_teaser' && normalizeText(item.role) !== 'cold_open');
+    if (!isReservedAction) continue;
+    const actionStart = Number.isFinite(Number(item.visual_source_start_sec)) ? Number(item.visual_source_start_sec) : Number(item.start_sec);
+    const actionEnd = Number.isFinite(Number(item.visual_source_end_sec)) ? Number(item.visual_source_end_sec) : Number(item.end_sec);
     if (Number.isFinite(actionStart) && Number.isFinite(actionEnd) && actionEnd > actionStart) {
       assignedBrollRanges.push([actionStart, actionEnd]);
     }
@@ -1131,13 +1136,19 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
     // (visual_source_mode source_audio_action) are the same mechanism promoted to the body:
     // measured energy peaks playing their own fight audio between narration/dialogue slots.
     const isActionBeat = normalizeText(item.visual_source_mode) === 'source_audio_action';
+    // The plan writes source_audio_teaser on BODY slots too - S08 reserved the whole werewolf
+    // transformation (126-151.5s) under that mode, but only cold-open teasers counted as scene
+    // hooks, so the slot fell through to narration handling and the narration-length invariant
+    // chopped 25.5s of action to the 2.4s the TTS ran (2026-08-25, owner: "액션의 묘미가 없어").
+    // A body teaser is an action beat by intent: play the window under its own audio.
+    const isBodyActionTeaser = !isColdOpen && normalizeText(item.visual_source_mode) === 'source_audio_teaser';
     // On-screen cards (benchmark B-form): 1-2 short strings from the fill, shown as big centered
     // text over the clip while its ORIGINAL audio plays - no TTS. A NARRATE slot whose fill has
     // cards and no narration is a pure card seam ("며칠후") and renders like a scene hook.
     const storyCardTexts = (Array.isArray(fill.cards) ? fill.cards : [])
       .map((value) => normalizeText(value)).filter(Boolean).slice(0, 2);
     const isCardOnly = storyCardTexts.length > 0 && !normalizeText(fill.narration || '');
-    const isSceneHook = (isColdOpen && normalizeText(item.visual_source_mode) === 'source_audio_teaser') || isActionBeat || isCardOnly;
+    const isSceneHook = (isColdOpen && normalizeText(item.visual_source_mode) === 'source_audio_teaser') || isActionBeat || isCardOnly || isBodyActionTeaser;
     const narration = isSceneHook ? '' : normalizeText(fill.narration || '');
     const captionKr = isSceneHook ? '' : normalizeText(fill.caption_kr || '');
     if (!narration && !isSceneHook) warnings.push(`${slotId} (${role}) NARRATE has empty narration`);
@@ -1148,7 +1159,19 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
     let sourceRange;
     let sourceScenes;
     let sourceRangeHint;
-    if ((isColdOpen || isActionBeat) && Number.isFinite(teaserStart) && Number.isFinite(teaserEnd) && teaserEnd > teaserStart) {
+    const bodyTeaserStart = Number.isFinite(teaserStart) ? teaserStart : Number(item.start_sec);
+    const bodyTeaserEnd = Number.isFinite(teaserEnd) ? teaserEnd : Number(item.end_sec);
+    if (isBodyActionTeaser && Number.isFinite(bodyTeaserStart) && Number.isFinite(bodyTeaserEnd) && bodyTeaserEnd > bodyTeaserStart) {
+      sourceRange = [bodyTeaserStart, bodyTeaserEnd];
+      sourceScenes = [{
+        clip_id: `${slotId}_action_clip`,
+        scene_id: 'action_beat',
+        start: secondsToTimecode(bodyTeaserStart),
+        end: secondsToTimecode(bodyTeaserEnd),
+        speed_multiplier: 1
+      }];
+      sourceRangeHint = [bodyTeaserStart, bodyTeaserStart];
+    } else if ((isColdOpen || isActionBeat) && Number.isFinite(teaserStart) && Number.isFinite(teaserEnd) && teaserEnd > teaserStart) {
       sourceRange = [teaserStart, teaserEnd];
       sourceScenes = [{
         clip_id: isActionBeat ? `${slotId}_action_clip` : `${slotId}_teaser_clip`,
