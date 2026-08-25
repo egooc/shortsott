@@ -1007,8 +1007,13 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
           const nextTiming = buildDialogueTimingAdjustment(item, nextEntry.win, orderedDialogueWindows, orderedIndex + 1, durationSec, paddingGuardRanges);
           const nextVisualStart = Number(nextTiming?.visual_range_sec?.[0]);
           const bridgeGap = nextVisualStart - visualEndSec;
-          if (Number.isFinite(nextVisualStart) && bridgeGap > 0.05 && bridgeGap <= 2.5) {
-            visualEndSec = roundSec3(nextVisualStart);
+          // Stop 50ms SHORT of the next line's visual start: the timing rule splits the gap at
+          // its midpoint precisely so neither side crosses the shared boundary, and butting to
+          // the exact start crossed it by the minimum gap - the cross-segment gate refused two
+          // rebuilt cuts over a 0.02s overlap. One frame of gap is invisible; an overlap is a
+          // failed run.
+          if (Number.isFinite(nextVisualStart) && bridgeGap > 0.1 && bridgeGap <= 2.5) {
+            visualEndSec = roundSec3(nextVisualStart - 0.05);
           }
         }
         const isReactionTailSlot = role === 'cold_open' || item.protected_peak === true;
