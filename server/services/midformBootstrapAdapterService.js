@@ -995,6 +995,22 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
         // The protected peak gets the same reaction tail: the benchmark channel's signature is the
         // film's iconic moment playing UNCUT through its reaction - tension is compressed elsewhere,
         // release plays whole. Cutting the peak on its last word threw that release away.
+        // Intra-slot continuity: consecutive lines of one exchange often leave a 1-2.5s source
+        // gap - the breath or reaction between them - and cutting it makes the actor visibly
+        // skip (owner: "분절이 좀 아쉬워", 7 jump cuts measured on the Jacob cut, 4 of them
+        // intra-slot). Bridge the gap: extend this line's visual exactly to the next line's
+        // visual start, so the pause plays and the clips butt frame-to-frame. Speech in such a
+        // gap cannot be uncaptioned - the adoption pass would have made it a line of the slot.
+        // The caption stays on the spoken words; only the video runs through the pause.
+        if (orderedIndex < orderedDialogueWindows.length - 1) {
+          const nextEntry = orderedDialogueWindows[orderedIndex + 1];
+          const nextTiming = buildDialogueTimingAdjustment(item, nextEntry.win, orderedDialogueWindows, orderedIndex + 1, durationSec, paddingGuardRanges);
+          const nextVisualStart = Number(nextTiming?.visual_range_sec?.[0]);
+          const bridgeGap = nextVisualStart - visualEndSec;
+          if (Number.isFinite(nextVisualStart) && bridgeGap > 0.05 && bridgeGap <= 2.5) {
+            visualEndSec = roundSec3(nextVisualStart);
+          }
+        }
         const isReactionTailSlot = role === 'cold_open' || item.protected_peak === true;
         if (isReactionTailSlot && orderedIndex === orderedDialogueWindows.length - 1) {
           // Cap at the next slot's window start: plans overlap neighbouring windows by up to
