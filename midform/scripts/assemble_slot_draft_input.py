@@ -614,10 +614,99 @@ def partition_score(words, boundaries, ideal_positions):
     return (imbalance * 1000) + (ratio * 100) + (distance * 10) - boundary_quality
 
 
+def _partition_with(words, forbidden_at, score_at, max_chars, protected_chars, min_chars):
+    """Balanced partition over externally supplied boundary verdicts (POS path)."""
+    total_len = sum(visible_len(word) for word in words)
+    min_parts = max(2, math.ceil(total_len / max_chars))
+    for part_count in range(min_parts, len(words) + 1):
+        ideal_positions = [total_len * (index / part_count) for index in range(1, part_count)]
+        candidate_boundaries = []
+        for ideal in ideal_positions:
+            local = []
+            for boundary in range(1, len(words)):
+                if forbidden_at(boundary):
+                    continue
+                point = sum(visible_len(word) for word in words[:boundary])
+                if abs(point - ideal) <= 7:
+                    local.append((score_at(boundary), -abs(point - ideal), boundary))
+            if not local:
+                candidate_boundaries = []
+                break
+            local.sort(reverse=True)
+            candidate_boundaries.append([item[2] for item in local[:6]])
+        if not candidate_boundaries or len(candidate_boundaries) != part_count - 1:
+            continue
+        best = None
+        for raw_boundaries in itertools.product(*candidate_boundaries):
+            boundaries = tuple(sorted(set(raw_boundaries)))
+            if len(boundaries) != part_count - 1:
+                continue
+            starts = [0] + list(boundaries)
+            ends = list(boundaries) + [len(words)]
+            chunks = [words[start:end] for start, end in zip(starts, ends)]
+            lengths = [visible_len(" ".join(chunk)) for chunk in chunks]
+            if any(length < min_chars or length > protected_chars for length in lengths):
+                continue
+            if any(length > max_chars for length in lengths) and not all(length <= protected_chars for length in lengths):
+                continue
+            imbalance = max(lengths) - min(lengths)
+            quality = sum(score_at(boundary) for boundary in boundaries)
+            score = (imbalance * 100) - quality
+            if best is None or score < best[0]:
+                best = (score, chunks)
+        if best is not None:
+            return [" ".join(chunk) for chunk in best[1]]
+    # Greedy fallback honoring the same verdicts.
+    chunks = []
+    current = []
+    for index, word in enumerate(words):
+        candidate = current + [word]
+        if current and visible_len(" ".join(candidate)) > max_chars:
+            cut = None
+            for back in range(len(current), 0, -1):
+                boundary = index - len(current) + back
+                if boundary >= 1 and boundary < len(words) and not forbidden_at(boundary):
+                    cut = back
+                    break
+            if cut:
+                chunks.append(current[:cut])
+                current = current[cut:] + [word]
+                continue
+        current = candidate
+    if current:
+        chunks.append(current)
+    if len(chunks) >= 2 and visible_len(" ".join(chunks[-1])) < min_chars:
+        merged = chunks[-2] + chunks[-1]
+        if visible_len(" ".join(merged)) <= protected_chars:
+            chunks[-2:] = [merged]
+    return [" ".join(chunk) for chunk in chunks] if chunks else [" ".join(words)]
+
+
 def balanced_partition_words(words, max_chars=CAPTION_MAX_CHARS, protected_chars=CAPTION_EXTENDED_CHARS, min_chars=CAPTION_MIN_CHARS):
     total_len = sum(visible_len(word) for word in words)
     if total_len <= max_chars:
         return [" ".join(words)]
+    # POS-driven boundaries when the analyzer is present: grammar answered from first
+    # principles instead of the enumerated rules below, which were rediscovering Korean
+    # syntax one shipped defect at a time (casebook 30 and its addenda).
+    pos_verdicts = None
+    try:
+        import caption_pos_splitter
+        if caption_pos_splitter.pos_available():
+            pos_verdicts = caption_pos_splitter.analyze_boundaries(list(words))
+    except Exception:
+        pos_verdicts = None
+    if pos_verdicts is not None:
+        def pos_forbidden(boundary):
+            return not pos_verdicts[boundary - 1][0]
+        def pos_score(boundary):
+            return pos_verdicts[boundary - 1][1]
+        return _partition_with(words, pos_forbidden, pos_score, max_chars, protected_chars, min_chars)
+    return _partition_enumerated(words, max_chars, protected_chars, min_chars)
+
+
+def _partition_enumerated(words, max_chars=CAPTION_MAX_CHARS, protected_chars=CAPTION_EXTENDED_CHARS, min_chars=CAPTION_MIN_CHARS):
+    total_len = sum(visible_len(word) for word in words)
     min_parts = max(2, math.ceil(total_len / max_chars))
     for part_count in range(min_parts, len(words) + 1):
         ideal_positions = [total_len * (index / part_count) for index in range(1, part_count)]
