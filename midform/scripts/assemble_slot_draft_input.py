@@ -17,6 +17,10 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
+# Which caption chunker actually ran: "pos" (kiwipiepy grammar) or "enumerated" (fallback).
+# Recorded into the draft_input payload so a silent-dependency build is visible after the fact.
+_SPLITTER_MODE = "unused"
+
 import edge_tts
 
 try:
@@ -696,6 +700,14 @@ def balanced_partition_words(words, max_chars=CAPTION_MAX_CHARS, protected_chars
             pos_verdicts = caption_pos_splitter.analyze_boundaries(list(words))
     except Exception:
         pos_verdicts = None
+    global _SPLITTER_MODE
+    if pos_verdicts is None and _SPLITTER_MODE != "enumerated":
+        # The fallback must be LOUD: r/s/t shipped with "…를 다 |" splits because the
+        # rebuild's python had no kiwipiepy and nothing said so (2026-08-26).
+        _SPLITTER_MODE = "enumerated"
+        print("[caption-splitter] kiwipiepy unavailable - enumerated fallback in use", file=sys.stderr)
+    elif pos_verdicts is not None and _SPLITTER_MODE == "unused":
+        _SPLITTER_MODE = "pos"
     if pos_verdicts is not None:
         def pos_forbidden(boundary):
             return not pos_verdicts[boundary - 1][0]
@@ -1438,7 +1450,11 @@ async def main():
         "ttsFiles": tts_files,
         "captionUnits": caption_units,
         "ttsUnits": tts_units,
-        "captionWarnings": [],
+        "captionSplitterMode": _SPLITTER_MODE,
+        "captionWarnings": (
+            ["caption splitter ran in enumerated fallback mode (kiwipiepy unavailable)"]
+            if _SPLITTER_MODE == "enumerated" else []
+        ),
         "claudeScript": script,
         "gptScript": script,
         "slotMap": script.get("slot_map", {}),

@@ -104,19 +104,55 @@ def analyze_boundaries(words):
         if right_first in _FORBID_BEFORE:
             verdicts.append((False, -100))
             continue
+        # 있/없 license the dependent noun (or bare noun) before them: "-ㄹ 수(도) 있다",
+        # "-ㄹ 리 없다", "방해 없이". kiwi tags 도 as JX (a good boundary in general), so this
+        # binding needs its own check (shipped sample: "벌어질 수도 | 있었던").
+        if (
+            right_first in {"VA", "VV"} and right_tokens[0].form in {"있", "없"}
+        ) or (
+            # 없이 is tagged MAG as a whole word but still licenses the noun before it
+            # ("방해 없이", "말썽 없이") - same binding, different tokenization.
+            right_first == "MAG" and right_tokens[0].form == "없이"
+        ):
+            left_bare_noun = left_last in {"NNG", "NNP", "NNB", "XSN", "XR"}
+            left_nnb_particle = (
+                len(left_tokens) >= 2
+                and left_tokens[-1].tag.startswith("J")
+                and left_tokens[-2].tag == "NNB"
+            )
+            if left_bare_noun or left_nnb_particle:
+                verdicts.append((False, -100))
+                continue
         if left_last in _FORBID_AFTER:
             verdicts.append((False, -100))
             continue
         if left_last == "JKO":
-            # Object binds to its verb; splitting is tolerable only when the object phrase is
-            # long enough to stand alone, which the width search decides - mark weak, not
-            # forbidden, unless the object word is short.
-            if len(words[index - 1]) <= 2:
+            # Object binds to its verb; splitting is tolerable only when the object PHRASE is
+            # long enough to stand alone. Measure the noun phrase, not the single word: a
+            # determiner/genitive/pronoun in front ("내 말을", "우리 집을") makes a short object
+            # word a fine chunk ending (shipped sample: "내 말을 그렇게 | 쉽게 믿다니" chose a
+            # worse break because 말을 alone was forbidden).
+            np_len = len(words[index - 1])
+            walk = index - 2
+            while walk >= 0 and grouped[walk]:
+                prev_last = grouped[walk][-1].tag
+                if prev_last in {"MM", "JKG", "NP"} and len(words[walk]) <= 2:
+                    np_len += len(words[walk])
+                    walk -= 1
+                    continue
+                break
+            if np_len <= 2:
                 verdicts.append((False, -100))
                 continue
             verdicts.append((True, 10))
             continue
         if left_last in _GOOD_AFTER:
+            # -게 adverbial forms (그렇게/쉽게/빠르게) modify the predicate AFTER them even
+            # though kiwi tags the ending EC like clause connectives (-고/-서/-면). Keep the
+            # boundary legal but weak so a real clause/phrase close wins when one exists.
+            if left_last == "EC" and left_tokens[-1].form == "게":
+                verdicts.append((True, 15))
+                continue
             verdicts.append((True, 80))
             continue
         # Bare noun before another word usually modifies it (compound) - weak boundary.
