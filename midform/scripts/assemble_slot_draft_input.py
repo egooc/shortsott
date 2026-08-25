@@ -548,6 +548,13 @@ def is_forbidden_boundary(left_word, right_word):
     # Forbid the boundary on BOTH sides of such a word so the partition routes around it.
     def _single_syllable_modifier(word):
         core = word_core(word)
+        # Fused object pronouns (뭘=무엇을, 널, 날, 걸, 절) end in ㄹ but are OBJECTS, not
+        # modifiers - blocking the boundary BEFORE them kept "빅토리아가 뭘 노리는지 몰라."
+        # from splitting after the subject, and the unsplit 13-char caption line-wrapped with
+        # a lone "몰라." on the second row (owner review 2026-08-26). The boundary AFTER them
+        # is still guarded by the object-particle rule.
+        if core in {"뭘", "널", "날", "걸", "절", "누굴"}:
+            return False
         if len(core) != 1:
             return False
         code = ord(core) - 0xAC00
