@@ -373,7 +373,12 @@ def split_by_sentence_boundaries(text):
         if not piece:
             continue
         cursor = 0
-        pattern = re.compile(r"(.+?(?:습니다|했습니다|됩니다|였죠|했죠|이죠|죠|는데|했는데|버렸습니다|다)[.!?。！？]?)($|\s)")
+        # The bare-다 alternative needs its punctuation: without it, ANY word ending in 다
+        # mid-sentence (the adverb 다, 바다, 어디다) becomes a fake sentence boundary and the
+        # POS splitter downstream never sees the whole line ("난 아직 내 얘기를 다 | 하지
+        # 않았어." shipped this way, 2026-08-26). The longer endings stay punctuation-optional -
+        # they are unambiguous sentence-final morphology.
+        pattern = re.compile(r"(.+?(?:(?:습니다|했습니다|됩니다|였죠|했죠|이죠|죠|는데|했는데|버렸습니다)[.!?。！？]?|다[.!?。！？]))($|\s)")
         for match in pattern.finditer(piece):
             chunk = piece[cursor:match.end(1)].strip()
             if chunk:
