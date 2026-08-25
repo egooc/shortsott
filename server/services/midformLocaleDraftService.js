@@ -683,6 +683,23 @@ function normalizeDraftSpecSourceRanges(draftSpec, baseDraftInput = {}, options 
       adjusted = true;
       trace('primary-trim', start, end);
     }
+    // Last resort: the START still sits inside a reserved window (the slide gave up at its
+    // semantic ceiling, so the escape route was out of scene). Shipping this fails the hybrid
+    // validator downstream - a WORSE outcome than an undifferentiated clip. Fall back to the
+    // semantic origin position: ko-identical, but valid; footage-bound sources simply cannot
+    // differentiate this slot and the overlap gate will say so honestly.
+    if (overlapsReserved(start, Math.min(end, start + 1.0)) && Array.isArray(placement.semantic_origin_range)) {
+      const origin = placement.semantic_origin_range.map(Number);
+      if (origin[1] > origin[0]) {
+        start = origin[0];
+        // End exactly at the origin scene: overshooting by tolerance walked the fallback into
+        // the very dialogue reservations this path exists to escape. The continuation montage
+        // below fills any narration shortfall from footage it verifies against reservations.
+        end = origin[1];
+        adjusted = true;
+        trace('origin-fallback', start, end);
+      }
+    }
     // The shot snap may stretch the end back out; the narration-length invariant wins over
     // a prettier cut point (slot_07 came back 9.6s under 7.2s of narration - 2s of the fall
     // returned to the screen).
