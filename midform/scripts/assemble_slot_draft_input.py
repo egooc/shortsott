@@ -528,6 +528,21 @@ def is_forbidden_boundary(left_word, right_word):
         return True
     if left.endswith("가로채") and right.startswith("막"):
         return True
+    # A negation adverb binds to the verb after it and can never end a chunk: the -게 fix alone
+    # rerouted "못 오게 해." into "…근처엔 못 | 오게 해." - trading one bad seam for another.
+    if word_core(left) in {"못", "안"}:
+        return True
+    # "-게 하다/만들다" auxiliary: the connective -게 binds to the verb that follows it, and
+    # splitting there stranded a lone "해." as its own caption ("못 오게 | 해.", owner review
+    # 2026-08-25). Same for a -지 before 않다/못하다/말다.
+    if word_core(left).endswith("게") and word_core(right).startswith(("하", "해", "했", "합", "만들")):
+        return True
+    if word_core(left).endswith("지") and word_core(right).startswith(("않", "못", "말", "마")):
+        return True
+    # A predicate tail of 1-2 visible chars can never open a chunk: "해.", "돼요"-class fragments
+    # read as stutters no matter what precedes them.
+    if len(word_core(right)) <= 2 and PREDICATE_RE.search(right):
+        return True
     # A ONE-SYLLABLE word with a ㄴ/ㄹ final is almost always a verbal modifier (준/본/한/될/간)
     # or a noun that reads as one; tearing it from its neighbour produced "대학에서 | 준 실험용".
     # Forbid the boundary on BOTH sides of such a word so the partition routes around it.
@@ -656,6 +671,12 @@ def balanced_partition_words(words, max_chars=CAPTION_MAX_CHARS, protected_chars
         current = candidate
     if current:
         chunks.append(current)
+    # The greedy path enforced max width but never min width, so the LAST chunk could ship as a
+    # two-char stutter. Merge a short tail into its predecessor while the merge stays readable.
+    if len(chunks) >= 2 and visible_len(" ".join(chunks[-1])) < CAPTION_MIN_CHARS:
+        merged = chunks[-2] + chunks[-1]
+        if visible_len(" ".join(merged)) <= CAPTION_EXTENDED_CHARS:
+            chunks[-2:] = [merged]
     return [" ".join(chunk) for chunk in chunks] if chunks else [" ".join(words)]
 
 
