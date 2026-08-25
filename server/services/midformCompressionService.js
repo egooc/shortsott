@@ -217,6 +217,25 @@ function stripDoubleTerminalPunctuation(value) {
   return String(value || '').replace(/([?!\u2026\uFF1F\uFF01])[.\u3002]+$/u, '$1');
 }
 
+// Canonical character spellings. The generator writes 제이컵 for the character every shipped
+// cut calls 제이콥 (and yesterday it wrote "null" for a missing replay id) - a name is channel
+// canon, and two spellings read as two people. The map lives beside the colour registry in
+// caption_colors.json (name_aliases) so both identities stay in one file.
+function applyNameAliases(fill) {
+  let aliases;
+  try {
+    aliases = require('../../midform/config/caption_colors.json').name_aliases || {};
+  } catch { aliases = {}; }
+  const entries = Object.entries(aliases);
+  if (!entries.length) return fill;
+  const fix = (text) => entries.reduce((value, [from, to]) => String(value).split(from).join(to), text);
+  const next = { ...fill };
+  if (typeof next.narration === 'string') next.narration = fix(next.narration);
+  if (Array.isArray(next.caption_kr_dialogue)) next.caption_kr_dialogue = next.caption_kr_dialogue.map((caption) => fix(String(caption || '')));
+  if (Array.isArray(next.speakers)) next.speakers = next.speakers.map((speaker) => fix(String(speaker || '')));
+  return next;
+}
+
 function normalizeSlotFillsForStyle(slotFills, editPlan) {
   const closingSlotIds = new Set((Array.isArray(editPlan?.timeline) ? editPlan.timeline : [])
     .filter((item) => item.role === 'closing')
@@ -226,7 +245,7 @@ function normalizeSlotFillsForStyle(slotFills, editPlan) {
     .map((item) => String(item.slot_id || '').trim()));
   const normalizedFills = (Array.isArray(slotFills?.slot_fills) ? slotFills.slot_fills : []).map((fill) => {
     const slotId = String(fill?.slot_id || '').trim();
-    let next = fill;
+    let next = applyNameAliases(fill);
     if (closingSlotIds.has(slotId)) next = normalizeClosingSlotFill(next);
     if (keepDialogueSlotIds.has(slotId)) next = { ...next, translation_mode: 'faithful_dialogue' };
     if (Array.isArray(next?.caption_kr_dialogue)) {
