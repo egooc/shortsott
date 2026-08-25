@@ -1159,9 +1159,28 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
     let sourceRange;
     let sourceScenes;
     let sourceRangeHint;
-    const bodyTeaserStart = Number.isFinite(teaserStart) ? teaserStart : Number(item.start_sec);
-    const bodyTeaserEnd = Number.isFinite(teaserEnd) ? teaserEnd : Number(item.end_sec);
-    if (isBodyActionTeaser && Number.isFinite(bodyTeaserStart) && Number.isFinite(bodyTeaserEnd) && bodyTeaserEnd > bodyTeaserStart) {
+    let bodyTeaserStart = Number.isFinite(teaserStart) ? teaserStart : Number(item.start_sec);
+    let bodyTeaserEnd = Number.isFinite(teaserEnd) ? teaserEnd : Number(item.end_sec);
+    if (isBodyActionTeaser) {
+      // The plan's action window may butt into a dialogue utterance (S06 started 0.9s before the
+      // cold open's last word ended, and with the full window finally playing, the cross-segment
+      // overlap gate rightly refused it). Dialogue is fixed and first - trim the action window
+      // off every kept utterance, keeping the larger surviving side.
+      for (const other of timeline) {
+        if (other === item || other.decision !== 'KEEP_DIALOGUE') continue;
+        for (const win of Array.isArray(other.dialogue_line_windows) ? other.dialogue_line_windows : []) {
+          if (!win || win.matched !== true) continue;
+          const winStart = Number(win.start_sec);
+          const winEnd = Number(win.end_sec);
+          if (!(winEnd > winStart) || winEnd <= bodyTeaserStart || winStart >= bodyTeaserEnd) continue;
+          const headSec = winStart - bodyTeaserStart;
+          const tailSec = bodyTeaserEnd - winEnd;
+          if (tailSec >= headSec) bodyTeaserStart = Math.max(bodyTeaserStart, winEnd + 0.2);
+          else bodyTeaserEnd = Math.min(bodyTeaserEnd, winStart - 0.2);
+        }
+      }
+    }
+    if (isBodyActionTeaser && Number.isFinite(bodyTeaserStart) && Number.isFinite(bodyTeaserEnd) && bodyTeaserEnd > bodyTeaserStart + 1.0) {
       sourceRange = [bodyTeaserStart, bodyTeaserEnd];
       sourceScenes = [{
         clip_id: `${slotId}_action_clip`,
