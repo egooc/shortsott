@@ -283,7 +283,52 @@
       ],
       "first_seen": "20260825n-new-moon-QnFcGy-ja",
       "updated_at": "2026-08-25T04:09:26.815Z"
+    },
+    "라디오 진행자": {
+      "color": "#B48CFF",
+      "role": "기타1",
+      "shipped_colors": [
+        "#B48CFF"
+      ],
+      "first_seen": "20260825n-draft-day-kfkscv-ja",
+      "updated_at": "2026-08-25T10:23:25.597Z"
+    },
+    "본테": {
+      "color": "#4DDCCB",
+      "role": "기타2",
+      "shipped_colors": [
+        "#4DDCCB"
+      ],
+      "first_seen": "20260825n-draft-day-kfkscv-ja",
+      "updated_at": "2026-08-25T10:23:25.598Z"
+    },
+    "레이": {
+      "color": "#FF8A5C",
+      "role": "기타3",
+      "shipped_colors": [
+        "#FF8A5C"
+      ],
+      "first_seen": "20260825n-draft-day-kfkscv-ja",
+      "updated_at": "2026-08-25T10:23:25.598Z"
+    },
+    "소니": {
+      "color": "#00A9F7",
+      "role": "남주",
+      "shipped_colors": [
+        "#00A9F7"
+      ],
+      "first_seen": "20260825n-draft-day-kfkscv-ja",
+      "updated_at": "2026-08-25T10:23:25.598Z"
+    },
+    "앤서니": {
+      "color": "#D3E84C",
+      "role": "기타4",
+      "shipped_colors": [
+        "#D3E84C"
+      ],
+      "first_seen": "20260825n-draft-day-kfkscv-ja",
+      "updated_at": "2026-08-25T10:23:25.598Z"
     }
   },
-  "updated_at": "2026-08-25T06:34:44.637Z"
+  "updated_at": "2026-08-25T10:23:25.598Z"
 }
