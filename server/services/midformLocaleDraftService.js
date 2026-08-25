@@ -389,7 +389,29 @@ function normalizeDraftSpecSourceRanges(draftSpec, baseDraftInput = {}, options 
     const placementKey = String(placement?.clip_id || '').replace(/^(ko|ja)_/, '') || String(placement?.slot_id || '');
     const placementRange = Array.isArray(placement?.source_range) ? placement.source_range.map(Number) : [];
     if (actionSlotKeys.has(placementKey) && fixedWindowsBySlot.has(placementKey) && Number(placementRange[1]) > Number(placementRange[0])) {
-      fixedWindowsBySlot.set(placementKey, [[Number(placementRange[0]), Number(placementRange[1])]]);
+      // ...trimmed off every OTHER slot's fixed dialogue first. The locale spec carries the
+      // PLAN's window verbatim, and the plan let an action window butt 0.9s into the cold
+      // open's last utterance - the adapter's own trim runs a layer above and the scene_hook
+      // path replaces its result with this placement (S06 vs S01_L02, hybrid gate, 2026-08-25).
+      // Dialogue is fixed and first; the action window keeps its larger surviving side.
+      let pinStart = Number(placementRange[0]);
+      let pinEnd = Number(placementRange[1]);
+      for (const [otherKey, windows] of fixedWindowsBySlot) {
+        if (otherKey === placementKey) continue;
+        for (const [winStart, winEnd] of windows) {
+          if (!(winEnd > winStart) || winEnd <= pinStart || winStart >= pinEnd) continue;
+          const headSec = winStart - pinStart;
+          const tailSec = pinEnd - winEnd;
+          if (tailSec >= headSec) pinStart = Math.max(pinStart, winEnd + 0.2);
+          else pinEnd = Math.min(pinEnd, winStart - 0.2);
+        }
+      }
+      if (pinEnd > pinStart + 0.5) {
+        fixedWindowsBySlot.set(placementKey, [[pinStart, pinEnd]]);
+        placement.source_range = [Number(pinStart.toFixed(3)), Number(pinEnd.toFixed(3))];
+      } else {
+        fixedWindowsBySlot.set(placementKey, [[Number(placementRange[0]), Number(placementRange[1])]]);
+      }
     }
   }
   // Differentiation as a CONSTRAINT: the ja replan pass feeds ko's packed b-roll in here, so
