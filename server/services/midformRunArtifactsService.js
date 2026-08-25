@@ -454,6 +454,44 @@ async function collectRunArtifacts({
       }
     }
   }
+  // New-speaker grounding (owner review 2026-08-25: 본테/레이/앤서니 landed with no
+  // introduction and the cut read as fragments - "자막과 나레이션만으로 지금 상황과 맥락이
+  // 이해가 되?"). A speaker's FIRST dialogue is grounded when an earlier narration names them,
+  // or when it opens the cut (a cold-open hook may legitimately show a stranger). Warning-level:
+  // some speakers ground themselves through the dialogue (a boss firing you needs no caption),
+  // so a human reads the flagged ones instead of the machine guessing.
+  {
+    const koManifestPath = path.join(workspaceDir, 'draft_ko', 'edit_manifest.json');
+    if (fs.existsSync(koManifestPath)) {
+      const manifest = readJson(koManifestPath);
+      const segments = [...(manifest?.segments || [])]
+        .sort((a, b) => Number(a.timeline_start_sec || 0) - Number(b.timeline_start_sec || 0));
+      const narrationSoFar = [];
+      const seenSpeakers = new Set();
+      const ungrounded = [];
+      const COLD_OPEN_GRACE_SEC = 12;
+      for (const segment of segments) {
+        const text = String(segment.narration || '');
+        if (segment.caption_kind !== 'dialogue') {
+          if (segment.tts_enabled && text.trim()) narrationSoFar.push(text);
+          continue;
+        }
+        const speaker = String(segment.speaker || '').trim();
+        if (!speaker || seenSpeakers.has(speaker)) continue;
+        seenSpeakers.add(speaker);
+        const at = Number(segment.timeline_start_sec || 0);
+        if (at <= COLD_OPEN_GRACE_SEC) continue;
+        const grounded = narrationSoFar.some((narration) => narration.includes(speaker));
+        if (!grounded) ungrounded.push({ speaker, first_at_sec: Number(at.toFixed(1)), line: String(segment.narration || '').slice(0, 40) });
+      }
+      const status = ungrounded.length ? 'warning' : 'pass';
+      gateResults.results.push({ id: 'new_speaker_grounding', status, issue_count: ungrounded.length, issues: ungrounded.slice(0, 8) });
+      if (status === 'warning' && !gateResults.warnings.includes('new_speaker_grounding')) {
+        gateResults.warnings.push('new_speaker_grounding');
+        if (gateResults.status === 'passed') gateResults.status = 'passed_with_warnings';
+      }
+    }
+  }
   // Narration b-roll semantic bounds (owner report 2026-08-10: '뒤엉켜 싸운다' narration over
   // the kiss scene, closing b-roll inside the endcard). Every recap clip must sit within its
   // slot's PLAN window +-8s and inside the usable footage. Fail, not warn - it shipped twice.
