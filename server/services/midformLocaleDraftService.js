@@ -358,7 +358,7 @@ function snapRangeToShotBoundaries(start, end, boundaries, { minKeepSec, limitEn
   return [nextStart, nextEnd];
 }
 
-function normalizeDraftSpecSourceRanges(draftSpec, baseDraftInput = {}) {
+function normalizeDraftSpecSourceRanges(draftSpec, baseDraftInput = {}, options = {}) {
   // REAL TTS seconds per slot (ttsFiles carry measured duration_sec): the spec's estimate ran
   // 9.1s where the synthesized narration was 7.2s, and the estimate-capped clip still put 2s
   // of the wrong scene on screen.
@@ -397,7 +397,14 @@ function normalizeDraftSpecSourceRanges(draftSpec, baseDraftInput = {}) {
       fixedWindowsBySlot.set(placementKey, [[Number(placementRange[0]), Number(placementRange[1])]]);
     }
   }
-  const reservedWindows = [...fixedWindowsBySlot.values()].flat().sort((left, right) => left[0] - right[0]);
+  // Differentiation as a CONSTRAINT: the ja replan pass feeds ko's packed b-roll in here, so
+  // the packer cannot re-derive ko's exact clips and flows to the genuinely free scenes while
+  // every other invariant (dialogue reservations, shot snapping, narration length) still holds.
+  // Nudging the ranges instead was undone by this very packer three different ways (casebook 26).
+  const avoidRanges = (Array.isArray(options.avoidRanges) ? options.avoidRanges : [])
+    .filter((range) => Array.isArray(range) && Number(range[1]) > Number(range[0]))
+    .map((range) => [Number(range[0]), Number(range[1])]);
+  const reservedWindows = [...fixedWindowsBySlot.values()].flat().concat(avoidRanges).sort((left, right) => left[0] - right[0]);
   // Reserved dialogue windows AND already-packed b-roll: the nudge/end-align paths consulted
   // only the former, so a later slot (closing) sat straight on an earlier slot's multi-part
   // clip and the hybrid gate killed the draft.
@@ -758,6 +765,22 @@ function normalizeDraftSpecSourceRanges(draftSpec, baseDraftInput = {}) {
     duration_sec: Number(rangeDuration(placement.source_range).toFixed(3))
   }));
   return next;
+}
+
+// The b-roll footage a packed spec actually occupies - pinned dialogue excluded (identical in
+// every locale by design and already excluded from the overlap comparison).
+function collectBrollRangesFromSpec(spec) {
+  const out = [];
+  for (const placement of Array.isArray(spec?.clip_placement) ? spec.clip_placement : []) {
+    if (placement?.source_range_pinned_to_fixed_windows) continue;
+    const ranges = Array.isArray(placement?.source_ranges) && placement.source_ranges.length
+      ? placement.source_ranges
+      : [placement?.source_range];
+    for (const range of ranges) {
+      if (Array.isArray(range) && Number(range[1]) > Number(range[0])) out.push([Number(range[0]), Number(range[1])]);
+    }
+  }
+  return out;
 }
 
 function placementBySlot(draftSpec) {
@@ -1392,7 +1415,11 @@ async function generateLocaleDraftArtifacts({ workspaceDir, baseDraftInputPath, 
   const draftSpecs = Object.fromEntries(locales.map((locale) => [locale, readJson(path.join(workspaceDir, `draft_spec.${locale}.json`))]));
   const renderLocale = async (locale, draftSpec, attempt = 0) => {
     const localeBaseInput = baseInputForLocale(locale);
-    const normalizedDraftSpec = normalizeDraftSpecSourceRanges(draftSpec, localeBaseInput);
+    const normalizedDraftSpec = normalizeDraftSpecSourceRanges(
+      draftSpec,
+      localeBaseInput,
+      locale === 'ja' && attempt >= 1 ? { avoidRanges: collectBrollRangesFromSpec(draftSpecs.ko) } : {}
+    );
     draftSpecs[locale] = normalizedDraftSpec;
     writeJson(path.join(workspaceDir, `draft_spec.${locale}.json`), normalizedDraftSpec);
     const localeDraftInput = buildLocaleDraftInput(localeBaseInput, normalizedDraftSpec, locale);
@@ -1495,6 +1522,7 @@ module.exports = {
   secondsToTimecode,
   buildJapaneseScript,
   buildJapaneseBaseDraftInput,
+  collectBrollRangesFromSpec,
   _test: {
     timecodeToSec,
     collectUsedSourceWindows,
