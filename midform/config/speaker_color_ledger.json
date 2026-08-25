@@ -245,7 +245,45 @@
       ],
       "first_seen": "20260825f-bella_pregnant-qcsfu5-ja",
       "updated_at": "2026-08-24T21:47:03.902Z"
+    },
+    "샘": {
+      "color": "#B48CFF",
+      "role": "기타1",
+      "shipped_colors": [
+        "#B48CFF"
+      ],
+      "first_seen": "20260825n-new-moon-QnFcGy-ja",
+      "updated_at": "2026-08-25T04:09:26.813Z"
+    },
+    "제이컵": {
+      "color": "#B48CFF",
+      "role": "기타1",
+      "shipped_colors": [
+        "#B48CFF",
+        "#4DDCCB"
+      ],
+      "first_seen": "20260825n-new-moon-QnFcGy-ja",
+      "updated_at": "2026-08-25T04:09:26.815Z"
+    },
+    "엠브리": {
+      "color": "#4DDCCB",
+      "role": "기타2",
+      "shipped_colors": [
+        "#4DDCCB",
+        "#D3E84C"
+      ],
+      "first_seen": "20260825n-new-moon-QnFcGy-ja",
+      "updated_at": "2026-08-25T04:09:26.815Z"
+    },
+    "재러드": {
+      "color": "#FF8A5C",
+      "role": "기타3",
+      "shipped_colors": [
+        "#FF8A5C"
+      ],
+      "first_seen": "20260825n-new-moon-QnFcGy-ja",
+      "updated_at": "2026-08-25T04:09:26.815Z"
     }
   },
-  "updated_at": "2026-08-24T21:47:03.903Z"
+  "updated_at": "2026-08-25T04:09:26.815Z"
 }
