@@ -210,31 +210,26 @@ function replanJaDraftSpecForFinalOverlap(draftSpec, finalOverlapReport, attempt
     // slot_006 to 367.0-370.5 against a plan window of 351.7-360.1, which the b-roll bounds gate
     // rejects as another scene. Hold the result inside the ORIGINAL window's tolerance.
     const originRange = Array.isArray(placement.semantic_origin_range) ? placement.semantic_origin_range : sourceRange;
+    // Shift from the ORIGIN, not the current range: the workspace spec persists across resumes,
+    // so a crashed attempt leaves an already-shifted (and montage-widened) source_range behind,
+    // and re-shifting that walked the clamp into degenerate corners - a 7.6s range crammed into
+    // origin+4 pinned the start right back on ko's clip (2026-08-25). Anchoring to the origin
+    // makes every attempt idempotent no matter what state the last run died in.
     const shiftedPrimary = clampToSemanticScene(
-      shiftedSourceRange(sourceRange, replanShift, sourceDurationSec),
+      shiftedSourceRange(originRange, replanShift, sourceDurationSec),
       originRange
     );
-    // A montage placement PLAYS source_ranges, not source_range. Shifting only the scalar left
-    // the array byte-identical to ko, so two replan attempts changed nothing on screen and the
-    // opening similarity sat pinned at 1.0 until the run died (Bb4qURNGHqk, casebook 26). Shift
-    // every part, each clamped to its own original scene.
-    const montage = Array.isArray(placement.source_ranges) && placement.source_ranges.length
-      ? (() => {
-        const origins = Array.isArray(placement.semantic_origin_ranges) && placement.semantic_origin_ranges.length === placement.source_ranges.length
-          ? placement.semantic_origin_ranges
-          : placement.source_ranges;
-        const shifted = placement.source_ranges.map((range, part) => clampToSemanticScene(
-          shiftedSourceRange(range, replanShift, sourceDurationSec),
-          Array.isArray(origins[part]) ? origins[part] : range
-        ));
-        return { semantic_origin_ranges: origins, source_ranges: shifted };
-      })()
-      : {};
+    // A montage placement PLAYS source_ranges, not source_range - shifting only the scalar left
+    // the array byte-identical to ko (opening similarity pinned at 1.0). But hand-shifting the
+    // parts skipped the packer's reserved-window validation and the shifted parts landed on
+    // dialogue clips (MIDFORM_HYBRID_SOURCE_VALIDATION_FAILED, 2026-08-25). The replan only
+    // expresses INTENT: shift the scalar, DROP the parts, and let the packer - the one component
+    // that knows every reservation - rebuild the montage from the shifted start.
+    const { source_ranges: _droppedParts, ...withoutParts } = placement;
     return {
-      ...placement,
+      ...withoutParts,
       semantic_origin_range: originRange,
-      source_range: montage.source_ranges ? montage.source_ranges[0] : shiftedPrimary,
-      ...montage,
+      source_range: shiftedPrimary,
       final_draft_replan_reason: overlappingClipIds.size ? 'shared_contiguous_overlap' : 'final_overlap_threshold',
       final_draft_replan_attempt: attempt
     };
@@ -462,6 +457,9 @@ function normalizeDraftSpecSourceRanges(draftSpec, baseDraftInput = {}, options 
       : cappedDurations[index];
     const minStart = lastEnd > 0 ? lastEnd + PHYSICAL_SOURCE_GAP_SEC : 0;
     let start = Math.max(Number(sourceRange[0]), minStart);
+    const traceThis = process.env.MIDFORM_PACK_TRACE && String(placement.clip_id || '').includes(process.env.MIDFORM_PACK_TRACE);
+    const trace = (label, a, b) => { if (traceThis) console.error(`[trace] ${label}: ${a}~${b}`); };
+    trace('init', start, start + (duration || 0));
     // The reveal lives at the END of a narration window that leads into dialogue: the boot slam
     // and the spider crawling out sat at 96.8-98.8 of an 88.8-102 window, and start-aligned
     // packing cut away the very moment the narration set up. Align to the window END when the
@@ -555,6 +553,7 @@ function normalizeDraftSpecSourceRanges(draftSpec, baseDraftInput = {}, options 
       if (start > semanticEnd - 1.0) { forceRelocate = true; break; }
     }
     let end = alignedEndSec != null ? alignedEndSec : (frontTrimmedEnd != null ? Math.min(frontTrimmedEnd, start + duration) : (start + duration));
+    trace('end-init', start, end);
     // The END must respect the scene bounds too: a nudge chain left the start just inside
     // the boundary while the clip ran 9s past it into the next scene (slot_07 135.5-147.1
     // against a 138.1 bound - the kiss played under '재돌진' narration).
@@ -649,6 +648,40 @@ function normalizeDraftSpecSourceRanges(draftSpec, baseDraftInput = {}, options 
         end = snappedEnd;
         adjusted = true;
       }
+    }
+    trace('shot-snap', start, end);
+    // The primary range historically came from a generator that already respected every
+    // reservation, so nothing past this point re-checked it - and an avoid-window (locale
+    // differentiation) or the shot snap can leave the primary lying across reserved footage
+    // (the snap walked an escaped 26.89 back to 9.84, straight over ko's avoided 13.84-17.44).
+    // AFTER the snap - these are the final coordinates - trim at the first blocking window; the
+    // continuation montage below fills the narration from genuinely free footage.
+    // A slide may not escape the placement's semantic scene: walking past blockers took the
+    // trial bridge to 29.6s against a 0-14 plan window - trading the overlap gate for the
+    // b-roll bounds gate. If there is no clear start inside origin+tolerance, keep the
+    // pre-slide position and let the end-trim salvage what it can.
+    const slideCeiling = Array.isArray(placement.semantic_origin_range)
+      ? Number(placement.semantic_origin_range[1]) + 8
+      : Number(sourceRange[1]) + 8;
+    const preSlide = [start, end];
+    let slid = false;
+    for (let slideGuard = 0; slideGuard < 8; slideGuard += 1) {
+      const startBlock = overlapsReserved(start, Math.min(end, start + 1.0));
+      if (!startBlock) break;
+      const delta = (startBlock[1] + PHYSICAL_SOURCE_GAP_SEC) - start;
+      if (!(delta > 0)) break;
+      if (start + delta > slideCeiling) { start = preSlide[0]; end = preSlide[1]; slid = false; break; }
+      start += delta;
+      end += delta;
+      slid = true;
+      trace('primary-slide', start, end);
+    }
+    if (slid) adjusted = true;
+    const primaryBlock = overlapsReserved(start, end);
+    if (primaryBlock && primaryBlock[0] > start + 1.0 && end > primaryBlock[0]) {
+      end = Math.max(start + 1.0, primaryBlock[0] - PHYSICAL_SOURCE_GAP_SEC);
+      adjusted = true;
+      trace('primary-trim', start, end);
     }
     // The shot snap may stretch the end back out; the narration-length invariant wins over
     // a prettier cut point (slot_07 came back 9.6s under 7.2s of narration - 2s of the fall
@@ -747,6 +780,7 @@ function normalizeDraftSpecSourceRanges(draftSpec, baseDraftInput = {}, options 
       adjusted = true;
     }
     if (process.env.MIDFORM_PACK_DEBUG) console.error(`[pack:final] ${placement.clip_id} start=${start} end=${typeof end!=='undefined'?end:'-'}`);
+    trace('final', start, end);
     const normalized = [Number(start.toFixed(3)), Number(end.toFixed(3))];
     packedRanges.push(normalized);
     for (const range of extraRanges) packedRanges.push(range);
@@ -769,10 +803,13 @@ function normalizeDraftSpecSourceRanges(draftSpec, baseDraftInput = {}, options 
 
 // The b-roll footage a packed spec actually occupies - pinned dialogue excluded (identical in
 // every locale by design and already excluded from the overlap comparison).
-function collectBrollRangesFromSpec(spec) {
+function collectBrollRangesFromSpec(spec, firstN = Infinity) {
   const out = [];
+  let taken = 0;
   for (const placement of Array.isArray(spec?.clip_placement) ? spec.clip_placement : []) {
+    if (taken >= firstN) break;
     if (placement?.source_range_pinned_to_fixed_windows) continue;
+    taken += 1;
     const ranges = Array.isArray(placement?.source_ranges) && placement.source_ranges.length
       ? placement.source_ranges
       : [placement?.source_range];
@@ -1418,7 +1455,7 @@ async function generateLocaleDraftArtifacts({ workspaceDir, baseDraftInputPath, 
     const normalizedDraftSpec = normalizeDraftSpecSourceRanges(
       draftSpec,
       localeBaseInput,
-      locale === 'ja' && attempt >= 1 ? { avoidRanges: collectBrollRangesFromSpec(draftSpecs.ko) } : {}
+      locale === 'ja' && attempt >= 1 ? { avoidRanges: collectBrollRangesFromSpec(draftSpecs.ko, 3) } : {}
     );
     draftSpecs[locale] = normalizedDraftSpec;
     writeJson(path.join(workspaceDir, `draft_spec.${locale}.json`), normalizedDraftSpec);
