@@ -1698,8 +1698,12 @@ function runBootstrapPreflight(assembled, options = {}) {
       gateVerdict.story_sync_would_run ? `auto-picker would place b-roll for: ${(gateVerdict.picker_placed_segments || []).join(', ')} (story-sync would run)` : 'all narration declines -> story-sync skipped');
     add('capcut_narration_has_broll', (gateVerdict.narration_missing_broll || []).length === 0,
       `${(gateVerdict.narration_missing_broll || []).length} narration segment(s) missing explicit b-roll`);
+    // Name the pair: "1 cross-segment overlap(s)" stalled two rebuilds because nobody could
+    // see WHICH segments collided (same lesson as capcut_reserved_range, 2026-08-25).
     add('capcut_cross_segment_overlap', (gateVerdict.cross_segment_overlaps || []).length === 0,
-      `${(gateVerdict.cross_segment_overlaps || []).length} cross-segment overlap(s)`);
+      (gateVerdict.cross_segment_overlaps || []).length
+        ? `${gateVerdict.cross_segment_overlaps.length} cross-segment overlap(s): ${JSON.stringify(gateVerdict.cross_segment_overlaps).slice(0, 400)}`
+        : '');
   }
 
   const ok = checks.every((c) => c.ok);
