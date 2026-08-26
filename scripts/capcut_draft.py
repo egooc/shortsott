@@ -10509,6 +10509,13 @@ def create_draft(input_json_path):
             # Shorten only - never extend. A chunk that already fits its text is untouched.
             if is_dialogue_caption:
                 chunk_max_us = midform_caption_chunk_max_us(narration)
+                # The reading-time cap exists for chunks whose hold is a clip-end GUESS. When
+                # upstream measured the chunk's spoken span, that span is the floor: capping
+                # below it pulled captions down mid-speech ("말하는 거야?" displayed 2.2s of a
+                # 5.6s measured span and the audience heard the line uncaptioned, casebook 33).
+                if caption_spoken_sec > 0 and chunk_max_us:
+                    spoken_floor_us = int(round(caption_spoken_sec * 1_000_000)) + MIDFORM_CAPTION_CHUNK_TAIL_US
+                    chunk_max_us = max(chunk_max_us, spoken_floor_us)
                 if chunk_max_us and timeline_end_us - timeline_start_us > chunk_max_us:
                     timeline_end_us = timeline_start_us + chunk_max_us
             if is_dialogue_caption and timeline_end_us < timeline_start_us + 350_000:
