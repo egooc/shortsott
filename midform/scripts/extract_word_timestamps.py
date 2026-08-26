@@ -22,33 +22,28 @@ def main() -> int:
     parser.add_argument("--language", default="en")
     args = parser.parse_args()
 
+    # Groq whisper-large-v3 when a key is present (tens of seconds, larger model than any
+    # local size we run), local faster-whisper otherwise. asr_backend reports which ran.
     try:
-        from faster_whisper import WhisperModel  # type: ignore
+        import asr_backend
+        result = asr_backend.transcribe(args.audio, language=args.language, model_size=args.model)
     except ImportError:
         print("faster-whisper is not installed (pip install faster-whisper)", file=sys.stderr)
         return 3
 
-    model = WhisperModel(args.model, device="cpu", compute_type="int8")
-    segments, info = model.transcribe(
-        args.audio,
-        language=args.language or None,
-        word_timestamps=True,
-        vad_filter=True,
-    )
     words = []
-    for segment in segments:
-        for word in segment.words or []:
-            text = (word.word or "").strip()
-            if not text:
-                continue
-            words.append({
-                "w": text,
-                "start_sec": round(float(word.start), 3),
-                "end_sec": round(float(word.end), 3),
-            })
+    for word in result["words"]:
+        text = word["word"]
+        if not text:
+            continue
+        words.append({
+            "w": text,
+            "start_sec": word["start"],
+            "end_sec": word["end"],
+        })
     payload = {
-        "language": getattr(info, "language", args.language),
-        "model": args.model,
+        "language": result.get("language") or args.language,
+        "model": result["backend"],
         "word_count": len(words),
         "words": words,
     }

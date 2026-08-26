@@ -37,23 +37,33 @@ def main() -> int:
     parser.add_argument("--min-avg-logprob", type=float, default=-1.35)
     args = parser.parse_args()
 
+    # Groq large-v3 when a key exists (asr_backend says which ran); the confidence/loop
+    # filters below run either way. Note the local path keeps vad_filter OFF: on the
+    # Shelter scout the default VAD swallowed 7 of 8 real lines under the action mix.
     try:
-        from faster_whisper import WhisperModel  # type: ignore
+        import asr_backend
+        if asr_backend.groq_api_key():
+            result = asr_backend.transcribe_groq(args.audio, language=args.language)
+        else:
+            print("[asr] no GROQ_API_KEY - using local faster-whisper", file=sys.stderr)
+            result = asr_backend.transcribe_local(args.audio, language=args.language, model_size=args.model, vad_filter=False)
     except ImportError:
         print("faster-whisper is not installed (pip install faster-whisper)", file=sys.stderr)
         return 3
 
-    model = WhisperModel(args.model, device="cpu", compute_type="int8")
-    # vad_filter stays OFF: on the Shelter scout the default VAD swallowed 7 of 8 real lines
-    # under the action mix. The confidence/loop filters below do the cleanup instead.
-    segments, info = model.transcribe(
-        args.audio,
-        language=args.language or None,
-        vad_filter=False,
-        condition_on_previous_text=False,
-        beam_size=5,
-        word_timestamps=True,
-    )
+    all_words = result["words"]
+
+    class _Seg:
+        def __init__(self, seg):
+            self.start = seg["start"]
+            self.end = seg["end"]
+            self.text = seg["text"]
+            self.no_speech_prob = seg.get("no_speech_prob")
+            self.avg_logprob = seg.get("avg_logprob")
+            self.words = [type("W", (), {"start": w["start"], "end": w["end"]})()
+                          for w in all_words if w["start"] >= seg["start"] - 0.05 and w["end"] <= seg["end"] + 0.05]
+
+    segments = [_Seg(s) for s in result["segments"]]
 
     cues = []
     run_key = None
@@ -93,9 +103,9 @@ def main() -> int:
         })
 
     payload = {
-        "source": "faster-whisper",
-        "model": args.model,
-        "language": getattr(info, "language", args.language),
+        "source": result["backend"],
+        "model": result["backend"],
+        "language": result.get("language") or args.language,
         "cues": cues,
     }
     with open(args.out, "w", encoding="utf-8") as handle:
