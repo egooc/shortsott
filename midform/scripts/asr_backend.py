@@ -98,6 +98,8 @@ def transcribe_groq(audio_path, language="en", start=None, end=None):
         req = urllib.request.Request(GROQ_URL, data=body, method="POST")
         req.add_header("Authorization", f"Bearer {key}")
         req.add_header("Content-Type", ctype)
+        # Cloudflare fronts the API and 403s urllib's default Python-urllib UA.
+        req.add_header("User-Agent", "midform-asr/1.0")
         with urllib.request.urlopen(req, timeout=300) as resp:
             data = json.loads(resp.read().decode("utf-8"))
     finally:
