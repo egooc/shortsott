@@ -58,7 +58,10 @@ ACTIVE_TTS_CONFIG = dict(DEFAULT_TTS_CONFIG)
 
 
 CAPTION_MAX_CHARS = 11
-CAPTION_EXTENDED_CHARS = 14
+# Screen truth: at our caption font a 13-char line wraps ("빅토리아가 뭘 노리는지 몰라.",
+# "거짓말로 여겨서 바로 나설 거야." both rendered as two lines - owner review 2026-08-26/27).
+# The extended allowance may not exceed what the frame can actually hold.
+CAPTION_EXTENDED_CHARS = 12
 CAPTION_MIN_CHARS = 4
 CAPTION_MIN_DURATION_SEC = 0.9
 SAFE_FILENAME_RE = re.compile(r"[^A-Za-z0-9_.-]+")
@@ -677,11 +680,44 @@ def _partition_with(words, forbidden_at, score_at, max_chars, protected_chars, m
                 if boundary >= 1 and boundary < len(words) and not forbidden_at(boundary):
                     cut = back
                     break
+            if cut is None and len(current) >= 1:
+                # No legal boundary fits, but an over-wide chunk WRAPS on screen - strictly
+                # worse than any grammatical compromise ("7순위의 | 클리블랜드입니다.",
+                # owner review 2026-08-27). Cut at the least-bad forbidden boundary.
+                best_back, best_score = None, None
+                for back in range(len(current), 0, -1):
+                    boundary = index - len(current) + back
+                    if boundary < 1 or boundary >= len(words):
+                        continue
+                    score = score_at(boundary)
+                    if best_score is None or score > best_score:
+                        best_back, best_score = back, score
+                cut = best_back
             if cut:
                 chunks.append(current[:cut])
                 current = current[cut:] + [word]
                 continue
         current = candidate
+    # The loop only cuts when ADDING a word overflows, so the final chunk was never
+    # width-checked and 13-char tails shipped whole ("7순위의 클리블랜드입니다.").
+    while current and visible_len(" ".join(current)) > max_chars and len(current) >= 2:
+        base = len(words) - len(current)
+        cut = None
+        for back in range(len(current) - 1, 0, -1):
+            if not forbidden_at(base + back):
+                cut = back
+                break
+        if cut is None:
+            best_back, best_score = None, None
+            for back in range(len(current) - 1, 0, -1):
+                score = score_at(base + back)
+                if best_score is None or score > best_score:
+                    best_back, best_score = back, score
+            cut = best_back
+        if not cut:
+            break
+        chunks.append(current[:cut])
+        current = current[cut:]
     if current:
         chunks.append(current)
     if len(chunks) >= 2 and visible_len(" ".join(chunks[-1])) < min_chars:
