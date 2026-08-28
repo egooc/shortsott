@@ -72,7 +72,12 @@ def _multipart(fields, file_field, file_name, file_bytes):
     boundary = "----midformasr7f3a"
     out = io.BytesIO()
     for name, value in fields.items():
-        out.write(f"--{boundary}\r\nContent-Disposition: form-data; name=\"{name}\"\r\n\r\n{value}\r\n".encode())
+        # A list means a repeated form field (timestamp_granularities[] needs BOTH word and
+        # segment - requesting only word makes Groq return an empty segments array, which
+        # zeroed out every STT cue on 2026-08-29).
+        values = value if isinstance(value, list) else [value]
+        for item in values:
+            out.write(f"--{boundary}\r\nContent-Disposition: form-data; name=\"{name}\"\r\n\r\n{item}\r\n".encode())
     out.write(f"--{boundary}\r\nContent-Disposition: form-data; name=\"{file_field}\"; filename=\"{file_name}\"\r\nContent-Type: audio/ogg\r\n\r\n".encode())
     out.write(file_bytes)
     out.write(f"\r\n--{boundary}--\r\n".encode())
@@ -90,7 +95,7 @@ def transcribe_groq(audio_path, language="en", start=None, end=None):
             {
                 "model": GROQ_MODEL,
                 "response_format": "verbose_json",
-                "timestamp_granularities[]": "word",
+                "timestamp_granularities[]": ["word", "segment"],
                 **({"language": language} if language else {}),
             },
             "file", "audio.ogg", open(ogg, "rb").read(),
