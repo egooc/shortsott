@@ -6776,7 +6776,10 @@ async function runJsonGeneration(prompt, outputSchemaPath, validator) {
   const provider = compressLlmProvider();
   let feedback = '';
   let lastError = null;
-  for (let attempt = 1; attempt <= 2; attempt += 1) {
+  // Three attempts, not two: Codex drops a NARRATE slot's narration flakily (same source,
+  // back-to-back calls, one omits S07 and the next fills it - 2026-08-29 batch). With two
+  // attempts, two coin flips in a row failed whole sources that a third try saves.
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
     const fullPrompt = feedback ? `${prompt}\n\nPrevious JSON failed validation. Fix only these issues:\n${feedback}` : prompt;
     let outputText = null;
     let cliMeta = { provider, attempts: attempt };
