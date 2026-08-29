@@ -7560,6 +7560,20 @@ async function runCompressionApply(runIdOrPath, applyOptions = {}) {
   const applyEnergyProfilePath = path.join(runDir, 'energy_profile.json');
   const applyEnergyPeaks = fs.existsSync(applyEnergyProfilePath) ? ((readJson(applyEnergyProfilePath) || {}).peaks || []) : [];
   const finalizedEditPlan = finalizeEditPlan(editPlan, beatsObject.beats || [], transcript, targetSec, readUsableEndSec(runDir), readWordTimestamps(runDir), applyEnergyPeaks);
+  // A plan whose required narrations alone exceed the economy density ceiling is unsatisfiable
+  // before a single sentence is written: 14 NARRATE slots over 160s is a 5.2/min floor against
+  // the 3.0/min limit, so "fill every slot" and "cut narration sentences" contradict and Codex
+  // thrashes for 3-6 calls per doomed source (2026-08-29 batch: 0/3 ok, 18 sources queued, empty
+  // slots and 7-12/min density on the same outputs). Dialogue-poor sources do not fit the
+  // dialogue-led house style - reject them before paying for generation.
+  const requiredNarrations = emptyNarrationSlots({ slot_fills: [] }, finalizedEditPlan).length;
+  if (targetSec > 0 && requiredNarrations / (targetSec / 60) > 2.5) {
+    throw Object.assign(new Error(
+      `narration-infeasible plan: ${requiredNarrations} NARRATE slots require narration over ${targetSec}s `
+      + `(${(requiredNarrations / (targetSec / 60)).toFixed(1)}/min floor vs 3.0/min economy ceiling). `
+      + 'The source is too dialogue-poor for the dialogue-led house style.'
+    ), { code: 'MIDFORM_PLAN_NARRATION_INFEASIBLE' });
+  }
   const sourceInfoPath = path.join(runDir, 'source_info.json');
   const applyManifestPath = path.join(runDir, 'compression_manifest.json');
   const movieTitle = (fs.existsSync(sourceInfoPath) ? (readJson(sourceInfoPath) || {}).title : '')
