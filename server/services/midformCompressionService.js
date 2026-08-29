@@ -6133,6 +6133,28 @@ function emptyNarrationSlots(slotFills, editPlan) {
   return problems;
 }
 
+// Codex flakily leaves a DIFFERENT narrate slot empty on each attempt over the same plan (S07 on
+// one call, S22 on the next - 2026-08-29). Every stashed partial already passed the caption and
+// style checks when the empty-slot check threw, and all attempts write against the same beats and
+// plan, so borrowing an empty slot's fill from a sibling attempt loses nothing. Returns the merged
+// fills, or null when no combination of attempts covers every slot.
+function mergeNarrationAcrossAttempts(partials, editPlan) {
+  const candidates = (Array.isArray(partials) ? partials : []).filter((p) => Array.isArray(p?.slot_fills));
+  if (candidates.length < 2) return null;
+  const emptyIds = (fills) => emptyNarrationSlots(fills, editPlan).map((problem) => problem.split(' ')[0]);
+  const sorted = [...candidates].sort((a, b) => emptyIds(a).length - emptyIds(b).length);
+  const base = JSON.parse(JSON.stringify(sorted[0]));
+  for (const slotId of emptyIds(base)) {
+    const donor = sorted.slice(1)
+      .map((partial) => partial.slot_fills.find((fill) => String(fill?.slot_id || '').trim() === slotId && String(fill?.narration || '').trim()))
+      .find(Boolean);
+    const index = base.slot_fills.findIndex((fill) => String(fill?.slot_id || '').trim() === slotId);
+    if (!donor || index < 0) return null;
+    base.slot_fills[index] = JSON.parse(JSON.stringify(donor));
+  }
+  return emptyNarrationSlots(base, editPlan).length ? null : base;
+}
+
 // House style is dialogue-led with narration as the seam between scenes, so a run of narration
 // slots back to back is the shape the style is defined against. A Codex-written Daybreakers cut
 // put FOUR in eleven seconds - "에드워드는 군 병력을 피해 달아나는데 / 둘을 태우고 질주하는데 /
@@ -6212,7 +6234,7 @@ function narrationEconomyProblems(slotFills, editPlan, locale = 'ko') {
   return problems;
 }
 
-function validateSlotFillsDialogueCaptions(slotFills, editPlan, locale = 'ko') {
+function validateSlotFillsDialogueCaptions(slotFills, editPlan, locale = 'ko', opts = {}) {
   // Structural checks apply to every locale; the wording checks below are Korean-specific.
   const isKorean = String(locale || 'ko') === 'ko';
   const uploadText = normalizeUploadText(slotFills?.upload_text);
@@ -6278,10 +6300,16 @@ function validateSlotFillsDialogueCaptions(slotFills, editPlan, locale = 'ko') {
           || (other?.caption_kr_dialogue || []).some((line) => String(line || '').includes(nameplateName));
       });
       if (nameplate && !isPremiseNarration && !isReanchorSeam && seenEarlier) {
-        throw new Error(
-          `${fill?.slot_id} narration introduces a character (${nameplate}) outside the premise line. `
-          + 'Only the first narration may say who these people are; after that the scene has to show it.'
-        );
+        const complaint = `${fill?.slot_id} narration introduces a character (${nameplate}) outside the premise line. `
+          + 'Only the first narration may say who these people are; after that the scene has to show it.';
+        // Style, not content: a surviving violation may be degraded to a warning by the ko apply
+        // caller (opts.allowNameplate) instead of failing the whole source - the 2026-08-29 batch
+        // lost runs to this rule alone after the feedback retries could not talk Codex out of it.
+        if (opts.allowNameplate) {
+          if (Array.isArray(opts.collect)) opts.collect.push(complaint);
+        } else {
+          throw Object.assign(new Error(complaint), { code: 'MIDFORM_NARRATION_NAMEPLATE' });
+        }
       }
     }
   }
@@ -7547,17 +7575,30 @@ async function runCompressionApply(runIdOrPath, applyOptions = {}) {
     ? buildNarrationRejectionSection(readJson(applyRejectionsPath)) : '';
   const slotFillsPrompt = buildSlotFillsPrompt(beatsObject.beats || [], finalizedEditPlan, movieTitle, recapContext.contextMarkdown)
     + applyCaseGuidance + applyVisionSection + applyRejectionSection;
-  const validateStructure = (parsed) => {
+  // Every caption-valid attempt that only failed the empty-slot check is kept: Codex leaves a
+  // DIFFERENT narrate slot empty on each attempt over the same plan (S07 on one call, S22 on the
+  // next - the 2026-08-29 batch went 0/6 largely on this), so two incomplete attempts usually
+  // hold a complete script between them.
+  const partialFills = [];
+  const nameplateDetections = [];
+  const structuralPass = (parsed, { allowNameplate = false } = {}) => {
     const normalized = validateSlotFillsDialogueCaptions(
       reconcileDialogueCaptionCounts(normalizeSlotFillsForStyle(parsed, finalizedEditPlan), finalizedEditPlan),
-      finalizedEditPlan
+      finalizedEditPlan, 'ko', { allowNameplate, collect: nameplateDetections }
     );
     // Structure BEFORE style. The economy throw is degraded to a warning by the caller, and when
     // it fired first it short-circuited this check - a Codex run shipped with slot_closing empty
     // and exit 0, because economy threw on both attempts and the check below never ran
     // (2026-08-24). An empty slot loses content; bad phrasing only phrases it badly.
     const empty = emptyNarrationSlots(normalized, finalizedEditPlan);
-    if (empty.length) throw new Error(`empty narration slots: ${empty.join(' | ')}`);
+    if (empty.length) {
+      partialFills.push(normalized);
+      throw new Error(`empty narration slots: ${empty.join(' | ')}`);
+    }
+    return normalized;
+  };
+  const validateStructure = (parsed) => {
+    const normalized = structuralPass(parsed);
     // Style, so it rides the SAME retry as the structural checks but must never be the reason a
     // cut fails outright - the caller below degrades a surviving violation to a warning.
     const economy = narrationEconomyProblems(normalized, finalizedEditPlan, 'ko');
@@ -7568,6 +7609,15 @@ async function runCompressionApply(runIdOrPath, applyOptions = {}) {
   };
   let runtimeShortfall = '';
   let narrationEconomyShortfall = '';
+  let nameplateShortfall = '';
+  let narrationSalvage = '';
+  const salvageEmptySlots = (error) => {
+    const merged = mergeNarrationAcrossAttempts(partialFills, finalizedEditPlan);
+    if (!merged) throw error;
+    narrationSalvage = String(error?.message || '');
+    console.log(`[midform] empty narration slots salvaged by cross-attempt merge: ${narrationSalvage.slice(0, 200)}`);
+    return { parsed: merged, cli: { provider: compressLlmProvider(), attempts: 0, salvaged: 'cross_attempt_merge' } };
+  };
   let result;
   try {
     result = await runJsonGeneration(
@@ -7576,32 +7626,36 @@ async function runCompressionApply(runIdOrPath, applyOptions = {}) {
       (parsed) => validateSlotFillsRuntime(validateStructure(parsed), finalizedEditPlan, targetSec)
     );
   } catch (error) {
-    // Runtime and narration economy are quality targets, not correctness invariants. The retry
-    // inside runJsonGeneration already pushed the script once with the specific violations fed
-    // back; if the model still will not comply, ship the cut with a warning rather than failing
-    // the run and producing nothing. The post-render narration_economy gate records what survived
-    // so the morning pass can hand-fix those sentences.
+    // Runtime, narration economy and the nameplate rule are quality targets, not correctness
+    // invariants. The retry inside runJsonGeneration already pushed the script with the specific
+    // violations fed back; if the model still will not comply, ship the cut with a warning rather
+    // than failing the run and producing nothing. The post-render gates and the review pass
+    // record what survived so the morning pass can hand-fix those sentences.
     const message = String(error?.message || '');
     const isEconomy = error?.code === 'MIDFORM_NARRATION_ECONOMY' || message.startsWith('narration economy:');
-    if (!isEconomy && !message.includes('far too short for the requested runtime')) throw error;
-    if (isEconomy) narrationEconomyShortfall = message;
-    else runtimeShortfall = message;
-    // Say so. A silent degrade looks identical to a rule that never ran - which is exactly how
-    // the first economy-enforced batch read until the manifests were measured by hand.
-    console.log(`[midform] ${isEconomy ? 'narration economy' : 'runtime'} not met after retry - shipping with a warning: ${message.slice(0, 300)}`);
-    // Structure still has to hold - only the style layer is dropped for this fallback pass. That
-    // sentence was true of the caption checks and false of the empty-slot check, which was left
-    // out and so got dropped together with the style layer.
-    const structureOnly = (parsed) => {
-      const normalized = validateSlotFillsDialogueCaptions(
-        reconcileDialogueCaptionCounts(normalizeSlotFillsForStyle(parsed, finalizedEditPlan), finalizedEditPlan),
-        finalizedEditPlan
-      );
-      const empty = emptyNarrationSlots(normalized, finalizedEditPlan);
-      if (empty.length) throw new Error(`empty narration slots: ${empty.join(' | ')}`);
-      return normalized;
-    };
-    result = await runJsonGeneration(slotFillsPrompt, MIDFORM_SLOT_FILLS_SCHEMA_PATH, structureOnly);
+    const isNameplate = error?.code === 'MIDFORM_NARRATION_NAMEPLATE';
+    if (message.startsWith('empty narration slots:')) {
+      result = salvageEmptySlots(error);
+    } else if (isEconomy || isNameplate || message.includes('far too short for the requested runtime')) {
+      if (isEconomy) narrationEconomyShortfall = message;
+      else if (isNameplate) nameplateShortfall = message;
+      else runtimeShortfall = message;
+      // Say so. A silent degrade looks identical to a rule that never ran - which is exactly how
+      // the first economy-enforced batch read until the manifests were measured by hand.
+      console.log(`[midform] ${isEconomy ? 'narration economy' : isNameplate ? 'narration nameplate rule' : 'runtime'} not met after retry - shipping with a warning: ${message.slice(0, 300)}`);
+      // Structure still has to hold - only the style layer is dropped for this fallback pass
+      // (nameplate included: it is style, and enforcing it here just re-fails the fallback).
+      try {
+        result = await runJsonGeneration(slotFillsPrompt, MIDFORM_SLOT_FILLS_SCHEMA_PATH,
+          (parsed) => structuralPass(parsed, { allowNameplate: true }));
+      } catch (fallbackError) {
+        if (!String(fallbackError?.message || '').startsWith('empty narration slots:')) throw fallbackError;
+        result = salvageEmptySlots(fallbackError);
+      }
+    } else {
+      throw error;
+    }
+    if (nameplateDetections.length && !nameplateShortfall) nameplateShortfall = nameplateDetections.join(' | ');
   }
   const slotFillsPath = path.join(runDir, 'compression_slot_fills.json');
   const normalizedSlotFills = stampCaptionSourceLines(
@@ -7672,6 +7726,8 @@ async function runCompressionApply(runIdOrPath, applyOptions = {}) {
     japaneseSlotFillsPath,
     runtimeShortfall,
     narrationEconomyShortfall,
+    nameplateShortfall,
+    narrationSalvage,
     uploadTextPath,
     editPlanPath,
     slotQcReportPath,
@@ -7876,6 +7932,7 @@ module.exports = {
     narrationEconomyProblems,
     consecutiveNarrationRuns,
     emptyNarrationSlots,
+    mergeNarrationAcrossAttempts,
     resolveDialogueLineWindows,
     splitMultiTurnDialogueLine,
     completeBeatDialogueFromCues,
