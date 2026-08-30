@@ -444,6 +444,83 @@
       "distributor_tier": "banned",
       "credit_ko": "영화 '2012'(2009)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『2012』(2009)のシーンから制作しました。"
+    },
+    "john-wick-4": {
+      "match": "john wick.{0,3}(chapter ?4|4\\b|コンセクエンス)|존 윅 ?4",
+      "title_ko": "존 윅 4",
+      "title_en": "John Wick: Chapter 4",
+      "title_ja": "ジョン・ウィック：コンセクエンス",
+      "year": 2023,
+      "distributor": "Lionsgate",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '존 윅 4'(2023)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『ジョン・ウィック：コンセクエンス』(2023)のシーンから制作しました。"
+    },
+    "cold-pursuit": {
+      "match": "cold pursuit|콜드 체이싱|スノー・ロワイヤル",
+      "title_ko": "콜드 체이싱",
+      "title_en": "Cold Pursuit",
+      "title_ja": "スノー・ロワイヤル",
+      "year": 2019,
+      "distributor": "Lionsgate/Summit",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '콜드 체이싱'(2019)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『スノー・ロワイヤル』(2019)のシーンから制作しました。"
+    },
+    "king-kong-2005": {
+      "match": "king kong(?!.*skull)|킹콩(?!.*스컬)|キング・?コング(?!.*髑髏)",
+      "title_ko": "킹콩",
+      "title_en": "King Kong",
+      "title_ja": "キング・コング",
+      "year": 2005,
+      "distributor": "Universal Pictures",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '킹콩'(2005)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『キング・コング』(2005)のシーンから制作しました。"
+    },
+    "carlitos-way": {
+      "match": "carlito.?s way|칼리토|カリートの道",
+      "title_ko": "칼리토",
+      "title_en": "Carlito's Way",
+      "title_ja": "カリートの道",
+      "year": 1993,
+      "distributor": "Universal Pictures",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '칼리토'(1993)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『カリートの道』(1993)のシーンから制作しました。"
+    },
+    "the-terminal": {
+      "match": "\\bthe terminal\\b|터미널|ターミナル(?!ター)",
+      "title_ko": "터미널",
+      "title_en": "The Terminal",
+      "title_ja": "ターミナル",
+      "year": 2004,
+      "distributor": "DreamWorks (Paramount)",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '터미널'(2004)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『ターミナル』(2004)のシーンから制作しました。"
+    },
+    "cry-baby": {
+      "match": "cry.?baby|크라이 ?베이비|クライ・?ベイビー",
+      "title_ko": "크라이 베이비",
+      "title_en": "Cry-Baby",
+      "title_ja": "クライ・ベイビー",
+      "year": 1990,
+      "distributor": "Universal Pictures",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '크라이 베이비'(1990)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『クライ・ベイビー』(1990)のシーンから制作しました。"
+    },
+    "goosebumps-2": {
+      "match": "goosebumps|구스범스|グースバンプス",
+      "title_ko": "구스범스 시리즈",
+      "title_en": "Goosebumps (franchise)",
+      "title_ja": "グースバンプス",
+      "year": 2015,
+      "distributor": "Sony (Columbia)",
+      "distributor_tier": "banned",
+      "credit_ko": "영화 '구스범스 시리즈'(2015)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『グースバンプス』(2015)のシーンから制作しました。"
     }
   },
   "banned_distributors": [
