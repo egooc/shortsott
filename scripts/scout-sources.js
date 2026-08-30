@@ -142,7 +142,13 @@ async function main() {
       report.channels.push({ id: channel.id, error: String(error.message || error).slice(0, 200) });
       continue;
     }
-    report.channels.push({ id: channel.id, name: channel.name, listed: entries.length });
+    // The owner's selection rule is relative, not absolute: a clip that outperforms ITS OWN
+    // channel's average has proven engagement regardless of the channel's size. The mean is
+    // computed over every listed upload (including already-produced ones) so it describes the
+    // channel, not the leftover pool.
+    const viewCounts = entries.map((entry) => Number(entry.view_count) || 0).filter((count) => count > 0);
+    const channelAvgViews = viewCounts.length ? Math.round(viewCounts.reduce((sum, count) => sum + count, 0) / viewCounts.length) : 0;
+    report.channels.push({ id: channel.id, name: channel.name, listed: entries.length, avg_views: channelAvgViews });
 
     for (const entry of entries) {
       const row = {
@@ -151,7 +157,8 @@ async function main() {
         url: `https://www.youtube.com/watch?v=${entry.id}`,
         channel: channel.name,
         duration_sec: Number(entry.duration) || null,
-        view_count: Number(entry.view_count) || null
+        view_count: Number(entry.view_count) || null,
+        above_channel_avg: channelAvgViews > 0 && (Number(entry.view_count) || 0) > channelAvgViews
       };
       if (used.has(entry.id)) continue; // already produced — silence, not noise
       const movie = classify(row.title, catalog);
@@ -183,6 +190,7 @@ async function main() {
   // a view count is that proof, and the shelf spans 20K to 2M, so ordering by duration first
   // spent a whole night on 100K-tier clips while 2M-tier ones sat unproduced (2026-08-22).
   report.candidates.sort((a, b) => ((b.recon?.live_results ?? 0) - (a.recon?.live_results ?? 0))
+    || ((b.above_channel_avg ? 1 : 0) - (a.above_channel_avg ? 1 : 0))
     || ((b.view_count || 0) - (a.view_count || 0))
     || ((b.duration_sec || 0) - (a.duration_sec || 0)));
 
@@ -202,8 +210,8 @@ async function main() {
     `# 소스 정찰 ${report.at}`,
     '',
     `## 후보 ${report.candidates.length}건 (대장 통과${args.recon ? ' + 생존 정찰' : ''})`,
-    ...report.candidates.map((c) => `- [${c.movie.key}] ${c.title} — ${c.url}`
-      + (c.recon ? ` (생존 클립 ${c.recon.live_results}건)` : '')),
+    ...report.candidates.map((c) => `- ${c.above_channel_avg ? '▲' : '-'} [${c.movie.key}] ${c.title} — ${c.url}`
+      + ` (${(c.view_count || 0).toLocaleString()}뷰)` + (c.recon ? ` (생존 클립 ${c.recon.live_results}건)` : '')),
     '',
     `## 등록 조사 큐 (미등록 ${report.needs_research.length}건을 영화별 집계 — 상위부터 배급사·일본 개봉명 조사해 movie_catalog.json 등록)`,
     ...report.research_queue.map((g) => `- ${g.movie} — 클립 ${g.clips}개, 총 ${g.total_views.toLocaleString()}뷰 (최고 ${g.max_views.toLocaleString()})`),

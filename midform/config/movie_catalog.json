@@ -157,7 +157,7 @@
       "credit_ja": "映画『ディクテーター 身元不明でニューヨーク』(2012)のシーンから制作しました。"
     },
     "maverick": {
-      "match": "(?<!top gun: )(?<!top gun )maverick|매버릭|マーヴェリック",
+      "match": "^(?!.*top ?gun).*(?:maverick|매버릭|マーヴェリック)",
       "title_ko": "매버릭",
       "title_en": "Maverick",
       "title_ja": "マーヴェリック",
@@ -289,6 +289,17 @@
       "credit_ko": "영화 '에린 브로코비치'(2000)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『エリン・ブロコビッチ』(2000)のシーンから制作しました。",
       "note": "Columbia(Sony 계열) 해외배급 관여 — 발행 금지 규칙"
+    },
+    "top-gun-maverick": {
+      "match": "top ?gun.{0,3}maverick|톱건.{0,3}매버릭|トップガン.{0,3}マーヴェリック",
+      "title_ko": "탑건: 매버릭",
+      "title_en": "Top Gun: Maverick",
+      "title_ja": "トップガン マーヴェリック",
+      "year": 2022,
+      "distributor": "Paramount Pictures",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '탑건: 매버릭'(2022)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『トップガン マーヴェリック』(2022)のシーンから制作しました。"
     }
   },
   "banned_distributors": [
