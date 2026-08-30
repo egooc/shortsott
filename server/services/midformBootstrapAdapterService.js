@@ -294,8 +294,18 @@ function buildDialogueTimingAdjustment(item, win, orderedWindows, orderedIndex, 
     const rangeEnd = Number(range?.[1]);
     if (!Number.isFinite(rangeStart) || !Number.isFinite(rangeEnd) || rangeEnd <= rangeStart) continue;
     if (rangeEnd > speechStart && rangeStart < speechEnd) continue; // this line's own speech
-    if (rangeEnd <= speechStart) visualStart = Math.max(visualStart, Math.min(speechStart, rangeEnd + minGapSec));
-    else if (rangeStart >= speechEnd) visualEnd = Math.min(visualEnd, Math.max(speechEnd, rangeStart - minGapSec));
+    // Midpoint of the inter-cue gap, exactly like the same-slot rule above. Stopping only at the
+    // cue edge lets TWO slots pad into the same gap from opposite ends and collide - slot_01_L02's
+    // tail (speech 20.02, pad to 20.23) against slot_01_payoff_L01's pre-roll (speech 20.54, pad
+    // to 20.10) tripped the cross-segment overlap gate; the same-slot midpoint clamp cannot see
+    // across slots, but every slot sees the full cue list, so the shared boundary lives here.
+    if (rangeEnd <= speechStart) {
+      const boundary = (rangeEnd + speechStart) / 2;
+      visualStart = Math.max(visualStart, Math.min(speechStart, Math.max(rangeEnd + minGapSec, boundary + minGapSec / 2)));
+    } else if (rangeStart >= speechEnd) {
+      const boundary = (speechEnd + rangeStart) / 2;
+      visualEnd = Math.min(visualEnd, Math.max(speechEnd, Math.min(rangeStart - minGapSec, boundary - minGapSec / 2)));
+    }
   }
   if (Number.isFinite(sourceDurationSec) && sourceDurationSec > 0) {
     // Clamp the speech itself, not just the padded window: the "never cut into speech" line
