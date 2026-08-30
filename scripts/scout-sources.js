@@ -94,6 +94,36 @@ function survivalRecon(movie) {
   }
 }
 
+// Group unregistered clips by the movie their title names. Two title grammars exist in the
+// source channels: Binge Society leads with the movie ("Pulp Fiction (1994): scene | Full
+// Scene"), Clip Empire trails with it ("scene | Twilight: Eclipse 4K"). A row that fits
+// neither stays in its own bucket rather than being dropped.
+function movieNameOf(title) {
+  const lead = title.match(/^([^|:()]{2,50}?)\s*\((?:19|20)\d{2}\)\s*[:\-]/);
+  if (lead) return lead[1].trim();
+  if (title.includes('|')) {
+    let tail = title.split('|').pop().trim();
+    tail = tail.replace(/\s*\(?(?:4K|Ultra HD|UHD|HD|Full Movie|Full Scene|Movieclips|Screen Bites|Binge Society)\)?\s*/gi, ' ')
+      .replace(/\s*\((?:19|20)\d{2}\)\s*/g, ' ').replace(/\s+/g, ' ').trim();
+    if (tail.length > 2 && tail.length < 50) return tail;
+  }
+  const anywhere = title.match(/([A-Z][^|:()]{2,40}?)\s*\((?:19|20)\d{2}\)/);
+  return anywhere ? anywhere[1].trim() : '(미분류)';
+}
+
+function aggregateResearchQueue(needsResearch, top = 25) {
+  const groups = new Map();
+  for (const row of needsResearch) {
+    const name = movieNameOf(row.title || '');
+    const group = groups.get(name) || { movie: name, clips: 0, total_views: 0, max_views: 0, sample_url: row.url };
+    group.clips += 1;
+    group.total_views += Number(row.view_count) || 0;
+    group.max_views = Math.max(group.max_views, Number(row.view_count) || 0);
+    groups.set(name, group);
+  }
+  return [...groups.values()].sort((a, b) => b.total_views - a.total_views).slice(0, top);
+}
+
 async function main() {
   const args = parseArgs(process.argv);
   const channels = JSON.parse(fs.readFileSync(CHANNELS_PATH, 'utf8')).channels || [];
@@ -156,6 +186,13 @@ async function main() {
     || ((b.view_count || 0) - (a.view_count || 0))
     || ((b.duration_sec || 0) - (a.duration_sec || 0)));
 
+  // Standard post-scout step (owner directive 2026-08-30): the raw needs_research list is
+  // hundreds of rows nobody reads. Aggregate it by movie and rank by proven audience, so the
+  // morning pass researches DISTRIBUTOR + JAPAN RELEASE TITLE for the few movies that matter
+  // and registers them in movie_catalog.json - that registration is what turns this backlog
+  // into candidates (0 -> 30 the first time it was done).
+  report.research_queue = aggregateResearchQueue(report.needs_research);
+
   fs.mkdirSync(REPORTS_DIR, { recursive: true });
   const stamp = new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 12);
   const jsonPath = path.join(REPORTS_DIR, `scout-${stamp}.json`);
@@ -168,7 +205,10 @@ async function main() {
     ...report.candidates.map((c) => `- [${c.movie.key}] ${c.title} — ${c.url}`
       + (c.recon ? ` (생존 클립 ${c.recon.live_results}건)` : '')),
     '',
-    `## 카탈로그 미등록 ${report.needs_research.length}건 — movie_catalog.json에 배급사/개봉명 등록 후 재정찰`,
+    `## 등록 조사 큐 (미등록 ${report.needs_research.length}건을 영화별 집계 — 상위부터 배급사·일본 개봉명 조사해 movie_catalog.json 등록)`,
+    ...report.research_queue.map((g) => `- ${g.movie} — 클립 ${g.clips}개, 총 ${g.total_views.toLocaleString()}뷰 (최고 ${g.max_views.toLocaleString()})`),
+    '',
+    `## 카탈로그 미등록 원본 ${report.needs_research.length}건`,
     ...report.needs_research.map((c) => `- ${c.title} — ${c.url}`),
     '',
     `## 제외 ${report.dropped.length}건`,

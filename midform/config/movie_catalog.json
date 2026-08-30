@@ -122,6 +122,173 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '트와일라잇'(2008)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『トワイライト～初恋～』(2008)のシーンから制作しました。"
+    },
+    "pulp-fiction": {
+      "match": "pulp.?fiction|펄프 ?픽션|パルプ・?フィクション",
+      "title_ko": "펄프 픽션",
+      "title_en": "Pulp Fiction",
+      "title_ja": "パルプ・フィクション",
+      "year": 1994,
+      "distributor": "Miramax (Paramount)",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '펄프 픽션'(1994)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『パルプ・フィクション』(1994)のシーンから制作しました。"
+    },
+    "wolf-of-wall-street": {
+      "match": "wolf of wall|울프 오브|ウルフ・オブ",
+      "title_ko": "더 울프 오브 월 스트리트",
+      "title_en": "The Wolf of Wall Street",
+      "title_ja": "ウルフ・オブ・ウォールストリート",
+      "year": 2013,
+      "distributor": "Paramount Pictures",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '더 울프 오브 월 스트리트'(2013)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『ウルフ・オブ・ウォールストリート』(2013)のシーンから制作しました。"
+    },
+    "the-dictator": {
+      "match": "the dictator|독재자|ディクテーター",
+      "title_ko": "독재자",
+      "title_en": "The Dictator",
+      "title_ja": "ディクテーター 身元不明でニューヨーク",
+      "year": 2012,
+      "distributor": "Paramount Pictures",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '독재자'(2012)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『ディクテーター 身元不明でニューヨーク』(2012)のシーンから制作しました。"
+    },
+    "maverick": {
+      "match": "(?<!top gun: )(?<!top gun )maverick|매버릭|マーヴェリック",
+      "title_ko": "매버릭",
+      "title_en": "Maverick",
+      "title_ja": "マーヴェリック",
+      "year": 1994,
+      "distributor": "Warner Bros.",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '매버릭'(1994)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『マーヴェリック』(1994)のシーンから制作しました。"
+    },
+    "what-women-want": {
+      "match": "what women want|왓 위민 원트|ハート・オブ・ウーマン",
+      "title_ko": "왓 위민 원트",
+      "title_en": "What Women Want",
+      "title_ja": "ハート・オブ・ウーマン",
+      "year": 2000,
+      "distributor": "Paramount Pictures",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '왓 위민 원트'(2000)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『ハート・オブ・ウーマン』(2000)のシーンから制作しました。"
+    },
+    "casino": {
+      "match": "\\bcasino\\b(?!.*royale)|카지노|カジノ",
+      "title_ko": "카지노",
+      "title_en": "Casino",
+      "title_ja": "カジノ",
+      "year": 1995,
+      "distributor": "Universal Pictures",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '카지노'(1995)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『カジノ』(1995)のシーンから制作しました。"
+    },
+    "godfather-2": {
+      "match": "godfather.*part ?(ii|2)|대부 ?2|ゴッドファーザー",
+      "title_ko": "대부 2",
+      "title_en": "The Godfather Part II",
+      "title_ja": "ゴッドファーザー PART II",
+      "year": 1974,
+      "distributor": "Paramount Pictures",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '대부 2'(1974)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『ゴッドファーザー PART II』(1974)のシーンから制作しました。"
+    },
+    "gladiator": {
+      "match": "gladiator(?!\\s*(ii|2))|글래디에이터|グラディエーター",
+      "title_ko": "글래디에이터",
+      "title_en": "Gladiator",
+      "title_ja": "グラディエーター",
+      "year": 2000,
+      "distributor": "DreamWorks/Universal",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '글래디에이터'(2000)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『グラディエーター』(2000)のシーンから制作しました。"
+    },
+    "dirty-dancing": {
+      "match": "dirty.?dancing|더티 ?댄싱|ダーティ・?ダンシング",
+      "title_ko": "더티 댄싱",
+      "title_en": "Dirty Dancing",
+      "title_ja": "ダーティ・ダンシング",
+      "year": 1987,
+      "distributor": "Vestron (Lionsgate)",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '더티 댄싱'(1987)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『ダーティ・ダンシング』(1987)のシーンから制作しました。"
+    },
+    "jaws": {
+      "match": "\\bjaws\\b|죠스|ジョーズ",
+      "title_ko": "죠스",
+      "title_en": "Jaws",
+      "title_ja": "ジョーズ",
+      "year": 1975,
+      "distributor": "Universal Pictures",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '죠스'(1975)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『ジョーズ』(1975)のシーンから制作しました。"
+    },
+    "world-war-z": {
+      "match": "world war z|월드 ?워 ?z|ワールド・ウォーZ",
+      "title_ko": "월드워Z",
+      "title_en": "World War Z",
+      "title_ja": "ワールド・ウォーZ",
+      "year": 2013,
+      "distributor": "Paramount Pictures",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '월드워Z'(2013)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『ワールド・ウォーZ』(2013)のシーンから制作しました。"
+    },
+    "shaolin-soccer": {
+      "match": "shaolin.?soccer|소림 ?축구|少林サッカー",
+      "title_ko": "소림축구",
+      "title_en": "Shaolin Soccer",
+      "title_ja": "少林サッカー",
+      "year": 2001,
+      "distributor": "Miramax (US) / Star Overseas",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '소림축구'(2001)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『少林サッカー』(2001)のシーンから制作しました。",
+      "note": "원어 광둥어 — 영어 자막/STT 품질을 프리플라이트에서 반드시 확인"
+    },
+    "inglourious-basterds": {
+      "match": "inglourious|바스터즈|イングロリアス",
+      "title_ko": "바스터즈: 거친 녀석들",
+      "title_en": "Inglourious Basterds",
+      "title_ja": "イングロリアス・バスターズ",
+      "year": 2009,
+      "distributor": "The Weinstein Company / Universal",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '바스터즈: 거친 녀석들'(2009)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『イングロリアス・バスターズ』(2009)のシーンから制作しました。"
+    },
+    "no-country-for-old-men": {
+      "match": "no country for old men|노인을 위한 나라|ノーカントリー",
+      "title_ko": "노인을 위한 나라는 없다",
+      "title_en": "No Country for Old Men",
+      "title_ja": "ノーカントリー",
+      "year": 2007,
+      "distributor": "Miramax / Paramount Vantage",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '노인을 위한 나라는 없다'(2007)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『ノーカントリー』(2007)のシーンから制作しました。"
+    },
+    "erin-brockovich": {
+      "match": "erin.?brockovich|에린 브로코비치|エリン・ブロコビッチ",
+      "title_ko": "에린 브로코비치",
+      "title_en": "Erin Brockovich",
+      "title_ja": "エリン・ブロコビッチ",
+      "year": 2000,
+      "distributor": "Universal (국내) / Columbia (해외)",
+      "distributor_tier": "banned",
+      "credit_ko": "영화 '에린 브로코비치'(2000)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『エリン・ブロコビッチ』(2000)のシーンから制作しました。",
+      "note": "Columbia(Sony 계열) 해외배급 관여 — 발행 금지 규칙"
     }
   },
   "banned_distributors": [
