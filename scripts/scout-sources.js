@@ -184,7 +184,7 @@ async function main() {
       // and effect. "Top 5 Rom-Com Moments" (13M views) ranked #1 in the candidate list purely
       // on engagement and would have burned a full produce attempt on an unplannable source
       // (2026-08-31 analysis). Engagement cannot rescue a source the format cannot hold.
-      if (/\btop ?\d|best (scenes|moments)|funniest|compilation|every (epic |single )?\w+ scene|\bmoments from\b/i.test(row.title)) {
+      if (/\btop ?\d|best .{0,30}(scenes|moments)\b|funniest|compilation|every (epic |single )?\w+ scene|\bmoments from\b/i.test(row.title)) {
         report.dropped.push({ ...row, reason: 'compilation/listicle - no single narrative to cut' });
         continue;
       }
