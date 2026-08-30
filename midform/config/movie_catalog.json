@@ -100,9 +100,34 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '뉴문'(2009)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『ニュームーン／トワイライト・サーガ』(2009)のシーンから制作しました。"
+    },
+    "eclipse": {
+      "match": "eclipse|이클립스|エクリプス",
+      "title_ko": "이클립스",
+      "title_en": "The Twilight Saga: Eclipse",
+      "title_ja": "エクリプス／トワイライト・サーガ",
+      "year": 2010,
+      "distributor": "Summit Entertainment (Lionsgate)",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '이클립스'(2010)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『エクリプス／トワイライト・サーガ』(2010)のシーンから制作しました。"
+    },
+    "twilight-2008": {
+      "match": "twilight(?!.*(new.?moon|eclipse|breaking))|트와일라잇(?!.*(뉴문|이클립스|브레이킹))",
+      "title_ko": "트와일라잇",
+      "title_en": "Twilight",
+      "title_ja": "トワイライト～初恋～",
+      "year": 2008,
+      "distributor": "Summit Entertainment (Lionsgate)",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '트와일라잇'(2008)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『トワイライト～初恋～』(2008)のシーンから制作しました。"
     }
   },
   "banned_distributors": [
-    "Sony", "Columbia", "Screen Gems", "TriStar"
+    "Sony",
+    "Columbia",
+    "Screen Gems",
+    "TriStar"
   ]
 }
