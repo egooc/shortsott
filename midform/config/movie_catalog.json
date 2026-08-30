@@ -521,6 +521,83 @@
       "distributor_tier": "banned",
       "credit_ko": "영화 '구스범스 시리즈'(2015)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『グースバンプス』(2015)のシーンから制作しました。"
+    },
+    "forrest-gump": {
+      "match": "forrest gump|포레스트 검프|フォレスト・ガンプ",
+      "title_ko": "포레스트 검프",
+      "title_en": "Forrest Gump",
+      "title_ja": "フォレスト・ガンプ／一期一会",
+      "year": 1994,
+      "distributor": "Paramount Pictures",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '포레스트 검프'(1994)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『フォレスト・ガンプ／一期一会』(1994)のシーンから制作しました。"
+    },
+    "the-warriors": {
+      "match": "\\bthe warriors\\b|워리어스|ウォリアーズ",
+      "title_ko": "워리어스",
+      "title_en": "The Warriors",
+      "title_ja": "ウォリアーズ",
+      "year": 1979,
+      "distributor": "Paramount Pictures",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '워리어스'(1979)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『ウォリアーズ』(1979)のシーンから制作しました。"
+    },
+    "scent-of-a-woman": {
+      "match": "scent of a woman|여인의 향기|セント・オブ・ウーマン",
+      "title_ko": "여인의 향기",
+      "title_en": "Scent of a Woman",
+      "title_ja": "セント・オブ・ウーマン／夢の香り",
+      "year": 1992,
+      "distributor": "Universal Pictures",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '여인의 향기'(1992)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『セント・オブ・ウーマン／夢の香り』(1992)のシーンから制作しました。"
+    },
+    "gangs-of-new-york": {
+      "match": "gangs of new york|갱스 오브 뉴욕|ギャング・オブ・ニューヨーク",
+      "title_ko": "갱스 오브 뉴욕",
+      "title_en": "Gangs of New York",
+      "title_ja": "ギャング・オブ・ニューヨーク",
+      "year": 2002,
+      "distributor": "Miramax",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '갱스 오브 뉴욕'(2002)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『ギャング・オブ・ニューヨーク』(2002)のシーンから制作しました。"
+    },
+    "cape-fear": {
+      "match": "cape fear|케이프 피어|ケープ・フィアー",
+      "title_ko": "케이프 피어",
+      "title_en": "Cape Fear",
+      "title_ja": "ケープ・フィアー",
+      "year": 1991,
+      "distributor": "Universal Pictures",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '케이프 피어'(1991)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『ケープ・フィアー』(1991)のシーンから制作しました。"
+    },
+    "italian-job-2003": {
+      "match": "italian job|이탈리안 잡|ミニミニ大作戦",
+      "title_ko": "이탈리안 잡",
+      "title_en": "The Italian Job",
+      "title_ja": "ミニミニ大作戦",
+      "year": 2003,
+      "distributor": "Paramount Pictures",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '이탈리안 잡'(2003)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『ミニミニ大作戦』(2003)のシーンから制作しました。"
+    },
+    "now-you-see-me": {
+      "match": "now you see me|나우 유 씨 미|グランド・イリュージョン",
+      "title_ko": "나우 유 씨 미",
+      "title_en": "Now You See Me",
+      "title_ja": "グランド・イリュージョン",
+      "year": 2013,
+      "distributor": "Lionsgate/Summit",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '나우 유 씨 미'(2013)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『グランド・イリュージョン』(2013)のシーンから制作しました。"
     }
   },
   "banned_distributors": [

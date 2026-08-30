@@ -161,6 +161,13 @@ async function main() {
         above_channel_avg: channelAvgViews > 0 && (Number(entry.view_count) || 0) > channelAvgViews
       };
       if (used.has(entry.id)) continue; // already produced — silence, not noise
+      // Before classification, not after: a compilation is unusable no matter which movie it
+      // belongs to, and leaving unregistered ones in needs_research inflated the research
+      // queue's view totals with clips that could never become candidates.
+      if (/\btop ?\d|best .{0,30}(scenes|moments)\b|funniest|compilation|every (epic |single )?\w+ scene|\bmoments from\b/i.test(row.title)) {
+        report.dropped.push({ ...row, reason: 'compilation/listicle - no single narrative to cut' });
+        continue;
+      }
       const movie = classify(row.title, catalog);
       if (!movie) {
         report.needs_research.push(row);
@@ -178,14 +185,6 @@ async function main() {
       // under that, so the floor here is the duration minimum with that shrink allowed for.
       if (Number(row.duration_sec) > 0 && row.duration_sec < MIN_SOURCE_DURATION_SEC) {
         report.dropped.push({ ...row, reason: `too short for a midform cut: ${row.duration_sec}s < ${MIN_SOURCE_DURATION_SEC}s` });
-        continue;
-      }
-      // A compilation is many scenes with no single narrative - the cut needs one scene's cause
-      // and effect. "Top 5 Rom-Com Moments" (13M views) ranked #1 in the candidate list purely
-      // on engagement and would have burned a full produce attempt on an unplannable source
-      // (2026-08-31 analysis). Engagement cannot rescue a source the format cannot hold.
-      if (/\btop ?\d|best .{0,30}(scenes|moments)\b|funniest|compilation|every (epic |single )?\w+ scene|\bmoments from\b/i.test(row.title)) {
-        report.dropped.push({ ...row, reason: 'compilation/listicle - no single narrative to cut' });
         continue;
       }
       if (args.recon) row.recon = survivalRecon(movie);
