@@ -180,6 +180,14 @@ async function main() {
         report.dropped.push({ ...row, reason: `too short for a midform cut: ${row.duration_sec}s < ${MIN_SOURCE_DURATION_SEC}s` });
         continue;
       }
+      // A compilation is many scenes with no single narrative - the cut needs one scene's cause
+      // and effect. "Top 5 Rom-Com Moments" (13M views) ranked #1 in the candidate list purely
+      // on engagement and would have burned a full produce attempt on an unplannable source
+      // (2026-08-31 analysis). Engagement cannot rescue a source the format cannot hold.
+      if (/\btop ?\d|best (scenes|moments)|funniest|compilation|every (epic |single )?\w+ scene|\bmoments from\b/i.test(row.title)) {
+        report.dropped.push({ ...row, reason: 'compilation/listicle - no single narrative to cut' });
+        continue;
+      }
       if (args.recon) row.recon = survivalRecon(movie);
       report.candidates.push(row);
     }
