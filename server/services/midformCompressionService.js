@@ -761,7 +761,13 @@ async function transcribeWithSttFallback(runDir) {
         return null;
       }
       raw = readJson(rawPath);
-      if (cachePath) {
+      // Cache only results that actually heard something. A 0-cue result is a FAILURE being
+      // cached as truth: the Groq word-only-granularity regression wrote empty cue sets here,
+      // and every later retry of those sources died in 6 seconds on the poisoned cache while
+      // the underlying bug had long been fixed (2026-08-30, 3 sources).
+      const usableCueCount = (Array.isArray(raw?.cues) ? raw.cues : [])
+        .filter((cue) => Number(cue.end_sec) > Number(cue.start_sec) && String(cue.text || '').trim()).length;
+      if (cachePath && usableCueCount > 0) {
         fs.mkdirSync(cacheDir, { recursive: true });
         writeJson(cachePath, raw);
       }
