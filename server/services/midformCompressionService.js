@@ -7894,14 +7894,24 @@ async function downloadCompressionSourceVideo(runIdOrPath, options = {}) {
   }
 
   const ytDlp = resolveTool('yt-dlp', { envKey: 'YT_DLP_PATH' });
-  await execFileAsync(ytDlp, [
+  const downloadWithFormat = (format) => execFileAsync(ytDlp, [
     '--js-runtimes', 'node',
     '--no-playlist',
-    '-f', 'bv*+ba/b',
+    '-f', format,
     '--merge-output-format', 'mp4',
     '-o', path.join(runDir, 'source.%(ext)s'),
     sourceUrl
   ], { timeout: 60 * 60 * 1000 });
+  try {
+    await downloadWithFormat('bv*+ba/b');
+  } catch (error) {
+    // YouTube serves some 4K streams that die with HTTP 500 on every retry while the 1080p
+    // stream of the SAME video downloads fine (DrDFG8sQdAQ, format 401 vs 399, 2026-08-30 -
+    // it killed three produce attempts). The cut ships at 1080x1920, so capping the source at
+    // 1080p loses nothing visible.
+    console.warn(`[midform] best-format download failed, retrying capped at 1080p: ${String(error?.message || error).slice(0, 200)}`);
+    await downloadWithFormat('bv*[height<=1080]+ba/b');
+  }
   const sourceVideoPath = findDownloadedCompressionSource(runDir);
   if (!sourceVideoPath) {
     throw new Error(`yt-dlp completed but no source file was found in ${runDir}`);
