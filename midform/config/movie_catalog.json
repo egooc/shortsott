@@ -300,6 +300,150 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '탑건: 매버릭'(2022)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『トップガン マーヴェリック』(2022)のシーンから制作しました。"
+    },
+    "incredible-hulk": {
+      "match": "incredible hulk|인크레더블 헐크|インクレディブル・ハルク",
+      "title_ko": "인크레더블 헐크",
+      "title_en": "The Incredible Hulk",
+      "title_ja": "インクレディブル・ハルク",
+      "year": 2008,
+      "distributor": "Universal Pictures",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '인크레더블 헐크'(2008)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『インクレディブル・ハルク』(2008)のシーンから制作しました。"
+    },
+    "hulk-2003": {
+      "match": "\\bhulk\\b(?!.*incredible)|(?<!인크레더블 )헐크",
+      "title_ko": "헐크",
+      "title_en": "Hulk",
+      "title_ja": "ハルク",
+      "year": 2003,
+      "distributor": "Universal Pictures",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '헐크'(2003)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『ハルク』(2003)のシーンから制作しました。"
+    },
+    "rambo-2008": {
+      "match": "\\brambo\\b(?!.*(first blood|last blood|rambo (ii|iii|2|3)))|람보(?!.*(퍼스트|라스트))",
+      "title_ko": "람보 4: 라스트 블러드",
+      "title_en": "Rambo",
+      "title_ja": "ランボー 最後の戦場",
+      "year": 2008,
+      "distributor": "Lionsgate",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '람보 4: 라스트 블러드'(2008)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『ランボー 最後の戦場』(2008)のシーンから制作しました。"
+    },
+    "day-earth-stood-still": {
+      "match": "day the earth stood still|지구가 멈추는 날|地球が静止する日",
+      "title_ko": "지구가 멈추는 날",
+      "title_en": "The Day the Earth Stood Still",
+      "title_ja": "地球が静止する日",
+      "year": 2008,
+      "distributor": "20th Century Fox",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '지구가 멈추는 날'(2008)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『地球が静止する日』(2008)のシーンから制作しました。"
+    },
+    "kingdom-of-heaven": {
+      "match": "kingdom of heaven|킹덤 오브 헤븐|キングダム・オブ・ヘブン",
+      "title_ko": "킹덤 오브 헤븐",
+      "title_en": "Kingdom of Heaven",
+      "title_ja": "キングダム・オブ・ヘブン",
+      "year": 2005,
+      "distributor": "20th Century Fox",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '킹덤 오브 헤븐'(2005)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『キングダム・オブ・ヘブン』(2005)のシーンから制作しました。"
+    },
+    "legally-blonde": {
+      "match": "legally blonde|금발이 너무해|キューティ・?ブロンド",
+      "title_ko": "금발이 너무해",
+      "title_en": "Legally Blonde",
+      "title_ja": "キューティ・ブロンド",
+      "year": 2001,
+      "distributor": "MGM",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '금발이 너무해'(2001)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『キューティ・ブロンド』(2001)のシーンから制作しました。"
+    },
+    "war-of-the-worlds": {
+      "match": "war of the worlds|우주 ?전쟁|宇宙戦争",
+      "title_ko": "우주전쟁",
+      "title_en": "War of the Worlds",
+      "title_ja": "宇宙戦争",
+      "year": 2005,
+      "distributor": "Paramount/DreamWorks",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '우주전쟁'(2005)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『宇宙戦争』(2005)のシーンから制作しました。"
+    },
+    "how-to-lose-a-guy": {
+      "match": "how to lose a guy|10일 안에 남자친구|10日間で男を",
+      "title_ko": "10일 안에 남자친구에게 차이는 법",
+      "title_en": "How to Lose a Guy in 10 Days",
+      "title_ja": "10日間で男を上手にフル方法",
+      "year": 2003,
+      "distributor": "Paramount Pictures",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '10일 안에 남자친구에게 차이는 법'(2003)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『10日間で男を上手にフル方法』(2003)のシーンから制作しました。"
+    },
+    "big-short": {
+      "match": "big short|빅쇼트|マネー・ショート",
+      "title_ko": "빅쇼트",
+      "title_en": "The Big Short",
+      "title_ja": "マネー・ショート 華麗なる大逆転",
+      "year": 2015,
+      "distributor": "Paramount Pictures",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '빅쇼트'(2015)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『マネー・ショート 華麗なる大逆転』(2015)のシーンから制作しました。"
+    },
+    "braveheart": {
+      "match": "braveheart|브레이브 ?하트|ブレイブハート",
+      "title_ko": "브레이브 하트",
+      "title_en": "Braveheart",
+      "title_ja": "ブレイブハート",
+      "year": 1995,
+      "distributor": "Paramount (US) / 20th Century Fox (해외)",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '브레이브 하트'(1995)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『ブレイブハート』(1995)のシーンから制作しました。"
+    },
+    "spider-man": {
+      "match": "spider.?man|스파이더맨|スパイダーマン",
+      "title_ko": "스파이더맨 시리즈",
+      "title_en": "Spider-Man (franchise)",
+      "title_ja": "スパイダーマン",
+      "year": 2002,
+      "distributor": "Sony (Columbia)",
+      "distributor_tier": "banned",
+      "credit_ko": "영화 '스파이더맨 시리즈'(2002)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『スパイダーマン』(2002)のシーンから制作しました。",
+      "note": "스파이더맨 전 시리즈 Sony — 발행 금지"
+    },
+    "ghost-rider": {
+      "match": "ghost.?rider|고스트 라이더|ゴーストライダー",
+      "title_ko": "고스트 라이더",
+      "title_en": "Ghost Rider",
+      "title_ja": "ゴーストライダー",
+      "year": 2007,
+      "distributor": "Sony (Columbia)",
+      "distributor_tier": "banned",
+      "credit_ko": "영화 '고스트 라이더'(2007)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『ゴーストライダー』(2007)のシーンから制作しました。"
+    },
+    "movie-2012": {
+      "match": "\\b2012\\s*movie\\s*clip|\\|\\s*2012\\b",
+      "title_ko": "2012",
+      "title_en": "2012",
+      "title_ja": "2012",
+      "year": 2009,
+      "distributor": "Sony (Columbia)",
+      "distributor_tier": "banned",
+      "credit_ko": "영화 '2012'(2009)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『2012』(2009)のシーンから制作しました。"
     }
   },
   "banned_distributors": [
