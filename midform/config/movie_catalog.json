@@ -468,7 +468,7 @@
       "credit_ja": "映画『スノー・ロワイヤル』(2019)のシーンから制作しました。"
     },
     "king-kong-2005": {
-      "match": "king kong(?!.*skull)|킹콩(?!.*스컬)|キング・?コング(?!.*髑髏)",
+      "match": "^(?!.*(godzilla|skull|1933|髑髏)).*(king kong|킹콩|キング・?コング)",
       "title_ko": "킹콩",
       "title_en": "King Kong",
       "title_ja": "キング・コング",
@@ -686,6 +686,50 @@
       "distributor_tier": "banned",
       "credit_ko": "영화 '어글리 트루스'(2009)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『男と女の不都合な真実』(2009)のシーンから制作しました。"
+    },
+    "troy": {
+      "match": "\\btroy\\b|트로이|トロイ",
+      "title_ko": "트로이",
+      "title_en": "Troy",
+      "title_ja": "トロイ",
+      "year": 2004,
+      "distributor": "Warner Bros.",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '트로이'(2004)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『トロイ』(2004)のシーンから制作しました。"
+    },
+    "the-accountant": {
+      "match": "the accountant|어카운턴트|ザ・コンサルタント",
+      "title_ko": "어카운턴트",
+      "title_en": "The Accountant",
+      "title_ja": "ザ・コンサルタント",
+      "year": 2016,
+      "distributor": "Warner Bros.",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '어카운턴트'(2016)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『ザ・コンサルタント』(2016)のシーンから制作しました。"
+    },
+    "dune-part-two": {
+      "match": "dune.{0,3}part.{0,3}(two|2)|듄.{0,3}(파트 ?2|2)|デューン.{0,10}PART2",
+      "title_ko": "듄: 파트 2",
+      "title_en": "Dune: Part Two",
+      "title_ja": "デューン 砂の惑星PART2",
+      "year": 2024,
+      "distributor": "Warner Bros.",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '듄: 파트 2'(2024)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『デューン 砂の惑星PART2』(2024)のシーンから制作しました。"
+    },
+    "furiosa": {
+      "match": "furiosa|퓨리오사|フュリオサ",
+      "title_ko": "퓨리오사: 매드맥스 사가",
+      "title_en": "Furiosa: A Mad Max Saga",
+      "title_ja": "マッドマックス：フュリオサ",
+      "year": 2024,
+      "distributor": "Warner Bros.",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '퓨리오사: 매드맥스 사가'(2024)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『マッドマックス：フュリオサ』(2024)のシーンから制作しました。"
     }
   },
   "banned_distributors": [
