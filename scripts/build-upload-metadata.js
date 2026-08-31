@@ -28,14 +28,34 @@ function matchMovie(folderName) {
   return null;
 }
 
+// Folder names get rewritten as drafts are revised (20260825n-new-moon-QnFcGy becomes
+// 20260827c-jacob_wolf_v7-QnFcGy), so the film often survives only in the run's
+// source_info.json title ("... | Twilight: New Moon") — which is what the catalog patterns
+// were written against. Matching on the folder alone silently yields movie=null, and that
+// drops the ja release title AND skips the banned-distributor check entirely.
+function movieHaystack(draftDir) {
+  const parts = [path.basename(draftDir)];
+  try {
+    const manifest = JSON.parse(fs.readFileSync(path.join(draftDir, 'edit_manifest.json'), 'utf8'));
+    const runDir = path.dirname(String(manifest.source_video_path || ''));
+    const info = JSON.parse(fs.readFileSync(path.join(runDir, 'source_info.json'), 'utf8'));
+    if (info.title) parts.push(String(info.title));
+  } catch { /* the folder name is all we have */ }
+  return parts.join(' ');
+}
+
 // The [YouTube Shorts] section is "(제목, n/100자)\n<title>\n\n(캡션, ...)\n<caption>\n\n(해시태그 ...)\n#a #b".
 function parseYouTubeSection(text) {
   const section = /\[YouTube[^\]]*\][^\n]*\n=+\n([\s\S]*?)(?:\n=+\n|$)/i.exec(String(text || ''));
   if (!section) return null;
   const body = section[1];
   const grab = (label) => {
-    const m = new RegExp(`\\(${label}[^)]*\\)\\s*\\n([\\s\\S]*?)(?=\\n\\s*\\(|$)`).exec(body);
-    return m ? m[1].trim() : '';
+    // Consume only the rest of the label line. `\\s*\\n` also eats the blank lines an EMPTY
+    // field leaves behind, so the capture swallows the NEXT "(label)" and an unfilled publish
+    // package looks filled — that is how "(캡션, 0/5000자)" became a video title.
+    const m = new RegExp(`\\(${label}[^)]*\\)[^\\n]*\\n([\\s\\S]*?)(?=\\n\\s*\\(|$)`).exec(body);
+    const value = m ? m[1].trim() : '';
+    return value.startsWith('(') ? '' : value;
   };
   const title = grab('제목');
   const caption = grab('캡션');
@@ -57,7 +77,7 @@ function buildUploadMeta(draftDir) {
     throw new Error(`no [YouTube] section in ${path.basename(socialPath)} — 발행 패키지부터 생성해야 한다`);
   }
 
-  const movie = matchMovie(folderName);
+  const movie = matchMovie(movieHaystack(draftDir));
   if (movie && movie.distributor_tier === 'banned') {
     throw new Error(`banned distributor (${movie.distributor}) — 발행 금지 소스: ${folderName}`);
   }
@@ -70,7 +90,12 @@ function buildUploadMeta(draftDir) {
       : `영화: ${movie.title_ko} (${movie.title_en}, ${movie.year})`)
     : '';
 
-  const description = [social.caption, '', credit, infoLine]
+  // Hashtags belong at the END OF THE DESCRIPTION, not only in `tags`: YouTube surfaces up to
+  // three description hashtags above the title, while the `tags` field is invisible to viewers
+  // (platform_post_specs: youtube.hashtags.where = "설명 끝"). Shipping them in `tags` alone
+  // means the channel shows no hashtags at all.
+  const hashtagLine = social.tags.slice(0, 3).map((t) => `#${t}`).join(' ');
+  const description = [social.caption, '', credit, infoLine, '', hashtagLine]
     .filter((line, index, arr) => line !== '' || (arr[index - 1] !== '' && index < arr.length - 1))
     .join('\n')
     .trim();
@@ -107,4 +132,4 @@ if (require.main === module) {
   else console.log(`ok: ${meta.variant} | ${meta.title} | tags: ${meta.tags.join(', ')}`);
 }
 
-module.exports = { buildUploadMeta, parseYouTubeSection, matchMovie };
+module.exports = { buildUploadMeta, parseYouTubeSection, matchMovie, movieHaystack };
