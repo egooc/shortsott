@@ -598,6 +598,94 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '나우 유 씨 미'(2013)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『グランド・イリュージョン』(2013)のシーンから制作しました。"
+    },
+    "sully": {
+      "match": "\\bsully\\b|설리|ハドソン川の奇跡",
+      "title_ko": "설리: 허드슨강의 기적",
+      "title_en": "Sully",
+      "title_ja": "ハドソン川の奇跡",
+      "year": 2016,
+      "distributor": "Warner Bros.",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '설리: 허드슨강의 기적'(2016)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『ハドソン川の奇跡』(2016)のシーンから制作しました。"
+    },
+    "war-dogs": {
+      "match": "war dogs|워 독스|ウォー・ドッグス",
+      "title_ko": "워 독스",
+      "title_en": "War Dogs",
+      "title_ja": "ウォー・ドッグス",
+      "year": 2016,
+      "distributor": "Warner Bros.",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '워 독스'(2016)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『ウォー・ドッグス』(2016)のシーンから制作しました。"
+    },
+    "hacksaw-ridge": {
+      "match": "hacksaw ridge|핵소 고지|ハクソー・リッジ",
+      "title_ko": "핵소 고지",
+      "title_en": "Hacksaw Ridge",
+      "title_ja": "ハクソー・リッジ",
+      "year": 2016,
+      "distributor": "Lionsgate/Summit",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '핵소 고지'(2016)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『ハクソー・リッジ』(2016)のシーンから制作しました。"
+    },
+    "central-intelligence": {
+      "match": "central intelligence|센트럴 인텔리전스|セントラル・インテリジェンス",
+      "title_ko": "센트럴 인텔리전스",
+      "title_en": "Central Intelligence",
+      "title_ja": "セントラル・インテリジェンス",
+      "year": 2016,
+      "distributor": "Warner Bros.",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '센트럴 인텔리전스'(2016)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『セントラル・インテリジェンス』(2016)のシーンから制作しました。"
+    },
+    "horrible-bosses-2": {
+      "match": "horrible bosses ?2|나쁜 상사들 ?2|モンスター上司2",
+      "title_ko": "나쁜 보스들 2",
+      "title_en": "Horrible Bosses 2",
+      "title_ja": "モンスター上司2",
+      "year": 2014,
+      "distributor": "Warner Bros.",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '나쁜 보스들 2'(2014)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『モンスター上司2』(2014)のシーンから制作しました。"
+    },
+    "fifty-shades-darker": {
+      "match": "fifty shades darker|50가지 그림자.{0,4}심연|フィフティ・シェイズ・ダーカー",
+      "title_ko": "50가지 그림자: 심연",
+      "title_en": "Fifty Shades Darker",
+      "title_ja": "フィフティ・シェイズ・ダーカー",
+      "year": 2017,
+      "distributor": "Universal Pictures",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '50가지 그림자: 심연'(2017)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『フィフティ・シェイズ・ダーカー』(2017)のシーンから制作しました。"
+    },
+    "robocop-1987": {
+      "match": "robocop(?!.*(2014|remake))|로보캅|ロボコップ",
+      "title_ko": "로보캅",
+      "title_en": "RoboCop",
+      "title_ja": "ロボコップ",
+      "year": 1987,
+      "distributor": "Orion Pictures (MGM)",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '로보캅'(1987)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『ロボコップ』(1987)のシーンから制作しました。"
+    },
+    "ugly-truth": {
+      "match": "ugly truth|어글리 트루스|男と女の不都合な真実",
+      "title_ko": "어글리 트루스",
+      "title_en": "The Ugly Truth",
+      "title_ja": "男と女の不都合な真実",
+      "year": 2009,
+      "distributor": "Sony (Columbia)",
+      "distributor_tier": "banned",
+      "credit_ko": "영화 '어글리 트루스'(2009)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『男と女の不都合な真実』(2009)のシーンから制作しました。"
     }
   },
   "banned_distributors": [
