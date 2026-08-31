@@ -2,7 +2,7 @@
 // -> loudness-normalized -> scheduled YouTube upload on the right channel (KR/JP).
 //
 //   node scripts/auto-publish.js [--prefix 20260819a] [--only <folder>] [--dry-run]
-//                                [--skip-export] [--limit N]
+//                                [--skip-export] [--limit N] [--publish-at 17:00|<ISO>]
 //
 // - Discovers installed draft folders (<date>-<name>-<ko|ja>) under the CapCut Drafts dir.
 // - CapCut export is screen automation (scripts/capcut_export_one.py): unlocked desktop only,
@@ -47,14 +47,47 @@ const SLOT_HOURS_UTC9 = [8, 18];
 const SLOT_LEAD_MIN = 45;
 const DURATION_TOLERANCE_SEC = 2.0;
 
+// Owner directive 2026-08-31: morning slot only through this weekend. It overlaps the warmup
+// of the ja social accounts created 2026-08-31, so the channels run one video a day instead
+// of two. The date is a self-expiring guard — from 2026-09-07 both slots come back on their
+// own, no edit required.
+const MORNING_ONLY_UNTIL = '2026-09-06';
+function activeSlotHours() {
+  const today = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+  return today <= MORNING_ONLY_UNTIL ? [SLOT_HOURS_UTC9[0]] : SLOT_HOURS_UTC9;
+}
+
+// --publish-at overrides the fixed slots for a one-off run: "17:00" is today 17:00 in UTC+9,
+// or pass a full ISO timestamp. Every locale in the run lands on that one instant, which is
+// what "same clock on every channel" means. The Content ID window still has to fit, so a time
+// too close to now is refused rather than quietly accepted.
+function resolvePublishAt(value) {
+  const hhmm = /^(\d{1,2}):(\d{2})$/.exec(String(value).trim());
+  let ms;
+  if (hhmm) {
+    const now9 = new Date(Date.now() + 9 * 3600 * 1000);
+    const base = Date.UTC(now9.getUTCFullYear(), now9.getUTCMonth(), now9.getUTCDate());
+    ms = base + Number(hhmm[1]) * 3600 * 1000 + Number(hhmm[2]) * 60 * 1000 - 9 * 3600 * 1000;
+  } else {
+    ms = Date.parse(value);
+  }
+  if (!Number.isFinite(ms)) throw new Error(`--publish-at: cannot parse "${value}"`);
+  const leadMin = Math.round((ms - Date.now()) / 60000);
+  if (leadMin < SLOT_LEAD_MIN) {
+    throw new Error(`--publish-at is ${leadMin}min away; the Studio Checks window needs ${SLOT_LEAD_MIN}min`);
+  }
+  return new Date(ms).toISOString();
+}
+
 // Earliest fixed slot after `fromMs` that is not already taken for this channel.
 function nextFreeSlot(locale, fromMs, taken) {
+  const hours = activeSlotHours();
   const dayMs = 24 * 60 * 60 * 1000;
   // Work in UTC+9 by shifting the clock; slots are whole hours so DST-free UTC+9 is safe.
   const shifted = new Date(fromMs + 9 * 3600 * 1000);
   const base = Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate());
   for (let day = 0; day < 14; day += 1) {
-    for (const hour of SLOT_HOURS_UTC9) {
+    for (const hour of hours) {
       const slotMs = base + day * dayMs + hour * 3600 * 1000 - 9 * 3600 * 1000;
       if (slotMs < fromMs + SLOT_LEAD_MIN * 60 * 1000) continue;
       const iso = new Date(slotMs).toISOString();
@@ -76,13 +109,14 @@ function takenSlotsFromState(state) {
 }
 
 function parseArgs(argv) {
-  const args = { prefix: '', only: '', dryRun: false, skipExport: false, limit: 0 };
+  const args = { prefix: '', only: '', dryRun: false, skipExport: false, limit: 0, publishAt: '' };
   for (let i = 2; i < argv.length; i += 1) {
     if (argv[i] === '--dry-run') args.dryRun = true;
     else if (argv[i] === '--skip-export') args.skipExport = true;
     else if (argv[i] === '--prefix') { args.prefix = String(argv[i + 1] || ''); i += 1; }
     else if (argv[i] === '--only') { args.only = String(argv[i + 1] || ''); i += 1; }
     else if (argv[i] === '--limit') { args.limit = Number(argv[i + 1]) || 0; i += 1; }
+    else if (argv[i] === '--publish-at') { args.publishAt = String(argv[i + 1] || ''); i += 1; }
   }
   return args;
 }
@@ -242,7 +276,9 @@ async function main() {
 
     // 5. Fixed per-channel slot: next free 08:00/18:00 (UTC+9), booked slots come from
     //    state history so a morning re-run cannot double-book the evening slot.
-    const publishAt = nextFreeSlot(locale, Date.now(), takenSlots);
+    const publishAt = args.publishAt
+      ? resolvePublishAt(args.publishAt)
+      : nextFreeSlot(locale, Date.now(), takenSlots);
 
     items.push({
       filePath: uploadPath,

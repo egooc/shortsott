@@ -1,0 +1,196 @@
+{
+  "_doc": "Blotato 워크스페이스 ↔ 미드폼 로케일/플랫폼 매핑. 플랫폼마다 role(수익화축/확산축)과 status(연결상태)를 함께 둔다. 확산·유입 브랜딩 목적 채널은 수익화가 안 되더라도 ko/ja 양쪽에 운영한다(소유주 방침 2026-08-31). create_post 호출 시 accountId와 requiredFields를 여기서 읽는다.",
+  "_verified_at": "2026-08-31 (전 채널 연결 완료 시점)",
+  "_workspace": {
+    "subscriptionPlan": "starter",
+    "subscriptionStatus": "active"
+  },
+  "_roles": {
+    "monetize": "수익화 축 — 직접 수익이 나는 채널. 정책 리스크(재사용 콘텐츠 판정) 관리 대상.",
+    "reach": "확산·유입 브랜딩 축 — 수익화 여부와 무관하게 도달·유입을 쌓는다. ko/ja 양쪽 필수."
+  },
+  "_status": {
+    "connected": "Blotato 연결 완료, 자동 발행 가능",
+    "needs_connection": "Blotato 연결만 하면 자동 발행 가능 — 작업 대기열",
+    "manual_only": "Blotato로 발행 불가, 수동 발행 확정",
+    "unsupported": "Blotato 미지원 플랫폼"
+  },
+  "locales": {
+    "ko": {
+      "brand": "냐옹시네마",
+      "youtube_channel_id": "UCbOp4wMmedc1_7vkrvYH_mQ",
+      "youtube_profile": "channel_krvyh_mq",
+      "platforms": {
+        "youtube": {
+          "role": "monetize",
+          "status": "connected",
+          "accountId": "48169",
+          "fullname": "imhero (냐옹시네마)",
+          "requiredFields": {
+            "title": "string",
+            "privacyStatus": "private|public|unlisted",
+            "shouldNotifySubscribers": "boolean"
+          }
+        },
+        "tiktok": {
+          "role": "monetize",
+          "status": "connected",
+          "accountId": "57391",
+          "username": "meow_cinema21",
+          "requiredFields": {
+            "privacyLevel": "SELF_ONLY|PUBLIC_TO_EVERYONE|MUTUAL_FOLLOW_FRIENDS|FOLLOWER_OF_CREATOR",
+            "disabledComments": "boolean",
+            "disabledDuet": "boolean",
+            "disabledStitch": "boolean",
+            "isBrandedContent": "boolean",
+            "isYourBrand": "boolean",
+            "isAiGenerated": "boolean"
+          },
+          "note": "Creator Rewards는 1분 이상 영상만 대상 — duration.json이 60~180초라 길이 조건은 통과."
+        },
+        "instagram": {
+          "role": "reach",
+          "status": "connected",
+          "accountId": "67875",
+          "username": "meow_cinema21",
+          "requiredFields": {
+            "mediaType": "reel"
+          },
+          "note": "보너스는 초대제라 수익화는 기대치에서 뺀다. 꾸준한 릴스 게시가 초대 선행조건이므로 확산축으로 계속 돌린다."
+        },
+        "facebook": {
+          "role": "monetize",
+          "status": "manual_only",
+          "accountId": "49235",
+          "fullname": "Manl Vrabbit",
+          "do_not_retry": true,
+          "note": "확정(소유주 2026-08-31): 수익화가 **개인 프로필**에 걸려 있다. 프로페셔널 모드 프로필도 Facebook Content Monetization 대상이라 **수익화 자체는 정상** — 막힌 건 수익화가 아니라 서드파티 발행뿐이다(Meta가 페이지에만 허용: publish_actions 2018 폐지, 개인 타임라인 예약 2024초 종료). 도구를 바꿔도 동일하고, 페이지를 새로 파면 수익화를 처음부터 다시 쌓아야 해서 전환 안 함. 발행은 platform_post_specs.json ko.steps 3번(비즈니스 스위트 직접, 크로스포스트 해제). 이 항목 재조사 금지 — 결론 났다."
+        },
+        "threads": {
+          "role": "reach",
+          "status": "connected",
+          "note": "크리에이터 페이아웃 없음(2025-03/04 보너스 종료). 수익화 기대 없이 **확산·유입 목적으로 운영** — 소유주 방침. Blotato 연결 대기.",
+          "accountId": "9220",
+          "username": "meow_cinema21",
+          "requiredFields": {}
+        },
+        "naver_clip": {
+          "role": "reach",
+          "status": "unsupported",
+          "note": "Blotato 미지원. 앱 직접 업로드 유지(ko.steps 5번). ko 전용 — 일본어 미지원."
+        }
+      }
+    },
+    "ja": {
+      "brand": "沼落ちシネマ",
+      "youtube_channel_id": "UCdIp0WlNZzoNHrq5zz7mAWQ",
+      "youtube_profile": "full_draft_channel",
+      "platforms": {
+        "youtube": {
+          "role": "monetize",
+          "status": "connected",
+          "accountId": "48168",
+          "fullname": "ayub 7 (沼落ちシネマ)",
+          "requiredFields": {
+            "title": "string",
+            "privacyStatus": "private|public|unlisted",
+            "shouldNotifySubscribers": "boolean"
+          },
+          "note": "현재 ja의 유일한 확정 수익화 축. Shorts 3분 상한이라 midform 60~180초가 그대로 들어간다."
+        },
+        "facebook": {
+          "role": "monetize",
+          "status": "connected",
+          "note": "ja는 FB 자산이 없다 = **페이지로 새로 시작 가능**. Facebook Content Monetization은 페이지도 대상이고 일본은 대상국(2025-12 기준)이라, 페이지로 열면 **수익화와 Blotato 자동화가 동시에 되는 유일한 조합**(ko는 프로필 수익화라 불가). 단 초대/베타제 — 요건 충족이 초대를 보장하지 않고 오리지널리티를 본다. 페이지 개설 후 관리자 권한으로 연결하면 subaccounts에 pageId가 뜬다.",
+          "setup": "**기존 ko 프로필(Manl Vrabbit) 소유로 페이지 개설**(2026-08-31 결정). 페이지 수익화는 프로필 수익화와 별개라 ko 기존 수익화에 영향 없고 신규 계정 정지 위험도 없다. 생성 후 관리자 권한으로 Blotato 연결 → subaccounts에 pageId.",
+          "accountId": "49235",
+          "pageId": "1241048202430103",
+          "pageName": "Numaochicinema",
+          "requiredFields": {
+            "pageId": "1241048202430103"
+          },
+          "ownership": "페이지 소유주는 ko 프로필(Manl Vrabbit, Blotato accountId 49235)이다. **accountId는 ko와 공유하지만 pageId가 로케일을 가른다** — ja 발행은 반드시 pageId 1241048202430103을 실을 것. pageId를 빠뜨리면 발행이 거부되고, ko 콘텐츠를 이 pageId로 보내면 브랜드 사고다."
+        },
+        "instagram": {
+          "role": "reach",
+          "status": "connected",
+          "requiredFields": {
+            "mediaType": "reel"
+          },
+          "note": "폰2(JA) 계정. 확산축. 보너스는 일본도 초대제.",
+          "setup": "신규 개설(2026-08-31 결정). **Creator 계정**으로 만들 것 — Business는 FB 페이지 연결이 하드 요건이라 대기가 생긴다. Personal은 서드파티 연결 불가.",
+          "accountId": "68322",
+          "username": "numaochicinema"
+        },
+        "tiktok": {
+          "role": "reach",
+          "status": "connected",
+          "note": "확산축으로는 바로 가능. **수익화(Creator Rewards)는 일본 거주+일본 등록 계정 요건**이라 폰2 계정 국적 확인 전까지 monetize로 승격 금지.",
+          "setup": "신규 개설. **Personal 계정**으로 만들 것 — Business로 만들면 Creator Rewards 자격이 영구 소멸한다.",
+          "accountId": "57731",
+          "username": "numaochicinema",
+          "requiredFields": {
+            "privacyLevel": "SELF_ONLY|PUBLIC_TO_EVERYONE|MUTUAL_FOLLOW_FRIENDS|FOLLOWER_OF_CREATOR",
+            "disabledComments": "boolean",
+            "disabledDuet": "boolean",
+            "disabledStitch": "boolean",
+            "isBrandedContent": "boolean",
+            "isYourBrand": "boolean",
+            "isAiGenerated": "boolean"
+          }
+        },
+        "threads": {
+          "role": "reach",
+          "status": "connected",
+          "note": "ko와 동일 — 페이아웃 없음, 확산·유입 목적으로 운영.",
+          "setup": "신규 개설. Instagram에서 파생되므로 IG 핸들을 물려받는다 — **IG 개설이 선행**.",
+          "accountId": "9219",
+          "username": "numaochicinema",
+          "requiredFields": {}
+        }
+      },
+      "notes": {
+        "setup_doc": "midform/docs/ja-sns-setup.md — 개설 순서·계정 유형·워밍업 정책.",
+        "ig_audio_tradeoff": "API 발행은 IG 트렌드 음원을 고를 수 없다(audioName은 자체 오디오 명명 필드). platform_post_specs.json ja가 지시하는 일본 트렌드 음원 레버를 자동화하면 잃는다 — 한 달 뒤 도달 지표로 재판정.",
+        "warmup": "신규 계정 워밍업: 1주차 하루 1건(수동 섞기), 4개 계정 동시각 발행 금지, 2주차부터 정상 슬롯(10:00 JST). 프로필 사진·소개는 개설 당일 채울 것.",
+        "handle": "ja 4개 채널 핸들 통일 완료(2026-08-31): YouTube·Instagram·TikTok = numaochicinema, Threads는 IG 파생이라 연결 시 자동 동일. 브랜드명 沼落ちシネマ."
+      },
+      "brand_former": "AIR POINT (구명 — 2026-08-31 개명 완료)",
+      "handle": "numaochicinema",
+      "bio": "3分で沼る映画の名場面🎬 セリフで刺す映画紹介｜毎日更新"
+    }
+  },
+  "unassigned": [],
+  "proposed_additions": [
+    {
+      "platform": "x",
+      "locales": [
+        "ko",
+        "ja"
+      ],
+      "role": "reach",
+      "status": "rejected",
+      "note": "**미채택 — 소유주 승인 필요.** platform_post_specs.json에 아직 없는 플랫폼이라 임의 추가하지 않았다. 확산축으로는 일본에서 가치가 큼(영화·영상 담론이 X에 몰림). 수익화는 권하지 않음: 2026-09-07자로 광고 수익배분 종료 → Original Content Rewards로 교체라 영화 클립에 구조적으로 불리하고 X Premium 유료 구독이 선행된다. 확산 목적이면 Premium 없이도 운영 가능.",
+      "premium_analysis": {
+        "verdict": "수익화 목적의 Premium 구독은 회수 불가 — 사지 말 것. 확산 목적으로 채택하면 무료 계정으로 시작한다.",
+        "cost": "X Premium $8/월(연납 $84). ko/ja 각각 계정이라 2구독 = 연 $168~192 (약 24~27만원).",
+        "eligibility": "Premium 구독은 **필수조건이지 충분조건이 아니다**. 2026-09-07 교체된 Original Content Rewards 기준: 인증 팔로워 500 + **90일간 qualified 노출 50만** + 오리지널리티 기준 충족. qualified = Premium 구독자가 홈타임라인에서 50% 이상 보이게 본 고유 노출(전체 노출이 아님).",
+        "breakeven": "지급률 약 $8.50/qualified 100만 노출. 월 $8을 벌려면 qualified 월 94만 ≈ 분기 280만 노출 필요 — **자격 기준선(분기 50만)의 약 5.6배**. 자격을 갓 넘긴 시점의 수령액은 분기 약 $4.25 vs 구독료 분기 $24로 적자다. 참고로 월 5,000만 노출(상위 1%)이 월 $20~120 수준.",
+        "blocker": "프로그램 이름 그대로 **오리지널리티**를 심사한다. 영화 클립은 구조적으로 불리 — 규모를 키워도 지급 상한이 0일 수 있다. X가 수익배분을 폐지하고 이 프로그램으로 바꾼 취지 자체가 비오리지널 콘텐츠 지급 중단이다.",
+        "separate_access_issue": "단, Premium은 수익화와 별개로 **업로드 길이 제한**에 걸린다. 무료 계정은 영상 140초(2분20초) 상한인데 duration.json이 60~180초라 **140초 초과 드래프트는 무료 계정으로 X에 아예 못 올린다**. X 채택 시 초기 운영안: 무료 계정 + 140초 이하 드래프트만 X로 보내고 한 분기 유입 측정 → 실제로 유입이 잡히면 그때 Premium을 **수익화 베팅이 아니라 접근 비용**으로 재검토."
+      },
+      "do_not_retry": true,
+      "decision": "**소유주 기각 2026-08-31.** X는 ko/ja 어느 쪽도 채택하지 않는다. platform_post_specs.json에 추가하지 않으며 Blotato 연결 대상도 아니다. 아래 premium_analysis는 판단 근거 보존용 기록일 뿐 재검토 신호가 아니다 — 이 항목 재제안 금지."
+    }
+  ],
+  "_page_history": "facebook 49235의 페이지 subaccount가 교체됨: 2026-08-31 최초 확인 시 Rabbitboom(1252599777941677) → 재확인 시 Numaochicinema(1241048202430103) 단일. Rabbitboom은 현재 목록에 없다. 의도된 정리인지 미확인이나, ja 매핑에는 Numaochicinema를 쓴다.",
+  "_unassigned_history": "instagram 10000lv_guide(67873)는 2026-08-31 재확인 시 워크스페이스에서 사라졌다(연결 해제 추정). 미배정 항목 없음.",
+  "_youtube_transport": {
+    "decision": "**YouTube는 Blotato로 옮기지 않는다 — 소유주 확정 2026-08-31.** 발행은 기존 OAuth 경로(auto-publish.js)가 계속 맡고, Blotato는 YouTube 외 4개 플랫폼만 담당한다.",
+    "reason_1": "Blotato는 YouTube 네이티브 publishAt(비공개→예약 공개)을 지원하지 않는다. scheduledTime은 Blotato가 업로드하는 시각일 뿐이다. 옮기면 public 업로드(검사 창 소멸) 또는 private 영구 보류(수동 공개) 둘 중 하나가 되어, **Content ID 프리플라이트 3층이 무력화된다**(Hollow Man/Sony 전체차단 사고 대응으로 만든 방어선).",
+    "reason_2": "Blotato는 YouTube 태그를 지원하지 않는다(문서 명시). build-upload-metadata.js가 강제하는 **ja 태그의 일본 개봉명 필수** 규칙을 지킬 수단이 없어진다.",
+    "not_arbitrary": "이 두 결함은 Instagram·TikTok·Threads·Facebook에는 해당 없다(검사 창 개념 없음, 태그는 캡션 해시태그로 처리). 따라서 전송 경로 분리는 기능 차이를 따라간 선이지 임의 구분이 아니다.",
+    "revisit_when": "Blotato가 YouTube publishAt(예약 공개)을 지원하면 그때 통합을 재검토한다. 태그 미지원은 그대로여도 개봉명은 설명문으로 보완 가능하므로 단독 차단 사유는 아니다.",
+    "youtube_accounts_kept": "YouTube 계정(48168/48169)은 Blotato에 연결된 채로 둔다 — 발행에는 안 쓰지만 성과 지표 조회와 OAuth 토큰 파손 시 임시 우회로로 남긴다. blotato-publish.js의 FAN_OUT에 youtube가 없으므로 실수로 발행될 일은 없다."
+  }
+}
