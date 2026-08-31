@@ -281,15 +281,32 @@ async function buildSocialPosts({ workspaceDir, compressionRunDir, locale }) {
     }
   }
   const posts = [];
+  const missing = [];
   for (const id of platformIds) {
     const spec = specDoc.platforms[id];
     const raw = (result.posts || []).find((p) => String(p.platform) === id) || {};
-    posts.push({
+    const post = {
       platform: id,
       title: spec.has_title ? truncateAt(raw.title, spec.title_max) : '',
       caption: truncateAt(cleanCaption(raw.caption), spec.caption_max),
       hashtags: normalizeHashtags(raw.hashtags, spec)
-    });
+    };
+    // A platform with no caption (and no title where the platform has one) got nothing back
+    // from the model — either it returned no posts at all or it named the platform something
+    // this loop cannot match.
+    if (!post.caption && !(spec.has_title && post.title)) missing.push(id);
+    posts.push(post);
+  }
+  // Refuse to write an empty package. Until 2026-08-31 this fell through and rendered the bare
+  // template — "(제목, 0/100자)" with nothing under it — which downstream read as a finished
+  // package: 78 drafts shipped uncaptioned and the empty title reached the upload metadata.
+  // Throwing here surfaces as the caller's social_posts_failed warning, which is visible.
+  if (missing.length === platformIds.length) {
+    throw new Error(`social package came back empty for every ${locale} platform `
+      + `(${missing.join(', ')}) — the model returned ${(result.posts || []).length} post(s)`);
+  }
+  if (missing.length) {
+    throw new Error(`social package missing content for ${locale}: ${missing.join(', ')}`);
   }
   // video meta from the shipped manifest: file naming {yymmdd}_{locale}_01.mp4, length mm:ss
   let lengthSec = 0;

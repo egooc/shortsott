@@ -17,6 +17,8 @@ const MIDFORM_DIALOGUE_AUDIT_SCHEMA_PATH = path.join(PROJECT_ROOT, 'midform', 's
 const MIDFORM_COMPRESSION_BEATS_SCHEMA_PATH = path.join(PROJECT_ROOT, 'midform', 'schemas', 'midform_compression_beats_schema.json');
 const MIDFORM_COMPRESSION_EDIT_PLAN_SCHEMA_PATH = path.join(PROJECT_ROOT, 'midform', 'schemas', 'midform_compression_edit_plan_schema.json');
 const GPT_WORK_DIR = path.join(PROJECT_ROOT, 'midform', 'work', 'gpt_cli');
+// Strict-mode schema copies this service writes for Codex, including the inline ones.
+const CODEX_SCHEMA_DIR = path.join(GPT_WORK_DIR, 'codex-schemas');
 const DEFAULT_MODEL = '';
 const CAMERA_TERMS = ['클로즈업', '컷', '프레임', '화면', '샷', '앵글', '자막', '와이드샷', '구독', '인트로', '아웃트로'];
 const CAMERA_META_PATTERNS = [
@@ -169,7 +171,19 @@ function safeOutputSchemaPath(outputSchemaPath) {
   const resolved = path.normalize(path.isAbsolute(String(outputSchemaPath || ''))
     ? String(outputSchemaPath || MIDFORM_SCHEMA_PATH)
     : path.resolve(PROJECT_ROOT, String(outputSchemaPath || MIDFORM_SCHEMA_PATH)));
-  return allowed.has(resolved) ? resolved : MIDFORM_SCHEMA_PATH;
+  if (allowed.has(resolved)) return resolved;
+  // Inline schemas (generateJsonWithCodex) are written BY THIS SERVICE into codex-schemas/, so
+  // they are as trusted as the allowlisted files - but they are not on the list, and the silent
+  // fallback below then swapped an inline request for the SCRIPT schema. Every inline-schema
+  // caller was answering the wrong contract from 2026-08-24 until this was found: social
+  // publish packages came back with no `posts` and shipped as empty templates, with no error.
+  if (path.dirname(resolved) === path.normalize(CODEX_SCHEMA_DIR) && resolved.endsWith('.strict.json')) {
+    return resolved;
+  }
+  // A rejected path is a bug, not a routine fallback. Say so — the quiet substitution is what
+  // made the breakage invisible for a week.
+  console.warn(`[gpt-cli] output schema not allowed, falling back to the script schema: ${resolved}`);
+  return MIDFORM_SCHEMA_PATH;
 }
 
 
@@ -214,8 +228,11 @@ function toCodexStrictSchema(node) {
 // churn the disk. Returns a path the allowlist accepts.
 function codexSchemaPath(originalPath) {
   const resolved = safeOutputSchemaPath(originalPath);
-  const dir = path.join(GPT_WORK_DIR, 'codex-schemas');
+  const dir = CODEX_SCHEMA_DIR;
   ensureDir(dir);
+  // Inline schemas already live here translated; re-translating would only rename them
+  // inline_x.strict.strict.json.
+  if (path.dirname(resolved) === path.normalize(dir)) return resolved;
   const target = path.join(dir, path.basename(resolved).replace(/\.json$/, '.strict.json'));
   const source = fs.readFileSync(resolved, 'utf8');
   const translated = `${JSON.stringify(toCodexStrictSchema(JSON.parse(source)), null, 2)}\n`;
