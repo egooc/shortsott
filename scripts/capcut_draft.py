@@ -19,7 +19,12 @@ from datetime import datetime
 
 FFMPEG_BIN = os.environ.get("FFMPEG_PATH") or "ffmpeg"
 FFPROBE_BIN = os.environ.get("FFPROBE_PATH") or "ffprobe"
-MIDFORM_HYBRID_DUCKED_SOURCE_VOLUME = 0.3
+# How loud the source stays under narration. Was 0.3, set under the speech-driven format where
+# only a few slots were narrated; the recap format narrates most of the cut, so the owner is
+# hearing the ducked source for most of the runtime and asked for it lower (2026-09-04). The
+# reference channel nearly kills the source under narration. Kept audible rather than silent so
+# the footage still has presence - a fully muted clip under a voice reads as a slideshow.
+MIDFORM_HYBRID_DUCKED_SOURCE_VOLUME = float(os.environ.get("MIDFORM_HYBRID_DUCKED_SOURCE_VOLUME") or 0.12)
 MIDFORM_FINAL_SLOT_TAIL_ALLOWANCE_SEC = float(os.environ.get("MIDFORM_FINAL_SLOT_TAIL_ALLOWANCE_SEC") or 7.0)
 # Afterglow: after the closing narration ends, let the footage breathe for a few seconds with the
 # source audio muted - only the BGM the owner lays in CapCut carries the tail (owner directive
@@ -1964,6 +1969,9 @@ MIDFORM_CAPTION_Y = -0.44
 MIDFORM_JA_CAPTION_Y = -0.405
 MIDFORM_JA_CAPTION_LANE_OFFSETS = (0.0, 0.085)
 MIDFORM_JA_DIALOGUE_FONT_SIZE = 11
+# 한 줄에 안전하게 들어가는 유효 폭(전각 기준). 청크 상한(12자)이 이 폭을 넘으면 마지막
+# 한두 글자가 다음 줄로 밀렸다(소유주 2026-09-07: "한 글자씩 밀린 데는 그냥 크기를 줄여").
+MIDFORM_CAPTION_FIT_EFF_CHARS = 10.5
 
 
 def midform_caption_base_y(caption_y=None):
@@ -2096,6 +2104,82 @@ def midform_scale_base(source_aspect):
     if ratio <= 0:
         return 1.0
     return max(1.0, ratio * MIDFORM_SQUARE_WINDOW_MULTIPLIER)
+
+
+MIDFORM_MIN_KEPT_FRAME_RATIO = 0.5
+BURNED_SUBTITLE_DETECTOR = os.path.join(
+    PROJECT_ROOT, "midform", "scripts", "detect_burned_subtitles.py")
+BURNED_SUBTITLE_EMPTY = {"detected": False, "trim_top_ratio": 0.0, "trim_bottom_ratio": 0.0,
+                         "reason": "not run"}
+
+
+def load_burned_subtitle_trim(source_video_path):
+    """Rows to drop so the source's own subtitles and credit line are off screen.
+
+    Cached beside the video as <source>.burned_subtitles.json, the same convention shot
+    boundaries use: detection samples ~48 frames and costs about a minute, and a rebuild of the
+    same source must not pay it twice.
+    """
+    if not source_video_path or not os.path.exists(source_video_path):
+        return dict(BURNED_SUBTITLE_EMPTY, reason="source video not found")
+    cache_path = f"{source_video_path}.burned_subtitles.json"
+    if os.path.exists(cache_path):
+        try:
+            with open(cache_path, "r", encoding="utf-8-sig") as file:
+                cached = json.load(file)
+            if isinstance(cached, dict) and "trim_bottom_ratio" in cached:
+                return cached
+        except Exception:
+            pass  # fall through and recompute
+    if not os.path.exists(BURNED_SUBTITLE_DETECTOR):
+        return dict(BURNED_SUBTITLE_EMPTY, reason="detector script missing")
+    try:
+        subprocess.run(
+            [sys.executable, BURNED_SUBTITLE_DETECTOR, source_video_path, "--json", cache_path],
+            capture_output=True, check=False, timeout=900,
+        )
+        with open(cache_path, "r", encoding="utf-8-sig") as file:
+            return json.load(file)
+    except Exception as error:
+        # Never fail the draft over this: an undetected band is a quality problem, a crash is a
+        # lost run.
+        return dict(BURNED_SUBTITLE_EMPTY, reason=f"detection failed: {error}")
+
+
+def apply_material_vertical_crop(draft_content, trim_top, trim_bottom, trim_left=0.0, trim_right=0.0):
+    """Crop every video material to the kept rows and columns.
+
+    One crop on the material rather than one per segment: every b-roll clip is a window onto the
+    same source file, so the band sits at the same height in all of them. Left/right handles a
+    pillarboxed source whose black columns carry a copyright line (detector emits
+    trim_left/right_ratio since 2026-09-05; they were computed and then never applied).
+    """
+    if trim_top <= 0 and trim_bottom <= 0 and trim_left <= 0 and trim_right <= 0:
+        return 0
+    upper = max(0.0, min(trim_top, 1.0))
+    lower = max(upper + 0.05, min(1.0 - trim_bottom, 1.0))
+    left = max(0.0, min(trim_left, 1.0))
+    right = max(left + 0.05, min(1.0 - trim_right, 1.0))
+    materials = (draft_content or {}).get("materials") or {}
+    videos = materials.get("videos") or []
+    cropped = 0
+    for material in videos:
+        if not isinstance(material, dict):
+            continue
+        # Photos and the template's own frame art are materials too; only the source footage
+        # carries the burned-in band.
+        if str(material.get("type") or "").lower() not in {"video", ""}:
+            continue
+        material["crop_ratio"] = "free"
+        material["crop_scale"] = 1.0
+        material["crop"] = {
+            "upper_left_x": left, "upper_left_y": upper,
+            "upper_right_x": right, "upper_right_y": upper,
+            "lower_left_x": left, "lower_left_y": lower,
+            "lower_right_x": right, "lower_right_y": lower,
+        }
+        cropped += 1
+    return cropped
 
 
 def load_portrait_crop_config():
@@ -2919,7 +3003,22 @@ def apply_midform_portrait_crops_to_draft(draft_content_path, video_cut_placemen
         return summary
     source_w, source_h = get_video_dimensions_ffprobe(source_video_path) if source_video_path else (0, 0)
     summary["source_dimensions"] = {"width": source_w, "height": source_h}
-    source_aspect = (source_w / source_h) if source_w > 0 and source_h > 0 else (16 / 9)
+    # Clip channels burn their own subtitles into the picture and their copyright line into the
+    # letterbox. Left in, our caption sits directly under theirs and the upload reads as someone
+    # else's (TikTok flagged 20260904d-wardogs as reused content, owner 2026-09-05). Those rows
+    # come off the material before the framing math, because the portrait fill has to be computed
+    # on what is actually shown - the uncropped height would leave the frame under-scaled.
+    burned = load_burned_subtitle_trim(source_video_path)
+    summary["burned_subtitle_trim"] = burned
+    trim_top = safe_float(burned.get("trim_top_ratio"), 0.0)
+    trim_bottom = safe_float(burned.get("trim_bottom_ratio"), 0.0)
+    trim_left = safe_float(burned.get("trim_left_ratio"), 0.0)
+    trim_right = safe_float(burned.get("trim_right_ratio"), 0.0)
+    kept_ratio = max(MIDFORM_MIN_KEPT_FRAME_RATIO, 1.0 - trim_top - trim_bottom)
+    kept_w_ratio = max(MIDFORM_MIN_KEPT_FRAME_RATIO, 1.0 - trim_left - trim_right)
+    effective_source_h = source_h * kept_ratio if source_h > 0 else 0
+    effective_source_w = source_w * kept_w_ratio if source_w > 0 else 0
+    source_aspect = (effective_source_w / effective_source_h) if effective_source_w > 0 and effective_source_h > 0 else (16 / 9)
     canvas_aspect = (canvas_width / canvas_height) if canvas_width > 0 and canvas_height > 0 else (9 / 16)
     portrait_fill_scale = max(1.0, source_aspect / max(0.001, canvas_aspect))
     try:
@@ -3050,6 +3149,8 @@ def apply_midform_portrait_crops_to_draft(draft_content_path, video_cut_placemen
         }
         placement["crop"] = record
         summary["records"].append(record)
+    summary["burned_subtitle_trim"]["materials_cropped"] = apply_material_vertical_crop(
+        draft_content, trim_top, trim_bottom, trim_left, trim_right)
     try:
         with open(draft_content_path, "w", encoding="utf-8") as file:
             json.dump(draft_content, file, ensure_ascii=False, indent=4)
@@ -3214,6 +3315,13 @@ def rebuild_midform_caption_track_from_template(draft_content_path, template_doc
         if FRAME_LOCALE == "ja":
             is_dialogue_entry = str(entry.get("caption_kind") or "").strip() == "dialogue"
             apply_text_material_font_size(cloned_material, MIDFORM_JA_DIALOGUE_FONT_SIZE if is_dialogue_entry else MIDFORM_JA_NARRATION_FONT_SIZE)
+        # 폭 초과분은 줄바꿈 대신 그 자막만 축소해 한 줄로 붙인다 (전각 1.0 / 반각 0.5 폭 추정).
+        base_font = safe_float(cloned_material.get("font_size"), 11.0)
+        effective_width = sum(1.0 if ord(ch) > 0x2E80 else 0.5 for ch in text_value)
+        if effective_width > MIDFORM_CAPTION_FIT_EFF_CHARS and base_font > 0:
+            shrink = max(0.78, MIDFORM_CAPTION_FIT_EFF_CHARS / effective_width)
+            apply_text_material_font_size(cloned_material, round(base_font * shrink, 2))
+            summary["shrunk_captions"] = summary.get("shrunk_captions", 0) + 1
         ensure_material_category(draft_content, "texts").append(cloned_material)
         if isinstance(old_material_id, str) and old_material_id:
             source_to_target_id_map[old_material_id] = new_material_id
@@ -6983,6 +7091,16 @@ def trim_auxiliary_tracks_to_video_timeline(draft_content_path):
     return summary
 
 
+# BGM bed contract (owner 2026-09-01). The track plays under TTS narration and original
+# dialogue, so it is mixed well down rather than at material level; the supplied ambient bed
+# measures about -27.6 LUFS on its own, and 0.35 keeps it roughly a dozen dB under program
+# once the upload loudness pass lifts the mix to -14 LUFS. The out-fade is what makes the loop
+# END rather than get chopped: it is applied to the last segment only.
+BGM_VOLUME = 0.35
+BGM_FADE_IN_US = 1_500_000
+BGM_FADE_OUT_US = 3_000_000
+
+
 def find_bgm_file_from_preset(bgm_preset):
     candidate = ""
     if isinstance(bgm_preset, dict):
@@ -8993,19 +9111,32 @@ def create_process_draft(data):
             material_duration_us = int(bgm_material.duration or 0)
             if material_duration_us > 0:
                 script.add_material(bgm_material)
+                # The bed sits under narration, so it ships quiet and it ENDS WITH THE VIDEO -
+                # a loop cut off mid-note reads as a mistake (owner directive 2026-09-01).
+                # The fade lands on the last segment only; earlier loop repeats butt-join.
                 cursor_us = 0
+                pending = []
                 while cursor_us < total_duration_us:
                     segment_duration_us = min(material_duration_us, total_duration_us - cursor_us)
-                    script.add_segment(
-                        cc.AudioSegment(
-                            material=bgm_material,
-                            source_timerange=cc.Timerange(start=0, duration=segment_duration_us),
-                            target_timerange=cc.Timerange(start=cursor_us, duration=segment_duration_us),
-                        ),
-                        track_name="bgm",
-                    )
-                    bgm_track_count += 1
+                    pending.append((cursor_us, segment_duration_us))
                     cursor_us += segment_duration_us
+                for index, (start_us, segment_duration_us) in enumerate(pending):
+                    segment = cc.AudioSegment(
+                        material=bgm_material,
+                        source_timerange=cc.Timerange(start=0, duration=segment_duration_us),
+                        target_timerange=cc.Timerange(start=start_us, duration=segment_duration_us),
+                        volume=BGM_VOLUME,
+                    )
+                    fade_in_us = BGM_FADE_IN_US if index == 0 else 0
+                    fade_out_us = 0
+                    if index == len(pending) - 1:
+                        # Never fade longer than the segment itself: a short tail loop would
+                        # otherwise start already fading.
+                        fade_out_us = min(BGM_FADE_OUT_US, segment_duration_us)
+                    if fade_in_us or fade_out_us:
+                        segment.add_fade(fade_in_us, fade_out_us)
+                    script.add_segment(segment, track_name="bgm")
+                    bgm_track_count += 1
             else:
                 warnings.append("bgm material duration invalid")
         else:
@@ -9492,7 +9623,7 @@ def create_process_draft(data):
         "templateBackground": template_clone_summary.get("template_background", {}),
         "warnings": warnings,
     }
-def apply_midform_hybrid_video_audio_policy(draft_content_path, video_cut_placements, segment_type_map):
+def apply_midform_hybrid_video_audio_policy(draft_content_path, video_cut_placements, segment_type_map, narrated_hook_ids=None):
     summary = {
         "enabled": True,
         "ducked_narration_video_segments": 0,
@@ -9536,7 +9667,15 @@ def apply_midform_hybrid_video_audio_policy(draft_content_path, video_cut_placem
             summary["ducked_narration_video_segments"] += 1
             continue
         # scene_hook: heatmap-peak cold open that plays its original action audio at full volume.
-        if segment_type in {"dialogue_quote", "dialogue", "scene_hook"}:
+        # A NARRATED hook is the exception (2026-09-06, owner: "나레이션이 하나도 안 들려"): the
+        # adapter keeps the sentence and the TTS rides over this clip, so full-volume action
+        # audio buries it. Duck it exactly like a recap bed - the hook's length still comes from
+        # the action window; only the mix changes. A silent hook keeps its full-volume audio.
+        if segment_type == "scene_hook" and segment_id in (narrated_hook_ids or set()):
+            segment["volume"] = MIDFORM_HYBRID_DUCKED_SOURCE_VOLUME
+            segment["last_nonzero_volume"] = MIDFORM_HYBRID_DUCKED_SOURCE_VOLUME
+            summary["ducked_narration_video_segments"] += 1
+        elif segment_type in {"dialogue_quote", "dialogue", "scene_hook"}:
             segment["volume"] = 1
             segment["last_nonzero_volume"] = 1
             summary["kept_dialogue_video_segments"] += 1
@@ -11058,12 +11197,14 @@ def create_draft(input_json_path):
                 if remaining_us <= 0:
                     break
 
-            if segment_type in {"dialogue_quote", "dialogue"} and abs(segment_source_total_us - int(entry["tts_duration_us"])) > 1_000:
+            # 60ms: A1 재타이밍 후 캡션 창/클립 끝이 서로 다른 부동소수 경로로 파생돼 48ms
+            # 어긋난 실측(검프 S04_L05) - 프레임 홀드로 흡수되는 수준이고, 진짜 붕괴는 수백 ms 다.
+            if segment_type in {"dialogue_quote", "dialogue"} and abs(segment_source_total_us - int(entry["tts_duration_us"])) > 60_000:
                 validation_errors.append(
                     f"{segment_id}: {segment_type} timeline duration must equal source duration "
                     f"({entry['tts_duration_us']}us vs {segment_source_total_us}us)"
                 )
-            if remaining_us > 1_000 and segment_type in {"dialogue_quote", "dialogue"}:
+            if remaining_us > 60_000 and segment_type in {"dialogue_quote", "dialogue"}:
                 validation_errors.append(f"{segment_id}: source_clips are shorter than required timeline by {remaining_us}us")
 
         planned_sorted = sorted(planned, key=lambda row: (row["start_us"], row["end_us"], row["segment_id"]))
@@ -11209,6 +11350,28 @@ def create_draft(input_json_path):
                     segment_warnings.append("no source_clips available for video placement")
                     warnings.append(f"{segment_id}: no source_clips available for video placement")
                 else:
+                    # 60ms 이하 결손 사전 봉합: A1 재타이밍 뒤 캡션 창과 클립 끝이 서로 다른
+                    # 부동소수 경로로 파생돼 대사 클립이 48ms 모자란 실측(검프 S04_L05).
+                    # 배치 전에 마지막 클립의 끝 TC 를 소스 연속 구간으로 그만큼 늘린다
+                    # (별도 클립 추가는 pycapcut material 경계에 걸린다 - 실측).
+                    if midform_hybrid_mode and segment_type in {"dialogue_quote", "dialogue"}:
+                        def timecode_to_us(value):
+                            return int(round(parse_timecode_to_sec(value) * 1_000_000))
+                        total_avail_us = 0
+                        for probe in source_clips:
+                            probe_start = timecode_to_us(probe.get("start"))
+                            probe_end = timecode_to_us(probe.get("end"))
+                            if probe_end > probe_start:
+                                total_avail_us += probe_end - probe_start
+                        deficit_us = tts_duration_us - total_avail_us
+                        if 0 < deficit_us <= 60_000:
+                            last_clip = source_clips[-1]
+                            last_end_us = timecode_to_us(last_clip.get("end")) + deficit_us
+                            if source_duration_us <= 0 or last_end_us <= source_duration_us:
+                                last_clip["end"] = seconds_to_timecode(last_end_us / 1_000_000)
+                                segment_warnings.append(
+                                    f"last clip extended {deficit_us}us to close a retiming rounding gap"
+                                )
                     for clip in source_clips:
                         clip_id = str(clip.get("clip_id") or clip.get("scene_id") or "unknown_clip")
                         clip_start_tc = clip.get("start")
@@ -11332,10 +11495,16 @@ def create_draft(input_json_path):
                     remaining_us = 0
 
                 if remaining_us > 0:
-                    if midform_hybrid_mode and segment_type in {"dialogue_quote", "dialogue"}:
+                    if midform_hybrid_mode and segment_type in {"dialogue_quote", "dialogue"} and remaining_us > 60_000:
                         raise ValueError(
                             f"MIDFORM_HYBRID_SOURCE_VALIDATION_FAILED: {segment_id} would require repeat padding "
                             f"for {remaining_us}us"
+                        )
+                    if midform_hybrid_mode and segment_type in {"dialogue_quote", "dialogue"}:
+                        # 60ms 이하 결손은 대사창 클램프와 tts 예약의 반올림 차이다(검프 S04_L05
+                        # 48ms 실측). 1프레임 남짓의 반복 패딩은 비가시 - 예외 대신 경고로 봉합.
+                        segment_warnings.append(
+                            f"micro repeat padding {remaining_us}us closes a dialogue-window rounding gap"
                         )
                     fill_ref = last_segment_clip_ref or last_valid_clip_ref
                     if fill_ref:
@@ -11748,6 +11917,47 @@ def create_draft(input_json_path):
     elif srt_file:
         warnings.append(f"srt file not found - {srt_file}")
 
+    # BGM bed (owner directive 2026-09-01). The midform builder never had one - the bed lived
+    # only in the process/explainer path - so ko/ja drafts shipped with narration over raw
+    # source audio and dead silence in the tail. Added last, once the timeline length is
+    # settled, and faded out on the final segment so the music ENDS with the video.
+    bgm_track_count = 0
+    bgm_source_path = find_bgm_file_from_preset({})
+    if bgm_source_path and total_video_timeline_end_us > 0:
+        try:
+            script.add_track(cc.TrackType.audio, "bgm", relative_index=2)
+            draft_bgm_path = os.path.abspath(os.path.join(audio_dir, os.path.basename(bgm_source_path)))
+            if not os.path.exists(draft_bgm_path):
+                shutil.copy2(bgm_source_path, draft_bgm_path)
+            bgm_material = cc.AudioMaterial(draft_bgm_path)
+            bgm_material_us = int(bgm_material.duration or 0)
+            if bgm_material_us <= 0:
+                raise ValueError("bgm material duration invalid")
+            script.add_material(bgm_material)
+            spans = []
+            cursor_us = 0
+            while cursor_us < total_video_timeline_end_us:
+                span_us = min(bgm_material_us, total_video_timeline_end_us - cursor_us)
+                spans.append((cursor_us, span_us))
+                cursor_us += span_us
+            for index, (start_us, span_us) in enumerate(spans):
+                bgm_segment = cc.AudioSegment(
+                    material=bgm_material,
+                    source_timerange=cc.Timerange(start=0, duration=span_us),
+                    target_timerange=cc.Timerange(start=start_us, duration=span_us),
+                    volume=BGM_VOLUME,
+                )
+                fade_in_us = BGM_FADE_IN_US if index == 0 else 0
+                fade_out_us = min(BGM_FADE_OUT_US, span_us) if index == len(spans) - 1 else 0
+                if fade_in_us or fade_out_us:
+                    bgm_segment.add_fade(fade_in_us, fade_out_us)
+                script.add_segment(bgm_segment, track_name="bgm")
+                bgm_track_count += 1
+        except Exception as bgm_error:
+            warnings.append(f"bgm track skipped - {bgm_error}")
+    elif not bgm_source_path:
+        warnings.append("bgm file not found under assets/bgm/process; continuing without BGM")
+
     script.save()
 
     generated_draft_content_path = os.path.join(draft_path, "draft_content.json")
@@ -11762,10 +11972,18 @@ def create_draft(input_json_path):
         )
     hybrid_audio_policy_summary = {"enabled": False}
     if midform_hybrid_mode and os.path.exists(generated_draft_content_path):
+        narrated_hook_ids = {
+            str(segment.get("segment_id") or "").strip()
+            for segment in segments
+            if str(segment.get("segment_type") or "").strip() == "scene_hook"
+            and segment.get("tts_enabled") is True
+            and str(segment.get("narration") or "").strip()
+        }
         hybrid_audio_policy_summary = apply_midform_hybrid_video_audio_policy(
             generated_draft_content_path,
             video_cut_placements,
             segment_type_map,
+            narrated_hook_ids,
         )
 
     template_overlay_passthrough_summary = {"enabled": bool(use_capcut_template), "applied": False, "reason": "template not loaded"}
@@ -11902,6 +12120,7 @@ def create_draft(input_json_path):
         "subtitle_track_count": subtitle_track_count,
         "total_tts_duration_sec": total_tts_duration_sec,
         "total_video_duration_sec": total_video_duration_sec,
+        "bgm_track_count": bgm_track_count,
         "duration_diff_sec": timeline_duration_diff_sec,
         "duration_guide": duration_guide_summary,
         "video_timeline_aligned_to_tts": video_timeline_aligned_to_tts,

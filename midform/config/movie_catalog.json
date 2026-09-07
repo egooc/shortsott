@@ -746,6 +746,193 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '퓨리오사: 매드맥스 사가'(2024)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『マッドマックス：フュリオサ』(2024)のシーンから制作しました。"
+    },
+    "quiet-place-2": {
+      "match": "quiet ?place.{0,10}(part *(ii|2)|2)|콰이어트 ?플레이스 *2|クワイエット・プレイス.{0,6}(破られた沈黙|2)",
+      "title_ko": "콰이어트 플레이스 2",
+      "title_en": "A Quiet Place Part II",
+      "title_ja": "クワイエット・プレイス 破られた沈黙",
+      "year": 2020,
+      "distributor": "Paramount Pictures",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '콰이어트 플레이스 2'(2020)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『クワイエット・プレイス 破られた沈黙』(2020)のシーンから制作しました。"
+    },
+    "boss-baby": {
+      "match": "boss ?baby|보스 ?베이비|ボス・?ベイビー",
+      "title_ko": "보스 베이비",
+      "title_en": "The Boss Baby",
+      "title_ja": "ボス・ベイビー",
+      "year": 2017,
+      "distributor": "20th Century Fox (DreamWorks Animation)",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '보스 베이비'(2017)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『ボス・ベイビー』(2017)のシーンから制作しました。"
+    },
+    "minions-2015": {
+      "match": "minions|미니언즈|ミニオンズ",
+      "title_ko": "미니언즈",
+      "title_en": "Minions",
+      "title_ja": "ミニオンズ",
+      "year": 2015,
+      "distributor": "Universal Pictures (Illumination)",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '미니언즈'(2015)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『ミニオンズ』(2015)のシーンから制作しました。"
+    },
+    "brothers-grimm": {
+      "match": "brothers ?grimm|브라더스 ?그림|ブラザーズ・?グリム",
+      "title_ko": "브라더스 그림",
+      "title_en": "The Brothers Grimm",
+      "title_ja": "ブラザーズ・グリム",
+      "year": 2005,
+      "distributor": "Dimension Films (Miramax)",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '브라더스 그림'(2005)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『ブラザーズ・グリム』(2005)のシーンから制作しました。"
+    },
+    "tokyo-drift": {
+      "match": "tokyo ?drift|도쿄 ?드리프트|ワイルド・?スピードX3",
+      "title_ko": "패스트 앤 퓨리어스: 도쿄 드리프트",
+      "title_en": "The Fast and the Furious: Tokyo Drift",
+      "title_ja": "ワイルド・スピードX3 TOKYO DRIFT",
+      "year": 2006,
+      "distributor": "Universal Pictures",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '패스트 앤 퓨리어스: 도쿄 드리프트'(2006)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『ワイルド・スピードX3 TOKYO DRIFT』(2006)のシーンから制作しました。"
+    },
+    "megamind": {
+      "match": "megamind|메가마인드|メガマインド",
+      "title_ko": "메가마인드",
+      "title_en": "Megamind",
+      "title_ja": "メガマインド",
+      "year": 2010,
+      "distributor": "Paramount Pictures (DreamWorks Animation)",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '메가마인드'(2010)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『メガマインド』(2010)のシーンから制作しました。"
+    },
+    "heat": {
+      "match": "\bheat\b|히트|ヒート",
+      "title_ko": "히트",
+      "title_en": "Heat",
+      "title_ja": "ヒート",
+      "year": 1995,
+      "distributor": "Warner Bros.",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '히트'(1995)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『ヒート』(1995)のシーンから制作しました。"
+    },
+    "deep-impact": {
+      "match": "deep.?impact|딥s*임팩트|ディープ・インパクト",
+      "title_ko": "딥 임팩트",
+      "title_en": "Deep Impact",
+      "title_ja": "ディープ・インパクト",
+      "year": 1998,
+      "distributor": "Paramount/DreamWorks",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '딥 임팩트'(1998)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『ディープ・インパクト』(1998)のシーンから制作しました。"
+    },
+    "jack-reacher": {
+      "match": "jack.?reacher|잭s*리처|アウトロー",
+      "title_ko": "잭 리처",
+      "title_en": "Jack Reacher",
+      "title_ja": "アウトロー",
+      "year": 2012,
+      "distributor": "Paramount Pictures",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '잭 리처'(2012)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『アウトロー』(2012)のシーンから制作しました。"
+    },
+    "fast-five": {
+      "match": "fast.?five|분노의s*질주.*언리미티드|ワイルド・スピードs*MEGAs*MAX",
+      "title_ko": "분노의 질주: 언리미티드",
+      "title_en": "Fast Five",
+      "title_ja": "ワイルド・スピード MEGA MAX",
+      "year": 2011,
+      "distributor": "Universal Pictures",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '분노의 질주: 언리미티드'(2011)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『ワイルド・スピード MEGA MAX』(2011)のシーンから制作しました。"
+    },
+    "resident-evil": {
+      "match": "resident.?evil(?!.*apocalypse)|레지던트s*이블|バイオハザード",
+      "title_ko": "레지던트 이블",
+      "title_en": "Resident Evil",
+      "title_ja": "バイオハザード",
+      "year": 2002,
+      "distributor": "Screen Gems (Sony)",
+      "distributor_tier": "banned",
+      "credit_ko": "",
+      "credit_ja": ""
+    },
+    "resident-evil-apocalypse": {
+      "match": "resident.?evil.*apocalypse|레지던트s*이블s*2|バイオハザードII",
+      "title_ko": "레지던트 이블 2",
+      "title_en": "Resident Evil: Apocalypse",
+      "title_ja": "バイオハザードII アポカリプス",
+      "year": 2004,
+      "distributor": "Screen Gems (Sony)",
+      "distributor_tier": "banned",
+      "credit_ko": "",
+      "credit_ja": ""
+    },
+    "knowing": {
+      "match": "\bknowing\b|노잉|ノウイング",
+      "title_ko": "노잉",
+      "title_en": "Knowing",
+      "title_ja": "ノウイング",
+      "year": 2009,
+      "distributor": "Summit Entertainment (Lionsgate)",
+      "distributor_tier": "banned",
+      "credit_ko": "",
+      "credit_ja": ""
+    },
+    "congo": {
+      "match": "\bcongo\b|콩고|コンゴ",
+      "title_ko": "콩고",
+      "title_en": "Congo",
+      "title_ja": "コンゴ",
+      "year": 1995,
+      "distributor": "Paramount Pictures",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '콩고'(1995)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『コンゴ』(1995)のシーンから制作しました。"
+    },
+    "waterworld": {
+      "match": "waterworld|워터월드|ウォーターワールド",
+      "title_ko": "워터월드",
+      "title_en": "Waterworld",
+      "title_ja": "ウォーターワールド",
+      "year": 1995,
+      "distributor": "Universal Pictures",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '워터월드'(1995)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『ウォーターワールド』(1995)のシーンから制作しました。"
+    },
+    "rocky-horror": {
+      "match": "rocky.?horror|frank.?n.?furter|록키s*호러|ロッキー・ホラー",
+      "title_ko": "록키 호러 픽쳐 쇼",
+      "title_en": "The Rocky Horror Picture Show",
+      "title_ja": "ロッキー・ホラー・ショー",
+      "year": 1975,
+      "distributor": "20th Century Fox",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '록키 호러 픽쳐 쇼'(1975)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『ロッキー・ホラー・ショー』(1975)のシーンから制作しました。"
+    },
+    "hard-target": {
+      "match": "hard.?target|하드s*타겟|ハード・ターゲット",
+      "title_ko": "하드 타겟",
+      "title_en": "Hard Target",
+      "title_ja": "ハード・ターゲット",
+      "year": 1993,
+      "distributor": "Universal Pictures",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '하드 타겟'(1993)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『ハード・ターゲット』(1993)のシーンから制作しました。"
     }
   },
   "banned_distributors": [

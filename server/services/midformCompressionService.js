@@ -6643,10 +6643,19 @@ function narrationEconomyProblems(slotFills, editPlan, locale = 'ko') {
   if (!sentences.length) return problems;
 
   {
-    const lens = sentences.map((s) => s.text.replace(/\s+/g, '').length);
+    // caption_units 는 표시용 청크라 문장 길이 측정에 못 쓴다 - 실측: 한 문장이 3청크로
+    // 쪼개져 평균 9자/밀도 15.6으로 오판됨 (검프). 나레이션 원문을 문장으로 다시 자른다.
+    const realSentences = [];
+    for (const fill of fills) {
+      for (const s of String(fill?.narration || '').split(/(?<=[.!?…。])\s+/)) {
+        const t = String(s || '').trim();
+        if (t) realSentences.push({ slot: String(fill?.slot_id || ''), text: t });
+      }
+    }
+    const lens = realSentences.map((s) => s.text.replace(/\s+/g, '').length);
     const avgLen = lens.reduce((a, b) => a + b, 0) / Math.max(1, lens.length);
-    const telegraph = sentences.filter((s) => s.text.replace(/\s+/g, '').length < 14);
-    if (avgLen < 20 && sentences.length >= 5) {
+    const telegraph = realSentences.filter((s) => s.text.replace(/\s+/g, '').length < 14);
+    if (avgLen < 20 && realSentences.length >= 5) {
       problems.push(`average narration sentence is ${avgLen.toFixed(0)} chars - telegraph fragments `
         + `(${telegraph.slice(0, 3).map((s) => `"${s.text.slice(0, 20)}"`).join(', ')}). Pack premise+action+consequence `
         + 'from the event own before/visible/after states into one 25~45자 sentence (reference: 6.6s per sentence)');
@@ -6666,7 +6675,9 @@ function narrationEconomyProblems(slotFills, editPlan, locale = 'ko') {
   // at fills time (the render has not happened yet).
   const targetSec = Number(editPlan?.duration_budget?.estimated_total_sec || 0);
   if (targetSec > 30) {
-    const perMin = sentences.length / (targetSec / 60);
+    // 문장 수도 caption_units 청크가 아니라 실문장으로 센다 (위와 같은 오판 방지).
+    const realCount = fills.reduce((n, fill) => n + String(fill?.narration || '').split(/(?<=[.!?…。])\s+/).filter((s) => s.trim()).length, 0);
+    const perMin = realCount / (targetSec / 60);
     if (perMin > 3.0) {
       problems.push(`narration density ${perMin.toFixed(1)} sentences/min over a ${Math.round(targetSec)}s cut exceeds 7.5 (reference 5~7, measured on 헛개리카노 at 6.5). Trim the sentences that repeat what the previous one already said; the ceiling exists so the cut does not become wall-to-wall voice, not to keep narration sparse`);
     }

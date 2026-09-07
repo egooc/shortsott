@@ -410,7 +410,24 @@ function normalizeDraftSpecSourceRanges(draftSpec, baseDraftInput = {}, options 
         fixedWindowsBySlot.set(placementKey, [[pinStart, pinEnd]]);
         placement.source_range = [Number(pinStart.toFixed(3)), Number(pinEnd.toFixed(3))];
       } else {
-        fixedWindowsBySlot.set(placementKey, [[Number(placementRange[0]), Number(placementRange[1])]]);
+        // 핀이 다른 슬롯의 고정 창에 통째로 삼켜져 살아남는 쪽이 없다 - 원본을 그대로 두면
+        // 그 겹침이 최종 검증에서 터진다(ja S03 403.5-406.44 vs 콜드오픈 402.64-406.85 실측).
+        // 같은 장면이 이어지는 창 '직후'로 길이를 보존해 통째 이동한다.
+        const spanSec = Number(placementRange[1]) - Number(placementRange[0]);
+        let swallowEnd = Number(placementRange[1]);
+        for (const [otherKey, windows] of fixedWindowsBySlot) {
+          if (otherKey === placementKey) continue;
+          for (const [winStart, winEnd] of windows) {
+            if (winStart <= Number(placementRange[0]) + 0.05 && winEnd >= Number(placementRange[1]) - 0.05) {
+              swallowEnd = Math.max(swallowEnd, winEnd);
+            }
+          }
+        }
+        const movedStart = swallowEnd + 0.2;
+        const movedEnd = movedStart + spanSec;
+        console.warn(`[locale-pack] ${placementKey}: pinned window swallowed by another fixed window - relocated to ${movedStart.toFixed(2)}-${movedEnd.toFixed(2)}`);
+        fixedWindowsBySlot.set(placementKey, [[movedStart, movedEnd]]);
+        placement.source_range = [Number(movedStart.toFixed(3)), Number(movedEnd.toFixed(3))];
       }
     }
   }
