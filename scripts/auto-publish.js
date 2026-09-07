@@ -236,6 +236,16 @@ async function main() {
 
     // 2. Export (reuse an existing mp4 from a previous run).
     const mp4Path = path.join(EXPORT_DIR, `${draftName}.mp4`);
+    // 낡은 mp4 재사용 금지: 드래프트가 mp4 이후 재설치됐으면 그 mp4 는 다른 판이다.
+    if (fs.existsSync(mp4Path)) {
+      try {
+        const draftMtime = fs.statSync(path.join(draftDir, 'draft_content.json')).mtimeMs;
+        if (fs.statSync(mp4Path).mtimeMs < draftMtime) {
+          console.log(`[stale-mp4] ${draftName}: draft newer than mp4 — re-exporting`);
+          fs.rmSync(mp4Path);
+        }
+      } catch {}
+    }
     if (!fs.existsSync(mp4Path)) {
       if (args.skipExport) { lines.push(`- SKIP(no mp4, --skip-export): ${draftName}`); continue; }
       if (args.dryRun) { console.log(`[dry-run] would export ${draftName}`); continue; }
@@ -261,6 +271,54 @@ async function main() {
       console.log(`[held] ${draftName}: manifest ${expected.toFixed(1)}s vs file ${actual.toFixed(1)}s`);
       lines.push(`- HELD(duration mismatch): ${draftName} — manifest ${expected.toFixed(1)}s vs file ${actual.toFixed(1)}s`);
       continue;
+    }
+
+    // 3.5 Sync audit gate (owner directive 2026-09-07): every caption timestamp vs the mp4's
+    //     actual speech, Groq STT full pass. A cut that talks out of sync does not ship.
+    //     Fail-CLOSED: an audit that cannot run holds the draft too - silence was the old bug.
+    {
+      const manifestPath = path.join(draftDir, 'edit_manifest.json');
+      const audit = require('child_process').spawnSync(
+        'C:/Users/urban/AppData/Local/Programs/Python/Python312/python.exe',
+        [path.join(ROOT, 'midform', 'scripts', 'audit_sync.py'),
+          '--mp4', mp4Path, '--manifest', manifestPath,
+          '--narration-language', locale === 'ja' ? 'ja' : 'ko'],
+        { encoding: 'utf8', timeout: 15 * 60 * 1000 });
+      if (audit.status !== 0) {
+        fs.mkdirSync(HELD_DIR, { recursive: true });
+        fs.renameSync(mp4Path, path.join(HELD_DIR, path.basename(mp4Path)));
+        const tail = String(audit.stdout || audit.stderr || '').trim().split(String.fromCharCode(10))
+          .filter((l) => /FAIL/.test(l)).slice(0, 5);
+        console.log(`[held] ${draftName}: sync audit failed`);
+        lines.push(`- HELD(sync audit): ${draftName}`, ...tail.map((l) => `  ${l}`));
+        continue;
+      }
+      lines.push(`- sync audit OK: ${draftName}`);
+    }
+
+    // 3.7 사람 검수 승인 게이트 (owner directive 2026-09-07): 검수 승인이 예약보다 앞이다.
+    //     P0-2: 승인은 승인 순간의 build hash 에 결속 - 같은 이름으로 재설치된 판은
+    //     본 적 없는 판이므로 승인을 자동 무효화하고 재검수를 요구한다.
+    {
+      const approvalsPath = path.join(ROOT, 'server', 'data', 'publish_approvals.json');
+      const approvals = (() => { try { return JSON.parse(fs.readFileSync(approvalsPath, 'utf8')); } catch { return {}; } })();
+      const approval = approvals[draftName];
+      if (!approval) {
+        console.log(`[held] ${draftName}: 검수 미승인 — approve-publish.js 로 승인 후 재실행`);
+        lines.push(`- HELD(검수 미승인): ${draftName} — \`node scripts/approve-publish.js "${draftName}"\``);
+        continue;
+      }
+      const currentHash = require('./lib/draftBuildHash').draftBuildHash(draftDir);
+      if (approval.build_hash && currentHash && approval.build_hash !== currentHash) {
+        delete approvals[draftName];
+        try { fs.writeFileSync(approvalsPath, `${JSON.stringify(approvals, null, 2)}
+`, 'utf8'); } catch {}
+        console.log(`[held] ${draftName}: 승인 후 재빌드됨 (approved ${approval.build_hash} vs now ${currentHash}) — 승인 무효화, 재검수 필요`);
+        lines.push(`- HELD(승인 무효화-재빌드): ${draftName} — 재검수 후 \`node scripts/approve-publish.js "${draftName}"\``);
+        continue;
+      }
+      if (!approval.build_hash) lines.push(`- 경고: ${draftName} 승인에 build_hash 없음(구식 승인) — 통과시키되 다음 승인부터 결속됨`);
+      lines.push(`- 검수 승인 확인: ${draftName} (${approval.approved_at || ''}${approval.build_hash ? `, build ${approval.build_hash}` : ''})`);
     }
 
     // 4. Loudness contract: normalize toward -14 LUFS, fail-open.

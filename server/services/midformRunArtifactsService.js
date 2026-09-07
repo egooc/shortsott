@@ -255,6 +255,26 @@ async function collectRunArtifacts({
 
   const editManifest = readJson(path.join(workspaceDir, 'edit_manifest.json'));
   const draftContent = readJson(path.join(workspaceDir, 'draft_content.json'));
+  // ── 게이트 단계 분리 P0-6 (2026-09-08) ──
+  // 로케일 드래프트가 이번 파이프라인 런보다 낡았으면(스킵된 ja, 실패로 미재생성 등) 그 로케일
+  // 게이트를 측정하지 않는다. 낡은 draft_ja 의 S20 overrun 이 세 번의 재빌드에 걸쳐 유령
+  // FAIL 을 만들었고, 낡은 legible 판정이 존재하지 않는 문장을 인용했다 (QP 실측).
+  const gateBaselineMs = (() => {
+    try { return fs.statSync(path.join(pipelineRunDir, 'script.json')).mtimeMs - 120000; }
+    catch { return 0; }
+  })();
+  const staleLocaleWarned = new Set();
+  const isStaleLocaleDraft = (locale) => {
+    if (!gateBaselineMs) return false;
+    try {
+      const stale = fs.statSync(path.join(workspaceDir, `draft_${locale}`, 'edit_manifest.json')).mtimeMs < gateBaselineMs;
+      if (stale && !staleLocaleWarned.has(locale)) {
+        staleLocaleWarned.add(locale);
+        console.warn(`[gates] draft_${locale} predates this pipeline run - its locale gates are skipped, not judged on stale artifacts`);
+      }
+      return stale;
+    } catch { return true; }
+  };
   const materialValidation = validateManifestMaterialColors(editManifest, draftContent);
   const speakerColorValidation = validateSpeakerColorMetadata(editManifest);
   const timing = buildTimingSummary(editManifest);
@@ -350,7 +370,10 @@ async function collectRunArtifacts({
   if (loudness.status === 'measured' && fs.existsSync(alignmentPath)) {
     try {
       const alignment = readJson(alignmentPath);
-      if (alignment && alignment.applied) {
+      // applied:false 여도 정렬기의 8구간-중앙값 측정이 이 게이트의 4샘플보다 낫다:
+      // 정렬기가 delta 2.2로 '보정 불필요' 판정한 컷을 게이트가 자기 표본(-28)으로
+      // 10.4 FAIL 낸 실측(QP, 조용한 영화). 판정 근거는 항상 더 잘 잰 쪽.
+      if (alignment && (alignment.applied || (Number.isFinite(Number(alignment.narration_lufs)) && Number.isFinite(Number(alignment.dialogue_lufs))))) {
         loudness.raw_delta_lu = loudness.delta_lu;
         loudness.video_gain_db = alignment.video_gain_db;
         loudness.tts_cut_db = alignment.tts_cut_db;
@@ -668,6 +691,225 @@ async function collectRunArtifacts({
       gateResults.results.push({ id: 'narration_visual_match', status: 'error', error: String(outerError?.message || outerError).slice(0, 200) });
     }
   }
+  // dialogue_pairs_intact — does the cut still read as an exchange? Every other gate here
+  // measures the cut against itself (position, length, whether the frames match the sentence);
+  // none asks whether the surviving lines answer each other. Wishmaster 2 passed all of them
+  // and was unreadable: the priest's questions were dropped while the answers were kept, and
+  // the antagonist's echo-questions ("내가 네 이름을 어떻게 아냐고?") stood with nothing to
+  // echo, so he interrogated himself for a third of the runtime (2026-09-01).
+  try {
+    const { analyze: analyzeDialoguePairs } = require('../../scripts/check-dialogue-pairs');
+    const perLocale = [];
+    for (const locale of ['ko', 'ja']) {
+      const draftDir = path.join(workspaceDir, `draft_${locale}`);
+      if (!fs.existsSync(path.join(draftDir, 'edit_manifest.json'))) continue;
+      if (isStaleLocaleDraft(locale)) continue;
+      const result = analyzeDialoguePairs(draftDir);
+      if (result.error) continue;
+      perLocale.push({
+        locale,
+        verdict: result.verdict,
+        orphan_answers: result.orphan_answers,
+        echo_without_question: result.echo_without_question,
+        issues: result.findings.slice(0, 8)
+      });
+    }
+    if (perLocale.length) {
+      const failed = perLocale.some((r) => r.verdict === 'FAIL');
+      const status = failed ? 'fail' : (perLocale.some((r) => r.verdict === 'WARN') ? 'warn' : 'pass');
+      gateResults.results.push({ id: 'dialogue_pairs_intact', status, locales: perLocale });
+      if (failed) {
+        gateResults.failed.push('dialogue_pairs_intact');
+        gateResults.status = 'failed';
+      } else if (status === 'warn') {
+        gateResults.warnings.push('dialogue_pairs_intact:orphaned_answers');
+      }
+    }
+  } catch (pairError) {
+    gateResults.results.push({ id: 'dialogue_pairs_intact', status: 'error', error: String(pairError?.message || pairError).slice(0, 200) });
+  }
+
+  // narration_share — is the story carried by narration, at the level the reference channels run?
+  // Measured on the owner's three named references (2026-09-04): the 7.9M-view cut narrates 72%
+  // of its runtime at 6.5 sentences per minute and spends source audio on two five-second
+  // bursts; the 2.5K-view one narrates 31% and lets dialogue run for half its length. Every one
+  // of our 113 installed drafts measured below the weak reference. The gate reads the SHIPPED
+  // manifest on purpose - the recap budget passed in the planner twice and was undone by later
+  // passes both times, and only the manifest shows what actually reached the screen.
+  try {
+    const { analyze: analyzeShare } = require('../../scripts/check-narration-share');
+    const perLocale = [];
+    for (const locale of ['ko', 'ja']) {
+      const draftDir = path.join(workspaceDir, `draft_${locale}`);
+      if (!fs.existsSync(path.join(draftDir, 'edit_manifest.json'))) continue;
+      if (isStaleLocaleDraft(locale)) continue;
+      const result = analyzeShare(draftDir);
+      if (result.error) continue;
+      perLocale.push({
+        locale,
+        verdict: result.verdict,
+        narration_share: result.narration_share,
+        sentences_per_min: result.sentences_per_min,
+        longest_dialogue_run_sec: result.longest_dialogue_run_sec,
+        findings: result.findings
+      });
+    }
+    if (perLocale.length) {
+      const failed = perLocale.some((r) => r.verdict === 'FAIL');
+      const status = failed ? 'fail' : (perLocale.some((r) => r.verdict === 'WARN') ? 'warn' : 'pass');
+      gateResults.results.push({ id: 'narration_share', status, locales: perLocale });
+      if (failed) {
+        gateResults.failed.push('narration_share');
+        gateResults.status = 'failed';
+      } else if (status === 'warn') {
+        gateResults.warnings.push('narration_share:below_target');
+      }
+    }
+  } catch (shareError) {
+    gateResults.results.push({ id: 'narration_share', status: 'error', error: String(shareError?.message || shareError).slice(0, 200) });
+  }
+
+  // story_legible — can a first-time viewer follow the cut from the text it actually ships?
+  // Every gate above this one, including check-arc, judges the PLAN, whose dialogue is the
+  // English source. The viewer reads the Korean caption, and the two can differ in the one way
+  // that matters: Korean drops subjects. "Maybe I can figure out what IT wants" ships as
+  // "뭘 원하는지 알아낸 수도 있어", and whether that still points at anything depends on the
+  // translation, not the plan. The New Moon Jacob cut passed every structural gate and every
+  // plan-level judge, and its central turn - Jacob becomes a werewolf - exists nowhere in the
+  // shipped text: he jokes in a cinema, then after twenty-three silent seconds he has a tattoo
+  // and tells Bella to go away (2026-09-04, the owner read the transcript and said so).
+  // Blocking on story_legible only. The reference and change findings ride along as warnings:
+  // they say where to fix a cut, but a single loose pronoun is not worth stopping a build for.
+  try {
+    const { analyze: analyzeStory } = require('../../scripts/check-story-legible');
+    const perLocale = [];
+    for (const locale of ['ko', 'ja']) {
+      const draftDir = path.join(workspaceDir, `draft_${locale}`);
+      if (!fs.existsSync(path.join(draftDir, 'edit_manifest.json'))) continue;
+      if (isStaleLocaleDraft(locale)) continue;
+      const result = await analyzeStory(draftDir);
+      if (result.error) continue;
+      perLocale.push({
+        locale,
+        verdict: result.verdict,
+        story_legible: result.story_legible,
+        viewer_takeaway: result.viewer_takeaway,
+        unresolved_references: result.unresolved_references.slice(0, 6),
+        unexplained_changes: result.unexplained_changes.slice(0, 6),
+        reason: result.reason
+      });
+    }
+    if (perLocale.length) {
+      const failed = perLocale.some((r) => r.verdict === 'FAIL');
+      const status = failed ? 'fail' : (perLocale.some((r) => r.verdict === 'WARN') ? 'warn' : 'pass');
+      gateResults.results.push({ id: 'story_legible', status, locales: perLocale });
+      if (failed) {
+        gateResults.failed.push('story_legible');
+        gateResults.status = 'failed';
+      } else if (status === 'warn') {
+        gateResults.warnings.push('story_legible:loose_references');
+      }
+    }
+  } catch (storyError) {
+    gateResults.results.push({ id: 'story_legible', status: 'error', error: String(storyError?.message || storyError).slice(0, 200) });
+  }
+
+  // promo_tail_overrun — no clip may reach past usable_end_sec into the channel outro or the
+  // film's end credits. usable_end was enforced only by a sentence in the planner prompt plus a
+  // clamp that checked window STARTS, so a window running 392.8-398.6 against a 394.5 limit
+  // survived and put a credits frame on screen (2026-09-03). The clamp is fixed; this measures
+  // the shipped manifest so a regression cannot be silent again.
+  try {
+    const { analyze: analyzePromoTail } = require('../../scripts/check-promo-tail');
+    const promoPerLocale = [];
+    for (const locale of ['ko', 'ja']) {
+      const draftDir = path.join(workspaceDir, `draft_${locale}`);
+      if (!fs.existsSync(path.join(draftDir, 'edit_manifest.json'))) continue;
+      if (isStaleLocaleDraft(locale)) continue;
+      const result = analyzePromoTail(draftDir);
+      if (result.error) continue;
+      promoPerLocale.push({ locale, verdict: result.verdict, usable_end_sec: result.usable_end_sec, issues: result.findings.slice(0, 6) });
+    }
+    if (promoPerLocale.length) {
+      const failed = promoPerLocale.some((r) => r.verdict === 'FAIL');
+      gateResults.results.push({ id: 'promo_tail_overrun', status: failed ? 'fail' : 'pass', locales: promoPerLocale });
+      if (failed) {
+        gateResults.failed.push('promo_tail_overrun');
+        gateResults.status = 'failed';
+      }
+    }
+  } catch (promoError) {
+    gateResults.results.push({ id: 'promo_tail_overrun', status: 'error', error: String(promoError?.message || promoError).slice(0, 200) });
+  }
+
+  // cut_tail_regression — the cut must end on its ending. Reordering at the FRONT is the cold
+  // open and is allowed; reaching back into the opening AFTER the resolution is not. Blood
+  // Smoothie closed on "It's working" (source 182s) and then played Alice's line from source
+  // 20s as its final beat, which reads as a non-sequitur. The arc judge saw the regression and
+  // called it merely awkward, so this one is measured rather than judged (2026-09-02).
+  try {
+    const { analyze: analyzeTail } = require('../../scripts/check-tail-regression');
+    const tailPerLocale = [];
+    for (const locale of ['ko', 'ja']) {
+      const draftDir = path.join(workspaceDir, `draft_${locale}`);
+      if (!fs.existsSync(path.join(draftDir, 'edit_manifest.json'))) continue;
+      if (isStaleLocaleDraft(locale)) continue;
+      const result = analyzeTail(draftDir);
+      if (result.error) continue;
+      tailPerLocale.push({
+        locale,
+        verdict: result.verdict,
+        peak_source_sec: result.peak_source_sec,
+        issues: result.findings.slice(0, 6)
+      });
+    }
+    if (tailPerLocale.length) {
+      const failed = tailPerLocale.some((r) => r.verdict === 'FAIL');
+      gateResults.results.push({ id: 'cut_tail_regression', status: failed ? 'fail' : 'pass', locales: tailPerLocale });
+      if (failed) {
+        gateResults.failed.push('cut_tail_regression');
+        gateResults.status = 'failed';
+      }
+    }
+  } catch (tailError) {
+    gateResults.results.push({ id: 'cut_tail_regression', status: 'error', error: String(tailError?.message || tailError).slice(0, 200) });
+  }
+
+  // plan_continuity — how far the cut travels through the source between consecutive slots.
+  // REPORT ONLY for now: it is calibrated on three runs and marks 47% of the existing archive,
+  // which is either a real defect rate or a threshold set too tight, and there is not yet
+  // enough reviewed footage to tell. Failing runs on it today would halve production on a
+  // guess. It is recorded so the number accumulates next to the human verdicts; tighten it to
+  // a blocking gate once the ledger says which reading is right.
+  try {
+    let summary = {};
+    try { summary = JSON.parse(fs.readFileSync(path.join(workspaceDir, 'run_summary.json'), 'utf8')); }
+    catch { summary = {}; }
+    const compressRunId = String((summary.internal || {}).bootstrap_source_run_id
+      || (summary.internal || {}).compression_run_id || '');
+    if (compressRunId) {
+      const { analyzePlan } = require('../../scripts/check-plan-continuity');
+      const testRunsDir = path.join(__dirname, '..', '..', 'midform', 'test_runs');
+      const continuity = analyzePlan(path.join(testRunsDir, compressRunId));
+      if (!continuity.error) {
+        gateResults.results.push({
+          id: 'plan_continuity',
+          status: continuity.verdict === 'PASS' ? 'pass' : 'warn',
+          blocking: false,
+          avg_jump_sec: continuity.avg_jump_sec,
+          max_jump_sec: continuity.max_jump_sec,
+          slots: continuity.slots,
+          verdict: continuity.verdict
+        });
+        if (continuity.verdict !== 'PASS') {
+          gateResults.warnings.push(`plan_continuity:${continuity.verdict}:avg_jump_${continuity.avg_jump_sec}s`);
+        }
+      }
+    }
+  } catch (continuityError) {
+    gateResults.results.push({ id: 'plan_continuity', status: 'error', error: String(continuityError?.message || continuityError).slice(0, 200) });
+  }
+
   const acceptancePath = path.join(workspaceDir, 'acceptance_gates.json');
   writeJson(acceptancePath, gateResults);
   const previewProof = generatePreviewFrameProof({
@@ -693,6 +935,10 @@ async function collectRunArtifacts({
     preview_frame_proof: rel(path.join(workspaceDir, 'preview_frame_proof.json')),
     run_summary: rel(path.join(workspaceDir, 'run_summary.json'))
   };
+  for (const staleLocale of staleLocaleWarned) {
+    const staleId = `stale_locale_artifacts:${staleLocale}`;
+    if (!gateResults.warnings.includes(staleId)) gateResults.warnings.push(staleId);
+  }
   writeText(
     path.join(workspaceDir, 'human_qa_review.md'),
     `${buildHumanQaReview({ normalizedRequest, gateResults, timing, colorEvidence, materialValidation, previewProof, outputPaths })}\n`

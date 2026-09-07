@@ -55,6 +55,7 @@ function parseArgs(argv) {
     if (flag === '--template') options.template = nextValue;
     if (flag === '--resume') options.resume = nextValue;
     if (flag === '--bootstrap-run') options.bootstrapRun = nextValue;
+    if (flag === '--allow-lineage-fallback') { options.allowLineageFallback = true; index -= (inlineValue === undefined ? 1 : 0); }
     if (flag === '--csv') options.csv = nextValue;
     if (flag === '--context-file') options.contextFile = nextValue;
     if (flag === '--out') options.out = nextValue;
@@ -154,6 +155,7 @@ async function main() {
       source: options.source,
       resume: options.resume,
       bootstrapRun: options.bootstrapRun,
+      allowLineageFallback: options.allowLineageFallback === true,
       target: options.target
     });
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);

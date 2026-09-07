@@ -719,12 +719,16 @@ async function runMidformTemplateWorkflow(options = {}) {
           run_id: bootstrapSourceRunId,
           failed_checks: (preflight.preflight?.checks || []).filter((check) => !check.ok).map((check) => check.name)
         };
-        // A PINNED run may never fall back: the pin exists precisely because the owner said "build
-        // from THIS plan". Falling back with a warning is how a rebuilt Housemaid ending quietly
-        // shipped last night's cut with a fabricated closer while every summary said "passed".
-        const fallback = options.bootstrapRun
-          ? null
-          : await findBootstrapableCompressionFallback(normalizedRequest.source.url, compressionRunId);
+        // LINEAGE FALLBACK IS BANNED (owner directive 2026-09-07). Unpinned runs used to
+        // auto-fall-back to an OLDER compression run with only a warning line — "빌드는
+        // 성공했지만 무엇으로 만든 영상인지 모르는" state: three successive plans shipped the
+        // same stale cut while every summary said "passed" (and a pinned-run version of the same
+        // bug shipped a rebuilt Housemaid ending with last night's cut). A preflight failure now
+        // FAILS the run, always. The only exception is the explicit --allow-lineage-fallback
+        // flag, which still marks the summary so publish can refuse it.
+        const fallback = options.allowLineageFallback === true && !options.bootstrapRun
+          ? await findBootstrapableCompressionFallback(normalizedRequest.source.url, compressionRunId)
+          : null;
         if (fallback) {
           bootstrapSourceRunId = fallback.runId;
           bootstrapSourceRunDir = fallback.runDir;
@@ -732,6 +736,7 @@ async function runMidformTemplateWorkflow(options = {}) {
           summary.internal.bootstrap_fallback_run_id = bootstrapSourceRunId;
           summary.internal.bootstrap_fallback_run_dir = bootstrapSourceRunDir;
           summary.internal.bootstrap_fallback_rejected = rejected;
+          summary.internal.lineage_fallback_used = true; // 발행 게이트가 이 표식으로 거부한다
           summary.warnings = [
             ...(Array.isArray(summary.warnings) ? summary.warnings : []),
             `bootstrap fell back to an OLDER compression run ${fallback.runId}: this run's own compression `

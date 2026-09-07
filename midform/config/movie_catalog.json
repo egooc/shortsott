@@ -8,9 +8,10 @@
       "title_ja": "ハウスメイド",
       "year": 2025,
       "distributor": "Lionsgate",
-      "distributor_tier": "preflight",
+      "distributor_tier": "banned",
       "credit_ko": "프리다 맥패든의 소설 '하녀(The Housemaid)'를 원작으로 한 영화입니다.",
-      "credit_ja": "フリーダ・マクファーデンの小説『ザ・ハウスメイド』を原作とした映画です。"
+      "credit_ja": "フリーダ・マクファーデンの小説『ザ・ハウスメイド』を原作とした映画です。",
+      "note": "소유주 지시 2026-09-04: 라이온게이트 계열 일괄 미사용. 클레임이 나면 1~3분 숏폼은 전 세계 차단이라 회수가 불가능하고, 같은 영화라도 장면마다 갈려 사전 예측이 안 된다(뉴문 8/31 통과 / 9/1 차단)."
     },
     "draft-day": {
       "match": "draftday|draft.?day|드래프트 ?데이",
@@ -19,9 +20,10 @@
       "title_ja": "ドラフト・デイ",
       "year": 2014,
       "distributor": "Summit Entertainment (Lionsgate)",
-      "distributor_tier": "preflight",
+      "distributor_tier": "banned",
       "credit_ko": "영화 '드래프트 데이'(2014)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『ドラフト・デイ』(2014)のシーンから制作しました。"
+      "credit_ja": "映画『ドラフト・デイ』(2014)のシーンから制作しました。",
+      "note": "소유주 지시 2026-09-04: 라이온게이트 계열 일괄 미사용. 클레임이 나면 1~3분 숏폼은 전 세계 차단이라 회수가 불가능하고, 같은 영화라도 장면마다 갈려 사전 예측이 안 된다(뉴문 8/31 통과 / 9/1 차단)."
     },
     "breaking-dawn-2": {
       "_note": "Part 2 must be matched BEFORE Part 1 - classify() returns the first hit, and Part 1's pattern would otherwise swallow every Part 2 clip (2026-08-22: a Part 2 clip shipped tagged as Part 1, which would have put the wrong 일본 개봉명 and credit line in its upload metadata).",
@@ -31,9 +33,10 @@
       "title_ja": "トワイライト・サーガ/ブレイキング・ドーン Part2",
       "year": 2012,
       "distributor": "Summit Entertainment (Lionsgate)",
-      "distributor_tier": "preflight",
+      "distributor_tier": "banned",
       "credit_ko": "영화 '브레이킹 던 part2'(2012)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『トワイライト・サーガ/ブレイキング・ドーン Part2』(2012)のシーンから制作しました。"
+      "credit_ja": "映画『トワイライト・サーガ/ブレイキング・ドーン Part2』(2012)のシーンから制作しました。",
+      "note": "소유주 지시 2026-09-04: 라이온게이트 계열 일괄 미사용. 클레임이 나면 1~3분 숏폼은 전 세계 차단이라 회수가 불가능하고, 같은 영화라도 장면마다 갈려 사전 예측이 안 된다(뉴문 8/31 통과 / 9/1 차단)."
     },
     "breaking-dawn-1": {
       "match": "breaking.?dawn|브레이킹 ?던|ブレイキング・ドーン",
@@ -42,9 +45,10 @@
       "title_ja": "トワイライト・サーガ ブレイキング・ドーン Part1",
       "year": 2011,
       "distributor": "Summit Entertainment (Lionsgate)",
-      "distributor_tier": "preflight",
+      "distributor_tier": "banned",
       "credit_ko": "영화 '브레이킹 던 part1'(2011)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『トワイライト・サーガ ブレイキング・ドーン Part1』(2011)のシーンから制作しました。"
+      "credit_ja": "映画『トワイライト・サーガ ブレイキング・ドーン Part1』(2011)のシーンから制作しました。",
+      "note": "소유주 지시 2026-09-04: 라이온게이트 계열 일괄 미사용. 클레임이 나면 1~3분 숏폼은 전 세계 차단이라 회수가 불가능하고, 같은 영화라도 장면마다 갈려 사전 예측이 안 된다(뉴문 8/31 통과 / 9/1 차단)."
     },
     "long-shot": {
       "match": "longshot|long.?shot|롱 ?샷",
@@ -53,9 +57,10 @@
       "title_ja": "ロング・ショット 僕と彼女のありえない恋",
       "year": 2019,
       "distributor": "Lionsgate",
-      "distributor_tier": "preflight",
+      "distributor_tier": "banned",
       "credit_ko": "영화 '롱 샷'(2019)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『ロング・ショット 僕と彼女のありえない恋』(2019)のシーンから制作しました。"
+      "credit_ja": "映画『ロング・ショット 僕と彼女のありえない恋』(2019)のシーンから制作しました。",
+      "note": "소유주 지시 2026-09-04: 라이온게이트 계열 일괄 미사용. 클레임이 나면 1~3분 숏폼은 전 세계 차단이라 회수가 불가능하고, 같은 영화라도 장면마다 갈려 사전 예측이 안 된다(뉴문 8/31 통과 / 9/1 차단)."
     },
     "the-arrival": {
       "match": "the.?arrival|어라이벌|アライバル",
@@ -75,9 +80,10 @@
       "title_ja": "デイブレイカー",
       "year": 2009,
       "distributor": "Lionsgate",
-      "distributor_tier": "preflight",
+      "distributor_tier": "banned",
       "credit_ko": "영화 '데이브레이커스'(2009)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『デイブレイカー』(2009)のシーンから制作しました。"
+      "credit_ja": "映画『デイブレイカー』(2009)のシーンから制作しました。",
+      "note": "소유주 지시 2026-09-04: 라이온게이트 계열 일괄 미사용. 클레임이 나면 1~3분 숏폼은 전 세계 차단이라 회수가 불가능하고, 같은 영화라도 장면마다 갈려 사전 예측이 안 된다(뉴문 8/31 통과 / 9/1 차단)."
     },
     "wishmaster-2": {
       "match": "wishmaster.?2|위시마스터 ?2|ウィッシュマスター",
@@ -86,9 +92,10 @@
       "title_ja": "ウィッシュマスター～スーペリア～",
       "year": 1999,
       "distributor": "Artisan Entertainment (Lionsgate)",
-      "distributor_tier": "preflight",
+      "distributor_tier": "banned",
       "credit_ko": "영화 '위시마스터 2'(1999)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『ウィッシュマスター～スーペリア～』(1999)のシーンから制作しました。"
+      "credit_ja": "映画『ウィッシュマスター～スーペリア～』(1999)のシーンから制作しました。",
+      "note": "소유주 지시 2026-09-04: 라이온게이트 계열 일괄 미사용. 클레임이 나면 1~3분 숏폼은 전 세계 차단이라 회수가 불가능하고, 같은 영화라도 장면마다 갈려 사전 예측이 안 된다(뉴문 8/31 통과 / 9/1 차단)."
     },
     "new-moon": {
       "match": "new.?moon|뉴 ?문|ニュームーン",
@@ -97,9 +104,10 @@
       "title_ja": "ニュームーン／トワイライト・サーガ",
       "year": 2009,
       "distributor": "Summit Entertainment (Lionsgate)",
-      "distributor_tier": "preflight",
+      "distributor_tier": "banned",
       "credit_ko": "영화 '뉴문'(2009)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『ニュームーン／トワイライト・サーガ』(2009)のシーンから制作しました。"
+      "credit_ja": "映画『ニュームーン／トワイライト・サーガ』(2009)のシーンから制作しました。",
+      "note": "소유주 지시 2026-09-04: 라이온게이트 계열 일괄 미사용. 클레임이 나면 1~3분 숏폼은 전 세계 차단이라 회수가 불가능하고, 같은 영화라도 장면마다 갈려 사전 예측이 안 된다(뉴문 8/31 통과 / 9/1 차단)."
     },
     "eclipse": {
       "match": "eclipse|이클립스|エクリプス",
@@ -108,9 +116,10 @@
       "title_ja": "エクリプス／トワイライト・サーガ",
       "year": 2010,
       "distributor": "Summit Entertainment (Lionsgate)",
-      "distributor_tier": "preflight",
+      "distributor_tier": "banned",
       "credit_ko": "영화 '이클립스'(2010)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『エクリプス／トワイライト・サーガ』(2010)のシーンから制作しました。"
+      "credit_ja": "映画『エクリプス／トワイライト・サーガ』(2010)のシーンから制作しました。",
+      "note": "소유주 지시 2026-09-04: 라이온게이트 계열 일괄 미사용. 클레임이 나면 1~3분 숏폼은 전 세계 차단이라 회수가 불가능하고, 같은 영화라도 장면마다 갈려 사전 예측이 안 된다(뉴문 8/31 통과 / 9/1 차단)."
     },
     "twilight-2008": {
       "match": "twilight(?!.*(new.?moon|eclipse|breaking))|트와일라잇(?!.*(뉴문|이클립스|브레이킹))",
@@ -119,9 +128,10 @@
       "title_ja": "トワイライト～初恋～",
       "year": 2008,
       "distributor": "Summit Entertainment (Lionsgate)",
-      "distributor_tier": "preflight",
+      "distributor_tier": "banned",
       "credit_ko": "영화 '트와일라잇'(2008)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『トワイライト～初恋～』(2008)のシーンから制作しました。"
+      "credit_ja": "映画『トワイライト～初恋～』(2008)のシーンから制作しました。",
+      "note": "소유주 지시 2026-09-04: 라이온게이트 계열 일괄 미사용. 클레임이 나면 1~3분 숏폼은 전 세계 차단이라 회수가 불가능하고, 같은 영화라도 장면마다 갈려 사전 예측이 안 된다(뉴문 8/31 통과 / 9/1 차단)."
     },
     "pulp-fiction": {
       "match": "pulp.?fiction|펄프 ?픽션|パルプ・?フィクション",
@@ -218,9 +228,10 @@
       "title_ja": "ダーティ・ダンシング",
       "year": 1987,
       "distributor": "Vestron (Lionsgate)",
-      "distributor_tier": "preflight",
+      "distributor_tier": "banned",
       "credit_ko": "영화 '더티 댄싱'(1987)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『ダーティ・ダンシング』(1987)のシーンから制作しました。"
+      "credit_ja": "映画『ダーティ・ダンシング』(1987)のシーンから制作しました。",
+      "note": "소유주 지시 2026-09-04: 라이온게이트 계열 일괄 미사용. 클레임이 나면 1~3분 숏폼은 전 세계 차단이라 회수가 불가능하고, 같은 영화라도 장면마다 갈려 사전 예측이 안 된다(뉴문 8/31 통과 / 9/1 차단)."
     },
     "jaws": {
       "match": "\\bjaws\\b|죠스|ジョーズ",
@@ -330,9 +341,10 @@
       "title_ja": "ランボー 最後の戦場",
       "year": 2008,
       "distributor": "Lionsgate",
-      "distributor_tier": "preflight",
+      "distributor_tier": "banned",
       "credit_ko": "영화 '람보 4: 라스트 블러드'(2008)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『ランボー 最後の戦場』(2008)のシーンから制作しました。"
+      "credit_ja": "映画『ランボー 最後の戦場』(2008)のシーンから制作しました。",
+      "note": "소유주 지시 2026-09-04: 라이온게이트 계열 일괄 미사용. 클레임이 나면 1~3분 숏폼은 전 세계 차단이라 회수가 불가능하고, 같은 영화라도 장면마다 갈려 사전 예측이 안 된다(뉴문 8/31 통과 / 9/1 차단)."
     },
     "day-earth-stood-still": {
       "match": "day the earth stood still|지구가 멈추는 날|地球が静止する日",
@@ -452,9 +464,10 @@
       "title_ja": "ジョン・ウィック：コンセクエンス",
       "year": 2023,
       "distributor": "Lionsgate",
-      "distributor_tier": "preflight",
+      "distributor_tier": "banned",
       "credit_ko": "영화 '존 윅 4'(2023)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『ジョン・ウィック：コンセクエンス』(2023)のシーンから制作しました。"
+      "credit_ja": "映画『ジョン・ウィック：コンセクエンス』(2023)のシーンから制作しました。",
+      "note": "소유주 지시 2026-09-04: 라이온게이트 계열 일괄 미사용. 클레임이 나면 1~3분 숏폼은 전 세계 차단이라 회수가 불가능하고, 같은 영화라도 장면마다 갈려 사전 예측이 안 된다(뉴문 8/31 통과 / 9/1 차단)."
     },
     "cold-pursuit": {
       "match": "cold pursuit|콜드 체이싱|スノー・ロワイヤル",
@@ -463,9 +476,10 @@
       "title_ja": "スノー・ロワイヤル",
       "year": 2019,
       "distributor": "Lionsgate/Summit",
-      "distributor_tier": "preflight",
+      "distributor_tier": "banned",
       "credit_ko": "영화 '콜드 체이싱'(2019)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『スノー・ロワイヤル』(2019)のシーンから制作しました。"
+      "credit_ja": "映画『スノー・ロワイヤル』(2019)のシーンから制作しました。",
+      "note": "소유주 지시 2026-09-04: 라이온게이트 계열 일괄 미사용. 클레임이 나면 1~3분 숏폼은 전 세계 차단이라 회수가 불가능하고, 같은 영화라도 장면마다 갈려 사전 예측이 안 된다(뉴문 8/31 통과 / 9/1 차단)."
     },
     "king-kong-2005": {
       "match": "^(?!.*(godzilla|skull|1933|髑髏)).*(king kong|킹콩|キング・?コング)",
@@ -595,9 +609,10 @@
       "title_ja": "グランド・イリュージョン",
       "year": 2013,
       "distributor": "Lionsgate/Summit",
-      "distributor_tier": "preflight",
+      "distributor_tier": "banned",
       "credit_ko": "영화 '나우 유 씨 미'(2013)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『グランド・イリュージョン』(2013)のシーンから制作しました。"
+      "credit_ja": "映画『グランド・イリュージョン』(2013)のシーンから制作しました。",
+      "note": "소유주 지시 2026-09-04: 라이온게이트 계열 일괄 미사용. 클레임이 나면 1~3분 숏폼은 전 세계 차단이라 회수가 불가능하고, 같은 영화라도 장면마다 갈려 사전 예측이 안 된다(뉴문 8/31 통과 / 9/1 차단)."
     },
     "sully": {
       "match": "\\bsully\\b|설리|ハドソン川の奇跡",
@@ -628,9 +643,10 @@
       "title_ja": "ハクソー・リッジ",
       "year": 2016,
       "distributor": "Lionsgate/Summit",
-      "distributor_tier": "preflight",
+      "distributor_tier": "banned",
       "credit_ko": "영화 '핵소 고지'(2016)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『ハクソー・リッジ』(2016)のシーンから制作しました。"
+      "credit_ja": "映画『ハクソー・リッジ』(2016)のシーンから制作しました。",
+      "note": "소유주 지시 2026-09-04: 라이온게이트 계열 일괄 미사용. 클레임이 나면 1~3분 숏폼은 전 세계 차단이라 회수가 불가능하고, 같은 영화라도 장면마다 갈려 사전 예측이 안 된다(뉴문 8/31 통과 / 9/1 차단)."
     },
     "central-intelligence": {
       "match": "central intelligence|센트럴 인텔리전스|セントラル・インテリジェンス",
@@ -736,6 +752,10 @@
     "Sony",
     "Columbia",
     "Screen Gems",
-    "TriStar"
+    "TriStar",
+    "Lionsgate",
+    "Summit Entertainment",
+    "Artisan Entertainment",
+    "Vestron"
   ]
 }

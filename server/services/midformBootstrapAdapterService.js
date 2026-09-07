@@ -702,6 +702,21 @@ function trimDialogueWindowsToSpeech(editPlan, speechRanges, sourceDurationSec =
 }
 
 // Slide a scene back so it ends by `limit` while keeping its length where possible.
+// Dialogue variant of clampScenesToUsableEnd: lowers the end to the limit and leaves the start
+// alone, so the clip still begins where its line begins.
+function truncateDialogueSceneToUsableEnd(scenes, limit) {
+  if (!(Number(limit) > 0)) return scenes;
+  return (Array.isArray(scenes) ? scenes : []).map((scene) => {
+    const start = parseTimecode(scene?.start);
+    const end = parseTimecode(scene?.end);
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= Number(limit)) return scene;
+    // Nothing left to show before the card: leave it and let the preflight refuse the build
+    // rather than emit a zero-length clip.
+    if (start >= Number(limit) - 0.2) return scene;
+    return { ...scene, end: secondsToTimecode(Number(limit)), promo_tail_truncated: true };
+  });
+}
+
 function clampScenesToUsableEnd(scenes, limit) {
   if (!(Number(limit) > 0)) return scenes;
   return (Array.isArray(scenes) ? scenes : []).map((scene) => {
@@ -1144,7 +1159,25 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
           dialogue_timing_adjustment: timing,
           caption_timeline_offset_sec: timing.caption_timeline_offset_sec,
           duration_override_sec: timing.caption_duration_sec,
-          source_scenes: [{
+          // Dialogue segments build their scene inline and skipped the usable-end clamp that
+          // guards the other path (line ~1334), so a reaction tail could run past the boundary
+          // into the channel outro: slot_011 ended at 396.35 against 394.5 and a frame of the
+          // film's end credits shipped (Draft Day, 2026-09-03). Clamp here too - same helper,
+          // same rule, so both paths obey one boundary.
+          // Dialogue must be TRUNCATED at the boundary, never shifted back like a narration
+          // window: the spoken line here runs to 396.2 while the card starts at 394.5, and
+          // sliding the clip earlier to keep its length made the visual stop covering its own
+          // utterance (coordinate_parity_dialogue) and collide with the previous segment. Keep
+          // the start, cut the end, and let the downstream pad hold the last frame - a freeze
+          // beats showing the credits.
+          // The declared boundary can land EARLY. Measured on this source: the detector put
+          // usable_end at 394.5 while the frames show film content until ~397.5 and the card
+          // only after it - and this line is still being spoken at 396.2. Speech is the
+          // evidence: an end card carries no dialogue, so a boundary that cuts into an
+          // utterance is the boundary being wrong, not the utterance. Trim to whichever is
+          // later, which still removes the real card (the original clip ran to 398.6) while
+          // keeping the visual over its own line (coordinate_parity_dialogue).
+          source_scenes: truncateDialogueSceneToUsableEnd([{
             clip_id: `${segId}_clip`,
             scene_id: '',
             start: startTc,
@@ -1153,7 +1186,7 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
             // Marks a deliberate reaction-tail extension so the utterance-reference
             // validator can tell it apart from timing drift.
             ...(visualEndSec > timing.visual_range_sec[1] + 0.05 ? { source: 'utterance_plus_reaction_tail' } : {})
-          }],
+          }], Math.max(footageEndSec, Number(timing?.speech_range_sec?.[1]) || 0)),
           edit_instruction: defaultEditInstruction('dialogue')
         });
       }
@@ -1180,8 +1213,26 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
       .map((value) => normalizeText(value)).filter(Boolean).slice(0, 2);
     const isCardOnly = storyCardTexts.length > 0 && !normalizeText(fill.narration || '');
     const isSceneHook = (isColdOpen && normalizeText(item.visual_source_mode) === 'source_audio_teaser') || isActionBeat || isCardOnly || isBodyActionTeaser;
-    const narration = isSceneHook ? '' : normalizeText(fill.narration || '');
-    const captionKr = isSceneHook ? '' : normalizeText(fill.caption_kr || '');
+    // An action beat plays its window under the source audio, and that is what stopped the
+    // narration-length invariant from chopping 25.5s of werewolf transformation down to the 2.4s
+    // its TTS ran. But it also DISCARDED narration the fill had already written, and the same
+    // film produced the bill: slot_016 carried "벨라는 연락 끊긴 제이콥을 찾아가는데" and shipped
+    // as 23 seconds of silence at the exact point the story turns - Jacob comes back changed and
+    // nothing, on screen or in text, says why (2026-09-04, the owner read the transcript).
+    // The window and the sentence were never in conflict; only the SIZING was. So an action beat
+    // that has narration keeps it, and still takes its length from the action window.
+    //
+    // That rule was written for two of the four ways a slot becomes a scene hook, and the other
+    // two kept dropping the sentence. The Dictator (2026-09-05, a 508s source - the first long
+    // one) put three narrated slots through the cold-open teaser path and shipped 40.5s of its
+    // 120s as a silent caption over full-volume source audio, including the closing line. It
+    // failed narration_share at 58% and story_legible read the ending as unsourced. Nothing
+    // about the sizing argument is specific to isActionBeat: any scene hook whose fill wrote a
+    // sentence has a sentence worth speaking, and the length still comes from the action window.
+    const narratedActionBeat = isSceneHook && Boolean(normalizeText(fill.narration || ''));
+    const keepsText = !isSceneHook || narratedActionBeat;
+    const narration = keepsText ? normalizeText(fill.narration || '') : '';
+    const captionKr = keepsText ? normalizeText(fill.caption_kr || '') : '';
     if (!narration && !isSceneHook) warnings.push(`${slotId} (${role}) NARRATE has empty narration`);
     // Cold-open uses the muted teaser visual window (visual_source_*), NOT its own story-beat
     // start/end. Every other NARRATE slot has no fixed window and lets the auto-picker choose.
@@ -1203,11 +1254,13 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
           if (!win || win.matched !== true) continue;
           const winStart = Number(win.start_sec);
           const winEnd = Number(win.end_sec);
-          if (!(winEnd > winStart) || winEnd <= bodyTeaserStart || winStart >= bodyTeaserEnd) continue;
+          // 대사 클립은 창보다 ~0.5s pre-roll 이 붙는다 - 창이 훅 '끝과 정확히 맞닿아'도
+          // 최종 클립은 훅을 문다(QP: S10 창 177.3 시작, 클립 176.85 시작). 0.7s 여유.
+          if (!(winEnd > winStart) || winEnd <= bodyTeaserStart - 0.7 || winStart >= bodyTeaserEnd + 0.7) continue;
           const headSec = winStart - bodyTeaserStart;
           const tailSec = bodyTeaserEnd - winEnd;
-          if (tailSec >= headSec) bodyTeaserStart = Math.max(bodyTeaserStart, winEnd + 0.2);
-          else bodyTeaserEnd = Math.min(bodyTeaserEnd, winStart - 0.2);
+          if (tailSec >= headSec) bodyTeaserStart = Math.max(bodyTeaserStart, winEnd + 0.7);
+          else bodyTeaserEnd = Math.min(bodyTeaserEnd, winStart - 0.7);
         }
       }
     }
@@ -1222,19 +1275,38 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
       }];
       sourceRangeHint = [bodyTeaserStart, bodyTeaserStart];
     } else if ((isColdOpen || isActionBeat) && Number.isFinite(teaserStart) && Number.isFinite(teaserEnd) && teaserEnd > teaserStart) {
-      sourceRange = [teaserStart, teaserEnd];
+      // 만능 훅 클램프 (2026-09-07): 훅 창이 다른 슬롯의 대사 창을 물면 cross_segment_overlap
+      // 으로 죽는다 - 플랜 검증은 조언일 뿐이니 여기서 기계적으로 잘라낸다. 훅 자신의 창과
+      // 겹치는 예약(콜드오픈 재생 등 자기 것)은 건드리지 않도록 자기-포함 범위는 제외.
+      let clampedEnd = teaserEnd;
+      let clampedStart = teaserStart;
+      for (const [rs, re2] of reservedDialogueRanges) {
+        const isSelf = rs >= teaserStart - 0.05 && re2 <= teaserEnd + 0.05 && isColdOpen;
+        if (isSelf) continue;
+        if (rs > clampedStart + 0.5 && rs < clampedEnd + 0.7) clampedEnd = Math.min(clampedEnd, rs - 0.7);
+        if (re2 < clampedEnd - 0.5 && re2 > clampedStart - 0.7) clampedStart = Math.max(clampedStart, re2 + 0.7);
+      }
+      // 앞선 훅·b-roll 클립도 피한다: 플래너가 인접 훅의 visual 창을 겹치게 그리는 사례
+      // (S14 티저 252~ 가 S13 액션 ~253.7 안에서 시작 - QP 실측).
+      for (const [rs, re2] of assignedBrollRanges) {
+        if (rs > clampedStart + 0.5 && rs < clampedEnd + 0.2) clampedEnd = Math.min(clampedEnd, rs - 0.2);
+        if (re2 < clampedEnd - 0.5 && re2 > clampedStart - 0.2) clampedStart = Math.max(clampedStart, re2 + 0.2);
+      }
+      const hookStart = (clampedEnd - clampedStart >= 1.0) ? clampedStart : teaserStart;
+      const hookEnd = (clampedEnd - clampedStart >= 1.0) ? clampedEnd : teaserEnd;
+      sourceRange = [hookStart, hookEnd];
       sourceScenes = [{
         clip_id: isActionBeat ? `${slotId}_action_clip` : `${slotId}_teaser_clip`,
         scene_id: isActionBeat ? 'action_beat' : 'cold_open_teaser',
-        start: secondsToTimecode(teaserStart),
-        end: secondsToTimecode(teaserEnd),
+        start: secondsToTimecode(hookStart),
+        end: secondsToTimecode(hookEnd),
         speed_multiplier: 1
       }];
       // Degenerate hint (end==start) makes parse_story_anchor_range bail, so the auto-picker
       // leaves our explicit muted-teaser source_scenes untouched.
-      sourceRangeHint = [teaserStart, teaserStart];
-      if (!isActionBeat) assignedBrollRanges.push([teaserStart, teaserEnd]); // action beats pre-reserved above
-      if (isColdOpen) hookFallbackRange = [teaserStart, teaserEnd];
+      sourceRangeHint = [hookStart, hookStart];
+      if (!isActionBeat) assignedBrollRanges.push([hookStart, hookEnd]); // action beats pre-reserved above
+      if (isColdOpen) hookFallbackRange = [hookStart, hookEnd];
     } else {
       // Non-cold-open narration: pick explicit NON-OVERLAPPING b-roll from the beat window (free of
       // dialogue clips and other narration b-roll), with a degenerate hint so the picker declines.
@@ -1251,6 +1323,80 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
         winEnd = Math.min(winEnd, footageEndSec);
         winStart = Math.min(winStart, winEnd);
       }
+      // 장면 우선 작문 (2026-09-07, 소유주 재설계): 작가가 문장마다 고른 앵커 초가 fills에
+      // 실려 온다. 픽커 추론 대신 그 좌표로 문장별 클립을 깐다 - "문장이 데려온 화면"이라
+      // 어긋남이 태어나지 않는다. 앵커가 없거나 비면 아래 기존 픽커 경로 그대로.
+      // 렌더 결합표 v1 (scene-evidence-architecture #3): 문장별 clip_window 를 그대로 클립으로.
+      // 앵커 한 점보다 우선한다 - 사건 구간과 시간상이 작가 단계에서 이미 고정돼 있다.
+      const sentenceBindings = (Array.isArray(fill.narration_bindings) ? fill.narration_bindings : [])
+        .filter((b) => Array.isArray(b.clip_window) && b.clip_window.length === 2
+          && Number(b.clip_window[1]) > Number(b.clip_window[0]));
+      if (sentenceBindings.length && winEnd > winStart) {
+        const clips = [];
+        for (let bi = 0; bi < sentenceBindings.length; bi += 1) {
+          const b = sentenceBindings[bi];
+          let s0 = Math.max(winStart, Number(b.clip_window[0]));
+          let e0 = Math.min(winEnd, Number(b.clip_window[1]));
+          if (footageEndSec > 0) e0 = Math.min(e0, footageEndSec);
+          if (!(e0 - s0 >= 1.0)) continue;
+          // 대사 클립은 예약 창에 pre/post-roll 패딩(~0.5-0.9s)이 붙어 최종 클립이 창보다
+          // 넓다 - 원시 창만 빼면 0.4s 꼬리 침범이 남는다(QP 신선런 실측). ±1.0s 패딩 회피.
+          const paddedReserved = reservedDialogueRanges.map(([rs, re2]) => [rs - 1.0, re2 + 1.0]);
+          const freePieces = subtractBusyRanges(s0, e0, [...paddedReserved, ...assignedBrollRanges])
+            .filter(([fs, fe]) => fe - fs >= 1.0);
+          if (!freePieces.length) continue;
+          const [fs, fe] = freePieces[0];
+          clips.push({ clip_id: `${slotId}_bind_${String(bi + 1).padStart(2, '0')}`, scene_id: 'narration_broll',
+            start: secondsToTimecode(fs), end: secondsToTimecode(fe), speed_multiplier: 1 });
+          assignedBrollRanges.push([fs, fe]);
+        }
+        if (clips.length) {
+          sourceRange = [
+            Math.min(...clips.map((c) => Number(c.start.split(':').reduce((a, v) => a * 60 + Number(v), 0)))),
+            Math.max(...clips.map((c) => Number(c.end.split(':').reduce((a, v) => a * 60 + Number(v), 0))))
+          ];
+          sourceScenes = clips;
+          sourceRangeHint = [sourceRange[0], sourceRange[0]];
+        }
+      }
+      const anchorSecs = (Array.isArray(sourceScenes) && sourceScenes.length ? [] : (Array.isArray(fill.narration_anchor_secs) ? fill.narration_anchor_secs : []))
+        .map(Number).filter((v) => Number.isFinite(v) && v >= 0)
+        .map((v) => Math.min(Math.max(v, winStart), Math.max(winStart, winEnd - 1.2)))
+        .sort((a, b) => a - b);
+      if (anchorSecs.length && winEnd > winStart) {
+        const sentences = normalizeText(fill.narration || '').split(/(?<=[.?!…。])\s+/).filter(Boolean);
+        const estimate = (text) => Math.max(1.6, Math.min(8, text.replace(/\s+/g, '').length * 0.16 + 0.6));
+        const clips = [];
+        const clipEnds = [];
+        for (let ai = 0; ai < anchorSecs.length; ai += 1) {
+          const startAt = ai === 0 ? anchorSecs[ai]
+            : Math.max(anchorSecs[ai], clipEnds.length ? clipEnds[clipEnds.length - 1] : anchorSecs[ai]);
+          const wantDur = estimate(sentences[ai] || sentences[sentences.length - 1] || '');
+          let endAt = startAt + wantDur + 0.4;
+          if (ai + 1 < anchorSecs.length) endAt = Math.min(endAt, anchorSecs[ai + 1]);
+          endAt = Math.min(endAt, winEnd);
+          if (footageEndSec > 0) endAt = Math.min(endAt, footageEndSec);
+          if (endAt - startAt < 1.0) continue;
+          // 앵커도 예약구간(대사 클립·기배정 b-roll)은 피해야 한다 - 콜드오픈이 뒷부분 대사를
+          // 재생하는 소스에서 S04 앵커가 그 예약을 0.5초 물어 cross_segment_overlap으로 죽었다.
+          const freePieces = subtractBusyRanges(startAt, endAt, [...reservedDialogueRanges, ...assignedBrollRanges])
+            .filter(([fs, fe]) => fe - fs >= 1.0);
+          if (!freePieces.length) continue;
+          const [freeStart, freeEnd] = freePieces[0];
+          clips.push({ clip_id: `${slotId}_anchor_${String(ai + 1).padStart(2, '0')}`, scene_id: 'narration_broll',
+            start: secondsToTimecode(freeStart), end: secondsToTimecode(freeEnd), speed_multiplier: 1 });
+          clipEnds.push(freeEnd);
+          assignedBrollRanges.push([freeStart, freeEnd]);
+        }
+        if (clips.length) {
+          sourceRange = [anchorSecs[0], clipEnds[clipEnds.length - 1]];
+          sourceScenes = clips;
+          sourceRangeHint = [sourceRange[0], sourceRange[0]];
+        } else {
+          warnings.push(`${slotId} (${role}) narration anchors produced no playable clips; falling back to picker`);
+        }
+      }
+      if (!Array.isArray(sourceScenes) || !sourceScenes.length) {
       const narrationNeedSec = Number(item.narration_estimated_duration_sec || item.estimated_duration_sec || 0);
       let broll = (winEnd > winStart) ? pickNarrationBroll(winStart, winEnd, narrationNeedSec) : null;
       // The clip may not outlast the narration it plays under (the layers below fit the whole
@@ -1290,6 +1436,7 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
         }
       }
       sourceRangeHint = [sourceRange[0], sourceRange[0]]; // degenerate -> auto-picker declines
+      }
     }
 
     slots.push({
@@ -1301,7 +1448,11 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
       duration: Number((sourceRange[1] - sourceRange[0]).toFixed(3)),
       scene_summary: normalizeText(item.reason || role),
       scene_ids: [],
-      tts_budget_sec: isSceneHook ? [0, 0] : [Number(item.narration_estimated_duration_sec || item.estimated_duration_sec || 0), Number(item.estimated_duration_sec || 0)],
+      // Lower bound 0 for a narrated action beat: the clip is sized by the action, never pulled
+      // back to the length of the sentence read over it.
+      tts_budget_sec: isSceneHook
+        ? [0, narratedActionBeat ? Number(item.estimated_duration_sec || 0) : 0]
+        : [Number(item.narration_estimated_duration_sec || item.estimated_duration_sec || 0), Number(item.estimated_duration_sec || 0)],
       narration_background: true,
       dialogue_heavy_role: role
     });
@@ -1320,11 +1471,11 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
       source_type: 'NARRATE',
       translation_mode: '',
       utt_id: '',
-      tts_enabled: !isSceneHook,
+      tts_enabled: keepsText,
       narration,
       dialogue_original: '',
       translated_caption_ko: '',
-      caption_text: isSceneHook ? '' : (captionKr || narration),
+      caption_text: keepsText ? (captionKr || narration) : '',
       story_anchor: { source_range_hint: sourceRangeHint, scene_refs: [] },
       // Nothing may be cut from the channel's self-promo tail. Every b-roll path above picks its
       // range from a different source (beat window, hook fallback, global gap), and the closing
@@ -1335,6 +1486,8 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
       edit_instruction: defaultEditInstruction(role || 'narration'),
       // Exempts narration b-roll from the reserved-range gate's narration_overlaps_dialogue_map rule.
       narration_background: true,
+      ...(Array.isArray(fill.narration_bindings) && fill.narration_bindings.length
+        ? { narration_bindings: fill.narration_bindings } : {}),
       ...(storyCards.length ? { story_cards: storyCards } : {})
     });
   }
@@ -1444,7 +1597,17 @@ function assembleBootstrapArtifacts(runIdOrPath, options = {}) {
   // got replayed over it.
   const bootstrapSourceCasePath = path.join(runDir, 'source_case.json');
   const bootstrapSourceCase = fs.existsSync(bootstrapSourceCasePath) ? readJson(bootstrapSourceCasePath) : null;
-  const declaredUsableEndSec = bootstrapSourceCase && bootstrapSourceCase.promo_tail_declared === true
+  // A frame-measured boundary counts as declared even without the flag. promo_tail_source
+  // "visual_endcard" means the python detector SAW the card, which is stronger evidence than the
+  // caption classifier - and the caption classifier cannot see it at all, because an end card
+  // carries no dialogue. Requiring promo_tail_declared threw 394.5 away, fell back to caption
+  // detection that found no tail, and left every downstream clamp with a limit of 0: a clip ran
+  // to 396.3 and put a frame of the film's end credits on screen (Draft Day, 2026-09-03).
+  const frameMeasuredTail = bootstrapSourceCase
+    && String(bootstrapSourceCase.promo_tail_source || '') === 'visual_endcard'
+    && Number(bootstrapSourceCase.usable_end_sec) > 0;
+  const declaredUsableEndSec = bootstrapSourceCase
+    && (bootstrapSourceCase.promo_tail_declared === true || frameMeasuredTail)
     && Number(bootstrapSourceCase.usable_end_sec) > 0 ? Number(bootstrapSourceCase.usable_end_sec) : 0;
   // Drop foreign utterances from a clip BEFORE the VAD trim: if a window straddles two cues, the
   // VAD trim would keep both (they are continuous speech) and the extra voice ships uncaptioned.

@@ -457,8 +457,16 @@ function normalizeDraftSpecSourceRanges(draftSpec, baseDraftInput = {}, options 
       // Dialogue/scene-hook slots play their true source windows; pin the placement to
       // that span instead of packing it. It does not advance lastEnd — the windows act as
       // reserved obstacles for the b-roll packing below.
-      const start = Math.min(...fixedWindows.map((window) => window[0]));
-      const end = Math.max(...fixedWindows.map((window) => window[1]));
+      let start = Math.min(...fixedWindows.map((window) => window[0]));
+      let end = Math.max(...fixedWindows.map((window) => window[1]));
+      // 핀 경로는 아래 만능 usable-end 클램프에 닿지 않는다. ja 리플랜이 티저 창을
+      // +3.5s 밀어 엔드카드(380.87)를 넘긴 실측(QP S20 367.93-384.37) — 여기서도
+      // 같은 방식(시작을 함께 당겨 길이 보존)으로 자른다.
+      if (usableEndSec > 0 && end > usableEndSec + 0.05) {
+        const overflow = end - usableEndSec;
+        start = Math.max(0, start - overflow);
+        end = usableEndSec;
+      }
       return {
         ...placement,
         source_range: [Number(start.toFixed(3)), Number(end.toFixed(3))],
@@ -799,6 +807,7 @@ function normalizeDraftSpecSourceRanges(draftSpec, baseDraftInput = {}, options 
           if (boundary > partEnd + 0.05) break;
           if (boundary >= cursor + 1.0 && boundary < partEnd - 0.3) partEnd = boundary;
         }
+        if (usableEndSec > 0) partEnd = Math.min(partEnd, usableEndSec);
         if (partEnd - cursor >= 1.0) {
           extraRanges.push([Number(cursor.toFixed(3)), Number(partEnd.toFixed(3))]);
           remainingSec -= (partEnd - cursor);
@@ -932,6 +941,15 @@ function applyDraftSpecToSegment(segment, placement) {
       ...segment,
       locale_clip_id: placement.clip_id || ''
     };
+  }
+  // 장면 우선 작문 (2026-09-07): 작가가 문장마다 박은 앵커 클립은 로케일 스펙이 위치를
+  // 재선정하면 안 된다 - 도쿄 파일럿에서 앵커(164s)가 스펙 창(137s)으로 통째 교체돼
+  // "문장이 데려온 화면"이 사라졌다. 앵커 세그먼트는 원 클립 보존, 길이 맞춤은 조립이
+  // TTS 실측으로 한다. (ja도 동일: 사건 위치 승계, 길이만 로케일 음성에 맞춤 - P2-1)
+  const hasAnchorScenes = (Array.isArray(segment.source_scenes) ? segment.source_scenes : [])
+    .some((scene) => /_anchor_/.test(String(scene?.clip_id || '')));
+  if (hasAnchorScenes) {
+    return { ...segment, locale_clip_id: placement.clip_id || '' };
   }
   // Scene-following montage: a narration slot may carry SEVERAL scene-snapped parts so its
   // later sentences play over their own scene instead of freezing on the first one.
@@ -1109,6 +1127,11 @@ function buildJapaneseScript(baseScript, japaneseSlotFills) {
     const fill = fillsBySlot.get(parentSlotIdForSegment(segment));
     const segmentType = String(segment?.segment_type || '').trim();
     if (!fill) {
+      if (/^topup_/.test(String(segment?.segment_id || '')) || segment?.runtime_topup === true) {
+        // 런타임 topup 은 ja fills 에 항목 자체가 없다 - 로케일 스킵 대신 세그먼트만 덜어낸다.
+        console.warn(`[ja-topup-drop] ${segment?.segment_id}: runtime topup without a ja fill - dropped from the ja script`);
+        return null;
+      }
       if (segmentType !== 'scene_hook') missing.push(String(segment?.segment_id || ''));
       return { ...segment };
     }
@@ -1128,17 +1151,33 @@ function buildJapaneseScript(baseScript, japaneseSlotFills) {
       return { ...segment, translated_caption_ko: text, caption_text: text, tts_enabled: text ? segment?.tts_enabled : false };
     }
     if (segmentType === 'scene_hook') {
+      const swapped = { ...segment };
       // Story cards are viewer-facing text: swap in the ja fill's cards positionally when present.
       if (Array.isArray(segment.story_cards) && segment.story_cards.length && Array.isArray(fill.cards) && fill.cards.length) {
-        return {
-          ...segment,
-          story_cards: segment.story_cards.map((card, index) => ({
-            ...card,
-            text: String(fill.cards[index] || card.text || '').trim() || card.text
-          }))
-        };
+        swapped.story_cards = segment.story_cards.map((card, index) => ({
+          ...card,
+          text: String(fill.cards[index] || card.text || '').trim() || card.text
+        }));
       }
-      return { ...segment };
+      // A narrated scene hook speaks (adapter rule 2026-09-05), so its sentence localizes like
+      // any recap segment - this branch used to swap only the cards, which would have sent the
+      // KOREAN sentence to the ja TTS the moment narrated hooks stopped being silent.
+      if (segment?.tts_enabled === true && String(segment?.narration || '').trim()) {
+        const jaNarration = String(fill.narration || '').trim();
+        if (jaNarration) {
+          swapped.narration = jaNarration;
+          swapped.caption_text = String(fill.caption_kr || '').trim() || jaNarration;
+        } else if (/^topup_/.test(String(segment?.segment_id || '')) || segment?.runtime_topup === true) {
+          // 런타임 topup 은 ko 드래프트가 즉석 생성한 패딩이라 ja fills 에 존재할 수 없다.
+          // 이 한 세그먼트 때문에 로케일 전체가 스킵되어 낡은 draft_ja 가 게이트를 계속
+          // 오염시켰다 (topup_03, QP 3연속 실측). ja 에서는 그 세그먼트만 덜어낸다.
+          console.warn(`[ja-topup-drop] ${segment?.segment_id}: no ja text for a runtime topup - dropping it from the ja script`);
+          return null;
+        } else {
+          missing.push(String(segment?.segment_id || ''));
+        }
+      }
+      return swapped;
     }
     const narration = String(fill.narration || '').trim();
     const caption = String(fill.caption_kr || '').trim() || narration;
@@ -1146,9 +1185,15 @@ function buildJapaneseScript(baseScript, japaneseSlotFills) {
     // text. A KEEP_DIALOGUE slot can still carry an empty narration segment in the ko script, and
     // treating that as untranslated skipped the whole Japanese locale over a segment with nothing in it.
     const koNarration = String(segment?.narration || segment?.caption_text || '').trim();
-    if (!narration && koNarration) missing.push(String(segment?.segment_id || ''));
+    if (!narration && koNarration) {
+      if (/^topup_/.test(String(segment?.segment_id || '')) || segment?.runtime_topup === true) {
+        console.warn(`[ja-topup-drop] ${segment?.segment_id}: no ja text for a runtime topup - dropping it from the ja script`);
+        return null;
+      }
+      missing.push(String(segment?.segment_id || ''));
+    }
     return { ...segment, narration, caption_text: caption, translated_caption_ko: '' };
-  });
+  }).filter(Boolean);
   if (missing.length) {
     throw new Error(`Japanese script is missing text for segments: ${missing.slice(0, 10).join(', ')}`);
   }
@@ -1440,6 +1485,15 @@ function applyLoudnessAlignment(draftContentPath, alignment) {
 
 async function generateLocaleDraftArtifacts({ workspaceDir, baseDraftInputPath, sourceVideoPath, transcriptPath, baseScriptPath, japaneseSlotFillsPath, usableEndSec = 0, draftGenerator = generateLocaleDraftFromInput }) {
   const baseDraftInput = readJson(baseDraftInputPath);
+  // The caller measures the usable end and passes it here, but every clamp downstream reads it
+  // off the draft input - which the pipeline never writes it into. So readUsableEndSec returned
+  // 0, and each clamp that depends on it (including the "last line of defense" one) was inert:
+  // Draft Day shipped a clip running to 396.3s against a 394.5s boundary and put a frame of the
+  // film's end credits on screen (2026-09-03). Stamp the measured value onto the object the
+  // clamps actually read, without overwriting one the file already carries.
+  if (baseDraftInput && Number(usableEndSec) > 0 && !(Number(baseDraftInput.usableEndSec) > 0)) {
+    baseDraftInput.usableEndSec = Number(usableEndSec);
+  }
   // Stamp the measured footage end onto the input so every packing helper sees it.
   if (Number(usableEndSec) > 0) baseDraftInput.usableEndSec = Number(usableEndSec);
   // Shot boundaries ride on the base input so the sync packing helpers can snap to them.

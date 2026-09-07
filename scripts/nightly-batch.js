@@ -12,6 +12,8 @@
 //   3. install — copy each produced draft_ko/draft_ja to a FRESH dated CapCut folder
 //                (CapCut caches opened folders; never reuse a name).
 //   4. publish — auto-publish.js --prefix <tonight>: CapCut export, verification, slot upload.
+//   4b. fan-out — blotato-publish.js --prefix <tonight>: the same verified mp4 to Instagram/
+//                 TikTok/Threads/Facebook on the publishAt YouTube just got.
 // Everything lands in server/output/nightly-reports/<date>.md.
 const { spawnSync } = require('child_process');
 const fs = require('fs');
@@ -80,17 +82,29 @@ function latestScoutReport() {
   return JSON.parse(fs.readFileSync(path.join(SCOUT_REPORTS_DIR, files[files.length - 1]), 'utf8'));
 }
 
-// Prefer variety: one candidate per movie first, then refill from the remainder.
-function pickSources(candidates, count) {
-  const byMovie = new Map();
+// Prefer variety through the WHOLE queue, not just the first picks. The 2026-09-05 night tried
+// Sully four times and Troy three times back to back: only the primary picks were deduped by
+// movie, the 200-deep fallback tail kept scout order. Clips of the same movie tend to die the
+// same way (plan rules, missing subtitles), so after a failure the next attempt should be a
+// different movie. Round-robin across movies gives that; "part N" fragment titles go to the very
+// back — a scene fragment rarely survives the story gates however good the recap is.
+function roundRobinByMovie(candidates) {
+  const buckets = new Map();
   for (const candidate of candidates) {
     const key = candidate.movie?.key || candidate.id;
-    if (!byMovie.has(key)) byMovie.set(key, candidate);
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key).push(candidate);
   }
-  const primary = [...byMovie.values()].slice(0, count);
-  if (primary.length >= count) return primary;
-  const chosen = new Set(primary.map((c) => c.id));
-  return [...primary, ...candidates.filter((c) => !chosen.has(c.id))].slice(0, count);
+  const order = [];
+  let added = true;
+  while (added) {
+    added = false;
+    for (const bucket of buckets.values()) {
+      if (bucket.length) { order.push(bucket.shift()); added = true; }
+    }
+  }
+  const isFragment = (c) => /\bpart\s*\d+\b/i.test(String(c.title || ''));
+  return [...order.filter((c) => !isFragment(c)), ...order.filter(isFragment)];
 }
 
 function listTemplateRunDirs() {
@@ -340,6 +354,85 @@ function installDraft(templateRunDir, folderName) {
   return installed;
 }
 
+// ── TTS 잔량 프리플라이트 (2026-09-06) ──
+// 09-05 밤은 ElevenLabs 크레딧 0에서 시작해 14개 소스를 시도했고 9개가 TTS 조립에서 죽었다.
+// 소스마다 다운로드·STT·플랜·비전에 10~20분과 실비를 쓰고 나서 죽으니, 잔량은 produce 전에
+// 그리고 소스 사이마다 API로 직접 확인한다. API 오류·키 부재는 열어둔다(fail-open): 네트워크가
+// 잠깐 죽었다고 밤을 통째로 버리는 쪽이 더 비싸고, 진짜 고갈이면 어차피 첫 소스가 말해준다.
+const MIN_TTS_CHARS_PER_SOURCE = 4000; // ko+ja 한 쌍 실측 2~3.5k에 여유를 얹은 값
+
+async function ttsCharsRemaining() {
+  const key = process.env.ELEVENLABS_API_KEY || '';
+  if (!key) return null;
+  try {
+    const res = await fetch('https://api.elevenlabs.io/v1/user/subscription', { headers: { 'xi-api-key': key } });
+    if (!res.ok) return null;
+    const sub = await res.json();
+    return Number(sub.character_limit || 0) - Number(sub.character_count || 0);
+  } catch { return null; }
+}
+
+// ── 큐 재시도 패스 (2026-09-06) ──
+// production_failure_queue.json 은 쓰는 곳만 있고 읽는 자동화가 없었다 — "아침 수술 대기"가
+// 곧 사람 손이었고 32건이 적체됐다. TTS 고갈로 죽은 항목은 compress·플랜·게이트 산출물이
+// 전부 살아 있어서 --resume draft 만으로 이어진다(크레딧이 돌아왔을 때). hold=true 는 소유주가
+// 보류한 소스이니 건드리지 않는다. 성공하면 설치까지 하고 큐에서 지운다.
+function queuedTtsRetries() {
+  // 배급사 대장은 큐에도 적용된다: 큐에 들어간 뒤 카탈로그가 banned 로 바뀐 영화(09-06 실측:
+  // 32건 중 18건이 Lionsgate 계열)를 재시도하면 차단될 영상에 TTS 크레딧을 태우는 것이다.
+  let catalog = {};
+  try { catalog = JSON.parse(fs.readFileSync(path.join(ROOT, 'midform', 'config', 'movie_catalog.json'), 'utf8')).movies || {}; }
+  catch { /* no catalog - no tier filter */ }
+  return (readFailureQueue().entries || []).filter((entry) => {
+    if (entry.hold === true) return false;
+    if ((catalog[entry.movie] || {}).distributor_tier === 'banned') return false;
+    if (!entry.template_path || !entry.workspace_dir) return false;
+    try { return JSON.parse(entry.failure).code === 'MIDFORM_TTS_ASSEMBLY_FAILED'; }
+    catch { return false; }
+  });
+}
+
+function removeFromQueue(sourceId) {
+  const queue = readFailureQueue();
+  queue.entries = (queue.entries || []).filter((e) => e.source_id !== sourceId);
+  fs.writeFileSync(FAILURE_QUEUE_PATH, JSON.stringify(queue, null, 2), 'utf8');
+}
+
+function retryTtsQueue(guard, lines, prefix, installedFolders) {
+  const entries = queuedTtsRetries();
+  if (!entries.length) return 0;
+  console.log(`[stage] queue retry: ${entries.length} TTS-failed source(s)`);
+  lines.push(`- 큐 재시도 (TTS 실패 ${entries.length}건):`);
+  let revived = 0;
+  for (const entry of entries) {
+    if (guard.expired()) { lines.push('  - DEADLINE — 남은 큐는 다음 밤으로'); break; }
+    const budgetMs = Math.max(60_000, guard.remainMin() * 60_000);
+    const result = spawnSync('node', [
+      path.join(ROOT, 'scripts', 'midform.js'), 'run',
+      '--template', entry.template_path, '--resume', 'draft'
+    ], { encoding: 'utf8', timeout: budgetMs, cwd: ROOT });
+    const summary = readJsonQuiet(path.join(TEMPLATE_RUNS_DIR, entry.workspace_dir, 'run_summary.json'));
+    // 워크스페이스 해시는 템플릿 내용의 함수라 다른 소스가 같은 폴더를 쓸 수 있다(casebook 17).
+    // 설치 전에 이 요약이 정말 이 항목의 것인지 template_path로 대조한다.
+    const ours = summary && String(summary.template_path || '') === String(entry.template_path);
+    if (result.status === 0 && ours && summary.status && summary.status.startsWith('passed')) {
+      const folderName = `${prefix}-${entry.movie || 'movie'}-${String(entry.source_id).slice(0, 6)}`;
+      const installed = installDraft(path.join(TEMPLATE_RUNS_DIR, entry.workspace_dir), folderName);
+      installedFolders.push(...installed);
+      removeFromQueue(entry.source_id);
+      revived += 1;
+      lines.push(`  - 부활: [${entry.movie}] ${String(entry.title).slice(0, 50)} → ${installed.join(', ') || '설치 없음'}`);
+    } else {
+      const why = ours ? failureText(summary) : `exit ${result.status}; 워크스페이스 불일치 또는 요약 없음`;
+      lines.push(`  - 실패 유지: [${entry.movie}] ${String(entry.title).slice(0, 50)} — ${String(why).slice(0, 120)}`);
+      if (ours && summary.status === 'failed') {
+        recordFailure({ ...entry, failed_at: new Date().toISOString(), failure: failureText(summary) });
+      }
+    }
+  }
+  return revived;
+}
+
 async function main() {
   const args = parseArgs(process.argv);
   const guard = makeDeadlineGuard(args.deadlineHour);
@@ -384,25 +477,47 @@ async function main() {
   // as fallbacks. A gate-failed source costs its own minutes, not the night's quota — the
   // batch keeps pulling candidates until `sources` of them SUCCEED or the deadline lands
   // (2026-08-20 daytime trial: one source burned 35min on a caption gate and shipped nothing).
-  const primary = pickSources(candidates, args.sources);
-  const primaryIds = new Set(primary.map((c) => c.id));
-  const queue = [...primary, ...candidates.filter((c) => !primaryIds.has(c.id))];
+  const queue = roundRobinByMovie(candidates);
+  const primary = queue.slice(0, args.sources);
   lines.push(`- 후보 ${candidates.length}건, 목표 ${args.sources}개 성공 (예비 ${queue.length - primary.length}건):`,
     ...primary.map((c) => `  - [${c.movie?.key}] ${c.title} — ${c.url}`));
   console.log(`queue ${queue.length} candidate(s), target ${args.sources} success(es)`);
-  if (!queue.length) { finish('no_candidates'); return; }
   if (args.dryRun) { finish('dry_run'); return; }
 
   // 2-3. Produce + install: walk the queue until `sources` candidates SUCCEED (a failed one
   //  costs only its own minutes) or the deadline lands.
   const installedFolders = [];
   if (!args.skipProduce) {
+    // TTS 잔량이 밤 전체의 선행 조건이다 — 부족하면 produce 도 큐 재시도도 시작하지 않는다.
+    let ttsRemaining = await ttsCharsRemaining();
+    if (ttsRemaining !== null) lines.push(`- TTS 잔량: ${ttsRemaining.toLocaleString()}자`);
+    if (ttsRemaining !== null && ttsRemaining < MIN_TTS_CHARS_PER_SOURCE) {
+      lines.push(`- **TTS 잔량 부족** (< ${MIN_TTS_CHARS_PER_SOURCE}) — 크레딧 충전 전에는 소스를 태우지 않는다.`);
+      finish('tts_exhausted');
+      return;
+    }
+
+    // 1.5 큐 재시도: 새 소스보다 싸다 — compress·플랜·게이트는 이미 지불했다.
+    retryTtsQueue(guard, lines, prefix, installedFolders);
+
+    if (!queue.length && !installedFolders.length) { finish('no_candidates'); return; }
+
     const { runMidformFullAutoWorkflow } = require('../server/services/midformFullAutoService');
     let successes = 0;
     let attempts = 0;
+    const succeededMovies = new Set();
     for (const candidate of queue) {
       if (successes >= args.sources) break;
       if (guard.expired()) { lines.push(`- DEADLINE with ${successes}/${args.sources} succeeded`); break; }
+      // 하룻밤에 같은 영화 두 편은 없다 — 채널이 하루 두 슬롯이라도 영화는 갈라 싣는다.
+      const movieKey = candidate.movie?.key || candidate.id;
+      if (succeededMovies.has(movieKey)) continue;
+      // 소스 사이 재확인: 밤 중간 고갈이면 다음 소스를 태우기 전에 멈춘다.
+      ttsRemaining = await ttsCharsRemaining();
+      if (ttsRemaining !== null && ttsRemaining < MIN_TTS_CHARS_PER_SOURCE) {
+        lines.push(`- TTS 잔량 소진 (${ttsRemaining}자) — ${successes}/${args.sources} 성공에서 중단`);
+        break;
+      }
       attempts += 1;
       console.log(`[stage] produce attempt ${attempts} (${successes}/${args.sources} ok): ${candidate.title} (${guard.remainMin()}min left)`);
       const before = listTemplateRunDirs();
@@ -516,6 +631,7 @@ async function main() {
       }
       if (installedForCandidate > 0) {
         successes += 1;
+        succeededMovies.add(movieKey);
         // A source that came back on a later night must not stay on the morning list.
         const queue = readFailureQueue();
         if ((queue.entries || []).some((e) => e.source_id === candidate.id)) {
@@ -556,7 +672,63 @@ async function main() {
   console.log(String(publish.stdout || '').slice(-1500));
   lines.push(`- publish: exit=${publish.status}`,
     ...String(publish.stdout || '').trim().split('\n').slice(-12).map((line) => `  ${line}`));
-  finish(publish.status === 0 ? 'ok' : 'publish_failed');
+
+  // 4b. Social fan-out, inheriting the publishAt auto-publish just wrote so every platform lands
+  //     on one clock. Nothing called blotato-publish.js - not this batch, not auto-publish, not
+  //     any scheduled task - so the reach axis shipped only when a session happened to type the
+  //     second command by hand. War Dogs reached one YouTube channel and nowhere else
+  //     (2026-09-04). A failure here is reported, never fatal: the YouTube schedule is already
+  //     good, and the fan-out is re-runnable by prefix.
+  if (publish.status === 0) {
+    if (guard.expired()) {
+      lines.push(`- social fan-out: SKIP (deadline) — 손으로 \`blotato-publish.js --prefix ${prefix}\` 실행할 것`);
+    } else {
+      console.log(`[stage] social fan-out (${guard.remainMin()}min left)`);
+      let social = spawnSync('node', [path.join(ROOT, 'scripts', 'blotato-publish.js'), '--prefix', prefix],
+        { encoding: 'utf8', timeout: Math.max(10, Math.min(guard.remainMin(), 60)) * 60 * 1000, stdio: ['ignore', 'pipe', 'pipe'] });
+      console.log(String(social.stdout || '').slice(-1200));
+      lines.push(`- social fan-out: exit=${social.status}`,
+        ...String(social.stdout || '').trim().split('\n').slice(-12).map((line) => `  ${line}`));
+      // P0-4: 부분 실패는 사람 손이 아니라 여기서 만회한다. state 가 draft+platform 멱등이라
+      // 재실행은 실패한 플랫폼만 다시 쏜다. 1회로 제한 - 같은 원인이면 세 번째도 실패한다.
+      if (social.status !== 0 && !guard.expired()) {
+        console.log('[stage] social fan-out retry (partial failure)');
+        social = spawnSync('node', [path.join(ROOT, 'scripts', 'blotato-publish.js'), '--prefix', prefix],
+          { encoding: 'utf8', timeout: Math.max(10, Math.min(guard.remainMin(), 30)) * 60 * 1000, stdio: ['ignore', 'pipe', 'pipe'] });
+        lines.push(`- social fan-out retry: exit=${social.status}`,
+          ...String(social.stdout || '').trim().split('\n').slice(-8).map((line) => `  ${line}`));
+      }
+      if (social.status !== 0) {
+        lines.push('', '**확산 발행 실패(재시도 포함) — 유튜브에만 나갔다.** 프리픽스로 재실행할 것.');
+      }
+    }
+  }
+
+  // 5. Content ID layer 3, on the uploads this run just scheduled. Uploads go up private with a
+  //    publishAt, and the whole point of that gap is to look before it goes public - which is
+  //    exactly what nobody did on 2026-09-01, when a claimed pair published into a worldwide
+  //    block and earned zero views. The claim shows up in videos.list as a region block, so the
+  //    look does not need a human.
+  //
+  //    It can only REPORT: cancelling a schedule needs the youtube.force-ssl scope and the
+  //    stored tokens carry upload+readonly. So a block found here still needs someone to pull
+  //    the schedule before the slot - the report says which video, and the run is marked
+  //    blocked_detected so the morning glance cannot miss it.
+  let claimVerdict = '';
+  if (publish.status === 0 && !guard.expired()) {
+    const claims = spawnSync('node', [path.join(ROOT, 'scripts', 'check-claims.js')],
+      { encoding: 'utf8', timeout: 10 * 60 * 1000, stdio: ['ignore', 'pipe', 'pipe'] });
+    const out = String(claims.stdout || '').trim();
+    console.log(out.slice(-1200));
+    lines.push('', '- content id 확인:', ...out.split('\n').slice(0, 14).map((line) => `  ${line}`));
+    // check-claims exits 1 when anything came back blocked.
+    if (claims.status === 1) {
+      claimVerdict = 'blocked_detected';
+      lines.push('', '**차단 감지 — 공개 전에 예약을 해제할 것.** 그대로 두면 조회 0으로 공개된다.');
+    }
+  }
+
+  finish(publish.status === 0 ? (claimVerdict || 'ok') : 'publish_failed');
 }
 
 // The morning pass works the same failure queue with the same classification, so it imports these

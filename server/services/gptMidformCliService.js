@@ -4,6 +4,8 @@ const crypto = require('crypto');
 const { spawn, spawnSync, execFileSync } = require('child_process');
 const { createHttpError } = require('./errorService');
 const { condenseGeminiAnalysis } = require('./midformSceneCondensationService');
+// python/ffmpeg are not on this machine's PATH; `where python` returns an unrunnable store stub.
+const { resolveTool, getToolEnv } = require('../utils/toolPaths');
 
 const PROJECT_ROOT = path.join(__dirname, '../..');
 const MIDFORM_SCHEMA_PATH = path.join(PROJECT_ROOT, 'midform', 'schemas', 'midform_script_schema.json');
@@ -13,6 +15,7 @@ const MIDFORM_NATURALIZATION_VALIDATION_SCHEMA_PATH = path.join(PROJECT_ROOT, 'm
 const MIDFORM_CLOSING_DRIP_VALIDATION_SCHEMA_PATH = path.join(PROJECT_ROOT, 'midform', 'schemas', 'closing_drip_validation_schema.json');
 const MIDFORM_FRAME_VERDICT_SCHEMA_PATH = path.join(PROJECT_ROOT, 'midform', 'schemas', 'midform_frame_verdict_schema.json');
 const MIDFORM_SCENE_BATCH_SCHEMA_PATH = path.join(PROJECT_ROOT, 'midform', 'schemas', 'midform_scene_batch_schema.json');
+const MIDFORM_EVENT_SELECTION_SCHEMA_PATH = path.join(PROJECT_ROOT, 'midform', 'schemas', 'midform_event_selection_schema.json');
 const MIDFORM_DIALOGUE_AUDIT_SCHEMA_PATH = path.join(PROJECT_ROOT, 'midform', 'schemas', 'midform_dialogue_audit_schema.json');
 const MIDFORM_COMPRESSION_BEATS_SCHEMA_PATH = path.join(PROJECT_ROOT, 'midform', 'schemas', 'midform_compression_beats_schema.json');
 const MIDFORM_COMPRESSION_EDIT_PLAN_SCHEMA_PATH = path.join(PROJECT_ROOT, 'midform', 'schemas', 'midform_compression_edit_plan_schema.json');
@@ -161,6 +164,7 @@ function safeOutputSchemaPath(outputSchemaPath) {
     MIDFORM_SLOT_FILLS_SCHEMA_PATH,
     MIDFORM_FRAME_VERDICT_SCHEMA_PATH,
     MIDFORM_SCENE_BATCH_SCHEMA_PATH,
+    MIDFORM_EVENT_SELECTION_SCHEMA_PATH,
     MIDFORM_DIALOGUE_AUDIT_SCHEMA_PATH,
     MIDFORM_STORY_OUTLINE_SCHEMA_PATH,
     MIDFORM_NATURALIZATION_VALIDATION_SCHEMA_PATH,
@@ -2552,14 +2556,29 @@ async function generateJsonWithCodex({ prompt, responseSchema, model, reasoningE
 }
 
 // --- vision scene map without a video upload -------------------------------------------------
-// Vertex watched the whole mp4; Codex takes images only. Sampling decides how faithful the
-// replacement is, so the interval is measured rather than guessed: ffmpeg scene detection at
-// threshold 0.30 found 16 shots in a 534s source (one of them 152 seconds long) and cost 120s of
-// CPU, while the Vertex map for that same source has 76 scenes - about seven seconds each. Fixed
-// sampling at that period reproduces the granularity downstream relies on, deterministically and
-// for free (2026-08-24).
-const SCENE_SAMPLE_PERIOD_SEC = 7;
-const SCENE_FRAMES_PER_CALL = 12;
+// Vertex watched the whole mp4; Codex takes images only, so sampling decides how faithful the
+// replacement is.
+//
+// This used to be a flat 7-second grid, chosen on 2026-08-24 because ffmpeg scene detection ALONE
+// was too coarse (threshold 0.30 found 16 shots in a 534s source, one of them 152s long). That
+// reasoning was right about scene detection alone and wrong about the conclusion: a fixed grid
+// lands wherever it lands, spending three frames on one static wide while skipping the two-second
+// reaction that carries the beat.
+//
+// The owner specified the shape on 2026-09-06: a representative frame per CUT, plus a filler
+// frame every few seconds so no long shot goes unseen, the source timecode printed INTO each
+// frame, and the frames delivered as 20-cell contact sheets instead of loose images. Each part
+// pays for itself. The cut frames catch the beats the grid missed; the filler covers the 152s
+// shot; the printed timecode makes the frame-to-window mapping self-describing, where the old
+// "image N is line N of this listing" silently shifted every description after a dropped image;
+// and the sheet shows a cut with its neighbours, which is what a cut needs to be read as one.
+// The cut list is free - shot_boundaries.json is already cached beside every source for b-roll
+// snapping.
+const SCENE_FILL_PERIOD_SEC = 4;
+const SCENE_SHEET_COLS = 5;
+const SCENE_SHEET_ROWS = 4;
+const SCENE_SHEETS_PER_CALL = 1;
+const SCENE_MAX_FRAMES = 400;
 const SCENE_FRAME_WIDTH = 448;
 
 function probeDurationSec(videoPath) {
@@ -2570,20 +2589,64 @@ function probeDurationSec(videoPath) {
   return Number.isFinite(value) ? value : 0;
 }
 
+function runPythonJson(scriptRelPath, args, timeoutMs = 600000) {
+  const python = resolveTool('python', { envKey: 'PYTHON_PATH' });
+  const res = spawnSync(python, [path.join(PROJECT_ROOT, scriptRelPath), ...args],
+    { encoding: 'utf8', env: getToolEnv(), timeout: timeoutMs, maxBuffer: 32 * 1024 * 1024 });
+  const text = String(res.stdout || '').trim();
+  if (!text) return null;
+  try { return JSON.parse(text); } catch { return extractJson(text); }
+}
+
+function planSceneSamples(videoPath, durationSec) {
+  // --video lets the planner detect and CACHE the cuts when this runs before b-roll snapping has
+  // built them, which on a new source is always. The snapper reads the same file afterwards.
+  const args = ['--duration', String(durationSec),
+    '--fill-sec', String(SCENE_FILL_PERIOD_SEC),
+    '--max-frames', String(SCENE_MAX_FRAMES),
+    '--boundaries', `${videoPath}.shot_boundaries.json`,
+    '--video', videoPath];
+  // 행동 샷 가변 샘플링 (scene-evidence-architecture, 2026-09-07): 에너지 피크 구간은 0.4s
+  // 스트립으로 밀집 - 총을 뽑고 쏘는 2초를 한 장으로 대표하면 사건의 시간상이 지도에서 사라진다.
+  const energyPath = path.join(path.dirname(videoPath), 'energy_profile.json');
+  if (fs.existsSync(energyPath)) args.push('--energy', energyPath);
+  const plan = runPythonJson('midform/scripts/plan_scene_samples.py', args, 1800000);
+  if (plan && Array.isArray(plan.samples) && plan.samples.length) return plan;
+  // A missing planner must not take the vision pass down with it - fall back to the flat grid
+  // this replaced.
+  const samples = [];
+  for (let t = 0; t < durationSec; t += SCENE_FILL_PERIOD_SEC) {
+    samples.push({
+      at_sec: Math.min(durationSec - 0.1, t + SCENE_FILL_PERIOD_SEC / 2),
+      start_sec: Number(t.toFixed(3)),
+      end_sec: Number(Math.min(durationSec, t + SCENE_FILL_PERIOD_SEC).toFixed(3)),
+      reason: 'fill'
+    });
+  }
+  return { samples, boundaries_used: 0, cut_samples: 0, fill_samples: samples.length, fallback: true };
+}
+
 function extractSceneFrames(videoPath, workDir, durationSec) {
   ensureDir(workDir);
+  const plan = planSceneSamples(videoPath, durationSec);
   const frames = [];
-  for (let t = 0; t < durationSec; t += SCENE_SAMPLE_PERIOD_SEC) {
-    const mid = Math.min(durationSec - 0.1, t + SCENE_SAMPLE_PERIOD_SEC / 2);
+  for (const sample of plan.samples) {
     const file = path.join(workDir, `scene_${String(frames.length).padStart(4, '0')}.jpg`);
     const res = spawnSync(process.env.FFMPEG_PATH || 'ffmpeg',
-      ['-y', '-loglevel', 'error', '-ss', mid.toFixed(3), '-i', videoPath,
+      ['-y', '-loglevel', 'error', '-ss', Number(sample.at_sec).toFixed(3), '-i', videoPath,
         '-frames:v', '1', '-vf', `scale=${SCENE_FRAME_WIDTH}:-2`, file],
       { encoding: 'utf8', timeout: 120000 });
     if (res.status === 0 && fs.existsSync(file)) {
-      frames.push({ file, start_sec: Number(t.toFixed(3)), end_sec: Number(Math.min(durationSec, t + SCENE_SAMPLE_PERIOD_SEC).toFixed(3)) });
+      frames.push({
+        file,
+        start_sec: Number(Number(sample.start_sec).toFixed(3)),
+        end_sec: Number(Number(sample.end_sec).toFixed(3)),
+        at_sec: Number(Number(sample.at_sec).toFixed(3)),
+        reason: String(sample.reason || 'fill')
+      });
     }
   }
+  frames.plan = plan;
   return frames;
 }
 
@@ -2617,57 +2680,108 @@ async function buildSceneMapWithCodex({ videoPath, transcript = [], sourceId = '
     throw createHttpError(500, 'CODEX_SCENE_MAP_NO_FRAMES', 'frame extraction produced nothing');
   }
 
+  const sheetDir = path.join(workDir, 'sheets');
+  const framesJson = path.join(workDir, 'frames.json');
+  fs.writeFileSync(framesJson, JSON.stringify(frames.map(
+    ({ file, start_sec, end_sec }) => ({ file, start_sec, end_sec })
+  )), 'utf8');
+  const built = runPythonJson('midform/scripts/build_contact_sheets.py', [
+    '--frames', framesJson, '--out-dir', sheetDir,
+    '--cols', String(SCENE_SHEET_COLS), '--rows', String(SCENE_SHEET_ROWS),
+    '--cell-width', String(SCENE_FRAME_WIDTH)
+  ]);
+  const sheets = Array.isArray(built?.sheets) ? built.sheets : [];
+  if (!sheets.length) {
+    throw createHttpError(500, 'CODEX_SCENE_MAP_NO_SHEETS', 'contact sheet assembly produced nothing');
+  }
+
   const scenes = [];
+  const byLabel = new Map();
   try {
-    for (let offset = 0; offset < frames.length; offset += SCENE_FRAMES_PER_CALL) {
-      const batch = frames.slice(offset, offset + SCENE_FRAMES_PER_CALL);
-      const listing = batch
-        .map((frame, i) => `${i + 1}. ${frame.start_sec.toFixed(1)}s-${frame.end_sec.toFixed(1)}s`)
-        .join('\n');
+    for (let offset = 0; offset < sheets.length; offset += SCENE_SHEETS_PER_CALL) {
+      const group = sheets.slice(offset, offset + SCENE_SHEETS_PER_CALL);
+      const cells = group.flatMap((sheet) => sheet.cells);
+      const listing = cells.map((cell) => `- ${cell.label}`).join('\n');
       const prompt = [
-        'The attached images are frames sampled from one video, in chronological order.',
-        'For each frame, describe ONLY what is visible - no story inference, no emotions, no names you cannot see.',
-        'Frames and the time window each one represents:',
+        'The attached image is a contact sheet: frames sampled from ONE video, laid out left to',
+        `right, top to bottom, in chronological order (${SCENE_SHEET_COLS} per row).`,
+        'The source timecode of each cell is printed in yellow under that cell.',
+        'For each cell, describe ONLY what is visible in it - no story inference, no emotions,',
+        'and no character names. You cannot know anyone\'s name from a frame; write "남자", "여자",',
+        '"수염 난 남자" and so on. A description that names someone will be rejected.',
+        'Copy the timecode of the cell you are describing EXACTLY as printed, so the description',
+        'cannot land on the wrong moment.',
+        'Timecodes present on this sheet:',
         listing,
         '',
-        'Return JSON: {"frames":[{"index":<1-based>,"visible_action":"<one sentence, Korean>","shot_type":"<wide|medium|close|insert|other>","characters_visible":<count of people you can see>}]}',
-        'Return exactly one entry per frame, in order.'
+        'For each cell also judge action_state - where this frame sits inside its action:',
+        '"before" (action has not begun), "onset" (it is just starting), "peak" (its strongest',
+        'moment), "result" (its aftermath), or "static" (no action - people standing/talking).',
+        'Neighbouring cells are your evidence: a raised gun in this cell and a fallen man in the',
+        'next means this one is onset/peak, not static. 명사·상태만 맞고 동사의 시간상이 틀리는',
+        'narration was the exact failure this field exists to prevent.',
+        'Return JSON: {"cells":[{"timecode":"<exact label>","visible_action":"<one sentence, Korean>",'
+          + '"shot_type":"<wide|medium|close|insert|other>","characters_visible":<count of people you can see>,'
+          + '"action_state":"<before|onset|peak|result|static>"}]}',
+        'Return exactly one entry per cell.'
       ].join('\n');
       const result = await runCodexCli(prompt, {
         outputSchemaPath: MIDFORM_SCENE_BATCH_SCHEMA_PATH,
-        images: batch.map((frame) => frame.file),
+        images: group.map((sheet) => sheet.file),
         model: process.env.MIDFORM_CODEX_VISION_MODEL,
         reasoningEffort: process.env.MIDFORM_CODEX_VISION_REASONING
       });
       const parsed = extractJson(result.outputText || result.stdout || '') || {};
-      const rows = Array.isArray(parsed.frames) ? parsed.frames : [];
-      batch.forEach((frame, i) => {
-        const row = rows.find((entry) => Number(entry.index) === i + 1) || rows[i] || {};
-        const dialogue = dialogueForWindow(transcript, frame.start_sec, frame.end_sec);
+      const rows = Array.isArray(parsed.cells) ? parsed.cells : [];
+      rows.forEach((row, i) => {
+        const label = String(row.timecode || '').trim();
+        // Position is the fallback, not the key: an answer that quotes a label we did not send
+        // is a shifted read, and taking it by position would bury that.
+        const cell = cells.find((entry) => entry.label === label) || cells[i];
+        if (cell) byLabel.set(cell.label, row);
+      });
+    }
+    for (const sheet of sheets) {
+      for (const cell of sheet.cells) {
+        const row = byLabel.get(cell.label) || {};
+        const frame = frames.find((entry) => entry.start_sec === cell.start_sec
+          && entry.end_sec === cell.end_sec) || {};
+        const dialogue = dialogueForWindow(transcript, cell.start_sec, cell.end_sec);
         scenes.push({
           scene_id: `scene_${String(scenes.length + 1).padStart(3, '0')}`,
-          start_sec: frame.start_sec,
-          end_sec: frame.end_sec,
-          duration_sec: Number((frame.end_sec - frame.start_sec).toFixed(3)),
+          start_sec: cell.start_sec,
+          end_sec: cell.end_sec,
+          duration_sec: Number((cell.end_sec - cell.start_sec).toFixed(3)),
           visible_action: String(row.visible_action || '').trim(),
           dialogue_or_caption: dialogue.text,
           utt_refs: dialogue.utt_refs,
           shot_type: String(row.shot_type || 'other').trim(),
           characters_visible: Number(row.characters_visible) || 0,
-          sampled_frame_sec: Number(((frame.start_sec + frame.end_sec) / 2).toFixed(3))
+          action_state: String(row.action_state || 'static').trim(),
+          sampled_frame_sec: Number(frame.at_sec ?? ((cell.start_sec + cell.end_sec) / 2)),
+          sample_reason: String(frame.reason || 'fill'),
+          timecode_label: cell.label
         });
-      });
+      }
     }
   } finally {
     // The frames are large and numerous; keep the run directory from growing without bound.
     try { fs.rmSync(workDir, { recursive: true, force: true }); } catch { /* best effort */ }
   }
 
+  const plan = frames.plan || {};
   return {
     source_id: sourceId,
     generated_at: new Date().toISOString(),
-    analyzer: 'codex_frame_sampling',
-    sample_period_sec: SCENE_SAMPLE_PERIOD_SEC,
+    analyzer: 'codex_contact_sheet',
+    fill_period_sec: SCENE_FILL_PERIOD_SEC,
+    sheet_layout: `${SCENE_SHEET_COLS}x${SCENE_SHEET_ROWS}`,
+    sheets_sent: sheets.length,
+    cut_samples: Number(plan.cut_samples || 0),
+    fill_samples: Number(plan.fill_samples || 0),
+    boundaries_used: Number(plan.boundaries_used || 0),
+    // A label the model answered with that we never printed means the read slid off the grid.
+    unmatched_cells: scenes.filter((scene) => !scene.visible_action).length,
     scenes
   };
 }

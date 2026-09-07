@@ -120,6 +120,7 @@
           "spoiler_policy": { "type": "string" },
           "repeat_policy": { "type": "string" },
           "visual_source_mode": { "type": "string" },
+          "narration_silent": { "type": "boolean" },
           "visual_source_beat_id": { "type": "string" },
           "visual_source_start_sec": { "type": "number" },
           "visual_source_end_sec": { "type": "number" },

@@ -1132,12 +1132,12 @@ function defaultDecisionForBeat(role, beat, transcript) {
   const weight = Number(beat?.dramatic_weight || 0);
   const quality = String(beat?.dialogue_quality || '').trim();
   const focusDuration = focusDurationForBeat(beat, transcript);
-  if ((role === 'body_peak' || role === 'payoff') && quality !== 'low') return 'KEEP_DIALOGUE';
-  if (quality === 'high' && focusDuration <= 45) return 'KEEP_DIALOGUE';
-  // A line that declares, rebuts, flips an attitude, calls a name in warning or reverses
-  // who holds power carries the scene itself. Summarising it away is what makes a recap
-  // read as explanation.
-  if (quality !== 'low' && focusDuration <= 45 && hasSceneForceDialogue(beat)) return 'KEEP_DIALOGUE';
+  // Recap-first (owner directive 2026-09-04): this fallback used to hand KEEP_DIALOGUE to any
+  // peak, any high-quality beat under 45s, and any beat carrying a scene-force line - which is
+  // how the measured narration share sat at 9-17%. Now only the beats that genuinely turn the
+  // scene keep their audio; applyRecapDialogueBudget trims whatever still gets through.
+  if ((role === 'body_peak' || role === 'payoff') && quality === 'high') return 'KEEP_DIALOGUE';
+  if (quality === 'high' && focusDuration <= 20 && hasSceneForceDialogue(beat)) return 'KEEP_DIALOGUE';
   if (hook <= 2 && weight <= 2) return 'DROP';
   return 'NARRATE';
 }
@@ -3309,8 +3309,11 @@ function realisticTimelineRuntimeSec(timeline) {
 
 function nextFreeSlotId(usedIds) {
   let candidate = 1;
-  while (usedIds.has(String(candidate))) candidate += 1;
-  return String(candidate);
+  // Named, not numbered: a bare "2" sitting between S07 and slot_closing reads as a corrupted
+  // plan, and when one of these came back with no narration it took a slot-by-slot diff to see
+  // that it was a top-up at all (2026-09-04).
+  while (usedIds.has(`topup_${String(candidate).padStart(2, '0')}`)) candidate += 1;
+  return `topup_${String(candidate).padStart(2, '0')}`;
 }
 
 // Asking the planner for a longer cut produced a different answer every run (a 120s request
@@ -3336,6 +3339,15 @@ function topUpTimelineToTargetRuntime(timeline, beats, transcript, targetSec, us
   const candidates = (Array.isArray(beats) ? beats : [])
     .filter((beat) => !activeBeatIds.has(String(beat?.beat_id || '').trim()))
     .filter((beat) => Number(beat?.end_sec || 0) > Number(beat?.start_sec || 0))
+    // A beat the planner rated at the bottom AND that carries no dialogue at all is not a beat
+    // the cut left out - it is the connective footage the story does not need. War Dogs pulled
+    // in the same one twice on 2026-09-04 (beat_10, weight 1, no lines: "젖은 도로를 건너는
+    // 사람과 지나가는 자동차만", summarised by the planner itself as outside the clip's
+    // self-contained arc), and both times it had to be dropped by hand. Padding runtime with it
+    // is exactly the fragment-keeping the subtraction doctrine exists to prevent.
+    .filter((beat) => Number(beat?.dramatic_weight || 0) > 1
+      || (Array.isArray(beat?.key_dialogue) && beat.key_dialogue.length)
+      || (Array.isArray(beat?.anchor_dialogue) && beat.anchor_dialogue.length))
     .sort((left, right) => (
       (Number(right.hook_potential || 0) + Number(right.dramatic_weight || 0))
       - (Number(left.hook_potential || 0) + Number(left.dramatic_weight || 0))
@@ -3378,16 +3390,26 @@ function topUpTimelineToTargetRuntime(timeline, beats, transcript, targetSec, us
   }
   // Every beat can already be in the plan and the cut still fall short — six beats here produced a
   // 76s plan against a 180s target with nothing left to promote. A beat rendered as narration is
-  // still carrying unspoken dialogue, so play it: the cut lengthens with scene rather than
-  // explanation, which is the direction this format wants anyway.
-  if (runtime < floor) {
+  // still carrying unspoken dialogue, so play it.
+  //
+  // This runs LAST and only under the floor, and that ordering now matters: it flips narration
+  // back to dialogue, which is exactly what the recap budget just converted away. Under the old
+  // speech-driven doctrine that was the point ("scene rather than explanation"); under the recap
+  // format it is a last resort to clear the minimum runtime, not a preference (2026-09-04).
+  // Absolute floor, not a share of the target. The ratio floor is 85% of a target the doctrine
+  // itself calls a ceiling, so a 97s target made an 82s cut "short" and this pass flipped five
+  // narrated beats back to dialogue to close a gap that did not matter. A midform only has to
+  // clear the format's own minimum; below that the cut is unusable, above it the length is an
+  // output (2026-09-04).
+  const RECAP_DIALOGUE_TOPUP_FLOOR_SEC = 60;
+  if (runtime < RECAP_DIALOGUE_TOPUP_FLOOR_SEC) {
     const beatById = new Map((Array.isArray(beats) ? beats : [])
       .map((beat) => [String(beat?.beat_id || '').trim(), beat]));
     const beatsAlreadySpoken = new Set(items
       .filter((item) => item?.decision === 'KEEP_DIALOGUE')
       .map((item) => String(item?.beat_id || '').trim()));
     for (const item of items) {
-      if (runtime >= floor) break;
+      if (runtime >= RECAP_DIALOGUE_TOPUP_FLOOR_SEC) break;
       if (item?.decision !== 'NARRATE' || item.role === 'cold_open') continue;
       const beatId = String(item?.beat_id || '').trim();
       if (!beatId || beatsAlreadySpoken.has(beatId)) continue;
@@ -3409,7 +3431,7 @@ function topUpTimelineToTargetRuntime(timeline, beats, transcript, targetSec, us
         dialogue_focus_source: 'runtime_topup_narrated_beat',
         dialogue_focus_lines: focus.lines,
         dialogue_focus_quotes: (focus.quotes || []).length ? focus.quotes : focus.lines,
-        reason: 'Played the dialogue of a beat the plan only narrated, so the cut reaches its runtime with scene rather than explanation.',
+        reason: 'Played the dialogue of a beat the plan only narrated, so the cut clears the minimum runtime.',
         spoiler_policy: 'Keep the mystery progression grounded in transcript evidence.',
         repeat_policy: 'No repeat.',
         runtime_topup: true
@@ -4043,9 +4065,35 @@ function buildHookPayoffIfMissing(timeline, beats, transcript) {
     if (windows.length >= 2) break;
   }
   if (!windows.length) return items; // the gate will reject with its message - honest failure
+  // Where the payoff goes decides whether it lands or wrecks the ending. Before the closing slot
+  // is right when the hook came from late in the source. When it came from EARLY, those lines sit
+  // far behind everything the body has reached, and putting them after the resolution reads as a
+  // non-sequitur: Jacob's "이게 그 약속을 지키는 거야" followed by two lines from the film the
+  // characters watched 80 seconds earlier, and the same shape on Breaking Dawn 1 - Alice's line
+  // from 20s pasted after "It's working" at 182s (2026-09-03, both found by the owner).
+  // The tail-regression gate measures exactly this on the finished cut, so the threshold is
+  // shared: past it, place the payoff where the source puts it instead of at the end. The
+  // promise is still paid - the gate above only asks that some slot return to the hook's beat -
+  // and the ending keeps the line the scene actually ends on.
+  const TAIL_REGRESSION_MIN_SEC = 45;
+  const closingIndex = items.findIndex((item) => String(item.role || '') === 'closing' || /closing/.test(String(item.slot_id || '')));
+  const beforeClosing = closingIndex >= 0 ? closingIndex : items.length;
+  const payoffStart = Math.min(...windows.map((win) => win.start_sec));
+  const bodyPeakSec = items.slice(0, beforeClosing).reduce((peak, item) => (
+    item.decision === 'KEEP_DIALOGUE' && String(item.role || '') !== 'cold_open' && Number.isFinite(Number(item.end_sec))
+      ? Math.max(peak, Number(item.end_sec))
+      : peak), 0);
   const insertAt = (() => {
-    const closingIndex = items.findIndex((item) => String(item.role || '') === 'closing' || /closing/.test(String(item.slot_id || '')));
-    return closingIndex >= 0 ? closingIndex : items.length;
+    if (bodyPeakSec - payoffStart < TAIL_REGRESSION_MIN_SEC) return beforeClosing;
+    // Chronological placement: after the last kept slot the source puts before this line.
+    let index = -1;
+    for (let i = 0; i < beforeClosing; i += 1) {
+      const item = items[i];
+      if (item.decision === 'DROP' || !Number.isFinite(Number(item.end_sec))) continue;
+      if (Number(item.end_sec) <= payoffStart) index = i;
+    }
+    // No earlier slot at all means the hook itself opens the cut; sit directly behind it.
+    return index >= 0 ? index + 1 : Math.min(1, beforeClosing);
   })();
   items.splice(insertAt, 0, {
     slot_id: `${coldId}_payoff`,
@@ -4570,6 +4618,171 @@ function trimTimelineToTargetRuntime(timeline, targetSec, beats = []) {
 // Windows starting inside the promo tail are cut from the plan itself: ad segments can carry
 // film-like preview dialogue that survives every text-based classifier ("show and tell's over"
 // was quoted from a Movieclips outro), so the declared boundary is the only reliable line.
+// Recap-first budget (owner directive 2026-09-04). This channel ran speech-driven: measured
+// narration share was 9-17% across the last four cuts, and the cuts kept failing the same way -
+// the viewer could not tell who was talking or what had changed, because the lines carried the
+// scene and nothing carried the situation. The owner's call is to move toward the 명화관 form:
+// narration explains the situation and only a few spoken moments survive. It is also the safer
+// side of Content ID, since less source audio ships.
+//
+// A prompt alone drifts, so the budget is enforced here: keep the strongest KEEP_DIALOGUE beats
+// and convert the rest to NARRATE, which the fill writer then has to explain in its own words.
+// Cold opens and the payoff are exempt - the hook and the landing are what the form is built on.
+// Measured against the reference on 2026-09-04: 헛개리카노 spends its source audio on two
+// moments of five to six seconds each. The first pass at this used a budget of four and no
+// length cap, and War Dogs came out at 32% narration against the reference's 72% - because a
+// single kept slot ran thirteen seconds of one man explaining the job, which is exactly the
+// material a recap narrates in one sentence. Two levers, both needed: how MANY moments, and how
+// LONG any one of them may run.
+const KEEP_DIALOGUE_BUDGET = 2;
+const KEEP_DIALOGUE_MAX_SEC = 9;
+// How much footage one narrated sentence may carry. Merging every neighbour put 66 seconds of
+// warehouse under a single sentence, which is not a recap beat - it is a slideshow, and the
+// b-roll bounds gate would call it an overlong clip. The reference paces a sentence every nine
+// to twelve seconds, so a merged stretch stays near two of those.
+const RECAP_MERGE_MAX_SPAN_SEC = 22;
+
+function applyRecapDialogueBudget(timeline) {
+  const items = (Array.isArray(timeline) ? timeline : []).map((item) => ({ ...item }));
+  // A narrated cold-open teaser promises the moment it teases, and the plan validator enforces
+  // that the body_peak paying it off is LONGER than the teaser. Converting that peak to
+  // narration shrinks it to a narration estimate and the plan is rejected outright - War Dogs
+  // died on 'body_peak must be longer than its teaser cold_open' (2026-09-04). Only the peak
+  // that answers the hook is spared; every other peak spends budget like any beat.
+  const teaserBeatId = String((items.find((item) => item.role === 'cold_open'
+    && item.decision !== 'KEEP_DIALOGUE') || {}).beat_id || '').trim();
+  const exempt = (item) => item.role === 'cold_open' || item.role === 'payoff'
+    || /_payoff$/.test(String(item.slot_id || ''))
+    || (item.role === 'body_peak' && teaserBeatId && String(item.beat_id || '').trim() === teaserBeatId);
+  // Length first: a long block loses its budget slot before the ranking sees it, so the budget
+  // is spent on short sharp moments rather than on whichever long speech scored highest.
+  //
+  // The hook and the landing are treated differently. Converting an over-long payoff would leave
+  // the cut with no source audio at all, and the reference still lands on a five-second burst -
+  // so an exempt slot gets TRIMMED to its last few lines rather than narrated away. War Dogs came
+  // back with a 16.3s payoff that also ran into the closing slot (2026-09-04).
+  const trimToTail = (item) => {
+    const windows = Array.isArray(item.dialogue_line_windows) ? item.dialogue_line_windows : [];
+    if (!windows.length) {
+      return { ...item, start_sec: roundSec(Number(item.end_sec || 0) - KEEP_DIALOGUE_MAX_SEC) };
+    }
+    const kept = [];
+    for (let i = windows.length - 1; i >= 0; i -= 1) {
+      const span = Number(item.end_sec || 0) - Number(windows[i].start_sec || 0);
+      if (kept.length && span > KEEP_DIALOGUE_MAX_SEC) break;
+      kept.unshift(windows[i]);
+    }
+    const start = Math.min(...kept.map((w) => Number(w.start_sec)));
+    const end = Math.max(...kept.map((w) => Number(w.end_sec)));
+    const lines = kept.map((w) => String(w.line));
+    return {
+      ...item,
+      start_sec: roundSec(start),
+      end_sec: roundSec(end),
+      estimated_duration_sec: roundSec(end - start),
+      dialogue_line_windows: kept,
+      dialogue_focus_lines: lines,
+      dialogue_focus_quotes: lines,
+      recap_trimmed_to_tail: true
+    };
+  };
+  // Trim the ones we keep; convert the ones we do not. The first version marked every over-long
+  // slot as ineligible, which meant that when EVERY candidate ran long the budget spent nothing
+  // and the only surviving dialogue was the exempt payoff at the very end - War Dogs opened on
+  // forty seconds of unbroken narration and its first voice arrived at 44s against a 30s limit
+  // (2026-09-04). Length is a reason to shorten a moment, not to delete it.
+  const lengthTrimmed = items;
+  const kept = lengthTrimmed.filter((item) => item.decision === 'KEEP_DIALOGUE');
+  const overLength = kept.filter((item) => (
+    Number(item.end_sec || 0) - Number(item.start_sec || 0) > KEEP_DIALOGUE_MAX_SEC
+  )).length;
+  // No early return: a refreshed plan already carries its conversions, so the budget has nothing
+  // to trim and the merge below would never run - which is how the density stayed at 7.4/min
+  // with six narrated slots holding no text.
+  const budgetSatisfied = kept.length <= KEEP_DIALOGUE_BUDGET && !overLength;
+  const score = (item) => (
+    (exempt(item) ? 1000 : 0)
+    + Number(item.dramatic_weight || 0) * 10
+    + Number(item.hook_potential || 0) * 5
+    + (item.role === 'body_peak' ? 20 : 0)
+  );
+  const ranked = [...kept].sort((a, b) => score(b) - score(a));
+  const survivors = new Set(ranked.slice(0, Math.max(KEEP_DIALOGUE_BUDGET, kept.filter(exempt).length))
+    .map((item) => String(item.slot_id || '')));
+  const converted = lengthTrimmed.map((item) => {
+    if (item.decision !== 'KEEP_DIALOGUE') return item;
+    if (survivors.has(String(item.slot_id || ''))) {
+      const span = Number(item.end_sec || 0) - Number(item.start_sec || 0);
+      return span > KEEP_DIALOGUE_MAX_SEC ? trimToTail(item) : item;
+    }
+    if (budgetSatisfied) return item;
+    return {
+      ...item,
+      decision: 'NARRATE',
+      mode: 'NARRATE',
+      // The slot still carries source_dialogue_sync from its former life, and downstream reads
+      // that as "this slot shows people talking" and skips narration for it - which is how the
+      // first tightened War Dogs plan came back with six narrated slots holding no text.
+      visual_source_mode: 'source_broll',
+      recap_converted_from_dialogue: true,
+      former_dialogue_lines: (item.dialogue_focus_lines || []).map((line) => String(line)),
+      dialogue_focus_lines: [],
+      dialogue_focus_quotes: [],
+      dialogue_line_windows: []
+    };
+  });
+
+  // Merge neighbours. Converting five dialogue beats into five separate narration slots pushes
+  // the density past its ceiling, and the writer then satisfies "cut narration sentences" by
+  // leaving slots empty - the exact contradiction the infeasibility guard was built for. A recap
+  // does not narrate an exchange beat by beat; it says what the whole exchange did in one
+  // sentence. So consecutive converted slots become one slot spanning them.
+  const merged = [];
+  for (const item of converted) {
+    const prev = merged[merged.length - 1];
+    const wouldSpan = prev
+      ? Math.max(Number(prev.end_sec || 0), Number(item.end_sec || 0)) - Number(prev.start_sec || 0)
+      : 0;
+    if (prev && prev.recap_converted_from_dialogue && item.recap_converted_from_dialogue
+      && wouldSpan <= RECAP_MERGE_MAX_SPAN_SEC) {
+      prev.end_sec = Math.max(Number(prev.end_sec || 0), Number(item.end_sec || 0));
+      prev.estimated_duration_sec = roundSec(Number(prev.end_sec) - Number(prev.start_sec));
+      // findUncoveredCausalBeats reads the FOOTAGE range, not our bookkeeping, so the merged
+      // slot has to actually play over the stretch it now narrates. Without this the swallowed
+      // beats read as dropped and the plan is rejected for leaving out the events it turns on.
+      const prevVisStart = Number.isFinite(Number(prev.visual_source_start_sec))
+        ? Number(prev.visual_source_start_sec) : Number(prev.start_sec || 0);
+      const itemVisEnd = Number.isFinite(Number(item.visual_source_end_sec))
+        ? Number(item.visual_source_end_sec) : Number(item.end_sec || 0);
+      prev.visual_source_start_sec = roundSec(prevVisStart);
+      prev.visual_source_end_sec = roundSec(Math.max(
+        Number(prev.visual_source_end_sec || 0), itemVisEnd, Number(prev.end_sec || 0)
+      ));
+      prev.former_dialogue_lines = [...(prev.former_dialogue_lines || []), ...(item.former_dialogue_lines || [])];
+      prev.merged_slot_ids = [...(prev.merged_slot_ids || [String(prev.slot_id || '')]), String(item.slot_id || '')];
+      // The swallowed beats are still on screen and still narrated, so carry their ids - the
+      // coverage validator reads beat_id and would otherwise report them as dropped.
+      prev.covered_beat_ids = [...new Set([
+        ...(prev.covered_beat_ids || [String(prev.beat_id || '')]),
+        ...(item.covered_beat_ids || [String(item.beat_id || '')])
+      ])].filter(Boolean);
+      continue;
+    }
+    merged.push({ ...item });
+  }
+
+  return merged.map((item) => {
+    if (!item.recap_converted_from_dialogue) return item;
+    const spanned = item.merged_slot_ids ? ` It replaces ${item.merged_slot_ids.join(', ')}.` : '';
+    return {
+      ...item,
+      reason: `${String(item.reason || '')} Recap budget: narrate this stretch instead of playing it.${spanned} `
+        + 'Say WHO acts and WHAT changes, in ONE sentence if it will fit. Do not quote the lines '
+        + `back; they were: ${(item.former_dialogue_lines || []).join(' / ').slice(0, 240)}`
+    };
+  });
+}
+
 function dropWindowsPastUsableEnd(timeline, usableEndSec) {
   const limit = Number(usableEndSec || 0);
   if (!(limit > 0)) return timeline;
@@ -4590,20 +4803,32 @@ function dropWindowsPastUsableEnd(timeline, usableEndSec) {
       if (!win || win.matched !== true) return true;
       return Number(win.start_sec) < limit;
     };
-    if (windows.every((_, index) => survives(index))) return item;
+    // The early return also has to look at ENDS, not just starts - that was the hole.
+    const anyEndPastLimit = windows.some((win) => win && win.matched === true && Number(win.end_sec) > limit);
+    if (windows.every((_, index) => survives(index)) && !anyEndPastLimit) return item;
     const kept = windows.filter((_, index) => survives(index));
     const matched = kept.filter((win) => win && win.matched === true);
     if (!matched.length) {
       return { ...item, decision: 'DROP', estimated_duration_sec: 0, promo_tail_dropped: true,
         reason: `${item.reason || ''} Dropped: its dialogue sits inside the source promo tail.`.trim() };
     }
+    // A window that STARTS before the limit but ENDS after it used to survive untouched, and the
+    // b-roll cut from it then reached into the promo tail: Draft Day's slot_011 ran 392.8-398.6
+    // against a usable end of 394.5 and put a frame of the film's end credits on screen at 1:56
+    // (2026-09-03). Surviving windows are clamped at the limit; the speech that matters began
+    // before it, and short footage is padded downstream - a freeze beats the credits.
+    const clampEnd = (win) => (win && Number(win.end_sec) > limit
+      ? { ...win, end_sec: roundSec(limit), promo_tail_end_clamped: true }
+      : win);
+    const clamped = kept.map(clampEnd);
+    const clampedMatched = clamped.filter((win) => win && win.matched === true);
     return {
       ...item,
-      dialogue_line_windows: kept,
+      dialogue_line_windows: clamped,
       dialogue_focus_lines: Array.isArray(item.dialogue_focus_lines) ? item.dialogue_focus_lines.filter((_, index) => survives(index)) : item.dialogue_focus_lines,
-      dialogue_focus_quotes: keepQuotesByText(item.dialogue_focus_quotes, kept),
-      start_sec: roundSec(Math.min(...matched.map((win) => Number(win.start_sec)))),
-      end_sec: roundSec(Math.max(...matched.map((win) => Number(win.end_sec)))),
+      dialogue_focus_quotes: keepQuotesByText(item.dialogue_focus_quotes, clamped),
+      start_sec: roundSec(Math.min(...clampedMatched.map((win) => Number(win.start_sec)))),
+      end_sec: roundSec(Math.min(limit, Math.max(...clampedMatched.map((win) => Number(win.end_sec))))),
       promo_tail_trimmed: true
     };
   });
@@ -5302,7 +5527,12 @@ function finalizeEditPlan(editPlan, beats, transcript, targetSec, usableEndSec =
   // Write the corrected measure back onto the slot. Fixing only realisticSlotDurationSec left
   // estimated_duration_sec holding the raw span - slot_02 still read 151.3s for four lines - so
   // every consumer that reads the field directly still saw the dead air between them.
-  const measuredTimeline = clampColdOpenToTeaser(leadColdOpenWithStrongestLine(dropWindowsPastUsableEnd(trimTimelineToTargetRuntime(fittedTimeline, narrationCeilingSec, beats), usableEndSec)));
+  // The budget runs HERE, after seams and the hook payoff are in place: applied earlier, those
+  // later passes put dialogue back and the first War Dogs plan came out with five kept slots
+  // against a budget of four. It still runs before the runtime trim so the converted slots are
+  // measured as narration, not as the dialogue they used to be.
+  const budgetedTimeline = applyRecapDialogueBudget(fittedTimeline);
+  const measuredTimeline = clampColdOpenToTeaser(leadColdOpenWithStrongestLine(dropWindowsPastUsableEnd(trimTimelineToTargetRuntime(budgetedTimeline, narrationCeilingSec, beats), usableEndSec)));
   const trimmedTimeline = measuredTimeline.map((item) => (
     item.decision === 'KEEP_DIALOGUE'
       ? { ...item, estimated_duration_sec: realisticSlotDurationSec(item) }
@@ -5488,12 +5718,13 @@ function buildEditPlanPrompt(beats, heatmap, targetSec, metadata) {
     'Editorial stance for this channel (this decides most of your choices):',
     '- Subtraction, not construction (owner doctrine): the clip already contains one self-contained story - it was cut at story boundaries. Your job is to FIND that internal arc and subtract everything that is not it, especially fragments that only make sense through the wider film\'s plot (setup for later scenes, off-clip characters, unresolved stakes the clip never pays off). After subtraction, what remains in source order IS the recap. Do not manufacture a frame, a mystery, or connective tissue the clip does not contain. Reordering for a hook (cold open) is presentation and is fine; inventing story is not.',
     '- Runtime is an output, not a quota: the coherent arc decides the length. A tight 60s cut from a 3-minute clip beats a padded 90s one; a 20-minute clip may legitimately yield 170s. Never exceed 180 seconds. Treat the requested target as a ceiling.',
-    '- Scene-preserving and speech-driven cuts outperform explanatory recaps here. Let the scene carry the story: preserve the dialogue that creates the force of a moment and use narration only to recover the situation quickly between those moments.',
-    '- Almost always KEEP_DIALOGUE for a line that declares, rebuts, flips an attitude, calls someone by name as a warning, or reverses who holds power. The test is not "can this be summarised" but "does this line make the scene work". If it makes the scene work, keep it.',
-    '- NARRATE is for what cannot be seen or heard: who these people are, what just changed, what is at stake. Never narrate what the dialogue already says.',
+    '- RECAP FIRST (owner directive 2026-09-04, reversing the earlier speech-driven stance). Narration carries the story; kept dialogue is the exception, not the spine. Aim for roughly half the runtime narrated. Speech-driven cuts measured 9-17% narration and kept failing the same way - the viewer could not tell who was speaking or what had changed. Narrate the situation, then let a few lines land inside it.',
+    '- KEEP_DIALOGUE is a BUDGET of TWO moments for the whole cut, each under nine seconds. That is what the reference spends (헛개리카노: two bursts of five to six seconds in a 104-second cut). Spend it on what nothing else can deliver: the declaration, the rebuttal, the moment power flips. Everything else - however good it sounds - gets narrated. A speaker explaining, negotiating, or working through a procedure is narration material even when the writing is excellent; if you cannot say why a line must be HEARD rather than told, narrate it.',
+    '- NARRATE carries who these people are, what just changed, and what is at stake - and now also the beats whose dialogue you chose not to spend budget on. When narrating a beat that had lines, say what the exchange DID (who pushed, who gave way, what was decided), never quote it back. Do not narrate over a line you kept.',
     '- Prefer short exchanges over long single speeches. One line, a reaction, one line back gives the cut its rhythm; a long explanatory dialogue block kills it.',
     '- Place cut boundaries at speaker switches, reaction shots, declarations, rebuttals and the moment a relationship flips. Compress the opposite: event recaps, background, and setup explanation.',
-    '- More dialogue is not automatically better. A speech-driven cut fails when the viewer cannot tell what the situation is or who is who, so pair every preserved exchange with just enough context for it to land.',
+    '- Every kept exchange sits inside narration that has already established who is speaking and what they want, so the line lands the moment it is heard. A viewer who has to work out the situation from the dialogue itself has already stopped following.',
+    '- Never keep a block where one person talks for more than a few seconds. A thirteen-second explanation of the job is one narrated sentence ("데이비드는 알바니아에서 아프가니스탄까지 탄약을 옮겨야 했는데, 나무 상자와 금속 통 때문에 무게가 감당이 안 됐죠"), and procedural back-and-forth - confirming a number, asking for a moment - is not a moment at all. Cut to what changed.',
     '- Open on attitude, not on situation. In the first seconds a viewer reacts to how someone is behaving before they wonder what the story is, so lead with the line or reaction that shows who holds power, and only then restore the situation.',
     '- Design the payoff as proof, not summary: pick an opening line whose meaning a later beat can turn out to confirm, and place that later beat as the payoff. The cut should end by proving the hook, not by explaining it.',
     '- The shape to aim for: strong line -> one-sentence recovery -> exchange -> short bridge -> reaction or reversal -> the opening line proven. Dialogue blocks lead; narration blocks connect.',
@@ -5515,6 +5746,7 @@ function buildEditPlanPrompt(beats, heatmap, targetSec, metadata) {
     'Rules:',
     '- If heatmap.status is available, the heatmap peak has PRIORITY for the cold_open — the most-replayed moment outranks dialogue hooks from other beats. Anchor cold_open_selection on the beat overlapping the strongest peak.',
     '- If the heatmap-peak moment is dialogue-led, open with that dialogue (KEEP_DIALOGUE). If it is a non-dialogue action/visual sequence, open with the peak itself as a SCENE HOOK: decision NARRATE, visual_source_mode "source_audio_teaser", visual_source_start_sec/visual_source_end_sec covering the peak moment (about 3-6 seconds), and plan NO narration over it — the original action audio and energy carry the hook. Do not fall back to a dialogue hook from another beat just because the peak lacks dialogue.',
+    '- A source_audio slot planned to carry NO narration must say so: "narration_silent": true. Silent hooks are FREE against the narration-density budget (their own audio is the voice); a source_audio slot without the flag counts as narrated. The fills pass enforces the flag - a silent slot gets no narration, period. Use it deliberately: action stretches, atmosphere holds, the closing.',
     '- CARD HOOK OPTION (benchmark B-form): when no line is strong enough to open on, a scene-hook cold open may carry TWO situation cards instead - short on-screen text over the original audio ("화장실이 급해 마트에 들렀는데" / "도망가버린 남친") that finishes the premise in under ten seconds. Request them by keeping the slot a NARRATE scene hook; the caption writer supplies the card text.',
     '- TIME-JUMP CARD: a NARRATE seam whose ONLY job is a time jump should be a single card ("며칠후", "그날 밤") over its b-roll instead of a narrated sentence - the original audio keeps playing and the seam costs two seconds, not a paragraph.',
     '- If heatmap is unavailable, set fallback_used true and choose max hook_potential, then dramatic_weight.',
@@ -5535,6 +5767,8 @@ function buildEditPlanPrompt(beats, heatmap, targetSec, metadata) {
     '- The event a scene turns on frequently has NO dialogue: someone is pushed down the stairs, a body is on the floor, a door is locked. Those beats show dialogue_quality "low" and a dialogue-first pick drops them - which leaves the aftermath (the alibi, the interview, the funeral) with no cause, and the viewer cannot tell what happened. Keep such a beat as NARRATE with visual_source_mode "source_audio_teaser" over its own footage, and narrate what just happened.',
     '- Never keep the aftermath of an event while dropping the event. If someone reacts to a death, a betrayal, a lie or a discovery, the moment it happened is either KEPT or NARRATED before that reaction.',
     '- Skipping beats is fine, but each skip needs a seam: if the beats between two kept slots are dropped, put a short NARRATE slot between them that says what happened in the gap. A jump the narration does not cover reads as a missing scene.',
+    '- A seam is also needed where NOTHING was dropped. Two consecutive kept slots still need one short NARRATE between them when the SETTING CHANGES (a different room, a jump in time) or when a character SPEAKS FOR THE FIRST TIME: the viewer has no cast list and cannot tell who just started talking or where they now are. Name the new speaker and place the scene in one line - "사무실로 자리를 옮겨, 구단주 앤서니가 단장을 부릅니다" - then get out of the way. Measured failure (Draft Day, 2026-09-01): 130 seconds carried three narrations with a 67-second stretch across a scene change and two new speakers, and the cut became impossible to follow.',
+    '- Coverage floor for those seams: no stretch of kept dialogue should run past about 40 seconds without one, when a setting or speaker change happens inside it. This does not license long narration - the 12-second ceiling above still binds, and a seam is one sentence.',
     '- Do not keep a single line out of a beat whose payoff you dropped. Either keep the payoff too, or leave that line out - a line nothing answers is a loose end the viewer waits on for the rest of the cut.',
     '- The clip\'s last beats usually carry its resolution or twist. Ending on a middle beat while the resolution goes unused wastes the arc; close on the beat that settles it.',
     '- If there are more than 5 candidate lines, keep only the highest identity / hook / reveal lines.',
@@ -5689,7 +5923,169 @@ function readHookPatterns() {
   }
 }
 
-function buildSlotFillsPrompt(beats, editPlan, movieTitle, recapContextMarkdown) {
+// ── 장면 증거 아키텍처: 1차 호출 = 사건 선정 (scene-evidence-architecture #4) ──
+// 작가에게 바로 원고를 쓰게 하지 않는다. 먼저 슬롯마다 "이 창에서 쓸 event 와 창"만
+// 고르게 하고, 지원할 사건이 없으면 no_safe_narration 을 받는다. 결과는
+// selected_arc_map.json 으로 보존되어 2차 작문 호출의 하드 제약이 된다.
+const NL = String.fromCharCode(10);
+function buildEventSelectionPrompt(editPlan, evidenceMap) {
+  const events = Array.isArray(evidenceMap?.events) ? evidenceMap.events : [];
+  const slots = (Array.isArray(editPlan?.timeline) ? editPlan.timeline : [])
+    .filter((item) => String(item?.decision || '').trim() === 'NARRATE'
+      && !/source_audio/.test(String(item?.visual_source_mode || '')));
+  const slotLines = slots.map((slot) => {
+    const s = Number(slot.start_sec); const e = Number(slot.end_sec);
+    const near = events.filter((ev) => {
+      const w = ev.source_window || {};
+      return Number(w.end) > s - 8 && Number(w.start) < e + 8;
+    }).map((ev) => `    ${ev.event_id} [${ev.source_window.start}-${ev.source_window.end}] `
+      + `points:${JSON.stringify(ev.event_points)} conf:${ev.confidence} | ${ev.visible_action}`
+      + (ev.before_state ? ` | before: ${ev.before_state}` : '')
+      + (ev.after_state ? ` | after: ${ev.after_state}` : ''));
+    return `  ${slot.slot_id} window [${s}-${e}] role=${slot.role}` + NL
+      + (near.length ? near.join(NL) : '    (no observed events in this window)');
+  });
+  return [
+    'You are selecting SCREEN EVIDENCE for a video recap, slot by slot. Do NOT write narration.',
+    'For each slot below, pick the single best evidence event to build its narration on, and the',
+    'exact source_window (seconds) the clip should use. The narration will be written LATER,',
+    'constrained to what the chosen event shows.',
+    'Rules:',
+    '- literal_action: the slot can show a concrete on-screen action (pick its event_id).',
+    '- contextual_fact / bridge / dialogue_setup: no event needed (event_id: ""), pick a neutral window inside the slot.',
+    '- no_safe_narration: nothing in this window supports narration - do not force it.',
+    '- The selected source_window must stay inside the slot window; prefer windows that include the event points you rely on.',
+    'Return JSON only: {"selections":[{"slot_id","event_id","narration_type","source_window":[s,e],"reason"}]}',
+    '',
+    'Slots and their observed events:',
+    slotLines.join(NL)
+  ].join(NL);
+}
+
+// no_safe 슬롯의 승격: 창이 3초 이상이면 DROP 대신 무음 훅(원음 재생)으로 전환한다.
+// 억지 해설을 지우는 자리가 곧 원음 서스펜스의 자리다 - QP 파일럿에서 DROP만 하니 대사
+// 희소 소스의 해설 비중이 오히려 87%로 올라갔다(총 길이 감소). 3초 미만 조각은 DROP.
+function promoteNoSafeSlot(item, why, timeline) {
+  const dur = (Number(item.end_sec) || 0) - (Number(item.start_sec) || 0);
+  // 이중 예약 가드: 훅은 자기 창의 원음을 그대로 재생하므로, 같은 초를 쓰는 다른 슬롯
+  // (topup·액션 슬롯)이 있으면 훅 전환이 cross_segment_overlap 을 만든다 - 그 경우 DROP.
+  const s0 = Number(item.start_sec) || 0;
+  const e0 = Number(item.end_sec) || 0;
+  const doubleBooked = (Array.isArray(timeline) ? timeline : []).some((other) => other !== item
+    && other.decision !== 'DROP'
+    && Number(other.end_sec) > s0 + 0.2 && Number(other.start_sec) < e0 - 0.2
+    && (/source_audio/.test(String(other.visual_source_mode || '')) || /^topup_/.test(String(other.slot_id || ''))));
+  if (dur >= 3.0 && !doubleBooked) {
+    item.visual_source_mode = 'source_audio_action';
+    item.visual_source_start_sec = Number(item.start_sec);
+    item.visual_source_end_sec = Number(item.end_sec);
+    item.reason = `${why} -> 무음 원음 훅: ${String(item.reason || '').slice(0, 60)}`;
+    return 'hook';
+  }
+  item.decision = 'DROP';
+  item.mode = 'DROP';
+  item.reason = `${why} -> DROP(3s 미만): ${String(item.reason || '').slice(0, 60)}`;
+  return 'drop';
+}
+
+async function runEventSelection(runDir, editPlan) {
+  const evidencePath = path.join(runDir, 'source_evidence_map.json');
+  if (!fs.existsSync(evidencePath)) return null;
+  const evidenceMap = readJson(evidencePath);
+  if (!Array.isArray(evidenceMap?.events) || !evidenceMap.events.length) return null;
+  const schemaPath = path.join(PROJECT_ROOT, 'midform', 'schemas', 'midform_event_selection_schema.json');
+  try {
+    const { parsed } = await runJsonGeneration(buildEventSelectionPrompt(editPlan, evidenceMap), schemaPath,
+      (candidate) => {
+        if (!Array.isArray(candidate?.selections)) throw new Error('selections missing');
+        return candidate;
+      });
+    // 작가에게 event_id 만 주면 영화 기억으로 빈칸을 채운다(QP: 화면엔 없는 "순찰차 위로
+    // 밀어붙임"을 두 슬롯 연속 발명). 선정에 사건의 관찰 내용을 임베드해 2차 프롬프트가
+    // 증거 문장을 그대로 보여주게 한다.
+    const eventsById = new Map(evidenceMap.events.map((ev) => [String(ev.event_id), ev]));
+    const enriched = parsed.selections.map((sel) => {
+      const ev = eventsById.get(String(sel.event_id || ''));
+      return ev ? { ...sel, event: {
+        visible_action: ev.visible_action, before_state: ev.before_state, after_state: ev.after_state,
+        event_points: ev.event_points, confidence: ev.confidence
+      } } : sel;
+    });
+    const arcMap = { generated_at: new Date().toISOString(), selections: enriched, evidence_events: evidenceMap.events.length };
+    writeJson(path.join(runDir, 'selected_arc_map.json'), arcMap);
+    return arcMap;
+  } catch (error) {
+    console.warn(`[event-selection] failed - 증거 제약 없이 진행: ${String(error.message || error).slice(0, 160)}`);
+    return null;
+  }
+}
+
+function buildSlotFillsPrompt(beats, editPlan, movieTitle, recapContextMarkdown, arcSelectionMap) {
+  // 2차 호출 하드 제약 (scene-evidence-architecture #4): 1차에서 고른 사건·창 밖으로 나가는
+  // 문장은 금지. 문장마다 narration_bindings 로 결합을 출력해야 렌더가 그 좌표를 쓴다.
+  const arcConstraintSection = (() => {
+    const sels = Array.isArray(arcSelectionMap?.selections) ? arcSelectionMap.selections : [];
+    if (!sels.length) return [];
+    const lines = sels.map((sel) => {
+      let line = `  ${sel.slot_id}: type=${sel.narration_type}`
+        + (sel.event_id ? ` event=${sel.event_id}` : '')
+        + ` window=[${(sel.source_window || []).join(', ')}]`;
+      if (sel.event) {
+        line += ` | SCREEN SHOWS: ${sel.event.visible_action || ''}`;
+        if (sel.event.before_state) line += ` | before: ${sel.event.before_state}`;
+        if (sel.event.after_state) line += ` | after: ${sel.event.after_state}`;
+        if (sel.event.event_points) line += ` | points: ${JSON.stringify(sel.event.event_points)}`;
+      }
+      return line;
+    });
+    return [
+      '',
+      'SELECTED SCREEN EVIDENCE (hard constraints - chosen in a prior pass; the clip for each',
+      'sentence will be cut EXACTLY from these windows):',
+      ...lines,
+      'Binding rules:',
+      '- Every NARRATE slot with narration MUST output narration_bindings: one entry per sentence,',
+      '  in order: {sentence_index, event_id (or ""), narration_type, temporal_phase, sync_phrase,',
+      '  source_sync_sec, clip_window:[start,end]}. clip_window must stay inside that slot selected window.',
+      '- literal_action sentences may state ONLY what SCREEN SHOWS says for that event. Your memory',
+      '  of the film is NOT evidence: if you remember a shove, a scream, a reveal that SCREEN SHOWS',
+      '  does not mention, it happens elsewhere in the film - writing it here ships it over the wrong',
+      '  picture. (Real failure: "경찰이 순찰차 위로 밀어붙이는데" written twice over a calm conversation.)',
+      '- literal_action: the sentence states ONLY what that event shows, and its temporal_phase must',
+      '  match where the clip_window sits (never announce an onset over a result-phase window).',
+      '- sync_phrase = the verb phrase that must land on source_sync_sec (use the event onset/peak).',
+      '- contextual_fact/bridge/dialogue_setup: event_id "", clip_window = the selected neutral window,',
+      '  and the sentence must not contradict what is on screen there.',
+      '- A slot marked no_safe_narration: write NO narration for it (empty string) - do not force one.',
+      'Legibility contract (story_legible reads the finished text cold, as a first-time viewer):',
+      '- CHAIN CHECK: each slot opens where the previous slot ended. If this slot event before-state',
+      '  does not follow from the previous slot after-state (new place, characters teleported,',
+      '  time passed), the slot narration MUST open with one short bridge clause naming the move',
+      '  ("차를 버리고 가게 안으로 숨은", "거리로 뛰쳐나온") before anything else. A viewer who',
+      '  saw them in a car and now sees a burning kitchen with no bridge is lost - real gate failure.',
+      '- DEICTIC GUARD: a kept dialogue line whose meaning hangs on an unstated referent (저거/그거/',
+      '  "보고"/"끝났어" 류) must be framed by the nearest EARLIER narration naming the referent once',
+      '  (dialogue_setup is for exactly this). If the film never names it (unseen creature), frame the',
+      '  UNCERTAINTY itself ("정체 모를 무언가") so the pronoun lands on that.',
+      '- Never spend a sentence on both jobs at once badly: bridge first, then the event.',
+      'PACKED SENTENCES (the benchmark gap, measured): the reference speaks 6.5 sentences/min at',
+      '~6.6s per sentence - every sentence chains premise -> action -> consequence in ONE breath',
+      '("소방 인력도 없는 판에, 리는 리건을 붙잡아 차 쪽으로 끌어당기는데"). Our evidence-true',
+      'rewrite collapsed into 2.8s telegraph fragments ("노인은 앞을 바라보는데.") - frame-true',
+      'but empty, 29% narration share vs the 72% reference. The event object GIVES you the pack:',
+      'before_state is the premise, visible_action the action, after_state the consequence - fuse',
+      'them into one 25~45자 sentence. All three parts are that event own evidence; packing is',
+      'not invention. A bare single-action fragment is allowed only as a deliberate punch, at most',
+      'one per cut.',
+      'FALLBACK LADDER for a thin event (walking, reaching, glancing - nothing to pack): do NOT',
+      'leave the slot empty. Step down to contextual_fact or bridge: state the rule, premise, or',
+      'off-screen cause this moment runs on, drawn from the transcript or the provided movie facts',
+      '("소리를 내는 순간 그것들이 온다" - the fact the whole film runs on), tied to what is on',
+      'screen without contradicting it. A recap viewer needs the rule far more than a caption of',
+      'the walking. no_safe/empty is the LAST rung, for slots where even that would be untrue.',
+      ''
+    ];
+  })();
   const title = String(movieTitle || '').trim();
   const context = String(recapContextMarkdown || '').trim();
   const editorialGuide = buildSlotFillEditorialGuide(editPlan);
@@ -5724,7 +6120,7 @@ function buildSlotFillsPrompt(beats, editPlan, movieTitle, recapContextMarkdown)
     '- Start with the incident/hook before backstory. Do not open a narration slot by explaining who someone is if a more immediate event, reversal, threat, or question can lead the sentence first.',
     '- Never introduce a character. No nameplates, no occupation, no backstory, no motive: not "가난한 대학생 대릴은 돈을 벌기 위해...", not "그의 여자친구", not "질투한 그는". Who these people are to each other is for the viewer to work out from how they speak to each other, and getting it slightly wrong is part of watching.',
     '- Leave the interpretation open. Do not name the emotion, do not say what someone meant, do not settle who is in the right. Two viewers arguing in the comments about what just happened is the goal, not a failure to be prevented by one more explaining sentence.',
-    '- You are writing from the TRANSCRIPT ONLY - you cannot see the footage. Never assert a fact that only the eye could verify (WHICH sense failed, what someone is wearing, who is in frame) unless the dialogue states it in words. A stray fragment at a window boundary is not evidence: "A little bland" is the tail of the PREVIOUS scene, and naming a sense from it put 미각 over a scene that showed something else. When the words do not say which sense, write it neutrally - 그다음 감각이 꺼집니다 - and let the footage show which.',
+    '- YOUR EYES ARE THE VISION SCENE MAP appended below (a multimodal model watched the video; it is ground truth). You may assert a visual fact ONLY when a scene map entry shows it. Never assert a visual fact from dialogue inference alone (WHICH sense failed, what someone is wearing, who is in frame). A stray fragment at a window boundary is not evidence: "A little bland" is the tail of the PREVIOUS scene, and naming a sense from it put 미각 over a scene that showed something else. When the words do not say which sense, write it neutrally - 그다음 감각이 꺼집니다 - and let the footage show which.',
     '- Narration states ONLY what the transcript or the footage shows. Never invent an identity reveal, a hidden connection, or a cause: "옆자리에 앉았던 바로 그 사람이 판사였습니다" was written into a cut whose source says no such thing. A reveal that is not in the source is not a twist, it is a lie the viewer can catch.',
     '- ONE obligation among all these prohibitions: if there is a single fact without which the viewer cannot follow, laugh at, or feel the tension of what they are watching, state it once, in one short line, early. Not who someone is - WHAT IS HAPPENING TO THEM. A body losing its senses one by one, a man who cannot see straight, a room nobody may leave. Ask yourself what a first-time viewer would be confused by, and say only that. If the dialogue already carries it, say nothing.',
     '- Test the last scene against this: if a moment only works because of something established earlier, and neither the dialogue nor a seam line establishes it, the moment reads as random or as the character simply being unpleasant. That is the failure this obligation exists to prevent.',
@@ -5744,12 +6140,15 @@ function buildSlotFillsPrompt(beats, editPlan, movieTitle, recapContextMarkdown)
     '- When answering WHY they became bait, prefer grounded situational causes (for example: entering a Sioux war zone, exposing their trail, or being caught in an existing conflict). Do NOT invent mastermind intent such as saying someone deliberately orchestrated, staged, lured, or set up the Sioux attack unless the provided facts explicitly say so.',
     '- The slot with role "closing" ENDS THE CUT, and the strongest ending is the scene itself. Write at most ONE short forward-looking line that lands the premise, or leave the closing narration EMPTY and let the source audio finish. Do not recap what just played, and do not answer a question the footage already answered.',
     '- CLOSING SILENCE (benchmark, measured): the 17.7M cut stops narrating at 105s of 170s and hands the last 65 seconds entirely to the source. The final stretch of the cut is the scene, not the narrator. Aim for at least the last 20 seconds carrying no narration at all.',
-    '- NARRATION DENSITY (benchmark, measured): 1.1~2.5 narration sentences per MINUTE. Ours measured 4.5~4.9 and read as a running commentary. Budget roughly one narration sentence per 25~50 seconds of runtime; if a seam does not need one, write none.',
+    '- NARRATION DENSITY (reference, measured 2026-09-04): 5~7 narration sentences per MINUTE. The owner named 헛개리카노 as the target form; its 7.9M-view cut runs 11 distinct narration sentences over 102 seconds (6.5/min) and 72% of its runtime is narrated. The earlier 1.1~2.5 figure came from a different, speech-driven benchmark and is retired - the cut it produced here measured 9~17% narration and kept losing the viewer. Narration is now the spine: one sentence roughly every 9~12 seconds, each one saying what HAPPENED, not just what the situation is.',
     '- NARRATION SAYS ONLY WHAT THE SOURCE CANNOT. Four jobs, nothing else: (1) the premise the footage never states, (2) a rule or condition the viewer must know, (3) a time jump ("그렇게 10년이 지난", "또다시 시간은 흐르고"), (4) a MOTIVE with the feeling named as the cause ("점점 어려지는 자신이 짐이 될까 두려웠던 벤자민은 결국 집을 떠나버리죠"). Anything the frame already shows - who walked in, that a fight started, that someone left - is banned even though it is literally true.',
     '- PACK ONE SENTENCE, NOT THREE. The benchmark stacks several viewpoints into a single sentence with a contrast turn: "남자는 생전 처음 보는 범죄자였고, 아빠는 굉장히 당혹스러워했지만, 순수한 루시에겐 그는 그저 외로운 사람이었죠." One sentence, three points of view, ending soft. Do not split that into three closed sentences.',
     '- The full arc must flow: cold_open hook -> setup -> each dialogue block (setup before + outcome after) -> the twist explicitly paid off -> an ending the SCENE delivers.',
     '',
+    ...arcConstraintSection,
     'Rules:',
+    '- SCENE-FIRST WRITING (the core contract): write every narration sentence ON a moment you picked from the vision scene map. For every NARRATE slot, output narration_anchor_secs: one source-second per narration sentence, in sentence order, each inside that slot window. The sentence must be TRUE of the frames at its anchor (check visible_action) - the b-roll clip for that sentence will start exactly there, so a sentence written off-map ships over the wrong picture. Dialogue-only slots use an empty array.',
+    '- Anchor discipline: a premise/abstract sentence anchors on the most representative frame of its stretch; an event sentence anchors where the event is VISIBLE; never anchor an inceptive claim (X starts) after the map shows X already underway.',
     '- Use Korean narration that creates curiosity, not plain visual relay.',
     '- Refer to characters by role first: 보안관, 아들, 무법자, 길잡이. Avoid listing full names and formal titles inside narration. Use a short name only when truly necessary for clarity, and do not stack multiple full names in one narration slot.',
     '- Keep sentences short. Prefer roughly one idea per sentence, often around 15 Korean characters or a short clause. Mix in occasional noun-ending fragments like "그때 들려온 의문의 소리." instead of explaining everything in long complete sentences.',
@@ -6121,9 +6520,12 @@ function emptyNarrationSlots(slotFills, editPlan) {
     if (String(item?.decision || item?.mode || '').trim() !== 'NARRATE') continue;
     const role = String(item.role || '').trim();
     const mode = String(item.visual_source_mode || '').trim();
-    // Wordless by design: the cold-open hook, and a measured action peak that plays its own audio.
-    if (role === 'cold_open' && mode === 'source_audio_teaser') continue;
-    if (mode === 'source_audio_action') continue;
+    // Wordless by design: any source-audio hook. The adapter turns EVERY source_audio_teaser
+    // slot into a scene_hook (isBodyActionTeaser covers the non-cold-open ones), so the
+    // exemption here must match the adapter — a payoff teaser ("원음 그대로 보존, 반응만 남긴다")
+    // failed six straight generations on 2026-09-07 because the writer correctly left it empty
+    // and this list only knew the cold-open case.
+    if (mode === 'source_audio_teaser' || mode === 'source_audio_action') continue;
     // ...and the closing, which the prompt explicitly offers as a choice: "leave the closing
     // narration EMPTY and let the source audio finish". The benchmark channel ends on the peak
     // scene itself. Vertex happened to always write one, so this rule and that permission never
@@ -6198,6 +6600,28 @@ function consecutiveNarrationRuns(slotFills, editPlan) {
 
 function narrationEconomyProblems(slotFills, editPlan, locale = 'ko') {
   const problems = [];
+  // 슬롯당 문장 예산 (2026-09-07): 밀도의 근원은 슬롯 수(플랜 상한 7/min)가 아니라
+  // 슬롯당 문장 수다 - QP 신선런이 슬롯마다 2문장씩 채워 9.7/min·해설 91%로 출하됐다.
+  // 슬롯 길이가 발화를 물리적으로 제한한다: 허용 = max(1, floor(est/5s)).
+  {
+    const fillsById = new Map((Array.isArray(slotFills?.slot_fills) ? slotFills.slot_fills : [])
+      .map((fill) => [String(fill?.slot_id || ''), fill]));
+    for (const item of (Array.isArray(editPlan?.timeline) ? editPlan.timeline : [])) {
+      if (String(item?.decision || '') !== 'NARRATE') continue;
+      // source_audio 훅의 나레이션도 게이트가 센다 - 면제 금지. (빈 나레이션은 위에서 continue)
+      const fill = fillsById.get(String(item.slot_id || ''));
+      const narration = String(fill?.narration || '').trim();
+      if (!narration) continue;
+      const est = Number(item?.narration_estimated_duration_sec || item?.estimated_duration_sec || 0)
+        || (Number(item?.end_sec || 0) - Number(item?.start_sec || 0));
+      const allowed = Math.max(1, Math.floor(est / 5));
+      const count = narration.split(/(?<=[.!?…。])\s+/).filter(Boolean).length;
+      if (count > allowed) {
+        problems.push(`${item.slot_id}: ${count} sentences but its ${est.toFixed(0)}s window fits ${allowed} - `
+          + 'keep only the sentence(s) the clip cannot say itself, cut the rest');
+      }
+    }
+  }
   const isJa = String(locale || 'ko') === 'ja';
   const DECLARATIVE = isJa
     ? /(ました|します|しました|です|でした|である|だった)。?$/
@@ -6218,6 +6642,16 @@ function narrationEconomyProblems(slotFills, editPlan, locale = 'ko') {
   }
   if (!sentences.length) return problems;
 
+  {
+    const lens = sentences.map((s) => s.text.replace(/\s+/g, '').length);
+    const avgLen = lens.reduce((a, b) => a + b, 0) / Math.max(1, lens.length);
+    const telegraph = sentences.filter((s) => s.text.replace(/\s+/g, '').length < 14);
+    if (avgLen < 20 && sentences.length >= 5) {
+      problems.push(`average narration sentence is ${avgLen.toFixed(0)} chars - telegraph fragments `
+        + `(${telegraph.slice(0, 3).map((s) => `"${s.text.slice(0, 20)}"`).join(', ')}). Pack premise+action+consequence `
+        + 'from the event own before/visible/after states into one 25~45자 sentence (reference: 6.6s per sentence)');
+    }
+  }
   const declarative = sentences.filter((s) => DECLARATIVE.test(s.text));
   const suspended = sentences.filter((s) => SUSPENDED.test(s.text));
   // One closed sentence is allowed for a beat that truly has to land; a wall of them is the
@@ -6234,7 +6668,7 @@ function narrationEconomyProblems(slotFills, editPlan, locale = 'ko') {
   if (targetSec > 30) {
     const perMin = sentences.length / (targetSec / 60);
     if (perMin > 3.0) {
-      problems.push(`narration density ${perMin.toFixed(1)} sentences/min over a ${Math.round(targetSec)}s cut exceeds 3.0 (benchmark 1.1~2.5). Cut narration sentences - keep only the premise, a rule, a time jump, or a motive; delete anything the footage already shows`);
+      problems.push(`narration density ${perMin.toFixed(1)} sentences/min over a ${Math.round(targetSec)}s cut exceeds 7.5 (reference 5~7, measured on 헛개리카노 at 6.5). Trim the sentences that repeat what the previous one already said; the ceiling exists so the cut does not become wall-to-wall voice, not to keep narration sparse`);
     }
   }
   return problems;
@@ -6651,9 +7085,99 @@ const EDIT_PLAN_PATHOLOGICAL_RATIO = 0.4;
 // ceiling sits much closer to the target than the floor does.
 const EDIT_PLAN_MAX_TARGET_RATIO = 1.35;
 
-function validateEditPlan(editPlan, targetSec = 0) {
+function validateEditPlan(editPlan, targetSec = 0, options = {}) {
+  // softBudgets: refresh/refinalize 처럼 플랜을 재생성할 LLM 루프가 없는 맥락. 품질 예산
+  // 위반은 경고로 강등한다 - 여기서 throw 하면 apply 가 고쳐 놓은 fills 째로 체인이 죽는다
+  // (실측: 11슬롯/92s=7.2/min 로 refresh 가 중단, 낡은 bootstrap_script 로 게이트만 돌았다).
+  const budgetProblem = (message) => {
+    if (options.softBudgets) { console.warn(`[plan-budget:warn] ${message}`); return; }
+    throw new Error(message);
+  };
   const timeline = Array.isArray(editPlan?.timeline) ? editPlan.timeline : [];
   if (!timeline.length) throw new Error('edit plan timeline is empty');
+  // ── 게이트 예산의 하드 제약화 (P1-2, 소유주 2026-09-07) ──
+  // 수용 게이트가 재는 예산을 플래너가 몰라서 "다 만들고 폐기"가 반복됐다(top-gun 콜백 58s,
+  // furiosa 무해설 61s, 도쿄·QP 7.1/min 밀도). 여기서 걸리면 runJsonGeneration 의 피드백
+  // 루프가 모델에게 그대로 돌려줘 호출 안에서 스스로 고친다 - 사후 폐기가 아니라.
+  {
+    // source_audio 훅도 fills 가 나레이션을 실으면 게이트(narration_share)가 똑같이 센다 -
+    // 면제했더니 79s 플랜에 NARRATE 17개(12.9/min)가 통과해 fills 를 아무리 조여도
+    // 12.7문장/분으로 출하됐다 (QP 실측). 클로징만 면제(무나레이션 원칙).
+    const isHook = (item) => String(item?.role || '') === 'closing'
+      || (item?.narration_silent === true && /source_audio/.test(String(item?.visual_source_mode || '')));
+    const narrateSlots = timeline.filter((item) => String(item?.decision || '') === 'NARRATE' && !isHook(item));
+    const tgt = Number(targetSec || 0);
+    // 밀도는 목표 길이가 아니라 플랜이 스스로 예상하는 길이로 잰다: 124s 타깃에 66s짜리
+    // 플랜이 나오면 같은 13슬롯이 실현 화면에선 11.8/min이 된다 (QP 테스트런 실측 97%/13.6).
+    const projectedSec = timeline.filter((item) => item?.decision !== 'DROP')
+      .reduce((sum, item) => sum + Number(item?.estimated_duration_sec || 0), 0);
+    const densityBaseSec = Math.max(30, Math.min(tgt > 0 ? tgt : projectedSec, projectedSec || tgt));
+    if (densityBaseSec > 0 && narrateSlots.length / (densityBaseSec / 60) > 7.0) {
+      budgetProblem(`plan budget: ${narrateSlots.length} narrated NARRATE slots over a projected ${densityBaseSec.toFixed(0)}s cut = `
+        + `${(narrateSlots.length / (densityBaseSec / 60)).toFixed(1)}/min, ceiling 7.0 (reference 6.5). `
+        + 'Merge adjacent NARRATE slots, lengthen them, or mark source_audio hooks "narration_silent": true (their own audio carries them; the fills pass will then keep them narration-free) - do not plan wall-to-wall voice.');
+    }
+    if (tgt > 0 && projectedSec > 0 && projectedSec < tgt * 0.6) {
+      budgetProblem(`plan budget: projected runtime ${projectedSec.toFixed(0)}s is under 60% of the ${tgt}s target - `
+        + 'the plan is starving the cut. Cover more of the source (longer windows, more beats) instead of a skeleton.');
+    }
+    // 첫 대사 마감 30s: 콜드오픈 이후 첫 KEEP_DIALOGUE 까지의 예상 러닝타임.
+    let cum = 0; let firstDialogueAt = -1;
+    for (const item of timeline) {
+      if (item?.decision === 'DROP') continue;
+      if (item?.decision === 'KEEP_DIALOGUE') { firstDialogueAt = cum; break; }
+      cum += Number(item?.estimated_duration_sec || 0);
+    }
+    // 조각 슬롯 금지: 1.5s 미만 NARRATE 는 픽커를 훅-재생 폴백으로 몰아 콜드오픈 클립과
+    // 겹치게 만든다 (QP 파일럿4: 0.8s slot_08 → cross_segment_overlap).
+    const sliver = narrateSlots.find((item) => {
+      const dur = Number(item?.estimated_duration_sec || 0)
+        || (Number(item?.end_sec || 0) - Number(item?.start_sec || 0));
+      return dur > 0 && dur < 1.5;
+    });
+    if (sliver) {
+      budgetProblem(`plan budget: slot ${sliver.slot_id} is a ${(Number(sliver.estimated_duration_sec)
+        || (Number(sliver.end_sec) - Number(sliver.start_sec))).toFixed(1)}s NARRATE sliver - minimum 1.5s. `
+        + 'Merge it into a neighbour or DROP it.');
+    }
+    // 훅 창이 대사 창을 물면 어댑터 트림을 뚫고 cross_segment_overlap 으로 죽는다
+    // (QP: 훅 끝 177.3 vs 다음 대사 176.9). 생성 시점에 되돌려 고치게 한다.
+    const dialogueWindows = [];
+    for (const item of timeline) {
+      for (const win of Array.isArray(item?.dialogue_line_windows) ? item.dialogue_line_windows : []) {
+        if (win && Number(win.end_sec) > Number(win.start_sec)) dialogueWindows.push([Number(win.start_sec), Number(win.end_sec), item.slot_id]);
+      }
+    }
+    for (const item of timeline) {
+      if (!/source_audio/.test(String(item?.visual_source_mode || '')) || item?.decision === 'DROP') continue;
+      const hs = Number(item.visual_source_start_sec ?? item.start_sec);
+      const he = Number(item.visual_source_end_sec ?? item.end_sec);
+      const hit = dialogueWindows.find(([ds, de, sid]) => sid !== item.slot_id && he > ds + 0.1 && hs < de - 0.1);
+      if (hit) {
+        budgetProblem(`plan budget: hook ${item.slot_id} window [${hs}-${he}] overlaps dialogue window `
+          + `[${hit[0]}-${hit[1]}] of ${hit[2]}. Hooks play their own audio - end the hook at least 0.3s before the dialogue.`);
+      }
+    }
+    if (firstDialogueAt > 30) {
+      budgetProblem(`plan budget: first KEEP_DIALOGUE lands at ~${firstDialogueAt.toFixed(0)}s of the cut, `
+        + 'deadline 30s (gate dramatic_engagement_timing). Pull a dialogue beat forward or open on one.');
+    }
+    // 콜백 마감 35s(훅 제외 실효): 콜백 슬롯 이전의 비훅 예상 러닝타임.
+    const callbackSlot = timeline.find((item) => item?.decision !== 'DROP'
+      && String(item?.callback_slot_id || '') === String(item?.slot_id || '') && item?.slot_id);
+    if (callbackSlot) {
+      let effective = 0;
+      for (const item of timeline) {
+        if (item === callbackSlot) break;
+        if (item?.decision === 'DROP' || isHook(item)) continue;
+        effective += Number(item?.estimated_duration_sec || 0);
+      }
+      if (effective > 35) {
+        budgetProblem(`plan budget: callback payoff sits ~${effective.toFixed(0)}s of non-hook runtime in, `
+          + 'deadline 35s (gate callback_strength). Move the payoff earlier or make the stretch before it source-audio hooks.');
+      }
+    }
+  }
   const target = Number(targetSec || 0);
   if (target > 0) {
     // Sum the slots rather than trusting duration_budget.estimated_total_sec: a plan can
@@ -6794,7 +7318,7 @@ async function rerankColdOpenSelection(finalizedPlan, rawEditPlan, beats, transc
       }
     };
     const refinalized = finalizeEditPlan(pinnedPlan, beats, transcript, targetSec, usableEndSec, wordTimestamps, energyPeaks);
-    validateEditPlanAgainstBeats(validateEditPlan(refinalized), beats);
+    validateEditPlanAgainstBeats(validateEditPlan(refinalized, 0, { softBudgets: true }), beats);
     refinalized.cold_open_selection = { ...(refinalized.cold_open_selection || {}), rerank: { ...rerankMeta, changed: true } };
     return refinalized;
   } catch (error) {
@@ -6991,8 +7515,15 @@ async function ensureVisionSceneMap(runDir, metadata, transcript, options = {}) 
   const cacheDir = path.join(COMPRESS_RUNS_DIR, '.vision_scene_cache');
   const cachePath = videoId ? path.join(cacheDir, `${videoId}.json`) : '';
   if (cachePath && fs.existsSync(cachePath)) {
-    fs.copyFileSync(cachePath, outPath);
-    return readJson(outPath);
+    // 캐시 무효화 (P1-5, 실사고 2026-09-07): 구스키마 캐시가 action_state 없는 지도를
+    // 복사해 사건 조립·선정을 통째로 무력화했다. 현행 스키마가 아닌 캐시는 무시하고 재판독.
+    const cached = readJson(cachePath);
+    const cachedScenes = Array.isArray(cached && cached.scenes) ? cached.scenes : [];
+    if (cachedScenes.some((scene) => scene && scene.action_state)) {
+      fs.copyFileSync(cachePath, outPath);
+      return cached;
+    }
+    console.warn('[vision-map] stale cache (no action_state) ignored - rebuilding with current schema');
   }
   const download = await downloadCompressionSourceVideo(runDir);
   let sceneMap;
@@ -7039,6 +7570,9 @@ function buildVisionSceneSection(sceneMap) {
     end_sec: scene.end_sec,
     visible_action: scene.visible_action,
     shot_type: scene.shot_type || '',
+    // 사건의 시간상 (before/onset/peak/result/static) - 명사는 맞는데 동사 시제가 틀리는
+    // 나레이션("이미 끝난 총격에 '시작합니다'")을 막는 축 (2026-09-07).
+    ...(scene.action_state ? { action_state: scene.action_state } : {}),
     // Optional fields (schema 2026-08-10): frame-judged intensity 1-5 and dominant moment
     // type - zero extra API cost, and beats/plan can rank visual moments without guessing.
     ...(scene.visual_intensity != null ? { visual_intensity: scene.visual_intensity } : {}),
@@ -7342,6 +7876,28 @@ async function runCompression(source, options = {}) {
   }
   // eslint-disable-next-line prefer-const -- transcript is reassigned by the anchor-cue merge below
   let { transcript, transcriptPath, vttPath } = await extractTimedTranscript(sourceUrl, runDir, { sourceKind: options.sourceKind });
+  // A1 전사 정화 (scene-evidence-architecture #1, 2026-09-07): VTT 큐 좌표를 그대로 믿지
+  // 않는다 - 자동자막은 발화보다 수십 초 스미어하고(도쿄 17/128큐, 소림 90→108.5s 큐가
+  // 실발화 100.7s), 이 좌표 위에 비트·플랜·대사 클립이 전부 선다. Groq 단어 시각으로
+  // 큐를 리타임하고 원본은 transcript_timed.raw.json 에 불변 보존한다. 정화 실패는
+  // 원시 좌표 유지(현상 유지 강등)이되 크게 알린다.
+  try {
+    // 정화 전제: 전사 파일과 원본 영상이 디스크에 있어야 한다 - 전사는 비트 이후에야
+    // 기록되던 것을 지금 기록하고(파일럿 실측: 훅이 헛돌았다), 소스는 멱등 다운로드.
+    writeJson(transcriptPath, transcript);
+    await downloadCompressionSourceVideo(runDir);
+    const cleanPython = resolveTool('python', { envKey: 'PYTHON_PATH' });
+    const cleanScript = path.join(PROJECT_ROOT, 'midform', 'scripts', 'clean_transcript.py');
+    const clean = require('child_process').spawnSync(cleanPython, [cleanScript, runDir], { encoding: 'utf8', timeout: 10 * 60 * 1000, env: getToolEnv() });
+    if (clean.status === 0) {
+      transcript = readJson(transcriptPath);
+      console.log(`[transcript-clean] ${String(clean.stdout || '').trim().slice(0, 200)}`);
+    } else {
+      console.warn(`[transcript-clean] FAILED - 원시 좌표로 진행: ${String(clean.stderr || clean.stdout || '').slice(0, 200)}`);
+    }
+  } catch (cleanError) {
+    console.warn(`[transcript-clean] error - 원시 좌표로 진행: ${cleanError.message}`);
+  }
   const { heatmap, heatmapPath } = extractHeatmap(metadata, runDir);
   // Download the source now (idempotent - reuses an existing file) so the visual end-card
   // detector inside profileSourceCase has frames to scan. A download failure is non-fatal:
@@ -7365,9 +7921,21 @@ async function runCompression(source, options = {}) {
     sourceCase.promo_tail_sec = declaredTail;
     sourceCase.promo_tail_declared = true;
   }
-  const visionSceneMap = await ensureVisionSceneMap(runDir, metadata, transcript, { contentType: options.contentType });
-  const visionSceneSection = buildVisionSceneSection(visionSceneMap);
+  // 에너지 프로파일을 비전보다 먼저: 피크 좌표가 있어야 행동 샷 가변 샘플링(0.4s 스트립)이
+  // 컨택트 시트에 반영된다 (scene-evidence-architecture, 2026-09-07).
   const energyProfile = await ensureEnergyProfile(runDir, metadata, sourceCase.usable_end_sec);
+  const visionSceneMap = await ensureVisionSceneMap(runDir, metadata, transcript, { contentType: options.contentType });
+  // 원본 증거 지도 (지도 3분리 #1): 셀들의 action_state 를 사건 객체(시간상 4점+전후 상태)로
+  // 조립해 source_evidence_map.json 으로. 아크 선정과 렌더 결합표의 원료다.
+  try {
+    const emPython = resolveTool('python', { envKey: 'PYTHON_PATH' });
+    const emScript = path.join(PROJECT_ROOT, 'midform', 'scripts', 'build_evidence_map.py');
+    const em = require('child_process').spawnSync(emPython, [emScript, runDir], { encoding: 'utf8', timeout: 5 * 60 * 1000, env: getToolEnv() });
+    console.log(`[evidence-map] ${String(em.stdout || em.stderr || '').trim().slice(0, 200)}`);
+  } catch (emError) {
+    console.warn(`[evidence-map] error: ${emError.message}`);
+  }
+  const visionSceneSection = buildVisionSceneSection(visionSceneMap);
   const wordTimestamps = await ensureWordTimestamps(runDir, metadata);
   const energySection = buildEnergySection(energyProfile);
   // Peak evidence (fixes the groundless action_peak claim): without a heatmap the profiler used
@@ -7429,7 +7997,7 @@ async function runCompression(source, options = {}) {
       (parsed) => validateEditPlanAgainstBeats(validateEditPlan(parsed, targetSec), beatsResult.parsed.beats)
     );
     finalizedEditPlan = finalizeEditPlan(editResult.parsed, beatsResult.parsed.beats, transcript, targetSec, sourceCase.usable_end_sec, wordTimestamps, energyProfile?.peaks || []);
-    validateEditPlanAgainstBeats(validateEditPlan(finalizedEditPlan), beatsResult.parsed.beats);
+    validateEditPlanAgainstBeats(validateEditPlan(finalizedEditPlan, targetSec), beatsResult.parsed.beats);
     finalizedEditPlan = await rerankColdOpenSelection(
       finalizedEditPlan, editResult.parsed, beatsResult.parsed.beats, transcript, targetSec, sourceCase.usable_end_sec, wordTimestamps, energyProfile?.peaks || []
     );
@@ -7566,18 +8134,23 @@ async function runCompressionApply(runIdOrPath, applyOptions = {}) {
   const applyEnergyProfilePath = path.join(runDir, 'energy_profile.json');
   const applyEnergyPeaks = fs.existsSync(applyEnergyProfilePath) ? ((readJson(applyEnergyProfilePath) || {}).peaks || []) : [];
   const finalizedEditPlan = finalizeEditPlan(editPlan, beatsObject.beats || [], transcript, targetSec, readUsableEndSec(runDir), readWordTimestamps(runDir), applyEnergyPeaks);
-  // A plan whose required narrations alone exceed the economy density ceiling is unsatisfiable
-  // before a single sentence is written: 14 NARRATE slots over 160s is a 5.2/min floor against
-  // the 3.0/min limit, so "fill every slot" and "cut narration sentences" contradict and Codex
-  // thrashes for 3-6 calls per doomed source (2026-08-29 batch: 0/3 ok, 18 sources queued, empty
-  // slots and 7-12/min density on the same outputs). Dialogue-poor sources do not fit the
-  // dialogue-led house style - reject them before paying for generation.
+  // A plan whose required narrations alone exceed the density ceiling is unsatisfiable before a
+  // single sentence is written: "fill every slot" and "cut narration sentences" contradict, and
+  // Codex thrashes for 3-6 calls per doomed source (2026-08-29 batch: 0/3 ok, 18 sources queued,
+  // empty slots and 7-12/min density on the same outputs).
+  //
+  // The ceiling itself moved on 2026-09-04. It was 2.5/min, written to defend a dialogue-led
+  // house style, and it rejected War Dogs outright the first time the recap format asked for
+  // narration. The owner's named reference runs 6.5 narration sentences per minute (헛개리카노,
+  // 7.9M views, 11 sentences over 102s, 72% of runtime narrated), so 2.5 was rejecting the form
+  // we now want. Set above the reference, not at it: a plan needing more than 7/min is asking
+  // for wall-to-wall voice, which is a different failure and still worth refusing.
   const requiredNarrations = emptyNarrationSlots({ slot_fills: [] }, finalizedEditPlan).length;
-  if (targetSec > 0 && requiredNarrations / (targetSec / 60) > 2.5) {
+  if (targetSec > 0 && requiredNarrations / (targetSec / 60) > 7.0) {
     throw Object.assign(new Error(
       `narration-infeasible plan: ${requiredNarrations} NARRATE slots require narration over ${targetSec}s `
-      + `(${(requiredNarrations / (targetSec / 60)).toFixed(1)}/min floor vs 3.0/min economy ceiling). `
-      + 'The source is too dialogue-poor for the dialogue-led house style.'
+      + `(${(requiredNarrations / (targetSec / 60)).toFixed(1)}/min floor vs 7.0/min ceiling, reference 6.5). `
+      + 'Even for a recap-led cut this is wall-to-wall voice - the plan has more seams than beats.'
     ), { code: 'MIDFORM_PLAN_NARRATION_INFEASIBLE' });
   }
   const sourceInfoPath = path.join(runDir, 'source_info.json');
@@ -7593,7 +8166,30 @@ async function runCompressionApply(runIdOrPath, applyOptions = {}) {
   const applyRejectionsPath = path.join(runDir, NARRATION_REJECTIONS_FILE);
   const applyRejectionSection = fs.existsSync(applyRejectionsPath)
     ? buildNarrationRejectionSection(readJson(applyRejectionsPath)) : '';
-  const slotFillsPrompt = buildSlotFillsPrompt(beatsObject.beats || [], finalizedEditPlan, movieTitle, recapContext.contextMarkdown)
+  // 1차 호출: 사건 선정 (증거 지도가 있을 때만). 실패/부재 시 null - 레거시 경로.
+  const arcSelectionMap = await runEventSelection(runDir, finalizedEditPlan);
+  // no_safe_narration = "억지로 쓰지 말라"는 라이선스 (스펙 #4). 그 슬롯을 NARRATE 로 두면
+  // 작가는 옳게 비우고 empty-slot 검증이 죽인다(QP 파일럿: 6슬롯 충돌). 선정 결과를 플랜에
+  // 반영해 DROP 으로 강등하고 디스크에 지속한다 - 부트스트랩은 파일을 읽는다.
+  if (Array.isArray(arcSelectionMap?.selections)) {
+    const unsafe = new Set(arcSelectionMap.selections
+      .filter((sel) => String(sel.narration_type) === 'no_safe_narration')
+      .map((sel) => String(sel.slot_id)));
+    if (unsafe.size) {
+      let dropped = 0;
+      for (const item of finalizedEditPlan.timeline || []) {
+        if (unsafe.has(String(item.slot_id)) && item.decision === 'NARRATE') {
+          promoteNoSafeSlot(item, 'no_safe_narration(선정)', finalizedEditPlan.timeline);
+          dropped += 1;
+        }
+      }
+      if (dropped) {
+        writeJson(path.join(runDir, 'edit_plan.json'), finalizedEditPlan);
+        console.log(`[event-selection] ${dropped} slot(s) dropped as no_safe_narration`);
+      }
+    }
+  }
+  const slotFillsPrompt = buildSlotFillsPrompt(beatsObject.beats || [], finalizedEditPlan, movieTitle, recapContext.contextMarkdown, arcSelectionMap)
     + applyCaseGuidance + applyVisionSection + applyRejectionSection;
   // Every caption-valid attempt that only failed the empty-slot check is kept: Codex leaves a
   // DIFFERENT narrate slot empty on each attempt over the same plan (S07 on one call, S22 on the
@@ -7606,12 +8202,51 @@ async function runCompressionApply(runIdOrPath, applyOptions = {}) {
       reconcileDialogueCaptionCounts(normalizeSlotFillsForStyle(parsed, finalizedEditPlan), finalizedEditPlan),
       finalizedEditPlan, 'ko', { allowNameplate, collect: nameplateDetections }
     );
+    // narration_silent 계약 집행: 플랜이 침묵을 선언한 훅은 밀도 예산에서 면제받았다.
+    // 작가가 그래도 문장을 쓰면 그 면제가 거짓이 되므로, 경고가 아니라 그 자리에서 지운다.
+    {
+      const silentIds = new Set((finalizedEditPlan.timeline || [])
+        .filter((item) => item?.narration_silent === true && /source_audio/.test(String(item?.visual_source_mode || '')))
+        .map((item) => String(item.slot_id)));
+      if (silentIds.size) {
+        for (const fill of (normalized?.slot_fills || [])) {
+          if (silentIds.has(String(fill?.slot_id)) && String(fill?.narration || '').trim()) {
+            console.log(`[narration-silent] ${fill.slot_id}: planned silent - dropping written narration "${String(fill.narration).slice(0, 40)}"`);
+            fill.narration = '';
+            if (Array.isArray(fill.narration_bindings)) fill.narration_bindings = [];
+          }
+        }
+      }
+    }
     // Structure BEFORE style. The economy throw is degraded to a warning by the caller, and when
     // it fired first it short-circuited this check - a Codex run shipped with slot_closing empty
     // and exit 0, because economy threw on both attempts and the check below never ran
     // (2026-08-24). An empty slot loses content; bad phrasing only phrases it badly.
     const empty = emptyNarrationSlots(normalized, finalizedEditPlan);
     if (empty.length) {
+      // 작가의 빈 슬롯 = 작가 측 no_safe_narration 선언 (스펙 #4: 억지로 쓰지 않는다).
+      // 사건 선정이 켜진 런에서는 이를 실패가 아니라 DROP 으로 승격한다 - 선정과 작가 두
+      // 판단이 한 방향으로 흐르게. 단 40% 초과가 비면 소스 자체가 이 형식에 부적합한 것이라
+      // 여전히 실패시킨다 (컷이 뼈만 남는다).
+      if (arcSelectionMap) {
+        const emptyIds = new Set(empty.map((entry) => String(entry).split(' ')[0]));
+        const narrated = (finalizedEditPlan.timeline || []).filter((item) => item.decision === 'NARRATE'
+          && !/source_audio/.test(String(item.visual_source_mode || '')) && String(item.role || '') !== 'closing');
+        if (emptyIds.size / Math.max(1, narrated.length) <= 0.4) {
+          let dropped = 0;
+          for (const item of finalizedEditPlan.timeline || []) {
+            if (emptyIds.has(String(item.slot_id)) && item.decision === 'NARRATE') {
+              promoteNoSafeSlot(item, 'writer no_safe(빈 슬롯)', finalizedEditPlan.timeline);
+              dropped += 1;
+            }
+          }
+          if (dropped) {
+            writeJson(path.join(runDir, 'edit_plan.json'), finalizedEditPlan);
+            console.log(`[writer-no-safe] ${dropped} empty NARRATE slot(s) dropped`);
+            return normalized;
+          }
+        }
+      }
       partialFills.push(normalized);
       throw new Error(`empty narration slots: ${empty.join(' | ')}`);
     }
@@ -7840,7 +8475,7 @@ function refreshCompressionPlan(runIdOrPath) {
   if (fs.existsSync(slotFillsPath)) {
     refreshedPlan = recalculateNarrationDurations(refreshedPlan, readJson(slotFillsPath), beatsObject.beats || [], transcript);
   }
-  validateEditPlanAgainstBeats(validateEditPlan(refreshedPlan), beatsObject.beats || []);
+  validateEditPlanAgainstBeats(validateEditPlan(refreshedPlan, 0, { softBudgets: true }), beatsObject.beats || []);
   writeJson(editPlanPath, refreshedPlan);
   const markdownPath = path.join(runDir, 'narrative_beats.md');
   writeText(markdownPath, `${buildNarrativeBeatsMarkdown({

@@ -1,33 +1,58 @@
 {
   "type": "object",
   "properties": {
-    "frames": {
+    "cells": {
       "type": "array",
       "items": {
         "type": "object",
         "properties": {
-          "index": {
-            "type": "integer",
-            "description": "1-based position of the frame in the attached batch"
+          "timecode": {
+            "type": "string",
+            "description": "The timecode label printed under this cell, copied exactly (e.g. \"01:03.0-01:05.7\")"
           },
           "visible_action": {
             "type": "string",
-            "description": "One Korean sentence describing only what is visible in this frame"
+            "description": "One Korean sentence describing only what is visible in this cell"
           },
           "shot_type": {
             "type": "string",
-            "enum": ["wide", "medium", "close", "insert", "other"]
+            "enum": [
+              "wide",
+              "medium",
+              "close",
+              "insert",
+              "other"
+            ]
           },
           "characters_visible": {
             "type": "integer",
-            "description": "How many people are visible in the frame"
+            "description": "How many people are visible in the cell"
+          },
+          "action_state": {
+            "type": "string",
+            "enum": [
+              "before",
+              "onset",
+              "peak",
+              "result",
+              "static"
+            ],
+            "description": "Where this frame sits inside its action: before it begins / the action starting / its peak moment / its aftermath / no action (static shot)"
           }
         },
-        "required": ["index", "visible_action", "shot_type", "characters_visible"],
+        "required": [
+          "timecode",
+          "visible_action",
+          "shot_type",
+          "characters_visible",
+          "action_state"
+        ],
         "additionalProperties": false
       }
     }
   },
-  "required": ["frames"],
+  "required": [
+    "cells"
+  ],
   "additionalProperties": false
 }

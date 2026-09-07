@@ -97,6 +97,70 @@
               "type": "string"
             },
             "maxItems": 2
+          },
+          "narration_anchor_secs": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "description": "NARRATE slots only: one source-video second per narration sentence, in sentence order. Each anchor is the moment in the vision scene map that the sentence is written ON - the b-roll clip for that sentence starts there. Empty array for dialogue-only slots."
+          },
+          "narration_bindings": {
+            "type": "array",
+            "description": "NARRATE slots: one entry per narration sentence, in order - the render binding that ties the sentence to selected screen evidence. Dialogue-only slots: empty array.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "sentence_index": {
+                  "type": "integer"
+                },
+                "event_id": {
+                  "type": "string",
+                  "description": "evidence event this sentence is written on, or empty for bridge/contextual"
+                },
+                "narration_type": {
+                  "type": "string",
+                  "enum": [
+                    "literal_action",
+                    "contextual_fact",
+                    "bridge",
+                    "dialogue_setup"
+                  ]
+                },
+                "temporal_phase": {
+                  "type": "string",
+                  "enum": [
+                    "before",
+                    "onset",
+                    "onset_to_peak",
+                    "peak",
+                    "result",
+                    "whole",
+                    "none"
+                  ]
+                },
+                "sync_phrase": {
+                  "type": "string",
+                  "description": "the Korean verb phrase in this sentence that must land on source_sync_sec (empty when none)"
+                },
+                "source_sync_sec": {
+                  "type": "number"
+                },
+                "clip_window": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  },
+                  "description": "[start_sec, end_sec] of the source clip for this sentence"
+                }
+              },
+              "required": [
+                "sentence_index",
+                "narration_type",
+                "clip_window"
+              ],
+              "additionalProperties": false
+            }
           }
         },
         "required": [

@@ -1,0 +1,49 @@
+{
+  "type": "object",
+  "properties": {
+    "selections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "slot_id": {
+            "type": "string"
+          },
+          "event_id": {
+            "type": "string",
+            "description": "chosen evidence event, or empty string when no safe event exists in this window"
+          },
+          "narration_type": {
+            "type": "string",
+            "enum": [
+              "literal_action",
+              "contextual_fact",
+              "bridge",
+              "dialogue_setup",
+              "no_safe_narration"
+            ]
+          },
+          "source_window": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "slot_id",
+          "narration_type",
+          "source_window"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "selections"
+  ],
+  "additionalProperties": false
+}
