@@ -5955,6 +5955,13 @@ function buildEventSelectionPrompt(editPlan, evidenceMap) {
     '- contextual_fact / bridge / dialogue_setup: no event needed (event_id: ""), pick a neutral window inside the slot.',
     '- no_safe_narration: nothing in this window supports narration - do not force it.',
     '- The selected source_window must stay inside the slot window; prefer windows that include the event points you rely on.',
+    'STORY RELEVANCE (the reason a selection pass exists at all): pick the event that advances',
+    'THE story, not just any observable motion. Ask of every candidate: does this connect to the',
+    'protagonist or to the consequence chain of the previous selected event? An anonymous-crowd',
+    'action ("attendees put down plates", "people mill about") is selectable ONLY as the direct,',
+    'nameable consequence of a story event - otherwise prefer a contextual_fact/bridge for that',
+    'slot, or no_safe_narration. Real failure this rule exists for: a rally cut chained literal',
+    'crowd motions, every sentence frame-true and the whole cut story-dead (story_legible FAIL).',
     'Return JSON only: {"selections":[{"slot_id","event_id","narration_type","source_window":[s,e],"reason"}]}',
     '',
     'Slots and their observed events:',
@@ -7173,14 +7180,23 @@ function validateEditPlan(editPlan, targetSec = 0, options = {}) {
       budgetProblem(`plan budget: first KEEP_DIALOGUE lands at ~${firstDialogueAt.toFixed(0)}s of the cut, `
         + 'deadline 30s (gate dramatic_engagement_timing). Pull a dialogue beat forward or open on one.');
     }
-    // 콜백 마감 35s(훅 제외 실효): 콜백 슬롯 이전의 비훅 예상 러닝타임.
-    const callbackSlot = timeline.find((item) => item?.decision !== 'DROP'
-      && String(item?.callback_slot_id || '') === String(item?.slot_id || '') && item?.slot_id);
+    // 콜백 마감 35s(훅 제외 실효): 게이트 callback_strength 와 같은 잣대.
+    // (1) 마킹(callback_slot_id) 없으면 게이트처럼 도출한다 - 콜드오픈 다음의 첫
+    //     KEEP_DIALOGUE 가 콜백이다. 마킹 의존이라 검프 플랜(콜백 71s)이 무검사 통과했다.
+    // (2) 훅 제외도 게이트와 동일: 모든 source_audio 훅 초를 시계에서 뺀다
+    //     (narration_silent 여부는 밀도 예산의 관심사지 콜백 시계의 관심사가 아니다).
+    const active = timeline.filter((item) => item?.decision !== 'DROP');
+    const markedCallback = active.find((item) => String(item?.callback_slot_id || '') === String(item?.slot_id || '') && item?.slot_id);
+    const coldOpenIdx = active.findIndex((item) => String(item?.role || '') === 'cold_open');
+    const derivedCallback = coldOpenIdx >= 0
+      ? active.slice(coldOpenIdx + 1).find((item) => item?.decision === 'KEEP_DIALOGUE')
+      : null;
+    const callbackSlot = markedCallback || derivedCallback;
     if (callbackSlot) {
       let effective = 0;
-      for (const item of timeline) {
+      for (const item of active) {
         if (item === callbackSlot) break;
-        if (item?.decision === 'DROP' || isHook(item)) continue;
+        if (/source_audio/.test(String(item?.visual_source_mode || ''))) continue;
         effective += Number(item?.estimated_duration_sec || 0);
       }
       if (effective > 35) {
