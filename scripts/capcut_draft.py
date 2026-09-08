@@ -11208,6 +11208,18 @@ def create_draft(input_json_path):
                 validation_errors.append(f"{segment_id}: source_clips are shorter than required timeline by {remaining_us}us")
 
         planned_sorted = sorted(planned, key=lambda row: (row["start_us"], row["end_us"], row["segment_id"]))
+        # 콜드오픈 재생 쌍은 소스 겹침이 설계다 (프리플라이트와 같은 면제 - 바스터즈 실측).
+        replay_parent_of = {}
+        replay_pairs = set()
+        for _sid, _seg in segment_map.items():
+            _parent = str(_seg.get("parent_slot_id") or _sid)
+            replay_parent_of[str(_sid)] = _parent
+            _rp = str(_seg.get("replay_of_slot_id") or "").strip()
+            if _rp:
+                replay_pairs.add((_parent, _rp))
+                replay_pairs.add((_rp, _parent))
+        def _is_replay_pair(a_id, b_id):
+            return (replay_parent_of.get(a_id, a_id), replay_parent_of.get(b_id, b_id)) in replay_pairs
         for index, current in enumerate(planned_sorted):
             for other in planned_sorted[index + 1:]:
                 if other["start_us"] >= current["end_us"] - 1_000:
@@ -11215,6 +11227,8 @@ def create_draft(input_json_path):
                 overlap_us = min(current["end_us"], other["end_us"]) - max(current["start_us"], other["start_us"])
                 if overlap_us > 1_000:
                     if current["segment_id"] == other["segment_id"] and current["segment_type"] not in {"dialogue_quote", "dialogue"}:
+                        continue
+                    if _is_replay_pair(current["segment_id"], other["segment_id"]):
                         continue
                     validation_errors.append(
                         f"{current['segment_id']}/{current['clip_id']} overlaps "

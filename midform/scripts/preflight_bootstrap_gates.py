@@ -89,6 +89,19 @@ def main():
             narration_missing_broll.append(sid)
 
     # 5. cross-segment overlap (hybrid gate, conservative full-clip check).
+    # 콜드오픈 재생 쌍(replay_of_slot_id)은 소스 겹침이 설계다 - 같은 대사를 훅에서 미리,
+    # 페이오프에서 다시 재생한다. 이 쌍만 면제하고 나머지 겹침은 그대로 잡는다.
+    replay_pairs = set()
+    parent_of = {}
+    for seg in segments:
+        sid = str(seg.get("segment_id"))
+        parent_of[sid] = str(seg.get("parent_slot_id") or sid)
+        rp = str(seg.get("replay_of_slot_id") or "").strip()
+        if rp:
+            replay_pairs.add((parent_of[sid], rp))
+            replay_pairs.add((rp, parent_of[sid]))
+    def is_replay_pair(a_id, b_id):
+        return (parent_of.get(a_id, a_id), parent_of.get(b_id, b_id)) in replay_pairs
     ranges = []
     for seg in segments:
         r = first_clip_range(seg)
@@ -102,7 +115,7 @@ def main():
             b_id, b_s, b_e = ranges[j]
             if b_s >= a_e - 0.001:
                 break
-            if a_id != b_id:
+            if a_id != b_id and not is_replay_pair(a_id, b_id):
                 cross_overlaps.append({"a": a_id, "a_range": [round(a_s, 3), round(a_e, 3)], "b": b_id, "b_range": [round(b_s, 3), round(b_e, 3)]})
 
     verdict = {

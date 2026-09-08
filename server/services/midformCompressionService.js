@@ -7203,6 +7203,13 @@ function validateEditPlan(editPlan, targetSec = 0, options = {}) {
         budgetProblem(`plan budget: callback payoff sits ~${effective.toFixed(0)}s of non-hook runtime in, `
           + 'deadline 35s (gate callback_strength). Move the payoff earlier or make the stretch before it source-audio hooks.');
       }
+      // 하한 20s: 티저 직후에 페이오프가 붙으면 같은 대사가 15초 안에 두 번 재생돼
+      // 콜백이 아니라 더빙 사고처럼 들린다 (바스터즈 실측: first30 에 동일 대사 2회).
+      // 하우스 창은 20~35s - 티저와 페이오프 사이에 본문이 있어야 회수가 회수답다.
+      if (effective < 20) {
+        budgetProblem(`plan budget: callback payoff arrives at ~${effective.toFixed(0)}s of non-hook runtime - `
+          + 'the house window is 20~35s. Put body slots between the cold-open teaser and its payoff; back-to-back replay reads as a glitch, not a callback.');
+      }
     }
   }
   const target = Number(targetSec || 0);

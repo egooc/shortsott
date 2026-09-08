@@ -1130,6 +1130,9 @@ function buildBootstrapSlotMapAndScript(editPlan, slotFills, options = {}) {
           segment_type: 'dialogue_quote',
           source_type: item.requires_context ? 'KEEP_DIALOGUE_BRIDGED' : 'KEEP_DIALOGUE',
           parent_slot_id: slotId,
+          // 콜드오픈 재생 쌍은 소스가 겹치는 게 설계다 - 이 메타가 없으면 cross_segment
+          // 게이트가 중복 footage 버그로 오판한다 (바스터즈 S01/S01_payoff 실측).
+          ...(item.replay_of_slot_id ? { replay_of_slot_id: String(item.replay_of_slot_id) } : {}),
           source_line_id: segId,
           translation_mode: 'faithful_dialogue',
           context_strategy: item.context_strategy || 'none',
