@@ -109,7 +109,11 @@ function analyze(draftDir, opts = {}) {
   // 대사형 채널(ch_37689, 144만 히트) 실존 근거로 하한을 25% 로 완화한다 (2026-09-08).
   // 해설이 본체인 리캡형 하한 50% 는 그대로.
   const sceneType = String(opts.sceneType || manifest.scene_type || manifest.case_type || '');
-  const shareFloor = /dialogue_confrontation|interrogation/.test(sceneType) ? 0.25 : NARRATION_SHARE_MIN;
+  const isDialogueScene = /dialogue_confrontation|interrogation/.test(sceneType);
+  const shareFloor = isDialogueScene ? 0.25 : NARRATION_SHARE_MIN;
+  // 대사형 씬은 문장 밀도도 낮은 게 정상이다 - 코퍼스의 대사형 채널(ch_37689)은 사실상
+  // 나레이션 0~3/분으로 144만 히트를 냈다. 하한 3.5 -> 2.0.
+  const perMinFloor = isDialogueScene ? 2.0 : SENTENCES_PER_MIN_MIN;
   const perMin = total > 0 ? narrationSentences / (total / 60) : 0;
 
   const findings = [];
@@ -118,7 +122,7 @@ function analyze(draftDir, opts = {}) {
   } else if (share < NARRATION_SHARE_WARN) {
     findings.push(`해설 비중 ${(share * 100).toFixed(0)}% — 목표 ${NARRATION_SHARE_WARN * 100}%에 미달`);
   }
-  if (perMin < SENTENCES_PER_MIN_MIN) {
+  if (perMin < perMinFloor) {
     findings.push(`해설 문장 ${perMin.toFixed(1)}/분 — 하한 ${SENTENCES_PER_MIN_MIN} 미만 (레퍼런스 6.5)`);
   }
   if (share > NARRATION_SHARE_MAX) {
@@ -140,7 +144,7 @@ function analyze(draftDir, opts = {}) {
     findings.push(`대사 연속 ${longestRun.toFixed(1)}s — 상한 ${DIALOGUE_RUN_MAX_SEC}s 초과 (레퍼런스 5~6s)`);
   }
 
-  const verdict = (inceptive.length > 0 || share < shareFloor || perMin < SENTENCES_PER_MIN_MIN
+  const verdict = (inceptive.length > 0 || share < shareFloor || perMin < perMinFloor
     || share > NARRATION_SHARE_MAX || perMin > SENTENCES_PER_MIN_MAX
     || longestRun > DIALOGUE_RUN_MAX_SEC) ? 'FAIL' : (findings.length ? 'WARN' : 'PASS');
 
