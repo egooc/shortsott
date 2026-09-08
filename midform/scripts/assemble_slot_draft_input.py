@@ -57,11 +57,11 @@ DEFAULT_TTS_CONFIG = {
 ACTIVE_TTS_CONFIG = dict(DEFAULT_TTS_CONFIG)
 
 
-CAPTION_MAX_CHARS = 11
+CAPTION_MAX_CHARS = 12  # 소유주 2026-09-08: 기본 12자
 # Screen truth: at our caption font a 13-char line wraps ("빅토리아가 뭘 노리는지 몰라.",
 # "거짓말로 여겨서 바로 나설 거야." both rendered as two lines - owner review 2026-08-26/27).
 # The extended allowance may not exceed what the frame can actually hold.
-CAPTION_EXTENDED_CHARS = 12
+CAPTION_EXTENDED_CHARS = 16  # 16자까지는 구절을 쪼개지 않는다 - 표시 축소가 한 줄로 흡수 (소유주 2026-09-08)
 CAPTION_MIN_CHARS = 4
 CAPTION_MIN_DURATION_SEC = 0.9
 SAFE_FILENAME_RE = re.compile(r"[^A-Za-z0-9_.-]+")
@@ -1131,7 +1131,17 @@ def build_timeline_units(segments):
     for segment_index, segment in enumerate(segments, start=1):
         segment_id = str(segment.get("segment_id") or f"s{segment_index:02d}")
         segment_type = str(segment.get("segment_type") or "recap")
-        if segment_type == "scene_hook":
+        # A scene hook that carries narration keeps it (adapter rule, 2026-09-05: the sizing
+        # argument never applied to the sentence). This branch used to swallow that narration
+        # unconditionally - The Dictator shipped 40.5s of silent captions over full-volume
+        # source audio and failed narration_share at 58% while bootstrap_script.json said
+        # tts_enabled=true. Only a TRULY silent hook needs the placeholder.
+        narrated_scene_hook = (
+            segment_type == "scene_hook"
+            and segment.get("tts_enabled") is True
+            and bool(normalize_text(segment.get("narration")))
+        )
+        if segment_type == "scene_hook" and not narrated_scene_hook:
             # Scene hook has no captions and no TTS, but the timeline is unit-driven, so it
             # needs one silent placeholder unit or the clip would never be placed.
             caption_units.append(

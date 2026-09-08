@@ -1971,7 +1971,7 @@ MIDFORM_JA_CAPTION_LANE_OFFSETS = (0.0, 0.085)
 MIDFORM_JA_DIALOGUE_FONT_SIZE = 11
 # 한 줄에 안전하게 들어가는 유효 폭(전각 기준). 청크 상한(12자)이 이 폭을 넘으면 마지막
 # 한두 글자가 다음 줄로 밀렸다(소유주 2026-09-07: "한 글자씩 밀린 데는 그냥 크기를 줄여").
-MIDFORM_CAPTION_FIT_EFF_CHARS = 10.5
+MIDFORM_CAPTION_FIT_EFF_CHARS = 12.0  # 기본 12자 풀사이즈 (소유주 2026-09-08)
 
 
 def midform_caption_base_y(caption_y=None):
@@ -3319,7 +3319,7 @@ def rebuild_midform_caption_track_from_template(draft_content_path, template_doc
         base_font = safe_float(cloned_material.get("font_size"), 11.0)
         effective_width = sum(1.0 if ord(ch) > 0x2E80 else 0.5 for ch in text_value)
         if effective_width > MIDFORM_CAPTION_FIT_EFF_CHARS and base_font > 0:
-            shrink = max(0.78, MIDFORM_CAPTION_FIT_EFF_CHARS / effective_width)
+            shrink = max(0.72, MIDFORM_CAPTION_FIT_EFF_CHARS / effective_width)  # 16자까지 한 줄 유지
             apply_text_material_font_size(cloned_material, round(base_font * shrink, 2))
             summary["shrunk_captions"] = summary.get("shrunk_captions", 0) + 1
         ensure_material_category(draft_content, "texts").append(cloned_material)

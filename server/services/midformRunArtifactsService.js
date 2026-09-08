@@ -743,7 +743,7 @@ async function collectRunArtifacts({
       const draftDir = path.join(workspaceDir, `draft_${locale}`);
       if (!fs.existsSync(path.join(draftDir, 'edit_manifest.json'))) continue;
       if (isStaleLocaleDraft(locale)) continue;
-      const result = analyzeShare(draftDir);
+      const result = analyzeShare(draftDir, { sceneType });
       if (result.error) continue;
       perLocale.push({
         locale,
