@@ -1117,9 +1117,10 @@ def split_tts_sentences(text):
             continue
         if merged and len(merged[-1]) < 15 and len(f"{merged[-1]} {sentence}") <= 40:
             merged[-1] = normalize_text(f"{merged[-1]} {sentence}")
-        elif len(sentence) > 48:
-            merged.extend(split_long_caption_by_eojeol(sentence, max_chars=40, min_eojeol=2, extended_chars=40))
         else:
+            # TTS 는 문장 단위 - 예외 없음 (소유주 2026-09-08). 옛 48자 상한이 코퍼스
+            # 문체(40~60자 완결문)를 두 동강 내 합성해, 문장 한가운데가 뚝 끊겨 들렸다
+            # (QP c판 S02/S04/S05 실측). 긴 문장은 TTS 엔진이 알아서 호흡한다.
             merged.append(sentence)
     return merged or [normalize_text(text)]
 
