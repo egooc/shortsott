@@ -415,16 +415,24 @@ function normalizeDraftSpecSourceRanges(draftSpec, baseDraftInput = {}, options 
         // 같은 장면이 이어지는 창 '직후'로 길이를 보존해 통째 이동한다.
         const spanSec = Number(placementRange[1]) - Number(placementRange[0]);
         let swallowEnd = Number(placementRange[1]);
+        let swallowStart = Number(placementRange[0]);
         for (const [otherKey, windows] of fixedWindowsBySlot) {
           if (otherKey === placementKey) continue;
           for (const [winStart, winEnd] of windows) {
-            if (winStart <= Number(placementRange[0]) + 0.05 && winEnd >= Number(placementRange[1]) - 0.05) {
-              swallowEnd = Math.max(swallowEnd, winEnd);
-            }
+            if (!(winEnd > winStart) || winEnd <= Number(placementRange[0]) || winStart >= Number(placementRange[1])) continue;
+            swallowEnd = Math.max(swallowEnd, winEnd);
+            swallowStart = Math.min(swallowStart, winStart);
           }
         }
-        const movedStart = swallowEnd + 0.2;
-        const movedEnd = movedStart + spanSec;
+        // 앞이 usable end 에 막히면 뒤(삼킨 창 앞쪽)로 - 앞으로만 보내면 usable-end 클램프가
+        // 도로 대사 위로 되밀어 제자리 순환한다 (검프 ja 클로징 509.1-512 실측).
+        let movedStart = swallowEnd + 0.2;
+        let movedEnd = movedStart + spanSec;
+        if (usableEndSec > 0 && movedEnd > usableEndSec - 0.05) {
+          movedEnd = swallowStart - 0.2;
+          movedStart = movedEnd - spanSec;
+        }
+        if (movedStart < 0) { movedStart = 0; movedEnd = spanSec; }
         console.warn(`[locale-pack] ${placementKey}: pinned window swallowed by another fixed window - relocated to ${movedStart.toFixed(2)}-${movedEnd.toFixed(2)}`);
         fixedWindowsBySlot.set(placementKey, [[movedStart, movedEnd]]);
         placement.source_range = [Number(movedStart.toFixed(3)), Number(movedEnd.toFixed(3))];
@@ -483,6 +491,26 @@ function normalizeDraftSpecSourceRanges(draftSpec, baseDraftInput = {}, options 
         const overflow = end - usableEndSec;
         start = Math.max(0, start - overflow);
         end = usableEndSec;
+        // 되민 자리가 다른 슬롯의 고정 창(대사)을 물면 그 창 앞쪽으로 통째 이동한다.
+        // 실측(검프 ja 클로징): 트림이 512.1-515.1 로 살려 보낸 핀을 이 클램프가 3.1s
+        // 되밀며 507-512 대사 위에 착지시켰다 - 클램프와 트림이 서로의 결과를 깨는 순환.
+        const spanSec = end - start;
+        // 한 창만 피하면 그 앞 창에 다시 걸린다(1.36s 잔여 실측) - 전부 벗어날 때까지 민다.
+        let moved = false;
+        for (let guard = 0; guard < 12; guard += 1) {
+          let blockStart = Infinity;
+          for (const [otherKey, windows] of fixedWindowsBySlot) {
+            if (otherKey === slotKey) continue;
+            for (const [winStart, winEnd] of windows) {
+              if (winEnd > start + 0.001 && winStart < end - 0.001) blockStart = Math.min(blockStart, winStart);
+            }
+          }
+          if (!Number.isFinite(blockStart)) break;
+          end = Math.max(spanSec, blockStart - 0.2);
+          start = Math.max(0, end - spanSec);
+          moved = true;
+        }
+        if (moved) console.warn(`[locale-pack] ${slotKey}: usable-end shift landed on fixed windows - moved before them (${start.toFixed(2)}-${end.toFixed(2)})`);
       }
       return {
         ...placement,
