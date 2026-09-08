@@ -7211,6 +7211,25 @@ function validateEditPlan(editPlan, targetSec = 0, options = {}) {
           + 'the house window is 20~35s. Put body slots between the cold-open teaser and its payoff; back-to-back replay reads as a glitch, not a callback.');
       }
     }
+    {
+      // 비중 프록시 (플랜/게이트 정합): 게이트 narration_share 는 발화 시간 기준 하한 50% 를
+      // 잰다. 플랜에 프록시가 없어 대사극 소스에서 KEEP 위주 플랜(실측 31%)이 그대로 통과해
+      // 만들고 나서 폐기됐다. 추정치로 미리 잰다: 해설 예상초 / (해설+대사 예상초).
+      let narrSec = 0; let dlgSec = 0;
+      for (const item of timeline) {
+        if (item?.decision === 'DROP') continue;
+        const est = Math.max(0, Number(item?.estimated_duration_sec || 0));
+        if (item?.decision === 'KEEP_DIALOGUE') dlgSec += est;
+        else if (item?.decision === 'NARRATE' && !(item?.narration_silent === true && /source_audio/.test(String(item?.visual_source_mode || '')))
+          && String(item?.role || '') !== 'closing') narrSec += est;
+      }
+      const spoken = narrSec + dlgSec;
+      if (spoken > 20 && narrSec / spoken < 0.5) {
+        budgetProblem(`plan budget: narration carries ${(narrSec / spoken * 100).toFixed(0)}% of spoken time `
+          + `(narrate ~${narrSec.toFixed(0)}s vs dialogue ~${dlgSec.toFixed(0)}s) - the gate floor is 50% (reference 72%). `
+          + 'The recap voice is the spine: compress more of the dialogue into narration; keep only the lines that land as moments.');
+      }
+    }
   }
   const target = Number(targetSec || 0);
   if (target > 0) {
