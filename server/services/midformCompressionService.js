@@ -693,7 +693,28 @@ async function extractTimedTranscript(sourceUrl, runDir, options = {}) {
   const ytDlp = resolveTool('yt-dlp', { envKey: 'YT_DLP_PATH' });
   const subtitleDir = path.join(runDir, 'subtitles_raw');
   ensureDir(subtitleDir);
-  await execFileAsync(ytDlp, [
+  // 자막 재사용: 같은 소스의 형제 compress run 에 이미 받은 vtt 가 있으면 복사한다.
+  // 소스 mp4 는 재사용 경로가 있는데 자막만 매번 재요청해, 유튜브 429 하루 차단이
+  // 파이프라인 전체를 세웠다 (바스터즈 3연속 실측).
+  if (!findVttFile(subtitleDir)) {
+    const runBase = path.basename(runDir);
+    const sourceTag = runBase.replace(/^compress_\d+_/, '');
+    if (sourceTag) {
+      const siblings = fs.readdirSync(path.dirname(runDir))
+        .filter((name) => name.startsWith('compress_') && name.endsWith(`_${sourceTag}`) && name !== runBase)
+        .sort().reverse();
+      for (const sib of siblings) {
+        const sibDir = path.join(path.dirname(runDir), sib, 'subtitles_raw');
+        const sibVtt = fs.existsSync(sibDir) ? findVttFile(sibDir) : '';
+        if (sibVtt) {
+          fs.copyFileSync(sibVtt, path.join(subtitleDir, path.basename(sibVtt)));
+          console.log(`[transcript] reusing subtitles from ${sib}`);
+          break;
+        }
+      }
+    }
+  }
+  if (!findVttFile(subtitleDir)) await execFileAsync(ytDlp, [
     '--js-runtimes', 'node',
     '--skip-download',
     '--no-playlist',
@@ -6131,8 +6152,9 @@ function buildSlotFillsPrompt(beats, editPlan, movieTitle, recapContextMarkdown,
     '- Narration states ONLY what the transcript or the footage shows. Never invent an identity reveal, a hidden connection, or a cause: "옆자리에 앉았던 바로 그 사람이 판사였습니다" was written into a cut whose source says no such thing. A reveal that is not in the source is not a twist, it is a lie the viewer can catch.',
     '- ONE obligation among all these prohibitions: if there is a single fact without which the viewer cannot follow, laugh at, or feel the tension of what they are watching, state it once, in one short line, early. Not who someone is - WHAT IS HAPPENING TO THEM. A body losing its senses one by one, a man who cannot see straight, a room nobody may leave. Ask yourself what a first-time viewer would be confused by, and say only that. If the dialogue already carries it, say nothing.',
     '- Test the last scene against this: if a moment only works because of something established earlier, and neither the dialogue nor a seam line establishes it, the moment reads as random or as the character simply being unpleasant. That is the failure this obligation exists to prevent.',
-    '- STYLE (house guidebook, midform/docs/style-guide-ko.md): narration endings ~했는데/~하는데 (unresolved, hands off to the scene) and ~했죠/~하죠 (soft) carry the cut. ~했습니다 is the EXCEPTION, not the default: use it only where a beat genuinely has to land closed, and never more than one such sentence per cut. BANNED endings: ~에요/~어요/~거든요/~네요. NEVER ask the viewer a question (~을까요?) - the ONE exception is a closing quip of the form "여러분 ...?".',
-    '- WHY (benchmark 눈물한가득 2026-08-22, measured on its 17.7M and 16M cuts of this exact format): ZERO declarative closers across both. A closed sentence tells the viewer the beat is over and the scroll is free; an unresolved one makes the next scene the answer. Our own cuts measured 11 declarative closers and 0 suspended ones - that is the single largest structural gap to the benchmark.',
+    '- STYLE endings (re-based on the owner-provided 5-short corpus, 2026-09-08): the top references (6.6M/4.6M views) narrate in FULL declarative sentences - ~습니다 and ~죠/~했죠 carry the cut in roughly equal mixture, with ~하죠 accents; ~는데 hand-offs are RARE (2 uses across all five). Write complete statements that land, rotate 습니다/죠/었죠 freely, and use ~는데 only when the footage genuinely answers the sentence. No single ending over ~40% of sentences.',
+    '- STYLE (updated 2026-09-08): BANNED endings stay banned: ~에요/~어요/~거든요/~네요. NEVER ask the viewer a question (~을까요?) - the ONE exception is a closing quip of the form "여러분 ...?".',
+    '- SENTENCE SHAPE (corpus-measured): reference sentences average 52~59자 - multi-clause, cause -> action -> consequence chained into one landing statement ("보안관은 스스로 감옥 안에 걸어 들어가더니 문을 잠그고 열쇠를 창밖으로 던져버렸습니다."). Aim 40~60자; a 15자 fragment is a caption, not narration.',
     '- STYLE: zero translationese. Never ~에 따라/~을 통해/~에 의해/~에 대해. Recast abstract western phrasing as concrete Korean. Colloquial force is welcome (깜놀, 빡치다, 멘붕) where the scene earns it - natural beats forced slang.',
     '- STYLE: no double reporting - never "말했습니다. ~라고요." Fold it: "~라고 말했습니다." Chain consecutive actions into one sentence; split only for deliberate impact ("그런데 바로 그때였습니다.").',
     '- STYLE: narration uses NO person names - role nouns only (남자, 승무원, 판사), one consistent term per person. Dialogue captions keep names spoken IN the line itself.',
@@ -6668,16 +6690,38 @@ function narrationEconomyProblems(slotFills, editPlan, locale = 'ko') {
         + 'from the event own before/visible/after states into one 25~45자 sentence (reference: 6.6s per sentence)');
     }
   }
+  {
+    // 어미 다양성: 닫힘형 금지 규칙이 ~는데 단일형 수렴을 낳았다 (QP 11문장 중 8개 실측,
+    // 소유주 지적). 같은 어미가 40% 를 넘으면 돌려 쓰게 돌려보낸다.
+    const realS = [];
+    for (const fill of fills) {
+      for (const t of String(fill?.narration || '').split(/(?<=[.!?…。])\s+/)) if (t.trim()) realS.push(t.trim());
+    }
+    if (realS.length >= 5) {
+      const suffixOf = (t) => {
+        const m = t.replace(/[.!?…。\s]+$/,'').match(/(는데요|는데|하죠|이죠|었죠|았죠|죠|습니다|입니다|합니다|서요|이었다|었다|한다|이다|のですが|ですが|んです|ます|でした)$/);
+        return m ? m[1].replace(/^(하|이|었|았)/,'') : 'etc';
+      };
+      const counts = {};
+      for (const t of realS) { const k = suffixOf(t); counts[k] = (counts[k] || 0) + 1; }
+      for (const [k, n] of Object.entries(counts)) {
+        if (k !== 'etc' && n / realS.length > 0.4 && n >= 3) {
+          problems.push(`ending monotony: ${n}/${realS.length} sentences end in "~${k}". Rotate the endings - `
+            + '~는데(hand-off), ~죠(soft), 명사형 절단("숨소리마저 멎는 순간."), 그리고 컷당 1번의 ~습니다. '
+            + 'The benchmark avoids CLOSED endings, not variety; eight ~는데 in a row reads like a tic.');
+        }
+      }
+    }
+  }
   const declarative = sentences.filter((s) => DECLARATIVE.test(s.text));
   const suspended = sentences.filter((s) => SUSPENDED.test(s.text));
   // One closed sentence is allowed for a beat that truly has to land; a wall of them is the
   // pattern that made every cut read as a running commentary.
-  if (declarative.length > 1) {
-    problems.push(`${declarative.length} narration sentences end declaratively (${isJa ? '…ました/…です' : '~습니다/~했다'}); at most 1 per cut is allowed. Rewrite the rest to end unresolved (${isJa ? '…が / …のに' : '~는데'}) or soft (${isJa ? '…でしょう' : '~죠'}). Offenders: ${declarative.slice(0, 4).map((s) => `${s.slot}:"${s.text.slice(0, 30)}"`).join(', ')}`);
-  }
-  if (!suspended.length) {
-    problems.push(`no narration sentence hands off to the scene unresolved: at least one must end ${isJa ? '…が / …のに' : '~는데/~는데요'} so the footage answers it`);
-  }
+  // 2026-09-08 소유주 제공 5편 실측으로 폐기: "선언형 컷당 1개" 규칙은 눈물한가득 단일
+  // 벤치마크 과적합이었다. 상위 레퍼런스(660만·467만)는 습니다x11+죠x9 혼합 완결 서술이
+  // 주도하고 는데는 5편 합쳐 2번뿐 - 그 제한이 작가를 는데 단일형으로 몰았다.
+  // 어미 다양성(모노토니 40%) 검사만 남긴다; declarative/suspended 는 측정만.
+  void declarative; void suspended;
   // Density is measured against the plan's own runtime budget, which is the only runtime known
   // at fills time (the render has not happened yet).
   const targetSec = Number(editPlan?.duration_budget?.estimated_total_sec || 0);

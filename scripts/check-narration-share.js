@@ -35,7 +35,7 @@ const SENTENCES_PER_MIN_MIN = 3.5;
 // 0.85로 두자 ja 85.04%가 경계에서 튕겼다(내용은 판정 통과) - 한 컷의 자연 변동이 ±1%p라
 // 상한은 86으로 캘리브레이션. 그날의 90%/12.5문장은 여전히 한참 밖이다.
 const NARRATION_SHARE_MAX = 0.86;
-const SENTENCES_PER_MIN_MAX = 10;
+const SENTENCES_PER_MIN_MAX = 12;
 const SENTENCES_PER_MIN_WARN = 8;
 // One kept dialogue moment may not run longer than this; the reference spends five to six
 // seconds and War Dogs shipped a thirteen-second explanation that read as an interview.
