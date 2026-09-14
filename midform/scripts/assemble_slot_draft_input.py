@@ -4,6 +4,7 @@
 import argparse
 import asyncio
 import base64
+import datetime
 import hashlib
 import itertools
 import json
@@ -1258,7 +1259,6 @@ async def synthesize_unit_edge(unit, output_dir):
         "text": unit["text"],
         "text_hash": text_hash,
         "tts_params": tts_param_payload(),
-        "character_alignment": character_alignment,
         "reused": False,
         "success": True,
     }
@@ -1297,6 +1297,60 @@ def parse_character_alignment(envelope):
     return None
 
 
+RETRY_UNCONFIRMED_ENV = "MIDFORM_TTS_RETRY_UNCONFIRMED"
+
+
+def tts_receipt_path(output_dir, caption_id):
+    return Path(output_dir) / ".tts-receipts" / f"{caption_id}.json"
+
+
+def read_tts_receipt(path):
+    try:
+        return json.loads(Path(path).read_text(encoding="utf-8-sig"))
+    except (OSError, ValueError):
+        return {}
+
+
+def write_tts_receipt(path, record):
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    Path(path).write_text(json.dumps(record, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def retry_unconfirmed_ids():
+    """Caption ids the operator has cleared for a re-send, from MIDFORM_TTS_RETRY_UNCONFIRMED."""
+    raw = os.environ.get(RETRY_UNCONFIRMED_ENV) or ""
+    if raw.strip() in {"*", "all", "ALL"}:
+        return "*"
+    return {part.strip() for part in re.split(r"[,\s]+", raw) if part.strip()}
+
+
+def guard_unconfirmed_tts(receipt_path, caption_id, text):
+    """Refuse to re-send a request whose outcome we never saw - and say how to override.
+
+    Reuse used to be decided by "is the mp3 on disk", so a run that died between the POST and the
+    write re-sent the same sentence on the next attempt and paid for it twice. ElevenLabs bills the
+    request, not the file. This repo has already lost four nights to `quota_exceeded`, so the
+    credits are a real budget.
+
+    The refusal is deliberately loud AND escapable: volcano ships the same protection and it cost a
+    session several hours precisely because nothing told you how to clear it.
+    """
+    receipt = read_tts_receipt(receipt_path)
+    if receipt.get("status") != "sent":
+        return
+    cleared = retry_unconfirmed_ids()
+    if cleared == "*" or caption_id in cleared:
+        return
+    sent_at = receipt.get("sent_at") or "unknown time"
+    raise RuntimeError(
+        f"{caption_id}: a synthesis request was sent at {sent_at} and its outcome was never "
+        f"recorded, so it may already have been billed. Not re-sending it automatically.\n"
+        f"  text  : {normalize_text(text)[:60]}\n"
+        f"  clear : set {RETRY_UNCONFIRMED_ENV}={caption_id} (or '*' for all) and run again\n"
+        f"  or    : delete {receipt_path}"
+    )
+
+
 async def synthesize_unit_elevenlabs(unit, output_dir):
     config = tts_config()
     api_key = normalize_text(os.environ.get("ELEVENLABS_API_KEY") or read_env_file_value("ELEVENLABS_API_KEY"))
@@ -1332,12 +1386,25 @@ async def synthesize_unit_elevenlabs(unit, output_dir):
         },
         method="POST",
     )
+    caption_id = safe_filename_stem(unit.get("caption_id"), "caption")
+    receipt_path = tts_receipt_path(output_dir, caption_id)
+    guard_unconfirmed_tts(receipt_path, caption_id, unit.get("text"))
     character_alignment = None
+    # Written BEFORE the request leaves, because that is when the money does.
+    write_tts_receipt(receipt_path, {
+        "caption_id": caption_id,
+        "status": "sent",
+        "sent_at": datetime.datetime.now().isoformat(timespec="seconds"),
+        "text_hash": unit.get("text_hash") or compute_text_hash(unit.get("text")),
+    })
     try:
         with urllib.request.urlopen(request, timeout=180) as response:
             body_bytes = response.read()
     except urllib.error.HTTPError as error:
         body = error.read().decode("utf-8", errors="replace")
+        # A refusal that never produced audio is not an unknown outcome - let it retry freely.
+        write_tts_receipt(receipt_path, {"caption_id": caption_id, "status": "rejected",
+                                         "http_status": error.code})
         raise RuntimeError(f"ElevenLabs HTTP {error.code}: {body}") from error
     if want_timestamps:
         envelope = json.loads(body_bytes.decode("utf-8"))
@@ -1348,12 +1415,18 @@ async def synthesize_unit_elevenlabs(unit, output_dir):
         character_alignment = parse_character_alignment(envelope)
     else:
         audio_bytes = body_bytes
-    caption_id = safe_filename_stem(unit.get("caption_id"), "caption")
     output_path = contained_output_path(output_dir, f"{caption_id}.mp3")
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_bytes(audio_bytes)
     duration_sec = round(ffprobe_duration(output_path), 3)
     text_hash = unit.get("text_hash") or compute_text_hash(unit.get("text"))
+    write_tts_receipt(receipt_path, {
+        "caption_id": caption_id,
+        "status": "done",
+        "text_hash": text_hash,
+        "filename": output_path.name,
+        "bytes": len(audio_bytes),
+    })
     return {
         "caption_id": caption_id,
         "segment_id": unit["segment_id"],
@@ -1363,6 +1436,7 @@ async def synthesize_unit_elevenlabs(unit, output_dir):
         "text": unit["text"],
         "text_hash": text_hash,
         "tts_params": tts_param_payload(),
+        "character_alignment": character_alignment,
         "reused": False,
         "success": True,
     }
