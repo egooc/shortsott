@@ -40,6 +40,14 @@ try:
 except ImportError:
     cv2 = None
 
+_MIDFORM_SCRIPTS_DIR = os.path.join(PROJECT_ROOT, "midform", "scripts")
+if _MIDFORM_SCRIPTS_DIR not in sys.path:
+    sys.path.insert(0, _MIDFORM_SCRIPTS_DIR)
+try:
+    import face_detector  # type: ignore
+except ImportError:
+    face_detector = None
+
 try:
     import pyCapCut as cc  # type: ignore
 except ImportError:
@@ -2701,20 +2709,25 @@ def clamp_float(value, min_value, max_value):
 
 
 def load_opencv_face_cascades():
-    if cv2 is None:
+    """Face detector for portrait framing, or [] with the reason printed.
+
+    Kept under its original name for the call sites; the backend now lives in
+    midform/scripts/face_detector.py - YuNet when its ONNX model is present, Haar cascades on
+    OpenCV 4.x. The old body built cascades from cv2.data.haarcascades inside
+    `except Exception: return []`, which on OpenCV 5 (no cv2.CascadeClassifier, empty cascade dir)
+    meant every cut silently took the centred fallback anchor. Measured 2026-09-14: 0% detection
+    here, 85-100% with YuNet on this repo's own sources. A detector that cannot be built says so.
+    """
+    if face_detector is None:
+        print("[face] face_detector module unavailable - anchors fall back to centre",
+              file=sys.stderr, flush=True)
         return []
-    cascades = []
-    try:
-        base = getattr(cv2, "data", None)
-        cascade_root = getattr(base, "haarcascades", "") if base is not None else ""
-        for name in ["haarcascade_frontalface_default.xml", "haarcascade_profileface.xml"]:
-            path_value = os.path.join(cascade_root, name) if cascade_root else name
-            classifier = cv2.CascadeClassifier(path_value)
-            if not classifier.empty():
-                cascades.append((name, classifier))
-    except Exception:
+    detector = face_detector.load_detector()
+    if detector is None:
+        print("[face] no detector: %s - anchors fall back to centre"
+              % face_detector.unavailable_reason(), file=sys.stderr, flush=True)
         return []
-    return cascades
+    return detector
 
 
 def sample_video_frame(video_path, time_sec):
@@ -2803,7 +2816,7 @@ def detect_face_anchor_for_cut(video_path, start_sec, end_sec, cascades):
             "anchor_y": 0.42,
             "sample_time_sec": round(safe_float(start_sec, 0.0) + span * 0.5, 3),
             "faces_count": 0,
-            "source": "opencv_haar_face_median",
+            "source": "opencv_face_median",
             "reason": "no face detected in any sampled frame",
             "samples": attempts,
         }
@@ -2812,7 +2825,7 @@ def detect_face_anchor_for_cut(video_path, start_sec, end_sec, cascades):
     median_x, median_probe = samples[len(samples) // 2]
     result = dict(median_probe)
     result["anchor_x"] = median_x
-    result["source"] = "opencv_haar_face_median"
+    result["source"] = result.get("source", "opencv_face") + "_median"
     result["samples"] = attempts
     result["detected_samples"] = len(samples)
     return result
@@ -2825,14 +2838,14 @@ def detect_primary_face_anchor(video_path, time_sec, cascades):
         "anchor_y": 0.42,
         "sample_time_sec": round(max(0.0, safe_float(time_sec, 0.0)), 3),
         "faces_count": 0,
-        "source": "opencv_haar_face",
+        "source": "opencv_face",
         "reason": "not attempted",
     }
     if cv2 is None:
         result["reason"] = "opencv unavailable"
         return result
     if not cascades:
-        result["reason"] = "opencv haar cascades unavailable"
+        result["reason"] = "face detector unavailable"
         return result
     frame = sample_video_frame(video_path, time_sec)
     if frame is None:
@@ -2843,18 +2856,12 @@ def detect_primary_face_anchor(video_path, time_sec, cascades):
         if width <= 0 or height <= 0:
             result["reason"] = "invalid sampled frame"
             return result
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        gray = cv2.equalizeHist(gray)
-        candidates = []
-        for cascade_name, classifier in cascades:
-            detections = classifier.detectMultiScale(gray, scaleFactor=1.08, minNeighbors=4, minSize=(36, 36))
-            for x, y, w, h in detections:
-                candidates.append((int(x), int(y), int(w), int(h), cascade_name, False))
-            if "profile" in cascade_name:
-                flipped = cv2.flip(gray, 1)
-                flipped_detections = classifier.detectMultiScale(flipped, scaleFactor=1.08, minNeighbors=4, minSize=(36, 36))
-                for x, y, w, h in flipped_detections:
-                    candidates.append((int(width - x - w), int(y), int(w), int(h), cascade_name, True))
+        result["source"] = "opencv_%s_face" % getattr(cascades, "backend", "face")
+        candidates = [
+            (face["x"], face["y"], face["w"], face["h"], face["detector"],
+             bool(face["flipped_profile"]))
+            for face in cascades.detect(frame)
+        ]
         result["faces_count"] = len(candidates)
         if not candidates:
             result["reason"] = "no face detected"
@@ -2984,7 +2991,14 @@ def apply_midform_portrait_crops_to_draft(draft_content_path, video_cut_placemen
             "attempted": bool(use_face_anchor and cv2 is not None and source_video_path),
             "available": bool(cv2 is not None and face_cascades),
             "detected_segments": 0,
-            "reason": "opencv face anchor enabled" if cv2 is not None and face_cascades else ("face anchor disabled by config" if not use_face_anchor else ("opencv unavailable" if cv2 is None else "opencv haar cascades unavailable")),
+            "backend": getattr(face_cascades, "backend", None) if face_cascades else None,
+            "reason": (
+                ("opencv face anchor enabled: %s" % face_cascades.describe()) if face_cascades
+                else "face anchor disabled by config" if not use_face_anchor
+                else "opencv unavailable" if cv2 is None
+                else (face_detector.unavailable_reason() if face_detector is not None
+                      else "face_detector module unavailable")
+            ),
         },
         "source_dimensions": {"width": 0, "height": 0},
         "canvas_dimensions": {"width": int(canvas_width or 0), "height": int(canvas_height or 0)},
