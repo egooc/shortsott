@@ -2716,7 +2716,7 @@ def load_opencv_face_cascades():
     OpenCV 4.x. The old body built cascades from cv2.data.haarcascades inside
     `except Exception: return []`, which on OpenCV 5 (no cv2.CascadeClassifier, empty cascade dir)
     meant every cut silently took the centred fallback anchor. Measured 2026-09-14: 0% detection
-    here, 85-100% with YuNet on this repo's own sources. A detector that cannot be built says so.
+    here, 80-93% with YuNet on the same footage. A detector that cannot be built now says so.
     """
     if face_detector is None:
         print("[face] face_detector module unavailable - anchors fall back to centre",
@@ -2966,6 +2966,48 @@ def build_final_slot_tail_plan(slot_map_input, gemini_analysis, source_duration_
         }
     )
     return summary
+
+
+def measured_caption_bounds(alignment, units, sentence_duration_sec):
+    """Where each caption chunk starts, as a fraction of the sentence, from measured speech times.
+
+    ElevenLabs /with-timestamps returns the start and end of every character it spoke. Character
+    count only says how many characters a chunk has, and the voice does not spend equal time on
+    each - it pauses at commas and lengthens the final syllable.
+
+    Chunking drops the space it split on, so the pieces spell the sentence without its spaces
+    (measured across the run dirs: 81 of 91 sentences differ from the synthesised text by
+    whitespace alone, 0 by content). Compare and index on non-whitespace characters so a dropped
+    space does not read as a different sentence.
+
+    Returns None - and the caller keeps the even split - whenever the chunks no longer spell the
+    text that was synthesised, because then the character indices address different letters and a
+    confidently wrong offset is worse than an honest estimate.
+    """
+    if not isinstance(alignment, dict) or sentence_duration_sec <= 0:
+        return None
+    characters = alignment.get("characters")
+    starts = alignment.get("start_sec")
+    ends = alignment.get("end_sec")
+    if not (isinstance(characters, list) and isinstance(starts, list) and isinstance(ends, list)):
+        return None
+    if not characters or not len(characters) == len(starts) == len(ends):
+        return None
+    spoken = [str(c) for c in characters]
+    dense = [index for index, c in enumerate(spoken) if not c.isspace()]
+    if "".join("".join(spoken).split()) != "".join(
+            "".join(str(u.get("text") or "") for u in units).split()):
+        return None
+    fractions, consumed = [0.0], 0
+    for unit in units[:-1]:
+        consumed += len("".join(str(unit.get("text") or "").split()))
+        if consumed >= len(dense):
+            return None
+        fraction = safe_float(starts[dense[consumed]], -1.0) / sentence_duration_sec
+        if not 0.0 <= fraction <= 1.0 or fraction < fractions[-1]:
+            return None
+        fractions.append(fraction)
+    return fractions
 
 
 def apply_midform_portrait_crops_to_draft(draft_content_path, video_cut_placements, segment_type_map, canvas_width, canvas_height, source_video_path="", gemini_analysis=None):
@@ -10930,6 +10972,12 @@ def create_draft(input_json_path):
         record_manifest_entry(draft_audio_path, round(duration_us / 1_000_000, 6))
 
     if decoupled_tts_caption_units:
+        # Present only when the synthesiser was asked for timestamps (tts.json with_timestamps).
+        alignment_by_caption_id = {
+            str(item.get("caption_id") or ""): item.get("character_alignment")
+            for item in tts_files
+            if isinstance(item, dict) and isinstance(item.get("character_alignment"), dict)
+        }
         grouped_caption_units = {}
         grouped_caption_order = []
         for unit in caption_units_input:
@@ -10980,12 +11028,23 @@ def create_draft(input_json_path):
                 units_for_sentence = _merged_units
             weights = [max(1, len(str(unit.get("text") or ""))) for unit in units_for_sentence]
             total_weight = sum(weights) or 1
+            measured_bounds = measured_caption_bounds(
+                alignment_by_caption_id.get(tts_caption_id), units_for_sentence,
+                duration_us / 1_000_000.0)
             elapsed_weight = 0
             for unit_index, unit in enumerate(units_for_sentence):
                 unit_weight = weights[unit_index]
-                unit_start_us = start_us + int(round(duration_us * elapsed_weight / total_weight))
+                if measured_bounds:
+                    unit_start_us = start_us + int(round(duration_us * measured_bounds[unit_index]))
+                else:
+                    unit_start_us = start_us + int(round(duration_us * elapsed_weight / total_weight))
                 elapsed_weight += unit_weight
-                unit_end_us = end_us if unit_index == len(units_for_sentence) - 1 else start_us + int(round(duration_us * elapsed_weight / total_weight))
+                if unit_index == len(units_for_sentence) - 1:
+                    unit_end_us = end_us
+                elif measured_bounds:
+                    unit_end_us = start_us + int(round(duration_us * measured_bounds[unit_index + 1]))
+                else:
+                    unit_end_us = start_us + int(round(duration_us * elapsed_weight / total_weight))
                 unit_duration_us = max(1, unit_end_us - unit_start_us)
                 caption_id_value = str(unit.get("caption_id") or unit.get("captionId") or f"{tts_caption_id}_cap_{unit_index + 1:03d}")
                 segment_id_value = str(unit.get("segment_id") or unit.get("segmentId") or sentence_timeline.get("segment_id") or "")

@@ -10,5 +10,6 @@
     "use_speaker_boost": true,
     "speed": 1.1
   },
-  "output_format": "mp3_44100_128"
+  "output_format": "mp3_44100_128",
+  "with_timestamps": true
 }
