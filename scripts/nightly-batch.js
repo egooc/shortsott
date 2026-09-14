@@ -200,14 +200,56 @@ function failureText(summary) {
   return JSON.stringify(summary?.failure_reason || {});
 }
 
+// A provider that has run out of quota says so in plain words on stderr, but the record the report
+// prints starts with stage/code/message and the line is capped - so the night that lost 51 sources
+// to an exhausted Codex allowance (2026-09-13) reported only "GPT CLI exited with code 1" and the
+// batch kept feeding sources into the same wall, ~40min each.
+// Each pattern below was copied from a failure this repo recorded, not guessed at:
+//   Codex      ERROR: You've hit your usage limit. ... try again at Sep 19th, 2026
+//   ElevenLabs {"code":"quota_exceeded","message":"This request exceeds your quota of 78556.
+//              You have 0 credits remaining, while 14 credits are required for this request."}
+// The underscore spelling matters: a /quota exceeded/ written with a space missed all four
+// ElevenLabs nights.
+const QUOTA_EXHAUSTED = [
+  /you've hit your usage limit/i,
+  /usage limit reached/i,
+  /insufficient[_ ]quota/i,
+  /quota[_ ]exceeded/i,
+  /exceeds your quota/i,
+  /0 credits remaining/i,
+  /out of credits/i,
+  /rate limit exceeded.*try again (at|in)/i
+];
+
+// The one line worth printing: providers put the actionable sentence on stderr, not in `message`.
+function failureWhy(summary) {
+  const details = summary?.failure_reason?.details || {};
+  const blob = String(details.stderr || '') || String(details.stdout || '');
+  const lines = blob.split(/[\u000a\u000d]+/).map((line) => line.trim()).filter(Boolean);
+  const flagged = lines.find((line) => QUOTA_EXHAUSTED.some((re) => re.test(line)));
+  return flagged || lines[lines.length - 1] || String(summary?.failure_reason?.message || '');
+}
+
+function isQuotaExhausted(summary) {
+  const details = summary?.failure_reason?.details || {};
+  const blob = [details.stderr, details.stdout, summary?.failure_reason?.message]
+    .map((part) => String(part || '')).join('\u000a');
+  return QUOTA_EXHAUSTED.some((re) => re.test(blob));
+}
+
 function isFillsRegenerable(text) {
   return FILLS_REGENERABLE.some((re) => re.test(text));
 }
 
-// The machine eye reports a suggested_rewrite for every sentence it rejects, grounded in what the
-// frames actually show. Applying those is deterministic and free; re-rolling the fills is neither,
-// and the generator cannot see the frames so it can miss the same way twice. Try the rewrite FIRST
-// and fall back to a re-roll only if it does not stick.
+// Pull the machine eye's per-sentence verdicts out of a failure record so they can be fed back
+// into regeneration (recordNarrationRejections).
+//
+// What this does NOT do, deliberately, is paste the judge's suggested_rewrite into the narration.
+// That field describes the FRAME; pasted verbatim it turns narration into a caption
+// ("두 여자가 넓은 부엌에서 이야기를 나눕니다" - a real incident). The frame fact is evidence for
+// writing a sentence, not the sentence: say what HAPPENED, or drop the slot's narration, because
+// subtraction is the house rule. See apply_narration_rewrites.js and the note above
+// buildNarrationRejectionSection in midformCompressionService.js - both refuse the same paste.
 function mismatchIssues(text) {
   // failedText is JSON.stringify(failure_reason), so the gate's message is an ESCAPED string
   // inside it - the issue array cannot be sliced out of the raw text, its quotes are all \".
@@ -533,7 +575,21 @@ async function main() {
         if (summary.status === 'failed') {
           failedText = failureText(summary);
           lines.push(`  - failure: ${failedText.slice(0, 300)}`);
+          // The cap above lands inside `message`, so the provider's own sentence never reaches the
+          // report. Print it on its own line - that is the part the owner can act on.
+          const why = failureWhy(summary);
+          if (why) lines.push(`  - why: ${why.slice(0, 300)}`);
           console.log(`  failed: ${failedText.slice(0, 200)}`);
+
+          // Out of provider quota: every remaining source fails the same way after paying the
+          // download and analysis time first. Stop the night instead of burning the window.
+          if (isQuotaExhausted(summary)) {
+            lines.push(`- 제공자 사용 한도 소진 — ${successes}/${args.sources} 성공에서 중단`);
+            lines.push(`  - ${why.slice(0, 200)}`);
+            console.log(`  quota exhausted - stopping the batch`);
+            recordFailure({ ...candidate, failed_at: new Date().toISOString(), failure: failedText });
+            break;
+          }
 
           // Cheap recovery: anything decided while writing slot_fills gets another pass against
           // the compress run we already paid for, instead of costing the whole source.

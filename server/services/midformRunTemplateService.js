@@ -415,6 +415,20 @@ async function findBootstrapableCompressionFallback(sourceUrl, excludeRunId) {
   return null;
 }
 
+// The failing checks, named, for the one-line message. Falls back to the bare sentence when the
+// verdict has no per-check breakdown, so an older preflight shape still reports something.
+function preflightFailureMessage(preflight) {
+  const checks = Array.isArray(preflight?.checks) ? preflight.checks : [];
+  const failed = checks.filter((check) => check && check.ok === false);
+  if (!failed.length) return 'Bootstrap preflight failed';
+  const named = failed.map((check) => {
+    const name = String(check.name || check.id || 'check');
+    const detail = String(check.detail || check.message || '').trim();
+    return detail ? `${name} (${detail})` : name;
+  });
+  return `Bootstrap preflight failed: ${named.join(' | ')}`;
+}
+
 function buildFailureSummary(summary, error, stage) {
   return {
     ...summary,
@@ -756,7 +770,11 @@ async function runMidformTemplateWorkflow(options = {}) {
           failure_reason: {
             stage: 'bootstrap',
             code: 'MIDFORM_BOOTSTRAP_PREFLIGHT_FAILED',
-            message: 'Bootstrap preflight failed',
+            // Name the checks that failed. The verdict was already in details.checks, but a bare
+            // 'Bootstrap preflight failed' is what reached the nightly report and the morning
+            // triage - 20 recorded runs whose cause (overlapping dialogue windows, an uncaptioned
+            // kept line, a clip-relative speech range) was on disk the whole time and never read.
+            message: preflightFailureMessage(preflight.preflight),
             details: preflight.preflight
           }
         };
