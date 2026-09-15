@@ -429,6 +429,33 @@ function preflightFailureMessage(preflight) {
   return `Bootstrap preflight failed: ${named.join(' | ')}`;
 }
 
+// The failing gate ids already rode in details.failed, but the nightly report and every
+// recorded run_summary print the MESSAGE - so 26 of 48 acceptance failures say only
+// "Acceptance gates failed" and the cause has to be dug out of the workspace by hand.
+// Same cure as preflightFailureMessage: name what failed, and carry the measured finding
+// that made it fail, so the report alone tells you whether the cut was too talky or the
+// story was illegible.
+function acceptanceFailureMessage(gateResults) {
+  const failed = Array.isArray(gateResults?.failed) ? [...new Set(gateResults.failed)] : [];
+  if (!failed.length) return 'Acceptance gates failed';
+  const results = Array.isArray(gateResults?.results) ? gateResults.results : [];
+  const named = failed.map((id) => {
+    const entry = results.find((result) => result && result.id === id);
+    const findings = [];
+    for (const locale of entry?.locales || []) {
+      if (String(locale?.verdict || '').toUpperCase() !== 'FAIL') continue;
+      for (const finding of locale.findings || locale.issues || []) {
+        const text = typeof finding === 'string' ? finding : String(finding?.message || finding?.reason || '');
+        if (text) findings.push(`${locale.locale}:${text.trim()}`);
+      }
+    }
+    if (!findings.length && Number(entry?.issue_count || 0) > 0) findings.push(`${entry.issue_count} issues`);
+    if (!findings.length && entry?.detail) findings.push(String(entry.detail));
+    return findings.length ? `${id} (${findings.slice(0, 2).join(' / ').slice(0, 220)})` : id;
+  });
+  return `Acceptance gates failed: ${named.join(' | ')}`;
+}
+
 function buildFailureSummary(summary, error, stage) {
   return {
     ...summary,
@@ -529,7 +556,7 @@ function finalSummaryFromQa(summary, qa, finalPipelineState, analysisRun) {
       ? {
           stage: 'acceptance_gates',
           code: 'MIDFORM_ACCEPTANCE_FAILED',
-          message: 'Acceptance gates failed',
+          message: acceptanceFailureMessage(qa.gateResults),
           details: { failed: qa.gateResults.failed }
         }
       : null
