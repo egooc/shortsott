@@ -61,6 +61,9 @@ const EDIT_PLAN_MAX_HEATMAP_ITEMS = 12;
 const BEAT_MAX_ANCHOR_LINES = 2;
 const REVEAL_BEAT_MAX_ANCHOR_LINES = 3;
 // Heuristic only — real duration should come from actual TTS output once available.
+// The ceiling the economy message has stated since 2026-09-08; the comparison used 3.0 until
+// 2026-09-15, so 35% of runs tripped a rule they satisfied.
+const NARRATION_ECONOMY_DENSITY_CEILING = 7.5;
 const BASE_KOREAN_NARRATION_CHARS_PER_SEC = 4.8;
 const KOREAN_NARRATION_MIN_SEC = 1.5;
 const KOREAN_NARRATION_PAUSE_BUFFER_SEC = 0.3;
@@ -6730,8 +6733,15 @@ function narrationEconomyProblems(slotFills, editPlan, locale = 'ko') {
     // 문장 수도 caption_units 청크가 아니라 실문장으로 센다 (위와 같은 오판 방지).
     const realCount = fills.reduce((n, fill) => n + String(fill?.narration || '').split(/(?<=[.!?…。])\s+/).filter((s) => s.trim()).length, 0);
     const perMin = realCount / (targetSec / 60);
-    if (perMin > 3.0) {
-      problems.push(`narration density ${perMin.toFixed(1)} sentences/min over a ${Math.round(targetSec)}s cut exceeds 7.5 (reference 5~7, measured on 헛개리카노 at 6.5). Trim the sentences that repeat what the previous one already said; the ceiling exists so the cut does not become wall-to-wall voice, not to keep narration sparse`);
+    // 3.0 was the 2026-08-23 value, written for the dialogue-led house style. On 2026-09-08 the
+    // reference moved to 6.5 sentences/min and the MESSAGE was rewritten to say 7.5 - the
+    // comparison was not. Everything between the two tripped a rule it satisfied: 47 of 135
+    // recorded fills sets, 35%. And the acceptance gate's own FLOOR is 3.5/min, so a cut dense
+    // enough to satisfy the gate was guaranteed to fail this. The cost was not a rejection - it
+    // is degraded to a warning - but the degrade path re-runs a structural-only pass that skips
+    // validateSlotFillsRuntime, so those runs reached TTS with no budget check at all.
+    if (perMin > NARRATION_ECONOMY_DENSITY_CEILING) {
+      problems.push(`narration density ${perMin.toFixed(1)} sentences/min over a ${Math.round(targetSec)}s cut exceeds ${NARRATION_ECONOMY_DENSITY_CEILING} (reference 5~7, measured on 헛개리카노 at 6.5). Trim the sentences that repeat what the previous one already said; the ceiling exists so the cut does not become wall-to-wall voice, not to keep narration sparse`);
     }
   }
   return problems;

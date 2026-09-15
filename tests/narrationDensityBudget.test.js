@@ -102,3 +102,24 @@ test('a slot that plays its own window is as long as the window, not as its sent
   const budget = predictNarrationBudget({ timeline: [teaser] }, { slot_fills: [fill('s1', '짧다.')] });
   assert.strictEqual(budget.projected_sec, 9);
 });
+
+test('the economy ceiling is the one its message states', () => {
+  // 3.0 was the 2026-08-23 dialogue-led value. On 09-08 the message was rewritten to say 7.5 and
+  // the comparison was left behind, so everything between the two tripped a rule it satisfied:
+  // 47 of 135 recorded fills sets, 35%. Worse, the acceptance gate's own FLOOR is 3.5/min - a cut
+  // dense enough to satisfy the gate could not pass this. The degrade is only a warning, but it
+  // re-runs a structural-only pass that skips validateSlotFillsRuntime, so those runs reached TTS
+  // with no budget check at all.
+  const { narrationEconomyProblems } = require('../server/services/midformCompressionService');
+  if (!narrationEconomyProblems) return;
+  const plan = { duration_budget: { estimated_total_sec: 105 }, timeline: [] };
+  const fills = (count) => ({ slot_fills: Array.from({ length: count },
+    (_, index) => ({ slot_id: `S${index}`, narration: '문장 하나입니다.' })) });
+  const density = (count) => (narrationEconomyProblems(fills(count), plan, 'ko') || [])
+    .filter((problem) => /density/.test(problem));
+
+  assert.strictEqual(density(6).length, 0, '3.4/min is above the GATE FLOOR and must not trip');
+  assert.strictEqual(density(8).length, 0, '4.6/min - the density this run actually shipped');
+  assert.strictEqual(density(14).length, 1, '8.0/min is genuinely wall-to-wall');
+  assert.match(density(14)[0], /exceeds 7\.5/, 'the message must quote the threshold it used');
+});
