@@ -6943,6 +6943,16 @@ function validateSlotFillsDialogueCaptions(slotFills, editPlan, locale = 'ko', o
 // The edit plan's own duration estimates are the model's guesses; the real runtime only
 // becomes knowable once narration text exists. Enforce the target here so a too-short
 // script is fed back for a rewrite instead of silently shipping a half-length cut.
+// The acceptance gate's own sentences/min ceiling, asserted here instead of after TTS.
+// validateEditPlan measures density on the LLM's duration guesses; recalculateNarrationDurations
+// then rewrites every NARRATE duration from the real narration text, and nothing re-checked the
+// budget afterwards - auto_template_6cd761ad8d planned at 6.9/min and shipped at 14.4/min. This
+// runs inside runJsonGeneration's retry loop, so a violation is handed back to the writer to fix
+// in-call rather than discarded after a paid build.
+const NARRATION_SENTENCES_PER_MIN_CEILING = 10;
+const NARRATION_SHARE_CEILING = 0.86;
+const NARRATION_SHARE_FLOOR = 0.50;
+
 function validateSlotFillsRuntime(slotFills, editPlan, targetSec) {
   const target = Number(targetSec || 0);
   if (!(target > 0)) return slotFills;
@@ -6965,6 +6975,30 @@ function validateSlotFillsRuntime(slotFills, editPlan, targetSec) {
       shortSlots.push(`${item.slot_id} (${Math.round(narrationSec)}s written vs ${Math.round(budget)}s budgeted)`);
     }
   }
+  // Density ceiling - the number the gate will measure, on the durations the cut will really
+  // have. Predictor validated over 65 shipped runs: 9 of 10 real violations caught, 1 missed,
+  // 1 false alarm. A false alarm costs one rewrite round; a miss cost a whole paid build.
+  const { predictNarrationBudget } = require('../../scripts/predict-narration-budget');
+  const budget = predictNarrationBudget(editPlan, slotFills);
+  if (budget.sentences_per_min > NARRATION_SENTENCES_PER_MIN_CEILING) {
+    throw new Error(
+      `narration is too dense for the cut: ${budget.narration_sentences} narration sentences over a `
+      + `projected ${Math.round(budget.projected_sec)}s cut = ${budget.sentences_per_min.toFixed(1)}/min, `
+      + `ceiling ${NARRATION_SENTENCES_PER_MIN_CEILING} (reference 6.5). The acceptance gate measures this `
+      + 'same number after the build, so it cannot be left for later. Merge adjacent sentences, cut the '
+      + 'ones that only restate what the previous sentence established, and let the footage carry a beat '
+      + 'on its own - do not narrate wall to wall.'
+    );
+  }
+  // Share is reported, not thrown: predicted within +-5 to 8 points, which is too loose to reject
+  // on without blocking good cuts. It still belongs in the log, where the post-build failure can
+  // be recognised as something that was already visible here.
+  if (budget.narration_share > NARRATION_SHARE_CEILING || budget.narration_share < NARRATION_SHARE_FLOOR) {
+    console.warn(`[narration-budget:warn] predicted narration share ${(budget.narration_share * 100).toFixed(0)}% `
+      + `(gate band ${NARRATION_SHARE_FLOOR * 100}-${NARRATION_SHARE_CEILING * 100}%), `
+      + `${budget.sentences_per_min.toFixed(1)} sentences/min over ~${Math.round(budget.projected_sec)}s`);
+  }
+
   const floor = target * EDIT_PLAN_MIN_TARGET_RATIO;
   if (totalSec < floor) {
     throw new Error(
@@ -8361,6 +8395,7 @@ async function runCompressionApply(runIdOrPath, applyOptions = {}) {
     return normalized;
   };
   let runtimeShortfall = '';
+  let narrationDensityShortfall = '';
   let narrationEconomyShortfall = '';
   let nameplateShortfall = '';
   let narrationSalvage = '';
@@ -8387,15 +8422,21 @@ async function runCompressionApply(runIdOrPath, applyOptions = {}) {
     const message = String(error?.message || '');
     const isEconomy = error?.code === 'MIDFORM_NARRATION_ECONOMY' || message.startsWith('narration economy:');
     const isNameplate = error?.code === 'MIDFORM_NARRATION_NAMEPLATE';
+    // Density joins the same degrade path as the other budgets, by the house rule above: the
+    // retry loop has already fed the writer the exact number, and a cut that ships too talky
+    // still beats a run that produces nothing. What must not happen - and did, 4 times after the
+    // planner ceiling landed - is discovering it only after TTS and assembly have been paid for.
+    const isDensity = message.startsWith('narration is too dense for the cut:');
     if (message.startsWith('empty narration slots:')) {
       result = salvageEmptySlots(error);
-    } else if (isEconomy || isNameplate || message.includes('far too short for the requested runtime')) {
+    } else if (isEconomy || isNameplate || isDensity || message.includes('far too short for the requested runtime')) {
       if (isEconomy) narrationEconomyShortfall = message;
       else if (isNameplate) nameplateShortfall = message;
+      else if (isDensity) narrationDensityShortfall = message;
       else runtimeShortfall = message;
       // Say so. A silent degrade looks identical to a rule that never ran - which is exactly how
       // the first economy-enforced batch read until the manifests were measured by hand.
-      console.log(`[midform] ${isEconomy ? 'narration economy' : isNameplate ? 'narration nameplate rule' : 'runtime'} not met after retry - shipping with a warning: ${message.slice(0, 300)}`);
+      console.log(`[midform] ${isEconomy ? 'narration economy' : isNameplate ? 'narration nameplate rule' : isDensity ? 'narration density budget' : 'runtime'} not met after retry - shipping with a warning: ${message.slice(0, 300)}`);
       // Structure still has to hold - only the style layer is dropped for this fallback pass
       // (nameplate included: it is style, and enforcing it here just re-fails the fallback).
       try {
@@ -8478,6 +8519,7 @@ async function runCompressionApply(runIdOrPath, applyOptions = {}) {
     slotFillsPath,
     japaneseSlotFillsPath,
     runtimeShortfall,
+    narrationDensityShortfall,
     narrationEconomyShortfall,
     nameplateShortfall,
     narrationSalvage,
