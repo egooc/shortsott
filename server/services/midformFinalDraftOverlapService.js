@@ -9,7 +9,16 @@ const THRESHOLDS = {
   opening_similarity_score: 0.75,
   chain_similarity_score: 0.85,
   top_highlight_cluster_ordering_similarity_score: 0.9,
-  shared_contiguous_block_max_sec: 20.0
+  shared_contiguous_block_max_sec: 20.0,
+  // One long shared clip is not a copied edit, and this gate says so itself: it only needs to
+  // catch a wholesale identical edit, not any reuse of the same shots. Measured over the 84 runs
+  // that have both locale drafts, the cuts failing on the block rule ALONE are indistinguishable
+  // from the cuts that pass - pairwise 0.18-0.45 against 0.24-0.51 - while the cuts that trip a
+  // structural threshold sit at a median of 0.69. A long block is therefore only evidence when
+  // the edit is corroborated as similar; 0.60 clears both benign groups' maxima and sits under
+  // the copied group's median. three_shot_identical_chain stays independent: three identical
+  // cuts in a row is a copied chain whatever the scores say.
+  shared_block_corroboration_pairwise: 0.60
 };
 
 // Two clips count as the same cut only when their in/out points essentially coincide; a
@@ -223,7 +232,10 @@ function compareFinalDraftClipChains(koChain, jaChain, thresholds = THRESHOLDS, 
   if (openingSimilarity > thresholds.opening_similarity_score) failed.push('opening_similarity_threshold');
   if (chainSimilarity > thresholds.chain_similarity_score) failed.push('chain_similarity_threshold');
   if (topHighlightSimilarity > thresholds.top_highlight_cluster_ordering_similarity_score) failed.push('top_highlight_cluster_ordering_threshold');
-  if (maxBlockSec > thresholds.shared_contiguous_block_max_sec) failed.push('shared_contiguous_block_threshold');
+  const blockCorroborationFloor = Number.isFinite(thresholds.shared_block_corroboration_pairwise)
+    ? thresholds.shared_block_corroboration_pairwise : 0;
+  if (maxBlockSec > thresholds.shared_contiguous_block_max_sec
+    && pairwiseScore >= blockCorroborationFloor) failed.push('shared_contiguous_block_threshold');
   if (threeShot) failed.push('three_shot_identical_chain');
   return {
     pair: 'ko_vs_ja',
@@ -240,6 +252,8 @@ function compareFinalDraftClipChains(koChain, jaChain, thresholds = THRESHOLDS, 
     },
     shared_contiguous_blocks: blocks,
     shared_contiguous_block_max_sec: maxBlockSec,
+    shared_contiguous_block_corroborated: maxBlockSec > thresholds.shared_contiguous_block_max_sec
+      && pairwiseScore >= blockCorroborationFloor,
     three_shot_identical_chain_detected: threeShot,
     failed_gates: failed,
     thresholds,
