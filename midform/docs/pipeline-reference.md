@@ -18,7 +18,7 @@
 - **실측**: 안정적. 크롭은 **B6 드래프트 조립**에서 소비됨(디렉터 상하 12.96% 등).
 
 ### A3. 비전 지도 (`vision_scene_map.json`)
-- **역할**: `plan_scene_samples.py`(컷 대표 프레임+3~5초 보충의 합집합) → `build_contact_sheets.py`(타임코드 박은 5×4 컨택트 시트) → 멀티모달 모델이 셀마다 `visible_action` 한 문장 판독. **파이프라인 전체의 "눈"** — 작가(A6)와 기계 눈(B3)이 모두 이 지도로 화면을 본다. ※공통 원인 실패 위험: 지도의 오류를 작가가 쓰고 같은 지도를 보는 검수기가 통과시킬 수 있다 → 검수기는 앵커 전후 실제 프레임을 원본에서 새로 추출해 독립 판정해야 함(P1 과제).
+- **역할**: `plan_scene_samples.py`(컷 대표 프레임+3~5초 보충의 합집합) → `build_contact_sheets.py`(타임코드 박은 5×4 컨택트 시트) → 멀티모달 모델이 셀마다 `visible_action` 한 문장 판독. **파이프라인 전체의 "눈"** — 작가(A6)와 기계 눈(B3)이 모두 이 지도로 화면을 본다. ※공통 원인 실패 위험은 **해소됨**(2026-09-15 확인): `evaluateFinalLocaleGates`(`midformRunArtifactsService.js`)는 이 지도를 쓰지 않고 `source.mp4`에서 ffmpeg로 프레임을 새로 뽑아 문장마다 시간축 3점(0.4s/55%/끝-0.5s)을 독립 판정한다. 판정기는 이 한 곳뿐이다. 따라서 기록된 비전 실패 22건은 지도-검수기 공통 원인이 아니라 작가 측 오류로 읽어야 한다.
 - **한계(실측)**: 서술이 "~가 서 있다/바라보고 있다" 수준의 정지 사실 — 사건·인과·감정이 없다. 이 빈약한 시력이 하류 전부의 상한선. compress run당 1회 생성이라 재구축해도 갱신 안 됨(이름 환각이 박히면 계속 삶).
 - **금지 형태**(소유주 확립): 긴 이미지 1장 ❌, 낱장 프레임 수백 장 ❌ — 시트+타임스탬프 STT가 표준.
 
@@ -63,7 +63,14 @@
 - **맹점(실측)**: ①문장 단위라 스토리 흐름 못 봄 ②**통과 문장 캐시** — 문장이 같으면 화면이 바뀌어도 재판정 안 함(소림 "들것" 통과 사고) ③추상 문장은 무엇도 안 어겨 통과 ④창 단위 샘플이라 **시간축**(이미 벌어진 일을 "시작됩니다"로 중계) 못 봄. → 캐시 키에 창 포함 예정.
 - **suggested_rewrite는 증거지 대체문이 아님** — 그대로 붙이면 나레이션이 자막으로 퇴화.
 
-### B4. 수용 게이트 (`acceptance_gates.json`) — ※실행 시점별 분리 예정(P0-6): 원고·플랜 게이트(TTS 전) / 실제 프레임 검증 / 조립 후 게이트(자막·색·LUFS) / 수출 후 게이트. 현재는 한 덩이로 draft 후 실행되며 `narration_share` 안에 비중·밀도·대사연속·개시선언 린트가 묶여 있음(분리 대상). `narration_broll_semantic_bounds`는 실제론 시간·길이 검사라 temporal_bounds가 정명.
+### B4. 수용 게이트 (`acceptance_gates.json`)
+
+> **기록 실측 (233 template run, 2026-09-15)**: `MIDFORM_ACCEPTANCE_FAILED` 48건 = 비전(`narration_visual_match`) 22 + 나머지 게이트 26.
+> 26건의 실패 게이트 분포: `story_legible` 13 · `narration_share` 11 · `callback_strength` 7 · `first_30_conflict_clarity` 4 ·
+> `narration_broll_semantic_bounds` 4 · `dramatic_engagement_timing` 3. 전부 draft·TTS 이후에 죽는다.
+> 대조군: `MIDFORM_TEMPLATE_RUN_FAILED` 37건은 **플랜 단계**에서 이름과 수치를 대고 죽는다 — 이것이 정상 동작이다.
+> 48건 중 26건은 실패 메시지가 `"Acceptance gates failed"` 한 줄뿐이었다(`b55ce26`에서 게이트 이름·실측치를 싣도록 수정).
+ — ※실행 시점별 분리 예정(P0-6): 원고·플랜 게이트(TTS 전) / 실제 프레임 검증 / 조립 후 게이트(자막·색·LUFS) / 수출 후 게이트. 현재는 한 덩이로 draft 후 실행되며 `narration_share` 안에 비중·밀도·대사연속·개시선언 린트가 묶여 있음(분리 대상). `narration_broll_semantic_bounds`는 실제론 시간·길이 검사라 temporal_bounds가 정명.
 **구성·페이싱**
 | 게이트 | 역할 |
 |---|---|
@@ -154,11 +161,11 @@
 
 **P1 — 완성 후 폐기되는 비용 방지**
 1. A1 전사 정화(스미어 큐 Groq 리타임) + 원시/정규화 transcript 분리(원시는 불변, 정규화는 원시 참조)
-2. A5 플랜 예산 하드 제약(콜백 35s·첫대사 30s·대사연속 10s·대사 하한)
-3. 실제 프레임 기반 독립 visual verifier — 검수기는 지도가 아니라 앵커±1s 프레임을 원본에서 새로 추출 (공통 원인 실패 차단)
+2. A5 플랜 예산 하드 제약(콜백 35s·첫대사 30s·대사연속 10s·대사 하한) — 밀도는 **TTS 전으로 이동 완료**(2026-09-15): `validateEditPlan`은 플래너의 길이 추정으로 재고, `recalculateNarrationDurations`가 그 길이를 실제 원고 기준으로 다시 쓴 뒤 아무도 예산을 재검하지 않았다(6cd761ad8d: 플랜 7.0/min 통과 → 출하 14.4/min). `scripts/predict-narration-budget.js`가 게이트가 잴 문장/분을 fills 시점에 계산해 작문 재시도 루프로 되돌린다. 실측 65런: 10건 중 9건 탐지·1건 누락·오탐 1건. 비중은 ±5~8%p라 경고만, 대사연속은 플랜이 중앙값 10.3s 과대예측이라 미적용
+3. ~~실제 프레임 기반 독립 visual verifier~~ — **완료**(문장 단위·시간축 3점·원본 재추출, A3 참조). 남은 것은 5번(캐시 키)뿐
 4. 앵커를 숫자 하나에서 사건 객체로: {center_sec, visual_window, temporal_phase(전/중/후), must_show, must_avoid}
 5. visual-match 캐시 키 = 문장+소스ID+창+프레임hash+지도hash+모델·프롬프트 버전
-6. story_legible_text(텍스트만 — 프레임 넣으면 시험 목적 소멸) / story_visual_continuity(문장+시간축 프레임) 분리, 판정은 script+prompt+model hash에 고정하고 uncertain은 사람으로
+6. story_legible_text(텍스트만 — 프레임 넣으면 시험 목적 소멸) / story_visual_continuity(문장+시간축 프레임) 분리, 판정은 script+prompt+model hash에 고정하고 uncertain은 사람으로 — **재롤 방지는 완료**(2026-09-15): 출하 원고 다이제스트로 PASS만 캐시(`.story_verdict_cache.json`), FAIL은 캐시하지 않아 고친 문장은 항상 새로 판정. 분리·모델 hash 고정은 미착수
 
 **P2 — 품질·다국어**
 1. JA는 의미 앵커 승계 + 클립 길이는 JA 음성 길이로 재배정 (KO 창 복사 금지)
