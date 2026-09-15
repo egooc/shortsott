@@ -21,7 +21,10 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const CODEX_DIR = path.join(os.homedir(), '.codex');
+// codex honours CODEX_HOME; this machine sets it to an orca-managed directory, and a hardcoded
+// ~/.codex reads a file the CLI never touches - which is exactly how a login that had already
+// succeeded got reported as "not changed" (2026-09-15).
+const CODEX_DIR = process.env.CODEX_HOME || path.join(os.homedir(), '.codex');
 const AUTH_PATH = path.join(CODEX_DIR, 'auth.json');
 const ACCOUNTS_DIR = path.join(CODEX_DIR, 'accounts');
 const STATE_PATH = path.join(ACCOUNTS_DIR, '.rotation-state.json');
