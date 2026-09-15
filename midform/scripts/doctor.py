@@ -169,6 +169,27 @@ def check_capcut():
     return results
 
 
+# True when the server accepts the login on file. Returns (live, detail). A revoked or expired
+# token answers 401 on the model refresh that every invocation starts with, so this costs a
+# round trip and no inference; anything else - including a timeout - is treated as live, because
+# a slow network must not be reported as a dead login.
+def codex_auth_is_live(binary):
+    try:
+        probe = subprocess.run([binary, "exec", "--sandbox", "read-only", "-"],
+                               input="reply with: ok", capture_output=True, text=True,
+                               timeout=25, encoding="utf-8", errors="replace")
+    except subprocess.TimeoutExpired:
+        return True, "auth probe timed out - treating the login as live"
+    except Exception as error:  # noqa: BLE001
+        return True, "auth probe could not run (%s) - treating the login as live" % error
+    noise = (probe.stderr or "") + " " + (probe.stdout or "")
+    if "token_revoked" in noise or "refresh_token_invalidated" in noise:
+        return False, "the login was revoked - the server says the session has ended"
+    if "401 Unauthorized" in noise or "auth error: 401" in noise:
+        return False, "the server rejected the login (401)"
+    return True, ""
+
+
 def check_codex():
     binary = shutil.which("codex") or shutil.which("codex.cmd")
     if not binary:
@@ -183,6 +204,16 @@ def check_codex():
         account = (record.get("tokens") or {}).get("account_id") or "(no account_id)"
     except Exception as error:  # noqa: BLE001
         return [Result("codex", REQUIRED, False, "auth.json unreadable: %s" % error, "")]
+    # An auth.json that parses is not a login. On 2026-09-15 this check reported "ok" for an
+    # account whose refresh token had been revoked, the run rotated INTO it, and the batch died
+    # at the vision step with "GPT CLI exited with code 1". `codex login status` is no better -
+    # it reads the same file and says "Logged in using ChatGPT" for a dead token. The only thing
+    # that knows is the server, and it says so on the model-refresh call within a second, before
+    # any inference is billed.
+    live, detail = codex_auth_is_live(binary)
+    if not live:
+        return [Result("codex", REQUIRED, False, "%s: %s" % (account, detail),
+                       "codex login  (then: node scripts/codex-accounts.js save <name>)")]
     results = [Result("codex", REQUIRED, True, "%s (CODEX_HOME=%s)" % (account, home))]
     state = Path(home) / "accounts" / ".rotation-state.json"
     saved = list((Path(home) / "accounts").glob("*.json")) if (Path(home) / "accounts").is_dir() else []

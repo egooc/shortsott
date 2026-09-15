@@ -96,6 +96,40 @@ function markExhausted(accountId, failureText) {
   return until;
 }
 
+// A saved login can be dead rather than merely spent: the account rotated into on 2026-09-15
+// parsed fine, `codex login status` said "Logged in using ChatGPT", and every request answered
+// 401 token_revoked. Only the server knows, and it answers on the model refresh that starts
+// every invocation - before any inference is billed. A timeout or a crash counts as live: a
+// slow network must never retire a good login.
+function isLive(authFile) {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'codexprobe-'));
+  try {
+    fs.copyFileSync(authFile, path.join(home, 'auth.json'));
+    const config = path.join(CODEX_DIR, 'config.toml');
+    if (fs.existsSync(config)) fs.copyFileSync(config, path.join(home, 'config.toml'));
+    // A .cmd shim only spawns through a shell on Windows, and passing an argv array alongside
+    // shell:true is both deprecated and an injection hazard - so the command is one fixed string
+    // with nothing interpolated into it. Without the shell the spawn fails with ENOENT, which
+    // the catch below reads as "live", and the probe silently stops probing: that is exactly how
+    // a revoked login measured LIVE while it was answering 401 to every request.
+    const command = process.platform === 'win32'
+      ? 'codex.cmd exec --sandbox read-only -'
+      : 'codex exec --sandbox read-only -';
+    const probe = require('child_process').spawnSync(command,
+      { input: 'reply with: ok', encoding: 'utf8', timeout: 25000, shell: true,
+        env: { ...process.env, CODEX_HOME: home } });
+    if (probe.error) return true;
+    const noise = `${probe.stderr || ''} ${probe.stdout || ''}`;
+    if (/token_revoked|refresh_token_invalidated/.test(noise)) return false;
+    if (/401 Unauthorized|auth error: 401/.test(noise)) return false;
+    return true;
+  } catch {
+    return true;
+  } finally {
+    try { fs.rmSync(home, { recursive: true, force: true }); } catch { /* temp */ }
+  }
+}
+
 function activate(entry) {
   const auth = readJson(entry.file, null);
   if (!auth) throw new Error(`${entry.name}: unreadable account file`);
@@ -112,11 +146,30 @@ function rotate(failureText) {
   const spentId = currentAccountId();
   if (spentId) markExhausted(spentId, failureText);
   const state = loadState();
-  const next = listAccounts().find((entry) => entry.accountId
+  const candidates = listAccounts().filter((entry) => entry.accountId
     && entry.accountId !== spentId && !isSpent(state, entry.accountId));
-  if (!next) return null;
-  activate(next);
-  return next;
+  // Probe before activating. Rotating INTO a dead login is worse than not rotating at all: the
+  // night keeps running and every remaining source fails at the vision step with nothing but
+  // "GPT CLI exited with code 1" to show for the download and analysis it already paid for.
+  for (const entry of candidates) {
+    if (!isLive(entry.file)) {
+      markRevoked(entry.accountId);
+      continue;
+    }
+    activate(entry);
+    return entry;
+  }
+  return null;
+}
+
+// A revoked login is not spent - waiting will not bring it back, so it is parked far enough out
+// that a rotation stops reaching for it until someone logs in again and re-saves it.
+function markRevoked(accountId) {
+  if (!accountId) return;
+  const state = loadState();
+  state[accountId] = { exhausted_until: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+    revoked: true, noted_at: new Date().toISOString() };
+  writeJson(STATE_PATH, state);
 }
 
 function saveCurrent(name) {
@@ -135,7 +188,8 @@ function describe() {
   return listAccounts().map((entry) => ({
     ...entry,
     active: entry.accountId === active,
-    spentUntil: state[entry.accountId]?.exhausted_until || ''
+    spentUntil: state[entry.accountId]?.exhausted_until || '',
+    revoked: !!state[entry.accountId]?.revoked
   }));
 }
 
@@ -148,7 +202,7 @@ if (require.main === module) {
     }
     for (const row of rows) {
       const spent = row.spentUntil && Date.parse(row.spentUntil) > Date.now()
-        ? ` spent until ${row.spentUntil}` : '';
+        ? `${row.revoked ? ' REVOKED - log in again' : ` spent until ${row.spentUntil}`}` : '';
       console.log(`${row.active ? '*' : ' '} ${row.name}  ${row.accountId}${spent}`);
     }
     const active = currentAccountId();
@@ -169,5 +223,5 @@ if (require.main === module) {
   }
 }
 
-module.exports = { listAccounts, currentAccountId, rotate, markExhausted, saveCurrent, describe,
+module.exports = { listAccounts, currentAccountId, rotate, markExhausted, markRevoked, isLive, saveCurrent, describe,
   parseResetAt, ACCOUNTS_DIR, AUTH_PATH };
