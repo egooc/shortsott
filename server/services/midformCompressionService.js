@@ -7608,21 +7608,32 @@ function buildNarrationRejectionSection(rejections) {
   const bySlot = new Map();
   for (const item of list) {
     const key = String(item.segment_id);
-    if (!bySlot.has(key)) bySlot.set(key, { onScreen: '', rejected: [] });
+    if (!bySlot.has(key)) bySlot.set(key, { onScreen: '', reason: '', rejected: [] });
     const entry = bySlot.get(key);
     if (!entry.onScreen && item.on_screen) entry.onScreen = String(item.on_screen);
+    if (!entry.reason && item.reason) entry.reason = String(item.reason);
     if (item.sentence) entry.rejected.push(String(item.sentence));
   }
   const lines = ['', '', '## Sentences a previous attempt got REJECTED for (do not repeat them)',
-    '- A multimodal judge watched the actual frames for these slots and found the narration claimed',
-    '  something not on screen. The "on screen" note is ground truth about the footage.',
-    '- Write these slots again from the on-screen fact. State the EVENT, the premise, or what it',
-    '  costs a character - not a description of the picture. A sentence that only says what the',
-    '  viewer can already see is a caption, and will be rejected as narration.',
+    '- Each slot below lists why it was rejected. Two different readers reject for two different',
+    '  reasons, and the fix is not the same one.',
+    '- "on screen" is ground truth from a multimodal judge that watched the actual frames: the',
+    '  narration claimed something the footage does not show. Write the slot again from that fact.',
+    '- "not established" is a first-time viewer reading only the shipped text: a person, thing or',
+    '  reference appears that the cut never introduces. Name it, or give the line that introduces',
+    '  it - do not simply rephrase around the gap.',
+    '- Either way: state the EVENT, the premise, or what it costs a character - not a description',
+    '  of the picture. A sentence that only says what the viewer can already see is a caption,',
+    '  and will be rejected as narration.',
     '- If the slot genuinely has no event to report, leave its narration empty rather than filling',
     '  it with description. Dropping a sentence is always allowed.'];
   for (const [slotId, entry] of bySlot) {
-    lines.push(`- ${slotId}: on screen = ${entry.onScreen || '(unrecorded)'}`);
+    // Say which reader spoke. Labelling a story_legible rejection as a frame verdict sends the
+    // writer to re-describe footage that was never the problem - the reference still goes
+    // unexplained and the next round fails the same way.
+    lines.push(entry.onScreen
+      ? `- ${slotId}: on screen = ${entry.onScreen}`
+      : `- ${slotId}: not established = ${entry.reason || '(unrecorded)'}`);
     for (const sentence of entry.rejected) lines.push(`    REJECTED: ${sentence}`);
   }
   return lines.join(String.fromCharCode(10));
