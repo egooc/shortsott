@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
+const crypto = require('crypto');
 
 const { PROJECT_ROOT } = require('./pipelinePaths');
 const { evaluateEditorialAcceptance } = require('./midformEditorialAcceptanceService');
@@ -780,6 +781,29 @@ async function collectRunArtifacts({
   // and tells Bella to go away (2026-09-04, the owner read the transcript and said so).
   // Blocking on story_legible only. The reference and change findings ride along as warnings:
   // they say where to fix a cut, but a single loose pronoun is not worth stopping a build for.
+  // Pass verdicts are cached on the shipped text, the same rule the frame judge already runs on
+  // (.judge_verdict_cache.json): this judge re-rolls, and the pipeline reference records the
+  // measurement - the same sentences go PASS -> FAIL -> PASS across rebuild rounds with nothing
+  // in the cut changed. A round that fails, then a surgery round that fixes those sentences, then
+  // a re-roll that fails untouched text is a build discarded for noise. A pass on identical text
+  // is durable; a FAIL is never cached, so fixed text always gets a fresh judgment.
+  const storyCachePath = path.join(workspaceDir, '.story_verdict_cache.json');
+  let storyCache = {};
+  try { storyCache = fs.existsSync(storyCachePath) ? readJson(storyCachePath) || {} : {}; } catch { storyCache = {}; }
+  const shippedNarrationDigest = (draftDir) => {
+    const manifestPath = path.join(draftDir, 'edit_manifest.json');
+    const manifest = fs.existsSync(manifestPath) ? readJson(manifestPath) : null;
+    const seen = new Set();
+    const lines = [];
+    for (const segment of manifest?.segments || []) {
+      const key = `${segment.segment_id}|${segment.caption_id || ''}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const text = String(segment.narration || segment.caption_text || '').trim();
+      if (text) lines.push(text);
+    }
+    return lines.length ? crypto.createHash('sha256').update(lines.join('|')).digest('hex') : '';
+  };
   try {
     const { analyze: analyzeStory } = require('../../scripts/check-story-legible');
     const perLocale = [];
@@ -787,9 +811,15 @@ async function collectRunArtifacts({
       const draftDir = path.join(workspaceDir, `draft_${locale}`);
       if (!fs.existsSync(path.join(draftDir, 'edit_manifest.json'))) continue;
       if (isStaleLocaleDraft(locale)) continue;
+      const digest = shippedNarrationDigest(draftDir);
+      const cached = digest ? storyCache[`${locale}|${digest}`] : null;
+      if (cached && cached.verdict === 'PASS') {
+        perLocale.push({ ...cached, locale, from_cache: true });
+        continue;
+      }
       const result = await analyzeStory(draftDir);
       if (result.error) continue;
-      perLocale.push({
+      const entry = {
         locale,
         verdict: result.verdict,
         story_legible: result.story_legible,
@@ -797,7 +827,12 @@ async function collectRunArtifacts({
         unresolved_references: result.unresolved_references.slice(0, 6),
         unexplained_changes: result.unexplained_changes.slice(0, 6),
         reason: result.reason
-      });
+      };
+      perLocale.push(entry);
+      if (digest && entry.verdict === 'PASS') {
+        storyCache[`${locale}|${digest}`] = { ...entry, judged_at: new Date().toISOString() };
+        try { writeJson(storyCachePath, storyCache); } catch { /* cache is best-effort */ }
+      }
     }
     if (perLocale.length) {
       const failed = perLocale.some((r) => r.verdict === 'FAIL');
