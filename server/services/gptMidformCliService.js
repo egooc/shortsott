@@ -245,6 +245,23 @@ function codexSchemaPath(originalPath) {
   return target;
 }
 
+// A CLI puts its verdict on the LAST line; codex echoes the entire prompt to stderr first.
+// Clipping from the front therefore keeps the prompt and throws away the reason: the run of
+// 2026-09-15 died on "You've hit your usage limit ... try again at 8:01 PM" and the captured
+// stderr ended mid-prompt at "All of upload_tex", so the nightly batch's quota guard - which
+// reads exactly that text - returned false on a real quota exhaustion and would have kept the
+// night running against a wall. Keep a little of the head for the version banner, and the tail
+// for the answer.
+function clipDiagnostic(text, limit = 4000) {
+  const value = String(text || '');
+  if (value.length <= limit) return value;
+  const head = Math.min(400, Math.floor(limit / 8));
+  const tail = limit - head;
+  return `${value.slice(0, head)}
+...[${value.length - limit} chars omitted]...
+${value.slice(-tail)}`;
+}
+
 function runCodexCli(prompt, options = {}) {
   return new Promise((resolve, reject) => {
     ensureDir(GPT_WORK_DIR);
@@ -311,8 +328,8 @@ function runCodexCli(prompt, options = {}) {
           command,
           args,
           exitCode,
-          stdout: stdout.slice(0, 4000),
-          stderr: stderr.slice(0, 4000),
+          stdout: clipDiagnostic(stdout),
+          stderr: clipDiagnostic(stderr),
           promptPath,
           outputPath
         }));
@@ -2311,7 +2328,7 @@ async function generateStoryOutlineWithGptCli(geminiAnalysis, options = {}) {
         cli: {
           promptPath: result.promptPath,
           outputPath: result.outputPath,
-          stderr: result.stderr.slice(0, 2000),
+          stderr: clipDiagnostic(result.stderr, 2000),
           storyOutlineValidationAttempts: attempt
         }
       };
@@ -2410,7 +2427,7 @@ async function generateMidformScriptWithGptCli(geminiAnalysis, options = {}) {
             storyOutlineOutputPath: outlineResult.cli?.outputPath || '',
             promptPath: result.promptPath,
             outputPath: result.outputPath,
-            stderr: result.stderr.slice(0, 2000),
+            stderr: clipDiagnostic(result.stderr, 2000),
             slotValidationAttempts: attempt
           }
         };
@@ -2453,7 +2470,7 @@ async function generateMidformScriptWithGptCli(geminiAnalysis, options = {}) {
           storyOutlineOutputPath: outlineResult.cli?.outputPath || '',
           promptPath: lastResult?.promptPath || '',
           outputPath: lastResult?.outputPath || '',
-          stderr: String(lastResult?.stderr || '').slice(0, 2000),
+          stderr: clipDiagnostic(lastResult?.stderr, 2000),
           slotValidationAttempts: maxSlotFillAttempts,
           deferredValidationErrors,
           deferredValidationWarnings,
@@ -2483,7 +2500,7 @@ async function generateMidformScriptWithGptCli(geminiAnalysis, options = {}) {
         cli: {
           promptPath: result.promptPath,
           outputPath: result.outputPath,
-          stderr: result.stderr.slice(0, 2000),
+          stderr: clipDiagnostic(result.stderr, 2000),
           validationAttempts: attempt
         }
       };

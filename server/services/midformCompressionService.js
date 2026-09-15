@@ -8457,6 +8457,23 @@ async function runCompressionApply(runIdOrPath, applyOptions = {}) {
     finalizedEditPlan
   );
   writeJson(slotFillsPath, normalizedSlotFills);
+  // Measure what actually SHIPS, not only what the validator saw. validateSlotFillsRuntime runs
+  // inside the retry loop, but a run whose narration economy or runtime target is not met falls
+  // back to a structural-only pass that never calls it - so on the 2026-09-15 Tokyo Drift run the
+  // fills that reached TTS went through unmeasured and the budget line never appeared in the log.
+  // The throw stays where it is (it is what makes the writer fix it in-call); this is the record.
+  try {
+    const { predictNarrationBudget } = require('../../scripts/predict-narration-budget');
+    const shipped = predictNarrationBudget(finalizedEditPlan, normalizedSlotFills);
+    const band = shipped.narration_share > NARRATION_SHARE_CEILING ? 'above the gate ceiling'
+      : shipped.narration_share < NARRATION_SHARE_FLOOR ? 'below the gate floor' : 'inside the gate band';
+    console.log(`[narration-budget] shipped: ${shipped.narration_sentences} sentences over ~${Math.round(shipped.projected_sec)}s `
+      + `= ${shipped.sentences_per_min.toFixed(1)}/min (ceiling ${NARRATION_SENTENCES_PER_MIN_CEILING}), `
+      + `share ${(shipped.narration_share * 100).toFixed(0)}% - ${band}`);
+    writeJson(path.join(runDir, 'narration_budget.json'), shipped);
+  } catch (budgetError) {
+    console.warn(`[narration-budget] could not measure the shipped fills: ${String(budgetError?.message || budgetError).slice(0, 160)}`);
+  }
   try { await auditAndFixDialogueTranslations(runDir, finalizedEditPlan, normalizedSlotFills, 'compression_slot_fills.json', 'Korean'); } catch { /* dialogue audit is advisory */ }
   const uploadTextPath = path.join(runDir, 'upload_text.md');
   writeText(uploadTextPath, `${buildUploadTextMarkdown(normalizedSlotFills.upload_text)}\n`);
