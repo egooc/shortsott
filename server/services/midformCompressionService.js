@@ -7626,7 +7626,13 @@ function buildNarrationRejectionSection(rejections) {
     '  of the picture. A sentence that only says what the viewer can already see is a caption,',
     '  and will be rejected as narration.',
     '- If the slot genuinely has no event to report, leave its narration empty rather than filling',
-    '  it with description. Dropping a sentence is always allowed.'];
+    '  it with description - but dropping is NOT free. The cut must still narrate at least',
+    `  ${Math.round(NARRATION_SHARE_FLOOR * 100)}% of its runtime and at least 3.5 sentences per minute; below that the`,
+    '  acceptance gate rejects the whole cut for having no story in it. Rewrite first; drop only',
+    '  when there is genuinely nothing to say and the floor still holds.',
+    '- Do not answer a "not established" rejection by deleting the reference. Removing the words',
+    '  that named nobody leaves the cut just as unreadable and one sentence shorter. Name who it',
+    '  is, or give the sentence that introduces them.'];
   for (const [slotId, entry] of bySlot) {
     // Say which reader spoke. Labelling a story_legible rejection as a frame verdict sends the
     // writer to re-describe footage that was never the problem - the reference still goes
