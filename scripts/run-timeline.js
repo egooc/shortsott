@@ -50,13 +50,39 @@ const TEMPLATE_STAGES = [
   ['run_summary.json', '런 종료']
 ];
 
-function collect(dir, stages) {
+// The one artifact that is restored rather than produced: ensureVisionSceneMap copyFileSync's
+// the scene map out of the shared cache, and the copy keeps the CACHE's mtime. Billed as a stage
+// that read as 140 minutes on the first run measured this way. Proven, not guessed: the file is
+// restored exactly when it is byte-identical to its cache entry.
+function restoredFromVisionCache(dir, file) {
+  if (file !== 'vision_scene_map.json') return false;
+  const map = path.join(dir, file);
+  if (!fs.existsSync(map)) return false;
+  try {
+    const sourceId = String(JSON.parse(fs.readFileSync(map, 'utf8')).source_id || '').trim();
+    if (!sourceId) return false;
+    const cached = path.join(dir, '..', '.vision_scene_cache', `${sourceId}.json`);
+    if (!fs.existsSync(cached)) return false;
+    return fs.readFileSync(map, 'utf8') === fs.readFileSync(cached, 'utf8');
+  } catch {
+    return false;
+  }
+}
+
+function collect(dir, stages, floor) {
   const rows = [];
   for (const [file, label] of stages) {
     const full = path.join(dir, file);
     if (!fs.existsSync(full)) continue;
-    rows.push({ label, file, at: fs.statSync(full).mtime });
+    const at = fs.statSync(full).mtime;
+    rows.push({ label, file, at, reused: restoredFromVisionCache(dir, file) });
   }
+  // A stage cannot predate the phase it belongs to: the template workspace is opened before the
+  // compress phase runs, so anchoring on its first artifact billed all of compress to "ko draft
+  // assembly" - 1762s for work that took 124s.
+  const earliest = floor || rows.filter((row) => !row.reused)
+    .reduce((min, row) => (min === null || row.at < min ? row.at : min), null);
+  for (const row of rows) if (earliest && row.at < earliest) { row.at = earliest; row.reused = true; }
   return rows;
 }
 
@@ -71,12 +97,12 @@ function render(rows) {
     const stageSec = (row.at - previous) / 1000;
     const sinceStart = (row.at - start) / 1000;
     const bar = '#'.repeat(Math.min(40, Math.round(stageSec / 20)));
-    console.log('%s  %s  +%s  %s %s',
+    console.log('%s  %s  %s  %s %s',
       row.at.toTimeString().slice(0, 8),
       row.label.padEnd(widest),
-      `${Math.round(stageSec)}s`.padStart(6),
+      row.reused ? ' 재사용' : `+${Math.round(stageSec)}s`.padStart(7),
       `(누적 ${Math.round(sinceStart / 60)}분)`.padEnd(12),
-      bar);
+      row.reused ? '' : bar);
     previous = row.at;
   }
   return { start, end: rows[rows.length - 1].at };
@@ -94,7 +120,11 @@ const compress = render(collect(compressDir, STAGES));
 let template = null;
 if (templateDir && fs.existsSync(templateDir)) {
   console.log(`\n== 템플릿 런 ==  ${path.basename(templateDir)}`);
-  template = render(collect(templateDir, TEMPLATE_STAGES));
+  // The template workspace is opened before the compress phase runs, so its first artifact is
+  // minutes older than the drafting it belongs to. Anchor its stages at the end of compress -
+  // otherwise the whole compress phase is billed to "ko draft assembly", which is how a 124s
+  // assembly first read as 1762s.
+  template = render(collect(templateDir, TEMPLATE_STAGES, compress ? compress.end : null));
 }
 
 const first = compress?.start;
