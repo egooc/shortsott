@@ -544,11 +544,16 @@ async function main() {
 
     if (!queue.length && !installedFolders.length) { finish('no_candidates'); return; }
 
+    const codexAccounts = require('./codex-accounts');
     const { runMidformFullAutoWorkflow } = require('../server/services/midformFullAutoService');
     let successes = 0;
     let attempts = 0;
-    const succeededMovies = new Set();
-    for (const candidate of queue) {
+    // A swapped-in login gets the source that just failed, not the next one - what failed was the
+    // allowance, not the material. Capped so a run of spent accounts cannot spin the queue.
+    let rotations = 0;
+    const MAX_ROTATIONS = 3;
+    for (let queueIndex = 0; queueIndex < queue.length; queueIndex += 1) {
+      const candidate = queue[queueIndex];
       if (successes >= args.sources) break;
       if (guard.expired()) { lines.push(`- DEADLINE with ${successes}/${args.sources} succeeded`); break; }
       // 하룻밤에 같은 영화 두 편은 없다 — 채널이 하루 두 슬롯이라도 영화는 갈라 싣는다.
@@ -582,11 +587,30 @@ async function main() {
           console.log(`  failed: ${failedText.slice(0, 200)}`);
 
           // Out of provider quota: every remaining source fails the same way after paying the
-          // download and analysis time first. Stop the night instead of burning the window.
+          // download and analysis time first. Try the next login on file, and stop only when there
+          // is none left - burning the window against a wall we already hit helps nobody.
           if (isQuotaExhausted(summary)) {
-            lines.push(`- 제공자 사용 한도 소진 — ${successes}/${args.sources} 성공에서 중단`);
+            let rotated = null;
+            if (rotations >= MAX_ROTATIONS) {
+              lines.push(`- 계정 교체 ${MAX_ROTATIONS}회 도달 — 더 바꾸지 않는다`);
+            } else {
+              try {
+                rotated = codexAccounts.rotate(failedText);
+              } catch (rotateError) {
+                lines.push(`  - 계정 교체 실패: ${String(rotateError.message).slice(0, 120)}`);
+              }
+            }
+            if (rotated) {
+              rotations += 1;
+              lines.push(`- 사용 한도 소진 → 계정 교체 ${rotations}/${MAX_ROTATIONS}: ${rotated.name} (${rotated.accountId})`);
+              lines.push(`  - ${why.slice(0, 200)}`);
+              console.log(`  quota exhausted - switched to ${rotated.name}, retrying this source`);
+              queueIndex -= 1;  // same source, new allowance
+              continue;
+            }
+            lines.push(`- 제공자 사용 한도 소진, 쓸 수 있는 계정 없음 — ${successes}/${args.sources} 성공에서 중단`);
             lines.push(`  - ${why.slice(0, 200)}`);
-            console.log(`  quota exhausted - stopping the batch`);
+            console.log(`  quota exhausted and no account left - stopping the batch`);
             recordFailure({ ...candidate, failed_at: new Date().toISOString(), failure: failedText });
             break;
           }
