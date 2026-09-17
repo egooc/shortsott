@@ -39,11 +39,11 @@ const HELD_DIR = path.join(EXPORT_DIR, 'held');
 const STATE_PATH = path.join(ROOT, 'server', 'data', 'auto_publish_state.json');
 const REPORTS_DIR = path.join(ROOT, 'server', 'output', 'auto-publish-reports');
 
-// Publish slots are FIXED per channel: 08:00 and 18:00 KST/JST (UTC+9), two videos per
+// Publish slots are FIXED per channel: 08:00, 12:00 and 18:00 KST/JST (UTC+9), three videos per
 // channel per day (owner directive 2026-08-20: work runs 00:00-07:00, publishes land on
 // the fixed slots). A slot needs SLOT_LEAD_MIN of margin so the upload finishes and the
 // Studio Checks glance (Content ID layer 3) has a window before the video goes public.
-const SLOT_HOURS_UTC9 = [8, 18];
+const SLOT_HOURS_UTC9 = [8, 12, 18];  // owner directive 2026-09-18: three slots a day (08:00, 12:00, 18:00 KST)
 const SLOT_LEAD_MIN = 45;
 const DURATION_TOLERANCE_SEC = 2.0;
 

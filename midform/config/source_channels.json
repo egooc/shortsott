@@ -1,5 +1,5 @@
 {
-  "_doc": "소스 수급 채널 목록. scout-sources.js가 여기서 최신 업로드를 정찰한다.",
+  "_doc": "소스 수급 채널 목록. scout-sources.js가 여기서 최신 업로드를 정찰한다. tags: midform-only=3분대라 볼케이노 부적합, volcano=볼케이노 명화관 완주 실측 채널, volcano-candidate=풀 장면 위주라 적합 예상(미실측).",
   "channels": [
     {
       "id": "UCtMEpYpBm3YVo5ijQzUZdLg",
@@ -12,19 +12,28 @@
       "id": "UCOo_v3eVbfET7_zi2KLOP9g",
       "name": "Binge Society",
       "url": "https://www.youtube.com/channel/UCOo_v3eVbfET7_zi2KLOP9g/videos",
-      "note": "영화 풀 장면 전문('Full Scene') — 2026-08-30 소유주 승인으로 추가. 대사 중심, 길이 적합 10/12 실측. Sony 계열(Columbia/Screen Gems/TriStar) 작품은 발행 금지 규칙 유지"
+      "note": "영화 풀 장면 전문('Full Scene') — 2026-08-30 소유주 승인으로 추가. 대사 중심, 길이 적합 10/12 실측. Sony 계열(Columbia/Screen Gems/TriStar) 작품은 발행 금지 규칙 유지 | 2026-09-17 볼케이노 명화관 완주 실측(독재자 KO/JA) — 풀 장면·en 자막·1080p, 좌상단 로고+하단 워터마크는 tools/prescan_overlay.py 로 선크롭",
+      "tags": [
+        "volcano"
+      ]
     },
     {
       "id": "UC5N2asRYkdATmJ9dtr1fO1w",
       "name": "Scene City",
       "url": "https://www.youtube.com/channel/UC5N2asRYkdATmJ9dtr1fO1w/videos",
-      "note": "대사 드라마 풀 장면 전문(저스티파이드·가을의 전설) — 2026-08-30 소유주 승인. 최근작 조회수는 낮고 구 카탈로그에 히트 존재; 평균이상(▲) 판정이 걸러준다"
+      "note": "대사 드라마 풀 장면 전문(저스티파이드·가을의 전설) — 2026-08-30 소유주 승인. 최근작 조회수는 낮고 구 카탈로그에 히트 존재; 평균이상(▲) 판정이 걸러준다",
+      "tags": [
+        "volcano-candidate"
+      ]
     },
     {
       "id": "UC6LDwTYRfjQwkakw5R95OyA",
       "name": "JoBlo Movie Clips",
       "url": "https://www.youtube.com/channel/UC6LDwTYRfjQwkakw5R95OyA/videos",
-      "note": "라이선스 클립 채널, 실사 영화 장면 위주 — 2026-08-30 소유주 승인. 길이 적합 11/12 실측"
+      "note": "라이선스 클립 채널, 실사 영화 장면 위주 — 2026-08-30 소유주 승인. 길이 적합 11/12 실측",
+      "tags": [
+        "volcano-candidate"
+      ]
     },
     {
       "id": "UCImz2lBN1-9ZQA92nkUC-bQ",
@@ -43,6 +52,69 @@
       "name": "ClipZone: High Octane Hits",
       "url": "https://www.youtube.com/channel/UCwXgxPwky2cyU7iNXeV75LA/videos",
       "note": "워너브라더스 공식 클립 네트워크 — 2026-08-31 소유주 승인. 라이선스 안정, 길이 적합 12/14, 평균 42.5만뷰. WB 생존 정찰 전 작품 통과"
+    },
+    {
+      "id": "UCv0R5T2xkjGfk9UR90iZG1A",
+      "name": "Turner Classic Movies",
+      "url": "https://www.youtube.com/channel/UCv0R5T2xkjGfk9UR90iZG1A/videos",
+      "note": "WBD 공식 고전 영화 클립 — 2026-09-17 소유주 승인. 프로브 80건: 미드폼 적합 61·볼케이노 적합 52, 평균 5만/중앙 1.2만뷰(더티 더즌 100만). 라이선스 안정, 대사 장면 위주",
+      "tags": [
+        "volcano-candidate"
+      ]
+    },
+    {
+      "id": "UCqMDM353bZ_i3TkLYgDMi3A",
+      "name": "FilmIsNow Epic Scenes",
+      "url": "https://www.youtube.com/channel/UCqMDM353bZ_i3TkLYgDMi3A/videos",
+      "note": "풀 장면 전문(570~613s) — 2026-09-17 소유주 승인. 프로브 80건: 미드폼 76·볼케이노 57, 평균 2.5만/중앙 0.9만뷰(철목련·퀵 앤 데드). 조회 낮음 — ▲ 판정이 걸러줌",
+      "tags": [
+        "volcano-candidate"
+      ]
+    },
+    {
+      "id": "UCfk4Df9QxO267wlFbStSyAw",
+      "name": "Boxoffice Movie Scenes",
+      "url": "https://www.youtube.com/channel/UCfk4Df9QxO267wlFbStSyAw/videos",
+      "note": "풀 장면+컴필 혼합 — 2026-09-17 소유주 승인(조건부). 프로브 80건: 미드폼 80·볼케이노 64, 평균 4.9만/중앙 1.3만뷰. \"ONLY the best\" 컴필은 리스티클 필터가 드롭",
+      "tags": [
+        "volcano-candidate"
+      ]
+    },
+    {
+      "id": "UC5z5Pc2YXDPHTF1VdFP4oFw",
+      "name": "4K HDR Media",
+      "url": "https://www.youtube.com/channel/UC5z5Pc2YXDPHTF1VdFP4oFw/videos",
+      "note": "대작 4K HDR 장면(반지의 제왕·테넷·오비완) — 2026-09-17 소유주 승인(조건부). 프로브 80건: 미드폼 66·볼케이노 25, 평균 39만/중앙 7만뷰. 액션 비중 높아 대사 장면만 선별",
+      "tags": [
+        "volcano-candidate"
+      ]
+    },
+    {
+      "id": "UClVbhSLxwws-KSsPKz135bw",
+      "name": "TopMovieClips",
+      "url": "https://www.youtube.com/channel/UClVbhSLxwws-KSsPKz135bw/videos",
+      "note": "3분대 클립(울버린·로건 액션) — 2026-09-17 소유주 승인. 프로브 80건: 미드폼 80·볼케이노 6, 평균 120만/중앙 32만뷰",
+      "tags": [
+        "midform-only"
+      ]
+    },
+    {
+      "id": "UC8BQGqcCSFq6RC9feEGUGFA",
+      "name": "BestClips",
+      "url": "https://www.youtube.com/channel/UC8BQGqcCSFq6RC9feEGUGFA/videos",
+      "note": "3분대 괴수·액션(메그·램페이지, WB) — 2026-09-17 소유주 승인. 프로브 80건: 미드폼 79·볼케이노 10, 평균 1,056만/중앙 175만뷰 최상급",
+      "tags": [
+        "midform-only"
+      ]
+    },
+    {
+      "id": "UC3gNmTGu-TTbFPpfSs5kNkg",
+      "name": "Movieclips",
+      "url": "https://www.youtube.com/channel/UC3gNmTGu-TTbFPpfSs5kNkg/videos",
+      "note": "Fandango 공식 2~3분 클립 — 2026-09-17 소유주 승인. 프로브 80건: 미드폼 65·볼케이노 8, 평균 5만/중앙 2.1만뷰. 라이선스 안정, 제목에 (n/10) 번호",
+      "tags": [
+        "midform-only"
+      ]
     }
   ]
 }

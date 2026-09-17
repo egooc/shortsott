@@ -81,13 +81,35 @@ function classify(title, catalog) {
 // survivors is the doctrine's signal that the studio tolerates clips (monetize-claims
 // rather than blocks). The list goes in the report for a human glance; the script only
 // asserts the count.
+// Survivors only count when they are OUR length. A Content ID claim blocks a Short of 1-3
+// minutes regardless of the claimant's policy, while a video over 3 minutes stays viewable
+// under the same claim (verified 2026-09-01: New Moon at 2:46 blocked worldwide, the 2:25 cut
+// of the same film clean). So a live 8-minute recap proves nothing about a 2:46 cut - counting
+// it as a survivor is how this recon hands back false confidence exactly where it matters.
+const SHORTS_CLAIM_TRAP_MIN_SEC = 60;
+const SHORTS_CLAIM_TRAP_MAX_SEC = 180;
+
 function survivalRecon(movie) {
   try {
     const data = ytDlpJson(['--flat-playlist', '-J', `ytsearch10:${movie.title_en} movie clip scene`]);
     const entries = (data.entries || []).filter((entry) => entry && entry.id);
+    const bandOf = (entry) => {
+      const sec = Number(entry.duration || 0);
+      return sec >= SHORTS_CLAIM_TRAP_MIN_SEC && sec <= SHORTS_CLAIM_TRAP_MAX_SEC;
+    };
     return {
       live_results: entries.length,
-      samples: entries.slice(0, 5).map((entry) => ({ id: entry.id, title: entry.title, channel: entry.channel || entry.uploader || '' }))
+      // The only count that speaks to our risk. Zero here alongside a healthy live_results
+      // means every survivor is long-form: no evidence either way for our format.
+      live_in_our_band: entries.filter(bandOf).length,
+      band_sec: [SHORTS_CLAIM_TRAP_MIN_SEC, SHORTS_CLAIM_TRAP_MAX_SEC],
+      samples: entries.slice(0, 5).map((entry) => ({
+        id: entry.id,
+        title: entry.title,
+        duration_sec: Number(entry.duration || 0) || null,
+        in_band: bandOf(entry),
+        channel: entry.channel || entry.uploader || ''
+      }))
     };
   } catch (error) {
     return { live_results: -1, error: String(error.message || error).slice(0, 120) };
@@ -98,23 +120,46 @@ function survivalRecon(movie) {
 // source channels: Binge Society leads with the movie ("Pulp Fiction (1994): scene | Full
 // Scene"), Clip Empire trails with it ("scene | Twilight: Eclipse 4K"). A row that fits
 // neither stays in its own bucket rather than being dropped.
-function movieNameOf(title) {
-  const lead = title.match(/^([^|:()]{2,50}?)\s*\((?:19|20)\d{2}\)\s*[:\-]/);
+function movieNameOf(title, channel = '') {
+  // Channel formats measured 2026-09-17 (2,080 unregistered rows): ClipZone leads with the film
+  // ("Black Mass | The Family Secret | ClipZone: High Octane Hits"); JoBlo/Clip Empire/Scene City
+  // trail with it ("The Grizzly Bear Attack | THE REVENANT (2015) Movie CLIP 4K", "... | My Girl 2
+  // (Anna Chlumsky, Jamie Lee Curtis)"); Binge Society leads ("Child's Play 3: How Chucky Finally
+  // Dies | Full Scene"); Akillheals/Paul dash-lead ("Game Night - Kidnapping scene"). Before this
+  // the queue's top two rows were "ClipZone: High Octane Hits" (307 clips) and "(미분류)" (548).
+  const NOISE = /\b(4K|Ultra HD|UHD|HD|Full Movie|Free Movie|Full Scene|Movie ?Clips?|Screen Bites|Binge Society|ClipZone: High Octane Hits|Funny Scene|Ending Scene|Scene)\b/gi;
+  const clean = (seg) => seg
+    .replace(/\((?:19|20)\d{2}\)/g, ' ')                       // (2015)
+    .replace(/\((?:4K|Full Movie|[^)]*(?:,|\band\b)[^)]*)\)/gi, ' ') // (4K) (Full Movie) (cast, list)
+    .replace(NOISE, ' ')
+    .replace(/[\s:|\-–]+$/, '').replace(/^[\s:|\-–]+/, '')
+    .replace(/\s+/g, ' ').trim();
+  const beforeColon = (seg) => {
+    const m = seg.match(/^(.{3,50}?):\s+\S/);
+    return m ? m[1].trim() : seg;
+  };
+  const lead = title.match(/^([^|:()]{2,50}?)\s*\((?:19|20)\d{2}\)\s*[:\-|]/);
   if (lead) return lead[1].trim();
   if (title.includes('|')) {
-    let tail = title.split('|').pop().trim();
-    tail = tail.replace(/\s*\(?(?:4K|Ultra HD|UHD|HD|Full Movie|Full Scene|Movieclips|Screen Bites|Binge Society)\)?\s*/gi, ' ')
-      .replace(/\s*\((?:19|20)\d{2}\)\s*/g, ' ').replace(/\s+/g, ' ').trim();
-    if (tail.length > 2 && tail.length < 50) return tail;
+    const segs = title.split('|').map(clean).filter((seg) => seg.length > 2 && seg.length < 50);
+    if (segs.length) {
+      const leadsWithFilm = /clipzone|binge society/i.test(channel);
+      return beforeColon(leadsWithFilm ? segs[0] : segs[segs.length - 1]);
+    }
   }
+  // "Megalodon Bites The Glass - The Meg (2018) Movie Clip HD" (TopMovieClips/BestClips): the film
+  // is the dash-segment right before the year, not the whole run of capitalised words.
   const anywhere = title.match(/([A-Z][^|:()]{2,40}?)\s*\((?:19|20)\d{2}\)/);
-  return anywhere ? anywhere[1].trim() : '(미분류)';
+  if (anywhere) return anywhere[1].split(/\s+[-–]\s+/).pop().trim();
+  const dash = title.match(/^([^\-–:|]{2,50}?)\s+[-–]\s+\S/);
+  if (dash) return dash[1].trim();
+  return '(미분류)';
 }
 
 function aggregateResearchQueue(needsResearch, top = 25) {
   const groups = new Map();
   for (const row of needsResearch) {
-    const name = movieNameOf(row.title || '');
+    const name = movieNameOf(row.title || '', row.channel || '');
     const group = groups.get(name) || { movie: name, clips: 0, total_views: 0, max_views: 0, sample_url: row.url };
     group.clips += 1;
     group.total_views += Number(row.view_count) || 0;
@@ -122,6 +167,20 @@ function aggregateResearchQueue(needsResearch, top = 25) {
     groups.set(name, group);
   }
   return [...groups.values()].sort((a, b) => b.total_views - a.total_views).slice(0, top);
+}
+
+// Volcano (명화관cinema) fit — owner directive 2026-09-17. Measured on the first two finished
+// runs (The Dictator 507s source → 126s/131s cuts): the server wants ONE scene that resolves what
+// the title promises, long enough to leave silence gaps for cut boundaries, and burned-in
+// English subtitles or clean dialogue for Speechmatics. A montage never fits; a sub-4-minute
+// clip rarely leaves room for 7 narration beats plus 100s of dialogue.
+const VOLCANO_MIN_SEC = 240;
+const VOLCANO_MAX_SEC = 660;
+function volcanoFit(row) {
+  const sec = Number(row.duration_sec) || 0;
+  if (sec < VOLCANO_MIN_SEC || sec > VOLCANO_MAX_SEC) return false;
+  // A single-scene title: "Movie (1999): Scene Name", "... | Full Scene", "... Scene | CLIP".
+  return /\((?:19|20)\d{2}\)\s*[:\-]|full scene|\bscene\b|movie clip/i.test(row.title || '');
 }
 
 async function main() {
@@ -160,11 +219,16 @@ async function main() {
         view_count: Number(entry.view_count) || null,
         above_channel_avg: channelAvgViews > 0 && (Number(entry.view_count) || 0) > channelAvgViews
       };
+      row.volcano_fit = volcanoFit(row);
       if (used.has(entry.id)) continue; // already produced — silence, not noise
       // Before classification, not after: a compilation is unusable no matter which movie it
       // belongs to, and leaving unregistered ones in needs_research inflated the research
       // queue's view totals with clips that could never become candidates.
-      if (/\btop ?\d|best .{0,30}(scenes|moments)\b|funniest|compilation|every (epic |single )?\w+ scene|\bmoments from\b/i.test(row.title)) {
+      // "FUNNY MOMENTS (NUTCRACKS, FACE SLAPS...)" slipped past this on 2026-09-06 and cost a
+      // full produce plus a rebuild: a moments-montage has no single narrative, so the machine
+      // eye rejected seven narration sentences in a row. Any bare "<adjective> moments" title is
+      // a montage, not just "best moments".
+      if (/\btop ?\d|\b\w+ (scenes|moments)\b|funniest|compilation|every (epic |single )?\w+ scene|\bmoments from\b/i.test(row.title)) {
         report.dropped.push({ ...row, reason: 'compilation/listicle - no single narrative to cut' });
         continue;
       }
@@ -217,8 +281,11 @@ async function main() {
     `# 소스 정찰 ${report.at}`,
     '',
     `## 후보 ${report.candidates.length}건 (대장 통과${args.recon ? ' + 생존 정찰' : ''})`,
-    ...report.candidates.map((c) => `- ${c.above_channel_avg ? '▲' : '-'} [${c.movie.key}] ${c.title} — ${c.url}`
-      + ` (${(c.view_count || 0).toLocaleString()}뷰)` + (c.recon ? ` (생존 클립 ${c.recon.live_results}건)` : '')),
+    ...report.candidates.map((c) => `- ${c.above_channel_avg ? '▲' : '-'}${c.volcano_fit ? '🌋' : ''} [${c.movie.key}] ${c.title} — ${c.url}`
+      + ` (${(c.view_count || 0).toLocaleString()}뷰)` + (c.recon ? ` (생존 ${c.recon.live_results}건 / 우리 길이대 ${c.recon.live_in_our_band ?? '?'}건)` : '')),
+    '',
+    `## 볼케이노 적합 🌋 ${report.candidates.filter((c) => c.volcano_fit).length}건 (${VOLCANO_MIN_SEC}~${VOLCANO_MAX_SEC}s 단일 장면 — 명화관cinema 프리셋 후보; 상위부터 tools/prescan_overlay.py 선크롭 후 start)`,
+    ...report.candidates.filter((c) => c.volcano_fit).slice(0, 25).map((c) => `- ${c.above_channel_avg ? '▲' : '-'} [${c.movie.key}] ${c.title} — ${c.url} (${c.duration_sec}s · ${(c.view_count || 0).toLocaleString()}뷰 · ${c.channel})`),
     '',
     `## 등록 조사 큐 (미등록 ${report.needs_research.length}건을 영화별 집계 — 상위부터 배급사·일본 개봉명 조사해 movie_catalog.json 등록)`,
     ...report.research_queue.map((g) => `- ${g.movie} — 클립 ${g.clips}개, 총 ${g.total_views.toLocaleString()}뷰 (최고 ${g.max_views.toLocaleString()})`),

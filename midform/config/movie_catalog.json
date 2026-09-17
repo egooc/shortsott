@@ -933,6 +933,102 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '하드 타겟'(1993)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『ハード・ターゲット』(1993)のシーンから制作しました。"
+    },
+    "sherlock-holmes-2009": {
+      "match": "^(?!.*(game of shadows|shadow game|シャドウ)).*sherlock holmes|셜록 ?홈즈(?!.*그림자)",
+      "title_ko": "셜록 홈즈",
+      "title_en": "Sherlock Holmes",
+      "title_ja": "シャーロック・ホームズ",
+      "year": 2009,
+      "distributor": "Warner Bros.",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '셜록 홈즈'(2009)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『シャーロック・ホームズ』(2009)のシーンから制作しました。",
+      "note": "2026-09-17 등록(ClipZone). 日本配給 ワーナー・ブラザース映画 2010-03-12 (eiga.com/movie/54174). 대사 주도 — Meeting Irene Adler(455s)·Master of Disguise 볼케이노 적합"
+    },
+    "sherlock-holmes-shadows": {
+      "match": "sherlock holmes.{0,3}(a )?game of shadows|셜록 ?홈즈.{0,3}그림자 게임|シャドウ ゲーム",
+      "title_ko": "셜록 홈즈: 그림자 게임",
+      "title_en": "Sherlock Holmes: A Game of Shadows",
+      "title_ja": "シャーロック・ホームズ シャドウ ゲーム",
+      "year": 2011,
+      "distributor": "Warner Bros.",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '셜록 홈즈: 그림자 게임'(2011)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『シャーロック・ホームズ シャドウ ゲーム』(2011)のシーンから制作しました。",
+      "note": "2026-09-17 등록(ClipZone). 日本公開 2012-03-10 ワーナー (eiga.com/movie/57187). Meeting Moriarty(356s, 370만뷰) 대사 장면"
+    },
+    "the-matrix-1999": {
+      "match": "^(?!.*(reloaded|revolutions|resurrections|リローデッド|レボリューションズ)).*\\bthe matrix\\b|매트릭스(?!.*(리로디드|레볼루션|리저렉션))",
+      "title_ko": "매트릭스",
+      "title_en": "The Matrix",
+      "title_ja": "マトリックス",
+      "year": 1999,
+      "distributor": "Warner Bros.",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '매트릭스'(1999)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『マトリックス』(1999)のシーンから制作しました。",
+      "note": "2026-09-17 등록(ClipZone). 日本公開 1999-09-11 ワーナー (eiga.com/movie/49688). Meeting Agent Smith(541s, 240만뷰) 대사 장면; Lobby Shootout·Rooftop은 액션 몽타주라 보류"
+    },
+    "american-sniper": {
+      "match": "american sniper|아메리칸 스나이퍼|アメリカン・スナイパー",
+      "title_ko": "아메리칸 스나이퍼",
+      "title_en": "American Sniper",
+      "title_ja": "アメリカン・スナイパー",
+      "year": 2014,
+      "distributor": "Warner Bros.",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '아메리칸 스나이퍼'(2014)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『アメリカン・スナイパー』(2014)のシーンから制作しました。",
+      "note": "2026-09-17 등록(ClipZone). 日本公開 2015-02-21 ワーナー (eiga.com/movie/81224). The Trigger's Cost(549s) 대사, 나머지는 전투 몽타주"
+    },
+    "book-of-eli": {
+      "match": "the book of eli|일라이|ザ・ウォーカー",
+      "title_ko": "일라이",
+      "title_en": "The Book of Eli",
+      "title_ja": "ザ・ウォーカー",
+      "year": 2010,
+      "distributor": "Warner Bros. (JP: 角川映画/松竹)",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '일라이'(2010)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『ザ・ウォーカー』(2010)のシーンから制作しました。",
+      "note": "2026-09-17 등록(ClipZone). 邦題는 ザ・ウォーカー(원제와 다름). 日本配給 角川映画・松竹 2010-06-19 (eiga.com/movie/55212). Bar Fight at Carnegie's(544s, 430만뷰)"
+    },
+    "edge-of-tomorrow": {
+      "match": "edge of tomorrow|엣지 오브 투모로우|オール・ユー・ニード・イズ・キル",
+      "title_ko": "엣지 오브 투모로우",
+      "title_en": "Edge of Tomorrow",
+      "title_ja": "オール・ユー・ニード・イズ・キル",
+      "year": 2014,
+      "distributor": "Warner Bros.",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '엣지 오브 투모로우'(2014)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『オール・ユー・ニード・イズ・キル』(2014)のシーンから制作しました。",
+      "note": "2026-09-17 등록(ClipZone). 邦題는 원작 라노벨명 オール・ユー・ニード・イズ・キル. 日本公開 2014-07-04 ワーナー (eiga.com/movie/77676). 대사 비중 낮은 편 — Training for Combat 정도"
+    },
+    "pearl-harbor": {
+      "match": "pearl harbor|진주만|パール・ハーバー",
+      "title_ko": "진주만",
+      "title_en": "Pearl Harbor",
+      "title_ja": "パール・ハーバー",
+      "year": 2001,
+      "distributor": "Touchstone Pictures (Buena Vista / Disney)",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '진주만'(2001)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『パール・ハーバー』(2001)のシーンから制作しました。",
+      "note": "2026-09-17 등록(JoBlo 6클립 244만뷰). 日本配給 ブエナ・ビスタ 2001-07-14 (eiga.com/movie/1593). 디즈니 계열 — 클레임 정책 미실측, 프리플라이트 필수"
+    },
+    "halloween-2007": {
+      "match": "halloween(?!.*(1978|2018|kills|ends|h20|ii\\b|2\\b))|할로윈|ハロウィン",
+      "title_ko": "할로윈",
+      "title_en": "Halloween",
+      "title_ja": "ハロウィン",
+      "year": 2007,
+      "distributor": "Dimension Films (The Weinstein Company) / MGM",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '할로윈'(2007)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『ハロウィン』(2007)のシーンから制作しました。",
+      "note": "2026-09-17 등록. Clip Empire 8클립(768만뷰)은 전부 롭 좀비 2007판(Young Michael·Trucker·Psych Ward). 日本配給 ザナドゥー 2008-10-25 (eiga.com/movie/34182). 2018판(Universal/Blumhouse, 日本 パルコ 2019-04-12)은 별도 등록 필요. Clip Empire는 후순위 채널"
     }
   },
   "banned_distributors": [
