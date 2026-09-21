@@ -49,8 +49,16 @@ const probes = (() => {
   return out;
 })();
 
-// 드래프트 이름(20260920a-terminal_goat-ko)에서 영화를 찾는다. 슬러그의 첫 토막이 영화를 가리킨다.
+// ★영화는 «드래프트가 스스로 적어 둔 것»을 먼저 읽는다 (2026-09-22 수리).
+//   이름 슬러그로 추측하면 줄임말에서 새 나간다 — `wwant_truth` 가 what-women-want 를
+//   못 찾아 이틀째 보류돼 있었다. 발행 패키지(upload_meta.json)에는 movie.key 가
+//   처음부터 들어 있다. 그걸 쓰고, 없을 때만 예전 추측으로 내려간다.
 function movieOf(draft) {
+  for (const locale of ['', '-ko', '-ja']) {
+    const meta = path.join(DRAFTS_DIR, draft + locale, 'upload_meta.json');
+    const key = ((readJson(meta, {}) || {}).movie || {}).key;
+    if (key && movies[key]) return [key, movies[key]];
+  }
   const m = /^\d{8}[a-z]?-([a-z0-9]+)_/.exec(draft);
   if (!m) return null;
   const slug = m[1];
