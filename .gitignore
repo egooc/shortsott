@@ -115,3 +115,9 @@ Desktop.ini
 
 # Archived legacy app, stripped from history (kept on disk only)
 removed_ottugi_20260715/
+
+# 작업 중 임시 산출물 — 저장소에 들어가면 안 된다 (2026-09-22 정리)
+tmp_*
+*.bak-*
+# 레퍼런스 채널에서 받은 원본 오디오. 용량이 크고 우리가 만든 것이 아니다
+midform/materials/reference_shorts/*.m4a
