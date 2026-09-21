@@ -1,0 +1,175 @@
+{
+  "_note": "브라우저 자동 발행(scripts/web-publish.js)이 쓰는 선택자. UI가 바뀌면 코드가 아니라 이 파일만 고친다. 각 항목은 후보 배열이고 위에서부터 시도한다. text= 는 보이는 글자, css= 는 CSS, role= 는 접근성 역할(role=역할:이름).",
+  "_measured": "facebook 은 2026-09-18 실제 화면(비즈니스 스위트 릴스 작성기)에서 뜬 이름으로 채웠다. naverclip 은 아직 로그인 세션이 없어 1차 후보 상태 — 로그인 후 --explore 로 확정할 것. facebook_profile 은 개인 프로필(ko, 수익화 걸린 Manl Vrabbit)용 — 비즈니스 스위트에는 프로필이 안 뜬다(2026-09-18 확인)라서 facebook.com 작성기를 따로 몬다.",
+  "naverclip": {
+    "home": "https://clipcreators.naver.com/web/upload",
+    "loginUrl": "https://nid.naver.com/nidlogin.login?url=https%3A%2F%2Fclipcreators.naver.com%2Fweb%2Fupload",
+    "loginPageMarker": [
+      "css=input[placeholder*=아이디]"
+    ],
+    "loggedInMarker": [
+      "text=동영상 업로드",
+      "text=기본 정보",
+      "css=textarea[placeholder*=경험을 기록]"
+    ],
+    "openUploader": [],
+    "fileInput": [
+      "css=input[type=file]"
+    ],
+    "titleField": [
+      "css=textarea[placeholder*=경험을 기록]",
+      "css=textarea"
+    ],
+    "hashtagField": [],
+    "categoryOpen": [
+      "text=1차 카테고리"
+    ],
+    "categoryPick": "엔터",
+    "aiToggle": [
+      "css=[aria-label=\"AI 활용 설정\"]",
+      "css=button[role=switch][aria-label*=\"AI\"]"
+    ],
+    "next": [],
+    "submit": [
+      "role=button:등록!"
+    ],
+    "successMarker": [
+      "text=등록되었습니다",
+      "text=업로드가 완료"
+    ],
+    "_measured": "2026-09-18 실측: /web/upload 직행(드롭다운 불필요). 필수=설명(최대 300자)·커버(자동선택)·카테고리. 1차 카테고리 후보에 '엔터' 있음. 정보태그 '영화·방송·시상식'. AI 활용 설정 스위치 존재. 버튼: 취소/임시저장/등록. 정보태그는 \"영화·방송·시상식\" 클릭 시 검색 모달이 뜨고 작품을 검색해 [선택]을 눌러야 한다. 우측에 \"동영상 인코딩 진행 중 n%\" 가 있고 끝나야 등록이 된다. 등록 성공 = POST 200 후 /web/contents/clips 로 이동(완료 토스트 없음). 2차 카테고리(엔터 하위)에 \"영화\" 있음. 등록 예약: 체크 시 [YYYY.MM.DD]·[시간]·[분] 드롭다운 3개가 나오고 선택지는 모두 <li>다. 날짜는 달력(일 숫자).",
+    "infoTagOpen": [
+      "text=영화·방송·시상식"
+    ],
+    "infoTagSearch": [
+      "css=input[placeholder*=검색]"
+    ],
+    "infoTagChoose": [
+      "role=button:선택!"
+    ],
+    "infoTagClose": [
+      "css=button[aria-label=닫기]",
+      "role=button:닫기!"
+    ],
+    "encodingMarker": [
+      "text=인코딩 진행 중"
+    ],
+    "infoTagQuery": "",
+    "confirmSubmit": [
+      "role=button:확인!",
+      "role=button:등록!",
+      "role=button:공개!"
+    ],
+    "category2Pick": "영화",
+    "successUrl": "/web/contents",
+    "scheduleCheckbox": [
+      "text=등록 예약"
+    ],
+    "scheduleDateBtn": "date",
+    "scheduleHourBtn": [
+      "css=button[aria-label=\"시간\"]"
+    ],
+    "scheduleMinuteBtn": [
+      "css=button[aria-label=\"분\"]"
+    ]
+  },
+  "facebook": {
+    "home": "https://business.facebook.com/latest/reels_composer",
+    "loginUrl": "https://business.facebook.com/",
+    "loginPageMarker": [
+      "css=input[name=email]",
+      "text=Facebook에 로그인"
+    ],
+    "loggedInMarker": [
+      "text=릴스 만들기",
+      "text=게시할 위치",
+      "role=button:Meta Business Suite"
+    ],
+    "targetPicker": [
+      "css=[aria-label*=게시할 위치]",
+      "text=게시할 위치"
+    ],
+    "openUploader": [
+      "role=button:동영상 추가",
+      "text=동영상 추가"
+    ],
+    "fileInput": [
+      "css=input[type=file][accept*=video]",
+      "css=input[type=file]"
+    ],
+    "captionField": [
+      "css=[aria-label*=게시물에 텍스트를 포함]",
+      "css=div[role=textbox]"
+    ],
+    "hashtagField": [
+      "css=input[placeholder*=관련 키워드]",
+      "css=input[placeholder*=키워드]"
+    ],
+    "crosspostToggle": [
+      "text=크로스포스트",
+      "text=동시 게시",
+      "text=다른 페이지에도"
+    ],
+    "next": [
+      "role=button:다음!"
+    ],
+    "submit": [
+      "role=button:게시!",
+      "role=button:공유하기!",
+      "role=button:지금 게시!"
+    ],
+    "successMarker": [
+      "text=릴스를 처리 중",
+      "text=게시됨",
+      "text=게시되었습니다",
+      "text=릴스가 공유",
+      "text=예약됨"
+    ]
+  },
+  "facebook_profile": {
+    "home": "https://www.facebook.com/reels/create",
+    "loginUrl": "https://www.facebook.com/",
+    "loginPageMarker": [
+      "css=input[name=email]",
+      "text=Facebook에 로그인"
+    ],
+    "loggedInMarker": [
+      "text=릴스 만들기",
+      "text=동영상 추가"
+    ],
+    "openUploader": [
+      "text=동영상 추가",
+      "text=끌어서 놓기"
+    ],
+    "fileInput": [
+      "css=input[type=file][accept*=video]",
+      "css=input[type=file]"
+    ],
+    "captionField": [
+      "css=div[role=textbox]",
+      "css=[aria-label*=설명]"
+    ],
+    "hashtagField": [],
+    "crosspostToggle": [
+      "text=Instagram에도 공유",
+      "text=크로스포스트",
+      "text=동시 게시"
+    ],
+    "next": [
+      "role=button:다음!",
+      "role=button:업로드!"
+    ],
+    "submit": [
+      "role=button:게시!",
+      "role=button:지금 게시!"
+    ],
+    "successMarker": [
+      "text=릴스를 처리 중",
+      "text=게시됨",
+      "text=게시되었습니다",
+      "text=릴스가 공유",
+      "text=예약됨"
+    ],
+    "_measured": "2026-09-18 실측: 릴스 만들기 다이얼로그(동영상 추가 → 업로드 → 설명/게시). 개인 프로필 Manl Vrabbit 세션. 게시 성공 신호는 \"릴스를 처리 중입니다\" 토스트다(2026-09-18 실측) — 게시됨 문구는 뜨지 않는다."
+  }
+}

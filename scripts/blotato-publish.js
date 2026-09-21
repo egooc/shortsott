@@ -219,11 +219,20 @@ function warmupActive(args) {
   return new Date().toISOString().slice(0, 10) <= WARMUP_UNTIL;
 }
 
+// Minutes of headroom when the inherited publishAt has already passed.
+const PAST_CLAMP_MIN = 3;
+
 function scheduleFor(baseIso, platform, warmup) {
   if (!baseIso) return '';
-  if (!warmup) return baseIso;
-  const offset = Number(STAGGER_MIN[platform] || 0);
-  return new Date(Date.parse(baseIso) + offset * 60 * 1000).toISOString();
+  const offset = warmup ? Number(STAGGER_MIN[platform] || 0) : 0;
+  const wanted = Date.parse(baseIso) + offset * 60 * 1000;
+  // The YouTube publishAt this inherits is in the past whenever the fan-out runs after the
+  // cut went public - a fan-out skipped for a day, or one recovered by hand. Blotato rejects
+  // that with 422 "Cannot schedule a post in the past", which made those videos permanently
+  // unreachable on the reach axis (War Dogs ko, 2026-09-05). Post them shortly from now
+  // instead, keeping the per-platform stagger.
+  const floor = Date.now() + PAST_CLAMP_MIN * 60 * 1000 + offset * 60 * 1000;
+  return new Date(Math.max(wanted, floor)).toISOString();
 }
 
 // One post per account per day while warming up — counted from what we already shipped.

@@ -60,9 +60,20 @@ async function youtubeAccessToken(profile) {
   return data.access_token;
 }
 
+// The window is measured on WHEN IT GOES PUBLIC, not when it was uploaded. Uploads run hours
+// ahead of the slot (today: 11:30 upload, 18:00 publish), so filtering on upload time made the
+// 21:00 health check report "nothing published" on the very evening it published.
+function publishedAt(entry) {
+  return Date.parse(entry.publishAt || entry.scheduledTime || entry.at || 0);
+}
+
 async function youtubeRows(since) {
   const state = readJson(YT_STATE, { history: [] });
-  const recent = (state.history || []).filter((h) => Date.parse(h.at || h.publishAt || 0) >= since);
+  const now = Date.now();
+  const recent = (state.history || []).filter((h) => {
+    const at = publishedAt(h);
+    return at >= since && at <= now;   // not yet live = nothing to measure
+  });
   if (!recent.length) return [];
   const raw = readJson(PROFILES, []);
   const profiles = Array.isArray(raw) ? raw : (raw.profiles || []);
@@ -109,7 +120,11 @@ async function youtubeRows(since) {
 async function blotatoRows(since) {
   const key = String(process.env.BLOTATO_API_KEY || '').trim();
   const state = readJson(BLOTATO_STATE, { history: [] });
-  const recent = (state.history || []).filter((h) => Date.parse(h.at || 0) >= since);
+  const now = Date.now();
+  const recent = (state.history || []).filter((h) => {
+    const at = publishedAt(h);
+    return at >= since && at <= now;
+  });
   if (!recent.length) return [];
   if (!key) return recent.map((h) => ({ ...h, error: 'BLOTATO_API_KEY not set' }));
   const rows = [];

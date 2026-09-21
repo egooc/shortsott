@@ -106,6 +106,27 @@ function buildPrompt({ locale, facts, specDoc, platformIds }) {
     locale === 'ja'
       ? 'CRITICAL: every title, caption and hashtag MUST be written in Japanese (日本語). The source facts below are partly Korean - translate their MEANING into native Japanese; outputting Korean text is a hard failure. Hashtags in Japanese or English only.'
       : '',
+    // Register, decided 2026-09-01. The channels that work in this genre read like a friend
+    // telling you about a film they just watched; our packages read like a written synopsis,
+    // which is a different distance from the viewer. Keep ですます - the polite form is right
+    // for a film channel and is not the problem - and strip the WRITTEN-language habits that
+    // create the distance. Hypothesis, not a measurement: it is being introduced on new
+    // packages only, so old and new run side by side.
+    locale === 'ja'
+      ? [
+        'JAPANESE REGISTER (mandatory):',
+        '- Keep ですます. Do NOT switch to だ/である for captions; plain form is fine INSIDE a title.',
+        '- Write spoken Japanese, not written Japanese. Cut 書き言葉 connectives and stiff nominal',
+        '  constructions: 〜が明らかになります / 〜となります / 〜が判明します / 〜へと向かいます /',
+        '  しかしながら / 〜における. Say it the way you would say it out loud.',
+        '- Prefer the active voice. 連れていかれます (passive, observational) is the documentary',
+        '  register we are moving away from; name who does what.',
+        '- Address the viewer, do not narrate at them: a direct question or a 〜んです /',
+        '  〜なんですが turn is better than a third-person report of events.',
+        '- Do not let this become slangy or over-familiar. No ヤバい, no 〜杉, no forced 若者言葉.',
+        '  The target is a calm friend explaining a film, not a hype account.'
+      ].join('\n')
+      : '',
     '',
     'Source facts (use ONLY these - never invent plot facts beyond them; do NOT import outside film knowledge, e.g. if the facts never call the monster invisible, it is NOT invisible in this clip):',
     `- Working title (hook-pattern engineered): ${facts.fullTitle}`,

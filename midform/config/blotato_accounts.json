@@ -33,7 +33,7 @@
           }
         },
         "tiktok": {
-          "role": "monetize",
+          "role": "reach",
           "status": "connected",
           "accountId": "57391",
           "username": "meow_cinema21",
@@ -46,7 +46,18 @@
             "isYourBrand": "boolean",
             "isAiGenerated": "boolean"
           },
-          "note": "Creator Rewards는 1분 이상 영상만 대상 — duration.json이 60~180초라 길이 조건은 통과."
+          "note": "Creator Rewards는 1분 이상 영상만 대상 — duration.json이 60~180초라 길이 조건은 통과.",
+          "monetization_status": {
+            "state": "자격 박탈, 이의제기 심사 중",
+            "notified": "2026-09-01",
+            "appealed": "2026-09-01 10:48",
+            "result_due": "2026-09-15",
+            "reason_given": "퀄리티가 낮은 콘텐츠를 게시한 계정 (분할 화면·리액션·슬라이드·무작위 사진·Q&A·화면 녹화 형식을 든 정형 문구. 우리 포맷은 이 목록에 해당하지 않는다).",
+            "context": "이 계정은 **이전에 수익화되어 있었다** — 포맷 자체가 실격 사유는 아니라는 뜻이다. 단속 기준 변화이거나 특정 게시물 문제일 가능성이 높다. 결과 전까지 원인을 단정하지 말 것.",
+            "policy_note": "별개 축으로, TikTok Creator Rewards는 AI 생성 콘텐츠를 수익화에서 제외한다고 공표하고 있고 합성 음성 페이스리스 채널이 주 표적으로 언급된다. 우리 내레이션은 TTS다. 이의제기가 통과해도 이 축은 남을 수 있으므로 틱톡 수익을 재고에 넣지 말 것.",
+            "do_not": "**isAiGenerated 플래그를 끄지 말 것.** 합성 음성은 AIGC 표시 대상이고, 미표시 AI 콘텐츠 단속은 2025년 340% 증가했다. 표시를 빼는 것은 수익화를 얻는 행위가 아니라 계정을 거는 행위다.",
+            "operating_decision": "소유주 결정 2026-09-01: **발행은 그대로 유지**하면서 이의제기를 병행한다. 틱톡 클레임은 잦다는 것이 소유주 판단."
+          }
         },
         "instagram": {
           "role": "reach",
@@ -137,7 +148,8 @@
             "isBrandedContent": "boolean",
             "isYourBrand": "boolean",
             "isAiGenerated": "boolean"
-          }
+          },
+          "monetization_note": "ko 계정이 2026-09-01 Creator Rewards 자격을 잃었다(이의제기 중). ja는 아직 별도 통보 없음. 일본 거주 요건 때문에 애초에 수익화 대상이 아니었으므로 role은 계속 reach."
         },
         "threads": {
           "role": "reach",
