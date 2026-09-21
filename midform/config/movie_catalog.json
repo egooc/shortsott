@@ -153,10 +153,11 @@
       "distributor": "Paramount Pictures",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '더 울프 오브 월 스트리트'(2013)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『ウルフ・オブ・ウォールストリート』(2013)のシーンから制作しました。"
+      "credit_ja": "映画『ウルフ・オブ・ウォールストリート』(2013)のシーンから制作しました。",
+      "claim_probe": "2026-09-18 ja 200s+150s CLEAR-30min"
     },
     "the-dictator": {
-      "match": "the dictator|독재자|ディクテーター",
+      "match": "^(?!.*great dictator).*?(?:the dictator|독재자|ディクテーター)",
       "title_ko": "독재자",
       "title_en": "The Dictator",
       "title_ja": "ディクテーター 身元不明でニューヨーク",
@@ -164,7 +165,8 @@
       "distributor": "Paramount Pictures",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '독재자'(2012)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『ディクテーター 身元不明でニューヨーク』(2012)のシーンから制作しました。"
+      "credit_ja": "映画『ディクテーター 身元不明でニューヨーク』(2012)のシーンから制作しました。",
+      "match_note": "2026-09-21: 채플린 <위대한 독재자>(1940) 클립을 잡아갔다. 다른 영화이고 연대 하한(1990) 밖이다."
     },
     "maverick": {
       "match": "^(?!.*top ?gun).*(?:maverick|매버릭|マーヴェリック)",
@@ -186,7 +188,8 @@
       "distributor": "Paramount Pictures",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '왓 위민 원트'(2000)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『ハート・オブ・ウーマン』(2000)のシーンから制作しました。"
+      "credit_ja": "映画『ハート・オブ・ウーマン』(2000)のシーンから制作しました。",
+      "claim_probe": "2026-09-18 ja 400s+150s CLEAR-30min"
     },
     "casino": {
       "match": "\\bcasino\\b(?!.*royale)|카지노|カジノ",
@@ -195,12 +198,14 @@
       "title_ja": "カジノ",
       "year": 1995,
       "distributor": "Universal Pictures",
-      "distributor_tier": "preflight",
+      "distributor_tier": "banned",
       "credit_ko": "영화 '카지노'(1995)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『カジノ』(1995)のシーンから制作しました。"
+      "credit_ja": "映画『カジノ』(1995)のシーンから制作しました。",
+      "claim_probe": "2026-09-20 ja 110s+150s BLOCKED-1",
+      "note": "claim-probe BLOCKED-1 2026-09-20"
     },
     "godfather-2": {
-      "match": "godfather.*part ?(ii|2)|대부 ?2|ゴッドファーザー",
+      "match": "^(?!.*\\bpart ?(?:iii|3)\\b).*?(?:godfather.*part ?(?:ii|2)\\b|대부 ?2|ゴッドファーザー)",
       "title_ko": "대부 2",
       "title_en": "The Godfather Part II",
       "title_ja": "ゴッドファーザー PART II",
@@ -208,7 +213,9 @@
       "distributor": "Paramount Pictures",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '대부 2'(1974)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『ゴッドファーザー PART II』(1974)のシーンから制作しました。"
+      "credit_ja": "映画『ゴッドファーザー PART II』(1974)のシーンから制作しました。",
+      "claim_probe": "2026-09-18 ja 196s+150s → 2026-09-21 재조회 CLEAR-4935min(82시간). 실제 업로드도 무사: MrgM8dstDcI(ko 142s)·3f46QBUqGrg(ja 104s) 둘 다 클레임 없음.",
+      "match_note": "2026-09-21 감사: <대부 3>(1990) 클립을 2편으로 잡았다. 일본어 패턴이 시리즈 전체를 받아 더 넓었다."
     },
     "gladiator": {
       "match": "gladiator(?!\\s*(ii|2))|글래디에이터|グラディエーター",
@@ -217,9 +224,11 @@
       "title_ja": "グラディエーター",
       "year": 2000,
       "distributor": "DreamWorks/Universal",
-      "distributor_tier": "preflight",
+      "distributor_tier": "banned",
       "credit_ko": "영화 '글래디에이터'(2000)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『グラディエーター』(2000)のシーンから制作しました。"
+      "credit_ja": "映画『グラディエーター』(2000)のシーンから制作しました。",
+      "claim_probe": "2026-09-18 ja 150s+150s CLEAR-30min",
+      "note": "2026-09-21 KO/JA 양판 전세계 차단 → banned. KO 56gb7ZGA2zA(113s) · JA QS8Wdk0C-8M(112s). 자동 발행으로 09-20 21:46 업로드, 공개 전에 Content ID 감시가 잡아 예약 해제했다."
     },
     "dirty-dancing": {
       "match": "dirty.?dancing|더티 ?댄싱|ダーティ・?ダンシング",
@@ -287,7 +296,9 @@
       "distributor": "Miramax / Paramount Vantage",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '노인을 위한 나라는 없다'(2007)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『ノーカントリー』(2007)のシーンから制作しました。"
+      "credit_ja": "映画『ノーカントリー』(2007)のシーンから制作しました。",
+      "claim_history": "2026-09-18 ja 컷(주유소+모텔+보안관, 150s, BDX0kAyDKrg) 업로드 직후 전세계 차단 → 예약 해제. 같은 날 ko 컷(주유소 동전 던지기만, 164s, d4Nj_a2rfAk)은 클레임 없음. 장면마다 갈림.",
+      "note": "Miramax/Paramount Vantage: 2026-09-18 ja 컷 전세계 차단 1건. 재사용 시 사전 클레임 확인 필수(private 업로드 후 check-claims)."
     },
     "erin-brockovich": {
       "match": "erin.?brockovich|에린 브로코비치|エリン・ブロコビッチ",
@@ -321,10 +332,11 @@
       "distributor": "Universal Pictures",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '인크레더블 헐크'(2008)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『インクレディブル・ハルク』(2008)のシーンから制作しました。"
+      "credit_ja": "映画『インクレディブル・ハルク』(2008)のシーンから制作しました。",
+      "claim_probe": "2026-09-20 ja 200s+150s CLEAR-30min"
     },
     "hulk-2003": {
-      "match": "\\bhulk\\b(?!.*incredible)|(?<!인크레더블 )헐크",
+      "match": "^(?!.*\\b(incredible|avengers|ultron|infinity|endgame|thor|iron ?man|she-?hulk|captain america|black widow|인크레더블|어벤져스|토르|아이언맨)\\b).*?(?:\\bhulk\\b|헐크)",
       "title_ko": "헐크",
       "title_en": "Hulk",
       "title_ja": "ハルク",
@@ -332,7 +344,8 @@
       "distributor": "Universal Pictures",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '헐크'(2003)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『ハルク』(2003)のシーンから制作しました。"
+      "credit_ja": "映画『ハルク』(2003)のシーンから制作しました。",
+      "match_note": "2026-09-21 감사: incredible 제외가 \bhulk\b 뒤에 있어 'THE INCREDIBLE HULK' 처럼 앞에 오면 통과했다. 어벤져스/마블 낱말과 함께 문장 맨 앞에서 건다."
     },
     "rambo-2008": {
       "match": "\\brambo\\b(?!.*(first blood|last blood|rambo (ii|iii|2|3)))|람보(?!.*(퍼스트|라스트))",
@@ -377,7 +390,8 @@
       "distributor": "MGM",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '금발이 너무해'(2001)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『キューティ・ブロンド』(2001)のシーンから制作しました。"
+      "credit_ja": "映画『キューティ・ブロンド』(2001)のシーンから制作しました。",
+      "claim_probe": "2026-09-18 ja 170s+150s CLEAR-30min"
     },
     "war-of-the-worlds": {
       "match": "war of the worlds|우주 ?전쟁|宇宙戦争",
@@ -501,7 +515,8 @@
       "distributor": "Universal Pictures",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '칼리토'(1993)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『カリートの道』(1993)のシーンから制作しました。"
+      "credit_ja": "映画『カリートの道』(1993)のシーンから制作しました。",
+      "claim_probe": "2026-09-21 ja 150s+150s CLEAR-30min"
     },
     "the-terminal": {
       "match": "\\bthe terminal\\b|터미널|ターミナル(?!ター)",
@@ -512,7 +527,8 @@
       "distributor": "DreamWorks (Paramount)",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '터미널'(2004)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『ターミナル』(2004)のシーンから制作しました。"
+      "credit_ja": "映画『ターミナル』(2004)のシーンから制作しました。",
+      "claim_probe": "2026-09-18 ja 180s+150s CLEAR-30min"
     },
     "cry-baby": {
       "match": "cry.?baby|크라이 ?베이비|クライ・?ベイビー",
@@ -567,7 +583,8 @@
       "distributor": "Universal Pictures",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '여인의 향기'(1992)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『セント・オブ・ウーマン／夢の香り』(1992)のシーンから制作しました。"
+      "credit_ja": "映画『セント・オブ・ウーマン／夢の香り』(1992)のシーンから制作しました。",
+      "claim_probe": "2026-09-18 ja 191s+150s CLEAR-30min"
     },
     "gangs-of-new-york": {
       "match": "gangs of new york|갱스 오브 뉴욕|ギャング・オブ・ニューヨーク",
@@ -581,7 +598,7 @@
       "credit_ja": "映画『ギャング・オブ・ニューヨーク』(2002)のシーンから制作しました。"
     },
     "cape-fear": {
-      "match": "cape fear|케이프 피어|ケープ・フィアー",
+      "match": "^(?!.*\\((?:19[0-8]\\d)\\)).*?(?:cape fear|케이프 피어|ケープ・フィアー)",
       "title_ko": "케이프 피어",
       "title_en": "Cape Fear",
       "title_ja": "ケープ・フィアー",
@@ -589,7 +606,8 @@
       "distributor": "Universal Pictures",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '케이프 피어'(1991)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『ケープ・フィアー』(1991)のシーンから制作しました。"
+      "credit_ja": "映画『ケープ・フィアー』(1991)のシーンから制作しました。",
+      "match_note": "2026-09-21 감사: 1962년 미첨판 원작 클립을 1991년 스콜세지판으로 잡았다. 연대 하한(1990) 밖이다."
     },
     "italian-job-2003": {
       "match": "italian job|이탈리안 잡|ミニミニ大作戦",
@@ -657,7 +675,8 @@
       "distributor": "Warner Bros.",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '센트럴 인텔리전스'(2016)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『セントラル・インテリジェンス』(2016)のシーンから制作しました。"
+      "credit_ja": "映画『セントラル・インテリジェンス』(2016)のシーンから制作しました。",
+      "claim_probe": "2026-09-18 ja 180s+150s CLEAR-30min"
     },
     "horrible-bosses-2": {
       "match": "horrible bosses ?2|나쁜 상사들 ?2|モンスター上司2",
@@ -759,7 +778,7 @@
       "credit_ja": "映画『クワイエット・プレイス 破られた沈黙』(2020)のシーンから制作しました。"
     },
     "boss-baby": {
-      "match": "boss ?baby|보스 ?베이비|ボス・?ベイビー",
+      "match": "^(?!.*\\bfamily business\\b).*?(?:boss ?baby|보스 ?베이비|ボス・?ベイビー)",
       "title_ko": "보스 베이비",
       "title_en": "The Boss Baby",
       "title_ja": "ボス・ベイビー",
@@ -767,10 +786,11 @@
       "distributor": "20th Century Fox (DreamWorks Animation)",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '보스 베이비'(2017)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『ボス・ベイビー』(2017)のシーンから制作しました。"
+      "credit_ja": "映画『ボス・ベイビー』(2017)のシーンから制作しました。",
+      "match_note": "2026-09-21 감사: 속편 <보스 베이비 2: 패밀리 비즈니스>(2021) 클립을 1편으로 잡았다."
     },
     "minions-2015": {
-      "match": "minions|미니언즈|ミニオンズ",
+      "match": "^(?!.*\\bdespicable me\\b).*?(?:minions|미니언즈|ミニオンズ)",
       "title_ko": "미니언즈",
       "title_en": "Minions",
       "title_ja": "ミニオンズ",
@@ -778,7 +798,8 @@
       "distributor": "Universal Pictures (Illumination)",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '미니언즈'(2015)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『ミニオンズ』(2015)のシーンから制作しました。"
+      "credit_ja": "映画『ミニオンズ』(2015)のシーンから制作しました。",
+      "match_note": "2026-09-21 감사: <슈퍼배드 4>(2024) 클립을 미니언즈로 잡았다. 같은 세계관이지만 다른 작품이다."
     },
     "brothers-grimm": {
       "match": "brothers ?grimm|브라더스 ?그림|ブラザーズ・?グリム",
@@ -811,7 +832,8 @@
       "distributor": "Paramount Pictures (DreamWorks Animation)",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '메가마인드'(2010)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『メガマインド』(2010)のシーンから制作しました。"
+      "credit_ja": "映画『メガマインド』(2010)のシーンから制作しました。",
+      "claim_probe": "2026-09-20 ja 230s+150s CLEAR-30min"
     },
     "heat": {
       "match": "\bheat\b|히트|ヒート",
@@ -941,10 +963,12 @@
       "title_ja": "シャーロック・ホームズ",
       "year": 2009,
       "distributor": "Warner Bros.",
-      "distributor_tier": "preflight",
+      "distributor_tier": "banned",
       "credit_ko": "영화 '셜록 홈즈'(2009)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『シャーロック・ホームズ』(2009)のシーンから制作しました。",
-      "note": "2026-09-17 등록(ClipZone). 日本配給 ワーナー・ブラザース映画 2010-03-12 (eiga.com/movie/54174). 대사 주도 — Meeting Irene Adler(455s)·Master of Disguise 볼케이노 적합"
+      "note": "2026-09-18 KO/JA 양판 전세계 차단 → banned. 워너 브라더스 배급.",
+      "claim_history": "2026-09-18 ko(dGdbhaVyrCs)·ja(VhVHx7RaAmQ) 아이린 첫 대결 컷 둘 다 08:00 KST 공개 후 전세계 차단 확인(길이 제한 초과 소유권 주장). 워너 계열 1~3분 컷은 차단.",
+      "claim_probe": "2026-09-18 ja 152s+150s CLEAR-30min"
     },
     "sherlock-holmes-shadows": {
       "match": "sherlock holmes.{0,3}(a )?game of shadows|셜록 ?홈즈.{0,3}그림자 게임|シャドウ ゲーム",

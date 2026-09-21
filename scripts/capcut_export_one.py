@@ -558,6 +558,17 @@ def main():
                 dialog_open = True
                 break
         if not dialog_open:
+            # Same reason as the editor-open branch: without a shot from inside
+            # the run there is no way to tell an unclicked button from a modal
+            # sitting over the editor (2026-09-05, the ja draft failed here 4x).
+            try:
+                shot = os.path.join(os.path.dirname(args.export_dir),
+                                    "_export_dialog_failure.png")
+                pyautogui.screenshot(shot)
+                print(json.dumps({"step": "dialog_failure_shot", "path": shot},
+                                 ensure_ascii=False), flush=True)
+            except Exception:
+                pass
             raise RuntimeError("export dialog did not open after 3 attempts")
         pyautogui.click(*coords["export_confirm"])
 
