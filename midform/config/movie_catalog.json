@@ -1077,7 +1077,7 @@
       "credit_ja": "映画『MEG ザ・モンスター』(2018)のシーンから制作しました。"
     },
     "rampage-2018": {
-      "match": "^(?!.*(street fighter|arcade|king kong|킹콩|キング・?コング|godzilla)).*?(\\brampage\\b|램페이지|ランペイジ)",
+      "match": "^(?!.*(street fighter|arcade|king kong|킹콩|キング・?コング|godzilla|transformers|트랜스포머|トランスフォーマー)).*?(\\brampage\\b|램페이지|ランペイジ)",
       "title_ko": "램페이지",
       "title_en": "Rampage",
       "title_ja": "ランペイジ 巨獣大乱闘",
@@ -1275,6 +1275,187 @@
       "credit_ko": "영화 '혹성탈출: 진화의 시작'(2011)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『猿の惑星: 創世記』(2011)のシーンから制作しました。",
       "note": "2026-09-22 선차단. 정찰 수요 상위권이지만 배급사 계열이 차단 100% 구간이다. 프로브를 돌리면 실비와 30분만 쓰고 어차피 CLEAR 로 속는다(사례 73·74)."
+    },
+    "godzilla-2014": {
+      "match": "^(?!.*(vs\\.? kong|x kong|킹콩|コング|1998|shin |シン・)).*?(\\bgodzilla\\b|고질라|고지라|ゴジラ)",
+      "title_ko": "고질라",
+      "title_en": "Godzilla",
+      "title_ja": "GODZILLA ゴジラ",
+      "year": 2014,
+      "distributor": "Warner Bros. (Legendary)",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '고질라'(2014)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『GODZILLA ゴジラ』(2014)のシーンから制作しました。"
+    },
+    "godzilla-x-kong": {
+      "match": "godzilla x kong|new empire|뉴 ?엠파이어|ゴジラxコング",
+      "title_ko": "고질라 X 콩: 뉴 엠파이어",
+      "title_en": "Godzilla x Kong: The New Empire",
+      "title_ja": "ゴジラxコング 新たなる帝国",
+      "year": 2024,
+      "distributor": "Warner Bros. (Legendary)",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '고질라 X 콩: 뉴 엠파이어'(2024)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『ゴジラxコング 新たなる帝国』(2024)のシーンから制作しました。"
+    },
+    "legend-of-tarzan": {
+      "match": "legend of tarzan|레전드 오브 타잔|ターザン.{0,6}REBORN",
+      "title_ko": "레전드 오브 타잔",
+      "title_en": "The Legend of Tarzan",
+      "title_ja": "ターザン:REBORN",
+      "year": 2016,
+      "distributor": "Warner Bros.",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '레전드 오브 타잔'(2016)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『ターザン:REBORN』(2016)のシーンから制作しました。"
+    },
+    "pacific-rim": {
+      "match": "^(?!.*uprising).*?(pacific rim|퍼시픽 ?림|パシフィック・リム)",
+      "title_ko": "퍼시픽 림",
+      "title_en": "Pacific Rim",
+      "title_ja": "パシフィック・リム",
+      "year": 2013,
+      "distributor": "Warner Bros. (Legendary)",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '퍼시픽 림'(2013)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『パシフィック・リム』(2013)のシーンから制作しました。"
+    },
+    "transformers-2007": {
+      "match": "^(?!.*(bumblebee|rise of the beasts|revenge of the fallen|dark of the moon|age of extinction|last knight|one\\b|패자의 역습|달의 어둠|사라진 시대|최후의 기사)).*?(transformers|트랜스포머|トランスフォーマー)",
+      "title_ko": "트랜스포머",
+      "title_en": "Transformers",
+      "title_ja": "トランスフォーマー",
+      "year": 2007,
+      "distributor": "Paramount Pictures",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '트랜스포머'(2007)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『トランスフォーマー』(2007)のシーンから制作しました。"
+    },
+    "jurassic-park": {
+      "match": "^(?!.*(world|fallen kingdom|dominion|월드|ワールド)).*?(jurassic park|쥬라기 ?공원|ジュラシック・?パーク)",
+      "title_ko": "쥬라기 공원",
+      "title_en": "Jurassic Park",
+      "title_ja": "ジュラシック・パーク",
+      "year": 1993,
+      "distributor": "Universal Pictures",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '쥬라기 공원'(1993)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『ジュラシック・パーク』(1993)のシーンから制作しました。"
+    },
+    "meg-2": {
+      "match": "meg ?2|the trench|메가로돈 ?2|MEG ザ・モンスターズ2",
+      "title_ko": "메가로돈 2",
+      "title_en": "Meg 2: The Trench",
+      "title_ja": "MEG ザ・モンスターズ2",
+      "year": 2023,
+      "distributor": "Warner Bros.",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '메가로돈 2'(2023)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『MEG ザ・モンスターズ2』(2023)のシーンから制作しました。"
+    },
+    "clash-of-titans": {
+      "match": "^(?!.*(1981|wrath)).*?(clash of the titans|타이탄|タイタンの戦い)",
+      "title_ko": "타이탄",
+      "title_en": "Clash of the Titans",
+      "title_ja": "タイタンの戦い",
+      "year": 2010,
+      "distributor": "Warner Bros.",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '타이탄'(2010)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『タイタンの戦い』(2010)のシーンから制作しました。"
+    },
+    "mortal-kombat-2021": {
+      "match": "^(?!.*(1995|1997|annihilation)).*?(mortal kombat|모탈 ?컴뱃|モータルコンバット)",
+      "title_ko": "모탈 컴뱃",
+      "title_en": "Mortal Kombat",
+      "title_ja": "モータルコンバット",
+      "year": 2021,
+      "distributor": "Warner Bros. (New Line)",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '모탈 컴뱃'(2021)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『モータルコンバット』(2021)のシーンから制作しました。"
+    },
+    "justice-league": {
+      "match": "justice league|저스티스 ?리그|ジャスティス・リーグ",
+      "title_ko": "저스티스 리그",
+      "title_en": "Justice League",
+      "title_ja": "ジャスティス・リーグ",
+      "year": 2017,
+      "distributor": "Warner Bros. (DC)",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '저스티스 리그'(2017)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『ジャスティス・リーグ』(2017)のシーンから制作しました。"
+    },
+    "suicide-squad": {
+      "match": "^(?!.*(the suicide squad|2021)).*?(suicide squad|수어사이드 ?스쿼드|スーサイド・スクワッド)",
+      "title_ko": "수어사이드 스쿼드",
+      "title_en": "Suicide Squad",
+      "title_ja": "スーサイド・スクワッド",
+      "year": 2016,
+      "distributor": "Warner Bros. (DC)",
+      "distributor_tier": "preflight",
+      "credit_ko": "영화 '수어사이드 스쿼드'(2016)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『スーサイド・スクワッド』(2016)のシーンから制作しました。"
+    },
+    "iron-man-2": {
+      "match": "iron.?man ?2|아이언맨 ?2|アイアンマン2",
+      "title_ko": "아이언맨 2",
+      "title_en": "Iron Man 2",
+      "title_ja": "アイアンマン2",
+      "year": 2010,
+      "distributor": "Marvel Studios (Disney)",
+      "distributor_tier": "banned",
+      "credit_ko": "영화 '아이언맨 2'(2010)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『アイアンマン2』(2010)のシーンから制作しました。",
+      "note": "2026-09-22 선차단. 정찰 수요 상위지만 배급사 계열이 차단 100% 구간이다. 프로브를 돌려 봐야 실비와 30분만 쓰고 CLEAR 로 속는다(사례 73·74)."
+    },
+    "guardians-galaxy": {
+      "match": "guardians of the galaxy|가디언즈 오브 갤럭시|ガーディアンズ・オブ・ギャラクシー",
+      "title_ko": "가디언즈 오브 갤럭시",
+      "title_en": "Guardians of the Galaxy",
+      "title_ja": "ガーディアンズ・オブ・ギャラクシー",
+      "year": 2014,
+      "distributor": "Marvel Studios (Disney)",
+      "distributor_tier": "banned",
+      "credit_ko": "영화 '가디언즈 오브 갤럭시'(2014)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『ガーディアンズ・オブ・ギャラクシー』(2014)のシーンから制作しました。",
+      "note": "2026-09-22 선차단. 정찰 수요 상위지만 배급사 계열이 차단 100% 구간이다. 프로브를 돌려 봐야 실비와 30분만 쓰고 CLEAR 로 속는다(사례 73·74)."
+    },
+    "days-of-future-past": {
+      "match": "days of future past|데이즈 오브 퓨처 패스트|フューチャー&パスト",
+      "title_ko": "엑스맨: 데이즈 오브 퓨처 패스트",
+      "title_en": "X-Men: Days of Future Past",
+      "title_ja": "X-MEN: フューチャー&パスト",
+      "year": 2014,
+      "distributor": "20th Century Fox (Disney)",
+      "distributor_tier": "banned",
+      "credit_ko": "영화 '엑스맨: 데이즈 오브 퓨처 패스트'(2014)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『X-MEN: フューチャー&パスト』(2014)のシーンから制作しました。",
+      "note": "2026-09-22 선차단. 정찰 수요 상위지만 배급사 계열이 차단 100% 구간이다. 프로브를 돌려 봐야 실비와 30분만 쓰고 CLEAR 로 속는다(사례 73·74)."
+    },
+    "logan-2017": {
+      "match": "^(?!.*lucky).*?(\\blogan\\b|로건|LOGAN.{0,6}ローガン)",
+      "title_ko": "로건",
+      "title_en": "Logan",
+      "title_ja": "LOGAN ローガン",
+      "year": 2017,
+      "distributor": "20th Century Fox (Disney)",
+      "distributor_tier": "banned",
+      "credit_ko": "영화 '로건'(2017)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『LOGAN ローガン』(2017)のシーンから制作しました。",
+      "note": "2026-09-22 선차단. 정찰 수요 상위지만 배급사 계열이 차단 100% 구간이다. 프로브를 돌려 봐야 실비와 30분만 쓰고 CLEAR 로 속는다(사례 73·74)."
+    },
+    "warrior-2011": {
+      "match": "^(?!.*(princess|road|monkey)).*?(\\bwarrior\\b.{0,20}(2011|tom hardy)|워리어.{0,6}2011)",
+      "title_ko": "워리어",
+      "title_en": "Warrior",
+      "title_ja": "ウォーリアー",
+      "year": 2011,
+      "distributor": "Lionsgate",
+      "distributor_tier": "banned",
+      "credit_ko": "영화 '워리어'(2011)의 장면으로 제작되었습니다.",
+      "credit_ja": "映画『ウォーリアー』(2011)のシーンから制作しました。",
+      "note": "2026-09-22 선차단. 정찰 수요 상위지만 배급사 계열이 차단 100% 구간이다. 프로브를 돌려 봐야 실비와 30분만 쓰고 CLEAR 로 속는다(사례 73·74)."
     }
   },
   "banned_distributors": [
