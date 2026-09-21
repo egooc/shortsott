@@ -34,7 +34,11 @@ if (process.argv.includes('--release')) {
 
 // 완성본이 있는 arab* 폴더를 재고로 센다. final_tight.mp4 가 최종 산출물이다.
 const stock = [];
-const today = new Date().toISOString().slice(0, 10);
+// ★2026-09-22 수리: UTC 로 «오늘»을 잡고 있었다. 그러면 하루 경계가 자정이 아니라
+//   오전 9시(KST)가 된다 — 실제로 04:29 에 "오늘 6편으로 한도 도달"이 떠서 자정부터
+//   아침까지 생산이 막혔다. 명화관 문지기(produce-guard)는 처음부터 KST 를 썼다. 맞춘다.
+const KST = 9 * 3600 * 1000;
+const today = new Date(Date.now() + KST).toISOString().slice(0, 10);
 let madeToday = 0;
 if (fs.existsSync(RUNS)) {
   for (const w of fs.readdirSync(RUNS)) {
@@ -43,7 +47,7 @@ if (fs.existsSync(RUNS)) {
     if (!fs.existsSync(out)) continue;
     stock.push(w);
     try {
-      if (fs.statSync(out).mtime.toISOString().slice(0, 10) === today) madeToday += 1;
+      if (new Date(fs.statSync(out).mtimeMs + KST).toISOString().slice(0, 10) === today) madeToday += 1;
     } catch { /* 통계일 뿐 */ }
   }
 }
