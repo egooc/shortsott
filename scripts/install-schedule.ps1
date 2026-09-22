@@ -21,6 +21,7 @@
 #   midform-webpublish-1200   12:00   같음
 #   midform-webpublish-1800   18:00   같음
 #   midform-scout-nightly     01:30   소스 정찰 — 아침에 후보가 준비돼 있게
+#   midform-survivor-signal   02:10   정찰 결과에서 «살아남은 클립 수»를 카탈로그에 적는다(정찰 뒤에 와야 한다)
 #
 # 생산(볼케이노 편집)은 여기 없다. 원고·카메라·검수를 서버가 사람에게 묻는 구조라 무인 실행이 불가능하다.
 param([switch]$List, [switch]$Remove)
@@ -38,7 +39,8 @@ $tasks = @(
   @{ n = "midform-webpublish-0800";  t = "08:00"; hourly = $false; s = "web-publish-due.js"; a = "" },
   @{ n = "midform-webpublish-1200";  t = "12:00"; hourly = $false; s = "web-publish-due.js"; a = "" },
   @{ n = "midform-webpublish-1800";  t = "18:00"; hourly = $false; s = "web-publish-due.js"; a = "" },
-  @{ n = "midform-scout-nightly";    t = "01:30"; hourly = $false; s = "scout-sources.js";   a = "--recon" }
+  @{ n = "midform-scout-nightly";    t = "01:30"; hourly = $false; s = "scout-sources.js";   a = "--recon" },
+  @{ n = "midform-survivor-signal";  t = "02:10"; hourly = $false; s = "survivor-signal.js"; a = "" }
 )
 
 # 생산은 스크립트가 아니라 클로드 세션이 돈다(원고·컷 경계·카메라·검수 판단이 필요하다).

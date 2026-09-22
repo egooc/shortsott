@@ -142,7 +142,8 @@
       "distributor": "Miramax (Paramount)",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '펄프 픽션'(1994)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『パルプ・フィクション』(1994)のシーンから制作しました。"
+      "credit_ja": "映画『パルプ・フィクション』(1994)のシーンから制作しました。",
+      "survivor_band": "7 (2026-09-13)"
     },
     "wolf-of-wall-street": {
       "match": "wolf of wall|울프 오브|ウルフ・オブ",
@@ -154,7 +155,8 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '더 울프 오브 월 스트리트'(2013)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『ウルフ・オブ・ウォールストリート』(2013)のシーンから制作しました。",
-      "claim_probe": "2026-09-18 ja 200s+150s CLEAR-30min"
+      "claim_probe": "2026-09-18 ja 200s+150s CLEAR-30min",
+      "survivor_band": "4 (2026-09-07)"
     },
     "the-dictator": {
       "match": "^(?!.*great dictator).*?(?:the dictator|독재자|ディクテーター)",
@@ -166,7 +168,8 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '독재자'(2012)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『ディクテーター 身元不明でニューヨーク』(2012)のシーンから制作しました。",
-      "match_note": "2026-09-21: 채플린 <위대한 독재자>(1940) 클립을 잡아갔다. 다른 영화이고 연대 하한(1990) 밖이다."
+      "match_note": "2026-09-21: 채플린 <위대한 독재자>(1940) 클립을 잡아갔다. 다른 영화이고 연대 하한(1990) 밖이다.",
+      "survivor_band": "5 (2026-09-05)"
     },
     "maverick": {
       "match": "^(?!.*top ?gun).*(?:maverick|매버릭|マーヴェリック)",
@@ -177,7 +180,8 @@
       "distributor": "Warner Bros.",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '매버릭'(1994)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『マーヴェリック』(1994)のシーンから制作しました。"
+      "credit_ja": "映画『マーヴェリック』(1994)のシーンから制作しました。",
+      "survivor_band": "3 (2026-09-05)"
     },
     "what-women-want": {
       "match": "what women want|왓 위민 원트|ハート・オブ・ウーマン",
@@ -189,7 +193,8 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '왓 위민 원트'(2000)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『ハート・オブ・ウーマン』(2000)のシーンから制作しました。",
-      "claim_probe": "2026-09-18 ja 400s+150s CLEAR-30min"
+      "claim_probe": "2026-09-18 ja 400s+150s CLEAR-30min",
+      "survivor_band": "6 (2026-09-12)"
     },
     "casino": {
       "match": "\\bcasino\\b(?!.*royale)|카지노|カジノ",
@@ -202,7 +207,8 @@
       "credit_ko": "영화 '카지노'(1995)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『カジノ』(1995)のシーンから制作しました。",
       "claim_probe": "2026-09-20 ja 110s+150s BLOCKED-1",
-      "note": "claim-probe BLOCKED-1 2026-09-20"
+      "note": "claim-probe BLOCKED-1 2026-09-20",
+      "survivor_band": "6 (2026-09-05)"
     },
     "godfather-2": {
       "match": "^(?!.*\\bpart ?(?:iii|3)\\b).*?(?:godfather.*part ?(?:ii|2)\\b|대부 ?2|ゴッドファーザー)",
@@ -215,7 +221,8 @@
       "credit_ko": "영화 '대부 2'(1974)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『ゴッドファーザー PART II』(1974)のシーンから制作しました。",
       "claim_probe": "2026-09-18 ja 196s+150s → 2026-09-21 재조회 CLEAR-4935min(82시간). 실제 업로드도 무사: MrgM8dstDcI(ko 142s)·3f46QBUqGrg(ja 104s) 둘 다 클레임 없음.",
-      "match_note": "2026-09-21 감사: <대부 3>(1990) 클립을 2편으로 잡았다. 일본어 패턴이 시리즈 전체를 받아 더 넓었다."
+      "match_note": "2026-09-21 감사: <대부 3>(1990) 클립을 2편으로 잡았다. 일본어 패턴이 시리즈 전체를 받아 더 넓었다.",
+      "survivor_band": "5 (2026-09-06)"
     },
     "gladiator": {
       "match": "gladiator(?!\\s*(ii|2))|글래디에이터|グラディエーター",
@@ -228,7 +235,8 @@
       "credit_ko": "영화 '글래디에이터'(2000)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『グラディエーター』(2000)のシーンから制作しました。",
       "claim_probe": "2026-09-18 ja 150s+150s CLEAR-30min",
-      "note": "2026-09-21 KO/JA 양판 전세계 차단 → banned. KO 56gb7ZGA2zA(113s) · JA QS8Wdk0C-8M(112s). 자동 발행으로 09-20 21:46 업로드, 공개 전에 Content ID 감시가 잡아 예약 해제했다."
+      "note": "2026-09-21 KO/JA 양판 전세계 차단 → banned. KO 56gb7ZGA2zA(113s) · JA QS8Wdk0C-8M(112s). 자동 발행으로 09-20 21:46 업로드, 공개 전에 Content ID 감시가 잡아 예약 해제했다.",
+      "survivor_band": "2 (2026-09-05)"
     },
     "dirty-dancing": {
       "match": "dirty.?dancing|더티 ?댄싱|ダーティ・?ダンシング",
@@ -251,7 +259,8 @@
       "distributor": "Universal Pictures",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '죠스'(1975)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『ジョーズ』(1975)のシーンから制作しました。"
+      "credit_ja": "映画『ジョーズ』(1975)のシーンから制作しました。",
+      "survivor_band": "4 (2026-09-05)"
     },
     "world-war-z": {
       "match": "world war z|월드 ?워 ?z|ワールド・ウォーZ",
@@ -263,7 +272,8 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '월드워Z'(2013)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『ワールド・ウォーZ』(2013)のシーンから制作しました。",
-      "claim_probe": "2026-09-21 ja 150s+200s CLEAR-30min"
+      "claim_probe": "2026-09-21 ja 150s+200s CLEAR-30min",
+      "survivor_band": "5 (2026-09-05)"
     },
     "shaolin-soccer": {
       "match": "shaolin.?soccer|소림 ?축구|少林サッカー",
@@ -275,7 +285,8 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '소림축구'(2001)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『少林サッカー』(2001)のシーンから制作しました。",
-      "note": "원어 광둥어 — 영어 자막/STT 품질을 프리플라이트에서 반드시 확인"
+      "note": "원어 광둥어 — 영어 자막/STT 품질을 프리플라이트에서 반드시 확인",
+      "survivor_band": "7 (2026-09-06)"
     },
     "inglourious-basterds": {
       "match": "inglourious|바스터즈|イングロリアス",
@@ -286,7 +297,8 @@
       "distributor": "The Weinstein Company / Universal",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '바스터즈: 거친 녀석들'(2009)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『イングロリアス・バスターズ』(2009)のシーンから制作しました。"
+      "credit_ja": "映画『イングロリアス・バスターズ』(2009)のシーンから制作しました。",
+      "survivor_band": "5 (2026-09-05)"
     },
     "no-country-for-old-men": {
       "match": "no country for old men|노인을 위한 나라|ノーカントリー",
@@ -299,7 +311,8 @@
       "credit_ko": "영화 '노인을 위한 나라는 없다'(2007)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『ノーカントリー』(2007)のシーンから制作しました。",
       "claim_history": "2026-09-18 ja 컷(주유소+모텔+보안관, 150s, BDX0kAyDKrg) 업로드 직후 전세계 차단 → 예약 해제. 같은 날 ko 컷(주유소 동전 던지기만, 164s, d4Nj_a2rfAk)은 클레임 없음. 장면마다 갈림.",
-      "note": "Miramax/Paramount Vantage: 2026-09-18 ja 컷 전세계 차단 1건. 재사용 시 사전 클레임 확인 필수(private 업로드 후 check-claims)."
+      "note": "Miramax/Paramount Vantage: 2026-09-18 ja 컷 전세계 차단 1건. 재사용 시 사전 클레임 확인 필수(private 업로드 후 check-claims).",
+      "survivor_band": "8 (2026-09-05)"
     },
     "erin-brockovich": {
       "match": "erin.?brockovich|에린 브로코비치|エリン・ブロコビッチ",
@@ -322,7 +335,8 @@
       "distributor": "Paramount Pictures",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '탑건: 매버릭'(2022)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『トップガン マーヴェリック』(2022)のシーンから制作しました。"
+      "credit_ja": "映画『トップガン マーヴェリック』(2022)のシーンから制作しました。",
+      "survivor_band": "4 (2026-09-09)"
     },
     "incredible-hulk": {
       "match": "incredible hulk|인크레더블 헐크|インクレディブル・ハルク",
@@ -335,7 +349,8 @@
       "credit_ko": "영화 '인크레더블 헐크'(2008)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『インクレディブル・ハルク』(2008)のシーンから制作しました。",
       "claim_probe": "2026-09-20 ja 200s+150s CLEAR-30min",
-      "note": "2026-09-22 KO/JA 양판 전세계 차단 → banned. KO cLrfraCfhmw(108s) · JA H6bYmifML7E(99s). ★배급은 유니버설인데도 막혔다 — 제작이 마블이면 배급사와 무관하게 차단된다. 배급사 규칙(사례 74)에 «제작사» 축을 하나 더 얹어야 한다."
+      "note": "2026-09-22 KO/JA 양판 전세계 차단 → banned. KO cLrfraCfhmw(108s) · JA H6bYmifML7E(99s). ★배급은 유니버설인데도 막혔다 — 제작이 마블이면 배급사와 무관하게 차단된다. 배급사 규칙(사례 74)에 «제작사» 축을 하나 더 얹어야 한다.",
+      "survivor_band": "5 (2026-09-09)"
     },
     "hulk-2003": {
       "match": "^(?!.*\\b(incredible|avengers|ultron|infinity|endgame|thor|iron ?man|she-?hulk|captain america|black widow|인크레더블|어벤져스|토르|아이언맨)\\b).*?(?:\\bhulk\\b|헐크)",
@@ -348,7 +363,8 @@
       "credit_ko": "영화 '헐크'(2003)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『ハルク』(2003)のシーンから制作しました。",
       "match_note": "2026-09-21 감사: incredible 제외가 \bhulk\b 뒤에 있어 'THE INCREDIBLE HULK' 처럼 앞에 오면 통과했다. 어벤져스/마블 낱말과 함께 문장 맨 앞에서 건다.",
-      "note": "2026-09-22 선차단. 같은 유니버설 배급의 <인크레더블 헐크>(2008)가 양판 모두 전세계 차단됐다. 제작이 마블이면 배급사와 무관하게 막힌다 — 프로브를 돌릴 이유가 없다."
+      "note": "2026-09-22 선차단. 같은 유니버설 배급의 <인크레더블 헐크>(2008)가 양판 모두 전세계 차단됐다. 제작이 마블이면 배급사와 무관하게 막힌다 — 프로브를 돌릴 이유가 없다.",
+      "survivor_band": "6 (2026-09-07)"
     },
     "rambo-2008": {
       "match": "\\brambo\\b(?!.*(first blood|last blood|rambo (ii|iii|2|3)))|람보(?!.*(퍼스트|라스트))",
@@ -371,7 +387,8 @@
       "distributor": "20th Century Fox",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '지구가 멈추는 날'(2008)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『地球が静止する日』(2008)のシーンから制作しました。"
+      "credit_ja": "映画『地球が静止する日』(2008)のシーンから制作しました。",
+      "survivor_band": "6 (2026-09-05)"
     },
     "kingdom-of-heaven": {
       "match": "kingdom of heaven|킹덤 오브 헤븐|キングダム・オブ・ヘブン",
@@ -382,7 +399,8 @@
       "distributor": "20th Century Fox",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '킹덤 오브 헤븐'(2005)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『キングダム・オブ・ヘブン』(2005)のシーンから制作しました。"
+      "credit_ja": "映画『キングダム・オブ・ヘブン』(2005)のシーンから制作しました。",
+      "survivor_band": "8 (2026-09-06)"
     },
     "legally-blonde": {
       "match": "legally blonde|금발이 너무해|キューティ・?ブロンド",
@@ -394,7 +412,8 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '금발이 너무해'(2001)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『キューティ・ブロンド』(2001)のシーンから制作しました。",
-      "claim_probe": "2026-09-18 ja 170s+150s CLEAR-30min"
+      "claim_probe": "2026-09-18 ja 170s+150s CLEAR-30min",
+      "survivor_band": "9 (2026-09-06)"
     },
     "war-of-the-worlds": {
       "match": "war of the worlds|우주 ?전쟁|宇宙戦争",
@@ -405,7 +424,8 @@
       "distributor": "Paramount/DreamWorks",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '우주전쟁'(2005)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『宇宙戦争』(2005)のシーンから制作しました。"
+      "credit_ja": "映画『宇宙戦争』(2005)のシーンから制作しました。",
+      "survivor_band": "6 (2026-09-05)"
     },
     "how-to-lose-a-guy": {
       "match": "how to lose a guy|10일 안에 남자친구|10日間で男を",
@@ -416,7 +436,8 @@
       "distributor": "Paramount Pictures",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '10일 안에 남자친구에게 차이는 법'(2003)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『10日間で男を上手にフル方法』(2003)のシーンから制作しました。"
+      "credit_ja": "映画『10日間で男を上手にフル方法』(2003)のシーンから制作しました。",
+      "survivor_band": "7 (2026-09-08)"
     },
     "big-short": {
       "match": "big short|빅쇼트|マネー・ショート",
@@ -427,7 +448,8 @@
       "distributor": "Paramount Pictures",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '빅쇼트'(2015)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『マネー・ショート 華麗なる大逆転』(2015)のシーンから制作しました。"
+      "credit_ja": "映画『マネー・ショート 華麗なる大逆転』(2015)のシーンから制作しました。",
+      "survivor_band": "3 (2026-09-06)"
     },
     "braveheart": {
       "match": "braveheart|브레이브 ?하트|ブレイブハート",
@@ -438,7 +460,8 @@
       "distributor": "Paramount (US) / 20th Century Fox (해외)",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '브레이브 하트'(1995)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『ブレイブハート』(1995)のシーンから制作しました。"
+      "credit_ja": "映画『ブレイブハート』(1995)のシーンから制作しました。",
+      "survivor_band": "7 (2026-09-12)"
     },
     "spider-man": {
       "match": "spider.?man|스파이더맨|スパイダーマン",
@@ -507,7 +530,8 @@
       "distributor": "Universal Pictures",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '킹콩'(2005)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『キング・コング』(2005)のシーンから制作しました。"
+      "credit_ja": "映画『キング・コング』(2005)のシーンから制作しました。",
+      "survivor_band": "3 (2026-09-05)"
     },
     "carlitos-way": {
       "match": "carlito.?s way|칼리토|カリートの道",
@@ -520,7 +544,8 @@
       "credit_ko": "영화 '칼리토'(1993)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『カリートの道』(1993)のシーンから制作しました。",
       "claim_probe": "2026-09-21 ja 150s+150s CLEAR-30min",
-      "note": "2026-09-22 KO/JA 양판 전세계 차단 → banned. KO AjoTrGBVr8c(109s) · JA ebEdeYDoDZg(99s). 유니버설."
+      "note": "2026-09-22 KO/JA 양판 전세계 차단 → banned. KO AjoTrGBVr8c(109s) · JA ebEdeYDoDZg(99s). 유니버설.",
+      "survivor_band": "3 (2026-09-07)"
     },
     "the-terminal": {
       "match": "\\bthe terminal\\b|터미널|ターミナル(?!ター)",
@@ -532,7 +557,8 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '터미널'(2004)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『ターミナル』(2004)のシーンから制作しました。",
-      "claim_probe": "2026-09-18 ja 180s+150s CLEAR-30min"
+      "claim_probe": "2026-09-18 ja 180s+150s CLEAR-30min",
+      "survivor_band": "2 (2026-09-05)"
     },
     "cry-baby": {
       "match": "cry.?baby|크라이 ?베이비|クライ・?ベイビー",
@@ -543,7 +569,8 @@
       "distributor": "Universal Pictures",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '크라이 베이비'(1990)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『クライ・ベイビー』(1990)のシーンから制作しました。"
+      "credit_ja": "映画『クライ・ベイビー』(1990)のシーンから制作しました。",
+      "survivor_band": "5 (2026-09-05)"
     },
     "goosebumps-2": {
       "match": "goosebumps|구스범스|グースバンプス",
@@ -565,7 +592,8 @@
       "distributor": "Paramount Pictures",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '포레스트 검프'(1994)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『フォレスト・ガンプ／一期一会』(1994)のシーンから制作しました。"
+      "credit_ja": "映画『フォレスト・ガンプ／一期一会』(1994)のシーンから制作しました。",
+      "survivor_band": "5 (2026-09-07)"
     },
     "the-warriors": {
       "match": "\\bthe warriors\\b|워리어스|ウォリアーズ",
@@ -576,7 +604,8 @@
       "distributor": "Paramount Pictures",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '워리어스'(1979)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『ウォリアーズ』(1979)のシーンから制作しました。"
+      "credit_ja": "映画『ウォリアーズ』(1979)のシーンから制作しました。",
+      "survivor_band": "6 (2026-09-05)"
     },
     "scent-of-a-woman": {
       "match": "scent of a woman|여인의 향기|セント・オブ・ウーマン",
@@ -588,7 +617,8 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '여인의 향기'(1992)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『セント・オブ・ウーマン／夢の香り』(1992)のシーンから制作しました。",
-      "claim_probe": "2026-09-18 ja 191s+150s CLEAR-30min"
+      "claim_probe": "2026-09-18 ja 191s+150s CLEAR-30min",
+      "survivor_band": "2 (2026-09-05)"
     },
     "gangs-of-new-york": {
       "match": "gangs of new york|갱스 오브 뉴욕|ギャング・オブ・ニューヨーク",
@@ -599,7 +629,8 @@
       "distributor": "Miramax",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '갱스 오브 뉴욕'(2002)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『ギャング・オブ・ニューヨーク』(2002)のシーンから制作しました。"
+      "credit_ja": "映画『ギャング・オブ・ニューヨーク』(2002)のシーンから制作しました。",
+      "survivor_band": "8 (2026-09-12)"
     },
     "cape-fear": {
       "match": "^(?!.*\\((?:19[0-8]\\d)\\)).*?(?:cape fear|케이프 피어|ケープ・フィアー)",
@@ -611,7 +642,8 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '케이프 피어'(1991)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『ケープ・フィアー』(1991)のシーンから制作しました。",
-      "match_note": "2026-09-21 감사: 1962년 미첨판 원작 클립을 1991년 스콜세지판으로 잡았다. 연대 하한(1990) 밖이다."
+      "match_note": "2026-09-21 감사: 1962년 미첨판 원작 클립을 1991년 스콜세지판으로 잡았다. 연대 하한(1990) 밖이다.",
+      "survivor_band": "4 (2026-09-06)"
     },
     "italian-job-2003": {
       "match": "italian job|이탈리안 잡|ミニミニ大作戦",
@@ -622,7 +654,8 @@
       "distributor": "Paramount Pictures",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '이탈리안 잡'(2003)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『ミニミニ大作戦』(2003)のシーンから制作しました。"
+      "credit_ja": "映画『ミニミニ大作戦』(2003)のシーンから制作しました。",
+      "survivor_band": "4 (2026-09-05)"
     },
     "now-you-see-me": {
       "match": "now you see me|나우 유 씨 미|グランド・イリュージョン",
@@ -645,7 +678,8 @@
       "distributor": "Warner Bros.",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '설리: 허드슨강의 기적'(2016)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『ハドソン川の奇跡』(2016)のシーンから制作しました。"
+      "credit_ja": "映画『ハドソン川の奇跡』(2016)のシーンから制作しました。",
+      "survivor_band": "3 (2026-09-05)"
     },
     "war-dogs": {
       "match": "war dogs|워 독스|ウォー・ドッグス",
@@ -681,7 +715,8 @@
       "credit_ko": "영화 '센트럴 인텔리전스'(2016)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『セントラル・インテリジェンス』(2016)のシーンから制作しました。",
       "claim_probe": "2026-09-18 ja 180s+150s CLEAR-30min",
-      "note": "2026-09-22 JA 전세계 차단 → banned. HgzEH54V9Vc(94s). 워너 배급인데도 막혔다."
+      "note": "2026-09-22 JA 전세계 차단 → banned. HgzEH54V9Vc(94s). 워너 배급인데도 막혔다.",
+      "survivor_band": "1 (2026-09-11)"
     },
     "horrible-bosses-2": {
       "match": "horrible bosses ?2|나쁜 상사들 ?2|モンスター上司2",
@@ -692,7 +727,8 @@
       "distributor": "Warner Bros.",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '나쁜 보스들 2'(2014)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『モンスター上司2』(2014)のシーンから制作しました。"
+      "credit_ja": "映画『モンスター上司2』(2014)のシーンから制作しました。",
+      "survivor_band": "6 (2026-09-05)"
     },
     "fifty-shades-darker": {
       "match": "fifty shades darker|50가지 그림자.{0,4}심연|フィフティ・シェイズ・ダーカー",
@@ -703,7 +739,8 @@
       "distributor": "Universal Pictures",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '50가지 그림자: 심연'(2017)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『フィフティ・シェイズ・ダーカー』(2017)のシーンから制作しました。"
+      "credit_ja": "映画『フィフティ・シェイズ・ダーカー』(2017)のシーンから制作しました。",
+      "survivor_band": "4 (2026-09-05)"
     },
     "robocop-1987": {
       "match": "robocop(?!.*(2014|remake))|로보캅|ロボコップ",
@@ -714,7 +751,8 @@
       "distributor": "Orion Pictures (MGM)",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '로보캅'(1987)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『ロボコップ』(1987)のシーンから制作しました。"
+      "credit_ja": "映画『ロボコップ』(1987)のシーンから制作しました。",
+      "survivor_band": "3 (2026-09-18)"
     },
     "ugly-truth": {
       "match": "ugly truth|어글리 트루스|男と女の不都合な真実",
@@ -736,7 +774,8 @@
       "distributor": "Warner Bros.",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '트로이'(2004)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『トロイ』(2004)のシーンから制作しました。"
+      "credit_ja": "映画『トロイ』(2004)のシーンから制作しました。",
+      "survivor_band": "5 (2026-09-08)"
     },
     "the-accountant": {
       "match": "the accountant|어카운턴트|ザ・コンサルタント",
@@ -747,7 +786,8 @@
       "distributor": "Warner Bros.",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '어카운턴트'(2016)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『ザ・コンサルタント』(2016)のシーンから制作しました。"
+      "credit_ja": "映画『ザ・コンサルタント』(2016)のシーンから制作しました。",
+      "survivor_band": "5 (2026-09-19)"
     },
     "dune-part-two": {
       "match": "dune.{0,3}part.{0,3}(two|2)|듄.{0,3}(파트 ?2|2)|デューン.{0,10}PART2",
@@ -758,7 +798,8 @@
       "distributor": "Warner Bros.",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '듄: 파트 2'(2024)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『デューン 砂の惑星PART2』(2024)のシーンから制作しました。"
+      "credit_ja": "映画『デューン 砂の惑星PART2』(2024)のシーンから制作しました。",
+      "survivor_band": "3 (2026-09-08)"
     },
     "furiosa": {
       "match": "furiosa|퓨리오사|フュリオサ",
@@ -769,7 +810,8 @@
       "distributor": "Warner Bros.",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '퓨리오사: 매드맥스 사가'(2024)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『マッドマックス：フュリオサ』(2024)のシーンから制作しました。"
+      "credit_ja": "映画『マッドマックス：フュリオサ』(2024)のシーンから制作しました。",
+      "survivor_band": "4 (2026-09-18)"
     },
     "quiet-place-2": {
       "match": "quiet ?place.{0,10}(part *(ii|2)|2)|콰이어트 ?플레이스 *2|クワイエット・プレイス.{0,6}(破られた沈黙|2)",
@@ -780,7 +822,8 @@
       "distributor": "Paramount Pictures",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '콰이어트 플레이스 2'(2020)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『クワイエット・プレイス 破られた沈黙』(2020)のシーンから制作しました。"
+      "credit_ja": "映画『クワイエット・プレイス 破られた沈黙』(2020)のシーンから制作しました。",
+      "survivor_band": "3 (2026-09-06)"
     },
     "boss-baby": {
       "match": "^(?!.*\\bfamily business\\b).*?(?:boss ?baby|보스 ?베이비|ボス・?ベイビー)",
@@ -792,7 +835,8 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '보스 베이비'(2017)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『ボス・ベイビー』(2017)のシーンから制作しました。",
-      "match_note": "2026-09-21 감사: 속편 <보스 베이비 2: 패밀리 비즈니스>(2021) 클립을 1편으로 잡았다."
+      "match_note": "2026-09-21 감사: 속편 <보스 베이비 2: 패밀리 비즈니스>(2021) 클립을 1편으로 잡았다.",
+      "survivor_band": "7 (2026-09-19)"
     },
     "minions-2015": {
       "match": "^(?!.*\\bdespicable me\\b).*?(?:minions|미니언즈|ミニオンズ)",
@@ -804,7 +848,8 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '미니언즈'(2015)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『ミニオンズ』(2015)のシーンから制作しました。",
-      "match_note": "2026-09-21 감사: <슈퍼배드 4>(2024) 클립을 미니언즈로 잡았다. 같은 세계관이지만 다른 작품이다."
+      "match_note": "2026-09-21 감사: <슈퍼배드 4>(2024) 클립을 미니언즈로 잡았다. 같은 세계관이지만 다른 작품이다.",
+      "survivor_band": "4 (2026-09-06)"
     },
     "brothers-grimm": {
       "match": "brothers ?grimm|브라더스 ?그림|ブラザーズ・?グリム",
@@ -815,7 +860,8 @@
       "distributor": "Dimension Films (Miramax)",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '브라더스 그림'(2005)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『ブラザーズ・グリム』(2005)のシーンから制作しました。"
+      "credit_ja": "映画『ブラザーズ・グリム』(2005)のシーンから制作しました。",
+      "survivor_band": "5 (2026-09-06)"
     },
     "tokyo-drift": {
       "match": "tokyo ?drift|도쿄 ?드리프트|ワイルド・?スピードX3",
@@ -826,7 +872,8 @@
       "distributor": "Universal Pictures",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '패스트 앤 퓨리어스: 도쿄 드리프트'(2006)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『ワイルド・スピードX3 TOKYO DRIFT』(2006)のシーンから制作しました。"
+      "credit_ja": "映画『ワイルド・スピードX3 TOKYO DRIFT』(2006)のシーンから制作しました。",
+      "survivor_band": "8 (2026-09-06)"
     },
     "megamind": {
       "match": "megamind|메가마인드|メガマインド",
@@ -839,7 +886,8 @@
       "credit_ko": "영화 '메가마인드'(2010)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『メガマインド』(2010)のシーンから制作しました。",
       "claim_probe": "2026-09-20 ja 230s+150s CLEAR-30min",
-      "note": "2026-09-22 KO 전세계 차단 → banned. Buuvs2M208E(108s). 파라마운트/드림웍스 애니메이션."
+      "note": "2026-09-22 KO 전세계 차단 → banned. Buuvs2M208E(108s). 파라마운트/드림웍스 애니메이션.",
+      "survivor_band": "3 (2026-09-06)"
     },
     "heat": {
       "match": "\bheat\b|히트|ヒート",
@@ -861,7 +909,8 @@
       "distributor": "Paramount/DreamWorks",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '딥 임팩트'(1998)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『ディープ・インパクト』(1998)のシーンから制作しました。"
+      "credit_ja": "映画『ディープ・インパクト』(1998)のシーンから制作しました。",
+      "survivor_band": "5 (2026-09-13)"
     },
     "jack-reacher": {
       "match": "jack.?reacher|잭s*리처|アウトロー",
@@ -872,7 +921,8 @@
       "distributor": "Paramount Pictures",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '잭 리처'(2012)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『アウトロー』(2012)のシーンから制作しました。"
+      "credit_ja": "映画『アウトロー』(2012)のシーンから制作しました。",
+      "survivor_band": "5 (2026-09-09)"
     },
     "fast-five": {
       "match": "fast.?five|분노의s*질주.*언리미티드|ワイルド・スピードs*MEGAs*MAX",
@@ -883,7 +933,8 @@
       "distributor": "Universal Pictures",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '분노의 질주: 언리미티드'(2011)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『ワイルド・スピード MEGA MAX』(2011)のシーンから制作しました。"
+      "credit_ja": "映画『ワイルド・スピード MEGA MAX』(2011)のシーンから制作しました。",
+      "survivor_band": "4 (2026-09-09)"
     },
     "resident-evil": {
       "match": "resident.?evil(?!.*apocalypse)|레지던트s*이블|バイオハザード",
@@ -938,7 +989,8 @@
       "distributor": "Universal Pictures",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '워터월드'(1995)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『ウォーターワールド』(1995)のシーンから制作しました。"
+      "credit_ja": "映画『ウォーターワールド』(1995)のシーンから制作しました。",
+      "survivor_band": "3 (2026-09-08)"
     },
     "rocky-horror": {
       "match": "rocky.?horror|frank.?n.?furter|록키s*호러|ロッキー・ホラー",
@@ -949,7 +1001,8 @@
       "distributor": "20th Century Fox",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '록키 호러 픽쳐 쇼'(1975)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『ロッキー・ホラー・ショー』(1975)のシーンから制作しました。"
+      "credit_ja": "映画『ロッキー・ホラー・ショー』(1975)のシーンから制作しました。",
+      "survivor_band": "5 (2026-09-13)"
     },
     "hard-target": {
       "match": "hard.?target|하드s*타겟|ハード・ターゲット",
@@ -960,7 +1013,8 @@
       "distributor": "Universal Pictures",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '하드 타겟'(1993)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『ハード・ターゲット』(1993)のシーンから制作しました。"
+      "credit_ja": "映画『ハード・ターゲット』(1993)のシーンから制作しました。",
+      "survivor_band": "3 (2026-09-12)"
     },
     "sherlock-holmes-2009": {
       "match": "^(?!.*(game of shadows|shadow game|シャドウ)).*sherlock holmes|셜록 ?홈즈(?!.*그림자)",
@@ -986,7 +1040,8 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '셜록 홈즈: 그림자 게임'(2011)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『シャーロック・ホームズ シャドウ ゲーム』(2011)のシーンから制作しました。",
-      "note": "2026-09-17 등록(ClipZone). 日本公開 2012-03-10 ワーナー (eiga.com/movie/57187). Meeting Moriarty(356s, 370만뷰) 대사 장면"
+      "note": "2026-09-17 등록(ClipZone). 日本公開 2012-03-10 ワーナー (eiga.com/movie/57187). Meeting Moriarty(356s, 370만뷰) 대사 장면",
+      "survivor_band": "5 (2026-09-20)"
     },
     "the-matrix-1999": {
       "match": "^(?!.*(reloaded|revolutions|resurrections|リローデッド|レボリューションズ)).*\\bthe matrix\\b|매트릭스(?!.*(리로디드|레볼루션|리저렉션))",
@@ -998,7 +1053,8 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '매트릭스'(1999)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『マトリックス』(1999)のシーンから制作しました。",
-      "note": "2026-09-17 등록(ClipZone). 日本公開 1999-09-11 ワーナー (eiga.com/movie/49688). Meeting Agent Smith(541s, 240만뷰) 대사 장면; Lobby Shootout·Rooftop은 액션 몽타주라 보류"
+      "note": "2026-09-17 등록(ClipZone). 日本公開 1999-09-11 ワーナー (eiga.com/movie/49688). Meeting Agent Smith(541s, 240만뷰) 대사 장면; Lobby Shootout·Rooftop은 액션 몽타주라 보류",
+      "survivor_band": "3 (2026-09-18)"
     },
     "american-sniper": {
       "match": "american sniper|아메리칸 스나이퍼|アメリカン・スナイパー",
@@ -1010,7 +1066,8 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '아메리칸 스나이퍼'(2014)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『アメリカン・スナイパー』(2014)のシーンから制作しました。",
-      "note": "2026-09-17 등록(ClipZone). 日本公開 2015-02-21 ワーナー (eiga.com/movie/81224). The Trigger's Cost(549s) 대사, 나머지는 전투 몽타주"
+      "note": "2026-09-17 등록(ClipZone). 日本公開 2015-02-21 ワーナー (eiga.com/movie/81224). The Trigger's Cost(549s) 대사, 나머지는 전투 몽타주",
+      "survivor_band": "5 (2026-09-21)"
     },
     "book-of-eli": {
       "match": "the book of eli|일라이|ザ・ウォーカー",
@@ -1022,7 +1079,8 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '일라이'(2010)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『ザ・ウォーカー』(2010)のシーンから制作しました。",
-      "note": "2026-09-17 등록(ClipZone). 邦題는 ザ・ウォーカー(원제와 다름). 日本配給 角川映画・松竹 2010-06-19 (eiga.com/movie/55212). Bar Fight at Carnegie's(544s, 430만뷰)"
+      "note": "2026-09-17 등록(ClipZone). 邦題는 ザ・ウォーカー(원제와 다름). 日本配給 角川映画・松竹 2010-06-19 (eiga.com/movie/55212). Bar Fight at Carnegie's(544s, 430만뷰)",
+      "survivor_band": "4 (2026-09-19)"
     },
     "edge-of-tomorrow": {
       "match": "edge of tomorrow|엣지 오브 투모로우|オール・ユー・ニード・イズ・キル",
@@ -1034,7 +1092,8 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '엣지 오브 투모로우'(2014)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『オール・ユー・ニード・イズ・キル』(2014)のシーンから制作しました。",
-      "note": "2026-09-17 등록(ClipZone). 邦題는 원작 라노벨명 オール・ユー・ニード・イズ・キル. 日本公開 2014-07-04 ワーナー (eiga.com/movie/77676). 대사 비중 낮은 편 — Training for Combat 정도"
+      "note": "2026-09-17 등록(ClipZone). 邦題는 원작 라노벨명 オール・ユー・ニード・イズ・キル. 日本公開 2014-07-04 ワーナー (eiga.com/movie/77676). 대사 비중 낮은 편 — Training for Combat 정도",
+      "survivor_band": "2 (2026-09-18)"
     },
     "pearl-harbor": {
       "match": "pearl harbor|진주만|パール・ハーバー",
@@ -1046,7 +1105,8 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '진주만'(2001)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『パール・ハーバー』(2001)のシーンから制作しました。",
-      "note": "2026-09-17 등록(JoBlo 6클립 244만뷰). 日本配給 ブエナ・ビスタ 2001-07-14 (eiga.com/movie/1593). 디즈니 계열 — 클레임 정책 미실측, 프리플라이트 필수"
+      "note": "2026-09-17 등록(JoBlo 6클립 244만뷰). 日本配給 ブエナ・ビスタ 2001-07-14 (eiga.com/movie/1593). 디즈니 계열 — 클레임 정책 미실측, 프리플라이트 필수",
+      "survivor_band": "3 (2026-09-19)"
     },
     "halloween-2007": {
       "match": "halloween(?!.*(1978|2018|kills|ends|h20|ii\\b|2\\b))|할로윈|ハロウィン",
@@ -1058,7 +1118,8 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '할로윈'(2007)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『ハロウィン』(2007)のシーンから制作しました。",
-      "note": "2026-09-17 등록. Clip Empire 8클립(768만뷰)은 전부 롭 좀비 2007판(Young Michael·Trucker·Psych Ward). 日本配給 ザナドゥー 2008-10-25 (eiga.com/movie/34182). 2018판(Universal/Blumhouse, 日本 パルコ 2019-04-12)은 별도 등록 필요. Clip Empire는 후순위 채널"
+      "note": "2026-09-17 등록. Clip Empire 8클립(768만뷰)은 전부 롭 좀비 2007판(Young Michael·Trucker·Psych Ward). 日本配給 ザナドゥー 2008-10-25 (eiga.com/movie/34182). 2018판(Universal/Blumhouse, 日本 パルコ 2019-04-12)은 별도 등록 필요. Clip Empire는 후순위 채널",
+      "survivor_band": "7 (2026-09-21)"
     },
     "kong-skull-island": {
       "match": "^(?!.*(godzilla|1933)).*?(kong.{0,3}skull island|스컬 ?아일랜드|콩: ?스컬|髑髏島)",
@@ -1069,7 +1130,8 @@
       "distributor": "Warner Bros. (Legendary)",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '콩: 스컬 아일랜드'(2017)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『キングコング: 髑髏島の巨神』(2017)のシーンから制作しました。"
+      "credit_ja": "映画『キングコング: 髑髏島の巨神』(2017)のシーンから制作しました。",
+      "survivor_band": "5 (2026-09-21)"
     },
     "the-meg": {
       "match": "^(?!.*meg ?2).*?(\\bthe meg\\b|\\b메가로돈\\b|MEG ?더 ?몬스터|MEG ザ・モンスター)",
@@ -1080,7 +1142,8 @@
       "distributor": "Warner Bros.",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '메가로돈'(2018)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『MEG ザ・モンスター』(2018)のシーンから制作しました。"
+      "credit_ja": "映画『MEG ザ・モンスター』(2018)のシーンから制作しました。",
+      "survivor_band": "2 (2026-09-21)"
     },
     "rampage-2018": {
       "match": "^(?!.*(street fighter|arcade|king kong|킹콩|キング・?コング|godzilla|transformers|트랜스포머|トランスフォーマー)).*?(\\brampage\\b|램페이지|ランペイジ)",
@@ -1091,7 +1154,8 @@
       "distributor": "Warner Bros. (New Line)",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '램페이지'(2018)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『ランペイジ 巨獣大乱闘』(2018)のシーンから制作しました。"
+      "credit_ja": "映画『ランペイジ 巨獣大乱闘』(2018)のシーンから制作しました。",
+      "survivor_band": "3 (2026-09-21)"
     },
     "godzilla-vs-kong": {
       "match": "godzilla vs\\.? kong|고질라 ?vs ?콩|ゴジラvsコング",
@@ -1102,7 +1166,8 @@
       "distributor": "Warner Bros. (Legendary)",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '고질라 VS. 콩'(2021)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『ゴジラvsコング』(2021)のシーンから制作しました。"
+      "credit_ja": "映画『ゴジラvsコング』(2021)のシーンから制作しました。",
+      "survivor_band": "6 (2026-09-21)"
     },
     "jurassic-world": {
       "match": "^(?!.*(fallen kingdom|dominion|park)).*?(jurassic world|쥬라기 ?월드|ジュラシック・?ワールド)",
@@ -1113,7 +1178,8 @@
       "distributor": "Universal Pictures",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '쥬라기 월드'(2015)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『ジュラシック・ワールド』(2015)のシーンから制作しました。"
+      "credit_ja": "映画『ジュラシック・ワールド』(2015)のシーンから制作しました。",
+      "survivor_band": "1 (2026-09-21)"
     },
     "the-great-wall": {
       "match": "the great wall|그레이트 ?월|グレートウォール",
@@ -1124,7 +1190,8 @@
       "distributor": "Universal Pictures (Legendary)",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '그레이트 월'(2016)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『グレートウォール』(2016)のシーンから制作しました。"
+      "credit_ja": "映画『グレートウォール』(2016)のシーンから制作しました。",
+      "survivor_band": "4 (2026-09-21)"
     },
     "iron-man": {
       "match": "^(?!.*(avengers|civil war|ultron)).*?(iron ?man\\b|아이언맨|アイアンマン)",

@@ -39,26 +39,36 @@ const ERA_FLOOR = 1990;
 const norm = (s) => String(s).toLowerCase().replace(/^the[-_]/, '').replace(/[-_\s]/g, '');
 const acronym = (key) => key.split('-').map((w) => w[0]).join('');
 
+// ★드래프트 이름은 «추측»이고 upload_meta.json 은 «사실»이다 (2026-09-22).
+//   실측: legally-blonde 를 이미 만들었는데 드래프트가 `...-blonde_...` 라
+//   `blonde` ≠ `legallyblonde` 로 엇갈려 «아직 안 만든 영화»로 잡혔다.
+//   목록이 단순 참고일 때는 넘어갈 수 있었지만, 이제 이 목록이 «집는 순서»라
+//   맨 위에 올라가 그대로 다시 만들게 된다. 승인 쪽에서 고쳤던 그 버그와 같은 종류다.
+//   그래서 메타에 적힌 movie.key 를 먼저 믿고, 메타가 없을 때만 이름 추측으로 내려간다.
 function usedKeys() {
-  const out = new Set();
-  const st = readJson(YT_STATE, { history: [] });
-  for (const h of st.history || []) {
-    const m = /^\d{8}[a-z]?-([a-z0-9]+)/.exec(h.draft || '');
-    if (m) out.add(m[1]);
-  }
-  try {
-    for (const n of fs.readdirSync(DRAFTS_DIR)) {
-      const m = /^\d{8}[a-z]?-([a-z0-9]+)/.exec(n);
-      if (m) out.add(m[1]);
+  const exact = new Set();   // upload_meta.json 이 말해 준 진짜 키
+  const guess = new Set();   // 메타가 없을 때 쓰는 이름 앞자리
+  const consider = (draft) => {
+    if (!draft) return;
+    for (const locale of ['', '-ko', '-ja']) {
+      const meta = readJson(path.join(DRAFTS_DIR, draft + locale, 'upload_meta.json'), null);
+      const key = meta && meta.movie && meta.movie.key;
+      if (key) { exact.add(key); return; }
     }
-  } catch { /* 드래프트 폴더가 없으면 발행 이력만으로 센다 */ }
-  return out;
+    const m = /^\d{8}[a-z]?-([a-z0-9]+)/.exec(draft);
+    if (m) guess.add(m[1]);
+  };
+  for (const h of (readJson(YT_STATE, { history: [] }).history || [])) consider(h.draft);
+  try { for (const n of fs.readdirSync(DRAFTS_DIR)) consider(n); }
+  catch { /* 드래프트 폴더가 없으면 발행 이력만으로 센다 */ }
+  return { exact, guess };
 }
 
 function isUsed(key, used) {
+  if (used.exact.has(key)) return true;
   const n = norm(key);
   const ac = acronym(key);
-  for (const u of used) {
+  for (const u of used.guess) {
     if (n.startsWith(u) || u.startsWith(n) || u === ac) return true;
   }
   return false;
@@ -90,7 +100,7 @@ const runwayDaysRaw = (usable.length * perTitle) / perDay;
 //   보증이 아니다»(생산 프롬프트 2번)를 숫자로 옮긴 것이다.
 //   발행 이력에 있는 영화 중 지금 banned 인 것의 비율 = **올린 뒤 차단율**.
 //   막힌 영화는 그 영화의 클립이 통째로 날아가므로 풀에서 그만큼을 미리 뺀다.
-const made = rows.filter((r) => r.drop === '이미 만듦' || (usedNames.size && isUsed(r.key, usedNames)));
+const made = rows.filter((r) => r.drop === '이미 만듦' || isUsed(r.key, usedNames));
 const madeBlocked = made.filter((r) => r.tier === 'banned');
 // 표본이 너무 적으면 할인하지 않는다 — 한두 편으로 풀 전체를 깎으면 헛경보가 난다.
 const blockRate = made.length >= 8 ? madeBlocked.length / made.length : 0;
@@ -99,7 +109,9 @@ const runwayDays = runwayDaysRaw * (1 - blockRate);
 const violations = rows.filter((r) => r.tier === 'preflight' && BANNED_FAMILY.test(r.dist));
 
 if (process.argv.includes('--json')) {
-  console.log(JSON.stringify({ usable: usable.map((r) => r.key), runwayDays, runwayDaysRaw, blockRate, violations }, null, 2));
+  const bandJ = (key) => { const raw = (movies[key] || {}).survivor_band; const n = raw ? Number(String(raw).split(' ')[0]) : NaN; return Number.isFinite(n) ? n : null; };
+  const strongJ = usable.filter((r) => (bandJ(r.key) ?? -1) >= 5).map((r) => r.key);
+  console.log(JSON.stringify({ usable: usable.map((r) => r.key), strong: strongJ, runwayDays, runwayDaysRaw, blockRate, violations }, null, 2));
   process.exit(violations.length || runwayDays < warnDays ? 1 : 0);
 }
 
@@ -121,9 +133,21 @@ for (const [why, ks] of Object.entries(byReason).sort((a, b) => b[1].length - a[
   lines.push(`- ${why}: ${ks.length}편`);
 }
 lines.push('');
-lines.push('## 다음에 쓸 것 (최신순)');
-for (const r of usable.sort((a, b) => b.year - a.year).slice(0, 25)) {
-  lines.push(`- ${r.year}  ${r.key.padEnd(26)} ${r.dist.slice(0, 34)}`);
+// ★생존자 신호가 높은 것부터 보여 준다 (2026-09-22). 최신순이 아니다 —
+//   연도는 차단과 아무 상관이 없었고(실측), 신호는 갈렸다. 목록 순서가 곧 집는 순서다.
+const bandOf = (key) => {
+  const raw = (movies[key] || {}).survivor_band;
+  const n = raw ? Number(String(raw).split(' ')[0]) : NaN;
+  return Number.isFinite(n) ? n : null;
+};
+const strong = usable.filter((r) => (bandOf(r.key) ?? -1) >= 5);
+lines.push(`생존자 신호 5 이상: **${strong.length}편** (나머지 ${usable.length - strong.length}편은 신호가 약하거나 아직 모름)`, '');
+lines.push('## 다음에 쓸 것 — 생존자 신호 높은 순');
+for (const r of usable
+  .sort((a, b) => ((bandOf(b.key) ?? -1) - (bandOf(a.key) ?? -1)) || (b.year - a.year))
+  .slice(0, 25)) {
+  const b = bandOf(r.key);
+  lines.push(`- 생존 ${String(b ?? '?').padStart(2)}  ${r.year}  ${r.key.padEnd(26)} ${r.dist.slice(0, 30)}`);
 }
 if (violations.length) {
   lines.push('', '## ★규칙 위반 — 금지 계열인데 preflight 로 남아 있다');

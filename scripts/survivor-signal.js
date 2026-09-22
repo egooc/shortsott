@@ -1,0 +1,101 @@
+// 화이트리스트를 «만든다». 어디서 받아 오는 게 아니라 생존자를 세어서 짓는다.
+//
+//   node scripts/survivor-signal.js            신호를 재계산해 카탈로그에 적고 보고한다
+//   node scripts/survivor-signal.js --dry      카탈로그를 안 건드리고 보고만 한다
+//   node scripts/survivor-signal.js --json
+//
+// 왜 (2026-09-22 소유주: "어디서 찾을 방법은 없어? 화이트리스트같은거")
+//   공개된 목록은 없다. 유튜브는 권리자의 Content ID 정책을 알려 주는 API 가 없고,
+//   프로브는 46% 를 놓쳤다(사례 91). 그런데 **차단된 영상은 내려간다.**
+//   그러니 «지금도 살아 있는 클립 수»가 곧 그 영화의 관용도다. 생존자 편향을 거꾸로 쓴다.
+//
+// 무엇을 세나 — 두 번 틀리고 세 번째에 맞은 것
+//   ① 남의 클립 채널이 실은 편 수 → **안 갈린다.** 통과 4.7편 / 차단 4.2편 (2026-09-22 실측).
+//      대형 클립 채널은 대부분 라이선스가 있다. 그들의 생존은 «계약»이지 관용이 아니다.
+//   ② recon.live_results → **안 갈린다.** 검색 상한이 10 이라 전부 10 이다.
+//   ③ recon.live_in_our_band — **우리 길이대(60~180초)에 살아 있는 클립 수. 여기서 갈렸다.**
+//        통과 8편 평균 4.6 · 차단 4편 평균 2.3
+//        차단된 4편은 전부 3 이하였고, **5 이상인 영화 중 차단된 것은 0편**이다.
+//      길이대가 중요한 이유: 권리자가 참고 못 하고 넘기는 길이가 따로 있다. 30초짜리가
+//      수백 개 살아 있어도 우리와 상관없다 — 우리는 1~3분을 올린다.
+//
+// ★n=12 다. 증명이 아니다(우연일 확률 ~7%). 그래서 **막지 않고 고르는 순서만 바꾼다.**
+//   공짜로 얻는 신호다 — 정찰이 이미 계산해 둔 값을 읽을 뿐이라 추가 비용이 0 이다.
+const fs = require('fs');
+const path = require('path');
+
+const ROOT = path.resolve(__dirname, '..');
+const SCOUT_DIR = path.join(ROOT, 'server', 'output', 'scout-reports');
+const CATALOG = path.join(ROOT, 'midform', 'config', 'movie_catalog.json');
+const REPORT_DIR = SCOUT_DIR;
+const GOOD = 5;   // 이 이상이면 «관용도 높음». 위 실측에서 나온 선이다.
+
+const readJson = (f, fb) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return fb; } };
+
+// 정찰 리포트를 전부 훑어 영화별 최댓값을 쓴다.
+// 최댓값인 이유: 어떤 날은 검색이 적게 걸린다. 한 번이라도 «살아 있는 것»을 봤으면 산 것이다.
+function signal() {
+  const out = {};
+  let files = [];
+  try { files = fs.readdirSync(SCOUT_DIR).filter((f) => /^scout-.*\.json$/.test(f)); } catch { return out; }
+  for (const f of files) {
+    const j = readJson(path.join(SCOUT_DIR, f), null);
+    if (!j) continue;
+    for (const v of (j.candidates || [])) {
+      const key = v.movie && v.movie.key;
+      const band = v.recon && Number(v.recon.live_in_our_band);
+      if (!key || !Number.isFinite(band)) continue;
+      const cur = out[key] || { band: -1, seenAt: '', band_sec: null };
+      if (band > cur.band) {
+        out[key] = { band, seenAt: (j.at || f).slice(0, 10), band_sec: (v.recon.band_sec || null) };
+      }
+    }
+  }
+  return out;
+}
+
+const sig = signal();
+const cat = readJson(CATALOG, null);
+if (!cat || !cat.movies) { console.error('카탈로그를 못 읽었다'); process.exit(1); }
+const movies = cat.movies;
+
+// 카탈로그에 적어 둔다. 소스를 고르는 쪽(생산 프롬프트·풀)이 여기만 보면 되게.
+let wrote = 0;
+for (const [key, s] of Object.entries(sig)) {
+  if (!movies[key]) continue;
+  const line = `${s.band} (${s.seenAt})`;
+  if (movies[key].survivor_band !== line) { movies[key].survivor_band = line; wrote += 1; }
+}
+if (!process.argv.includes('--dry')) fs.writeFileSync(CATALOG, JSON.stringify(cat, null, 2));
+
+// 보고 — 쓸 수 있는 영화 중 신호가 좋은 것부터
+const BANNED_FAMILY = /lionsgate|summit|vestron|artisan|sony|columbia|screen gems/i;
+const usable = Object.entries(movies).filter(([, m]) => m && m.distributor_tier && m.distributor_tier !== 'banned'
+  && !BANNED_FAMILY.test(String(m.distributor || '')) && (Number(m.year) || 0) >= 1990);
+
+const scored = usable.map(([k, m]) => ({ k, year: m.year, band: sig[k] ? sig[k].band : null }));
+const good = scored.filter((r) => r.band !== null && r.band >= GOOD).sort((a, b) => b.band - a.band);
+const weak = scored.filter((r) => r.band !== null && r.band < GOOD).sort((a, b) => b.band - a.band);
+const unknown = scored.filter((r) => r.band === null);
+
+if (process.argv.includes('--json')) {
+  console.log(JSON.stringify({ good: good.map((r) => r.k), weak: weak.map((r) => r.k), unknown: unknown.length, threshold: GOOD }, null, 2));
+  process.exit(0);
+}
+
+const lines = [`# 생존자 신호 ${new Date().toLocaleString('ko-KR')}`, ''];
+lines.push(`정찰 리포트에서 ${Object.keys(sig).length}편의 «우리 길이대 생존 클립 수»를 읽었다`
+  + `${wrote ? ` · 카탈로그 ${wrote}편 갱신` : ''}.`, '');
+lines.push(`## 먼저 쓸 것 — 생존 ${GOOD}편 이상 (${good.length}편)`, '');
+for (const r of good.slice(0, 30)) lines.push(`- ${String(r.band).padStart(2)}  ${r.year}  ${r.k}`);
+lines.push('', `## 신호 약함 — ${GOOD}편 미만 (${weak.length}편). 나중에, 또는 다른 선택지가 없을 때`, '');
+for (const r of weak.slice(0, 20)) lines.push(`- ${String(r.band).padStart(2)}  ${r.year}  ${r.k}`);
+lines.push('', `## 아직 모름 ${unknown.length}편 — 정찰이 recon 을 안 붙였다. 쓰기 전에 정찰을 한 번 돌려라.`);
+lines.push('', '_실측 근거: 통과 8편 평균 4.6 · 차단 4편 평균 2.3 · 차단된 4편은 전부 3 이하._');
+lines.push('_n=12 라 증명이 아니다(우연 확률 약 7%). 막지 않고 «고르는 순서»만 바꾼다._');
+
+const text = lines.join('\n');
+console.log(text);
+fs.mkdirSync(REPORT_DIR, { recursive: true });
+const stamp = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10).replace(/-/g, '');
+fs.writeFileSync(path.join(REPORT_DIR, `${stamp}-survivor.md`), `${text}\n`, 'utf8');
