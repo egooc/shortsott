@@ -516,10 +516,11 @@
       "title_ja": "カリートの道",
       "year": 1993,
       "distributor": "Universal Pictures",
-      "distributor_tier": "preflight",
+      "distributor_tier": "banned",
       "credit_ko": "영화 '칼리토'(1993)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『カリートの道』(1993)のシーンから制作しました。",
-      "claim_probe": "2026-09-21 ja 150s+150s CLEAR-30min"
+      "claim_probe": "2026-09-21 ja 150s+150s CLEAR-30min",
+      "note": "2026-09-22 KO/JA 양판 전세계 차단 → banned. KO AjoTrGBVr8c(109s) · JA ebEdeYDoDZg(99s). 유니버설."
     },
     "the-terminal": {
       "match": "\\bthe terminal\\b|터미널|ターミナル(?!ター)",
@@ -834,10 +835,11 @@
       "title_ja": "メガマインド",
       "year": 2010,
       "distributor": "Paramount Pictures (DreamWorks Animation)",
-      "distributor_tier": "preflight",
+      "distributor_tier": "banned",
       "credit_ko": "영화 '메가마인드'(2010)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『メガマインド』(2010)のシーンから制作しました。",
-      "claim_probe": "2026-09-20 ja 230s+150s CLEAR-30min"
+      "claim_probe": "2026-09-20 ja 230s+150s CLEAR-30min",
+      "note": "2026-09-22 KO 전세계 차단 → banned. Buuvs2M208E(108s). 파라마운트/드림웍스 애니메이션."
     },
     "heat": {
       "match": "\bheat\b|히트|ヒート",
