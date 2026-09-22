@@ -262,7 +262,8 @@
       "distributor": "Paramount Pictures",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '월드워Z'(2013)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『ワールド・ウォーZ』(2013)のシーンから制作しました。"
+      "credit_ja": "映画『ワールド・ウォーZ』(2013)のシーンから制作しました。",
+      "claim_probe": "2026-09-21 ja 150s+200s CLEAR-30min"
     },
     "shaolin-soccer": {
       "match": "shaolin.?soccer|소림 ?축구|少林サッカー",
@@ -330,10 +331,11 @@
       "title_ja": "インクレディブル・ハルク",
       "year": 2008,
       "distributor": "Universal Pictures",
-      "distributor_tier": "preflight",
+      "distributor_tier": "banned",
       "credit_ko": "영화 '인크레더블 헐크'(2008)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『インクレディブル・ハルク』(2008)のシーンから制作しました。",
-      "claim_probe": "2026-09-20 ja 200s+150s CLEAR-30min"
+      "claim_probe": "2026-09-20 ja 200s+150s CLEAR-30min",
+      "note": "2026-09-22 KO/JA 양판 전세계 차단 → banned. KO cLrfraCfhmw(108s) · JA H6bYmifML7E(99s). ★배급은 유니버설인데도 막혔다 — 제작이 마블이면 배급사와 무관하게 차단된다. 배급사 규칙(사례 74)에 «제작사» 축을 하나 더 얹어야 한다."
     },
     "hulk-2003": {
       "match": "^(?!.*\\b(incredible|avengers|ultron|infinity|endgame|thor|iron ?man|she-?hulk|captain america|black widow|인크레더블|어벤져스|토르|아이언맨)\\b).*?(?:\\bhulk\\b|헐크)",
@@ -342,10 +344,11 @@
       "title_ja": "ハルク",
       "year": 2003,
       "distributor": "Universal Pictures",
-      "distributor_tier": "preflight",
+      "distributor_tier": "banned",
       "credit_ko": "영화 '헐크'(2003)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『ハルク』(2003)のシーンから制作しました。",
-      "match_note": "2026-09-21 감사: incredible 제외가 \bhulk\b 뒤에 있어 'THE INCREDIBLE HULK' 처럼 앞에 오면 통과했다. 어벤져스/마블 낱말과 함께 문장 맨 앞에서 건다."
+      "match_note": "2026-09-21 감사: incredible 제외가 \bhulk\b 뒤에 있어 'THE INCREDIBLE HULK' 처럼 앞에 오면 통과했다. 어벤져스/마블 낱말과 함께 문장 맨 앞에서 건다.",
+      "note": "2026-09-22 선차단. 같은 유니버설 배급의 <인크레더블 헐크>(2008)가 양판 모두 전세계 차단됐다. 제작이 마블이면 배급사와 무관하게 막힌다 — 프로브를 돌릴 이유가 없다."
     },
     "rambo-2008": {
       "match": "\\brambo\\b(?!.*(first blood|last blood|rambo (ii|iii|2|3)))|람보(?!.*(퍼스트|라스트))",
@@ -673,10 +676,11 @@
       "title_ja": "セントラル・インテリジェンス",
       "year": 2016,
       "distributor": "Warner Bros.",
-      "distributor_tier": "preflight",
+      "distributor_tier": "banned",
       "credit_ko": "영화 '센트럴 인텔리전스'(2016)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『セントラル・インテリジェンス』(2016)のシーンから制作しました。",
-      "claim_probe": "2026-09-18 ja 180s+150s CLEAR-30min"
+      "claim_probe": "2026-09-18 ja 180s+150s CLEAR-30min",
+      "note": "2026-09-22 JA 전세계 차단 → banned. HgzEH54V9Vc(94s). 워너 배급인데도 막혔다."
     },
     "horrible-bosses-2": {
       "match": "horrible bosses ?2|나쁜 상사들 ?2|モンスター上司2",
