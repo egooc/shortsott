@@ -70,8 +70,32 @@ if (!process.argv.includes('--dry')) fs.writeFileSync(CATALOG, JSON.stringify(ca
 
 // 보고 — 쓸 수 있는 영화 중 신호가 좋은 것부터
 const BANNED_FAMILY = /lionsgate|summit|vestron|artisan|sony|columbia|screen gems/i;
-const usable = Object.entries(movies).filter(([, m]) => m && m.distributor_tier && m.distributor_tier !== 'banned'
-  && !BANNED_FAMILY.test(String(m.distributor || '')) && (Number(m.year) || 0) >= 1990);
+
+// ★이미 만든 영화는 뺀다 (2026-09-22). 이 목록은 생산 프롬프트가 «집는 순서»로 읽는다 —
+//   안 빼면 신호 9 짜리 legally-blonde 가 맨 위에 떠서 그대로 다시 만든다.
+//   드래프트 이름 추측이 아니라 upload_meta.json 의 movie.key 를 믿는다(catalog-pool 과 같은 이유).
+function madeKeys() {
+  const os = require('os');
+  const D = path.join(os.homedir(), 'Desktop', '캡컷아웃풋', 'CapCut Drafts');
+  const out = new Set();
+  const consider = (draft) => {
+    if (!draft) return;
+    for (const loc of ['', '-ko', '-ja']) {
+      const m = readJson(path.join(D, draft + loc, 'upload_meta.json'), null);
+      const k = m && m.movie && m.movie.key;
+      if (k) { out.add(k); return; }
+    }
+  };
+  const st = readJson(path.join(ROOT, 'server', 'data', 'auto_publish_state.json'), { history: [] });
+  for (const h of (st.history || [])) consider(h.draft);
+  try { for (const n of fs.readdirSync(D)) consider(n); } catch { /* 이력만으로 센다 */ }
+  return out;
+}
+const made = madeKeys();
+
+const usable = Object.entries(movies).filter(([k, m]) => m && m.distributor_tier && m.distributor_tier !== 'banned'
+  && !BANNED_FAMILY.test(String(m.distributor || '')) && (Number(m.year) || 0) >= 1990
+  && !made.has(k));
 
 const scored = usable.map(([k, m]) => ({ k, year: m.year, band: sig[k] ? sig[k].band : null }));
 const good = scored.filter((r) => r.band !== null && r.band >= GOOD).sort((a, b) => b.band - a.band);
@@ -85,6 +109,7 @@ if (process.argv.includes('--json')) {
 
 const lines = [`# 생존자 신호 ${new Date().toLocaleString('ko-KR')}`, ''];
 lines.push(`정찰 리포트에서 ${Object.keys(sig).length}편의 «우리 길이대 생존 클립 수»를 읽었다`
+  + ` · 이미 만든 ${made.size}편은 뺐다`
   + `${wrote ? ` · 카탈로그 ${wrote}편 갱신` : ''}.`, '');
 lines.push(`## 먼저 쓸 것 — 생존 ${GOOD}편 이상 (${good.length}편)`, '');
 for (const r of good.slice(0, 30)) lines.push(`- ${String(r.band).padStart(2)}  ${r.year}  ${r.k}`);
