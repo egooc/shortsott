@@ -135,6 +135,7 @@ async function main() {
   };
 
   const rows = [];
+  let stateDirty = false;
   for (const [locale, profile] of Object.entries(byLocale)) {
     const mine = entries.filter((h) => h.locale === locale);
     if (!mine.length || !profile) continue;
@@ -172,12 +173,31 @@ async function main() {
       if (shape.blocked && args.unschedule && (row.publishAt || row.privacy !== 'private')) {
         try { await unschedule(token, item); row.unscheduled = true; }
         catch (error) { row.unscheduleError = error.message; }
+        // ★2026-09-22: 유튜브에서만 내리고 «우리 장부»는 그대로 둬서 그 슬롯이 계속
+        //   점유된 것처럼 보였다. auto-publish 는 state.history 의 publishAt 으로 빈 슬롯을
+        //   찾으므로, 차단된 편이 18:00 자리를 붙들고 앉아 그날 한 편이 통째로 날아갔다.
+        //   해제했으면 장부에서도 예약을 지운다 — 기록은 남기고 자리만 비운다.
+        if (row.unscheduled) {
+          for (const h of state.history || []) {
+            if (h.url && h.url.includes(item.id) && h.publishAt) {
+              h.blockedAt = new Date().toISOString();
+              h.blockedPublishAt = h.publishAt;
+              h.publishAt = '';
+              stateDirty = true;
+            }
+          }
+        }
         // 소유주 판단(2026-09-18): Content ID 는 유튜브 전용이다. 인스타·틱톡·스레드·페북은 차단과 무관하게 그대로 나간다.
         // 소셜까지 내리려면 --cancel-social 을 명시할 것(09-01 벨라 볼테라처럼 유튜브만 빠지는 상황을 다시 만들 때).
         if (entry.draft && process.argv.includes('--cancel-social')) row.socialCancel = await cancelSocialForDraft(entry.draft);
       }
       rows.push(row);
     }
+  }
+
+  if (stateDirty) {
+    try { fs.writeFileSync(YT_STATE, JSON.stringify(state, null, 2)); }
+    catch (error) { console.error('장부 갱신 실패:', error.message); }
   }
 
   if (args.json) { console.log(JSON.stringify(rows, null, 2)); return; }
