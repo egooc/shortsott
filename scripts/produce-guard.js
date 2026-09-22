@@ -85,7 +85,31 @@ const ledger = readJson(LEDGER, { days: {} });
 const madeToday = Number((ledger.days || {})[today] || 0);
 if (madeToday >= dailyCap) say(10, `건너뜀: 오늘 ${madeToday}편 생산으로 일일 상한 ${dailyCap}편 도달`);
 
-// 4) 통과 — 락을 잡고 카운트를 올린다(실제 생산은 호출자가 한다)
+// 4) TTS 크레딧 — 이게 없으면 이번 회차는 반드시 0편이다
+//    ★2026-09-22: 크레딧이 떨어진 채로 일곱 회차가 돌았다. 비용은 0이었지만 매 회차가
+//      클로드 세션을 하나씩 태웠다 — 첫 확인에서 멈출 것을 알면서 세션을 여는 셈이다.
+//      여기서 먼저 물어보면 세션을 아예 안 연다. 그리고 충전되는 순간 저절로 다시 돈다 —
+//      작업 스케줄러를 꺼 두면 사람이 다시 켜야 하고, 그걸 잊으면 조용히 멈춘 채로 끝난다.
+//    ★못 물어보면(키 없음·네트워크·형식 변경) 그냥 통과시킨다. 문지기가 생산을 막는 쪽으로
+//      고장 나면 안 된다 — 이 기계의 실패는 늘 «조용히 안 만드는» 쪽이었다.
+const minCredits = Number(arg('--min-credits', '700'));
+if (minCredits > 0) {
+  try {
+    const keyPath = path.join(os.homedir(), '.volcano', 'keys', 'typecast');
+    const key = fs.readFileSync(keyPath, 'utf8').trim().replace(/^"|"$/g, '');
+    const raw = require('child_process').execFileSync('curl', [
+      '-s', '--max-time', '15', '-H', `X-API-KEY: ${key}`,
+      'https://api.typecast.ai/v1/users/me/subscription',
+    ], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    const c = (JSON.parse(raw) || {}).credits || {};
+    const left = Number(c.plan_credits) - Number(c.used_credits);
+    if (Number.isFinite(left) && left < minCredits) {
+      say(10, `건너뜀: Typecast 크레딧 ${left} (필요 ${minCredits}) — 충전하면 다음 정시에 저절로 재개된다`);
+    }
+  } catch { /* 물어볼 수 없으면 예전처럼 진행한다 */ }
+}
+
+// 5) 통과 — 락을 잡고 카운트를 올린다(실제 생산은 호출자가 한다)
 if (process.argv.includes('--claim')) {
   fs.mkdirSync(path.dirname(LOCK), { recursive: true });
   fs.writeFileSync(LOCK, `${new Date().toISOString()} pid=${process.pid}`);

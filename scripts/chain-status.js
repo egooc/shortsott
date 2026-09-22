@@ -52,8 +52,29 @@ function haltStreak() {
     : '';
   return { n, todo };
 }
+// TTS 크레딧 — 문지기가 이걸로 시간당 실행을 건너뛴다. 건너뛴 회차는 일지에 안 남으므로
+// 여기서 직접 물어보지 않으면 내일 아침 «마지막 30시간 전»만 뜨고 이유가 사라진다.
+function ttsShort(min) {
+  try {
+    const key = fs.readFileSync(path.join(os.homedir(), '.volcano', 'keys', 'typecast'), 'utf8')
+      .trim().replace(/^"|"$/g, '');
+    const raw = require('child_process').execFileSync('curl', [
+      '-s', '--max-time', '15', '-H', 'X-API-KEY: ' + key,
+      'https://api.typecast.ai/v1/users/me/subscription',
+    ], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    const c = (JSON.parse(raw) || {}).credits || {};
+    const left = Number(c.plan_credits) - Number(c.used_credits);
+    return Number.isFinite(left) && left < min ? left : null;
+  } catch { return null; }
+}
+const ttsLeft = ttsShort(700);
+
 const halt = haltStreak();
-if (halt) {
+if (ttsLeft !== null) {
+  stalled += 1;
+  out.push(`멈춤  ${'명화관 생산'.padEnd(12)} Typecast 크레딧 ${ttsLeft} (한 쌍에 약 700 필요)  · 재고 ${exported.length}편`);
+  out.push(`     ${''.padEnd(12)} └ 충전하면 다음 정시에 저절로 재개된다. 스케줄러는 건드리지 마라`);
+} else if (halt) {
   stalled += 1;
   out.push(`멈춤  ${'명화관 생산'.padEnd(12)} 오늘 ${halt.n}회차 연속 중단  · 재고 ${exported.length}편`);
   if (halt.todo) out.push(`     ${''.padEnd(12)} └ 사람이 할 일: ${halt.todo.slice(0, 90)}`);
