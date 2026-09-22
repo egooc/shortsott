@@ -24,10 +24,10 @@ type "%ROOT%\scripts\produce-hourly-prompt.md" | "C:\Users\urban\.local\bin\clau
 set RC=%ERRORLEVEL%
 
 rem Always release the lock, success or not. Otherwise every later hour is skipped forever.
-rem A failed session made nothing, so give its slot back: otherwise a day of failures (usage
-rem limit, crash) fills the daily cap and skips every remaining hour. Measured 2026-09-21.
-set REFUND=
-if not "%RC%"=="0" set REFUND=--refund
-node "%ROOT%\scripts\produce-guard.js" --release %REFUND% >> "%LOG%" 2>&1
+rem The release step decides by itself whether to refund the daily slot: it compares the
+rem draft count now against the count at claim time. Exit code is NOT the test - a session
+rem that correctly gives up (no TTS credit, no usable source) exits 0 and still made nothing.
+rem Measured 2026-09-22: five clean 0-output rounds filled the 6/day cap by 17:45.
+node "%ROOT%\scripts\produce-guard.js" --release >> "%LOG%" 2>&1
 echo produce exit %RC% >> "%LOG%"
 exit /b %RC%

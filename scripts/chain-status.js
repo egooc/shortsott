@@ -103,7 +103,26 @@ const arab = fs.existsSync(RUNS)
   ? fs.readdirSync(RUNS).filter((w) => /^arab\d+$/.test(w))
     .map((w) => path.join(RUNS, w, 'final_tight.mp4')).filter((p) => fs.existsSync(p))
     .map((p) => fs.statSync(p).mtime.toISOString()).sort() : [];
-link('어랍숏 생산', arab[arab.length - 1], 30, `재고 ${arab.length}편`);
+// ★어랍숏은 2026-09-22 에 이 기계에서 닫았다(다른 곳으로 넘김). 작업 스케줄러 항목도 꺼 뒀다.
+//   꺼 둔 채널을 «멈춤»으로 띄우면 오늘 밤 30시간이 지나는 순간부터 매번 거짓 경보가 난다.
+//   그렇다고 줄을 지우면 «다시 켰는데 아무도 안 보는» 반대쪽 함정에 빠진다.
+//   그래서 스케줄러에 물어본다 — 꺼져 있으면 중지, 켜져 있으면 예전처럼 마지막 시각을 본다.
+function taskDisabled(name) {
+  try {
+    // ★/fo LIST 로 읽지 마라. 한국어 윈도에서는 «사용 안 함»이 OEM 코드페이지로 나와
+    //   node 가 utf8 로 읽으면 깨진다(실측 2026-09-22). /xml 은 영어 태그라 안전하다.
+    //   선언은 UTF-16 이라고 적혀 있지만 실제로는 ASCII 로 나온다 — utf8 로 읽는다.
+    const raw = require('child_process')
+      .execFileSync('schtasks', ['/query', '/tn', name, '/xml', 'ONE'],
+        { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 8000 });
+    return /<Enabled>\s*false\s*<\/Enabled>/i.test(raw);
+  } catch { return false; }   // 물어볼 수 없으면 예전 판정으로 간다
+}
+if (taskDisabled('midform-arabshot-hourly')) {
+  out.push(`중지  ${'어랍숏 생산'.padEnd(12)} 이 기계에서 닫음(인수인계)  · 남은 완성본 ${arab.length}편`);
+} else {
+  link('어랍숏 생산', arab[arab.length - 1], 30, `재고 ${arab.length}편`);
+}
 // 어랍숏은 헤드리스 클로드 세션으로 만든다. 주간 사용량 한도에 걸리면 매시간 조용히 실패하는데,
 // 그 원인이 로그에만 남아 사람이 코드 고장으로 오해한다. 마지막 실패 사유를 그대로 옮겨 둔다.
 try {
