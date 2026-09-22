@@ -41,7 +41,8 @@ $tasks = @(
   @{ n = "midform-webpublish-1800";  t = "18:00"; hourly = $false; s = "web-publish-due.js"; a = "" },
   @{ n = "midform-scout-nightly";    t = "01:30"; hourly = $false; s = "scout-sources.js";   a = "--recon" },
   @{ n = "midform-survivor-signal";  t = "02:10"; hourly = $false; s = "survivor-signal.js"; a = "" },
-  @{ n = "midform-demand-gap";       t = "02:20"; hourly = $false; s = "demand-gap.js";      a = "" }
+  @{ n = "midform-demand-gap";       t = "02:20"; hourly = $false; s = "demand-gap.js";      a = "" },
+  @{ n = "midform-rival-backlog";   t = "02:30"; hourly = $false; s = "rival-backlog.js";  a = "" }
 )
 
 # 생산은 스크립트가 아니라 클로드 세션이 돈다(원고·컷 경계·카메라·검수 판단이 필요하다).
