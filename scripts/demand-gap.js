@@ -92,7 +92,22 @@ function madeKeys() {
   };
   for (const h of (readJson(YT_STATE, { history: [] }).history || [])) consider(h.draft);
   try { for (const n of fs.readdirSync(D)) consider(n); } catch { /* 없으면 이력만 */ }
+  // ★옛 드래프트는 upload_meta 에 movie.key 가 없다(실측: 20260922b-hulk_incinerate-ko 는 undefined).
+  //   그래서 이름 조각도 같이 모아 둔다. 정확한 키가 있으면 그게 이기고, 없을 때만 이름으로 맞춘다.
+  const names = new Set();
+  const collect = (d) => { const m = /^\d{8}[a-z]?-([a-z0-9]+)/.exec(d || ''); if (m) names.add(m[1]); };
+  for (const h of (readJson(YT_STATE, { history: [] }).history || [])) collect(h.draft);
+  try { for (const n of fs.readdirSync(D)) collect(n); } catch { /* 이력만 */ }
+  out.names = names;
   return out;
+}
+
+// 키가 정확히 잡히면 그걸로, 아니면 드래프트 이름 조각으로 맞춘다.
+function isMade(key, made) {
+  if (made.has(key)) return true;
+  const n = String(key).toLowerCase().replace(/^the[-_]/, '').replace(/[-_\s]/g, '');
+  for (const u of (made.names || [])) if (n.startsWith(u) || u.startsWith(n)) return true;
+  return false;
 }
 
 function bandOf(movies, key) {
@@ -139,16 +154,27 @@ async function main() {
     const perDay = ((a.views - b.views) / hours) * 24;
     const age = a.publishedAt ? (Date.now() - Date.parse(a.publishedAt)) / 864e5 : null;
     const key = v.movie && v.movie.key;
+    const m = key ? movies[key] : null;
+    // ★차단된 영화는 수요가 아무리 커도 추천하면 안 된다 (실측 2026-09-23: 헐크가 5.1억 회로
+    //   맨 위에 떴다 — banned 인데다 이미 만든 영화였다). 라이온스게이트·소니 계열도 같다.
+    const banned = !m || m.distributor_tier === 'banned'
+      || /lionsgate|summit|vestron|artisan|sony|columbia|screen gems/i.test(String(m.distributor || ''))
+      || (Number(m.year) || 0) < 1990;
     rows.push({ id: v.id, title: v.title, ch: v.channel, views: a.views, perDay, age,
-      key: key || null, band: key ? bandOf(movies, key) : null, made: key ? made.has(key) : false,
+      key: key || null, band: key ? bandOf(movies, key) : null,
+      made: key ? isMade(key, made) : false, banned,
       dur: v.duration_sec });
   }
   if (!rows.length) { console.log('두 스냅숏에 겹치는 영상이 없다.'); return; }
 
   // «증명된 수요 · 지금 안 자람»: 누적은 크고 하루 증가는 작다.
   const big = rows.filter((r) => r.views >= 300000);
-  const dead = big.filter((r) => r.perDay < r.views * 0.0005);   // 하루 증가가 누적의 0.05% 미만
-  const fresh = dead.filter((r) => !r.made && (r.band ?? 0) >= 5);
+  // ★«죽었다»를 «누적의 0.05% 미만»으로만 재면 큰 영상에서 무너진다 (실측 2026-09-23:
+  //   5.1억 회 영상은 문턱이 25만/일이라 11만/일도 «죽었다»로 잡혔다 — 전혀 안 죽었다).
+  //   그래서 상한을 씌운다: **하루 1,000회 넘게 들어오면 죽은 게 아니다.** 누가 보고 있다는 뜻이다.
+  const deadLine = (r) => Math.min(r.views * 0.0005, 1000);
+  const dead = big.filter((r) => r.perDay < deadLine(r));
+  const fresh = dead.filter((r) => !r.made && !r.banned && (r.band ?? 0) >= 5);
 
   const lines = [`# 수요 빈자리 ${new Date().toLocaleString('ko-KR')}`, ''];
   lines.push(`훑은 영상 ${rows.length}편 · 간격 ${hours.toFixed(1)}시간`);
@@ -161,7 +187,8 @@ async function main() {
   }
   lines.push('', '## 수요는 증명됐으나 막힌 자리 (이미 만들었거나 신호가 약함)', '');
   for (const r of dead.filter((x) => !fresh.includes(x)).sort((a, b) => b.views - a.views).slice(0, 12)) {
-    const why = r.made ? '이미 만듦' : (r.band === null ? '신호 모름' : `신호 ${r.band}`);
+    const why = r.banned ? '차단·금지 계열' : r.made ? '이미 만듦'
+      : (r.band === null ? '신호 모름' : `신호 ${r.band}`);
     lines.push(`- ${r.views.toLocaleString()}회 · ${Math.round(r.perDay)}/일 · ${why} · ${r.key || '영화 미매칭'}`);
   }
   lines.push('', '_«트래픽이 옮겨 오는» 것이 아니다. 수요가 증명된 자리에 지금 아무도 안 서 있다는 뜻이다._');

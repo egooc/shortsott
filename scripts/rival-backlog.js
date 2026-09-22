@@ -147,7 +147,9 @@ async function main() {
       const perDay = ((r.views - b.views) / hours) * 24;
       rows.push({ ...r, perDay });
     }
-    const dead = rows.filter((r) => r.views >= 200000 && r.perDay < r.views * 0.0005);
+    // 상한 1,000/일 — 누적이 아무리 커도 그만큼 들어오면 죽은 게 아니다(사례 96).
+    const dead = rows.filter((r) => r.views >= 200000
+      && r.perDay < Math.min(r.views * 0.0005, 1000));
     lines.push(`간격 ${hours.toFixed(1)}시간 · 20만 이상 중 **지금 거의 안 자라는 것 ${dead.length}편**`, '');
     lines.push('## 빈자리 — 터졌고 · 안 막혔고 · 지금 안 자란다', '');
     for (const r of dead.sort((a, b) => b.views - a.views).slice(0, 25)) {
