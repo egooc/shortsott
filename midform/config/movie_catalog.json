@@ -1109,7 +1109,7 @@
       "survivor_band": "3 (2026-09-19)"
     },
     "halloween-2007": {
-      "match": "halloween(?!.*(1978|2018|kills|ends|h20|ii\\b|2\\b))|할로윈|ハロウィン",
+      "match": "(?=.*halloween)(?=.*(rob zombie|2007|myers)).*|할로윈\\s*2007|ハロウィン\\s*2007",
       "title_ko": "할로윈",
       "title_en": "Halloween",
       "title_ja": "ハロウィン",
@@ -1119,7 +1119,8 @@
       "credit_ko": "영화 '할로윈'(2007)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『ハロウィン』(2007)のシーンから制作しました。",
       "note": "2026-09-17 등록. Clip Empire 8클립(768만뷰)은 전부 롭 좀비 2007판(Young Michael·Trucker·Psych Ward). 日本配給 ザナドゥー 2008-10-25 (eiga.com/movie/34182). 2018판(Universal/Blumhouse, 日本 パルコ 2019-04-12)은 별도 등록 필요. Clip Empire는 후순위 채널",
-      "survivor_band": "7 (2026-09-21)"
+      "survivor_band": "7 (2026-09-21)",
+      "match_note": "2026-09-22: 단독 halloween 은 Practical Magic 등 남의 장면 설명을 잡는다. 롭 좀비/2007/마이어스가 같이 있을 때만 매칭."
     },
     "kong-skull-island": {
       "match": "^(?!.*(godzilla|1933)).*?(kong.{0,3}skull island|스컬 ?아일랜드|콩: ?스컬|髑髏島)",
