@@ -31,7 +31,35 @@ const link = (name, lastIso, limitH, extra = '') => {
 const exported = fs.existsSync(EXPORT_DIR)
   ? fs.readdirSync(EXPORT_DIR).filter((f) => /\.mp4$/.test(f))
     .map((f) => fs.statSync(path.join(EXPORT_DIR, f)).mtime.toISOString()).sort() : [];
-link('명화관 생산', exported[exported.length - 1], 30, `재고 ${exported.length}편`);
+
+// ★파일 시각만 보면 «오늘 아침에 한 편 나왔으니 정상»으로 읽힌다 (2026-09-22).
+//   실제로는 그 뒤 여섯 회차가 연속으로 중단됐는데 30시간 창 안이라 정상으로 떴다.
+//   TTS 크레딧처럼 **사람이 손대야 풀리는 막힘**은 그대로 몇 시간을 조용히 흘려보낸다.
+//   그래서 오늘 일지의 «회차»를 세서, 끝에서부터 중단이 몇 번 이어졌는지 본다.
+function haltStreak() {
+  const stamp = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10).replace(/-/g, '');
+  let text;
+  try { text = fs.readFileSync(path.join(ROOT, 'server', 'output', 'produce-hourly', stamp + '.md'), 'utf8'); }
+  catch { return null; }
+  const heads = text.split(/\r?\n/).filter((l) => /^# 시간당 생산/.test(l));
+  let n = 0;
+  for (let i = heads.length - 1; i >= 0 && /중단|실패/.test(heads[i]); i -= 1) n += 1;
+  if (n < 2) return null;
+  // 왜 멈췄는지는 일지가 이미 적어 뒀다. 마지막 «사람이 할 일» 한 줄을 그대로 옮긴다.
+  const blocks = text.split('## 사람이 할 일');
+  const todo = blocks.length > 1
+    ? (blocks[blocks.length - 1].split(/\r?\n/).find((l) => l.trim().startsWith('- ')) || '').replace(/^\s*-\s*/, '')
+    : '';
+  return { n, todo };
+}
+const halt = haltStreak();
+if (halt) {
+  stalled += 1;
+  out.push(`멈춤  ${'명화관 생산'.padEnd(12)} 오늘 ${halt.n}회차 연속 중단  · 재고 ${exported.length}편`);
+  if (halt.todo) out.push(`     ${''.padEnd(12)} └ 사람이 할 일: ${halt.todo.slice(0, 90)}`);
+} else {
+  link('명화관 생산', exported[exported.length - 1], 30, `재고 ${exported.length}편`);
+}
 
 // 2) 승인
 const approvals = readJson(path.join(ROOT, 'server', 'data', 'publish_approvals.json'), {});
