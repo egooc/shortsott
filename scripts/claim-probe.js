@@ -4,8 +4,9 @@
 //   node scripts/claim-probe.js <source.mp4 | volcano workdir> --locale ja|ko [--movie-key <catalog key>]
 //                               [--start <sec>] [--len 150] [--wait-min 30] [--poll-sec 120] [--keep] [--middle]
 //
-//   ★워크디렉토리를 주고 편집표(timeline.json)가 있으면 **올릴 그림 그대로**를 검사한다.
-//     --middle 은 옛 방식(소스 한가운데 한 덩어리)으로 되돌리는 탈출구다.
+//   ★**--plan <edit_ko.json>** 이 가장 좋은 자리다 — 서버에 제출하기 «전»이라 TTS 를 안 태운다.
+//     제출한 뒤라면 워크디렉토리만 줘도 timeline.json 을 읽어 올릴 그림 그대로를 검사한다(그때는
+//     TTS 가 이미 나갔다). --middle 은 옛 방식(소스 한가운데 한 덩어리)으로 되돌리는 탈출구다.
 //
 // There is no API that asks Content ID "will this be claimed?". What does exist: a private upload is
 // scanned within minutes, and a claim whose policy blocks shows up in videos.list as
@@ -87,6 +88,43 @@ function editSegments(workdir) {
     else merged.push([a, b]);
   }
   const source = rinbox.source && fs.existsSync(rinbox.source) ? rinbox.source : null;
+  return source ? { source, segments: merged } : null;
+}
+
+// 우리가 «직접 쓴» 편집안에서 구간을 읽는다 — 서버에 제출하기 «전»이다.
+//
+// ★2026-09-23 정정. 어제 나는 "편집표(timeline.json) 확정 뒤 TTS 전에 5분 반의 창이 있다"고
+//   적었는데 **틀렸다.** 편집 폴더의 master.wav(렌더 중 만들어지는 믹스)를 보고 판단했다.
+//   실제 «유료» 산출물은 paid/<해시>/narration.wav 이고, 실측하면 편집표보다 **앞선다**:
+//       koh   narration.wav 15:58:12 → timeline.json 15:58:27   (15초 앞)
+//       hulk  narration.wav 03:38:00 → timeline.json 03:55:01   (17분 앞)
+//   서버는 편집안을 받는 그 호출에서 내레이션 TTS 를 돌린다. **제출하면 이미 샀다.**
+//
+//   그래서 진짜 창은 한 칸 앞이다 — **우리가 edit_*.json 을 쓰고 아직 제출하지 않은 동안**.
+//   그 파일에 컷별 source_in/source_out 이 다 들어 있다(실측: koh 24컷).
+//   여기서 프로브를 돌리고 CLEAR 를 받은 뒤에 제출하면 **TTS 를 안 태우고 거를 수 있다.**
+//   (ASR 은 그전에 이미 샀다 — 단어가 있어야 컷을 짤 수 있으니 그건 어쩔 수 없다.)
+function planSegments(planPath, workdir) {
+  const plan = readJson(planPath, null);
+  if (!plan) return null;
+  const seq = plan.sequence || plan.cuts || [];
+  const raw = [];
+  for (const c of seq) {
+    const a = Number(c.source_in);
+    const b = Number(c.source_out);
+    if (Number.isFinite(a) && Number.isFinite(b) && b > a) raw.push([a, b]);
+  }
+  if (!raw.length) return null;
+  raw.sort((x, y) => x[0] - y[0]);
+  const merged = [raw[0].slice()];
+  for (const [a, b] of raw.slice(1)) {
+    const last = merged[merged.length - 1];
+    if (a - last[1] <= 0.25) last[1] = Math.max(last[1], b);
+    else merged.push([a, b]);
+  }
+  const base = workdir || path.dirname(planPath);
+  const source = ['volcano_src.orig.mp4', 'volcano_src.mp4']
+    .map((n) => path.join(base, n)).find((f) => fs.existsSync(f));
   return source ? { source, segments: merged } : null;
 }
 
@@ -183,7 +221,13 @@ async function main() {
   }
   // 편집표가 있으면 그것으로 자른다. --middle 을 주면 옛 방식(한가운데 한 덩어리)으로 돌아간다.
   let plan = null;
-  if (!process.argv.includes('--middle') && fs.statSync(target).isDirectory()) {
+  const planPath = arg('--plan', '');
+  if (planPath) {
+    // ★제출 전 편집안. 여기서 걸러야 TTS 를 안 태운다.
+    plan = planSegments(planPath, fs.statSync(target).isDirectory() ? target : path.dirname(target));
+    if (!plan) console.log(`[probe] ${planPath} 에서 구간을 못 읽었다`);
+  }
+  if (!plan && !process.argv.includes('--middle') && fs.statSync(target).isDirectory()) {
     plan = editSegments(target);
     if (!plan) console.log('[probe] 편집표를 못 읽었다 — 한가운데 구간으로 내려간다');
   }
@@ -198,7 +242,7 @@ async function main() {
   let span = `${start}s+${len}s`;
   if (plan) {
     cutFromEdit(plan.source, plan.segments, tmp);
-    mode = 'edit';
+    mode = planPath ? 'plan' : 'edit';
     const total = plan.segments.reduce((a, [x, y]) => a + (y - x), 0);
     span = `${plan.segments.length}구간 ${total.toFixed(0)}s`;
     console.log(`[probe] 편집표 구간으로 검사한다 — ${span} (올릴 그림 그대로)`);

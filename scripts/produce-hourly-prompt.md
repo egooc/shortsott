@@ -67,16 +67,26 @@
    - 컷 끝은 마지막 단어 끝 +0.3~0.5초. 내레이션 그림은 앞 컷 `source_out` 과 정확히 같게.
    - 진행: `seams` → `fix`/`trim` → `bind` → `cam` → `preview` → `review` → 완료.
    - 완료 판정은 브리핑 문구가 아니라 `.volcano_drive_state.json` 의 `status: done` + `step: rinbox_finish`.
-3.7 **저작권 확인 — 편집표가 확정된 «직후», TTS 전에** (2026-09-22 이동)
+3.7 **저작권 확인 — 편집안을 쓴 «직후», 서버에 제출하기 전** (2026-09-23 정정)
 ```
 node D:\midform\scripts\claim-probe.js C:\Users\urban\volcano-runs\<워크디렉토리> \
+     --plan C:\Users\urban\volcano-runs\<워크디렉토리>\edit_<ko|ja>.json \
      --locale <ko|ja> --movie-key <키> --wait-min 30
 ```
-   - 워크디렉토리를 주면 `timeline.json` 의 `picture_in/out` 을 읽어 **올릴 그림 그대로**를 잘라 검사한다.
-     로그에 `4구간 107s (edit)` 처럼 뜨면 제대로 걸린 것이다. `(middle)` 로 뜨면 편집표를 못 읽은 것이니
-     왜인지 보고 넘어가라 — 그 판정은 예전처럼 못 믿는다.
-   - **왜 여기인가.** 실측(헐크): `timeline.json` 12:55:01 → `master.wav`(TTS) 13:00:38.
-     **5분 반의 창**이 있다. 여기서 막히면 ASR 은 이미 썼지만 **TTS 크레딧과 렌더 시간은 안 날린다.**
+   - ★**`--plan` 을 반드시 붙여라.** 우리가 직접 쓴 `edit_*.json` 의 컷별 `source_in/out` 을 읽어
+     **올릴 그림 그대로**를 잘라 검사한다. 로그에 `8구간 72s (plan)` 처럼 뜨면 제대로 걸린 것이다.
+   - **왜 «제출 전»인가.** 2026-09-22 에 나는 "편집표 확정 뒤 TTS 전에 5분 반의 창이 있다"고 적었는데
+     **틀렸다.** 편집 폴더의 `master.wav`(렌더 중 만드는 믹스)를 보고 판단했다. 실제 유료 산출물은
+     `paid/<해시>/narration.wav` 이고 편집표보다 **앞선다**:
+     ```
+     koh   narration.wav 15:58:12 → timeline.json 15:58:27   (15초 앞)
+     hulk  narration.wav 03:38:00 → timeline.json 03:55:01   (17분 앞)
+     ```
+     **서버는 편집안을 받는 그 호출에서 TTS 를 돌린다 — 제출하면 이미 샀다.**
+     그래서 창은 한 칸 앞이다: **`edit_*.json` 을 쓰고 아직 제출하지 않은 동안.**
+     여기서 걸러야 TTS 크레딧을 안 태운다. (ASR 은 그전에 이미 샀다 — 단어가 있어야 컷을 짜므로 어쩔 수 없다.)
+   - 이미 제출해 버렸으면 `--plan` 없이 워크디렉토리만 줘도 `timeline.json` 으로 검사된다(모드 `edit`).
+     그때는 TTS 가 이미 나갔으니 **렌더·패키지 품만 아낀다.**
    - `BLOCKED` 이면 그 영화를 버리고 1번으로 돌아간다(카탈로그는 프로브가 알아서 banned 처리한다).
    - `CLEAR` 는 여전히 보증이 아니다. **업로드 뒤 `check-claims.js` 가 진짜 방어층이다** —
      지금까지 차단된 12편 중 공개된 것은 0편이다. 그 층은 절대 건너뛰지 마라.
