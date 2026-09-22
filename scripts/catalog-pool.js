@@ -67,6 +67,7 @@ function isUsed(key, used) {
 const catalog = readJson(CATALOG, {});
 const movies = catalog.movies || catalog;
 const used = usedKeys();
+const usedNames = used;
 
 const rows = [];
 for (const [key, v] of Object.entries(movies)) {
@@ -82,19 +83,36 @@ for (const [key, v] of Object.entries(movies)) {
 }
 
 const usable = rows.filter((r) => !r.drop);
-const runwayDays = (usable.length * perTitle) / perDay;
+const runwayDaysRaw = (usable.length * perTitle) / perDay;
+
+// ★풀을 액면가로 믿지 않는다 (2026-09-22).
+//   프로브가 CLEAR 라고 해도 올린 뒤에 막히는 편이 있다. «CLEAR 는 아직 안 막혔다는 뜻이지
+//   보증이 아니다»(생산 프롬프트 2번)를 숫자로 옮긴 것이다.
+//   발행 이력에 있는 영화 중 지금 banned 인 것의 비율 = **올린 뒤 차단율**.
+//   막힌 영화는 그 영화의 클립이 통째로 날아가므로 풀에서 그만큼을 미리 뺀다.
+const made = rows.filter((r) => r.drop === '이미 만듦' || (usedNames.size && isUsed(r.key, usedNames)));
+const madeBlocked = made.filter((r) => r.tier === 'banned');
+// 표본이 너무 적으면 할인하지 않는다 — 한두 편으로 풀 전체를 깎으면 헛경보가 난다.
+const blockRate = made.length >= 8 ? madeBlocked.length / made.length : 0;
+const runwayDays = runwayDaysRaw * (1 - blockRate);
 // ★규칙 위반 감시: 안전하다고 표시돼 있는데 사실은 금지 계열인 것. 사람이 손으로 넣으면 생긴다.
 const violations = rows.filter((r) => r.tier === 'preflight' && BANNED_FAMILY.test(r.dist));
 
 if (process.argv.includes('--json')) {
-  console.log(JSON.stringify({ usable: usable.map((r) => r.key), runwayDays, violations }, null, 2));
+  console.log(JSON.stringify({ usable: usable.map((r) => r.key), runwayDays, runwayDaysRaw, blockRate, violations }, null, 2));
   process.exit(violations.length || runwayDays < warnDays ? 1 : 0);
 }
 
 const lines = [];
 lines.push(`# 소재 풀 ${new Date().toLocaleString('ko-KR')}`, '');
 lines.push(`쓸 수 있는 영화 **${usable.length}편** · 편당 ${perTitle}클립 · 하루 ${perDay}편 기준`);
-lines.push(`→ **${runwayDays.toFixed(0)}일치**${runwayDays < warnDays ? `  ★${warnDays}일 미만 — 정찰을 돌려 카탈로그를 채워라` : ''}`, '');
+lines.push(`→ 액면 ${runwayDaysRaw.toFixed(0)}일치 · **실질 ${runwayDays.toFixed(0)}일치**`
+  + `${runwayDays < warnDays ? `  ★${warnDays}일 미만 — 정찰을 돌려 카탈로그를 채워라` : ''}`);
+if (blockRate > 0) {
+  lines.push(`_올린 뒤 차단율 ${(blockRate * 100).toFixed(0)}% (발행한 ${made.length}편 중 ${madeBlocked.length}편) 만큼 깎은 값이다._`);
+  lines.push(`_하루 ${perDay}편을 남기려면 실제로는 **${Math.ceil(perDay / (1 - blockRate))}편**을 만들어야 한다._`);
+}
+lines.push('');
 
 const byReason = {};
 for (const r of rows) if (r.drop) (byReason[r.drop] = byReason[r.drop] || []).push(r.key);
