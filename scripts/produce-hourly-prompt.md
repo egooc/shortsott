@@ -74,6 +74,10 @@ node D:\midform\scripts\check-title-hook.js "<제목 문장>"
 ★단, **화면에 있는 것만** 가지고 만든다. 확인 안 된 사실을 지어내지 마라(지시 4).
 
 4. **후처리.** `python tools/reframe_midform.py <final.mp4> <edit_dir> <ko|ja> <out.mp4>` — 미드폼 밴드 + BGM + 라우드니스.
+   제목은 기본 `--title-style mystery` 로 굽는다 (1줄 회백 + 2줄 선홍·큰 글씨·두꺼운 외곽선).
+   ★**0초부터 두 줄이 다 떠 있어야 한다.** 쇼츠는 첫 프레임이 곧 썸네일이라 페이드인·시차를 주면
+   피드에서 «제목 없는 그림»으로 지나간다 (소유주 지시 2026-09-22). 2줄에만 0.2초 박동을 준다 —
+   가려지는 순간 없이 시선만 끈다. 되돌리려면 `--title-style classic`(흰줄/노란줄).
 4.5 **후킹 하이라이트 — 반드시 한다** (소유주 승인 2026-09-22: "슬로우 좋은데? 자연스러워졌어 이대로 생산에 반영")
 ```
 python tools/hook_prepend.py <workdir> <reframe한.mp4> <hooked.mp4>
