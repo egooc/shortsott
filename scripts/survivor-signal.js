@@ -97,7 +97,27 @@ const usable = Object.entries(movies).filter(([k, m]) => m && m.distributor_tier
   && !BANNED_FAMILY.test(String(m.distributor || '')) && (Number(m.year) || 0) >= 1990
   && !made.has(k));
 
-const scored = usable.map(([k, m]) => ({ k, year: m.year, band: sig[k] ? sig[k].band : null }));
+// ★시리즈 전작·후속이 banned 면 같이 의심한다 (2026-09-23).
+//   02:45 회차가 스스로 찾아낸 규칙이다 — 소스가 제일 좋았던 «셜록 홈즈: 그림자 게임»을
+//   전작 sherlock-holmes-2009 가 banned 라는 이유로 접었다. 같은 권리자·같은 참고 자료를
+//   쓰는 쪽이라 **배급사 통계보다 한 단계 가까운 증거**다.
+//   판정: 키의 앞 두 토막이 같거나(sherlock-holmes-*), 영어 제목의 앞 두 단어가 같으면 한 식구.
+//   ★막지는 않는다. 표시만 한다 — 전작이 막혔다고 후속이 반드시 막히는 것은 아니다.
+function franchiseRisk(key, movies) {
+  const head = (k) => String(k).split('-').slice(0, 2).join('-');
+  const lead = (m) => String((m || {}).title_en || '').toLowerCase().split(/\s+/).slice(0, 2).join(' ');
+  const myHead = head(key);
+  const myLead = lead(movies[key]);
+  for (const [k2, m2] of Object.entries(movies)) {
+    if (k2 === key || !m2 || m2.distributor_tier !== 'banned') continue;
+    if (head(k2) === myHead) return k2;
+    if (myLead && myLead.length > 4 && lead(m2) === myLead) return k2;
+  }
+  return null;
+}
+
+const scored = usable.map(([k, m]) => ({ k, year: m.year, band: sig[k] ? sig[k].band : null,
+  kin: franchiseRisk(k, movies) }));
 const good = scored.filter((r) => r.band !== null && r.band >= GOOD).sort((a, b) => b.band - a.band);
 const weak = scored.filter((r) => r.band !== null && r.band < GOOD).sort((a, b) => b.band - a.band);
 const unknown = scored.filter((r) => r.band === null);
@@ -112,12 +132,17 @@ lines.push(`정찰 리포트에서 ${Object.keys(sig).length}편의 «우리 길
   + ` · 이미 만든 ${made.size}편은 뺐다`
   + `${wrote ? ` · 카탈로그 ${wrote}편 갱신` : ''}.`, '');
 lines.push(`## 먼저 쓸 것 — 생존 ${GOOD}편 이상 (${good.length}편)`, '');
-for (const r of good.slice(0, 30)) lines.push(`- ${String(r.band).padStart(2)}  ${r.year}  ${r.k}`);
+for (const r of good.slice(0, 30)) {
+  lines.push(`- ${String(r.band).padStart(2)}  ${r.year}  ${r.k}`
+    + (r.kin ? `   ★한 식구 ${r.kin} 가 차단됐다 — 같이 의심하라` : ''));
+}
 lines.push('', `## 신호 약함 — ${GOOD}편 미만 (${weak.length}편). 나중에, 또는 다른 선택지가 없을 때`, '');
 for (const r of weak.slice(0, 20)) lines.push(`- ${String(r.band).padStart(2)}  ${r.year}  ${r.k}`);
 lines.push('', `## 아직 모름 ${unknown.length}편 — 정찰이 recon 을 안 붙였다. 쓰기 전에 정찰을 한 번 돌려라.`);
 lines.push('', '_실측 근거: 통과 8편 평균 4.6 · 차단 4편 평균 2.3 · 차단된 4편은 전부 3 이하._');
 lines.push('_n=12 라 증명이 아니다(우연 확률 약 7%). 막지 않고 «고르는 순서»만 바꾼다._');
+lines.push('_★«한 식구» 표시는 시리즈 전작·후속이 차단된 경우다. 배급사 통계보다 가까운 증거지만_'
+  + ' _막는 규칙은 아니다 — 소스가 유난히 좋으면 프로브로 확인하고 가라._');
 
 const text = lines.join('\n');
 console.log(text);
