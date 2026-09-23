@@ -43,6 +43,19 @@ const BAND = [60, 200];
 // 검색으로 찾기 전에 이름으로 직접 집는다 — 정확도가 훨씬 높다.
 const KNOWN = ['헛개리카노', '무비픽스', '파워무비', '한다요', '대한숏'];
 
+// ★우리가 만든 영화로만 검색하면 **같은 대작만 되돌아온다** (2026-09-23).
+//   후보 명단을 넓히려는 것이 목적이므로, 영화 제목이 아니라 «리캡 채널이 쓰는 말투»로 찾는다.
+//   실측한 경쟁 채널 제목들: "모든 비극의 시작" · "~한 이유" · "~된 이유" · "~하자 ~했다".
+//   영화명을 안 쓰는 것이 이 바닥의 관행이라(사례 93) 제목 대신 어미와 훅 문구를 씨앗으로 쓴다.
+const GENERIC_SEEDS = [
+  '영화 결말포함 요약',
+  '영화 리뷰 결말포함',
+  '드라마 요약 결말',
+  '영화 명장면 해설',
+  '영화 한편 요약',
+  '넷플릭스 드라마 요약',
+];
+
 // 영화 채널인가. 카탈로그 142편의 match 패턴으로 최근 제목을 훑는다.
 // ★길이만 보면 골동품 감정(숏해적)·잡학(뚝딱 상식 뚝배기) 채널이 섞인다 — 실측 2026-09-22.
 //
@@ -121,12 +134,16 @@ async function main() {
       } catch (e) { console.log(`  [알려진 실패] ${name}: ${e.message}`); }
     }
 
-    const seeds = ourMovies().slice(0, SEARCHES);
-    console.log(`[rival] 우리가 만든 영화 ${seeds.length}편으로 검색한다 (검색 1회 100 units)`);
+    const useGeneric = process.argv.includes('--generic');
+    const seeds = useGeneric
+      ? GENERIC_SEEDS.slice(0, SEARCHES).map((q) => ({ key: q, m: { title_ko: q }, generic: true }))
+      : ourMovies().slice(0, SEARCHES);
+    console.log(`[rival] ${useGeneric ? '리캡 말투' : '우리가 만든 영화'} ${seeds.length}개로 검색한다`
+      + ' (검색 1회 100 units)');
     const hits = {};   // channelId -> {title, videos:Set}
     for (const s of seeds) {
       // 우리 길이대만 본다. videoDuration=short 는 4분 미만이라 1차로 쓰고 실제 길이로 다시 거른다.
-      const q = encodeURIComponent(`${s.m.title_ko} 결말포함`);
+      const q = encodeURIComponent(s.generic ? s.m.title_ko : `${s.m.title_ko} 결말포함`);
       const u = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoDuration=short`
         + `&maxResults=25&regionCode=KR&relevanceLanguage=ko&q=${q}`;
       let j;
@@ -154,6 +171,10 @@ async function main() {
         const ids = (pl.items || []).map((x) => x.contentDetails.videoId).slice(0, 50);
         if (!ids.length) continue;
         const vids = await api(token, `https://www.googleapis.com/youtube/v3/videos?part=contentDetails,statistics,snippet&id=${ids.join(',')}`);
+        // ★설명문에 작품명을 적는 채널만이 «후보 명단»을 넓혀 준다 (2026-09-23).
+        //   제목엔 영화명을 안 쓰므로(사례 93) 설명문이 유일한 실마리다.
+        //   실측: 400편 중 20편만 설명문이 있었다 — 헛개리카노는 적고 무비픽스는 대부분 비어 있다.
+        const withDesc = (vids.items || []).filter((v) => String((v.snippet || {}).description || '').trim().length > 20).length;
         const rows = (vids.items || []).map((v) => {
           const mm = /PT(?:(\d+)M)?(?:(\d+)S)?/.exec(v.contentDetails.duration || '') || [];
           return { id: v.id, sec: Number(mm[1] || 0) * 60 + Number(mm[2] || 0),
@@ -171,12 +192,14 @@ async function main() {
           medianSec: median,
           inBandRatio: inBand / rows.length,
           movieRatio: mr,
+          descRatio: (vids.items || []).length ? withDesc / (vids.items || []).length : 0,
           verified: !!c.verified,
           sampled: rows.length,
           videos: rows.sort((a, b) => b.views - a.views).slice(0, 40),
         };
         console.log(`  ${c.title} — 중앙값 ${median}s · 길이대 ${(100 * inBand / rows.length).toFixed(0)}%`
-          + ` · 영화 ${(100 * mr).toFixed(0)}%`);
+          + ` · 영화 ${(100 * mr).toFixed(0)}%`
+          + ` · 설명문 ${(100 * withDesc / Math.max(1, (vids.items || []).length)).toFixed(0)}%`);
       } catch (e) { console.log(`  [실패] ${c.title}: ${e.message}`); }
     }
     store.at = new Date().toISOString();
@@ -195,6 +218,7 @@ async function main() {
   for (const [id, c] of ours.sort((a, b) => b[1].videos[0].views - a[1].videos[0].views)) {
     lines.push(`## ${c.title}  _(구독 ${c.subs.toLocaleString()} · 중앙값 ${c.medianSec}s`
       + ` · 길이대 ${(100 * c.inBandRatio).toFixed(0)}% · 영화 ${(100 * (c.movieRatio ?? 0)).toFixed(0)}%`
+      + ` · **설명문 ${(100 * (c.descRatio ?? 0)).toFixed(0)}%**`
       + `${c.verified ? ' · 손으로 확인' : ''})_`);
     lines.push(`https://www.youtube.com/channel/${id}`);
     for (const v of c.videos.slice(0, 5)) {
