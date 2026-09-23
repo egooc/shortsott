@@ -25,6 +25,7 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 
 const ROOT = path.resolve(__dirname, '..');
+const scheduleProbe = process.argv.includes('--schedule');
 const PROFILES = path.join(ROOT, 'server', 'data', 'youtube_upload_profiles.json');
 const LEDGER = path.join(ROOT, 'server', 'data', 'claim_probes.json');
 const CATALOG = path.join(ROOT, 'midform', 'config', 'movie_catalog.json');
@@ -182,7 +183,14 @@ async function upload(token, file, title) {
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json; charset=UTF-8',
       'X-Upload-Content-Length': String(size), 'X-Upload-Content-Type': 'video/mp4' },
     body: JSON.stringify({ snippet: { title, description: 'content id probe — private, not for publication', categoryId: '1' },
-      status: { privacyStatus: 'private', selfDeclaredMadeForKids: false } })
+      // ★--schedule 을 주면 «공개 예약»을 걸어 올린다 (2026-09-23 실험).
+      //   프로브는 publishAt 없이 비공개로 올리는데 실제 업로드는 예약이 걸려 있다.
+      //   그 차이가 프로브의 46% 오판을 설명하는지 보려고 둔 손잡이다.
+      //   예약 시각은 사흘 뒤 — 어차피 판정만 보고 지운다.
+      status: scheduleProbe
+        ? { privacyStatus: 'private', selfDeclaredMadeForKids: false,
+          publishAt: new Date(Date.now() + 3 * 864e5).toISOString() }
+        : { privacyStatus: 'private', selfDeclaredMadeForKids: false } })
   });
   if (!init.ok) throw new Error(`upload session ${init.status}: ${(await init.text()).slice(0, 200)}`);
   const put = await fetch(init.headers.get('location'), { method: 'PUT',
@@ -231,7 +239,13 @@ async function main() {
   const target = process.argv[2];
   if (!target) throw new Error('usage: node scripts/claim-probe.js <source.mp4|workdir> --locale ja|ko [--movie-key k] [--start s] [--len 150] [--wait-min 30]');
   const locale = arg('--locale', 'ja'); const movieKey = arg('--movie-key', '');
-  const len = Number(arg('--len', '150')); const waitMin = Number(arg('--wait-min', '30')); const pollSec = Number(arg('--poll-sec', '120'));
+  // ★기다리는 창을 30분 → 150분으로 늘렸다 (2026-09-23 실측).
+  //   업로드 → 차단까지 걸린 시간을 15편에서 재니 **20분 안에 잡힌 것은 4편뿐**이고
+  //   중앙값이 116분이었다(헐크는 1.9시간). 30분 창으로는 구조적으로 못 잡는다 —
+  //   프로브가 46% 를 놓친 진짜 이유가 이것이다. 소스도 publishAt 도 장면도 아니었다.
+  //   ★그래도 «놓칠 수 있다»는 전제는 그대로다. 3층(업로드 뒤 check-claims)이 여전히
+  //   유일하게 믿을 수 있는 층이다(사례 91·100).
+  const len = Number(arg('--len', '150')); const waitMin = Number(arg('--wait-min', '150')); const pollSec = Number(arg('--poll-sec', '120'));
   let src = target;
   if (fs.statSync(target).isDirectory()) {
     src = workdirSource(target);
