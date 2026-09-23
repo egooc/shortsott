@@ -122,8 +122,19 @@ function franchiseRisk(key, movies) {
   return null;
 }
 
-const scored = usable.map(([k, m]) => ({ k, year: m.year, band: sig[k] ? sig[k].band : null,
-  kin: franchiseRisk(k, movies) }));
+// ★«경쟁 채널에서 생존 확인»은 검색 결과 수보다 **강한 증거**다 (2026-09-23).
+//   생존자 신호는 «그 영화 클립이 검색에 몇 개 살아 있나»를 셀 뿐이다.
+//   rival_proven 은 «우리와 같은 길이·같은 구조의 채널이 지금 그 작품을 올려 두고 있다»는 뜻이라
+//   한 단계 가깝다. 신호가 없다고 뒤로 밀면 TV 는 영원히 안 뽑힌다 — 그래서 여기서 받아 준다.
+//   ★강한 증거이지 보증이 아니다. 프로브와 3층은 똑같이 거친다(사례 106·107).
+const PROVEN_BAND = 5;   // «먼저 쓸 것» 문턱과 같은 값. 더 높이지 않는다 — 우대가 아니라 «같은 줄»이다.
+const scored = usable.map(([k, m]) => ({
+  k,
+  year: m.year,
+  band: sig[k] ? sig[k].band : (m.rival_proven ? PROVEN_BAND : null),
+  proven: !!m.rival_proven && !sig[k],
+  kin: franchiseRisk(k, movies),
+}));
 const good = scored.filter((r) => r.band !== null && r.band >= GOOD).sort((a, b) => b.band - a.band);
 const weak = scored.filter((r) => r.band !== null && r.band < GOOD).sort((a, b) => b.band - a.band);
 const unknown = scored.filter((r) => r.band === null);
@@ -139,7 +150,8 @@ lines.push(`정찰 리포트에서 ${Object.keys(sig).length}편의 «우리 길
   + `${wrote ? ` · 카탈로그 ${wrote}편 갱신` : ''}.`, '');
 lines.push(`## 먼저 쓸 것 — 생존 ${GOOD}편 이상 (${good.length}편)`, '');
 for (const r of good.slice(0, 30)) {
-  lines.push(`- ${String(r.band).padStart(2)}  ${r.year}  ${r.k}`
+  lines.push(`- ${r.proven ? ' 확' : String(r.band).padStart(2)}  ${r.year}  ${r.k}`
+    + (r.proven ? '   (경쟁 채널 생존 확인)' : '')
     + (r.kin ? `   ★한 식구 ${r.kin} 가 차단됐다 — 같이 의심하라` : ''));
 }
 lines.push('', `## 신호 약함 — ${GOOD}편 미만 (${weak.length}편). 나중에, 또는 다른 선택지가 없을 때`, '');
