@@ -41,15 +41,33 @@ function gaps() {
   return ONLY_PLATFORM ? jobs.filter((x) => x.platform === ONLY_PLATFORM) : jobs;
 }
 
+// ★종료코드로 판정하지 마라 (2026-09-23, 내가 여기서 당했다).
+//   blotato-publish 는 올릴 수 없을 때도 «SKIP» 한 줄을 찍고 **0 으로 끝난다.**
+//   그걸 «올림»으로 세어 21건을 성공이라 보고했는데 장부는 한 칸도 안 늘었다.
+//   사례 88(시도≠산출)·96(돌았다≠맞다)과 같은 병이다. 그래서 **장부가 늘었는지**를 본다.
+const LEDGERS = {
+  web: path.join(ROOT, 'server', 'data', 'web_publish_state.json'),
+  blotato: path.join(ROOT, 'server', 'data', 'blotato_publish_state.json'),
+};
+function ledgerCount(route) {
+  try { return (JSON.parse(require('fs').readFileSync(LEDGERS[route], 'utf8')).history || []).length; }
+  catch { return -1; }
+}
+
 function run(job) {
   const argv = job.route === 'web'
     ? [path.join(__dirname, 'web-publish.js'), '--site', job.platform, '--only', job.draft, '--now']
     : [path.join(__dirname, 'blotato-publish.js'), '--only', job.draft, '--platforms', job.platform];
   if (DRY) argv.push('--dry-run');
+  const before = DRY ? 0 : ledgerCount(job.route);
   const r = require('child_process').spawnSync(process.execPath, argv,
     { encoding: 'utf8', cwd: ROOT, timeout: 12 * 60 * 1000 });
-  const out = `${r.stdout || ''}${r.stderr || ''}`.trim().split(/\r?\n/).slice(-3).join(' | ');
-  return { ok: r.status === 0, tail: out.slice(0, 220) };
+  const raw = `${r.stdout || ''}${r.stderr || ''}`.trim().split(/\r?\n/);
+  // 왜 안 됐는지는 SKIP/오류 줄에 적혀 있다. 그 줄을 우선해서 들고 온다.
+  const why = raw.filter((l) => /SKIP|error|fail|없|실패/i.test(l)).slice(-1)[0] || raw.slice(-1)[0] || '';
+  if (DRY) return { ok: r.status === 0, tail: why.slice(0, 220) };
+  const grew = ledgerCount(job.route) > before;
+  return { ok: r.status === 0 && grew, tail: why.trim().slice(0, 220) };
 }
 
 const all = gaps();

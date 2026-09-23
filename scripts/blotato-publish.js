@@ -218,7 +218,12 @@ function youtubePublishAt(draftName) {
   //   check-claims 가 publishAt 을 지울 때 blockedPublishAt 에 옮겨 둔다. 그걸 물려 쓴다.
   //   그 시각은 대개 이미 지났지만 scheduleFor() 가 «지금 + 3분»으로 당겨 준다.
   const blocked = (state.history || []).find((h) => h.draft === draftName && h.blockedPublishAt);
-  return blocked ? blocked.blockedPublishAt : '';
+  if (blocked) return blocked.blockedPublishAt;
+  // ★유튜브에 «아예 안 올린» 편도 소셜에는 올린다 (2026-09-23).
+  //   차단본만 살려 놨더니 유튜브 이력이 통째로 없는 편(다른 채널 것, 유튜브 슬롯을 못 잡은 것)이
+  //   계속 SKIP 됐다. 소셜은 유튜브의 부속이 아니다 — 시각만 물려 쓸 뿐이다.
+  //   기준 시각이 없으면 «지금»으로 둔다. scheduleFor() 가 지금+3분으로 잡아 준다.
+  return new Date().toISOString();
 }
 
 function warmupActive(args) {
