@@ -36,10 +36,20 @@ for (const p of probes) {
   if (nowBanned) { b.missed += 1; b.misses.push(p.movieKey); }
 }
 
+// 방식 이름. ★plan 을 여기 빠뜨리면 «편집표 구간»으로 돌린 프로브가 옛 방식(middle) 이름으로 찍혀
+// 다음 사람이 정반대로 읽는다 — 사례 96 과 같은 병이다.
+const MODE_NAMES = {
+  middle: 'middle(소스 한가운데 — 옛 방식)',
+  plan:   'plan  (제출 전 편집안 = 올릴 그림)',
+  edit:   'edit  (제출 뒤 편집표 = 올릴 그림)',
+};
+// plan 과 edit 은 «올릴 그림 그대로»를 검사한다는 점에서 같은 방식이다. 비교할 때는 합쳐서 센다.
+const PICTURE_MODES = ['plan', 'edit'];
+
 const lines = ['# 프로브 저울 ' + new Date().toLocaleString('ko-KR'), ''];
 if (!Object.keys(byMode).length) lines.push('잴 기록이 없다.');
 for (const [mode, b] of Object.entries(byMode)) {
-  const name = mode === 'edit' ? 'edit  (편집표 구간 = 올릴 그림)' : 'middle(소스 한가운데)';
+  const name = MODE_NAMES[mode] || `${mode}(모르는 방식)`;
   lines.push(`## ${name}`);
   lines.push(`- BLOCKED 판정 ${b.blocked}건 (그 자리에서 버림)`);
   if (b.clear) {
@@ -52,15 +62,19 @@ for (const [mode, b] of Object.entries(byMode)) {
   }
   lines.push('');
 }
-const mid = byMode.middle; const ed = byMode.edit;
-if (mid && ed && ed.clear >= 8) {
+const mid = byMode.middle;
+const ed = PICTURE_MODES.map((m) => byMode[m]).filter(Boolean).reduce((a, b) => ({
+  clear: a.clear + b.clear, missed: a.missed + b.missed,
+  blocked: a.blocked + b.blocked, misses: a.misses.concat(b.misses),
+}), { clear: 0, missed: 0, blocked: 0, misses: [] });
+if (mid && ed.clear >= 8) {
   const a = mid.missed / (mid.clear || 1); const b2 = ed.missed / (ed.clear || 1);
   lines.push(`**비교**: 한가운데 ${(100 * a).toFixed(0)}% → 편집표 ${(100 * b2).toFixed(0)}%`
     + (b2 < a ? ' — 나아졌다.' : ' — 나아지지 않았다. 프로브를 빼고 3층 방어만 남기는 편이 낫다.'));
-} else if (ed) {
-  lines.push(`_edit 방식 CLEAR 표본이 ${ed.clear}건이다. 8건은 모여야 비교가 된다._`);
+} else if (ed.clear) {
+  lines.push(`_편집표 구간(plan+edit) CLEAR 표본이 ${ed.clear}건이다. 8건은 모여야 비교가 된다._`);
 } else {
-  lines.push('_아직 edit 방식으로 돌린 프로브가 없다. 다음 생산부터 쌓인다._');
+  lines.push('_아직 편집표 구간으로 돌린 프로브가 없다. 다음 생산부터 쌓인다._');
 }
 
 console.log(lines.join('\n'));
