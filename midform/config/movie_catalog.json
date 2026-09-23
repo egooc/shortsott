@@ -400,7 +400,8 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '킹덤 오브 헤븐'(2005)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『キングダム・オブ・ヘブン』(2005)のシーンから制作しました。",
-      "survivor_band": "8 (2026-09-06)"
+      "survivor_band": "8 (2026-09-06)",
+      "claim_probe": "2026-09-22 ja 12구간 95s (edit) CLEAR-30min"
     },
     "legally-blonde": {
       "match": "legally blonde|금발이 너무해|キューティ・?ブロンド",
@@ -630,7 +631,8 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '갱스 오브 뉴욕'(2002)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『ギャング・オブ・ニューヨーク』(2002)のシーンから制作しました。",
-      "survivor_band": "8 (2026-09-12)"
+      "survivor_band": "8 (2026-09-12)",
+      "claim_probe": "2026-09-23 ko 12구간 60s (plan) CLEAR-30min"
     },
     "cape-fear": {
       "match": "^(?!.*\\((?:19[0-8]\\d)\\)).*?(?:cape fear|케이프 피어|ケープ・フィアー)",
@@ -787,7 +789,8 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '어카운턴트'(2016)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『ザ・コンサルタント』(2016)のシーンから制作しました。",
-      "survivor_band": "5 (2026-09-19)"
+      "survivor_band": "5 (2026-09-19)",
+      "claim_probe": "2026-09-22 ko 7구간 72s (plan) CLEAR-30min"
     },
     "dune-part-two": {
       "match": "dune.{0,3}part.{0,3}(two|2)|듄.{0,3}(파트 ?2|2)|デューン.{0,10}PART2",
@@ -1054,7 +1057,7 @@
       "credit_ko": "영화 '매트릭스'(1999)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『マトリックス』(1999)のシーンから制作しました。",
       "note": "2026-09-17 등록(ClipZone). 日本公開 1999-09-11 ワーナー (eiga.com/movie/49688). Meeting Agent Smith(541s, 240만뷰) 대사 장면; Lobby Shootout·Rooftop은 액션 몽타주라 보류",
-      "survivor_band": "3 (2026-09-18)"
+      "survivor_band": "4 (2026-09-22)"
     },
     "american-sniper": {
       "match": "american sniper|아메리칸 스나이퍼|アメリカン・スナイパー",
@@ -1063,11 +1066,13 @@
       "title_ja": "アメリカン・スナイパー",
       "year": 2014,
       "distributor": "Warner Bros.",
-      "distributor_tier": "preflight",
+      "distributor_tier": "banned",
       "credit_ko": "영화 '아메리칸 스나이퍼'(2014)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『アメリカン・スナイパー』(2014)のシーンから制作しました。",
-      "note": "2026-09-17 등록(ClipZone). 日本公開 2015-02-21 ワーナー (eiga.com/movie/81224). The Trigger's Cost(549s) 대사, 나머지는 전투 몽타주",
-      "survivor_band": "5 (2026-09-21)"
+      "note": "2026-09-17 등록(ClipZone). 日本公開 2015-02-21 ワーナー (eiga.com/movie/81224). The Trigger's Cost(549s) 대사, 나머지는 전투 몽타주 | 2026-09-23 차단(워너). 신호 6·plan 프로브 CLEAR 를 모두 통과했으나 차단됨.",
+      "survivor_band": "6 (2026-09-22)",
+      "claim_probe": "2026-09-22 ja 8구간 77s (plan) CLEAR-28min",
+      "claim_history": "2026-09-23 KO/JA 양판 전세계 차단 → banned. KO s7ENR2njrco(98s) · JA 1oOV59y7E6I(90s). 업로드 직후 잡혀 공개 전 예약 해제. ★생존자 신호 6 이었고 plan 프로브도 CLEAR 였다 — 둘 다 못 걸렀다."
     },
     "book-of-eli": {
       "match": "the book of eli|일라이|ザ・ウォーカー",
@@ -1144,7 +1149,7 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '메가로돈'(2018)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『MEG ザ・モンスター』(2018)のシーンから制作しました。",
-      "survivor_band": "2 (2026-09-21)"
+      "survivor_band": "3 (2026-09-22)"
     },
     "rampage-2018": {
       "match": "^(?!.*(street fighter|arcade|king kong|킹콩|キング・?コング|godzilla|transformers|트랜스포머|トランスフォーマー)).*?(\\brampage\\b|램페이지|ランペイジ)",
@@ -1180,7 +1185,7 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '쥬라기 월드'(2015)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『ジュラシック・ワールド』(2015)のシーンから制作しました。",
-      "survivor_band": "1 (2026-09-21)"
+      "survivor_band": "3 (2026-09-22)"
     },
     "the-great-wall": {
       "match": "the great wall|그레이트 ?월|グレートウォール",
@@ -1359,7 +1364,8 @@
       "distributor": "Warner Bros. (Legendary)",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '고질라'(2014)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『GODZILLA ゴジラ』(2014)のシーンから制作しました。"
+      "credit_ja": "映画『GODZILLA ゴジラ』(2014)のシーンから制作しました。",
+      "survivor_band": "6 (2026-09-22)"
     },
     "godzilla-x-kong": {
       "match": "godzilla x kong|new empire|뉴 ?엠파이어|ゴジラxコング",
@@ -1370,7 +1376,8 @@
       "distributor": "Warner Bros. (Legendary)",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '고질라 X 콩: 뉴 엠파이어'(2024)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『ゴジラxコング 新たなる帝国』(2024)のシーンから制作しました。"
+      "credit_ja": "映画『ゴジラxコング 新たなる帝国』(2024)のシーンから制作しました。",
+      "survivor_band": "2 (2026-09-22)"
     },
     "legend-of-tarzan": {
       "match": "legend of tarzan|레전드 오브 타잔|ターザン.{0,6}REBORN",
@@ -1381,7 +1388,8 @@
       "distributor": "Warner Bros.",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '레전드 오브 타잔'(2016)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『ターザン:REBORN』(2016)のシーンから制作しました。"
+      "credit_ja": "映画『ターザン:REBORN』(2016)のシーンから制作しました。",
+      "survivor_band": "2 (2026-09-22)"
     },
     "pacific-rim": {
       "match": "^(?!.*uprising).*?(pacific rim|퍼시픽 ?림|パシフィック・リム)",
@@ -1392,7 +1400,8 @@
       "distributor": "Warner Bros. (Legendary)",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '퍼시픽 림'(2013)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『パシフィック・リム』(2013)のシーンから制作しました。"
+      "credit_ja": "映画『パシフィック・リム』(2013)のシーンから制作しました。",
+      "survivor_band": "1 (2026-09-22)"
     },
     "transformers-2007": {
       "match": "^(?!.*(bumblebee|rise of the beasts|revenge of the fallen|dark of the moon|age of extinction|last knight|one\\b|패자의 역습|달의 어둠|사라진 시대|최후의 기사)).*?(transformers|트랜스포머|トランスフォーマー)",
@@ -1403,7 +1412,8 @@
       "distributor": "Paramount Pictures",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '트랜스포머'(2007)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『トランスフォーマー』(2007)のシーンから制作しました。"
+      "credit_ja": "映画『トランスフォーマー』(2007)のシーンから制作しました。",
+      "survivor_band": "5 (2026-09-22)"
     },
     "jurassic-park": {
       "match": "^(?!.*(world|fallen kingdom|dominion|월드|ワールド)).*?(jurassic park|쥬라기 ?공원|ジュラシック・?パーク)",
@@ -1414,7 +1424,8 @@
       "distributor": "Universal Pictures",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '쥬라기 공원'(1993)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『ジュラシック・パーク』(1993)のシーンから制作しました。"
+      "credit_ja": "映画『ジュラシック・パーク』(1993)のシーンから制作しました。",
+      "survivor_band": "2 (2026-09-22)"
     },
     "meg-2": {
       "match": "meg ?2|the trench|메가로돈 ?2|MEG ザ・モンスターズ2",
@@ -1425,7 +1436,8 @@
       "distributor": "Warner Bros.",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '메가로돈 2'(2023)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『MEG ザ・モンスターズ2』(2023)のシーンから制作しました。"
+      "credit_ja": "映画『MEG ザ・モンスターズ2』(2023)のシーンから制作しました。",
+      "survivor_band": "4 (2026-09-22)"
     },
     "clash-of-titans": {
       "match": "^(?!.*(1981|wrath)).*?(clash of the titans|타이탄|タイタンの戦い)",
@@ -1436,7 +1448,8 @@
       "distributor": "Warner Bros.",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '타이탄'(2010)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『タイタンの戦い』(2010)のシーンから制作しました。"
+      "credit_ja": "映画『タイタンの戦い』(2010)のシーンから制作しました。",
+      "survivor_band": "4 (2026-09-22)"
     },
     "mortal-kombat-2021": {
       "match": "^(?!.*(1995|1997|annihilation)).*?(mortal kombat|모탈 ?컴뱃|モータルコンバット)",
@@ -1447,7 +1460,8 @@
       "distributor": "Warner Bros. (New Line)",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '모탈 컴뱃'(2021)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『モータルコンバット』(2021)のシーンから制作しました。"
+      "credit_ja": "映画『モータルコンバット』(2021)のシーンから制作しました。",
+      "survivor_band": "4 (2026-09-22)"
     },
     "justice-league": {
       "match": "justice league|저스티스 ?리그|ジャスティス・リーグ",
@@ -1458,7 +1472,8 @@
       "distributor": "Warner Bros. (DC)",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '저스티스 리그'(2017)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『ジャスティス・リーグ』(2017)のシーンから制作しました。"
+      "credit_ja": "映画『ジャスティス・リーグ』(2017)のシーンから制作しました。",
+      "survivor_band": "5 (2026-09-22)"
     },
     "suicide-squad": {
       "match": "^(?!.*(the suicide squad|2021)).*?(suicide squad|수어사이드 ?스쿼드|スーサイド・スクワッド)",
@@ -1469,7 +1484,8 @@
       "distributor": "Warner Bros. (DC)",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '수어사이드 스쿼드'(2016)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『スーサイド・スクワッド』(2016)のシーンから制作しました。"
+      "credit_ja": "映画『スーサイド・スクワッド』(2016)のシーンから制作しました。",
+      "survivor_band": "6 (2026-09-22)"
     },
     "iron-man-2": {
       "match": "iron.?man ?2|아이언맨 ?2|アイアンマン2",
@@ -1540,7 +1556,8 @@
       "distributor": "Universal Pictures",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '쥬라기 월드: 폴른 킹덤'(2018)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『ジュラシック・ワールド 炎の王国』(2018)のシーンから制作しました。"
+      "credit_ja": "映画『ジュラシック・ワールド 炎の王国』(2018)のシーンから制作しました。",
+      "survivor_band": "0 (2026-09-22)"
     },
     "fantastic-beasts": {
       "match": "fantastic beasts|신비한 동물사전|ファンタスティック・ビースト",
@@ -1551,7 +1568,8 @@
       "distributor": "Warner Bros.",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '신비한 동물사전'(2016)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『ファンタスティック・ビースト』(2016)のシーンから制作しました。"
+      "credit_ja": "映画『ファンタスティック・ビースト』(2016)のシーンから制作しました。",
+      "survivor_band": "4 (2026-09-22)"
     },
     "how-to-train-dragon": {
       "match": "^(?!.*(2|3|hidden world|live.?action)).*?(how to train your dragon|드래곤 길들이기|ヒックとドラゴン)",
@@ -1573,7 +1591,8 @@
       "distributor": "Universal Pictures",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '미트 더 페어런츠'(2000)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『ミート・ザ・ペアレンツ』(2000)のシーンから制作しました。"
+      "credit_ja": "映画『ミート・ザ・ペアレンツ』(2000)のシーンから制作しました。",
+      "survivor_band": "3 (2026-09-22)"
     },
     "ben-hur-2016": {
       "match": "^(?!.*1959).*?(ben.?hur|벤허|ベン・ハー)",
@@ -1595,7 +1614,8 @@
       "distributor": "Universal Pictures",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '미이라'(1999)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『ハムナプトラ 失われた砂漠の都』(1999)のシーンから制作しました。"
+      "credit_ja": "映画『ハムナプトラ 失われた砂漠の都』(1999)のシーンから制作しました。",
+      "survivor_band": "2 (2026-09-22)"
     },
     "transformers-dark-moon": {
       "match": "dark of the moon|달의 어둠|ダークサイド・ムーン",
@@ -1617,7 +1637,8 @@
       "distributor": "Paramount Pictures",
       "distributor_tier": "preflight",
       "credit_ko": "영화 '트랜스포머: 사라진 시대'(2014)의 장면으로 제작되었습니다.",
-      "credit_ja": "映画『トランスフォーマー ロストエイジ』(2014)のシーンから制作しました。"
+      "credit_ja": "映画『トランスフォーマー ロストエイジ』(2014)のシーンから制作しました。",
+      "survivor_band": "1 (2026-09-22)"
     },
     "avengers-endgame": {
       "match": "endgame|엔드게임|エンドゲーム",
