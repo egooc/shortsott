@@ -234,6 +234,28 @@ async function main() {
       continue;
     }
 
+    // 1.5 ★차단된 영화는 여기서 막는다 (2026-09-23).
+    //     upload_meta.json 의 tier 는 «메타를 만든 시점»의 박제다. 그 뒤에 영화가 banned 로
+    //     내려가도 캐시는 preflight 그대로다 — 실측: 20260922a-central_inout-ko 가
+    //     tier:"preflight" 를 들고 14:47 에 다시 올라가 18분 만에 또 차단됐다.
+    //     이미 막힌 줄 아는 물건을 또 올리면 채널 이력만 더럽힌다. **카탈로그를 다시 읽는다.**
+    {
+      const key = ((meta.movie || {}).key) || '';
+      if (key) {
+        let live = null;
+        try {
+          const cat = JSON.parse(fs.readFileSync(
+            path.join(ROOT, 'midform', 'config', 'movie_catalog.json'), 'utf8'));
+          live = (cat.movies || {})[key] || null;
+        } catch { live = null; }   // 카탈로그를 못 읽으면 막지 않는다 — 문지기가 생산을 세우면 안 된다
+        if (live && live.distributor_tier === 'banned') {
+          console.log(`[skip] ${draftName}: ${key} 는 카탈로그에서 banned 다 — 유튜브에 안 올린다`);
+          lines.push(`- SKIP(banned): ${draftName} — ${key}`);
+          continue;
+        }
+      }
+    }
+
     // 2. Export (reuse an existing mp4 from a previous run).
     const mp4Path = path.join(EXPORT_DIR, `${draftName}.mp4`);
     // 낡은 mp4 재사용 금지: 드래프트가 mp4 이후 재설치됐으면 그 mp4 는 다른 판이다.

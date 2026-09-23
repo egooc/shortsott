@@ -426,7 +426,8 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '우주전쟁'(2005)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『宇宙戦争』(2005)のシーンから制作しました。",
-      "survivor_band": "6 (2026-09-05)"
+      "survivor_band": "6 (2026-09-05)",
+      "claim_probe": "2026-09-23 ko 7구간 64s (plan) CLEAR-30min"
     },
     "how-to-lose-a-guy": {
       "match": "how to lose a guy|10일 안에 남자친구|10日間で男を",
@@ -555,11 +556,13 @@
       "title_ja": "ターミナル",
       "year": 2004,
       "distributor": "DreamWorks (Paramount)",
-      "distributor_tier": "preflight",
+      "distributor_tier": "banned",
       "credit_ko": "영화 '터미널'(2004)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『ターミナル』(2004)のシーンから制作しました。",
       "claim_probe": "2026-09-18 ja 180s+150s CLEAR-30min",
-      "survivor_band": "2 (2026-09-05)"
+      "survivor_band": "2 (2026-09-05)",
+      "claim_history": "2026-09-23 ja 컷(115s, gWEIR1NSjlA) 업로드 18분 뒤 전세계 차단 → banned. 드림웍스/파라마운트. 생존자 신호 2 였다.",
+      "note": "2026-09-23 차단. 신호 2(낮음)였고 그대로 막혔다."
     },
     "cry-baby": {
       "match": "cry.?baby|크라이 ?베이비|クライ・?ベイビー",
@@ -876,7 +879,8 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '패스트 앤 퓨리어스: 도쿄 드리프트'(2006)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『ワイルド・スピードX3 TOKYO DRIFT』(2006)のシーンから制作しました。",
-      "survivor_band": "8 (2026-09-06)"
+      "survivor_band": "8 (2026-09-06)",
+      "claim_probe": "2026-09-23 ja 12구간 77s (plan) CLEAR-30min"
     },
     "megamind": {
       "match": "megamind|메가마인드|メガマインド",

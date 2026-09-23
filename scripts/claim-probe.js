@@ -91,6 +91,22 @@ function editSegments(workdir) {
   return source ? { source, segments: merged } : null;
 }
 
+// 워크디렉토리의 소스 파일을 찾는다. 예전 런은 volcano_src.mp4 를 폴더 안에 복사해 두지만,
+// local_video 로 시작한 런(우주전쟁 2026-09-23)은 원본을 그 자리에서 쓴다 — 그때는 상태 파일이
+// 유일한 단서다. 여기서 안 찾으면 프로브가 통째로 안 돌아 3.7 이 건너뛰어진다.
+function workdirSource(dir) {
+  const copied = ['volcano_src.orig.mp4', 'volcano_src.mp4']
+    .map((n) => path.join(dir, n)).find((f) => fs.existsSync(f));
+  if (copied) return copied;
+  const state = readJson(path.join(dir, '.volcano_drive_state.json'), null);
+  const payload = state && state.args && state.args.payload;
+  for (const cand of [payload && payload.source, payload && payload.rinbox && payload.rinbox.source,
+                      payload && payload.source_request && payload.source_request.path]) {
+    if (typeof cand === 'string' && fs.existsSync(cand)) return cand;
+  }
+  return null;
+}
+
 // 우리가 «직접 쓴» 편집안에서 구간을 읽는다 — 서버에 제출하기 «전»이다.
 //
 // ★2026-09-23 정정. 어제 나는 "편집표(timeline.json) 확정 뒤 TTS 전에 5분 반의 창이 있다"고
@@ -123,16 +139,18 @@ function planSegments(planPath, workdir) {
     else merged.push([a, b]);
   }
   const base = workdir || path.dirname(planPath);
-  const source = ['volcano_src.orig.mp4', 'volcano_src.mp4']
-    .map((n) => path.join(base, n)).find((f) => fs.existsSync(f));
+  const source = workdirSource(base);
   return source ? { source, segments: merged } : null;
 }
 
 function cutFromEdit(source, segments, out) {
   const dir = path.dirname(out);
+  // ★조각 이름은 실행마다 달라야 한다 — ko/ja 프로브를 나란히 돌리면 같은 %TEMP% 에서
+  //   probe-part-0.mp4 를 서로 덮어써 둘 다 concat 에서 죽는다(2026-09-23 우주전쟁에서 실측).
+  const tag = `${process.pid}-${Date.now().toString(36)}`;
   const parts = [];
   segments.forEach(([a, b], i) => {
-    const piece = path.join(dir, `probe-part-${i}.mp4`);
+    const piece = path.join(dir, `probe-part-${tag}-${i}.mp4`);
     const r = spawnSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y',
       '-ss', a.toFixed(6), '-i', source, '-t', (b - a).toFixed(6),
       '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23',
@@ -140,7 +158,7 @@ function cutFromEdit(source, segments, out) {
     if (r.status !== 0) throw new Error(`ffmpeg segment failed: ${r.stderr.slice(0, 300)}`);
     parts.push(piece);
   });
-  const listfile = path.join(dir, 'probe-parts.txt');
+  const listfile = path.join(dir, `probe-parts-${tag}.txt`);
   fs.writeFileSync(listfile, parts.map((f) => `file '${f.replace(/\\/g, '/')}'`).join('\n'));
   // ★반드시 재인코딩 — -c copy 는 타임스탬프가 어긋난다(사례 67)
   const r = spawnSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y',
@@ -216,8 +234,8 @@ async function main() {
   const len = Number(arg('--len', '150')); const waitMin = Number(arg('--wait-min', '30')); const pollSec = Number(arg('--poll-sec', '120'));
   let src = target;
   if (fs.statSync(target).isDirectory()) {
-    src = ['volcano_src.orig.mp4', 'volcano_src.mp4'].map((n) => path.join(target, n)).find((p) => fs.existsSync(p));
-    if (!src) throw new Error(`no volcano_src in ${target}`);
+    src = workdirSource(target);
+    if (!src) throw new Error(`no source for ${target} — volcano_src.mp4 도 상태파일의 source 도 없다`);
   }
   // 편집표가 있으면 그것으로 자른다. --middle 을 주면 옛 방식(한가운데 한 덩어리)으로 돌아간다.
   let plan = null;
@@ -237,7 +255,7 @@ async function main() {
   const profile = (store.profiles || []).find((p) => p.purpose === (locale === 'ko' ? 'ko_highlight' : 'jp_highlight'));
   if (!profile) throw new Error(`no upload profile for ${locale}`);
 
-  const tmp = path.join(require('os').tmpdir(), `claim-probe-${Date.now()}.mp4`);
+  const tmp = path.join(require('os').tmpdir(), `claim-probe-${process.pid}-${Date.now()}.mp4`);
   let mode = 'middle';
   let span = `${start}s+${len}s`;
   if (plan) {
