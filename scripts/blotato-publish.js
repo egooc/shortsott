@@ -211,7 +211,14 @@ function findMp4(draftName) {
 function youtubePublishAt(draftName) {
   const state = readJson(YT_STATE_PATH, { history: [] });
   const entry = (state.history || []).find((h) => h.draft === draftName && h.publishAt);
-  return entry ? entry.publishAt : '';
+  if (entry) return entry.publishAt;
+  // ★유튜브가 Content ID 로 막은 편도 다른 플랫폼에는 올린다 (소유주 지시 2026-09-23).
+  //   "타 플랫폼은 재사용 컨텐츠에 대해 상대적으로 다른 정책을 가지고 있기도 하고.
+  //    올려야 돼 버리지 말고 — 그야말로 낭비한 거야 버리게 되면."
+  //   check-claims 가 publishAt 을 지울 때 blockedPublishAt 에 옮겨 둔다. 그걸 물려 쓴다.
+  //   그 시각은 대개 이미 지났지만 scheduleFor() 가 «지금 + 3분»으로 당겨 준다.
+  const blocked = (state.history || []).find((h) => h.draft === draftName && h.blockedPublishAt);
+  return blocked ? blocked.blockedPublishAt : '';
 }
 
 function warmupActive(args) {

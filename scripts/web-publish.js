@@ -91,9 +91,22 @@ function buildJob(draft) {
     nv: parseSection(text, ['네이버 클립', 'naver_clip']),   // 2026-09-18 생성기 수정으로 ko 패키지에 생긴 섹션
     // 정보태그 검색어: 패키지의 (정보태그) 줄을 그대로 쓴다 — 카탈로그 표기와 네이버 작품명이 같아야 붙는다.
     movieTitle: (new RegExp('\\(정보태그[^)]*\\)[^\\n]*\\n([^\\n]+)').exec(text) || [])[1]?.trim() || '',
-    publishAt: ((readJson(YT_STATE_PATH, { history: [] }).history || [])
-      .find((h) => h.draft === draft && h.publishAt) || {}).publishAt || ''
+    // ★유튜브 차단본도 여기서는 살린다 (소유주 지시 2026-09-23). check-claims 가 publishAt 을
+    //   지우면서 blockedPublishAt 에 옮겨 두므로 그걸 물려 쓴다. 차단 여부는 따로 들고 간다 —
+    //   아래 --due 판정에서 «이미 지난 시각»을 지금 발행으로 바꿔야 하기 때문이다.
+    publishAt: ytSlot(draft).at,
+    ytBlocked: ytSlot(draft).blocked
   };
+}
+
+// 유튜브가 잡아 둔 발행 시각. 차단돼 publishAt 이 지워졌으면 blockedPublishAt 을 쓰고
+// «차단된 편»이라고 표시해 돌려준다 — 그 시각은 이미 지났을 수 있어 호출자가 달리 다뤄야 한다.
+function ytSlot(draft) {
+  const hist = readJson(YT_STATE_PATH, { history: [] }).history || [];
+  const live = hist.find((h) => h.draft === draft && h.publishAt);
+  if (live) return { at: live.publishAt, blocked: false };
+  const blocked = hist.find((h) => h.draft === draft && h.blockedPublishAt);
+  return blocked ? { at: blocked.blockedPublishAt, blocked: true } : { at: '', blocked: false };
 }
 
 // 후보 선택자를 위에서부터 시도한다. text=/css=/role=역할:이름 세 가지만 쓴다.
@@ -454,8 +467,13 @@ async function main() {
       .filter((d) => !done.has(`${d}:${site}`))
       .filter((d) => {
         if (!dueOnly) return true;
-        const at = Date.parse(buildJob(d).publishAt || '');
-        return Number.isFinite(at) && Math.abs(at - nowMs) <= 30 * 60 * 1000;
+        const job = buildJob(d);
+        const at = Date.parse(job.publishAt || '');
+        if (!Number.isFinite(at)) return false;
+        // ★유튜브 차단본은 그 슬롯이 이미 지나 있다. 30분 창으로 보면 영원히 안 걸린다 —
+        //   그래서 «시각이 지났으면 지금 발행»으로 본다. 앞으로 잡힌 것이면 평소대로 창을 쓴다.
+        if (job.ytBlocked) return at <= nowMs + 30 * 60 * 1000;
+        return Math.abs(at - nowMs) <= 30 * 60 * 1000;
       })
       .slice(0, Number(arg('--limit', '0')) || undefined);
     console.log(`targets: ${drafts.length} draft(s) [${site}]`);
