@@ -296,21 +296,35 @@ async function main() {
   fs.unlinkSync(tmp);
   console.log(`[probe] ${label} [${locale}] ${span} (${mode}) -> https://www.youtube.com/watch?v=${id} (private) — polling ${waitMin} min`);
 
+  // ★장부는 «업로드 직후»에 적는다 (2026-09-24).
+  //   전에는 폴링 루프가 끝난 뒤에 한 번만 적었다. 창을 30분 → 150분 으로 늘린 뒤로(사례 106)
+  //   그 사이에 프로세스가 죽으면 비공개 업로드는 남는데 장부에 흔적이 없어 --recheck 로도 못 찾았다.
+  //   «오래 기다릴수록 잃기 쉬운» 모양이었다 — 창을 늘린 변경과 정확히 반대 방향이다.
+  //   이제 PENDING 으로 먼저 박고 매 바퀴 갱신하므로, 어디서 끊겨도 다음 회차가 이어받는다.
+  const uploadedAt = new Date().toISOString();
+  const saveLedger = (verdict, minutes, deleted) => {
+    const ledger = readJson(LEDGER, { probes: [] });
+    const row = ledger.probes.find((p) => p.videoId === id);
+    const next = { at: uploadedAt, locale, movieKey, source: src, start, len, mode, span, videoId: id, verdict, minutes, deleted };
+    if (row) Object.assign(row, next); else ledger.probes.push(next);
+    fs.writeFileSync(LEDGER, JSON.stringify(ledger, null, 2));
+  };
+  saveLedger('PENDING', 0, false);
+
   const t0 = Date.now(); let state = { blocked: false }; let minutes = 0;
   while (Date.now() - t0 < waitMin * 60 * 1000) {
     await new Promise((r) => setTimeout(r, pollSec * 1000));
     state = await blockState(await accessToken(profile), id);
     minutes = Math.round((Date.now() - t0) / 60000);
     console.log(`[probe] +${minutes}min upload=${state.uploadStatus} blocked=${state.blocked}${state.blocked ? ` (${state.countries} countries${state.worldwide ? ', worldwide' : ''})` : ''}`);
+    saveLedger(state.blocked ? 'PENDING-BLOCKED' : `PENDING-${minutes}min`, minutes, false);
     if (state.blocked) break;
   }
   const verdict = state.blocked ? (state.worldwide ? 'BLOCKED-WORLDWIDE' : `BLOCKED-${state.countries}`) : `CLEAR-${minutes}min`;
   let deleted = false;
   if (!process.argv.includes('--keep')) deleted = await tryDelete(await accessToken(profile), id).catch(() => false);
 
-  const ledger = readJson(LEDGER, { probes: [] });
-  ledger.probes.push({ at: new Date().toISOString(), locale, movieKey, source: src, start, len, mode, span, videoId: id, verdict, minutes, deleted });
-  fs.writeFileSync(LEDGER, JSON.stringify(ledger, null, 2));
+  saveLedger(verdict, minutes, deleted);
   if (movieKey) {
     const cat = readJson(CATALOG, null);
     if (cat && cat.movies && cat.movies[movieKey]) {

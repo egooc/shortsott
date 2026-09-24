@@ -154,6 +154,13 @@ for (const r of good.slice(0, 30)) {
     + (r.proven ? '   (경쟁 채널 생존 확인)' : '')
     + (r.kin ? `   ★한 식구 ${r.kin} 가 차단됐다 — 같이 의심하라` : ''));
 }
+// ★TV 는 목록 뒤쪽에 묻힌다(신호 5 이고 영화 상위가 6~7 이라). 따로 띄워 준다 —
+//   «하루 한 번 TV» 규칙을 지키려면 눈에 보여야 한다.
+const tv = good.filter((r) => r.k.startsWith('tv-'));
+if (tv.length) {
+  lines.push('', `## TV — 오늘 아직 안 만들었으면 여기서 집어라 (${tv.length}편)`, '');
+  for (const r of tv) lines.push(`- ${r.year}  ${r.k}   (경쟁 채널 생존 확인)`);
+}
 lines.push('', `## 신호 약함 — ${GOOD}편 미만 (${weak.length}편). 나중에, 또는 다른 선택지가 없을 때`, '');
 for (const r of weak.slice(0, 20)) lines.push(`- ${String(r.band).padStart(2)}  ${r.year}  ${r.k}`);
 lines.push('', `## 아직 모름 ${unknown.length}편 — 정찰이 recon 을 안 붙였다. 쓰기 전에 정찰을 한 번 돌려라.`);
