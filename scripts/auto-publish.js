@@ -382,6 +382,28 @@ async function main() {
     return;
   }
 
+  // ★한 편이 배치 전체를 죽이지 못하게 한다 (2026-09-23~25 실측).
+  //   createUploadJob 은 항목 하나라도 «채널 용도 ≠ 카드 포맷»이면 통째로 throw 한다.
+  //   다른 채널(군림보) 드래프트가 명화관 내보내기 폴더에 섞여 있던 탓에 그 오류가 났고,
+  //   **예약 로그는 [schedule] 로 찍혔는데 업로드는 한 건도 안 올라갔다.**
+  //   그 상태로 38시간을 흘렀다 — 로그만 보면 정상으로 읽히는 가장 나쁜 모양이다.
+  //   그래서 여기서 미리 걸러 낸다. 버리는 것이 아니라 «이 채널 것이 아니다»라고 적고 넘긴다.
+  const WANT = { ko_highlight: 'ko_highlight', jp_highlight: 'highlight' };
+  const good = [];
+  for (const it of items) {
+    const purpose = (Object.values(profiles).find((p) => p && p.id === it.uploadProfileId) || {}).purpose || '';
+    const want = WANT[purpose];
+    if (want && it.variant !== want) {
+      console.log(`[skip] ${it._draftName}: 카드 포맷 ${it.variant} 는 ${purpose} 채널 것이 아니다`);
+      lines.push(`- SKIP(다른 채널): ${it._draftName} — variant ${it.variant} vs ${want}`);
+      continue;
+    }
+    good.push(it);
+  }
+  if (!good.length) { console.log('올릴 것이 없다 (전부 다른 채널 것이었다)'); return; }
+  items.length = 0;
+  items.push(...good);
+
   const job = createUploadJob(items.map(({ _draftName, _mp4Path, ...item }) => item));
   startUploadJob(job.jobId);
   console.log(`upload job: ${job.jobId} (${items.length} items)`);
