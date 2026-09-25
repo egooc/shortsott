@@ -269,11 +269,13 @@
       "title_ja": "ワールド・ウォーZ",
       "year": 2013,
       "distributor": "Paramount Pictures",
-      "distributor_tier": "preflight",
+      "distributor_tier": "banned",
       "credit_ko": "영화 '월드워Z'(2013)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『ワールド・ウォーZ』(2013)のシーンから制作しました。",
       "claim_probe": "2026-09-21 ja 150s+200s CLEAR-30min",
-      "survivor_band": "5 (2026-09-05)"
+      "survivor_band": "5 (2026-09-05)",
+      "claim_history": "2026-09-25 KO (07McLQOfmeE) 업로드 26분 뒤 전세계 차단. 생존자 신호 5 (2026-09-05).",
+      "note": "2026-09-25 차단(Paramount Pictures). 신호 5 (2026-09-05) 였다."
     },
     "shaolin-soccer": {
       "match": "shaolin.?soccer|소림 ?축구|少林サッカー",
@@ -423,11 +425,13 @@
       "title_ja": "宇宙戦争",
       "year": 2005,
       "distributor": "Paramount/DreamWorks",
-      "distributor_tier": "preflight",
+      "distributor_tier": "banned",
       "credit_ko": "영화 '우주전쟁'(2005)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『宇宙戦争』(2005)のシーンから制作しました。",
       "survivor_band": "6 (2026-09-05)",
-      "claim_probe": "2026-09-23 ko 7구간 64s (plan) CLEAR-30min"
+      "claim_probe": "2026-09-23 ko 7구간 64s (plan) CLEAR-30min",
+      "claim_history": "2026-09-25 KO/JA 양판 (6bBBSO7JNN4 · quf-O0W02kA) 업로드 26분 뒤 전세계 차단. 생존자 신호 6 (2026-09-05).",
+      "note": "2026-09-25 차단(Paramount/DreamWorks). 신호 6 (2026-09-05) 였다."
     },
     "how-to-lose-a-guy": {
       "match": "how to lose a guy|10일 안에 남자친구|10日間で男を",
@@ -436,10 +440,12 @@
       "title_ja": "10日間で男を上手にフル方法",
       "year": 2003,
       "distributor": "Paramount Pictures",
-      "distributor_tier": "preflight",
+      "distributor_tier": "banned",
       "credit_ko": "영화 '10일 안에 남자친구에게 차이는 법'(2003)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『10日間で男を上手にフル方法』(2003)のシーンから制作しました。",
-      "survivor_band": "7 (2026-09-08)"
+      "survivor_band": "7 (2026-09-08)",
+      "claim_history": "2026-09-25 KO/JA 양판 (JYTOIveo6AM · nYtB3sZihmQ) 업로드 39분 뒤 전세계 차단. 생존자 신호 7 (2026-09-08).",
+      "note": "2026-09-25 차단(Paramount Pictures). 신호 7 (2026-09-08) 였다."
     },
     "big-short": {
       "match": "big short|빅쇼트|マネー・ショート",
@@ -876,11 +882,13 @@
       "title_ja": "ワイルド・スピードX3 TOKYO DRIFT",
       "year": 2006,
       "distributor": "Universal Pictures",
-      "distributor_tier": "preflight",
+      "distributor_tier": "banned",
       "credit_ko": "영화 '패스트 앤 퓨리어스: 도쿄 드리프트'(2006)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『ワイルド・スピードX3 TOKYO DRIFT』(2006)のシーンから制作しました。",
       "survivor_band": "8 (2026-09-06)",
-      "claim_probe": "2026-09-23 ja 12구간 77s (plan) CLEAR-30min"
+      "claim_probe": "2026-09-23 ja 12구간 77s (plan) CLEAR-30min",
+      "claim_history": "2026-09-25 JA (VFEJMXi-kZM) 업로드 26분 뒤 전세계 차단. ★인스타에서도 소유주가 차단 확인(09-23). 생존자 신호 8 (2026-09-06).",
+      "note": "2026-09-25 차단(Universal Pictures). 신호 8 (2026-09-06) 였다."
     },
     "megamind": {
       "match": "megamind|메가마인드|メガマインド",
@@ -1089,7 +1097,7 @@
       "credit_ko": "영화 '일라이'(2010)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『ザ・ウォーカー』(2010)のシーンから制作しました。",
       "note": "2026-09-17 등록(ClipZone). 邦題는 ザ・ウォーカー(원제와 다름). 日本配給 角川映画・松竹 2010-06-19 (eiga.com/movie/55212). Bar Fight at Carnegie's(544s, 430만뷰)",
-      "survivor_band": "4 (2026-09-19)"
+      "survivor_band": "6 (2026-09-24)"
     },
     "edge-of-tomorrow": {
       "match": "edge of tomorrow|엣지 오브 투모로우|オール・ユー・ニード・イズ・キル",
@@ -1165,7 +1173,7 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '램페이지'(2018)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『ランペイジ 巨獣大乱闘』(2018)のシーンから制作しました。",
-      "survivor_band": "3 (2026-09-21)"
+      "survivor_band": "4 (2026-09-24)"
     },
     "godzilla-vs-kong": {
       "match": "godzilla vs\\.? kong|고질라 ?vs ?콩|ゴジラvsコング",
@@ -1369,7 +1377,7 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '고질라'(2014)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『GODZILLA ゴジラ』(2014)のシーンから制作しました。",
-      "survivor_band": "6 (2026-09-22)"
+      "survivor_band": "7 (2026-09-24)"
     },
     "godzilla-x-kong": {
       "match": "godzilla x kong|new empire|뉴 ?엠파이어|ゴジラxコング",
@@ -1405,7 +1413,7 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '퍼시픽 림'(2013)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『パシフィック・リム』(2013)のシーンから制作しました。",
-      "survivor_band": "1 (2026-09-22)"
+      "survivor_band": "2 (2026-09-24)"
     },
     "transformers-2007": {
       "match": "^(?!.*(bumblebee|rise of the beasts|revenge of the fallen|dark of the moon|age of extinction|last knight|one\\b|패자의 역습|달의 어둠|사라진 시대|최후의 기사)).*?(transformers|트랜스포머|トランスフォーマー)",
@@ -1414,10 +1422,13 @@
       "title_ja": "トランスフォーマー",
       "year": 2007,
       "distributor": "Paramount Pictures",
-      "distributor_tier": "preflight",
+      "distributor_tier": "banned",
       "credit_ko": "영화 '트랜스포머'(2007)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『トランスフォーマー』(2007)のシーンから制作しました。",
-      "survivor_band": "5 (2026-09-22)"
+      "survivor_band": "6 (2026-09-23)",
+      "claim_probe": "2026-09-23 ko 5구간 87s (plan) CLEAR-151min",
+      "claim_history": "2026-09-25 KO/JA 양판 (_V8nU0g8MSA · 5pBk7Mr_wlM) 업로드 39분 뒤 전세계 차단. 생존자 신호 6 (2026-09-23).",
+      "note": "2026-09-25 차단(Paramount Pictures). 신호 6 (2026-09-23) 였다."
     },
     "jurassic-park": {
       "match": "^(?!.*(world|fallen kingdom|dominion|월드|ワールド)).*?(jurassic park|쥬라기 ?공원|ジュラシック・?パーク)",
@@ -1429,7 +1440,7 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '쥬라기 공원'(1993)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『ジュラシック・パーク』(1993)のシーンから制作しました。",
-      "survivor_band": "2 (2026-09-22)"
+      "survivor_band": "4 (2026-09-24)"
     },
     "meg-2": {
       "match": "meg ?2|the trench|메가로돈 ?2|MEG ザ・モンスターズ2",
@@ -1477,7 +1488,7 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '저스티스 리그'(2017)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『ジャスティス・リーグ』(2017)のシーンから制作しました。",
-      "survivor_band": "5 (2026-09-22)"
+      "survivor_band": "6 (2026-09-24)"
     },
     "suicide-squad": {
       "match": "^(?!.*(the suicide squad|2021)).*?(suicide squad|수어사이드 ?스쿼드|スーサイド・スクワッド)",
@@ -1561,7 +1572,7 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '쥬라기 월드: 폴른 킹덤'(2018)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『ジュラシック・ワールド 炎の王国』(2018)のシーンから制作しました。",
-      "survivor_band": "0 (2026-09-22)"
+      "survivor_band": "1 (2026-09-23)"
     },
     "fantastic-beasts": {
       "match": "fantastic beasts|신비한 동물사전|ファンタスティック・ビースト",
