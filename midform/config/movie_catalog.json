@@ -641,7 +641,8 @@
       "credit_ko": "영화 '갱스 오브 뉴욕'(2002)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『ギャング・オブ・ニューヨーク』(2002)のシーンから制作しました。",
       "survivor_band": "8 (2026-09-12)",
-      "claim_probe": "2026-09-23 ko 12구간 60s (plan) CLEAR-30min"
+      "claim_probe": "2026-09-23 ko 12구간 60s (plan) CLEAR-30min",
+      "note": "2026-09-25 제작(KO 20260925b-gangs_butcher / JA 20260925b-gangs_challenge). ★카탈로그 배급사는 Miramax 지만 클립 화면의 권리 표기는 「© Paramount Pictures」였다 — 미라맥스 라이브러리의 실무 배급은 파라마운트다(사례 111 의 재현). 파라마운트 계열은 2026-09-25 기준 7/11 차단이므로 안전 계열로 읽지 말 것. 업로드 뒤 check-claims 필수."
     },
     "cape-fear": {
       "match": "^(?!.*\\((?:19[0-8]\\d)\\)).*?(?:cape fear|케이프 피어|ケープ・フィアー)",
@@ -690,7 +691,8 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '설리: 허드슨강의 기적'(2016)의 장면으로 제작되었습니다.",
       "credit_ja": "映画『ハドソン川の奇跡』(2016)のシーンから制作しました。",
-      "survivor_band": "3 (2026-09-05)"
+      "survivor_band": "3 (2026-09-05)",
+      "note": "2026-09-25 제작(KO 20260925e-sully_human / JA 20260925e-sully_35sec). ★생존자 신호 3 인데도 고른 첫 사례 — 신호 상위가 전부 괴수물·슬래셔라 지시 1(인물의 선택과 변화)에 맞는 대사극으로 갈아탔다(사례 130). 소스는 ClipZone 「A Captain's Defense」 FxSv3_1akd0(642s, NTSB 청문회). ★420~480초는 경보음 연속이라 -30dB 침묵이 0개 — 컷 경계를 놓을 수 없으니 다시 쓸 때 피할 것. 오디오 max -6.1dB 라 +5dB 정규화 필요(사례 123). 업로드 뒤 check-claims 필수."
     },
     "war-dogs": {
       "match": "war dogs|워 독스|ウォー・ドッグス",
