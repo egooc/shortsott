@@ -322,10 +322,12 @@ async function main() {
   };
   saveLedger('PENDING', 0, false);
 
-  // ★판정은 두 신호를 본다 — blocked 하나만 보면 놓친다(2026-09-29 실측, 메모리 참조).
-  //   같은 소스로 올린 ko/ja 한 쌍에서 ja 만 licensedContent=true 였고 조회수가 4 에서 멈췄는데
-  //   regionRestriction 은 양쪽 다 비어 있었다. 소유권 매칭도 그 소재를 쓰면 안 된다는 뜻이다.
-  const bad = (st) => st.blocked || st.licensed;
+  // ★판정을 가르는 것은 **지역 차단뿐이다**(2026-09-30 철회).
+  //   2026-09-29 에는 매칭(licensedContent)도 실격으로 뒀다. 근거는 「매칭된 ja 편이 4회에서
+  //   멈췄다」였는데, 그 4회는 매칭이 아니라 **내가 비공개로 돌려서** 나온 숫자였다.
+  //   2026-06 ja 는 44/46 이 매칭인 채로 편당 8,288회였다 — 매칭은 실격 사유가 아니다.
+  //   매칭은 판정문에 적어 두되(소재 권리 상태 정보), 폴링을 끊거나 banned 를 찍지 않는다.
+  const bad = (st) => st.blocked;
   const t0 = Date.now(); let state = { blocked: false, licensed: false }; let minutes = 0;
   while (Date.now() - t0 < waitMin * 60 * 1000) {
     await new Promise((r) => setTimeout(r, pollSec * 1000));
@@ -346,12 +348,13 @@ async function main() {
     if (cat && cat.movies && cat.movies[movieKey]) {
       const m = cat.movies[movieKey];
       m.claim_probe = `${new Date().toISOString().slice(0, 10)} ${locale} ${span} (${mode}) ${verdict}`;
-      if (state.blocked || state.licensed) { m.distributor_tier = 'banned'; m.note = `${m.note ? m.note + ' | ' : ''}claim-probe ${verdict} ${new Date().toISOString().slice(0, 10)}`; }
+      // banned 는 지역 차단에만 찍는다. 매칭으로 찍으면 쓸 수 있는 작품이 영구 실격된다.
+      if (state.blocked) { m.distributor_tier = 'banned'; m.note = `${m.note ? m.note + ' | ' : ''}claim-probe ${verdict} ${new Date().toISOString().slice(0, 10)}`; }
       fs.writeFileSync(CATALOG, JSON.stringify(cat, null, 2));
     }
   }
   console.log(`[probe] VERDICT ${verdict} | probe video ${deleted ? 'deleted' : 'left private (delete needs youtube.force-ssl)'}${movieKey ? ` | catalog ${movieKey} updated` : ''}`);
-  process.exit((state.blocked || state.licensed) ? 2 : 0);
+  process.exit(state.blocked ? 2 : 0);
 }
 
 main().catch((e) => { console.error(`[probe] ${e.message}`); process.exit(1); });

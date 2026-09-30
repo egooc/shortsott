@@ -47,11 +47,13 @@ def norm(s):
 
 
 def grade(v):
-    # ★죽은 것은 둘이다 — 지역 차단과 소유권 매칭(licensedContent).
-    #   뒤쪽은 차단 국가가 안 적혀도 도달이 죽는다(2026-09-29 실측: ko 2,847회 / ja 4회).
-    #   `signal == 'region_only'` 인 집계는 앞쪽만 잰 것이라 등급이 실제보다 좋게 나온다.
+    # ★죽은 것은 **지역 차단뿐이다**(2026-09-30 철회).
+    #   2026-09-29 에는 소유권 매칭(licensedContent)도 죽은 것으로 셌다. 근거였던 「ja 4회」는
+    #   매칭이 아니라 내가 그 편을 비공개로 돌려서 나온 숫자였다 — 순환 논증이었다.
+    #   게다가 공식 권리자 채널은 자기 소유물을 올리니 항상 매칭이다. 매칭을 죽음으로 세면
+    #   **가장 안전한 소스가 가장 낮은 등급**을 받는다. 정확히 거꾸로다.
     alive = v['alive_in_band']
-    dead = v['blocked_in_band'] + v.get('licensed_in_band', 0)
+    dead = v['blocked_in_band']
     tot = alive + dead
     rate = (dead / tot) if tot else 1.0
     if alive >= 20 and rate <= 0.05:

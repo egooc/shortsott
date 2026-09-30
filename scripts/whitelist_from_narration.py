@@ -19,10 +19,10 @@
 
 무엇을 거르나 — 「견딘 증거」가 되는 것만 남긴다
   · 차단 0 (regionRestriction.blocked 가 비어 있음). 막힌 것은 증거가 아니다.
-  · 소유권 매칭 없음(licensedContent 가 false). ★차단 국가가 안 적혀도 소유권이 매칭되면
-    도달이 죽는다(2026-09-29 실측: 같은 소스 ko 2,847회 / ja 4회). 도달이 죽은 영상은
-    «견딘 증거»가 아니라 «조용히 죽은 증거»다. 조회 하한이 대부분 걸러 주지만, 그건
-    우연한 방어일 뿐이라 이제 따로 본다.
+  · 소유권 매칭(licensedContent)은 **거르지 않는다**. 세어서 보여 주기만 한다.
+    2026-09-29 에는 이것도 실격으로 뒀다가 2026-09-30 철회했다 — 근거였던 「ja 4회」는
+    매칭 때문이 아니라 내가 그 편을 비공개로 돌려서 나온 숫자였다. 게다가 공식 권리자
+    채널은 자기 소유물을 올리니 **항상** 매칭이다. 실격으로 두면 공식 채널이 배제된다.
   · 61~200초. 우리 길이대다. 길이가 다르면 정책도 다를 수 있다.
   · 조회 하한. 묻힌 영상은 «권리자가 아직 안 본 것»일 수 있어 증거가 약하다.
 
@@ -177,8 +177,11 @@ def cmd_harvest(args):
     load_env()
     store = read_json(STORE, {})
     name, channel_id, rows = channel_videos(args.seed, args.pages)
+    # ★소유권 매칭(licensed)으로 걸러내지 않는다 — 2026-09-30 철회.
+    #   공식 권리자 채널(SBS Catch·テレ東公式 등)은 자기 소유물을 올리므로 **항상** 매칭이다.
+    #   매칭을 실격으로 두면 우리가 써야 할 공식 무료 채널이 정확히 배제된다.
     alive = [r for r in rows
-             if not r['blocked'] and not r.get('licensed')
+             if not r['blocked']
              and MIN_SEC <= r['sec'] <= MAX_SEC and r['views'] >= args.min_views]
     alive.sort(key=lambda r: -r['views'])
     blocked_n = sum(1 for r in rows if r['blocked'])

@@ -111,10 +111,13 @@ def count(title, year):
             rr = it['contentDetails'].get('regionRestriction') or {}
             if rr.get('blocked'):
                 blocked += 1
-            elif it['contentDetails'].get('licensedContent') is True:
-                # ★차단 국가가 안 적혀도 소유권이 매칭되면 도달이 죽는다 — 차단으로 센다
-                licensed += 1
             else:
+                # ★소유권 매칭(licensedContent)은 «살아 있음»으로 센다 — 2026-09-30 철회.
+                #   매칭은 도달을 죽이지 않는다(2026-06 ja: 44/46 매칭에 편당 8,288회).
+                #   공식 권리자 채널은 항상 매칭이므로 죽은 것으로 세면 등급이 거꾸로 나온다.
+                #   따로 세어서 보여는 준다 — 소재의 권리 상태 정보로는 여전히 쓸모가 있다.
+                if it['contentDetails'].get('licensedContent') is True:
+                    licensed += 1
                 alive += 1
                 channels.add(it['snippet'].get('channelId'))
     return {'searched': len(ids), 'alive_in_band': alive, 'blocked_in_band': blocked,

@@ -1,0 +1,86 @@
+{
+  "_doc": "린박스 전용 작품 카탈로그 — 업로드 메타 자동 입력과 권리 판정의 단일 출처. movie_catalog.json 과 별개다(그쪽은 극장 영화 153편 전용이고 방송 드라마가 한 편도 없다). match 는 mp4 이름/작품명에 대한 정규식. rights_tier: banned(발행 금지) / preflight(비공개 업로드 후 클레임 확인하고 공개) / unknown(조사 필요). title_ja 는 일본 공개명이 확인된 경우에만 적는다 — 확인 안 된 이름을 지어내면 남의 작품을 크레딧하게 된다(2026-09-26 「질투의 화신」을 「슬기로운 의사생활」로 잘못 적은 사고).",
+  "_owner_decisions": {
+    "2026-09-28": "린박스는 생산부터 업로드까지 린박스 세션이 전부 한다. 업로드 루트(youtubeUploadService)만 명화관과 공유하고 캡컷 드래프트·movie_catalog·명화관 길이 규정은 가져오지 않는다.",
+    "length": "명화관의 61초 규정은 린박스에 적용하지 않는다. 린박스는 서버 상한이 50초(duration_limits target 45 / min 40 / max 50)라 구조적으로 그 대역에 못 온다. 길이는 기록만 한다.",
+    "narration_ja": "일본어판 내레이션은 일본어 음성으로 낸다(명화관과 같음). 확인 방법은 tts_receipt.language 가 'jpn' 인지 보는 것이다.",
+    "sync_audit": "Groq 대신 Speechmatics 를 쓴다. 린박스 자막은 애초에 Speechmatics 낱말 시각(source-timing.json)에 묶여 있으므로 그 값을 다시 대조하면 되고 새 전사 호출이 필요 없다.",
+    "2026-09-30_locale_source": "ja 는 일본 드라마, ko 는 한국 드라마로 간다. 근거: 같은 소스(「닥터스」)로 같은 시각에 올린 ko/ja 한 쌍에서 ja 만 licensedContent=true 로 잡혀 조회가 4회에서 멈췄다(ko 는 2,847회). ja 채널 최근 20편이 전부 소유권 매칭 상태였고 구독자 15,200 인데도 도달이 죽어 있었다."
+  },
+  "works": {
+    "doctors-sbs-2016": {
+      "match": "닥터스|ドクターズ|doctors",
+      "title_ko": "닥터스",
+      "title_ja": "ドクターズ",
+      "title_en": "Doctors",
+      "year": 2016,
+      "kind": "drama",
+      "broadcaster": "SBS",
+      "rights_tier": "preflight",
+      "credit_ko": "닥터스\n는 꼭 풀버전으로 감상하시는 걸 추천드립니다.",
+      "credit_ja": "ドクターズ\nはぜひフルバージョンでご覧になることをおすすめします。",
+      "note": "title_ja 는 확인된 한국어 제목의 가타카나 표기다. 일본 방영명·배급 OTT 는 확인하지 못했으므로 설명란에 OTT 안내를 넣지 않는다.",
+      "verified_by": "전사 대조 — 등장인물 '정윤도' 3회 (rinbox04/transcript.txt)",
+      "locale_block": {
+        "ja": "소유주 방침 2026-09-30: ja 채널은 일본 드라마만 올린다(ko 채널은 한국 드라마만). 한국 드라마의 ja 발행 금지. ※이전 사유였던 「licensedContent 매칭으로 4회」는 2026-09-30 철회 — 그 4회는 매칭 때문이 아니라 내가 그 편을 비공개로 돌려서 나온 숫자였다. 방침이 유효한 사유다."
+      },
+      "claim_probe": "2026-09-29 ja MATCHED-licensedContent (공개 후 관측)"
+    },
+    "samgyopsal-desuga-2025": {
+      "match": "サムギョプサル|삼겹살입니다만|samgyopsal",
+      "title_ja": "サムギョプサルですが",
+      "title_ko": "삼겹살입니다만",
+      "title_en": "Samgyopsal desu ga",
+      "year": 2025,
+      "kind": "drama",
+      "broadcaster": "テレビ東京",
+      "rights_tier": "preflight",
+      "credit_ja": "「サムギョプサルですが」はぜひフルバージョンでご覧になることをおすすめします。",
+      "credit_ko": "「삼겹살입니다만」은 꼭 풀버전으로 감상하시는 걸 추천드립니다.",
+      "official_free": "ネットもテレ東（テレ東HP・広告付き無料配信）／U-NEXT 見放題",
+      "source_channel": "テレ東公式 ドラマチャンネル",
+      "note": "木ドラ24。2025年9月11日(木)スタート、毎週深夜24:30~25:00。主演 小田惟真。公式チャンネルが本編を全話無料公開している(第1話 KX--vzOb7zY ほか、各24分・1920x1080)。★韓国語セリフの区間だけ日本語字幕が焼き込まれている — その区間は使わない。★音楽・群舞の区間は音源権利で claim される — 使わない。",
+      "claim_probe": "2026-09-29 ja 460s+150s(대사) CLEAR-21min blocked=false licensed=false | 820s+150s(군무) BLOCKED-2 (+2min)",
+      "verified_by": "공식 채널 영상 설명란 — 방송국·방송일시·배포처·주연이 그대로 적혀 있다"
+    },
+    "abarenbo-shogun-1978": {
+      "match": "暴れん坊将軍|아바렌보|abarenbo|吉宗評判記",
+      "title_ja": "吉宗評判記 暴れん坊将軍",
+      "title_ko": "요시무네 평판기 폭주 쇼군",
+      "title_en": "Abarenbo Shogun",
+      "year": 1978,
+      "kind": "drama",
+      "broadcaster": "テレビ朝日 / 東映",
+      "rights_tier": "preflight",
+      "credit_ja": "「吉宗評判記 暴れん坊将軍」はぜひフルバージョンでご覧になることをおすすめします。",
+      "credit_ko": "「요시무네 평판기 폭주 쇼군」은 꼭 풀버전으로 감상하시는 걸 추천드립니다.",
+      "official_free": "東映時代劇YouTube（東映公式チャンネルが本編を無料公開）",
+      "source_channel": "東映時代劇YouTube",
+      "source_channel_id": "UCJm60FFiYSH2mJONr6vnV_A",
+      "locale_block": {
+        "ko": "소유주 방침 2026-09-30: ko 채널은 한국 드라마만 올린다. 일본 드라마의 ko 발행 금지."
+      },
+      "note": "第1シリーズ。1978年1月7日~1982年5月1日、全207話、土曜20:00~20:54。主演 松平健（徳川吉宗/徳田新之助）。第1話「春一番！江戸の明星」。★実測(2026-09-30): 1920x1080 だが4:3ピラーボックス — 実画は1440x1080 @ x=240。使う前に crop=1440:1080:240:0 を掛けること。焼き込み字幕・局ロゴなし。1978年フィルムなので softで粒状。ワイドな設定ショットが多く、クローズアップは対話シーンに集中する。★この channel は186編中152編に allowed=JP 地域限定が掛かっている — 無制限なのは第01話/第02話ほか少数だけ。使う前に必ず regionRestriction を確認すること。",
+      "available_episodes": [
+        {
+          "ep": 1,
+          "videoId": "aJhmV_Bdne4",
+          "sec": 2861,
+          "views": 8949785,
+          "region": "unrestricted"
+        },
+        {
+          "ep": 2,
+          "videoId": "8clEVfjP7Y0",
+          "sec": 2861,
+          "views": 5783591,
+          "region": "unrestricted"
+        }
+      ],
+      "verified_by": "공식 채널 업로드 + ja.wikipedia/allcinema 로 방송국·기간·화수·주연 확증(2026-09-30)"
+    }
+  },
+  "banned_broadcasters": [],
+  "_banned_note": "여기에 방송사·배급사를 넣으면 rinbox-publish 가 업로드 직전에 다시 읽어 그 자리에서 막는다. works 안에 박제된 rights_tier 는 낡을 수 있으므로 이 목록이 우선한다.",
+  "_locale_rights_note": "★권리는 로케일마다 다르다. 같은 작품이 ko 채널에서는 멀쩡하고 ja 채널에서만 죽을 수 있다 (지역 라이선스). 새 작품은 로케일별로 claim-probe 를 따로 돌려라. ★그리고 작품 전체가 아니라 «구간»이 걸린다 — 음악·군무·주제가 구간은 음원 권리로 잡힌다. 실측: 「サムギョプサルですが」 대사 구간 CLEAR-21min, 같은 회차 군무 구간 BLOCKED-2 (2분 만에). ★2026-09-30: locale_block 은 licensedContent 신호로 채우지 말 것. 매칭은 발행을 막지 않는다. 채울 사유는 ① 소유주 로케일 방침, ② 지역 차단(regionRestriction) 실측 둘뿐이다."
+}

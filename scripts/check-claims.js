@@ -56,10 +56,11 @@ async function accessToken(profile) {
 // the first makes the video worthless, so they are reported apart.
 function blockShape(item) {
   const blocked = ((item.contentDetails || {}).regionRestriction || {}).blocked || [];
-  // ★두 번째 신호: licensedContent.  2026-09-29, 같은 소스로 같은 시각에 올린 ko/ja 한 쌍에서
-  //   ja 만 licensedContent=true 였고 조회수가 4 에서 멈췄다(ko 는 false · 2,847회).
-  //   regionRestriction 은 양쪽 다 비어 있어서 이 함수가 「클레임 없음」으로 통과시켰다.
-  //   소유권 매칭은 차단 국가 목록 없이도 도달을 죽인다 — 별도로 보고한다.
+  // licensedContent — 소유권이 매칭됐다는 표시다. **보고만 한다.**
+  //   2026-09-29 에는 이것도 차단과 같이 취급했다(매칭된 ja 편이 4회에서 멈췄다는 근거).
+  //   2026-09-30 철회: 그 4회는 매칭 때문이 아니라 내가 비공개로 돌려서 나온 숫자였다.
+  //   2026-06 ja 는 44/46 이 매칭인 채로 편당 8,288회였다 — 매칭 자체는 도달을 죽이지 않는다.
+  //   여전히 볼 값이긴 하다(소재 권리 상태를 알려 준다). 다만 발행을 막는 기준은 아니다.
   const licensed = ((item.contentDetails || {}).licensedContent === true);
   if (!blocked.length) return { blocked: false, licensed, countries: 0, worldwide: false };
   return { blocked: true, licensed, countries: blocked.length, worldwide: blocked.length >= 200 };
@@ -175,8 +176,16 @@ async function main() {
       //   실측: 차단 5건 전부 `unscheduled=None` — 이 스크립트의 존재 이유인 동작이 한 번도 돈 적이 없다.
       //   그래서 두 곳 중 **어디서든** 예약을 봤으면 해제한다(row.publishAt 은 둘을 합친 값이다).
       //   이미 비공개인 영상에 다시 비공개를 거는 것은 무해하다.
-      // ★소유권 매칭(licensedContent)도 차단과 같이 다룬다 — 도달이 죽는 결과는 같다(2026-09-29).
-      if ((shape.blocked || shape.licensed) && args.unschedule && (row.publishAt || row.privacy !== 'private')) {
+      // ★2026-09-30 철회: 소유권 매칭(licensedContent)으로는 **예약을 내리지 않는다.**
+      //   2026-09-29 에 「매칭된 ja 편이 4회에서 멈췄다」를 근거로 내리게 해 뒀는데, 그 4회는
+      //   매칭이 만든 숫자가 아니라 **내린 것이 만든 숫자**였다 — 발행 창 동안 비공개였으니
+      //   조회가 없는 게 당연하다. 순환 논증이었다.
+      //   반례가 분명하다: 2026-06 ja 는 46편 중 44편이 매칭인데 편당 8,288회였다.
+      //   매칭은 이 채널의 사실상 전편에 붙는 상태값이라(4개월 96~100%) 발행 여부의 기준이 될 수 없다.
+      //   그래서 매칭은 **보고만** 한다. 예약을 내리는 것은 지역 차단(regionRestriction)뿐이다
+      //   — 그건 봐도 안 보이는 상태라 내리는 게 맞다.
+      const pull = shape.blocked && (row.publishAt || row.privacy !== 'private');
+      if (pull && args.unschedule) {
         try { await unschedule(token, item); row.unscheduled = true; }
         catch (error) { row.unscheduleError = error.message; }
         // ★2026-09-22: 유튜브에서만 내리고 «우리 장부»는 그대로 둬서 그 슬롯이 계속
@@ -214,14 +223,17 @@ async function main() {
 
   if (args.json) { console.log(JSON.stringify(rows, null, 2)); return; }
 
-  const blocked = rows.filter((r) => r.blocked || r.licensed);
+  // ★조치·종료코드는 **지역 차단만** 본다. 매칭은 이 채널 사실상 전편에 붙어 있어서
+  //   여기에 넣으면 ja 실행이 언제나 exit 1 이 되고, 부르는 쪽에서 실패로 읽힌다.
+  const blocked = rows.filter((r) => r.blocked);
+  const matched = rows.filter((r) => !r.blocked && r.licensed);
   const lines = [`# Content ID 3층 자동 확인 ${new Date().toISOString()}`, ''];
   if (!rows.length) lines.push('_확인 대상 없음 (공개 대기 중인 업로드가 없습니다)._');
   for (const r of rows) {
     if (r.error) { lines.push(`- 조회 실패 [${r.locale}]: ${r.error}`); continue; }
     const bad = r.blocked || r.licensed;
     const mark = r.blocked ? (r.worldwide ? '전세계 차단' : `${r.countries}개국 차단`)
-      : r.licensed ? '소유권 매칭(licensedContent) — 차단 국가는 안 적혔지만 도달이 죽는다'
+      : r.licensed ? '소유권 매칭(licensedContent) — 참고값. 발행은 막지 않는다'
       : '클레임 없음';
     lines.push(`- ${bad ? '**' : ''}${mark}${bad ? '**' : ''} [${r.locale}] ${r.durationSec}s ${r.videoId} — ${r.title.slice(0, 40)}`
       + (r.unscheduled ? ' → 예약 해제됨' : '') + (r.unscheduleError ? ` → 해제 실패: ${r.unscheduleError}` : ''));
@@ -231,6 +243,11 @@ async function main() {
     lines.push('', '## 조치',
       '- 차단된 편은 공개해도 조회 0이다. 예약을 해제하고(`--unschedule`) 케이스북 배급사 대장에 결과를 기록할 것.',
       '- 같은 영화의 다른 컷도 위험하다. 1~3분 Short은 클레임이 붙으면 정책과 무관하게 차단된다.');
+  }
+  if (matched.length) {
+    lines.push('', `## 참고 — 소유권 매칭 ${matched.length}건`,
+      '- 매칭은 발행을 막지 않는다. 2026-06 ja 는 44/46 이 매칭인 채로 편당 8,288회였다.',
+      '- 이 값으로 예약을 내리지 말 것. 2026-09-29 에 그렇게 했다가 발행 창을 날렸다(조회 3~4회는 그 결과다).');
   }
   const text = lines.join('\n');
   console.log(text);

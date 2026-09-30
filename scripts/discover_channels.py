@@ -113,10 +113,10 @@ def main():
             for it in det.get('items', []):
                 sec = iso_seconds(it['contentDetails'].get('duration'))
                 rr = it['contentDetails'].get('regionRestriction') or {}
-                # ★차단과 소유권 매칭 둘 다 본다 — 뒤쪽은 차단 국가가 안 적혀도 도달이 죽는다
+                # 실격은 지역 차단뿐이다. ★소유권 매칭(licensedContent)으로 건너뛰지 않는다
+                #   — 2026-09-30 철회. 공식 권리자 채널은 항상 매칭이라, 건너뛰면 발굴에서
+                #   공식 무료 채널이 통째로 빠진다(이 스크립트가 찾아야 할 바로 그것들이다).
                 if not (61 <= sec <= 200) or rr.get('blocked'):
-                    continue
-                if it['contentDetails'].get('licensedContent') is True:
                     continue
                 cid = it['snippet'].get('channelId')
                 if not cid or cid in known:

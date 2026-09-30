@@ -418,4 +418,10 @@ if (require.main === module) {
   });
 }
 
-module.exports = { parseSection, composeText, buildTarget, scheduleFor, localeOf, findMp4 };
+// 린박스는 캡컷 드래프트를 만들지 않으므로 discoverDrafts 가 못 본다(rinbox-social.js 가 따로 찾는다).
+// 다만 **Blotato 로 말하는 부분**은 한 곳이어야 한다 — 업로드·타깃 블록·과거시각 클램프는
+// 사고를 한 번씩 겪고 고친 자리다(War Dogs ko 422, facebook pageId 누락). 복제하면 갈라진다.
+module.exports = {
+  api, uploadLocalFile, API_BASE,
+  parseSection, composeText, buildTarget, scheduleFor, localeOf, findMp4
+};

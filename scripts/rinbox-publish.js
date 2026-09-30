@@ -167,15 +167,22 @@ function auditSync(workdir) {
   //   ②는 문구의 어절을 시간표에서 **연속으로** 찾아 컷 안에 있는지 본다.
   const words = timing.words || [];
   const norm = (s) => String(s).replace(/\s+/g, '');
+  // ★문구를 공백으로 쪼개 «전사 낱말 하나»씩 맞대면 일본어는 절대 못 맞춘다(2026-10-01 실측).
+  //   일본어는 띄어쓰기가 없어서 자막 한 줄이 토큰 하나인데, 전사표에는
+  //   「たかが/小娘/一/人/の/命/を」처럼 일곱 개로 쪼개져 있다. 그래서 첫 비교부터 어긋나고,
+  //   ja 평문 자막은 **구조적으로 통과 불가**였다(그래서 지금까지 ja 는 word_bound 만 썼다).
+  //   고친 방식: 공백을 지운 뒤 **이어 붙여** 맞댄다. 한국어(「의사양반 의사양반」)도 그대로 맞는다.
   function findPhrase(phrase, lo, hi) {
-    const want = String(phrase).trim().split(/\s+/).filter(Boolean);
-    if (!want.length) return null;
+    const want = norm(String(phrase).trim());
+    if (!want) return null;
     for (let i = 0; i < words.length; i += 1) {
       if (words[i].start < lo - 1e-6 || words[i].start > hi + 1e-6) continue;
-      let j = 0;
-      let k = i;
-      while (j < want.length && k < words.length && norm(words[k].text) === norm(want[j])) { j += 1; k += 1; }
-      if (j === want.length) return { start: words[i].start, end: words[k - 1].end };
+      let acc = '';
+      for (let k = i; k < words.length; k += 1) {
+        acc += norm(words[k].text);
+        if (acc === want) return { start: words[i].start, end: words[k].end };
+        if (acc.length >= want.length || !want.startsWith(acc)) break;
+      }
     }
     return null;
   }
