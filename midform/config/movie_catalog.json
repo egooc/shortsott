@@ -1929,7 +1929,7 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '벤자민 버튼의 시간은 거꾸로 간다'의 장면으로 제작되었습니다.",
       "credit_ja": "映画『ベンジャミン・バトン 数奇な人生』のシーンから制作しました。",
-      "note": "2026-09-28 화이트리스트 승격. 레퍼런스 채널에서 우리 길이대·차단 0으로 생존 확인. 등급은 preflight — 판정은 프로브와 3층이 한다.",
+      "note": "2026-09-28 화이트리스트 승격. 레퍼런스 채널에서 우리 길이대·차단 0으로 생존 확인. 등급은 preflight — 판정은 프로브와 3층이 한다. ★등급은 regionRestriction 하나로만 잰 것이다(2026-09-30) — licensedContent 를 안 봤으므로 실제보다 좋게 나온다. 등급은 고르는 순서일 뿐이고 판정은 3층이 한다.",
       "rival_proven": "2026-09-28 눈물한가득 · 1편 · 누적 17,449,437회 · 최초 게시 2026-06-27 · 차단 0",
       "alive_clips": {
         "grade": "A",
@@ -1937,7 +1937,8 @@
         "blocked_in_band": 0,
         "block_rate": 0.0,
         "channels": 29,
-        "measured_at": "2026-09-29"
+        "measured_at": "2026-09-29",
+        "signal": "region_only"
       }
     },
     "room-2015": {
@@ -1950,7 +1951,7 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '룸'의 장면으로 제작되었습니다.",
       "credit_ja": "映画『ルーム』のシーンから制作しました。",
-      "note": "2026-09-28 화이트리스트 승격. 레퍼런스 채널에서 우리 길이대·차단 0으로 생존 확인. 등급은 preflight — 판정은 프로브와 3층이 한다.",
+      "note": "2026-09-28 화이트리스트 승격. 레퍼런스 채널에서 우리 길이대·차단 0으로 생존 확인. 등급은 preflight — 판정은 프로브와 3층이 한다. ★등급은 regionRestriction 하나로만 잰 것이다(2026-09-30) — licensedContent 를 안 봤으므로 실제보다 좋게 나온다. 등급은 고르는 순서일 뿐이고 판정은 3층이 한다.",
       "rival_proven": "2026-09-28 눈물한가득 · 1편 · 누적 17,238,290회 · 최초 게시 2026-07-14 · 차단 0",
       "survivor_band": "7 (2026-09-29)",
       "alive_clips": {
@@ -1959,7 +1960,8 @@
         "blocked_in_band": 5,
         "block_rate": 0.098,
         "channels": 18,
-        "measured_at": "2026-09-29"
+        "measured_at": "2026-09-29",
+        "signal": "region_only"
       }
     },
     "front-of-the-class": {
@@ -1972,7 +1974,7 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '프론트 오브 더 클래스'의 장면으로 제작되었습니다.",
       "credit_ja": "",
-      "note": "2026-09-28 화이트리스트 승격. 레퍼런스 채널에서 우리 길이대·차단 0으로 생존 확인. 등급은 preflight — 판정은 프로브와 3층이 한다. ★title_ja 미확인 — ja 회차에 쓰지 마라(ko 전용).",
+      "note": "2026-09-28 화이트리스트 승격. 레퍼런스 채널에서 우리 길이대·차단 0으로 생존 확인. 등급은 preflight — 판정은 프로브와 3층이 한다. ★title_ja 미확인 — ja 회차에 쓰지 마라(ko 전용). ★등급은 regionRestriction 하나로만 잰 것이다(2026-09-30) — licensedContent 를 안 봤으므로 실제보다 좋게 나온다. 등급은 고르는 순서일 뿐이고 판정은 3층이 한다.",
       "rival_proven": "2026-09-28 눈물한가득 · 1편 · 누적 12,407,925회 · 최초 게시 2026-07-08 · 차단 0",
       "needs_title_ja": true,
       "alive_clips": {
@@ -1981,7 +1983,8 @@
         "blocked_in_band": 1,
         "block_rate": 0.059,
         "channels": 14,
-        "measured_at": "2026-09-29"
+        "measured_at": "2026-09-29",
+        "signal": "region_only"
       }
     },
     "the-parent-trap": {
@@ -1994,7 +1997,7 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '페어런트 트랩'의 장면으로 제작되었습니다.",
       "credit_ja": "映画『ファミリー・ゲーム/双子の天使』のシーンから制作しました。",
-      "note": "2026-09-28 화이트리스트 승격. 레퍼런스 채널에서 우리 길이대·차단 0으로 생존 확인. 등급은 preflight — 판정은 프로브와 3층이 한다.",
+      "note": "2026-09-28 화이트리스트 승격. 레퍼런스 채널에서 우리 길이대·차단 0으로 생존 확인. 등급은 preflight — 판정은 프로브와 3층이 한다. ★등급은 regionRestriction 하나로만 잰 것이다(2026-09-30) — licensedContent 를 안 봤으므로 실제보다 좋게 나온다. 등급은 고르는 순서일 뿐이고 판정은 3층이 한다.",
       "rival_proven": "2026-09-28 눈물한가득 · 1편 · 누적 11,700,815회 · 최초 게시 2026-07-04 · 차단 0",
       "alive_clips": {
         "grade": "A",
@@ -2002,7 +2005,8 @@
         "blocked_in_band": 1,
         "block_rate": 0.03,
         "channels": 22,
-        "measured_at": "2026-09-29"
+        "measured_at": "2026-09-29",
+        "signal": "region_only"
       }
     },
     "the-truman-show": {
@@ -2015,7 +2019,7 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '트루먼 쇼'의 장면으로 제작되었습니다.",
       "credit_ja": "映画『トゥルーマン・ショー』のシーンから制作しました。",
-      "note": "2026-09-28 화이트리스트 승격. 레퍼런스 채널에서 우리 길이대·차단 0으로 생존 확인. 등급은 preflight — 판정은 프로브와 3층이 한다.",
+      "note": "2026-09-28 화이트리스트 승격. 레퍼런스 채널에서 우리 길이대·차단 0으로 생존 확인. 등급은 preflight — 판정은 프로브와 3층이 한다. ★등급은 regionRestriction 하나로만 잰 것이다(2026-09-30) — licensedContent 를 안 봤으므로 실제보다 좋게 나온다. 등급은 고르는 순서일 뿐이고 판정은 3층이 한다.",
       "rival_proven": "2026-09-28 헛개리카노 · 1편 · 누적 11,554,571회 · 최초 게시 2026-07-31 · 차단 0",
       "claim_probe": "2026-09-28 ja 5구간 78s (plan) CLEAR-30min",
       "alive_clips": {
@@ -2024,7 +2028,8 @@
         "blocked_in_band": 1,
         "block_rate": 0.05,
         "channels": 10,
-        "measured_at": "2026-09-29"
+        "measured_at": "2026-09-29",
+        "signal": "region_only"
       }
     },
     "brads-status": {
@@ -2037,7 +2042,7 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '브래드 스테이터스'의 장면으로 제작되었습니다.",
       "credit_ja": "",
-      "note": "2026-09-28 화이트리스트 승격. 레퍼런스 채널에서 우리 길이대·차단 0으로 생존 확인. 등급은 preflight — 판정은 프로브와 3층이 한다. ★title_ja 미확인 — ja 회차에 쓰지 마라(ko 전용).",
+      "note": "2026-09-28 화이트리스트 승격. 레퍼런스 채널에서 우리 길이대·차단 0으로 생존 확인. 등급은 preflight — 판정은 프로브와 3층이 한다. ★title_ja 미확인 — ja 회차에 쓰지 마라(ko 전용). ★등급은 regionRestriction 하나로만 잰 것이다(2026-09-30) — licensedContent 를 안 봤으므로 실제보다 좋게 나온다. 등급은 고르는 순서일 뿐이고 판정은 3층이 한다.",
       "rival_proven": "2026-09-28 눈물한가득 · 1편 · 누적 10,083,266회 · 최초 게시 2026-08-02 · 차단 0",
       "needs_title_ja": true,
       "alive_clips": {
@@ -2046,7 +2051,8 @@
         "blocked_in_band": 0,
         "block_rate": 0.0,
         "channels": 26,
-        "measured_at": "2026-09-29"
+        "measured_at": "2026-09-29",
+        "signal": "region_only"
       }
     },
     "cargo-2017": {
@@ -2059,7 +2065,7 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '카고'의 장면으로 제작되었습니다.",
       "credit_ja": "映画『カーゴ』のシーンから制作しました。",
-      "note": "2026-09-28 화이트리스트 승격. 레퍼런스 채널에서 우리 길이대·차단 0으로 생존 확인. 등급은 preflight — 판정은 프로브와 3층이 한다.",
+      "note": "2026-09-28 화이트리스트 승격. 레퍼런스 채널에서 우리 길이대·차단 0으로 생존 확인. 등급은 preflight — 판정은 프로브와 3층이 한다. ★등급은 regionRestriction 하나로만 잰 것이다(2026-09-30) — licensedContent 를 안 봤으므로 실제보다 좋게 나온다. 등급은 고르는 순서일 뿐이고 판정은 3층이 한다.",
       "rival_proven": "2026-09-28 눈물한가득 · 1편 · 누적 9,993,688회 · 최초 게시 2026-08-25 · 차단 0",
       "alive_clips": {
         "grade": "B",
@@ -2067,7 +2073,8 @@
         "blocked_in_band": 2,
         "block_rate": 0.095,
         "channels": 16,
-        "measured_at": "2026-09-29"
+        "measured_at": "2026-09-29",
+        "signal": "region_only"
       }
     },
     "a-man-called-otto": {
@@ -2428,7 +2435,7 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '베일리 어게인 2'의 장면으로 제작되었습니다.",
       "credit_ja": "映画『僕のワンダフル・ジャーニー』のシーンから制作しました。",
-      "note": "2026-09-28 화이트리스트 승격. 레퍼런스 채널에서 우리 길이대·차단 0으로 생존 확인. 등급은 preflight — 판정은 프로브와 3층이 한다. ★2026-09-29 등급 C — 유튜브에 살아 있는 클립 24편, 차단 5편(차단률 17%). 고르지 마라.",
+      "note": "2026-09-28 화이트리스트 승격. 레퍼런스 채널에서 우리 길이대·차단 0으로 생존 확인. 등급은 preflight — 판정은 프로브와 3층이 한다. ★2026-09-29 등급 C — 유튜브에 살아 있는 클립 24편, 차단 5편(차단률 17%). 고르지 마라. ★등급은 regionRestriction 하나로만 잰 것이다(2026-09-30) — licensedContent 를 안 봤으므로 실제보다 좋게 나온다. 등급은 고르는 순서일 뿐이고 판정은 3층이 한다.",
       "rival_proven": "2026-09-28 대한숏 · 1편 · 누적 2,743,795회 · 최초 게시 2026-07-11 · 차단 0",
       "alive_clips": {
         "grade": "C",
@@ -2436,7 +2443,8 @@
         "blocked_in_band": 5,
         "block_rate": 0.172,
         "channels": 17,
-        "measured_at": "2026-09-29"
+        "measured_at": "2026-09-29",
+        "signal": "region_only"
       }
     },
     "seven-pounds": {
@@ -2649,7 +2657,7 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '웨어 호프 그로우스'의 장면으로 제작되었습니다.",
       "credit_ja": "",
-      "note": "2026-09-29 화이트리스트 2차 승격. 레퍼런스 채널에서 우리 길이대·차단 0으로 생존 확인. 등급 preflight — 판정은 3층(check-claims)이 한다. ★title_ja 미확인 — ja 회차에 쓰지 마라(ko 전용).",
+      "note": "2026-09-29 화이트리스트 2차 승격. 레퍼런스 채널에서 우리 길이대·차단 0으로 생존 확인. 등급 preflight — 판정은 3층(check-claims)이 한다. ★title_ja 미확인 — ja 회차에 쓰지 마라(ko 전용). ★등급은 regionRestriction 하나로만 잰 것이다(2026-09-30) — licensedContent 를 안 봤으므로 실제보다 좋게 나온다. 등급은 고르는 순서일 뿐이고 판정은 3층이 한다.",
       "rival_proven": "2026-09-29 Motion Ray/ReelBound · 2편 · 누적 143,636,054회 · 최초 2025-09-13 · 차단 0",
       "whitelist_confidence": {
         "channels": 2,
@@ -2668,7 +2676,8 @@
         "blocked_in_band": 0,
         "block_rate": 0.0,
         "channels": 17,
-        "measured_at": "2026-09-29"
+        "measured_at": "2026-09-29",
+        "signal": "region_only"
       }
     },
     "its-bruno": {
@@ -2681,7 +2690,7 @@
       "distributor_tier": "preflight",
       "credit_ko": "드라마 '잇츠 브루노'의 장면으로 제작되었습니다.",
       "credit_ja": "",
-      "note": "2026-09-29 화이트리스트 2차 승격. 레퍼런스 채널에서 우리 길이대·차단 0으로 생존 확인. 등급 preflight — 판정은 3층(check-claims)이 한다. ★title_ja 미확인 — ja 회차에 쓰지 마라(ko 전용).",
+      "note": "2026-09-29 화이트리스트 2차 승격. 레퍼런스 채널에서 우리 길이대·차단 0으로 생존 확인. 등급 preflight — 판정은 3층(check-claims)이 한다. ★title_ja 미확인 — ja 회차에 쓰지 마라(ko 전용). ★등급은 regionRestriction 하나로만 잰 것이다(2026-09-30) — licensedContent 를 안 봤으므로 실제보다 좋게 나온다. 등급은 고르는 순서일 뿐이고 판정은 3층이 한다.",
       "rival_proven": "2026-09-29 Motion Ray · 2편 · 누적 90,077,370회 · 최초 2026-01-05 · 차단 0",
       "whitelist_confidence": {
         "channels": 1,
@@ -2700,7 +2709,8 @@
         "blocked_in_band": 1,
         "block_rate": 0.037,
         "channels": 25,
-        "measured_at": "2026-09-29"
+        "measured_at": "2026-09-29",
+        "signal": "region_only"
       }
     },
     "freedom-writers": {
@@ -2713,7 +2723,7 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '프리덤 라이터스'의 장면으로 제작되었습니다.",
       "credit_ja": "映画『フリーダム・ライターズ』のシーンから制作しました。",
-      "note": "2026-09-29 화이트리스트 2차 승격. 레퍼런스 채널에서 우리 길이대·차단 0으로 생존 확인. 등급 preflight — 판정은 3층(check-claims)이 한다.",
+      "note": "2026-09-29 화이트리스트 2차 승격. 레퍼런스 채널에서 우리 길이대·차단 0으로 생존 확인. 등급 preflight — 판정은 3층(check-claims)이 한다. ★등급은 regionRestriction 하나로만 잰 것이다(2026-09-30) — licensedContent 를 안 봤으므로 실제보다 좋게 나온다. 등급은 고르는 순서일 뿐이고 판정은 3층이 한다.",
       "rival_proven": "2026-09-29 ThaiAn · 2편 · 누적 55,742,209회 · 최초 2025-12-27 · 차단 0",
       "whitelist_confidence": {
         "channels": 1,
@@ -2730,7 +2740,8 @@
         "blocked_in_band": 0,
         "block_rate": 0.0,
         "channels": 20,
-        "measured_at": "2026-09-29"
+        "measured_at": "2026-09-29",
+        "signal": "region_only"
       }
     },
     "courageous": {
@@ -2766,7 +2777,7 @@
       "distributor_tier": "preflight",
       "credit_ko": "드라마 '클리닝 레이디'의 장면으로 제작되었습니다.",
       "credit_ja": "",
-      "note": "2026-09-29 화이트리스트 2차 승격. 레퍼런스 채널에서 우리 길이대·차단 0으로 생존 확인. 등급 preflight — 판정은 3층(check-claims)이 한다. ★title_ja 미확인 — ja 회차에 쓰지 마라(ko 전용).",
+      "note": "2026-09-29 화이트리스트 2차 승격. 레퍼런스 채널에서 우리 길이대·차단 0으로 생존 확인. 등급 preflight — 판정은 3층(check-claims)이 한다. ★title_ja 미확인 — ja 회차에 쓰지 마라(ko 전용). ★등급은 regionRestriction 하나로만 잰 것이다(2026-09-30) — licensedContent 를 안 봤으므로 실제보다 좋게 나온다. 등급은 고르는 순서일 뿐이고 판정은 3층이 한다.",
       "rival_proven": "2026-09-29 Silver frame · 1편 · 누적 45,762,446회 · 최초 2026-02-07 · 차단 0",
       "whitelist_confidence": {
         "channels": 1,
@@ -2785,7 +2796,8 @@
         "blocked_in_band": 2,
         "block_rate": 0.053,
         "channels": 30,
-        "measured_at": "2026-09-29"
+        "measured_at": "2026-09-29",
+        "signal": "region_only"
       }
     },
     "animal-control": {
@@ -2798,7 +2810,7 @@
       "distributor_tier": "preflight",
       "credit_ko": "드라마 '애니멀 컨트롤'의 장면으로 제작되었습니다.",
       "credit_ja": "",
-      "note": "2026-09-29 화이트리스트 2차 승격. 레퍼런스 채널에서 우리 길이대·차단 0으로 생존 확인. 등급 preflight — 판정은 3층(check-claims)이 한다. ★title_ja 미확인 — ja 회차에 쓰지 마라(ko 전용).",
+      "note": "2026-09-29 화이트리스트 2차 승격. 레퍼런스 채널에서 우리 길이대·차단 0으로 생존 확인. 등급 preflight — 판정은 3층(check-claims)이 한다. ★title_ja 미확인 — ja 회차에 쓰지 마라(ko 전용). ★등급은 regionRestriction 하나로만 잰 것이다(2026-09-30) — licensedContent 를 안 봤으므로 실제보다 좋게 나온다. 등급은 고르는 순서일 뿐이고 판정은 3층이 한다.",
       "rival_proven": "2026-09-29 Mofeimovie · 1편 · 누적 45,406,958회 · 최초 2025-09-11 · 차단 0",
       "whitelist_confidence": {
         "channels": 1,
@@ -2817,7 +2829,8 @@
         "blocked_in_band": 0,
         "block_rate": 0.0,
         "channels": 17,
-        "measured_at": "2026-09-29"
+        "measured_at": "2026-09-29",
+        "signal": "region_only"
       }
     },
     "the-good-doctor": {
@@ -2853,7 +2866,7 @@
       "distributor_tier": "preflight",
       "credit_ko": "드라마 '셰임리스'의 장면으로 제작되었습니다.",
       "credit_ja": "ドラマ『シェイムレス 俺たちに恥はない』のシーンから制作しました。",
-      "note": "2026-09-29 화이트리스트 2차 승격. 레퍼런스 채널에서 우리 길이대·차단 0으로 생존 확인. 등급 preflight — 판정은 3층(check-claims)이 한다.",
+      "note": "2026-09-29 화이트리스트 2차 승격. 레퍼런스 채널에서 우리 길이대·차단 0으로 생존 확인. 등급 preflight — 판정은 3층(check-claims)이 한다. ★등급은 regionRestriction 하나로만 잰 것이다(2026-09-30) — licensedContent 를 안 봤으므로 실제보다 좋게 나온다. 등급은 고르는 순서일 뿐이고 판정은 3층이 한다.",
       "rival_proven": "2026-09-29 duiawe53 · 1편 · 누적 26,827,409회 · 최초 2025-10-04 · 차단 0",
       "whitelist_confidence": {
         "channels": 1,
@@ -2871,7 +2884,8 @@
         "blocked_in_band": 0,
         "block_rate": 0.0,
         "channels": 17,
-        "measured_at": "2026-09-29"
+        "measured_at": "2026-09-29",
+        "signal": "region_only"
       }
     },
     "the-intouchables": {
@@ -2884,7 +2898,7 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '언터처블: 1%의 우정'의 장면으로 제작되었습니다.",
       "credit_ja": "映画『最強のふたり』のシーンから制作しました。",
-      "note": "2026-09-29 화이트리스트 2차 승격. 레퍼런스 채널에서 우리 길이대·차단 0으로 생존 확인. 등급 preflight — 판정은 3층(check-claims)이 한다. ★2026-09-29 등급 C — 유튜브에 살아 있는 클립 14편, 차단 21편(차단률 60%). 고르지 마라. ★2026-09-29 등급 C — 유튜브에 살아 있는 클립 14편, 차단 21편(차단률 60%). 고르지 마라.",
+      "note": "2026-09-29 화이트리스트 2차 승격. 레퍼런스 채널에서 우리 길이대·차단 0으로 생존 확인. 등급 preflight — 판정은 3층(check-claims)이 한다. ★2026-09-29 등급 C — 유튜브에 살아 있는 클립 14편, 차단 21편(차단률 60%). 고르지 마라. ★2026-09-29 등급 C — 유튜브에 살아 있는 클립 14편, 차단 21편(차단률 60%). 고르지 마라. ★등급은 regionRestriction 하나로만 잰 것이다(2026-09-30) — licensedContent 를 안 봤으므로 실제보다 좋게 나온다. 등급은 고르는 순서일 뿐이고 판정은 3층이 한다.",
       "rival_proven": "2026-09-29 ClipVibe · 1편 · 누적 26,068,403회 · 최초 2026-04-10 · 차단 0",
       "whitelist_confidence": {
         "channels": 1,
@@ -2901,7 +2915,8 @@
         "blocked_in_band": 21,
         "block_rate": 0.6,
         "channels": 12,
-        "measured_at": "2026-09-29"
+        "measured_at": "2026-09-29",
+        "signal": "region_only"
       }
     },
     "mona-lisa-smile": {
@@ -2936,7 +2951,7 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '더 메뉴'의 장면으로 제작되었습니다.",
       "credit_ja": "映画『ザ・メニュー』のシーンから制作しました。",
-      "note": "2026-09-29 화이트리스트 2차 승격. 레퍼런스 채널에서 우리 길이대·차단 0으로 생존 확인. 등급 preflight — 판정은 3층(check-claims)이 한다. ★2026-09-29 등급 C — 유튜브에 살아 있는 클립 31편, 차단 9편(차단률 22%). 고르지 마라. ★2026-09-29 등급 C — 유튜브에 살아 있는 클립 31편, 차단 9편(차단률 22%). 고르지 마라.",
+      "note": "2026-09-29 화이트리스트 2차 승격. 레퍼런스 채널에서 우리 길이대·차단 0으로 생존 확인. 등급 preflight — 판정은 3층(check-claims)이 한다. ★2026-09-29 등급 C — 유튜브에 살아 있는 클립 31편, 차단 9편(차단률 22%). 고르지 마라. ★2026-09-29 등급 C — 유튜브에 살아 있는 클립 31편, 차단 9편(차단률 22%). 고르지 마라. ★등급은 regionRestriction 하나로만 잰 것이다(2026-09-30) — licensedContent 를 안 봤으므로 실제보다 좋게 나온다. 등급은 고르는 순서일 뿐이고 판정은 3층이 한다.",
       "rival_proven": "2026-09-29 MovieNestTV · 1편 · 누적 22,975,337회 · 최초 2025-10-10 · 차단 0",
       "whitelist_confidence": {
         "channels": 1,
@@ -2953,7 +2968,8 @@
         "blocked_in_band": 9,
         "block_rate": 0.225,
         "channels": 24,
-        "measured_at": "2026-09-29"
+        "measured_at": "2026-09-29",
+        "signal": "region_only"
       }
     },
     "maleficent": {
@@ -2966,7 +2982,7 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '말레피센트'의 장면으로 제작되었습니다.",
       "credit_ja": "映画『マレフィセント』のシーンから制作しました。",
-      "note": "2026-09-29 화이트리스트 2차 승격. 레퍼런스 채널에서 우리 길이대·차단 0으로 생존 확인. 등급 preflight — 판정은 3층(check-claims)이 한다.",
+      "note": "2026-09-29 화이트리스트 2차 승격. 레퍼런스 채널에서 우리 길이대·차단 0으로 생존 확인. 등급 preflight — 판정은 3층(check-claims)이 한다. ★등급은 regionRestriction 하나로만 잰 것이다(2026-09-30) — licensedContent 를 안 봤으므로 실제보다 좋게 나온다. 등급은 고르는 순서일 뿐이고 판정은 3층이 한다.",
       "rival_proven": "2026-09-29 Mofeimovie · 1편 · 누적 21,150,127회 · 최초 2025-10-16 · 차단 0",
       "whitelist_confidence": {
         "channels": 1,
@@ -2983,7 +2999,8 @@
         "blocked_in_band": 1,
         "block_rate": 0.03,
         "channels": 25,
-        "measured_at": "2026-09-29"
+        "measured_at": "2026-09-29",
+        "signal": "region_only"
       }
     },
     "follow-the-stars-home": {
@@ -2996,7 +3013,7 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '팔로우 더 스타스 홈'의 장면으로 제작되었습니다.",
       "credit_ja": "",
-      "note": "2026-09-29 화이트리스트 2차 승격. 레퍼런스 채널에서 우리 길이대·차단 0으로 생존 확인. 등급 preflight — 판정은 3층(check-claims)이 한다. ★title_ja 미확인 — ja 회차에 쓰지 마라(ko 전용).",
+      "note": "2026-09-29 화이트리스트 2차 승격. 레퍼런스 채널에서 우리 길이대·차단 0으로 생존 확인. 등급 preflight — 판정은 3층(check-claims)이 한다. ★title_ja 미확인 — ja 회차에 쓰지 마라(ko 전용). ★등급은 regionRestriction 하나로만 잰 것이다(2026-09-30) — licensedContent 를 안 봤으므로 실제보다 좋게 나온다. 등급은 고르는 순서일 뿐이고 판정은 3층이 한다.",
       "rival_proven": "2026-09-29 CinemaEcho  · 1편 · 누적 16,613,856회 · 최초 2025-09-27 · 차단 0",
       "whitelist_confidence": {
         "channels": 1,
@@ -3014,7 +3031,8 @@
         "blocked_in_band": 0,
         "block_rate": 0.0,
         "channels": 19,
-        "measured_at": "2026-09-29"
+        "measured_at": "2026-09-29",
+        "signal": "region_only"
       }
     },
     "paddington-2": {
@@ -3027,7 +3045,7 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '패딩턴 2'의 장면으로 제작되었습니다.",
       "credit_ja": "映画『パディントン2』のシーンから制作しました。",
-      "note": "2026-09-29 화이트리스트 2차 승격. 레퍼런스 채널에서 우리 길이대·차단 0으로 생존 확인. 등급 preflight — 판정은 3층(check-claims)이 한다.",
+      "note": "2026-09-29 화이트리스트 2차 승격. 레퍼런스 채널에서 우리 길이대·차단 0으로 생존 확인. 등급 preflight — 판정은 3층(check-claims)이 한다. ★등급은 regionRestriction 하나로만 잰 것이다(2026-09-30) — licensedContent 를 안 봤으므로 실제보다 좋게 나온다. 등급은 고르는 순서일 뿐이고 판정은 3층이 한다.",
       "rival_proven": "2026-09-29 meetsstar/헛개리카노 · 2편 · 누적 14,539,108회 · 최초 2026-05-17 · 차단 0",
       "whitelist_confidence": {
         "channels": 2,
@@ -3045,7 +3063,8 @@
         "blocked_in_band": 0,
         "block_rate": 0.0,
         "channels": 16,
-        "measured_at": "2026-09-29"
+        "measured_at": "2026-09-29",
+        "signal": "region_only"
       }
     },
     "joyeux-noel": {
@@ -3102,7 +3121,7 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '러브 어크로스 타임'의 장면으로 제작되었습니다.",
       "credit_ja": "",
-      "note": "2026-09-29 화이트리스트 2차 승격. 레퍼런스 채널에서 우리 길이대·차단 0으로 생존 확인. 등급 preflight — 판정은 3층(check-claims)이 한다. ★배급사 미확인 — 금지 배급사인지 판정 불가. 확인 전에는 만들지 마라. ★title_ja 미확인 — ja 회차에 쓰지 마라(ko 전용).",
+      "note": "2026-09-29 화이트리스트 2차 승격. 레퍼런스 채널에서 우리 길이대·차단 0으로 생존 확인. 등급 preflight — 판정은 3층(check-claims)이 한다. ★배급사 미확인 — 금지 배급사인지 판정 불가. 확인 전에는 만들지 마라. ★title_ja 미확인 — ja 회차에 쓰지 마라(ko 전용). ★등급은 regionRestriction 하나로만 잰 것이다(2026-09-30) — licensedContent 를 안 봤으므로 실제보다 좋게 나온다. 등급은 고르는 순서일 뿐이고 판정은 3층이 한다.",
       "rival_proven": "2026-09-29 MovieNestTV · 1편 · 누적 13,738,449회 · 최초 2025-10-16 · 차단 0",
       "whitelist_confidence": {
         "channels": 1,
@@ -3121,7 +3140,8 @@
         "blocked_in_band": 1,
         "block_rate": 0.053,
         "channels": 18,
-        "measured_at": "2026-09-29"
+        "measured_at": "2026-09-29",
+        "signal": "region_only"
       }
     },
     "paulie": {
@@ -3134,7 +3154,7 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '폴리'의 장면으로 제작되었습니다.",
       "credit_ja": "",
-      "note": "2026-09-29 화이트리스트 2차 승격. 레퍼런스 채널에서 우리 길이대·차단 0으로 생존 확인. 등급 preflight — 판정은 3층(check-claims)이 한다. ★title_ja 미확인 — ja 회차에 쓰지 마라(ko 전용).",
+      "note": "2026-09-29 화이트리스트 2차 승격. 레퍼런스 채널에서 우리 길이대·차단 0으로 생존 확인. 등급 preflight — 판정은 3층(check-claims)이 한다. ★title_ja 미확인 — ja 회차에 쓰지 마라(ko 전용). ★등급은 regionRestriction 하나로만 잰 것이다(2026-09-30) — licensedContent 를 안 봤으므로 실제보다 좋게 나온다. 등급은 고르는 순서일 뿐이고 판정은 3층이 한다.",
       "rival_proven": "2026-09-29 CinemaEcho  · 1편 · 누적 13,286,143회 · 최초 2025-11-29 · 차단 0",
       "whitelist_confidence": {
         "channels": 1,
@@ -3152,7 +3172,8 @@
         "blocked_in_band": 2,
         "block_rate": 0.069,
         "channels": 20,
-        "measured_at": "2026-09-29"
+        "measured_at": "2026-09-29",
+        "signal": "region_only"
       },
       "survivor_band": "2 (2026-09-29)"
     },
@@ -3166,7 +3187,7 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '그레이티스트 비어 런 에버'의 장면으로 제작되었습니다.",
       "credit_ja": "",
-      "note": "2026-09-29 화이트리스트 2차 승격. 레퍼런스 채널에서 우리 길이대·차단 0으로 생존 확인. 등급 preflight — 판정은 3층(check-claims)이 한다. ★title_ja 미확인 — ja 회차에 쓰지 마라(ko 전용).",
+      "note": "2026-09-29 화이트리스트 2차 승격. 레퍼런스 채널에서 우리 길이대·차단 0으로 생존 확인. 등급 preflight — 판정은 3층(check-claims)이 한다. ★title_ja 미확인 — ja 회차에 쓰지 마라(ko 전용). ★등급은 regionRestriction 하나로만 잰 것이다(2026-09-30) — licensedContent 를 안 봤으므로 실제보다 좋게 나온다. 등급은 고르는 순서일 뿐이고 판정은 3층이 한다.",
       "rival_proven": "2026-09-29 Mono Frame · 1편 · 누적 12,856,507회 · 최초 2025-12-20 · 차단 0",
       "whitelist_confidence": {
         "channels": 1,
@@ -3184,7 +3205,8 @@
         "blocked_in_band": 0,
         "block_rate": 0.0,
         "channels": 14,
-        "measured_at": "2026-09-29"
+        "measured_at": "2026-09-29",
+        "signal": "region_only"
       }
     },
     "a-million-ways-to-die-in-the-west": {
@@ -3197,7 +3219,7 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '백만 가지 방법으로 죽기'의 장면으로 제작되었습니다.",
       "credit_ja": "映画『荒野はつらいよ』のシーンから制作しました。",
-      "note": "2026-09-29 화이트리스트 2차 승격. 레퍼런스 채널에서 우리 길이대·차단 0으로 생존 확인. 등급 preflight — 판정은 3층(check-claims)이 한다.",
+      "note": "2026-09-29 화이트리스트 2차 승격. 레퍼런스 채널에서 우리 길이대·차단 0으로 생존 확인. 등급 preflight — 판정은 3층(check-claims)이 한다. ★등급은 regionRestriction 하나로만 잰 것이다(2026-09-30) — licensedContent 를 안 봤으므로 실제보다 좋게 나온다. 등급은 고르는 순서일 뿐이고 판정은 3층이 한다.",
       "rival_proven": "2026-09-29 meetsstar · 1편 · 누적 12,477,870회 · 최초 2026-09-09 · 차단 0",
       "whitelist_confidence": {
         "channels": 1,
@@ -3214,7 +3236,8 @@
         "blocked_in_band": 1,
         "block_rate": 0.034,
         "channels": 15,
-        "measured_at": "2026-09-29"
+        "measured_at": "2026-09-29",
+        "signal": "region_only"
       }
     },
     "greys-anatomy": {
@@ -3227,7 +3250,7 @@
       "distributor_tier": "preflight",
       "credit_ko": "드라마 '그레이 아나토미'의 장면으로 제작되었습니다.",
       "credit_ja": "ドラマ『グレイズ・アナトミー 恋の解剖学』のシーンから制作しました。",
-      "note": "2026-09-29 화이트리스트 2차 승격. 레퍼런스 채널에서 우리 길이대·차단 0으로 생존 확인. 등급 preflight — 판정은 3층(check-claims)이 한다.",
+      "note": "2026-09-29 화이트리스트 2차 승격. 레퍼런스 채널에서 우리 길이대·차단 0으로 생존 확인. 등급 preflight — 판정은 3층(check-claims)이 한다. ★등급은 regionRestriction 하나로만 잰 것이다(2026-09-30) — licensedContent 를 안 봤으므로 실제보다 좋게 나온다. 등급은 고르는 순서일 뿐이고 판정은 3층이 한다.",
       "rival_proven": "2026-09-29 Neon Frame · 1편 · 누적 11,525,093회 · 최초 2025-10-09 · 차단 0",
       "whitelist_confidence": {
         "channels": 1,
@@ -3245,7 +3268,8 @@
         "blocked_in_band": 0,
         "block_rate": 0.0,
         "channels": 13,
-        "measured_at": "2026-09-29"
+        "measured_at": "2026-09-29",
+        "signal": "region_only"
       }
     },
     "stick-it": {
@@ -3258,7 +3282,7 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '스틱 잇'의 장면으로 제작되었습니다.",
       "credit_ja": "",
-      "note": "2026-09-29 화이트리스트 2차 승격. 레퍼런스 채널에서 우리 길이대·차단 0으로 생존 확인. 등급 preflight — 판정은 3층(check-claims)이 한다. ★title_ja 미확인 — ja 회차에 쓰지 마라(ko 전용).",
+      "note": "2026-09-29 화이트리스트 2차 승격. 레퍼런스 채널에서 우리 길이대·차단 0으로 생존 확인. 등급 preflight — 판정은 3층(check-claims)이 한다. ★title_ja 미확인 — ja 회차에 쓰지 마라(ko 전용). ★등급은 regionRestriction 하나로만 잰 것이다(2026-09-30) — licensedContent 를 안 봤으므로 실제보다 좋게 나온다. 등급은 고르는 순서일 뿐이고 판정은 3층이 한다.",
       "rival_proven": "2026-09-29 CinemaEcho  · 1편 · 누적 11,387,696회 · 최초 2025-09-14 · 차단 0",
       "whitelist_confidence": {
         "channels": 1,
@@ -3276,7 +3300,8 @@
         "blocked_in_band": 2,
         "block_rate": 0.051,
         "channels": 35,
-        "measured_at": "2026-09-29"
+        "measured_at": "2026-09-29",
+        "signal": "region_only"
       }
     },
     "stop-or-my-mom-will-shoot": {
@@ -3289,7 +3314,7 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '엄마는 해결사'의 장면으로 제작되었습니다.",
       "credit_ja": "",
-      "note": "2026-09-29 화이트리스트 2차 승격. 레퍼런스 채널에서 우리 길이대·차단 0으로 생존 확인. 등급 preflight — 판정은 3층(check-claims)이 한다. ★title_ja 미확인 — ja 회차에 쓰지 마라(ko 전용).",
+      "note": "2026-09-29 화이트리스트 2차 승격. 레퍼런스 채널에서 우리 길이대·차단 0으로 생존 확인. 등급 preflight — 판정은 3층(check-claims)이 한다. ★title_ja 미확인 — ja 회차에 쓰지 마라(ko 전용). ★등급은 regionRestriction 하나로만 잰 것이다(2026-09-30) — licensedContent 를 안 봤으므로 실제보다 좋게 나온다. 등급은 고르는 순서일 뿐이고 판정은 3층이 한다.",
       "rival_proven": "2026-09-29 헛개리카노 · 1편 · 누적 10,324,485회 · 최초 2026-06-21 · 차단 0",
       "whitelist_confidence": {
         "channels": 1,
@@ -3307,7 +3332,8 @@
         "blocked_in_band": 0,
         "block_rate": 0.0,
         "channels": 15,
-        "measured_at": "2026-09-29"
+        "measured_at": "2026-09-29",
+        "signal": "region_only"
       }
     },
     "land-of-the-lost": {
@@ -3555,7 +3581,7 @@
       "distributor_tier": "preflight",
       "credit_ko": "영화 '러브 & 드럭스'의 장면으로 제작되었습니다.",
       "credit_ja": "",
-      "note": "2026-09-29 화이트리스트 2차 승격. 레퍼런스 채널에서 우리 길이대·차단 0으로 생존 확인. 등급 preflight — 판정은 3층(check-claims)이 한다. ★title_ja 미확인 — ja 회차에 쓰지 마라(ko 전용).",
+      "note": "2026-09-29 화이트리스트 2차 승격. 레퍼런스 채널에서 우리 길이대·차단 0으로 생존 확인. 등급 preflight — 판정은 3층(check-claims)이 한다. ★title_ja 미확인 — ja 회차에 쓰지 마라(ko 전용). ★등급은 regionRestriction 하나로만 잰 것이다(2026-09-30) — licensedContent 를 안 봤으므로 실제보다 좋게 나온다. 등급은 고르는 순서일 뿐이고 판정은 3층이 한다.",
       "rival_proven": "2026-09-29 대한숏 · 1편 · 누적 3,362,484회 · 최초 2026-07-15 · 차단 0",
       "whitelist_confidence": {
         "channels": 1,
@@ -3573,7 +3599,8 @@
         "blocked_in_band": 0,
         "block_rate": 0.0,
         "channels": 27,
-        "measured_at": "2026-09-29"
+        "measured_at": "2026-09-29",
+        "signal": "region_only"
       }
     },
     "white-boy-rick": {
@@ -4487,7 +4514,7 @@
       "credit_ko": "영화 '기프티드 핸즈'의 장면으로 제작되었습니다.",
       "credit_ja": "映画『ギフテッド・ハンズ』のシーンから制作しました。",
       "distributor_tier": "banned",
-      "note": "2026-09-30 화이트리스트 3차 승격. 원고+댓글 판독으로 제목 확인, 유튜브 전체 25편 생존·0편 차단(등급 A). ★배급사가 금지 계열(TNT / Sony Pictures Television) — 채널 파워 생기기 전까지 쓰지 마라.",
+      "note": "2026-09-30 화이트리스트 3차 승격. 원고+댓글 판독으로 제목 확인, 유튜브 전체 25편 생존·0편 차단(등급 A). ★배급사가 금지 계열(TNT / Sony Pictures Television) — 채널 파워 생기기 전까지 쓰지 마라. ★등급은 regionRestriction 하나로만 잰 것이다(2026-09-30) — licensedContent 를 안 봤으므로 실제보다 좋게 나온다. 등급은 고르는 순서일 뿐이고 판정은 3층이 한다.",
       "whitelist_confidence": {
         "channels": 1,
         "clips": 1,
@@ -4503,7 +4530,8 @@
         "blocked_in_band": 0,
         "block_rate": 0.0,
         "channels": 17,
-        "measured_at": "2026-09-30"
+        "measured_at": "2026-09-30",
+        "signal": "region_only"
       }
     },
     "orange-is-the-new-black": {
@@ -4517,7 +4545,7 @@
       "credit_ko": "드라마 '오렌지 이즈 더 뉴 블랙'의 장면으로 제작되었습니다.",
       "credit_ja": "ドラマ『オレンジ・イズ・ニュー・ブラック』のシーンから制作しました。",
       "distributor_tier": "preflight",
-      "note": "2026-09-30 화이트리스트 3차 승격. 원고+댓글 판독으로 제목 확인, 유튜브 전체 37편 생존·1편 차단(등급 A).",
+      "note": "2026-09-30 화이트리스트 3차 승격. 원고+댓글 판독으로 제목 확인, 유튜브 전체 37편 생존·1편 차단(등급 A). ★등급은 regionRestriction 하나로만 잰 것이다(2026-09-30) — licensedContent 를 안 봤으므로 실제보다 좋게 나온다. 등급은 고르는 순서일 뿐이고 판정은 3층이 한다.",
       "whitelist_confidence": {
         "channels": 1,
         "clips": 1,
@@ -4533,7 +4561,8 @@
         "blocked_in_band": 1,
         "block_rate": 0.026,
         "channels": 12,
-        "measured_at": "2026-09-30"
+        "measured_at": "2026-09-30",
+        "signal": "region_only"
       }
     },
     "st-vincent": {
@@ -4547,7 +4576,7 @@
       "credit_ko": "영화 '세인트 빈센트'의 장면으로 제작되었습니다.",
       "credit_ja": "映画『ヴィンセントが教えてくれたこと』のシーンから制作しました。",
       "distributor_tier": "preflight",
-      "note": "2026-09-30 화이트리스트 3차 승격. 원고+댓글 판독으로 제목 확인, 유튜브 전체 24편 생존·1편 차단(등급 A).",
+      "note": "2026-09-30 화이트리스트 3차 승격. 원고+댓글 판독으로 제목 확인, 유튜브 전체 24편 생존·1편 차단(등급 A). ★등급은 regionRestriction 하나로만 잰 것이다(2026-09-30) — licensedContent 를 안 봤으므로 실제보다 좋게 나온다. 등급은 고르는 순서일 뿐이고 판정은 3층이 한다.",
       "whitelist_confidence": {
         "channels": 1,
         "clips": 1,
@@ -4563,7 +4592,8 @@
         "blocked_in_band": 1,
         "block_rate": 0.04,
         "channels": 20,
-        "measured_at": "2026-09-30"
+        "measured_at": "2026-09-30",
+        "signal": "region_only"
       }
     },
     "the-middle": {
@@ -4577,7 +4607,7 @@
       "credit_ko": "드라마 '더 미들'의 장면으로 제작되었습니다.",
       "credit_ja": "",
       "distributor_tier": "preflight",
-      "note": "2026-09-30 화이트리스트 3차 승격. 원고+댓글 판독으로 제목 확인, 유튜브 전체 17편 생존·0편 차단(등급 B). ★일본 개봉명 미확인 — ko 전용. ★match 를 좁혔다 — 처음엔 `\bthe middle\b` 였고 \"in the middle of his speech\"(월스트리트)에 걸렸다. room/legend 와 같은 종류의 충돌이다(catalog-audit 가 잡았다).",
+      "note": "2026-09-30 화이트리스트 3차 승격. 원고+댓글 판독으로 제목 확인, 유튜브 전체 17편 생존·0편 차단(등급 B). ★일본 개봉명 미확인 — ko 전용. ★match 를 좁혔다 — 처음엔 `\bthe middle\b` 였고 \"in the middle of his speech\"(월스트리트)에 걸렸다. room/legend 와 같은 종류의 충돌이다(catalog-audit 가 잡았다). ★등급은 regionRestriction 하나로만 잰 것이다(2026-09-30) — licensedContent 를 안 봤으므로 실제보다 좋게 나온다. 등급은 고르는 순서일 뿐이고 판정은 3층이 한다.",
       "needs_title_ja": true,
       "whitelist_confidence": {
         "channels": 1,
@@ -4594,7 +4624,8 @@
         "blocked_in_band": 0,
         "block_rate": 0.0,
         "channels": 10,
-        "measured_at": "2026-09-30"
+        "measured_at": "2026-09-30",
+        "signal": "region_only"
       }
     }
   },

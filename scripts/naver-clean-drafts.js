@@ -15,6 +15,10 @@ const LIST = 'https://clipcreators.naver.com/web/contents/clips';
 
 (async () => {
   const doDelete = process.argv.includes('--delete');
+  // --match <조각>: 제목에 그 조각이 든 초안만 대상으로 한다. 목록에는 다른 채널(명화관)의
+  // 잔재도 섞여 있어서, 내가 만든 것만 지우고 싶을 때 쓴다. 없으면 예전처럼 전부가 대상이다.
+  const mi = process.argv.indexOf('--match');
+  const match = mi > 0 ? String(process.argv[mi + 1] || '') : '';
   const ctx = await chromium.launchPersistentContext(PROFILE, {
     channel: 'chrome', executablePath: CHROME, headless: false,
     viewport: { width: 1440, height: 1100 }, locale: 'ko-KR',
@@ -28,7 +32,8 @@ const LIST = 'https://clipcreators.naver.com/web/contents/clips';
     await page.goto(LIST, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(6000);
     // 한 번에 한 건씩: 삭제하면 목록이 다시 그려져 인덱스가 밀린다.
-    const rows = page.locator('tr').filter({ hasText: '초안' }).filter({ hasText: '.mp4' });
+    let rows = page.locator('tr').filter({ hasText: '초안' }).filter({ hasText: '.mp4' });
+    if (match) rows = rows.filter({ hasText: match });
     const n = await rows.count().catch(() => 0);
     if (!n) { console.log(round === 0 ? '지울 초안이 없다.' : `정리 끝 — 총 ${removed}건 삭제.`); break; }
     const row = rows.first();

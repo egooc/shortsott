@@ -109,6 +109,48 @@ function ytSlot(draft) {
   return blocked ? { at: blocked.blockedPublishAt, blocked: true } : { at: '', blocked: false };
 }
 
+// ── 린박스 입력 어댑터 (소유주 지시 2026-09-28) ──────────────────────────────
+// 린박스는 캡컷 드래프트를 만들지 않는다. mp4 와 그 옆의 곁딸린 파일만 있다.
+// 브라우저 드라이버가 읽는 것은 job 객체뿐이므로(mp4·durationSec·fb/nv·publishAt·movieTitle)
+// **입력을 만드는 자리만** 갈아 끼우면 페이스북·네이버 클립 경로를 그대로 쓸 수 있다.
+// 명화관 경로(listDrafts/buildJob)는 건드리지 않는다.
+const RINBOX_YT_STATE = path.join(ROOT, 'server', 'data', 'rinbox_publish_state.json');
+
+function rinboxJob(mp4Path) {
+  const mp4 = path.resolve(mp4Path);
+  const draft = path.basename(mp4);                       // state 의 중복 방지 키
+  const meta = readJson(`${mp4}.rinbox.json`, null);
+  if (!fs.existsSync(mp4)) return { draft, locale: 'ko', error: `mp4 없음: ${mp4}` };
+  if (!meta) return { draft, locale: 'ko', error: `곁딸린 메타 없음: ${mp4}.rinbox.json` };
+  const locale = meta.locale === 'ja' ? 'ja' : 'ko';
+  const socialPath = `${mp4}.social.${locale}.txt`;
+  const text = fs.existsSync(socialPath) ? fs.readFileSync(socialPath, 'utf8') : '';
+  if (!text) return { draft, locale, error: `플랫폼 본문 없음: ${socialPath}` };
+
+  let durationSec = 0;
+  try {
+    durationSec = Number.parseFloat(String(require('child_process').execFileSync('ffprobe',
+      ['-v', 'error', '-show_entries', 'format=duration', '-of', 'default=nk=1:nw=1', mp4],
+      { encoding: 'utf8' })).trim()) || 0;
+  } catch { /* 길이를 못 재도 막지 않는다 — 네이버 3분 제한만 이 값을 본다 */ }
+
+  const hist = readJson(RINBOX_YT_STATE, { history: [] }).history || [];
+  const live = [...hist].reverse().find((h) => h.file === draft && h.publishAt);
+  const blocked = [...hist].reverse().find((h) => h.file === draft && h.blockedPublishAt);
+
+  return {
+    draft, locale, mp4, durationSec,
+    titleLines: [meta.title || ''],
+    yt: parseSection(text, ['YouTube Shorts', 'YouTube']),
+    fb: parseSection(text, ['Facebook Reels', 'Facebook']),
+    ig: parseSection(text, ['Instagram Reels', 'Instagram']),
+    nv: parseSection(text, ['네이버 클립', 'naver_clip']),
+    movieTitle: (new RegExp('\\(정보태그[^)]*\\)[^\\n]*\\n([^\\n]+)').exec(text) || [])[1]?.trim() || '',
+    publishAt: live ? live.publishAt : (blocked ? blocked.blockedPublishAt : ''),
+    ytBlocked: !live && Boolean(blocked)
+  };
+}
+
 // 후보 선택자를 위에서부터 시도한다. text=/css=/role=역할:이름 세 가지만 쓴다.
 function locator(page, spec) {
   const s = String(spec);
@@ -215,10 +257,17 @@ function kstParts(iso) {
 
 // 페이스북 개인 프로필 작성기에는 예약이 없다(실측 2026-09-18: 저장/게시 두 버튼뿐).
 // 그래서 그 시각에 이 스크립트를 한 번 실행하도록 윈도우 작업 스케줄러에 1회성 작업을 건다.
-function scheduleWindowsTask(site, draft, k) {
+function scheduleWindowsTask(site, draft, k, rinboxMp4) {
   const { spawnSync } = require('child_process');
   const name = `midform-${site}-${draft}`;
-  const cmd = `cmd /c cd /d "${ROOT}" && node scripts\web-publish.js --site ${site} --only ${draft} --now`;
+  // ★ `scripts\web-publish.js` 를 템플릿 문자열에 그대로 쓰면 \w 가 이스케이프로 먹혀
+  //   역슬래시가 사라진다 → `node scriptsweb-publish.js` 로 등록돼 그 작업은 조용히 아무것도
+  //   안 한다(2026-09-28 실측). --now/--due 로 도는 슬롯 작업은 이 경로를 안 타서 드러나지
+  //   않았다. 슬래시를 쓰면 이스케이프 자체가 없다.
+  // ★린박스는 드래프트 폴더가 없어 --only 로 다시 못 찾는다 — --rinbox 로 되불러야 한다.
+  const selector = rinboxMp4 ? `--rinbox "${path.resolve(rinboxMp4)}"` : `--only ${draft}`;
+  const cmd = `cmd /c cd /d "${ROOT}" && node scripts/web-publish.js --site ${site} ${selector} --now`;
+  // --now 로 되부르므로 그때는 slot 이 null 이고 달력을 건드리지 않는다(명화관과 같은 길).
   const r = spawnSync('schtasks', ['/create', '/f', '/tn', name, '/tr', cmd, '/sc', 'once',
     '/sd', `${k.y}/${k.m}/${k.d}`, '/st', `${k.hh}:${k.mm}`], { encoding: 'utf8' });   // 이 PC 의 schtasks 는 yyyy/mm/dd 를 요구한다(실측)
   if (r.status !== 0) throw new Error(`작업 등록 실패: ${(r.stderr || r.stdout || '').trim().slice(0, 160)}`);
@@ -234,6 +283,22 @@ const drivers = {
     await page.waitForTimeout(3000);
     await attachFile(page, sel.fileInput, sel.openUploader, job.mp4);
 
+    // ★업로드가 끝나면 /web/upload → /web/draft/<id> 로 **페이지가 넘어가며 폼이 다시 그려진다.**
+    //   먼저 채워 놓으면 그때 전부 날아간다 — 설명칸이 비고 예약 날짜도 오늘로 되돌아가
+    //   등록 버튼이 영원히 잠긴다(2026-09-28 실측: 채운 직후 검증은 통과했는데 마지막엔 비어 있었다).
+    //   그래서 **넘어갈 때까지 기다린 다음** 채운다.
+    const beforeUrl = page.url();
+    for (let i = 0; i < 90; i += 1) {                       // 최대 3분
+      if (/\/web\/draft\//.test(page.url())) break;
+      await page.waitForTimeout(2000);
+    }
+    if (/\/web\/draft\//.test(page.url())) {
+      await page.waitForTimeout(2500);                      // 새 폼이 자리 잡을 시간
+      console.log(`[naverclip] 초안 페이지로 넘어갔다 — 여기서부터 채운다 (${page.url()})`);
+    } else {
+      console.log(`[naverclip] 초안 URL 로 안 넘어갔다(${beforeUrl}) — 그대로 진행한다`);
+    }
+
     // 네이버 전용 섹션(제목·캡션·태그 5~10)이 있으면 그것을 쓰고, 옛 패키지면 유튜브 섹션으로 물러선다.
     const body = job.nv || job.yt || job.ig || { caption: '', hashtags: [] };
     const title = body.title || (job.titleLines || []).join(' ');
@@ -247,7 +312,22 @@ const drivers = {
     desc = desc.slice(0, LIMIT);
     const field = await need(page, sel.titleField, '설명 입력칸');
     await field.click();
-    await field.fill(desc).catch(async () => { await page.keyboard.type(desc, { delay: 6 }); });
+    // ★fill 은 실패해도 «던지지 않고» 조용히 빈 칸을 남길 때가 있다(React 통제 컴포넌트).
+    //   설명은 필수라 비면 등록 버튼이 영원히 잠긴다 — 넣은 뒤 반드시 되읽어 확인한다
+    //   (2026-09-28 실측: 빈 칸인 채로 8분을 기다리다 죽었다. 초안 836623).
+    const readBack = async () => {
+      const v = await field.inputValue().catch(() => null);
+      if (v !== null) return v;
+      return (await field.innerText().catch(() => '')) || '';
+    };
+    await field.fill(desc).catch(() => {});
+    if (!(await readBack()).trim()) {
+      await field.click().catch(() => {});
+      await page.keyboard.type(desc, { delay: 8 });
+      await page.waitForTimeout(500);
+    }
+    const descGot = (await readBack()).trim();
+    if (!descGot) throw new Error('설명칸에 글이 들어가지 않았다 — 비면 등록 버튼이 잠긴다(선택자 확인 필요)');
 
     // 카테고리는 필수다. 비운 채 등록을 누르면 발행되지 않고 조용히 초안으로 저장되며 /web/draft/… 로 넘어간다
     // (2026-09-18 에 이렇게 초안만 5건 쌓였다). 선택지는 role=option 이 아니라 그냥 <li> 라서 역할로는 못 집는다.
@@ -304,10 +384,45 @@ const drivers = {
       if (shown !== `${k.y}.${k.m}.${k.d}`) {
         await dateBtn.click().catch(() => {});
         await page.waitForTimeout(1200);
-        const day = page.locator('li,td').filter({ hasText: new RegExp(`^${Number(k.d)}$`) }).first();
-        if (!(await day.count().catch(() => 0))) throw new Error(`달력에서 ${k.m}/${k.d} 을 못 찾았다 — 다른 달이면 수동 확인 필요`);
-        await day.click().catch(() => {});
-        await page.waitForTimeout(1200);
+        // ★달력 날짜는 li·td 가 아니라 aria-label 을 가진 button 이다(실측 2026-09-28):
+        //   <button aria-label="2026년 9월 29일 화요일">29</button>
+        //   숫자만으로 li/td 를 찾으면 하나도 안 걸려 «조용히 오늘 날짜로» 남는다.
+        const dayLabel = `${k.y}년 ${Number(k.m)}월 ${Number(k.d)}일`;
+        let day = page.locator(`button[aria-label^="${dayLabel}"]`).first();
+        if (!(await day.count().catch(() => 0))) {
+          day = page.locator('li,td').filter({ hasText: new RegExp(`^${Number(k.d)}$`) }).first();   // 다른 UI 대비
+        }
+        if (!(await day.count().catch(() => 0))) throw new Error(`달력에서 «${dayLabel}» 을 못 찾았다 — 다른 달이면 수동 확인 필요`);
+        // ★달력은 자기 오버레이(PopUp_overlay)가 포인터를 가로채서 평범한 click 이 안 먹는다.
+        //   force 로 누르고, 눌렸는지 **날짜 표시로** 확인한다. 확인하지 않으면 «오늘 08:30» 으로
+        //   남아 이미 지난 시각이 되고 등록이 영원히 잠긴다(2026-09-28 실측).
+        // 평범한 click → force click → **DOM 직접 click** 순으로 올라간다.
+        // 오버레이가 포인터를 삼키면 force 도 오버레이에 맞는다 — el.click() 은 그 위를 지나간다.
+        let dateOk = false;
+        const ways = [
+          async () => { await day.click({ timeout: 4000 }); },
+          async () => { await day.click({ force: true, timeout: 4000 }); },
+          async () => { await day.evaluate((el) => el.click()); }
+        ];
+        // ★검증은 «달력을 닫은 뒤» 해야 한다. 열려 있는 동안 트리거 버튼 글자는 아직 옛 날짜다 —
+        //   그걸 읽고 실패로 판정하면 «클릭은 먹었는데 실패»로 오판한다(2026-09-28 실측:
+        //   aria-label 이 "2026년 9월 29일 화요일, selected" 인데 버튼은 2026.09.28 로 보였다).
+        //   그래서 1차 신호는 날짜 버튼의 aria-label 에 붙는 selected 다.
+        const daySelected = async () =>
+          /selected/i.test(String(await day.getAttribute('aria-label').catch(() => '')));
+        for (const way of ways) {
+          await way().catch(() => {});
+          await page.waitForTimeout(1000);
+          if (await daySelected()) break;
+        }
+        await page.keyboard.press('Escape').catch(() => {});
+        await page.waitForTimeout(900);
+        dateOk = (await dateBtn.innerText().catch(() => '')).trim() === `${k.y}.${k.m}.${k.d}`
+          || (await daySelected().catch(() => false));
+        if (!dateOk) {
+          const shownNow = (await dateBtn.innerText().catch(() => '')).trim();
+          throw new Error(`등록 예약 날짜가 안 바뀌었다 — 기대 ${k.y}.${k.m}.${k.d}, 화면 ${shownNow || '(읽지 못함)'}`);
+        }
       }
       const setPart = async (candidates, want, label) => {
         const btn = await firstVisible(page, candidates, 4000);
@@ -463,11 +578,15 @@ async function main() {
     // 슬롯 시각에 도는 작업으로 처리하기 위한 모드 — 드래프트마다 1회성 작업을 만드는 것보다 쌓이지 않는다.
     const dueOnly = has('--due');
     const nowMs = Date.now();
-    const drafts = listDrafts({ prefix: arg('--prefix', ''), only: arg('--only', ''), locale })
+    // --rinbox <mp4> 면 드래프트 목록 대신 그 mp4 한 건만 대상으로 삼는다(입력만 다르다).
+    const rinboxMp4 = arg('--rinbox', '');
+    const jobFor = (d) => (rinboxMp4 ? rinboxJob(rinboxMp4) : buildJob(d));
+    const drafts = (rinboxMp4 ? [path.basename(path.resolve(rinboxMp4))]
+      : listDrafts({ prefix: arg('--prefix', ''), only: arg('--only', ''), locale }))
       .filter((d) => !done.has(`${d}:${site}`))
       .filter((d) => {
         if (!dueOnly) return true;
-        const job = buildJob(d);
+        const job = jobFor(d);
         const at = Date.parse(job.publishAt || '');
         if (!Number.isFinite(at)) return false;
         // ★유튜브 차단본은 그 슬롯이 이미 지나 있다. 30분 창으로 보면 영원히 안 걸린다 —
@@ -480,7 +599,7 @@ async function main() {
     const lines = [`# web-publish ${site} ${new Date().toISOString()}`, ''];
 
     for (const draft of drafts) {
-      const job = buildJob(draft);
+      const job = jobFor(draft);
       if (job.error) { console.log(`[skip] ${draft}: ${job.error}`); lines.push(`- 건너뜀 ${draft}: ${job.error}`); continue; }
       if (has('--dry-run')) {
         const body = site === 'naverclip' ? (job.nv || job.yt) : site.startsWith('facebook') ? (job.fb || job.yt) : (job.yt || job.ig);
@@ -492,9 +611,15 @@ async function main() {
         // --now 를 붙였을 때만 즉시 발행한다(2026-09-18 사고 재발 방지).
         const k = (has('--now') || dueOnly) ? null : kstParts(job.publishAt);   // --due 는 이미 그 시각이다
         const future = k && k.ms > Date.now() + 60 * 1000;
-        if (future && !sel.scheduleCheckbox) {
+        // ★네이티브 «등록 예약»(네이버 달력)을 쓰지 않고, 페이스북처럼 «그 시각에 다시 도는 작업»으로
+        //   처리한다. 명화관이 실제로 도는 길이 이것이다 — web-publish-due.js 가 `--due` 로 부르면
+        //   slot 이 null 이 되어 달력 블록을 통째로 건너뛴다(611행). 즉 달력 경로는 운영에서
+        //   한 번도 안 쓰였고, 그래서 손대 보니 버그가 줄줄이 나왔다(2026-09-28).
+        //   검증된 길로 가는 편이 옳다.
+        const skipNative = has('--no-native-schedule');
+        if (future && (!sel.scheduleCheckbox || skipNative)) {
           // 네이티브 예약이 없는 곳(페이스북 개인 프로필) — 그 시각에 스스로 다시 실행되도록 걸어 둔다.
-          const taskName = scheduleWindowsTask(site, draft, k);
+          const taskName = scheduleWindowsTask(site, draft, k, rinboxMp4);
           console.log(`[예약] ${site} ${draft} -> ${k.y}.${k.m}.${k.d} ${k.hh}:${k.mm} KST (작업 ${taskName})`);
           lines.push(`- 예약 ${site}: ${draft} — ${k.y}.${k.m}.${k.d} ${k.hh}:${k.mm} KST (윈도우 작업 ${taskName})`);
           continue;
@@ -514,6 +639,29 @@ async function main() {
           const base = await dumpFailure(page, `${site}-${draft}-preflight`);
           console.log(`[hold] ${draft}: 게시 직전에서 멈췄다 — ${base}.png 확인 후 --stop-before-publish 없이 다시 실행`);
           continue;
+        }
+        // ★게시 버튼이 «잠겨 있는» 동안 기다린다.
+        //   네이버는 업로드한 영상 인코딩이 끝나기 전까지 등록을 잠근다
+        //   (<button type="submit" aria-disabled="true" data-disabled="true">등록</button>).
+        //   드라이버의 encodingMarker 대기는 그 문구를 못 찾으면 **즉시 빠져나가므로** 믿을 수 없다 —
+        //   문구는 UI 개편으로 사라질 수 있지만 버튼의 잠금 상태는 언제나 진실이다.
+        //   기다리지 않으면 Playwright 기본 30초 재시도만 하다가 죽는다(2026-09-28 실측, 초안 836623).
+        const unlocked = async () => {
+          const a = await submit.el.getAttribute('aria-disabled').catch(() => null);
+          const d = await submit.el.getAttribute('data-disabled').catch(() => null);
+          const dom = await submit.el.isEnabled().catch(() => true);
+          return dom && a !== 'true' && d !== 'true';
+        };
+        if (!(await unlocked())) {
+          const waitMs = 8 * 60 * 1000;   // 인코딩은 보통 1~2분, 넉넉히 8분
+          const until = Date.now() + waitMs;
+          console.log(`[wait] ${site} ${draft}: 게시 버튼이 잠겨 있다 — 인코딩 대기(최대 8분)`);
+          while (Date.now() < until && !(await unlocked())) await page.waitForTimeout(5000);
+          if (!(await unlocked())) {
+            const base = await dumpFailure(page, `${site}-${draft}-locked`);
+            throw new Error(`게시 버튼이 8분 동안 잠겨 있었다 — 필수 항목이 비었거나 인코딩이 안 끝났다 (${base}.png)`);
+          }
+          console.log(`[wait] ${site} ${draft}: 잠금 풀림 — 등록 누른다`);
         }
         await submit.el.click();
         await page.waitForTimeout(2500);

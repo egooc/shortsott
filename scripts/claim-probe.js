@@ -205,7 +205,17 @@ async function blockState(token, id) {
   const data = await r.json();
   const item = (data.items || [])[0] || {};
   const blocked = ((item.contentDetails || {}).regionRestriction || {}).blocked || [];
-  return { blocked: blocked.length > 0, countries: blocked.length, worldwide: blocked.length >= 200, uploadStatus: (item.status || {}).uploadStatus || '' };
+  // ★regionRestriction 하나만 보면 놓친다 (2026-09-29 실측).
+  //   같은 날 같은 소스로 올린 ko/ja 한 쌍에서 ja 만 licensedContent=true 로 잡혔고 조회수가 4 에서
+  //   멈췄다(ko 는 licensedContent=false · 2,847회). regionRestriction 은 **양쪽 다 비어 있었다**.
+  //   소유권이 매칭됐다는 뜻이므로, 차단 국가가 안 적혀도 그 소재는 쓰면 안 된다.
+  const licensed = ((item.contentDetails || {}).licensedContent === true);
+  return { blocked: blocked.length > 0, licensed,
+           countries: blocked.length, worldwide: blocked.length >= 200,
+           // ★어느 나라가 막혔는지 남긴다 — 일본이 포함되면 ja 채널에서는 죽은 소재다.
+           //   갯수만 세면 「2개국 차단」이 우리에게 치명적인지 무해한지 알 수 없다.
+           blockedList: blocked.slice(0, 40),
+           uploadStatus: (item.status || {}).uploadStatus || '' };
 }
 
 async function tryDelete(token, id) {
@@ -222,11 +232,12 @@ async function recheck() {
     const profile = (store.profiles || []).find((x) => x.purpose === (p.locale === 'ko' ? 'ko_highlight' : 'jp_highlight'));
     const st = await blockState(await accessToken(profile), p.videoId);
     const age = Math.round((Date.now() - Date.parse(p.at)) / 60000);
-    const verdict = st.blocked ? (st.worldwide ? 'BLOCKED-WORLDWIDE' : `BLOCKED-${st.countries}`) : `CLEAR-${age}min`;
+    const verdict = st.blocked ? (st.worldwide ? 'BLOCKED-WORLDWIDE' : `BLOCKED-${st.countries}`)
+      : st.licensed ? 'MATCHED-licensedContent' : `CLEAR-${age}min`;
     const changed = verdict.startsWith('BLOCKED') !== String(p.verdict).startsWith('BLOCKED');
     p.verdict = verdict; p.recheckedAt = new Date().toISOString();
     console.log(`[recheck] ${p.movieKey || p.source} [${p.locale}] ${p.videoId} +${age}min -> ${verdict}${changed ? '  ** CHANGED' : ''}`);
-    if (st.blocked && p.movieKey) {
+    if ((st.blocked || st.licensed) && p.movieKey) {
       const cat = readJson(CATALOG, null);
       if (cat && cat.movies[p.movieKey]) { const m = cat.movies[p.movieKey]; m.distributor_tier = 'banned'; m.claim_probe = `${new Date().toISOString().slice(0, 10)} ${p.locale} ${verdict} (+${age}min)`; fs.writeFileSync(CATALOG, JSON.stringify(cat, null, 2)); }
     }
@@ -311,16 +322,21 @@ async function main() {
   };
   saveLedger('PENDING', 0, false);
 
-  const t0 = Date.now(); let state = { blocked: false }; let minutes = 0;
+  // ★판정은 두 신호를 본다 — blocked 하나만 보면 놓친다(2026-09-29 실측, 메모리 참조).
+  //   같은 소스로 올린 ko/ja 한 쌍에서 ja 만 licensedContent=true 였고 조회수가 4 에서 멈췄는데
+  //   regionRestriction 은 양쪽 다 비어 있었다. 소유권 매칭도 그 소재를 쓰면 안 된다는 뜻이다.
+  const bad = (st) => st.blocked || st.licensed;
+  const t0 = Date.now(); let state = { blocked: false, licensed: false }; let minutes = 0;
   while (Date.now() - t0 < waitMin * 60 * 1000) {
     await new Promise((r) => setTimeout(r, pollSec * 1000));
     state = await blockState(await accessToken(profile), id);
     minutes = Math.round((Date.now() - t0) / 60000);
-    console.log(`[probe] +${minutes}min upload=${state.uploadStatus} blocked=${state.blocked}${state.blocked ? ` (${state.countries} countries${state.worldwide ? ', worldwide' : ''})` : ''}`);
-    saveLedger(state.blocked ? 'PENDING-BLOCKED' : `PENDING-${minutes}min`, minutes, false);
-    if (state.blocked) break;
+    console.log(`[probe] +${minutes}min upload=${state.uploadStatus} blocked=${state.blocked} licensed=${state.licensed}${state.blocked ? ` (${state.countries}개국${state.worldwide ? ' 전세계' : ''}: ${(state.blockedList || []).join(',')})` : ''}`);
+    saveLedger(bad(state) ? 'PENDING-BAD' : `PENDING-${minutes}min`, minutes, false);
+    if (bad(state)) break;
   }
-  const verdict = state.blocked ? (state.worldwide ? 'BLOCKED-WORLDWIDE' : `BLOCKED-${state.countries}`) : `CLEAR-${minutes}min`;
+  const verdict = state.blocked ? (state.worldwide ? 'BLOCKED-WORLDWIDE' : `BLOCKED-${state.countries}`)
+    : state.licensed ? `MATCHED-licensedContent-${minutes}min` : `CLEAR-${minutes}min`;
   let deleted = false;
   if (!process.argv.includes('--keep')) deleted = await tryDelete(await accessToken(profile), id).catch(() => false);
 
@@ -330,12 +346,12 @@ async function main() {
     if (cat && cat.movies && cat.movies[movieKey]) {
       const m = cat.movies[movieKey];
       m.claim_probe = `${new Date().toISOString().slice(0, 10)} ${locale} ${span} (${mode}) ${verdict}`;
-      if (state.blocked) { m.distributor_tier = 'banned'; m.note = `${m.note ? m.note + ' | ' : ''}claim-probe ${verdict} ${new Date().toISOString().slice(0, 10)}`; }
+      if (state.blocked || state.licensed) { m.distributor_tier = 'banned'; m.note = `${m.note ? m.note + ' | ' : ''}claim-probe ${verdict} ${new Date().toISOString().slice(0, 10)}`; }
       fs.writeFileSync(CATALOG, JSON.stringify(cat, null, 2));
     }
   }
   console.log(`[probe] VERDICT ${verdict} | probe video ${deleted ? 'deleted' : 'left private (delete needs youtube.force-ssl)'}${movieKey ? ` | catalog ${movieKey} updated` : ''}`);
-  process.exit(state.blocked ? 2 : 0);
+  process.exit((state.blocked || state.licensed) ? 2 : 0);
 }
 
 main().catch((e) => { console.error(`[probe] ${e.message}`); process.exit(1); });

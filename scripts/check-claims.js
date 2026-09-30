@@ -56,8 +56,13 @@ async function accessToken(profile) {
 // the first makes the video worthless, so they are reported apart.
 function blockShape(item) {
   const blocked = ((item.contentDetails || {}).regionRestriction || {}).blocked || [];
-  if (!blocked.length) return { blocked: false, countries: 0, worldwide: false };
-  return { blocked: true, countries: blocked.length, worldwide: blocked.length >= 200 };
+  // ★두 번째 신호: licensedContent.  2026-09-29, 같은 소스로 같은 시각에 올린 ko/ja 한 쌍에서
+  //   ja 만 licensedContent=true 였고 조회수가 4 에서 멈췄다(ko 는 false · 2,847회).
+  //   regionRestriction 은 양쪽 다 비어 있어서 이 함수가 「클레임 없음」으로 통과시켰다.
+  //   소유권 매칭은 차단 국가 목록 없이도 도달을 죽인다 — 별도로 보고한다.
+  const licensed = ((item.contentDetails || {}).licensedContent === true);
+  if (!blocked.length) return { blocked: false, licensed, countries: 0, worldwide: false };
+  return { blocked: true, licensed, countries: blocked.length, worldwide: blocked.length >= 200 };
 }
 
 // Drop the scheduled publish without touching anything else in the snippet: videos.update
@@ -170,7 +175,8 @@ async function main() {
       //   실측: 차단 5건 전부 `unscheduled=None` — 이 스크립트의 존재 이유인 동작이 한 번도 돈 적이 없다.
       //   그래서 두 곳 중 **어디서든** 예약을 봤으면 해제한다(row.publishAt 은 둘을 합친 값이다).
       //   이미 비공개인 영상에 다시 비공개를 거는 것은 무해하다.
-      if (shape.blocked && args.unschedule && (row.publishAt || row.privacy !== 'private')) {
+      // ★소유권 매칭(licensedContent)도 차단과 같이 다룬다 — 도달이 죽는 결과는 같다(2026-09-29).
+      if ((shape.blocked || shape.licensed) && args.unschedule && (row.publishAt || row.privacy !== 'private')) {
         try { await unschedule(token, item); row.unscheduled = true; }
         catch (error) { row.unscheduleError = error.message; }
         // ★2026-09-22: 유튜브에서만 내리고 «우리 장부»는 그대로 둬서 그 슬롯이 계속
@@ -179,8 +185,14 @@ async function main() {
         //   해제했으면 장부에서도 예약을 지운다 — 기록은 남기고 자리만 비운다.
         if (row.unscheduled) {
           for (const h of state.history || []) {
-            if (h.url && h.url.includes(item.id) && h.publishAt) {
-              h.blockedAt = new Date().toISOString();
+            if (!h.url || !h.url.includes(item.id)) continue;
+            // ★2026-09-30 수리: 이 자리에 `&& h.publishAt` 가 있었다. 예약이 한 번 해제되면
+            //   그 뒤로는 blockedAt 이 **영영 안 붙는다.** 그래서 차단된 편이 장부에서
+            //   «차단 아님»으로 집계됐고, 내가 소유주께 차단율을 42% 로 보고했다.
+            //   전수 재검사로 21편이 뒤늦게 붙었고 실제는 67% 였다.
+            //   → 차단 사실 기록과 예약 해제를 분리한다. 기록은 조건 없이, 해제는 있을 때만.
+            if (!h.blockedAt) { h.blockedAt = new Date().toISOString(); stateDirty = true; }
+            if (h.publishAt) {
               h.blockedPublishAt = h.publishAt;
               h.publishAt = '';
               stateDirty = true;
@@ -202,13 +214,16 @@ async function main() {
 
   if (args.json) { console.log(JSON.stringify(rows, null, 2)); return; }
 
-  const blocked = rows.filter((r) => r.blocked);
+  const blocked = rows.filter((r) => r.blocked || r.licensed);
   const lines = [`# Content ID 3층 자동 확인 ${new Date().toISOString()}`, ''];
   if (!rows.length) lines.push('_확인 대상 없음 (공개 대기 중인 업로드가 없습니다)._');
   for (const r of rows) {
     if (r.error) { lines.push(`- 조회 실패 [${r.locale}]: ${r.error}`); continue; }
-    const mark = r.blocked ? (r.worldwide ? '전세계 차단' : `${r.countries}개국 차단`) : '클레임 없음';
-    lines.push(`- ${r.blocked ? '**' : ''}${mark}${r.blocked ? '**' : ''} [${r.locale}] ${r.durationSec}s ${r.videoId} — ${r.title.slice(0, 40)}`
+    const bad = r.blocked || r.licensed;
+    const mark = r.blocked ? (r.worldwide ? '전세계 차단' : `${r.countries}개국 차단`)
+      : r.licensed ? '소유권 매칭(licensedContent) — 차단 국가는 안 적혔지만 도달이 죽는다'
+      : '클레임 없음';
+    lines.push(`- ${bad ? '**' : ''}${mark}${bad ? '**' : ''} [${r.locale}] ${r.durationSec}s ${r.videoId} — ${r.title.slice(0, 40)}`
       + (r.unscheduled ? ' → 예약 해제됨' : '') + (r.unscheduleError ? ` → 해제 실패: ${r.unscheduleError}` : ''));
     for (const s of r.socialCancel || []) lines.push(`  - 소셜 ${s}`);
   }

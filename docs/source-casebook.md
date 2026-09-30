@@ -5315,3 +5315,47 @@ animal-control  → "literally just every animal control scene | Park…"  Parks
 
 → 생산 지침(§2.5)에 둘 다 박았다. 등급은 **고르는 순서**일 뿐이고,
   «이 소스를 받을 수 있나»와 «이게 그 영화인가»는 매번 따로 확인한다.
+
+## 사례 159 — ★★화이트리스트 등급 전체를 신호 하나로 재고 있었다 (2026-09-30)
+
+9월 29일에 이미 배운 것이 있다(메모리 `licensed-content-is-the-second-block-signal`):
+차단 신호는 **둘**이다. 같은 소스로 같은 시각에 올린 ko/ja 한 쌍에서 —
+
+```
+            regionRestriction   licensedContent   조회수
+ko          없음                false             2,847
+ja          없음                **true**          **4**
+```
+
+소유권이 매칭되면 **차단 국가 목록 없이도 도달이 죽는다.** 그날 `check-claims.js` ·
+`claim-probe.js` · `_claims-by-id.js` 세 곳을 고쳤다.
+
+**그런데 화이트리스트 파이썬 넷은 안 고쳤다.** 오늘 등급 A 17건 · B 11건을 매기고
+«바로 만들 수 있는 것 15건» 까지 세 놓고 보니, 그 전부가 `regionRestriction` 하나로만
+잰 것이었다:
+
+```
+count_alive_clips.py       regionRestriction 1 · licensedContent 0
+find_clips_for.py          regionRestriction 1 · licensedContent 0
+discover_channels.py       regionRestriction 1 · licensedContent 0
+whitelist_from_narration.py regionRestriction 2 · licensedContent 0
+```
+
+**«안전을 재려고 만든 도구» 가 불충분한 신호로 재고 있었다.** `alive_in_band` 에
+«조용히 죽은» 클립이 섞여 있으면 등급이 실제보다 좋게 나온다. 사례 154(차단율 42%→68%)와
+같은 모양의 잘못이다 — 집계가 조용히 낙관적이었다.
+
+더 나쁜 것은, 데이터는 **이미 손에 있었다.** 네 스크립트 다 `part='contentDetails'` 를
+받아 오고 있었고 `licensedContent` 는 그 안에 들어 있었다. 받아 놓고 버렸다.
+그래서 지난 집계를 되살릴 수도 없다 — 저장을 안 했으니 다시 재야 한다.
+
+→ 넷 다 고쳤다. `count_alive_clips` 는 `licensed_in_band` 를 따로 세고 차단률에 합산한다.
+  `whitelist_from_narration` 은 소유권 매칭된 것을 «견딘 증거»에서 뺀다.
+  `find_clips_for` 는 소스에 소유권이 매칭돼 있으면 점수를 깎는다(막지는 않는다 —
+  그 업로드의 지문이 등록돼 있다는 뜻이라 위험 신호이되, 고를 것이 없을 때는 써야 한다).
+→ 이미 잰 32건에는 `signal: 'region_only'` 를 박고 카탈로그 31건 note 에 적었다.
+  `rank_whitelist.py` 가 그런 줄에 «★신호1개» 를 붙인다. 할당량이 풀리면 다시 잰다.
+
+→ **교훈: 한 곳에서 배운 것을 같은 판정을 하는 다른 곳에 옮겨 심어라.**
+  9/29 에 JS 세 곳을 고치면서 «같은 판정을 하는 파이썬이 넷 더 있다»를 놓쳤다.
+  다음에 판정 규칙을 고칠 때는 `grep -l <신호이름> scripts/` 를 먼저 돌린다.
