@@ -24,7 +24,11 @@
       "locale_block": {
         "ja": "소유주 방침 2026-09-30: ja 채널은 일본 드라마만 올린다(ko 채널은 한국 드라마만). 한국 드라마의 ja 발행 금지. ※이전 사유였던 「licensedContent 매칭으로 4회」는 2026-09-30 철회 — 그 4회는 매칭 때문이 아니라 내가 그 편을 비공개로 돌려서 나온 숫자였다. 방침이 유효한 사유다."
       },
-      "claim_probe": "2026-09-29 ja MATCHED-licensedContent (공개 후 관측)"
+      "claim_probe": "2026-09-29 ja MATCHED-licensedContent (공개 후 관측)",
+      "rights_holder_ko": "SBS",
+      "source_line_ko": "제작·배급: SBS｜「닥터스」(2016)",
+      "watch_line_ko": "본편은 권리자의 공식 채널에서 보실 수 있습니다.",
+      "_internal_source_url": "https://www.youtube.com/watch?v=cSq6GzcVs9A"
     },
     "samgyopsal-desuga-2025": {
       "match": "サムギョプサル|삼겹살입니다만|samgyopsal",
@@ -41,7 +45,11 @@
       "source_channel": "テレ東公式 ドラマチャンネル",
       "note": "木ドラ24。2025年9月11日(木)スタート、毎週深夜24:30~25:00。主演 小田惟真。公式チャンネルが本編を全話無料公開している(第1話 KX--vzOb7zY ほか、各24分・1920x1080)。★韓国語セリフの区間だけ日本語字幕が焼き込まれている — その区間は使わない。★音楽・群舞の区間は音源権利で claim される — 使わない。",
       "claim_probe": "2026-09-29 ja 460s+150s(대사) CLEAR-21min blocked=false licensed=false | 820s+150s(군무) BLOCKED-2 (+2min)",
-      "verified_by": "공식 채널 영상 설명란 — 방송국·방송일시·배포처·주연이 그대로 적혀 있다"
+      "verified_by": "공식 채널 영상 설명란 — 방송국·방송일시·배포처·주연이 그대로 적혀 있다",
+      "rights_holder_ja": "テレビ東京",
+      "source_line_ja": "制作・著作：テレビ東京｜「サムギョプサルですが」(2025)",
+      "watch_line_ja": "本編は「ネットもテレ東」（テレ東HP・広告付き無料配信）およびU-NEXTでご覧いただけます。",
+      "_internal_source_url": "https://www.youtube.com/watch?v=KX--vzOb7zY"
     },
     "abarenbo-shogun-1978": {
       "match": "暴れん坊将軍|아바렌보|abarenbo|吉宗評判記",
@@ -77,10 +85,617 @@
           "region": "unrestricted"
         }
       ],
-      "verified_by": "공식 채널 업로드 + ja.wikipedia/allcinema 로 방송국·기간·화수·주연 확증(2026-09-30)"
+      "verified_by": "공식 채널 업로드 + ja.wikipedia/allcinema 로 방송국·기간·화수·주연 확증(2026-09-30)",
+      "rights_holder_ja": "テレビ朝日／東映",
+      "source_line_ja": "制作：東映／放送：テレビ朝日｜「吉宗評判記 暴れん坊将軍」(1978)",
+      "watch_line_ja": "本編は権利者の公式配信で無料公開されています。",
+      "_internal_source_url": "https://www.youtube.com/watch?v=aJhmV_Bdne4"
+    },
+    "jeonwon-ilgi-mbc": {
+      "match": "전원일기|田園日記|jeonwon",
+      "title_ko": "전원일기",
+      "title_en": "Country Diary",
+      "year": 1980,
+      "kind": "drama",
+      "broadcaster": "MBC",
+      "rights_tier": "preflight",
+      "rights_holder_ko": "MBC",
+      "source_line_ko": "제작·저작: MBC｜「전원일기」(1980~2002)",
+      "watch_line_ko": "본편은 권리자의 공식 채널에서 무료 공개되어 있습니다.",
+      "credit_ko": "「전원일기」는 꼭 풀버전으로 감상하시는 걸 추천드립니다.",
+      "official_free": "MBC 공식 채널 「옛드」",
+      "source_channel": "옛드",
+      "source_channel_id": "UCG5bAssl2H0wjLG4BEv5ScQ",
+      "locale_block": {
+        "ja": "소유주 방침 2026-09-30: ja 채널은 일본 드라마만 올린다. 한국 드라마의 ja 발행 금지."
+      },
+      "note": "★실측(2026-10-01): 1920x1080 이지만 4:3 필러박스 + **우상단에 「田園日記」 고정 로고**. 올바른 크롭은 crop=1350:1080:250:0 — 1440:1080:240:0 으로 자르면 로고가 남아 화면검사 NG 가 난다. cropdetect 는 로고를 그림으로 보고 1570:1076:250:4 를 내놓으니 믿지 말 것.",
+      "_internal_source_url": "https://www.youtube.com/watch?v=2BWVKBuKuhw",
+      "verified_by": "MBC 공식 채널 업로드 실측(차단 0·지역한정 0·1080p)"
+    },
+    "akakage-1967": {
+      "match": "赤影|仮面の忍者|아카카게|akakage",
+      "title_ja": "仮面の忍者 赤影",
+      "title_ko": "가면의 닌자 아카카게",
+      "title_en": "Masked Ninja Akakage",
+      "year": 1967,
+      "kind": "tokusatsu",
+      "broadcaster": "関西テレビ／東映京都テレビ・プロダクション",
+      "rights_tier": "preflight",
+      "rights_holder_ja": "関西テレビ／東映",
+      "source_line_ja": "制作：東映京都テレビ・プロダクション／放送：関西テレビ・フジテレビ系列｜「仮面の忍者 赤影」(1967)",
+      "watch_line_ja": "本編は権利者の公式配信で無料公開されています。",
+      "credit_ja": "「仮面の忍者 赤影」はぜひフルバージョンでご覧になることをおすすめします。",
+      "official_free": "東映時代劇YouTube（東映公式チャンネル）",
+      "source_channel": "東映時代劇YouTube",
+      "source_channel_id": "UCJm60FFiYSH2mJONr6vnV_A",
+      "locale_block": {
+        "ko": "소유주 방침 2026-09-30: ko 채널은 한국 드라마만 올린다. 일본 작품의 ko 발행 금지."
+      },
+      "note": "★시각 후킹용 소재(소유주 지시 2026-10-01: 판타지·시각적으로 후킹되는 쪽). 붉은 가면 닌자·변신·괴수가 나오는 특촬이라 시대극보다 화면이 훨씬 세다. 1967년 4월 5일~1968년 3월 27일 전 52화, 수요일 19:00~19:30, 関西テレビ 첫 컬러 프로그램. 원작 横山光輝 만화. 주연 坂口祐三郎. ★크롭 실측: 1920x1080 이지만 4:3 필러박스 — crop=1440:1080:240:0. 로고 없음.",
+      "available_episodes": [
+        {
+          "ep": 1,
+          "videoId": "pgFIZDOFIZY",
+          "sec": 1573,
+          "views": 3884825,
+          "region": "unrestricted"
+        }
+      ],
+      "_internal_source_url": "https://www.youtube.com/watch?v=pgFIZDOFIZY",
+      "verified_by": "ja.wikipedia·東映ビデオ 로 방송국·기간·화수·주연·원작 확증(2026-10-01)"
+    },
+    "jumong-mbc-2006": {
+      "match": "주몽|朱蒙|jumong",
+      "title_ko": "주몽",
+      "title_en": "Jumong",
+      "year": 2006,
+      "kind": "drama",
+      "broadcaster": "MBC",
+      "rights_tier": "preflight",
+      "rights_holder_ko": "MBC",
+      "source_line_ko": "제작·저작: MBC｜「주몽」(2006~2007)",
+      "watch_line_ko": "본편은 권리자의 공식 채널에서 무료 공개되어 있습니다.",
+      "credit_ko": "「주몽」은 꼭 풀버전으로 감상하시는 걸 추천드립니다.",
+      "official_free": "MBC 공식 채널 「옛드」",
+      "source_channel": "옛드",
+      "source_channel_id": "UCG5bAssl2H0wjLG4BEv5ScQ",
+      "locale_block": {
+        "ja": "소유주 방침 2026-09-30: ja 채널은 일본 드라마만 올린다. 한국 드라마의 ja 발행 금지."
+      },
+      "note": "★시각 후킹용 소재(소유주 지시 2026-10-01). 갑옷·전투·궁중 의상이라 전원일기보다 화면이 훨씬 세다. 2006년 5월 15일~2007년 3월 6일 MBC, 고구려 건국 사극, 81부작(60부 기획에서 21회 연장). 주연 송일국. ★크롭 실측: **1920x1080 네이티브 16:9 — 필러박스 없음**. 다만 우상단에 「주몽」 로고가 x 1680~1900 에 있어 crop=1660:1080:0:0 으로 잘라낸다. 16:9 라 세로 창이 폭의 31.6%뿐이므로 크롭 여유가 4:3 소재보다 훨씬 넉넉하다.",
+      "available_episodes": [
+        {
+          "ep": "70-72",
+          "videoId": "HqW7ny0vGMg",
+          "sec": 6480,
+          "views": 445837,
+          "region": "unrestricted"
+        }
+      ],
+      "_internal_source_url": "https://www.youtube.com/watch?v=HqW7ny0vGMg",
+      "verified_by": "ko.wikipedia·나무위키 로 방송국·기간·화수·주연 확증(2026-10-01)"
+    },
+    "surounin-tsukikage-hyogo-1965": {
+      "match": "素浪人 ?月影兵庫|月影兵庫|스로닌 ?츠키카게|tsukikage",
+      "title_ja": "素浪人 月影兵庫",
+      "title_ko": "스로닌 츠키카게 효고",
+      "title_en": "Surounin Tsukikage Hyogo",
+      "year": 1965,
+      "kind": "drama",
+      "broadcaster": "NET（現・テレビ朝日）／東映",
+      "rights_tier": "preflight",
+      "rights_holder_ja": "東映",
+      "source_line_ja": "制作：東映／放送：NET（現・テレビ朝日）系｜「素浪人 月影兵庫」(1965)",
+      "watch_line_ja": "本編は権利者の公式チャンネルで無料公開されています。",
+      "credit_ja": "「素浪人 月影兵庫」はぜひフルバージョンでご覧になることをおすすめします。",
+      "official_free": "東映時代劇YouTube（東映公式チャンネル）",
+      "source_channel": "東映時代劇YouTube",
+      "source_channel_id": "UCJm60FFiYSH2mJONr6vnV_A",
+      "locale_block": {
+        "ko": "소유주 방침 2026-09-30: ko 채널은 한국 드라마만 올린다. 일본 작품의 ko 발행 금지."
+      },
+      "note": "제1시리즈. 1965년 10월 19일~1966년 4월 12일, 전 26화, 화요일 20:00~20:56. 원작 南條範夫 동명 소설. 주연 近衛十四郎(月影兵庫)·品川隆二(焼津の半次). ★크롭 실측(2026-10-02): 원본 1440x1080 그대로 — 필러박스·로고 없음. ★1965년 흑백 필름이라 입자가 굵고 와이드 설정 샷이 많다. ★ASR(Speechmatics)이 옛 음질에서 자주 틀린다 — 자막으로 쓸 구간은 반드시 전사 텍스트를 읽고 말이 되는 구간만 고를 것(예: 「幸を興味を祈り上げソロ」·「チーター知られた」 같은 깨진 구간이 섞여 있다).",
+      "available_episodes": [
+        {
+          "ep": 1,
+          "sec": 2873,
+          "views": 2130000,
+          "region": "unrestricted"
+        }
+      ],
+      "verified_by": "ja.wikipedia·東映ビデオ 특집 페이지로 방송국·방송기간·화수·주연·원작 확증(2026-10-02)"
+    },
+    "jeonseol-gohyang-2008": {
+      "match": "전설의 ?고향|jeonseol|gohyang",
+      "title_ko": "전설의 고향",
+      "title_en": "Hometown Legends",
+      "year": 2008,
+      "kind": "drama",
+      "broadcaster": "KBS 2TV",
+      "rights_tier": "preflight",
+      "rights_holder_ko": "KBS",
+      "source_line_ko": "제작·저작: KBS｜「2008 전설의 고향」(2008)",
+      "watch_line_ko": "본편은 권리자의 공식 채널에서 무료 공개되어 있습니다.",
+      "credit_ko": "「전설의 고향」은 꼭 풀버전으로 감상하시는 걸 추천드립니다.",
+      "official_free": "KBS 같이삽시다 (KBS 공식 채널에서 본편 무료 공개)",
+      "source_channel": "KBS 같이삽시다",
+      "source_channel_id": "UCp3Vy7dFjIheDLbMekpdMQw",
+      "locale_block": {
+        "ja": "소유주 방침 2026-09-30: ja 채널은 일본 드라마만 올린다. 한국 드라마의 ja 발행 금지."
+      },
+      "note": "★시각 후킹용 소재(소유주 지시 2026-10-01: 판타지·시각적으로 후킹되는 쪽). 구미호·여우골·저승에서 핀 꽃 같은 한국 호러 판타지 단편 모음이라 한 편이 그대로 완결이다 — 린박스에 가장 잘 맞는 구조다. 2008 전설의 고향: 2008년 8월 6일~9월 3일 KBS 2TV, 전 8부작, 수목 밤 9시 55분. 제1화 「구미호」 출연 박민영(명옥)·김하은. ★실측(2026-10-02): 1920x1080 꽉 찬 16:9 — 필러박스·레터박스 없음(crop 불필요), 방송국 로고 없음, 박힌 자막 없음. ★같은 채널에 전설의 고향 전편이 64편 올라와 있고 길이대 통과분 159편 중 차단 0편이다. ★단 1996~1999년 KBS1 판은 SD 업스케일이라 화질이 다르다 — 편마다 해상도·크롭을 다시 재라.",
+      "available_episodes": [
+        {
+          "ep": 1,
+          "videoId": "CTB2VUu5cmA",
+          "sec": 4113,
+          "views": 3666811,
+          "region": "unrestricted",
+          "title": "구미호 (2008)"
+        },
+        {
+          "videoId": "y7kmKtR4hUg",
+          "sec": 3900,
+          "views": 3734351,
+          "region": "unrestricted",
+          "title": "씨받이 (KBS 2009.8.24 방송)"
+        },
+        {
+          "videoId": "i3S_K2jBtCY",
+          "sec": 2820,
+          "views": 2222704,
+          "region": "unrestricted",
+          "title": "여우골"
+        },
+        {
+          "videoId": "nRSki4GtHr8",
+          "sec": 3420,
+          "views": 826661,
+          "region": "unrestricted",
+          "title": "구미호 (KBS 1997.07.12 방송)"
+        },
+        {
+          "videoId": "Vomle3lbKiU",
+          "sec": 3240,
+          "views": 763299,
+          "region": "unrestricted",
+          "title": "저승에서 핀 꽃 (KBS 1998.07.20 방송)"
+        },
+        {
+          "videoId": "2-ShZS7xS6I",
+          "sec": 3060,
+          "views": 777928,
+          "region": "unrestricted",
+          "title": "야호(野狐) (KBS 1996 방송)"
+        }
+      ],
+      "verified_by": "ko.wikipedia「2008 전설의 고향」·스포츠경향 2008-08-07 방송평으로 방송국·방영기간·화수·제1화 구미호·박민영 출연 확증(2026-10-02). 권리 상태는 YouTube API 로 regionRestriction 비어 있음을 6편 전수 확인."
+    },
+    "henshin-ninja-arashi-1972": {
+      "match": "変身忍者 ?嵐|헨신닌자|arashi",
+      "title_ja": "変身忍者 嵐",
+      "title_ko": "변신닌자 아라시",
+      "title_en": "Henshin Ninja Arashi",
+      "year": 1972,
+      "kind": "tokusatsu",
+      "broadcaster": "毎日放送 / NET（現・テレビ朝日）系",
+      "rights_tier": "preflight",
+      "rights_holder_ja": "東映",
+      "source_line_ja": "制作：東映／放送：毎日放送・NET（現・テレビ朝日）系｜「変身忍者 嵐」(1972)",
+      "watch_line_ja": "本編は権利者の公式チャンネルで無料公開されています。",
+      "credit_ja": "「変身忍者 嵐」はぜひフルバージョンでご覧になることをおすすめします。",
+      "official_free": "東映時代劇YouTube（東映公式チャンネル）",
+      "source_channel": "東映時代劇YouTube",
+      "source_channel_id": "UCJm60FFiYSH2mJONr6vnV_A",
+      "locale_block": {
+        "ko": "소유주 방침 2026-09-30: ko 채널은 한국 드라마만 올린다. 일본 작품의 ko 발행 금지."
+      },
+      "note": "★시각 후킹용 소재(소유주 지시 2026-10-01: 판타지·시각적으로 후킹되는 쪽). 石ノ森章太郎 원작의 변신 히어로 시대극이라 괴인·변신·검극이 섞여 화면이 세다. 1972년 4월 7일~1973년 2월 23일, 금요일 19:00~19:30, 전 47화. 주연 南城竜也. ★실측(2026-10-02): 1920x1080 이지만 4:3 필러박스 — crop=1440:1080:240:0 을 반드시 걸 것. 1화 24.5분. ★같은 채널의 다른 작품과 달리 1화·2화 모두 regionRestriction 비어 있음(2026-10-02 API 확인).",
+      "available_episodes": [
+        {
+          "ep": 1,
+          "videoId": "KRn9u9977bQ",
+          "sec": 1474,
+          "views": 651507,
+          "region": "unrestricted"
+        },
+        {
+          "ep": 2,
+          "videoId": "dkjmQ2zaqQQ",
+          "sec": 1500,
+          "views": 219483,
+          "region": "unrestricted"
+        }
+      ],
+      "verified_by": "ja.wikipedia「変身忍者 嵐」·allcinema 로 방송국·방영기간·화수·주연·원작 확증(2026-10-02). 권리 상태는 YouTube API 로 regionRestriction 비어 있음을 확인."
+    },
+    "yojutsu-bugeicho-1969": {
+      "match": "妖術武芸帳|요주쓰|yojutsu",
+      "title_ja": "妖術武芸帳",
+      "title_ko": "요술무예첩",
+      "title_en": "Yojutsu Bugeicho",
+      "year": 1969,
+      "kind": "tokusatsu",
+      "broadcaster": "TBS系 / 東映京都テレビプロダクション",
+      "rights_tier": "preflight",
+      "rights_holder_ja": "東映",
+      "source_line_ja": "制作：東映京都テレビプロダクション／放送：TBS系｜「妖術武芸帳」(1969)",
+      "watch_line_ja": "本編は権利者の公式チャンネルで無料公開されています。",
+      "credit_ja": "「妖術武芸帳」はぜひフルバージョンでご覧になることをおすすめします。",
+      "official_free": "東映時代劇YouTube（東映公式チャンネル）",
+      "source_channel": "東映時代劇YouTube",
+      "source_channel_id": "UCJm60FFiYSH2mJONr6vnV_A",
+      "locale_block": {
+        "ko": "소유주 방침 2026-09-30: ko 채널은 한국 드라마만 올린다. 일본 작품의 ko 발행 금지."
+      },
+      "note": "★시각 후킹용 소재(소유주 지시 2026-10-01: 판타지·시각적으로 후킹되는 쪽). 妖術이 제목에 들어가는 특촬 시대극이라 요술·괴이 장면이 많다. 1969년 3월 16일~6월 8일 TBS계 일요일 19:00~19:30, 전 13화. ★방송국이 NET 이 아니라 TBS 다 — 같은 東映 채널의 다른 작품과 헷갈리지 말 것. 주연 佐々木功. ★실측(2026-10-03): 1920x1080 이지만 4:3 필러박스 — crop=1440:1080:240:0 필수. 제2화 25.3분. ★1969년 필름이라 입자가 굵다 — ffmpeg scene 검출은 0.12 가 아니라 0.32 로 재야 헛검출이 안 섞인다.",
+      "available_episodes": [
+        {
+          "ep": 2,
+          "videoId": "K9fi0lseBuk",
+          "sec": 1518,
+          "views": 170939,
+          "region": "unrestricted"
+        }
+      ],
+      "verified_by": "allcinema·東映ビデオ 로 방송국(TBS계)·방영기간·화수·주연 확증(2026-10-03). 권리 상태는 YouTube API 로 regionRestriction 비어 있음을 확인."
+    },
+    "queen-mantis-sbs-2025": {
+      "match": "사마귀|살인자의 ?외출|queen ?mantis",
+      "title_ko": "사마귀 : 살인자의 외출",
+      "title_en": "Queen Mantis",
+      "year": 2025,
+      "kind": "drama",
+      "broadcaster": "SBS",
+      "rights_tier": "preflight",
+      "rights_holder_ko": "SBS",
+      "source_line_ko": "제작·저작: SBS｜「사마귀 : 살인자의 외출」(2025)",
+      "watch_line_ko": "본편은 권리자의 공식 채널에서 보실 수 있습니다.",
+      "credit_ko": "「사마귀 : 살인자의 외출」은 꼭 풀버전으로 감상하시는 걸 추천드립니다.",
+      "official_free": "SBS Catch (SBS 공식 채널의 「모았캐치」 편집본)",
+      "source_channel": "SBS Catch",
+      "source_channel_id": "UC3re3ueOE_6VZK85zlEUWFA",
+      "locale_block": {
+        "ja": "소유주 방침 2026-09-30: ja 채널은 일본 드라마만 올린다. 한국 드라마의 ja 발행 금지."
+      },
+      "note": "★소유주 지적 2026-10-03: ko 채널은 사극·옛날 드라마가 안 먹힌다. 실측 — 닥터스(2016 메디컬) 12,953·7,446회 vs 주몽(2006 사극) 1,259·1,018회, 전원일기 1,470회. 현대극이 사극의 10배다. 그래서 2025년 현대 스릴러로 전환한다. 「사마귀」는 연쇄살인마 어머니(고현정)와 형사 아들(장동윤) — 「우리 엄마가 연쇄살인마야」 같은 호기심 후킹이 매 편 선다. 2025년 9월 5일~9월 27일 SBS, 금토 21:50~23:10, 전 8부작. 연출 변영주, 극본 이영종. ★실측(2026-10-03): 1920x1080 에 위아래 레터박스 — 실화면 crop=1920:962:0:58. 박힌 자막 없음. ★우상단에 「SBS CATCH」 로고가 상시로 있다 — 9:16 중앙 크롭이면 잘려 나가지만 카메라 중심(cx)을 0.65 보다 오른쪽으로 두면 로고가 들어온다. 중심을 0.65 이하로 잡을 것. ★닥터스와 같은 채널·같은 권리 근거다(SBS 공식 모았캐치).",
+      "available_episodes": [
+        {
+          "videoId": "rbpzI3I7jfQ",
+          "sec": 901,
+          "views": 441303,
+          "region": "unrestricted",
+          "title": "진짜 광기 VS 가짜 광기 — 고현정"
+        },
+        {
+          "videoId": "JgsWp2X8iRM",
+          "sec": 900,
+          "views": 245375,
+          "region": "unrestricted",
+          "title": "죽은 줄 알았던 시어머니가 연쇄살인마"
+        },
+        {
+          "videoId": "XX2wq4ufzDI",
+          "sec": 2040,
+          "views": 96229,
+          "region": "unrestricted",
+          "title": "1-2회 핵심만 33분 몰아보기"
+        },
+        {
+          "videoId": "OdKgjT2Y74A",
+          "sec": 2040,
+          "views": 113345,
+          "region": "unrestricted",
+          "title": "3-4회 핵심만 34분 몰아보기"
+        },
+        {
+          "videoId": "Ki3lDwd2IIc",
+          "sec": 900,
+          "views": 96960,
+          "region": "unrestricted",
+          "title": "우리 엄마가 연쇄살인마야 — 김보라"
+        },
+        {
+          "videoId": "j41cKeMVorQ",
+          "sec": 900,
+          "views": 103245,
+          "region": "unrestricted",
+          "title": "숨겨진 고현정 아들의 등장"
+        },
+        {
+          "videoId": "fj7nx0_nt14",
+          "sec": 900,
+          "views": 67479,
+          "region": "unrestricted",
+          "title": "그래 네 아빠를 죽였어"
+        },
+        {
+          "videoId": "zrcQJkedYII",
+          "sec": 840,
+          "views": 73722,
+          "region": "unrestricted",
+          "title": "엄마를 용서한 장동윤"
+        },
+        {
+          "videoId": "xDWf-e5dlU4",
+          "sec": 780,
+          "views": 95204,
+          "region": "unrestricted",
+          "title": "김보라 유산 위기"
+        },
+        {
+          "videoId": "W6-K_GiHIZg",
+          "sec": 720,
+          "views": 117268,
+          "region": "unrestricted",
+          "title": "고현정과 조성하 — 사과 하나 깨물었을 뿐인데"
+        }
+      ],
+      "verified_by": "ko.wikipedia「사마귀 : 살인자의 외출」로 방송국·방영기간·부작·연출·극본 확증(2026-10-03). 권리 상태는 YouTube API 로 regionRestriction 비어 있음을 10편 전수 확인."
+    },
+    "taxi-driver-sbs-2021": {
+      "match": "모범택시|taxi ?driver",
+      "title_ko": "모범택시",
+      "title_en": "Taxi Driver",
+      "year": 2021,
+      "kind": "drama",
+      "broadcaster": "SBS",
+      "rights_tier": "preflight",
+      "rights_holder_ko": "SBS",
+      "source_line_ko": "제작·저작: SBS｜「모범택시」(2021)",
+      "watch_line_ko": "본편은 권리자의 공식 채널에서 보실 수 있습니다.",
+      "credit_ko": "「모범택시」는 꼭 풀버전으로 감상하시는 걸 추천드립니다.",
+      "official_free": "SBS Catch (SBS 공식 채널의 모았캐치 편집본)",
+      "source_channel": "SBS Catch",
+      "source_channel_id": "UC3re3ueOE_6VZK85zlEUWFA",
+      "locale_block": {
+        "ja": "소유주 방침 2026-09-30: ja 채널은 일본 드라마만 올린다. 한국 드라마의 ja 발행 금지."
+      },
+      "note": "★소유주 지시 2026-10-03: 「넷플릭스에서 좀 지났어도 유행했던 게 사람들이 더 익숙하다」. 모범택시는 넷플릭스 대표 흥행작이고 「참교육」 구조라 후킹이 세다. 2021년 4월 9일~5월 29일 SBS 금토드라마, 전 16부작. 주연 이제훈·이솜·김의성·표예진·차지연. 원작 까를로스·크크재진 웹툰. 시즌2·3도 있다. ★실측(2026-10-03): 1920x1080 에 레터박스 — 실화면 crop=1920:888:0:58. 박힌 자막 없음. ★SBS Catch 소재 공통: 위아래 레터박스가 있고 좌우 끝에 로고가 있다(우상단 「SBS CATCH」, 편에 따라 좌상단 「습끌올」). 9:16 크롭 폭이 원본 너비의 0.26~0.28 뿐이라 카메라 중심을 0.26~0.68 안에 두면 로고가 모두 밖으로 나간다. 완성본 프레임으로 확인할 것.",
+      "available_episodes": [
+        {
+          "videoId": "k_rHWaz5a6g",
+          "sec": 900,
+          "views": 1079531,
+          "region": "unrestricted",
+          "title": "기간제 교사한테 기어오르던 일진 참교육"
+        },
+        {
+          "videoId": "qDzRUrBnMmo",
+          "sec": 780,
+          "views": 4129,
+          "region": "unrestricted",
+          "title": "열혈 검사 이솜 모음"
+        }
+      ],
+      "verified_by": "ko.wikipedia「모범택시 (드라마)」로 방송국·방영기간·부작·주연·원작 확증(2026-10-03). 권리 상태는 YouTube API 로 regionRestriction 비어 있음을 확인."
+    },
+    "haunted-palace-sbs-2025": {
+      "match": "귀궁|haunted ?palace",
+      "title_ko": "귀궁",
+      "title_en": "The Haunted Palace",
+      "year": 2025,
+      "kind": "drama",
+      "broadcaster": "SBS",
+      "rights_tier": "preflight",
+      "rights_holder_ko": "SBS",
+      "source_line_ko": "제작·저작: SBS｜「귀궁」(2025)",
+      "watch_line_ko": "본편은 권리자의 공식 채널에서 보실 수 있습니다.",
+      "credit_ko": "「귀궁」은 꼭 풀버전으로 감상하시는 걸 추천드립니다.",
+      "official_free": "SBS Catch (SBS 공식 채널의 모았캐치 편집본)",
+      "source_channel": "SBS Catch",
+      "source_channel_id": "UC3re3ueOE_6VZK85zlEUWFA",
+      "locale_block": {
+        "ja": "소유주 방침 2026-09-30: ja 채널은 일본 드라마만 올린다. 한국 드라마의 ja 발행 금지."
+      },
+      "note": "2025-04-18~06-07 SBS 금토드라마 전 16부작. 육성재·김지연·김지훈. 이무기 강철이와 무녀 여리가 팔척귀에 맞서는 육신 쟁탈 판타지. ★ko 재고 최다급(SBS Catch 무제한 37편·합계 240만). 사극 복색이지만 2025년작 CG 괴물물이라 주몽·전원일기류 «올드»와는 다른 칸으로 본다 — 소유주 지적(2026-10-03) 이후 첫 검증 대상. 한 편 돌려 보고 조회가 안 나오면 사극 전체를 접는다."
+    },
+    "where-stars-land-sbs-2018": {
+      "match": "여우각시별|where ?stars ?land",
+      "title_ko": "여우각시별",
+      "title_en": "Where Stars Land",
+      "year": 2018,
+      "kind": "drama",
+      "broadcaster": "SBS",
+      "rights_tier": "preflight",
+      "rights_holder_ko": "SBS",
+      "source_line_ko": "제작·저작: SBS｜「여우각시별」(2018)",
+      "watch_line_ko": "본편은 권리자의 공식 채널에서 보실 수 있습니다.",
+      "credit_ko": "「여우각시별」은 꼭 풀버전으로 감상하시는 걸 추천드립니다.",
+      "official_free": "SBS Catch (SBS 공식 채널의 모았캐치 편집본)",
+      "source_channel": "SBS Catch",
+      "source_channel_id": "UC3re3ueOE_6VZK85zlEUWFA",
+      "locale_block": {
+        "ja": "소유주 방침 2026-09-30: ja 채널은 일본 드라마만 올린다. 한국 드라마의 ja 발행 금지."
+      },
+      "note": "2018-10-01~11-26 SBS 월화드라마 전 32부작(2회 연속 편성 기준). 이제훈·채수빈·이동건·김지수. 인천공항 운영팀 배경. ★무제한 재고는 1편뿐이지만 그 1편이 52만회 — 「공항 갑질남 참교육」 구조라 후킹이 세다(소유주 지시: 호기심·시각 후킹 우선)."
+    },
+    "dr-romantic-2-sbs-2020": {
+      "match": "낭만닥터 ?김사부 ?2|dr\\.? ?romantic ?2",
+      "title_ko": "낭만닥터 김사부 2",
+      "title_en": "Dr. Romantic 2",
+      "year": 2020,
+      "kind": "drama",
+      "broadcaster": "SBS",
+      "rights_tier": "preflight",
+      "rights_holder_ko": "SBS",
+      "source_line_ko": "제작·저작: SBS｜「낭만닥터 김사부 2」(2020)",
+      "watch_line_ko": "본편은 권리자의 공식 채널에서 보실 수 있습니다.",
+      "credit_ko": "「낭만닥터 김사부 2」는 꼭 풀버전으로 감상하시는 걸 추천드립니다.",
+      "official_free": "SBS Catch (SBS 공식 채널의 모았캐치 편집본)",
+      "source_channel": "SBS Catch",
+      "source_channel_id": "UC3re3ueOE_6VZK85zlEUWFA",
+      "locale_block": {
+        "ja": "소유주 방침 2026-09-30: ja 채널은 일본 드라마만 올린다. 한국 드라마의 ja 발행 금지."
+      },
+      "note": "2020-01-06~02-25 SBS 월화드라마 전 16부작. 한석규·이성경·안효섭. 돌담병원 배경. 넷플릭스 제공작. ★ko 채널 실측에서 메디컬(닥터스 2016)이 사극보다 10배 잘 나왔다 — 같은 장르에 넷플릭스 인지도까지 얹은 자리라 우선순위를 높게 둔다."
     }
   },
   "banned_broadcasters": [],
   "_banned_note": "여기에 방송사·배급사를 넣으면 rinbox-publish 가 업로드 직전에 다시 읽어 그 자리에서 막는다. works 안에 박제된 rights_tier 는 낡을 수 있으므로 이 목록이 우선한다.",
-  "_locale_rights_note": "★권리는 로케일마다 다르다. 같은 작품이 ko 채널에서는 멀쩡하고 ja 채널에서만 죽을 수 있다 (지역 라이선스). 새 작품은 로케일별로 claim-probe 를 따로 돌려라. ★그리고 작품 전체가 아니라 «구간»이 걸린다 — 음악·군무·주제가 구간은 음원 권리로 잡힌다. 실측: 「サムギョプサルですが」 대사 구간 CLEAR-21min, 같은 회차 군무 구간 BLOCKED-2 (2분 만에). ★2026-09-30: locale_block 은 licensedContent 신호로 채우지 말 것. 매칭은 발행을 막지 않는다. 채울 사유는 ① 소유주 로케일 방침, ② 지역 차단(regionRestriction) 실측 둘뿐이다."
+  "_locale_rights_note": "★권리는 로케일마다 다르다. 같은 작품이 ko 채널에서는 멀쩡하고 ja 채널에서만 죽을 수 있다 (지역 라이선스). 새 작품은 로케일별로 claim-probe 를 따로 돌려라. ★그리고 작품 전체가 아니라 «구간»이 걸린다 — 음악·군무·주제가 구간은 음원 권리로 잡힌다. 실측: 「サムギョプサルですが」 대사 구간 CLEAR-21min, 같은 회차 군무 구간 BLOCKED-2 (2분 만에). ★2026-09-30: locale_block 은 licensedContent 신호로 채우지 말 것. 매칭은 발행을 막지 않는다. 채울 사유는 ① 소유주 로케일 방침, ② 지역 차단(regionRestriction) 실측 둘뿐이다.",
+  "_credit_rule": "★출처는 유튜브 채널이 아니라 **배급사·제작사**로 적는다(소유주 지시 2026-10-01). 설명문 출처 줄은 source_line_* 을 쓴다. ★★소스 영상 URL 을 공개 설명문·소셜 캡션에 넣지 마라(소유주 지시 2026-10-01) — 어느 작품의 어느 편을 쓰는지 경쟁자에게 그대로 넘기는 짓이다. 권리자 표기는 의무지만 딥링크는 의무가 아니다. 링크는 _internal_source_url 로 카탈로그에만 둔다. 공개문에는 watch_line_* 처럼 «권리자 공식 배포로 볼 수 있다» 정도만 쓴다.",
+  "_scout_queue_ja": {
+    "_doc": "東映時代劇YouTube 에서 regionRestriction 비어 있음을 확인한 미사용 후보(2026-10-02). 쓰기 전에 crop 과 박힌 자막을 다시 재라.",
+    "unrestricted": [
+      {
+        "videoId": "t3WOGxojKuY",
+        "title": "桃太郎侍 第01話",
+        "sec": 2820
+      },
+      {
+        "videoId": "K9fi0lseBuk",
+        "title": "妖術武芸帳 第02話",
+        "sec": 1500
+      },
+      {
+        "videoId": "TQHjD-5v3ac",
+        "title": "服部半蔵 影の軍団（1980）第02話",
+        "sec": 2820
+      }
+    ],
+    "jp_only_do_not_use": [
+      "ddpUfN9D2KY 遠山の金さん(1975) 第01話",
+      "XuVxcwL2mpw 大奥(1983) 第01話",
+      "zyhjJ05F9fs 長七郎天下ご免！第01話"
+    ]
+  },
+  "_scout_queue_ko": {
+    "_doc": "SBS Catch 2,000편 전수(2026-10-03) → 지역 무제한 «드라마 장면» 219편 / 작품 67개. scripts/_scan-by-work.js <channelId> <pages> 로 작품별로 다시 뽑을 수 있다. ★다른 방송사·넷플릭스는 비어 있다(ko-channel-rejects-period-drama 메모의 표 참조).",
+    "by_work_top": [
+      {
+        "work": "올인",
+        "n": 9,
+        "views": 10755743,
+        "year": 2003,
+        "note": "이병헌·허준호 도박. 조회는 최고지만 2003년이라 올드"
+      },
+      {
+        "work": "나의 완벽한 비서",
+        "n": 42,
+        "views": 8746318,
+        "year": 2025,
+        "note": "한지민·이준혁 로맨스. 재고 최다"
+      },
+      {
+        "work": "귀궁",
+        "n": 37,
+        "views": 2403366,
+        "year": 2025,
+        "note": "육성재·김지연 판타지 사극(이무기·악귀)"
+      },
+      {
+        "work": "사마귀",
+        "n": 18,
+        "views": 1655224,
+        "year": 2025,
+        "note": "고현정 연쇄살인마 — 착수함"
+      },
+      {
+        "work": "모범택시",
+        "n": 2,
+        "views": 1083660,
+        "year": 2021,
+        "note": "넷플릭스 대표작 — 착수함"
+      },
+      {
+        "work": "열혈사제",
+        "n": 5,
+        "views": 638987,
+        "year": 2019,
+        "note": "김남길. 넷플릭스 인기작"
+      },
+      {
+        "work": "낭만닥터 김사부2",
+        "n": 1,
+        "views": 382531,
+        "year": 2020,
+        "note": "넷플릭스 인기작"
+      },
+      {
+        "work": "여우각시별",
+        "n": 1,
+        "views": 522458,
+        "year": 2018,
+        "note": "공항 갑질남 참교육"
+      },
+      {
+        "work": "사내맞선",
+        "n": 1,
+        "views": 98012,
+        "year": 2022,
+        "note": "넷플릭스 글로벌 흥행작"
+      },
+      {
+        "work": "그해 우리는",
+        "n": 2,
+        "views": 42271,
+        "year": 2021,
+        "note": "넷플릭스 인기작"
+      },
+      {
+        "work": "상속자들",
+        "n": 2,
+        "views": 61873,
+        "year": 2013,
+        "note": "이민호·박신혜"
+      },
+      {
+        "work": "VIP",
+        "n": 3,
+        "views": 860313,
+        "year": 2019,
+        "note": "장나라"
+      },
+      {
+        "work": "김부장",
+        "n": 2,
+        "views": 204533,
+        "year": 2026,
+        "note": "소지섭 액션"
+      },
+      {
+        "work": "유령",
+        "n": 1,
+        "views": 64904,
+        "year": 2012,
+        "note": "소지섭 위장술"
+      },
+      {
+        "work": "우주메리미",
+        "n": 3,
+        "views": 224979,
+        "year": 2025,
+        "note": "최우식·정소민"
+      }
+    ],
+    "picked_2026_10_03": [
+      {
+        "work": "귀궁",
+        "id": "JqmrUWeC4MM",
+        "min": 15,
+        "views": 127505,
+        "hook": "환갑 넘은 양반 100명 잡아먹는 게 목표인 이무기 비비",
+        "workdir": "rinbox34ko"
+      },
+      {
+        "work": "여우각시별",
+        "id": "-wlgLylR5Y0",
+        "min": 14,
+        "views": 522458,
+        "hook": "공항 갑질남 윤경호 참교육",
+        "workdir": "rinbox35ko"
+      },
+      {
+        "work": "낭만닥터 김사부2",
+        "id": "c68i5TVZJ5k",
+        "min": 15,
+        "views": 382531,
+        "hook": "무기수 환자와 뇌사 구급대원의 엇갈린 운명",
+        "workdir": "rinbox36ko"
+      }
+    ],
+    "_trap": "★_scan-by-work.js 의 SKIP 정규식은 «예능·홍보»를 다 걸러 내지 못한다. 김부장 PEpAKxQNWB0 은 제목이 드라마처럼 보였지만 실제론 배우 밸런스게임 토크였다. 내려받은 뒤 반드시 프레임을 눈으로 보고 드라마 장면인지 확인할 것."
+  }
 }

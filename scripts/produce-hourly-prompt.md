@@ -1,11 +1,30 @@
-# ★★2026-09-30 명화관 생산·업로드 중지 (소유주: "명화관은 업로드 및 생산 중지.")
+# ★★2026-10-06 명화관 재개 — 단, **유튜브에는 올리지 않는다** (소유주 지시)
 #
-# 이 지침을 실행하지 마라. 예약 작업 27개는 내려 뒀다. 재개 조건과 원인은
-# `docs/HALT-myeonghwagwan.md` 에 있다 — 읽지 않고 되켜지 마라.
-# 요약: 「전부 비공개」는 유튜브가 아니라 check-claims.js 의 unschedule() 이 한 것이고,
-#       유튜브 OAuth 갱신 토큰이 ko/ja 둘 다 invalid_grant 로 죽어 있다.
+# 소유주: "명화관 스타일 재개하는데 유튜브는 안올릴게"
 #
-
+# 만드는 것은 지금까지 하던 대로다. 달라진 것은 **발행처 하나**뿐이다.
+#
+#   만든다        produce-hourly → volcano_to_publish.py 로 발행 패키지까지
+#   승인          auto-approve.js (기계 검사)
+#   나간다        블로타토 4곳(인스타·틱톡·스레드·페북) + 네이버클립 + 페이스북 프로필
+#   ★안 나간다    유튜브. auto-publish.js 를 **돌리지 마라.**
+#
+# 꺼 둔 예약 작업 — 되켜지 마라:
+#   midform-auto-publish · -1045 · -1445        유튜브 업로드
+#   midform-claim-guard-* · claim-watch         Content ID 감시(유튜브 전용)
+#   midform-social-claims · claim_guard_am/pm
+#
+# 왜 유튜브를 뺐나 — 2026-09-30 에 멈춘 이유가 그대로 남아 있다:
+#   · 장부 96편 중 72편이 비공개다. check-claims.js 의 unschedule() 이 차단 판정마다
+#     privacyStatus='private' 을 박았고 되돌리는 코드가 없다. 자세한 것은
+#     `docs/HALT-myeonghwagwan.md`.
+#   · 유튜브 OAuth 갱신 토큰이 ko/ja 둘 다 invalid_grant 였다(2026-09-30 실측).
+#   이 둘이 풀리기 전에는 유튜브 쪽을 건드리지 않는다.
+#
+# ★소셜은 유튜브 없이도 돈다. `blotato-publish.js` 의 `youtubePublishAt()` 이 유튜브 이력이
+#   없으면 «지금»으로 떨어진다(2026-09-23 수정: "소셜은 유튜브의 부속이 아니다").
+#   그래서 발행 패키지만 만들어 두면 fanout-backfill 과 webpublish 가 알아서 가져간다.
+#
 # 시간당 생산 1회분 (무인 실행 프롬프트)
 
 너는 지금 사람 없이 혼자 돌고 있다. 질문하지 말고, 막히면 멈추고 기록만 남겨라.

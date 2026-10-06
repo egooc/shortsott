@@ -1,3 +1,41 @@
+# ★2026-10-06 재개 — 유튜브만 빼고 (소유주: "명화관 스타일 재개하는데 유튜브는 안올릴게")
+
+아래 중지 기록은 **유튜브 부분만 유효하다.** 생산과 소셜 발행은 다시 돈다.
+
+## 지금 도는 것
+```
+생산     midform-produce-hourly
+승인     midform-auto-approve
+소셜     midform-fanout-backfill-1000/1400/1600/2000/2200   (블로타토 4곳)
+웹       midform-webpublish-0800/1200/1800                  (네이버클립 · 페이스북 프로필)
+수리     midform-blotato-repair
+소재     midform-catalog-pool · rival-scout · rival-backlog · survivor-signal
+         scout-nightly · demand-gap
+```
+
+## 계속 꺼 둔 것 — 되켜지 마라
+```
+midform-auto-publish · -1045 · -1445     유튜브 업로드
+midform-claim-guard-0740/1140/1740       Content ID 감시(유튜브 전용)
+midform-claim-watch · midform-social-claims
+midform_claim_guard_am · _pm
+```
+클레임 감시까지 끈 이유: 유튜브에 안 올리면 감시할 대상이 없고, `check-claims.js` 는
+**영상을 비공개로 바꾸는 쪽**이라 켜 두면 손해만 난다(아래 원인 1).
+
+## 소셜은 유튜브 없이 돈다 — 확인함
+`blotato-publish.js` 의 `youtubePublishAt()` 이 유튜브 이력이 없으면 «지금»으로 떨어진다.
+2026-09-23 수정(소유주: "타 플랫폼은 재사용 컨텐츠에 대해 상대적으로 다른 정책을 가지고
+있기도 하고. 올려야 돼 버리지 말고")으로 이미 들어가 있던 길이다. 구조를 고칠 필요가 없었다.
+
+## 재개 시점의 재고
+9/30 에 만들어 놓고 못 나간 10편(등급 A 작품 5편 × ko·ja)이 남아 있었다 —
+셰임리스 · 프리덤 라이터스 · 벤자민 버튼 · 백만 가지 방법으로 죽기 · 룸.
+블로타토 4곳에는 9/30 에 이미 나갔고(즉시 발행), **네이버클립 · 페이스북 프로필만** 빠져 있었다.
+재개 첫 작업으로 그 둘을 메웠다.
+
+---
+
 # ★명화관cinema 중지 (2026-09-30)
 
 소유주 지시: **"명화관은 업로드 및 생산 중지."**
