@@ -88,7 +88,54 @@ function apiKey() {
   return key;
 }
 
+// ── 틱톡은 Zernio 로 (소유주 2026-10-07) ─────────────────────────────────────
+// Blotato Starter 는 틱톡을 24시간에 계정 3개까지만 올린다 — 4번째 계정이 매일 실패했다.
+// 모든 발행기(blotato-publish·rinbox-social·shop_fanout·fanout-backfill …)가 이 api() 를 거치므로
+// 여기 한 곳에서 «틱톡 + Zernio 에 연결된 계정»이면 Zernio 로 돌린다. 매핑: midform/config/zernio_accounts.json
+// (Blotato accountId → Zernio _id). 매핑에 없는 틱톡 계정은 그대로 Blotato 로 간다.
+const ZERNIO_MAP_PATH = path.join(ROOT, 'midform', 'config', 'zernio_accounts.json');
+function zernioTarget(endpoint, body) {
+  if (endpoint !== '/posts' || body?.post?.content?.platform !== 'tiktok') return '';
+  return zernioIdFor(body.post.accountId);
+}
+async function zernioPost(zid, body) {
+  const key = String(process.env.ZERNIO_API_KEY || '').trim();
+  if (!key) throw new Error('ZERNIO_API_KEY 가 .env 에 없다');
+  const t = body.post.target || {};
+  const req = {
+    content: String(body.post.content.text || '').slice(0, 2200),
+    mediaItems: (body.post.content.mediaUrls || []).map((url) => ({ type: 'video', url })),
+    platforms: [{ platform: 'tiktok', accountId: zid }],
+    tiktokSettings: {
+      privacy_level: t.privacyLevel || 'PUBLIC_TO_EVERYONE',
+      allow_comment: !t.disabledComments, allow_duet: !t.disabledDuet, allow_stitch: !t.disabledStitch,
+      video_made_with_ai: t.isAiGenerated !== false,           // 합성 음성 — 표시를 끄지 않는다(blotato_accounts 메모)
+      content_preview_confirmed: true, express_consent_given: true   // TikTok 법적 필수 동의(Zernio 문서)
+    }
+  };
+  // Blotato 와 같은 뜻: 미래 시각이면 예약, 아니면 즉시
+  const when = Date.parse(body.scheduledTime || '');
+  if (Number.isFinite(when) && when > Date.now() + 60e3) { req.scheduledFor = new Date(when).toISOString().slice(0, 19); req.timezone = 'UTC'; } else req.publishNow = true;
+  const r = await fetch('https://zernio.com/api/v1/posts', { method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, body: JSON.stringify(req) });
+  const text = await r.text();
+  if (!r.ok) throw new Error(`zernio POST /posts -> ${r.status} ${text.slice(0, 300)}`);
+  const j = JSON.parse(text);
+  return { postSubmissionId: `zernio:${j.post?._id || j._id}`, via: 'zernio' };
+}
+
 async function api(method, endpoint, body) {
+  const zid = method === 'POST' ? zernioTarget(endpoint, body) : '';
+  if (zid) return zernioPost(zid, body);
+  // Zernio 로 보낸 글의 상태 조회·예약 취소(check-claims 의 cancelSocialForDraft 등) — 같은 경로로 받아 Zernio 에 묻는다
+  const zm = /^\/(?:posts|schedules)\/zernio:([\w-]+)$/.exec(endpoint);
+  if (zm) {
+    const r = await fetch(`https://zernio.com/api/v1/posts/${zm[1]}`, { method: method === 'DELETE' ? 'DELETE' : 'GET', headers: { Authorization: `Bearer ${String(process.env.ZERNIO_API_KEY || '').trim()}` } });
+    const text = await r.text();
+    if (!r.ok) throw new Error(`zernio ${method} /posts/${zm[1]} -> ${r.status} ${text.slice(0, 200)}`);
+    const j = text ? JSON.parse(text) : {};
+    const p = j.post || j;
+    return method === 'DELETE' ? { ok: true } : { status: p.status, publicUrl: (p.platforms || [])[0]?.platformPostUrl || '' };
+  }
   const response = await fetch(`${API_BASE}${endpoint}`, {
     method,
     headers: { 'blotato-api-key': apiKey(), 'Content-Type': 'application/json' },
@@ -105,6 +152,33 @@ async function api(method, endpoint, body) {
 }
 
 // Local mp4 -> presigned PUT -> public URL Blotato can fetch when it publishes.
+// 틱톡이 Zernio 로 가는 계정이면 영상도 Zernio 저장소에 올린다 — Blotato 저장소를 안 거친다.
+// /v1/media/presign 은 Blotato /media/uploads 와 같은 모양이다(presign → PUT → publicUrl).
+function zernioIdFor(accountId) {
+  try { return JSON.parse(fs.readFileSync(ZERNIO_MAP_PATH, 'utf8')).tiktok?.[String(accountId)] || ''; } catch { return ''; }
+}
+async function zernioUpload(filePath) {
+  const key = String(process.env.ZERNIO_API_KEY || '').trim();
+  if (!key) throw new Error('ZERNIO_API_KEY 가 .env 에 없다');
+  const bytes = fs.readFileSync(filePath);
+  const r = await fetch('https://zernio.com/api/v1/media/presign', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ filename: path.basename(filePath), contentType: 'video/mp4', size: bytes.length })
+  });
+  const text = await r.text();
+  if (!r.ok) throw new Error(`zernio POST /media/presign -> ${r.status} ${text.slice(0, 300)}`);
+  const { uploadUrl, publicUrl } = JSON.parse(text);
+  if (!uploadUrl || !publicUrl) throw new Error('zernio presign 이 URL 을 안 줬다');
+  const put = await fetch(uploadUrl, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'video/mp4', 'Content-Length': String(bytes.length) },
+    body: bytes
+  });
+  if (!put.ok) throw new Error(`zernio presigned PUT -> ${put.status} ${(await put.text()).slice(0, 200)}`);
+  return publicUrl;
+}
+
 async function uploadLocalFile(filePath) {
   const filename = path.basename(filePath);
   const { presignedUrl, publicUrl } = await api('POST', '/media/uploads', { filename });
@@ -368,16 +442,30 @@ async function main() {
       }
 
       try {
-        if (!mediaUrl) {
-          console.log(`[media] uploading ${path.basename(mp4Path)}`);
-          mediaUrl = await uploadLocalFile(mp4Path);
-          state.media = { ...(state.media || {}), [draftName]: mediaUrl };
-          writeState(state);
+        // 틱톡이 Zernio 로 가는 계정이면 미디어도 Zernio 에 올린다(Blotato 스토리지를 안 거친다).
+        const toZernio = platform === 'tiktok' && !!zernioIdFor(mapping.accountId);
+        let postUrl;
+        if (toZernio) {
+          postUrl = (state.mediaZernio || {})[draftName] || '';
+          if (!postUrl) {
+            console.log(`[media:zernio] uploading ${path.basename(mp4Path)}`);
+            postUrl = await zernioUpload(mp4Path);
+            state.mediaZernio = { ...(state.mediaZernio || {}), [draftName]: postUrl };
+            writeState(state);
+          }
+        } else {
+          if (!mediaUrl) {
+            console.log(`[media] uploading ${path.basename(mp4Path)}`);
+            mediaUrl = await uploadLocalFile(mp4Path);
+            state.media = { ...(state.media || {}), [draftName]: mediaUrl };
+            writeState(state);
+          }
+          postUrl = mediaUrl;
         }
         const result = await api('POST', '/posts', {
           post: {
             accountId: String(mapping.accountId),
-            content: { text, mediaUrls: [mediaUrl], platform },
+            content: { text, mediaUrls: [postUrl], platform },
             target
           },
           scheduledTime
@@ -422,6 +510,6 @@ if (require.main === module) {
 // 다만 **Blotato 로 말하는 부분**은 한 곳이어야 한다 — 업로드·타깃 블록·과거시각 클램프는
 // 사고를 한 번씩 겪고 고친 자리다(War Dogs ko 422, facebook pageId 누락). 복제하면 갈라진다.
 module.exports = {
-  api, uploadLocalFile, API_BASE,
+  api, uploadLocalFile, API_BASE, zernioUpload, zernioIdFor,
   parseSection, composeText, buildTarget, scheduleFor, localeOf, findMp4
 };
