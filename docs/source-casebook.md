@@ -5600,3 +5600,50 @@ Paramount 는 괜찮다고 봤다. 페이스북에서는 Paramount 가 가장 �
   **막지 말고 순서만 바꾼다.**
 ★미제작·소스확인 9건 중 7건이 안전한 배급사다(말레피센트·페어런트 트랩·카고·클리닝 레이디·
   브래즈 스테이터스·잇츠 브루노·애니멀 컨트롤). 활주로는 있다.
+
+## 사례 165 — 실행기 자동 갱신이 AGY 카메라 회차의 finish 를 막았다 · 23.976fps 소스는 렌더 프레임이 빈다 (2026-10-08)
+
+911: 론스타 KO/JA 회차(로그 `produce-hourly/20261008.md`). 원고·경계·검수는 다 통과했는데 **둘 다 패키지까지 못 갔다.**
+
+**1) finish 는 실행기 안에서 서로 다른 값을 잰다.** 01:34·01:54 자동 갱신된 `film_editor.py` 가
+렌더 때는 `authored_camera + _framing_code`(shorts_framing.py 해시)로 render_id 를 만들고, 최종 확인 때는
+`_framing_code` 없는 카메라로 다시 잰다. AGY 카메라를 쓰면 **항상** «render contract changed» 로 떨어진다.
+retry 두 번, payload 카메라에 같은 `_framing_code` 를 넣는 우회까지 셋 다 같은 반려.
+→ 서버 수정 전에는 명화관 회차를 새로 열지 마라. ASR·TTS 만 태운다.
+
+**2) 23.976fps 소스는 AGY 확대 창 렌더에서 프레임이 빈다.** 컷 하나가 252 → 250프레임.
+격자 디코드만 따로 돌리면 252 가 나오므로, 깎이는 곳은 샷별 split/trim/concat 이고
+24→30 변환이 만든 **1프레임짜리 샷**이 의심된다. 30fps 소스(KO)는 같은 실행기에서 멀쩡히 렌더됐다.
+→ **다운로드 직후 fps 를 보고 30 이 아니면 `-vf fps=30` 으로 다시 떠라.** 그리고 소스 0.0초를 내레이션 그림으로 쓰지 마라 —
+  비디오 첫 pts 가 0 이 아니면 «Source ended before requested clip frames» 가 난다.
+
+**3) AGY 구독 한도는 하루 안에 바닥난다.** 이번 회차 두 워크디렉토리 판독 뒤 세 번째(30fps 재시작)가 `env` 에서
+AGY_QUOTA 로 멈췄다. 재시작 한 번이 판독 한 벌을 통째로 다시 쓴다는 것을 셈에 넣어라.
+
+### 사례 165 이어서 — 해법은 «AGY 를 안 쓰는 것» 이었다 (2026-10-08, 소유주 지시)
+
+소유주: "agy 안쓰고 게이트 통과 만 하자니까?"
+
+실행기를 읽어 보니 AGY 는 **고를 수 있는 것**이었다. 켜지는 조건이 하나뿐이다:
+
+```python
+# film_editor.py 1993행
+if isinstance(trajectories, dict) and any(isinstance(v, dict) and "focus" in v
+                                          for v in trajectories.values()):
+    authored_camera = dict(authored_camera, _framing_code=file_digest(... "shorts_framing.py"))
+```
+
+**`source_shots` 값에 `focus` 키가 있을 때만** AGY 로 간다. 그리고 `vol_edit.py` 의
+`cmd_cam` 이 만드는 평범한 점은 `{source_in, source_out, points}` 뿐이라 `focus` 가 없다 —
+**평범한 점으로 제출하면 AGY 경로에 아예 안 들어간다.**
+
+그러면 `_framing_code` 가 안 붙고, 2263행의 최종 확인이 같은 값을 재게 되어 finish 가 통과한다.
+서버 수정을 기다릴 필요가 없었다.
+
+덤으로 `AGY_QUOTA`(주간 5시간)도 안 쓴다 — 한도 소진으로 회차가 멈추는 일이 사라진다.
+
+→ 생산 지침 3항에 «cam 에 AGY 영수증을 쓰지 마라» 를 박았다.
+★내가 두 번 틀렸다. 처음엔 볼케이노 `review_policy` 만 보고 «AGY 는 필요 없다» 고 했는데
+  그건 **장면 검수** 경로였고 AGY 는 **카메라** 쪽이었다(다른 자리다). 다음엔 보고서의
+  `AGY_QUOTA` 를 보고 «한도를 올려야 한다» 고 했는데, 실제로는 **안 쓰면 그만**이었다.
+  남이 만든 층을 읽지 않고 한 조각만 보고 판정했다.

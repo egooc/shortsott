@@ -281,6 +281,19 @@
    - KO 와 JA 는 **각각 다른 원고·다른 장면 선택**이다. JA 를 KO 복사로 만들지 마라(소유주 지시 2026-09-18).
    - 컷 끝은 마지막 단어 끝 +0.3~0.5초. 내레이션 그림은 앞 컷 `source_out` 과 정확히 같게.
    - 진행: `seams` → `fix`/`trim` → `bind` → `cam` → `preview` → `review` → 완료.
+   - ★★**`cam` 에 AGY 피사체 영수증을 쓰지 마라. 평범한 점으로만 제출한다** (소유주 2026-10-08:
+     "agy 안쓰고 게이트 통과 만 하자니까?")
+     ```
+     쓸 것   {"<source_in>": cx}            ← vol_edit.py cam 이 만드는 평범한 점
+     쓰지 말 것  source_shots 값에 "focus" 가 든 것  ← 서버가 판독해 준 AGY 영수증
+     ```
+     실행기는 `source_shots` 값에 **`focus` 키가 있을 때만** AGY 로 간다(`film_editor.py` 1993행).
+     AGY 로 가면 렌더 지문에 `_framing_code` 를 덧붙이는데(1998행) **최종 확인(2263행)은 그것 없이
+     다시 재서**, 렌더가 아무리 맞아도 `Authored camera, font content or render contract changed`
+     로 떨어진다. 2026-10-08 실행기 자동 갱신으로 들어온 버그다(사례 165).
+     → **AGY 를 안 쓰면 이 버그를 아예 안 만난다.** 게이트는 평범한 점으로도 그대로 통과한다.
+     ★카메라 점은 샷당 하나다(메모리 `rinbox-camera-one-point-per-shot`). 여러 개면 서버가 HTTP 500 으로 죽는다.
+     ★AGY 를 안 쓰면 AGY_QUOTA(주간 5시간)도 안 쓴다 — 한도 때문에 회차가 멈추는 일이 없어진다.
    - 완료 판정은 브리핑 문구가 아니라 `.volcano_drive_state.json` 의 `status: done` + `step: rinbox_finish`.
 3.7 **★프로브는 폐지했다. 돌리지 마라** (2026-09-28)
 
