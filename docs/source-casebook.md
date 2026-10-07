@@ -5709,3 +5709,43 @@ for sid, traj in trajectories.items():
 → 이것이 이 도구의 값이다. 서버가 어디를 고치고 있는지 보이면,
   우리 렌더러가 무엇을 아직 모르는지도 같이 보인다.
 ★읽기만 한다. 실행기는 고치지 않는다 — «검증된 실행 코드»라 고치면 서버와 갈라진다.
+
+## 사례 167 — 볼케이노가 낸 모양을 숫자로 못 박았다. ko·ja 차이는 글꼴 다섯 줄뿐이었다 (2026-10-08)
+
+소유주: "편집표는 양쪽 공통이 아니라 **볼케이노 명화관이 맞고 그걸 기준으로 우리 스타일을
+지켜야지**" · "우리 ko랑 ja 스타일로 유지되게끔 하고 **볼케이노 서버 없이도 계속 되야지.**"
+
+자체 렌더러는 «비슷한 것»이 아니라 **볼케이노 명화관이 내는 바로 그 모양**을 내야 한다.
+그러려면 그 모양이 숫자로 적혀 있어야 한다. 그래서 결과물에서 보이는 것만 재는 도구를
+만들었다 — `scripts/render_contract.py`. **볼케이노 내부 코드는 부르지 않는다**(린박스 세션
+판단에 동의: `film_editor.py` 를 import 하면 그쪽 갱신에 우리가 깨진다).
+
+오늘 AGY 없이 완주한 두 편(`lsr01` KO · `lsr02-ja` JA)으로 기준선을 떴다.
+
+```
+공통   1080x1920 · 30/1 CFR · h264 · 48000Hz 2ch aac · -13.5~-13.6 LUFS
+       PlayRes 1080x1920 · WrapStyle 2 · 여백 L20 R20 V0
+```
+
+**ko 와 ja 를 견주니 어긋난 항목이 다섯 개뿐이었고 전부 글꼴이었다.**
+
+```
+captions.styles.Head.font      ko Cafe24 Ohsquare   ja Noto Sans JP Bold
+captions.styles.Narr.font      ko Cafe24 Ohsquare   ja Noto Sans JP Medium
+captions.styles.Dialogue.font  ko SeoulHangang M    ja Noto Sans JP Medium
+captions.styles.Effect.font    ko Cafe24 Ohsquare   ja Noto Sans JP Medium
+captions.styles.Credit.font    ko Cafe24 Ohsquare   ja Noto Sans JP Bold
+```
+
+크기·색·외곽선·정렬·여백은 전부 같다. 그러니 «ko 스타일 / ja 스타일»이라고 부르던 것의
+실체는 **글꼴 지정 다섯 줄**이다. 그중 눈여겨볼 것 하나 —
+**ko 만 해설(Narr)과 원음 대사(Dialogue)를 다른 글꼴로 가른다**(Cafe24 vs SeoulHangang).
+ja 는 굵기로만 가른다. 통일하면 ko 스타일이 사라진다.
+
+→ `docs/myeonghwagwan-render-spec.md` 에 자체 렌더러가 구현할 명세로 적었다.
+→ 업데이트를 따라가는 길: 실행기 감시(사례 166)가 렌더 관련 파일 변화를 잡으면,
+  그 뒤 첫 회차 결과로 `--against` 를 돌린다. **계약서가 안 바뀌면 우리는 그대로 둔다.**
+
+★아직 계약서에 없는 것을 명세 7항에 정직하게 적어 뒀다 — 컷 경계의 프레임 정렬,
+  해설 그림 구간의 화면 처리, `flash_aliases`, BGM·효과음(이번 두 편은 Effect 큐가 0개였다).
+  **이 명세만으로는 아직 똑같이 못 만든다.**

@@ -1,0 +1,155 @@
+{
+ "edit_dir": "D:/volcano-runs/lsr01\\edits\\b73087f079d8bac3b487be7fdd855492d32339adb751b867335d4de1dee2c077",
+ "edit": {
+  "title_lines": 2,
+  "narration": 3,
+  "cards_per_narration": [
+   3,
+   4,
+   3
+  ],
+  "sequence_items": 7,
+  "source_cuts": 4,
+  "cut_spans": [
+   53.9,
+   10.7,
+   51.35,
+   47.9
+  ],
+  "captions_per_cut": [
+   33,
+   8,
+   29,
+   18
+  ],
+  "beats": [
+   "setup",
+   "escalation",
+   "reversal",
+   "payoff"
+  ],
+  "editorial_version": "story-cards-v1"
+ },
+ "captions": {
+  "info": {
+   "PlayResX": "1080",
+   "PlayResY": "1920",
+   "WrapStyle": "2",
+   "ScaledBorderAndShadow": "yes"
+  },
+  "styles": {
+   "Head": {
+    "font": "Cafe24 Ohsquare",
+    "size": "99",
+    "colour": "&H00FCFBFC",
+    "outline_colour": "&H00000000",
+    "outline": "4",
+    "align": "8",
+    "margin_l": "20",
+    "margin_r": "20",
+    "margin_v": "0"
+   },
+   "Narr": {
+    "font": "Cafe24 Ohsquare",
+    "size": "82",
+    "colour": "&H00FCFCFC",
+    "outline_colour": "&H00000000",
+    "outline": "5.5",
+    "align": "5",
+    "margin_l": "20",
+    "margin_r": "20",
+    "margin_v": "0"
+   },
+   "Dialogue": {
+    "font": "SeoulHangang M",
+    "size": "82",
+    "colour": "&H0019FFF7",
+    "outline_colour": "&H00000000",
+    "outline": "5.5",
+    "align": "5",
+    "margin_l": "20",
+    "margin_r": "20",
+    "margin_v": "0"
+   },
+   "Effect": {
+    "font": "Cafe24 Ohsquare",
+    "size": "70",
+    "colour": "&H0002FEF6",
+    "outline_colour": "&H00000000",
+    "outline": "4",
+    "align": "5",
+    "margin_l": "20",
+    "margin_r": "20",
+    "margin_v": "0"
+   },
+   "Credit": {
+    "font": "Cafe24 Ohsquare",
+    "size": "64",
+    "colour": "&H00999999",
+    "outline_colour": "&H00000000",
+    "outline": "0",
+    "align": "8",
+    "margin_l": "20",
+    "margin_r": "20",
+    "margin_v": "0"
+   }
+  },
+  "cue_count": 100,
+  "by_style": {
+   "Head": {
+    "cues": 2,
+    "first_in": 0.0,
+    "last_out": 171.53,
+    "max_chars": 12,
+    "positions": [
+     [
+      540,
+      211
+     ],
+     [
+      540,
+      298
+     ]
+    ]
+   },
+   "Narr": {
+    "cues": 10,
+    "first_in": 0.06,
+    "last_out": 72.36,
+    "max_chars": 9,
+    "positions": [
+     [
+      540,
+      1305
+     ]
+    ]
+   },
+   "Dialogue": {
+    "cues": 88,
+    "first_in": 2.0,
+    "last_out": 170.53,
+    "max_chars": 15,
+    "positions": [
+     [
+      540,
+      1311
+     ]
+    ]
+   }
+  }
+ },
+ "output": {
+  "width": 1080,
+  "height": 1920,
+  "fps": "30/1",
+  "frames": 5146,
+  "vcodec": "h264",
+  "sample_rate": 48000,
+  "channels": 2,
+  "acodec": "aac",
+  "duration": 171.544,
+  "loudness_lufs": -13.6,
+  "lra": 4.7
+ },
+ "output_file": "final-bad0f9b7be1ba978.mp4"
+}
