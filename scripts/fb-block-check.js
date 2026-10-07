@@ -40,6 +40,7 @@ const LIBRARY = 'https://www.facebook.com/professional_dashboard/content/content
 const FRESH_HOURS = 6;
 const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
 const SCROLLS = Number(arg('--scrolls', 16));
+const MAX_PAGES = Number(arg('--pages', 90));   // 표를 바닥까지 끌어내리는 횟수 상한
 const AS_JSON = process.argv.includes('--json');
 const WITH_FEED = process.argv.includes('--feed');
 
@@ -79,30 +80,39 @@ function ageFrom(text) {
 async function readLibrary(page) {
   await page.goto(LIBRARY, { waitUntil: 'domcontentloaded', timeout: 90000 });
   await page.waitForTimeout(10000);
-  // ★목록은 스크롤로 안 늘어난다. 문서 자체가 한 화면이고 «더 보기» 단추가 더 불러온다.
-  //   (2026-10-07 실측: 스크롤만 돌렸더니 12~16행에서 멈췄고, 회차마다 다른 윗부분만 보여
-  //    «게시물이 사라진다»고 잘못 읽었다. 차단율도 그 흔들리는 창에서 나온 값이었다.)
-  for (let i = 0; i < SCROLLS; i++) {
-    const more = page.locator('div[role="button"]', { hasText: /^더 보기$/ }).first();
-    if (!(await more.count())) break;
-    try { await more.click({ timeout: 4000 }); } catch { break; }
-    await page.waitForTimeout(1800);
+  // ★목록을 늘리는 것은 창 스크롤도 «더 보기» 단추도 아니다. **`table` 자체가 스크롤
+  //   컨테이너**다(overflowY:auto, 2026-10-07 실측: sh 1303 / ch 849). 창은 문서 높이가
+  //   창 높이와 같아 아예 안 굴러가고, 화면의 «더 보기» 는 탭 넘침 메뉴다.
+  //   그걸 몰라서 16행만 보고 돌았다 — 우리 기록은 28일간 71편인데 라이브러리는 16행이었고,
+  //   회차마다 다른 윗부분만 잡혀 «게시물이 사라진다»·«차단율 100%» 같은 헛값이 나왔다.
+  const bucket = new Map();
+  let stall = 0;
+  for (let i = 0; i < MAX_PAGES && stall < 6; i++) {
+    const rows = await page.evaluate(() => {
+      const t = document.querySelector('table');
+      if (t) t.scrollTop = t.scrollHeight;          // 바닥을 치면 다음 묶음을 불러온다
+      return [...document.querySelectorAll('tr[role="row"]')]
+        .map((tr) => [...tr.querySelectorAll('td')].map((td) => (td.innerText || '').trim()))
+        .filter((c) => c.length >= 4);
+    });
+    const before = bucket.size;
+    for (const cells of rows) {
+      // 0번은 체크박스(빈 칸), 1번이 제목·딱지·시각, 2번도 비어 있고 3번부터 숫자다.
+      const head = cells[1] || '';
+      const title = head.split(String.fromCharCode(10))[0].trim();
+      if (!title || title === '미리 보기') continue;
+      if (!bucket.has(title) || head.length > bucket.get(title)[1].length) bucket.set(title, cells);
+    }
+    stall = bucket.size === before ? stall + 1 : 0;
+    await page.waitForTimeout(1500);
   }
-  const rows = await page.evaluate(() => [...document.querySelectorAll('tr[role="row"]')]
-    .map((tr) => [...tr.querySelectorAll('td')].map((td) => (td.innerText || '').trim()))
-    .filter((c) => c.length >= 4));
   const out = [];
-  const seen = new Set();
-  for (const cells of rows) {
-    // 0번은 체크박스(빈 칸), 1번이 제목·딱지·시각, 2번도 비어 있고 3번부터 숫자다.
-    // ★`cells[hi+1]` 을 조회수로 보면 빈 칸을 읽어 전부 0 이 된다(2026-10-07 실측).
+  for (const [title, cells] of bucket) {
     const head = cells[1] || '';
-    const title = head.split(String.fromCharCode(10))[0].trim();
-    if (!title || title === '미리 보기' || seen.has(title)) continue;
-    seen.add(title);
     let kind = '';
     for (const [name, re] of BADGES) if (re.test(head)) { kind = name; break; }
-    const num = (i) => Number(String(cells[i] || '').replace(/[^\d]/g, '')) || 0;
+    // ★조회수는 3번 칸이다. 2번은 비어 있어 그걸 읽으면 전부 0 이 된다.
+    const num = (i) => Number(String(cells[i] || '').replace(/[^0-9]/g, '')) || 0;
     const hours = ageFrom(head);
     out.push({ where: 'library', title, blocked: !!kind, kind,
                views: num(3), viewers: num(4), engage: num(5),
