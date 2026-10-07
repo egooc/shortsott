@@ -78,35 +78,34 @@ function ageFrom(text) {
 
 async function readLibrary(page) {
   await page.goto(LIBRARY, { waitUntil: 'domcontentloaded', timeout: 90000 });
-  await page.waitForTimeout(9000);
-  // 가상 스크롤이라 한 번에 다 안 들어온다. 돌면서 모으고 사라진 것은 기억해 둔다.
-  const bucket = new Map();
+  await page.waitForTimeout(10000);
+  // ★목록은 스크롤로 안 늘어난다. 문서 자체가 한 화면이고 «더 보기» 단추가 더 불러온다.
+  //   (2026-10-07 실측: 스크롤만 돌렸더니 12~16행에서 멈췄고, 회차마다 다른 윗부분만 보여
+  //    «게시물이 사라진다»고 잘못 읽었다. 차단율도 그 흔들리는 창에서 나온 값이었다.)
   for (let i = 0; i < SCROLLS; i++) {
-    const rows = await page.evaluate(() => [...document.querySelectorAll('tr[role="row"]')]
-      .map((tr) => {
-        const cells = [...tr.querySelectorAll('td')].map((td) => (td.innerText || '').trim());
-        // ★첫 칸은 체크박스라 비어 있다. 제목·딱지가 든 칸은 «가장 긴 칸»이다.
-        //   cells[0] 을 제목으로 보면 전부 걸러져 0건이 된다(2026-10-06 실측).
-        let hi = 0;
-        for (let i = 1; i < cells.length; i++) if (cells[i].length > cells[hi].length) hi = i;
-        return { head: cells[hi] || '', nums: cells.slice(hi + 1, hi + 7) };
-      })
-      .filter((r) => r.head.length > 4));
-    for (const r of rows) {
-      const title = r.head.split('\n')[0].trim();
-      if (!title || title === '미리 보기') continue;
-      if (!bucket.has(title) || r.head.length > bucket.get(title).head.length) bucket.set(title, r);
-    }
-    await page.mouse.wheel(0, 1600);
-    await page.waitForTimeout(1200);
+    const more = page.locator('div[role="button"]', { hasText: /^더 보기$/ }).first();
+    if (!(await more.count())) break;
+    try { await more.click({ timeout: 4000 }); } catch { break; }
+    await page.waitForTimeout(1800);
   }
+  const rows = await page.evaluate(() => [...document.querySelectorAll('tr[role="row"]')]
+    .map((tr) => [...tr.querySelectorAll('td')].map((td) => (td.innerText || '').trim()))
+    .filter((c) => c.length >= 4));
   const out = [];
-  for (const [title, r] of bucket) {
+  const seen = new Set();
+  for (const cells of rows) {
+    // 0번은 체크박스(빈 칸), 1번이 제목·딱지·시각, 2번도 비어 있고 3번부터 숫자다.
+    // ★`cells[hi+1]` 을 조회수로 보면 빈 칸을 읽어 전부 0 이 된다(2026-10-07 실측).
+    const head = cells[1] || '';
+    const title = head.split(String.fromCharCode(10))[0].trim();
+    if (!title || title === '미리 보기' || seen.has(title)) continue;
+    seen.add(title);
     let kind = '';
-    for (const [name, re] of BADGES) if (re.test(r.head)) { kind = name; break; }
-    const hours = ageFrom(r.head);
-    const views = Number((r.nums[0] || '').replace(/[^\d]/g, '')) || 0;
-    out.push({ where: 'library', title, blocked: !!kind, kind, views,
+    for (const [name, re] of BADGES) if (re.test(head)) { kind = name; break; }
+    const num = (i) => Number(String(cells[i] || '').replace(/[^\d]/g, '')) || 0;
+    const hours = ageFrom(head);
+    out.push({ where: 'library', title, blocked: !!kind, kind,
+               views: num(3), viewers: num(4), engage: num(5),
                ageHours: hours, fresh: hours !== null && hours < FRESH_HOURS });
   }
   return out;

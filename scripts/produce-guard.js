@@ -18,6 +18,7 @@ const os = require('os');
 const ROOT = path.resolve(__dirname, '..');
 const DRAFTS_DIR = path.join(os.homedir(), 'Desktop', '캡컷아웃풋', 'CapCut Drafts');
 const YT_STATE = path.join(ROOT, 'server', 'data', 'auto_publish_state.json');
+const BLOTATO_STATE = path.join(ROOT, 'server', 'data', 'blotato_publish_state.json');
 const LOCK = path.join(ROOT, 'server', 'data', 'produce.lock');
 const LEDGER = path.join(ROOT, 'server', 'data', 'produce_ledger.json');
 const LOCK_STALE_MIN = 90;   // 생산 한 바퀴가 이보다 길면 죽은 것으로 본다
@@ -72,8 +73,16 @@ if (fs.existsSync(LOCK)) {
   console.log(`오래된 락(${age.toFixed(0)}분) 무시하고 진행`);
 }
 
-// 2) 재고 — 설치됐으나 아직 유튜브에 안 올라간 드래프트
+// 2) 재고 — 설치됐으나 **아직 아무 데도 안 나간** 드래프트
+// ★2026-10-07 수리: 예전 정의는 «아직 유튜브에 안 올라간 것» 이었다. 소유주가 명화관을
+//   유튜브 없이 재개하라고 한 뒤(10-06) 재고가 영영 안 빠져 **생산이 매시간 건너뛰었다**
+//   — 유튜브에 안 올리니 uploaded 가 늘지 않고, 재고가 14 에서 멈춰 목표를 계속 충족했다.
+//   발행처가 하나 빠지면 생산이 멈추는 구조였다. 그래서 «나갔다»의 기준을 넓힌다:
+//   유튜브든 소셜(blotato)이든 한 곳이라도 나갔으면 재고에서 뺀다.
 const uploaded = new Set((readJson(YT_STATE, { history: [] }).history || []).map((h) => h.draft));
+for (const h of (readJson(BLOTATO_STATE, { history: [] }).history || [])) {
+  if (h.draft) uploaded.add(h.draft);
+}
 const cutoff = new Date(Date.now() - STOCK_DAYS * 864e5).toISOString().slice(0, 10).replace(/-/g, '');
 const installed = installedDrafts();
 const stock = installed.filter((n) => !uploaded.has(n) && n.slice(0, 8) >= cutoff);
