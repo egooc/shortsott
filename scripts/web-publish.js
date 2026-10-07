@@ -1,6 +1,7 @@
 // 브라우저로 직접 올리는 발행 경로 — API/서드파티가 막힌 두 곳 전용.
 //
 //   node scripts/web-publish.js --site naverclip|facebook --login        1회 로그인(사람이 직접, 세션은 프로필에 남는다)
+//   node scripts/web-publish.js --site naverclip --profile naverclip-shopping --login   쇼핑 채널 네이버 계정(따로 로그인)
 //   node scripts/web-publish.js --site <site> --explore                  현재 화면 구조 덤프(선택자 고칠 때)
 //   node scripts/web-publish.js --site <site> [--prefix 20260919] [--only <draft>] [--limit N] [--dry-run] [--headless]
 //                                [--target "게시할 위치 이름"] [--stop-before-publish] [--now]
@@ -147,7 +148,9 @@ function rinboxJob(mp4Path) {
     nv: parseSection(text, ['네이버 클립', 'naver_clip']),
     movieTitle: (new RegExp('\\(정보태그[^)]*\\)[^\\n]*\\n([^\\n]+)').exec(text) || [])[1]?.trim() || '',
     publishAt: live ? live.publishAt : (blocked ? blocked.blockedPublishAt : ''),
-    ytBlocked: !live && Boolean(blocked)
+    ytBlocked: !live && Boolean(blocked),
+    // 쇼핑(shop_fanout.js)이 곁딸린 메타에 적는다 — 작업 스케줄러 명령줄에 한글·쉼표를 싣지 않으려고
+    naverCategory: meta.naverCategory || '', naverCategory2: meta.naverCategory2 || '', noInfoTag: Boolean(meta.noInfoTag)
   };
 }
 
@@ -278,6 +281,9 @@ const drivers = {
   // 네이버 클립(실측 2026-09-18): /web/upload 로 바로 간다. 필수는 설명·커버·카테고리이고 커버는 자동 선택된다.
   // 설명칸은 300자 제한이라 제목+캡션+해시태그를 여기에 합쳐 넣는다(별도 태그 입력칸이 없다).
   async naverclip(page, job, sel, spec, opts) {
+    // ★2차 카테고리를 비우면 등록이 조용히 초안으로 떨어진다(2026-10-06 쇼핑 첫 2편이 이렇게 초안으로 남았다)
+    if (job.naverCategory) { sel.categoryPick = job.naverCategory; sel.category2Pick = job.naverCategory2 || ''; }
+    if (job.noInfoTag) sel.infoTagOpen = [];
     if (job.durationSec && job.durationSec > 180) throw new Error(`네이버 클립 3분 제한 초과: ${job.durationSec}s`);
     await page.goto(sel.home, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(3000);
@@ -520,7 +526,8 @@ drivers.facebook_profile = drivers.facebook;
 
 async function openBrowser(site, headless) {
   fs.mkdirSync(PROFILE_DIR, { recursive: true });
-  return chromium.launchPersistentContext(path.join(PROFILE_DIR, site), {
+  // --profile <이름>: 같은 사이트라도 계정이 다르면 프로필을 나눈다(쇼핑 네이버 = naverclip-shopping, 2026-10-06)
+  return chromium.launchPersistentContext(path.join(PROFILE_DIR, arg('--profile', site)), {
     channel: 'chrome',
     executablePath: fs.existsSync(CHROME) ? CHROME : undefined,
     headless,
@@ -538,6 +545,9 @@ async function main() {
   const selAll = readJson(SELECTORS, {});
   const sel = selAll[site];
   if (!sel) throw new Error(`선택자 없음: ${site} (${SELECTORS})`);
+  // 쇼핑 채널(2026-10-06)은 영화가 아니다 — 카테고리를 바꾸고 작품 정보태그를 건너뛴다.
+  if (arg('--category', '')) { sel.categoryPick = arg('--category', ''); sel.category2Pick = arg('--category2', ''); }
+  if (has('--no-info-tag')) sel.infoTagOpen = [];
   const specs = readJson(SPECS, {});
   const spec = (specs.platforms || {})[site === 'naverclip' ? 'naver_clip' : 'facebook'] || {};
   const headless = has('--headless');
@@ -551,7 +561,7 @@ async function main() {
       const deadline = Date.now() + 10 * 60 * 1000;
       while (Date.now() < deadline) {
         const ok = await firstVisible(page, sel.loggedInMarker, 2000);
-        if (ok) { console.log(`[login] ${site}: 로그인 확인됨 — 세션 저장 완료(${path.join(PROFILE_DIR, site)})`); return; }
+        if (ok) { console.log(`[login] ${site}: 로그인 확인됨 — 세션 저장 완료(${path.join(PROFILE_DIR, arg('--profile', site))})`); return; }
       }
       throw new Error('10분 안에 로그인이 확인되지 않았다');
     }
@@ -588,7 +598,11 @@ async function main() {
         if (!dueOnly) return true;
         const job = jobFor(d);
         const at = Date.parse(job.publishAt || '');
-        if (!Number.isFinite(at)) return false;
+        // ★유튜브에 «아예 안 올린» 편은 기준 시각이 없다. 예전엔 여기서 false 를 돌려
+        //   영원히 «발행할 것 없음»이 됐다 — 2026-10-06 에 명화관이 유튜브를 끈 뒤로
+        //   08·12·18시 슬롯이 매번 «(출력 없음)» 이었다(실측 2026-10-08).
+        //   소셜은 유튜브의 부속이 아니다(2026-09-23 소유주 지시) — 기준이 없으면 «지금»으로 본다.
+        if (!Number.isFinite(at)) return true;
         // ★유튜브 차단본은 그 슬롯이 이미 지나 있다. 30분 창으로 보면 영원히 안 걸린다 —
         //   그래서 «시각이 지났으면 지금 발행»으로 본다. 앞으로 잡힌 것이면 평소대로 창을 쓴다.
         if (job.ytBlocked) return at <= nowMs + 30 * 60 * 1000;
