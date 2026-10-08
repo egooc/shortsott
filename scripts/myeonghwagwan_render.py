@@ -29,6 +29,7 @@
 # }
 # 음성은 Typecast with-timestamps — 볼케이노와 같은 목소리·키다.
 import argparse, base64, hashlib, json, os, re, subprocess, sys, urllib.request
+import math
 from pathlib import Path
 
 MIDFORM = Path(__file__).resolve().parents[1]
@@ -37,6 +38,8 @@ PIC_Y0, PIC_Y1 = 420, 1500                       # 그림 창 — chrome.png 투
 PIC_W = PIC_H = PIC_Y1 - PIC_Y0                  # 1080 정사각형
 # 소리 목표 — 볼케이노 완성본 실측(lsr01 -13.6/LRA4.8 · lsr02-ja -13.5/LRA5.6)
 LUFS, TRUE_PEAK, LRA = '-13.5', '-1.3', '5'
+# 해설 앞뒤 여유 — 볼케이노 film_editor.py 717~718 과 같은 값
+NAR_HEAD, NAR_TAIL = 0.065, 0.09
 CHROME = MIDFORM / 'assets' / 'myeonghwagwan_chrome.png'
 FONTS = MIDFORM / 'assets' / 'fonts'
 VOICE = {'voice_id': 'tc_68257f68bc6e3c161ab5078d', 'model': 'ssfm-v30',
@@ -96,6 +99,53 @@ def frames(sec):
 
 
 # ---------------------------------------------------------------- 음성
+def paid_narration(plan, narr):
+    """볼케이노가 이미 산 해설 음성이 있으면 **그걸 쓴다.** 돈도 아끼고 소리도 같아진다.
+
+    볼케이노는 해설 전체를 **한 번에** 산다(lsr01: 3개 77자 = 1건 8.375초).
+    그 결과가 회차 폴더에 그대로 남는다:
+      <wd>/paid/<요청해시>/narration.wav      소리
+      <wd>/paid/<요청해시>/response.json      낱말 시각(words)
+    소유주 상시 지시: «유료 열쇠는 새로 발급하지 말 것(TTS 재사용이 깨진다)·paid/ 삭제 금지».
+    그 폴더가 있는 이유가 바로 이것이다.
+
+    글이 편집표와 **글자 하나까지 같을 때만** 쓴다. 다르면 조용히 엉뚱한 소리가 붙는다.
+    돌려주는 것: {해설id: (wav경로, 시작초, 끝초)} — 없으면 빈 사전.
+    """
+    import glob
+    root = Path(plan['transcript']).resolve().parent
+    hits = sorted(glob.glob(str(root / 'paid' / '*' / 'response.json')))
+    want = [' '.join(n['cards']) for n in narr]
+    for rj in hits:
+        wav = Path(rj).parent / 'narration.wav'
+        if not wav.exists():
+            continue
+        try:
+            words = json.loads(Path(rj).read_text(encoding='utf-8')).get('words') or []
+        except (ValueError, OSError):
+            continue
+        said = ''.join(str(w.get('text', '')) for w in words).replace(' ', '')
+        if said != ''.join(want).replace(' ', ''):
+            continue
+        out, i = {}, 0
+        for n, text in zip(narr, want):
+            need = text.replace(' ', '')
+            got, a, b = '', None, None
+            while i < len(words) and len(got) < len(need):
+                w = words[i]
+                if a is None:
+                    a = float(w['start'])
+                got += str(w.get('text', '')).replace(' ', '')
+                b = float(w['end'])
+                i += 1
+            if got != need:
+                return {}
+            out[n['id']] = (wav, a, b)
+        print('  볼케이노가 산 해설 음성을 그대로 쓴다: %s' % wav.parent.name[:12])
+        return out
+    return {}
+
+
 def tts(text, lang, cache):
     body = {'text': text, 'voice_id': VOICE['voice_id'], 'model': VOICE['model'],
             'language': LANG[lang], 'seed': VOICE['seed'],
@@ -473,11 +523,28 @@ def main():
     nar = {n['id']: n for n in plan['narration']}
 
     # 1) 음성을 먼저 사고 길이를 받는다 — 길이가 정해져야 그림을 몇 프레임 뽑을지 안다
+    reuse = paid_narration(plan, plan['narration'])
     for n in plan['narration']:
         # ★칸은 «공백»으로 잇는다(언어 무관) — 볼케이노와 같은 글이어야 같은 끊어 읽기가 나온다.
         text = ' '.join(n['cards'])
         n['text'] = text
-        n['wav'], n['meta'] = tts(text, lang, cache)
+        if n['id'] in reuse:
+            # 볼케이노가 산 통짜 음성에서 이 해설 몫만 떼어 쓴다
+            src_wav, a0, b0 = reuse[n['id']]
+            # ★앞뒤 여유는 볼케이노와 같은 값이다 — 앞 0.065초·뒤 0.09초, 그리고 **올림**
+            #   (film_editor.py 717~719: a = start-.065 · b = end+.09 · frames = ceil((b-a)*fps)).
+            #   어림잡아 0.12 를 쓰니 세 해설에서 6프레임이 더 나왔다(5152 vs 5146).
+            a1 = max(0.0, a0 - NAR_HEAD)
+            b1 = b0 + NAR_TAIL
+            dur = math.ceil((b1 - a1) * FPS) / FPS
+            cut = cache / ('paid_%s_%s.wav' % (Path(src_wav).parent.name[:12], n['id']))
+            if not cut.exists():
+                run(['ffmpeg', '-loglevel', 'error', '-y', '-ss', '%.3f' % a1, '-i', str(src_wav),
+                     '-t', '%.3f' % dur, '-ac', '2', '-ar', '48000', '-c:a', 'pcm_s16le', cut])
+            n['wav'] = cut
+            n['meta'] = {'text': text, 'words': [], 'duration': dur}
+        else:
+            n['wav'], n['meta'] = tts(text, lang, cache)
         n['dur'] = n['meta']['duration']
 
     # 2) 구간을 펼친다
