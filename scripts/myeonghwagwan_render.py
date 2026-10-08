@@ -42,8 +42,16 @@ LUFS, TRUE_PEAK, LRA = '-13.5', '-1.3', '5'
 NAR_HEAD, NAR_TAIL = 0.065, 0.09
 CHROME = MIDFORM / 'assets' / 'myeonghwagwan_chrome.png'
 FONTS = MIDFORM / 'assets' / 'fonts'
-VOICE = {'voice_id': 'tc_68257f68bc6e3c161ab5078d', 'model': 'ssfm-v30',
-         'emotion': 'normal', 'tempo': 1.05, 'seed': 42}
+# 명화관 목소리 — **추측이 아니라 영수증 해시로 확인한 값이다**(2026-10-09).
+# 어떻게 알아냈나: 볼케이노는 TTS 요청 본문의 sha256 을 영수증에 남긴다
+# (film_editor.py 30~32 digest · 491~495 typecast_body). 본문 모양이 다 드러나 있으므로
+# Typecast 목소리 목록 1143개 × 감정 × 속도를 돌려 **해시가 맞는 조합**을 찾았다.
+# TTS 를 한 번도 사지 않고 알아냈다. 명화관 회차 9편(lsr01·lsr02-ja·dh01·cg01-ja·cg02·
+# wf01·wf01-ja·acct·acct-ja) 전부 같은 값이었다.
+#   ★린박스 기본값(tc_68257f68…, normal, 1.05)을 쓰면 6.89자/초로 **느리다.**
+#     명화관은 tempo 1.2 · tonedown 이고 9.66자/초다.
+VOICE = {'voice_id': 'tc_611c3f692fac944dff493a04',   # SeHee
+         'model': 'ssfm-v30', 'emotion': 'tonedown', 'tempo': 1.2, 'seed': 42}
 LANG = {'ko': 'kor', 'ja': 'jpn', 'en': 'eng'}
 JOIN = {'ko': ' ', 'ja': '', 'en': ' '}          # 자막 칸을 이어 붙일 때
 CAP_MAX = {'ko': 16, 'ja': 14, 'en': 28}   # 명화관 완성본 실측 최장 15자(ko)·13자(ja)
