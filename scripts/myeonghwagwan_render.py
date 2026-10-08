@@ -121,8 +121,10 @@ def paid_narration(plan, narr):
         if not wav.exists():
             continue
         try:
-            words = json.loads(Path(rj).read_text(encoding='utf-8')).get('words') or []
-        except (ValueError, OSError):
+            doc = json.loads(Path(rj).read_text(encoding='utf-8'))
+            words = doc.get('words') or []
+            dur_all = float(doc.get('audio_duration') or 0) or None
+        except (ValueError, OSError, TypeError):
             continue
         said = ''.join(str(w.get('text', '')) for w in words).replace(' ', '')
         if said != ''.join(want).replace(' ', ''):
@@ -140,7 +142,7 @@ def paid_narration(plan, narr):
                 i += 1
             if got != need:
                 return {}
-            out[n['id']] = (wav, a, b)
+            out[n['id']] = (wav, a, b, dur_all)
         print('  볼케이노가 산 해설 음성을 그대로 쓴다: %s' % wav.parent.name[:12])
         return out
     return {}
@@ -530,12 +532,15 @@ def main():
         n['text'] = text
         if n['id'] in reuse:
             # 볼케이노가 산 통짜 음성에서 이 해설 몫만 떼어 쓴다
-            src_wav, a0, b0 = reuse[n['id']]
+            src_wav, a0, b0, total_wav = reuse[n['id']]
             # ★앞뒤 여유는 볼케이노와 같은 값이다 — 앞 0.065초·뒤 0.09초, 그리고 **올림**
             #   (film_editor.py 717~719: a = start-.065 · b = end+.09 · frames = ceil((b-a)*fps)).
             #   어림잡아 0.12 를 쓰니 세 해설에서 6프레임이 더 나왔다(5152 vs 5146).
             a1 = max(0.0, a0 - NAR_HEAD)
-            b1 = b0 + NAR_TAIL
+            # ★뒤 여유는 **음성 전체 길이를 넘지 못한다**(film_editor.py 718: min(audio_duration, ...)).
+            #   가두지 않으면 마지막 해설이 없는 소리를 달라 하고 프레임이 넘친다
+            #   (2026-10-09 실측: 8.451 > 8.375 라 2프레임 더 나왔다).
+            b1 = min(total_wav, b0 + NAR_TAIL) if total_wav else b0 + NAR_TAIL
             dur = math.ceil((b1 - a1) * FPS) / FPS
             cut = cache / ('paid_%s_%s.wav' % (Path(src_wav).parent.name[:12], n['id']))
             if not cut.exists():

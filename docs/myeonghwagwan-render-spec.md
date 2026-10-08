@@ -351,7 +351,16 @@ a = max(0, spoken[0]["start"] - .065)
 b = min(audio_duration, spoken[-1]["end"] + .09)
 frames = math.ceil((b - a) * fps)
 ```
-어림잡아 0.12 를 썼더니 해설 셋에서 **6프레임**이 더 나왔다(5152 vs 5146).
+어림잡아 0.12 를 썼더니 해설 셋에서 **6프레임**이 더 나왔다.
+
+★`min(audio_duration, ...)` 을 빠뜨리면 **마지막 해설이 넘친다.** 실측:
+```
+             엔진(문자 기준)        자체(낱말 기준)
+해설1         58프레임              58
+해설2        101프레임             101
+해설3         80 (b=8.375)          82 (b=8.451)  ★음성은 8.375초뿐인데 더 달라 했다
+```
+없는 소리를 달라 하면 ffmpeg 이 조용히 짧게 주고 프레임만 넘는다.
 
 ### 10. ★편집표는 `effective-edit.json` 이다 (2026-10-09)
 
@@ -383,6 +392,14 @@ python scripts/myeonghwagwan_plan.py D:/volcano-runs/lsr01
 python scripts/myeonghwagwan_render.py D:/volcano-runs/lsr01/plan_self.json --out out.mp4
 ```
 
-### 아직 안 가져온 것
-- 카메라 점 형식 — 엔진은 `[프레임번호, cx]`, 우리는 `[원본시각, cx]`
-- `view_width` / `crop` (샷별 확대 창) — AGY 영수증이 있을 때만 쓰는 길
+### 아직 안 가져온 것 — 그리고 **왜 안 가져왔는지**
+
+| 기능 | 어디에 | 판단 |
+|---|---|---|
+| `view_width`·`crop` 샷별 확대 창 | `film_editor.py:1454~1477` | **해당 없음.** `plan['shots']` 에 `crop`/`view_width` 가 있을 때만 도는데, 그건 AGY 영수증이 채운다. 우리는 맨 `cx` 점만 준다. |
+| `flash_aliases` | `shorts_framing.py:88~100` | **해당 없음.** 전부 AGY 영수증 경로(`from_focus_receipt`·`focus`) 안이다. |
+| BGM `mix_music_bed` | `film_editor.py:1830` | **안 쓴다.** 명화관 편집표 5편 전부 `music` 0건. |
+| 효과음·원본음 깔기 `mix_extra` | `film_tracks.py:157` | **안 쓴다.** `sounds`·`source_audio_gain_db` 5편 전부 0건. |
+| 카메라 점 형식 | `camera_expression` | 엔진은 `[프레임번호, cx]`, 우리는 `[원본시각, cx]` 를 받아 **안에서 프레임으로 바꾼다.** 결과는 같다. 쓰기 편한 쪽을 둔다. |
+| 연속성 보정(컷 머리 당기기) | 서버가 `effective-edit.json` 에 넣어 준다 | 우리가 **다시 계산하지 않는다.** 서버가 낸 결과를 그대로 쓴다(10항). 우리가 처음부터 편집표를 짓게 되면 그때 필요하다. |
+| 새 편의 음성 속도 | `paid/` 가 없을 때 | **남은 숙제.** 볼케이노는 9.19자/초, 린박스 설정은 7.08자/초다. voice_id 를 알 길이 없어 아직 못 맞췄다. |
