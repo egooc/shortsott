@@ -18,10 +18,21 @@ for (const site of SITES) {
   console.log(`\n=== ${site} ${new Date().toISOString()}`);
   const r = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'web-publish.js'), '--site', site, '--due'],
     { cwd: ROOT, encoding: 'utf8', timeout: 30 * 60 * 1000 });
-  const out = `${r.stdout || ''}${r.stderr || ''}`.split('\n')
+  const all = `${r.stdout || ''}${r.stderr || ''}`;
+  const out = all.split('\n')
     .filter((l) => /targets:|\[ok\]|\[fail\]|\[skip\]|report:/.test(l));
   console.log(out.join('\n') || '(출력 없음)');
-  if (r.status !== 0) failed += 1;
+  // ★자식이 죽으면 **왜 죽었는지 남긴다.** 예전에는 위 거르개가 오류를 통째로 버려서
+  //   «(출력 없음)» 한 줄만 남았고, 그래서 이 슬롯이 2026-09-21 부터 3주 동안 죽어 있는
+  //   것을 아무도 몰랐다(실측 2026-10-08). 거르개는 평소 로그를 짧게 하자는 것이지
+  //   사고를 가리자는 것이 아니다.
+  if (r.status !== 0) {
+    failed += 1;
+    const why = (r.error && r.error.message) ? r.error.message
+      : all.split('\n').filter((l) => l.trim()).slice(-12).join('\n');
+    console.log(`  ★${site} 실패 (exit ${r.status}) — 아래가 자식이 남긴 마지막 출력이다`);
+    console.log(why.split('\n').map((l) => '    ' + l.slice(0, 200)).join('\n'));
+  }
 }
 
 process.exit(failed ? 1 : 0);
