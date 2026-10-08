@@ -116,6 +116,24 @@ def tts(text, lang, cache):
 
 
 # ---------------------------------------------------------------- 자막 시각
+def check_transcript(words):
+    """전사가 **낱말 단위**인지 본다. 아니면 분명히 실패시킨다.
+
+    ★전사 형식이 두 가지다(2026-10-09 실측).
+      낱말 단위   [[0.24, 0.72, "Pizza"], ...]                      ← 우리가 쓸 수 있다
+      겹침 토막   [[12.72, 15.51, "That's enough. He's in the ..."],
+                  [15.51, 15.52, "house. Get out there and end this. Give"], ...]
+                  스트리밍 부분결과라 앞 것이 뒤에 통째로 또 나온다. 시각을 못 잰다.
+      겹침 토막을 그냥 받으면 자막이 엉뚱한 데 붙는다. **조용히 틀리느니 서는 게 낫다.**
+    """
+    if not words:
+        sys.exit('전사가 비어 있다')
+    long = sum(1 for w in words[:60] if len(str(w[2]).split()) > 3)
+    if long > len(words[:60]) * 0.4:
+        first = str(words[1][2] if len(words) > 1 else words[0][2])[:90]
+        sys.exit('전사가 낱말 단위가 아니다(겹침 토막으로 보인다) — 낱말 단위 전사를 써라. 첫 토막: %r' % first)
+
+
 def card_times(words, t0, t1, cards, join):
     """자막 칸의 (시작, 끝, 보일글)을 돌려준다.
 
@@ -272,6 +290,7 @@ def main():
     lang = plan.get('lang', 'ja')
     src = plan['source']
     words = json.loads(Path(plan['transcript']).read_text(encoding='utf-8'))
+    check_transcript(words)
     work = Path(a.plan).resolve().parent / '_render'
     work.mkdir(exist_ok=True)
     cache = MIDFORM / 'cache' / 'tts'
