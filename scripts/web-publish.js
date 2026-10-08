@@ -285,7 +285,19 @@ const drivers = {
     if (job.naverCategory) { sel.categoryPick = job.naverCategory; sel.category2Pick = job.naverCategory2 || ''; }
     if (job.noInfoTag) sel.infoTagOpen = [];
     if (job.durationSec && job.durationSec > 180) throw new Error(`네이버 클립 3분 제한 초과: ${job.durationSec}s`);
-    await page.goto(sel.home, { waitUntil: 'domcontentloaded' });
+    // ★업로드 화면이 무거워 렌더러가 죽는다 — `page.goto: Page crashed`(실측 2026-10-08,
+    //   크롬 31프로세스·3.2GB 가 떠 있고 남은 메모리 5.6GB 였다). 한 번 죽었다고 회차를
+    //   버리면 그날 그 편은 안 나간다. 한 박자 쉬고 두 번 더 해 본다.
+    for (let attempt = 1; ; attempt++) {
+      try {
+        await page.goto(sel.home, { waitUntil: 'domcontentloaded' });
+        break;
+      } catch (e) {
+        if (attempt >= 3 || !/crash/i.test(String(e.message))) throw e;
+        console.log(`  [재시도 ${attempt}/2] 네이버 업로드 화면이 죽었다 — ${String(e.message).slice(0, 60)}`);
+        await page.waitForTimeout(5000);
+      }
+    }
     await page.waitForTimeout(3000);
     await attachFile(page, sel.fileInput, sel.openUploader, job.mp4);
 
@@ -700,6 +712,15 @@ async function main() {
         console.log(`[fail] ${site} ${draft}: ${e.message}`);
         console.log(`       화면: ${base}.png / 요소목록: ${base}.txt`);
         lines.push(`- 실패 ${site}: ${draft} — ${e.message} (${path.basename(base)}.png)`);
+        // ★페이스북은 «확인 문구 안 뜸»이어도 실제로는 게시돼 있다(2026-10-08 사마귀 e714: 08:01·08:06·08:56
+        //   세 번 다 올라갔다). 기록을 안 남기면 rinbox-web 정기 실행(08:05·12:05…)과 재실행이 또 올린다.
+        //   중복 게시가 빠진 게시보다 나쁘다 — «미확인 게시»로 적어 다시 보내지 않게 하고 눈으로 확인한다.
+        if (site === 'facebook_profile' && /게시 확인 문구가 뜨지 않았다/.test(e.message)) {
+          state.history = [...(state.history || []), { draft, site, locale: job.locale, at: new Date().toISOString(),
+            url: page.url(), unconfirmed: true, note: '확인 문구 없음 — 게시됐을 가능성이 높다, 프로필에서 눈으로 확인' }];
+          fs.writeFileSync(STATE_PATH, JSON.stringify(state, null, 2));
+          console.log(`       → 미확인 게시로 기록(다시 보내지 않는다)`);
+        }
       }
     }
     if (!has('--dry-run')) {
