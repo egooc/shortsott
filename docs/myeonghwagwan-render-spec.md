@@ -353,6 +353,36 @@ frames = math.ceil((b - a) * fps)
 ```
 어림잡아 0.12 를 썼더니 해설 셋에서 **6프레임**이 더 나왔다(5152 vs 5146).
 
+### 10. ★편집표는 `effective-edit.json` 이다 (2026-10-09)
+
+볼케이노는 `edit.json` 이 아니라 **`effective-edit.json`** 으로 굽는다. 둘은 컷 경계가 다르다.
+```
+                     컷 프레임 합
+edit.json            4916      77.400 ~ 88.100 · 103.800 ~ 155.150
+effective-edit.json  4907      77.600 ~ 88.100 · 103.900 ~ 155.167
+```
+왜 당겨졌나 — `boundary-preflight-*.json` 의 `audit` 에 이유가 적혀 있다:
+```json
+{"clip_index": 3, "from_frames": [2322, 2643], "to_frames": [2328, 2643],
+ "reason": "word_safe_leading_source_boundary",
+ "audio_and_picture_changed_together": true}
+```
+**컷 머리가 말 한가운데서 시작하지 않게** 앞을 당긴 것이다.
+`edit.json` 으로 구우면 말이 잘린 채 시작하고 프레임도 9개 더 나온다.
+
+계산이 맞는지 확인:
+```
+해설 239프레임(엔진 공식 그대로) + 컷 4907 = 5146  ← 볼케이노 실제와 같다
+해설 239            + edit.json 4916 = 5155  ← 틀린 길
+```
+
+→ `scripts/myeonghwagwan_plan.py` 가 회차 폴더에서 plan 을 지으며
+   **effective-edit.json 을 먼저 집는다.** 손으로 지으면 매번 틀린다.
+```bash
+python scripts/myeonghwagwan_plan.py D:/volcano-runs/lsr01
+python scripts/myeonghwagwan_render.py D:/volcano-runs/lsr01/plan_self.json --out out.mp4
+```
+
 ### 아직 안 가져온 것
 - 카메라 점 형식 — 엔진은 `[프레임번호, cx]`, 우리는 `[원본시각, cx]`
 - `view_width` / `crop` (샷별 확대 창) — AGY 영수증이 있을 때만 쓰는 길
