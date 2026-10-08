@@ -319,9 +319,15 @@ def write_ass(path, title, credit, events, total, lang):
     head += ['', '[Events]', 'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text']
     body = []
     full = '0:00:00.00,%s' % ass_time(total)
-    body.append('Dialogue: 0,%s,T1,,0,0,0,,{\\pos(%d,%d)}%s' % (full, W // 2, look['T1'][POS_Y], esc(title[0])))
+    # ★볼케이노는 제목에 인라인으로 크기·색을 다시 박는다(pos · fax0 · fs99 · c&H...&).
+    #   둘째 줄 강조색(노랑)은 **스타일이 아니라 인라인**으로 준다 — 엔진과 같은 방식이다.
+    t1 = look['T1']
+    body.append(r'Dialogue: 1,%s,T1,,0,0,0,,{\pos(%d,%d)\fax0\fs%d\c%s&}%s'
+                % (full, W // 2, t1[POS_Y], t1[1], t1[2], esc(title[0])))
     if len(title) > 1:
-        body.append('Dialogue: 0,%s,T2,,0,0,0,,{\\pos(%d,%d)}%s' % (full, W // 2, look['T2'][POS_Y], esc(title[1])))
+        t2 = look['T2']
+        body.append(r'Dialogue: 1,%s,T2,,0,0,0,,{\pos(%d,%d)\fax0\fs%d\c%s&}%s'
+                    % (full, W // 2, t2[POS_Y], t2[1], ACCENT, esc(title[1])))
     body.append('Dialogue: 0,%s,CR,,0,0,0,,{\\pos(%d,%d)}%s' % (full, W // 2, look['CR'][POS_Y], esc(credit)))
     # ★명화관은 **해설(NAR)과 원음 대사(CAP)를 다른 모양으로 쓴다** — ko 는 글꼴까지 다르다
     #   (해설 카페24 아네모네 흰색 · 원음 서울한강체 노랑). 통일하면 ko 스타일이 사라진다.
@@ -363,31 +369,55 @@ def measure_content(src, segs):
     return collections.Counter(valid).most_common(1)[0][0]
 
 
-def pic_clip(src, t0, n_frames, cx, mirror, out, zoom=(1.0, 0.5), content=None):
+def camera_expr(points, span, crop_w, c_off, c_span):
+    """카메라 점들을 ffmpeg crop 오프셋 식으로 바꾼다. **점 사이는 부드럽게 이어진다.**
+
+    ★볼케이노 film_editor.py 1407~1422 를 그대로 옮겼다.
+      x(cx) = clamp(cx*span - crop_w/2, c_off, c_off + c_span - crop_w)
+      점 사이: x(a) + (x(b)-x(a)) * clip((n-na)/(nb-na), 0, 1)   ← 프레임 n 에 따라 선형으로
+    ★cx 는 **통짜 가로(span)** 기준이고, 창만 알맹이(c_off, c_span) 안으로 가둔다.
+      예전엔 알맹이 안에서 cx 를 셌는데 레터박스가 있는 원본에서 자리가 어긋난다.
+    ★예전엔 점마다 조각을 잘라 붙였다 — 그러면 화면이 **뚝 끊긴다.** 엔진은 한 번에 굽고
+      식 안에서 움직인다. 그래야 같은 그림이 나온다(2026-10-09 엔진 코드로 확인).
+
+    points: [(프레임번호, cx), ...] — 프레임번호는 이 조각 안에서 0부터
+    """
+    def x(cx):
+        return int(round(max(c_off, min(c_off + c_span - crop_w, cx * span - crop_w / 2)) / 2) * 2)
+    expr = str(x(points[-1][1]))
+    for (na, ca), (nb, cb) in reversed(list(zip(points, points[1:]))):
+        if nb <= na:
+            continue
+        expr = 'if(lt(n,%d),%d+(%d)*clip((n-%d)/%d,0,1),%s)' % (nb, x(ca), x(cb) - x(ca), na, nb - na, expr)
+    return expr
+
+
+def pic_clip(src, t0, n_frames, points, mirror, out, zoom=(1.0, 0.5), content=None):
     """원본 t0 부터 n_frames 만큼을 떼어 그림 창(1080x1080)으로 만든다.
 
-    cx 는 «알맹이 가로»의 어디를 가운데로 둘지(0~1)다.
+    points: [(프레임번호, cx), ...] — 조각 안 0 부터. 한 점이면 고정, 여러 점이면 이어 움직인다.
     zoom=(z, cy): 알맹이 높이의 z 만큼만 쓰고 세로 가운데를 cy 에 둔다(1.0 이면 전체).
-    content=(w, h, x, y): **검은 띠를 걷어낸 알맹이 네모.** measure_content() 가 잰다.
-      ★볼케이노는 cx 를 항상 이 알맹이 안에서 센다(film_editor.py camera_expression 의
-        content['x'], content['width']). 통짜 프레임에서 세면 레터박스가 있는 원본에서
-        **검은 띠째로 창에 들어가고 피사체도 한쪽으로 밀린다.**
+    content=(w, h, x, y): 검은 띠를 걷어낸 알맹이 네모. measure_content() 가 잰다.
     """
     z, cy = zoom
-    if content:
-        W0, H0, X0, Y0 = content
-    else:
-        W0 = H0 = X0 = Y0 = None
-    iw = 'iw' if W0 is None else str(W0)
-    ih = 'ih' if H0 is None else str(H0)
-    ox = '0' if X0 is None else str(X0)
-    oy = '0' if Y0 is None else str(Y0)
-    ch = '%s*%.6f' % (ih, z)
-    cw = '%s*%.6f' % (ih, z * PIC_W / PIC_H)     # 창 비율(1080:1080 정사각)만큼의 가로
-    x = "%s+clip(%s*%.6f-(%s)/2,0,%s-(%s))" % (ox, iw, cx, cw, iw, cw)
-    y = "%s+clip(%s*%.6f-(%s)/2,0,%s-(%s))" % (oy, ih, cy, ch, ih, ch)
-    vf = ("crop='min(%s,%s)':'%s':'%s':'%s',scale=%d:%d:flags=lanczos,setsar=1,fps=%d"
-          % (iw, cw, ch, x, y, PIC_W, PIC_H, FPS))
+    if not content:
+        sys.exit('알맹이 네모를 못 쟀다 — 원본을 확인하라')
+    cwid, chei, cx0, cy0 = content
+    crop_h = max(2, int(round(chei * z / 2) * 2))
+    crop_w = max(2, int(round(crop_h * PIC_W / PIC_H / 2) * 2))
+    sw = cx0 + cwid          # 통짜 가로를 모르면 알맹이 오른끝을 쓴다(아래에서 실제 폭으로 덮어쓴다)
+    probe = subprocess.run(['ffprobe', '-v', 'error', '-select_streams', 'v:0',
+                            '-show_entries', 'stream=width', '-of', 'csv=p=0', str(src)],
+                           capture_output=True, text=True)
+    try:
+        sw = int(probe.stdout.strip().split(',')[0])
+    except ValueError:
+        pass
+    crop_w = min(crop_w, cwid)
+    x_expr = camera_expr(points, sw, crop_w, cx0, cwid)
+    y = int(round(max(cy0, min(cy0 + chei - crop_h, cy0 + chei * cy - crop_h / 2)) / 2) * 2)
+    vf = ("crop=%d:%d:'%s':%d,scale=%d:%d:flags=lanczos,setsar=1,fps=%d"
+          % (crop_w, crop_h, x_expr, y, PIC_W, PIC_H, FPS))
     if mirror:
         vf += ',hflip'
     run(['ffmpeg', '-loglevel', 'error', '-y', '-ss', '%.3f' % t0, '-i', src,
@@ -493,26 +523,20 @@ def main():
     parts_v, parts_a, events, t = [], [], [], 0.0
     for k, g in enumerate(segs):
         nf = frames(g['dur'])
-        # cx 는 숫자 하나거나 [[원본시각, cx], ...] — 한 컷 안에서 샷이 바뀌어 화자가 달라지면 샷마다 준다
-        marks = g['cx'] if isinstance(g['cx'], list) else [[g['pic_in'], g['cx']]]
-        marks = sorted(marks)
-        edges = [0] + [min(nf, max(0, frames(tm - g['pic_in']))) for tm, _ in marks[1:]] + [nf]
-        # ★3프레임 미만 조각은 앞 조각에 붙인다 — 볼케이노 2026-10-08 수정(joined_pieces)에서 옮김:
-        #   1프레임 조각은 concat 이 길이를 0 으로 쳐 다음 프레임과 겹치고 인코더가 한 장을 버린다.
-        k2 = 1
-        while k2 < len(edges) - 1:
-            if edges[k2] - edges[k2 - 1] < 3 or edges[k2 + 1] - edges[k2] < 3:
-                del edges[k2]; del marks[k2]
-            else:
-                k2 += 1
-        for j, (_, c) in enumerate(marks):
-            n = edges[j + 1] - edges[j]
-            if n <= 0:
-                continue
-            v = work / ('v%02d_%d.mp4' % (k, j))
-            pic_clip(src, g['pic_in'] + edges[j] / FPS, n, c, plan.get('mirror', True), v,
-                     tuple(g['zoom']), content)
-            parts_v.append(v)
+        # cx 는 숫자 하나거나 [[원본시각, cx], ...] — 한 컷 안에서 화자가 바뀌면 여러 점을 준다.
+        # ★조각으로 자르지 않고 **한 번에 굽는다.** 점 사이는 crop 식 안에서 이어 움직인다
+        #   (볼케이노 camera_expression 과 같은 방식). 잘라 붙이면 화면이 뚝 끊긴다.
+        marks = sorted(g['cx']) if isinstance(g['cx'], list) else [[g['pic_in'], g['cx']]]
+        points = [(min(nf - 1, max(0, frames(tm - g['pic_in']))), float(c)) for tm, c in marks]
+        seen, pts = set(), []
+        for n0, c in points:               # 같은 프레임에 두 점이 오면 뒤엣것을 버린다
+            if n0 not in seen:
+                seen.add(n0); pts.append((n0, c))
+        if pts[0][0] != 0:
+            pts.insert(0, (0, pts[0][1]))  # 첫 점은 조각 머리에서 시작해야 한다
+        v = work / ('v%02d.mp4' % k)
+        pic_clip(src, g['pic_in'], nf, pts, plan.get('mirror', True), v, tuple(g['zoom']), content)
+        parts_v.append(v)
         if g['kind'] == 'nar':
             parts_a.append(Path(g['wav']))
             # ★해설에도 자막이 깔린다(NAR 모양). 볼케이노 완성본 실측: 해설 큐 10~14개.

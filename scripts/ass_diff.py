@@ -10,6 +10,7 @@
 스타일 이름은 서로 다르다(우리 T1/T2/NAR/CAP, 볼케이노 Head/Narr/Dialogue) —
 «무엇을 그리는 칸인가»로 짝지어 본다.
 """
+import re
 import sys
 import io
 
@@ -36,6 +37,21 @@ def styles(path):
             k, _, val = ln.partition(':')
             info[k] = val.strip()
     return out, info
+
+
+def events(path):
+    """제목 줄의 **인라인 태그**를 뽑는다 — 색·크기를 스타일이 아니라 인라인으로 주기 때문이다."""
+    out = []
+    for ln in io.open(path, encoding='utf-8'):
+        if not ln.startswith('Dialogue:'):
+            continue
+        head, _, text = ln.rstrip().partition(',,')
+        cols = head.split(',')
+        style = cols[3] if len(cols) > 3 else ''
+        if style in ('T1', 'T2', 'Head'):
+            m = re.search(r'[{]([^}]*)[}]', text)
+            out.append((style, m.group(1) if m else ''))
+    return out
 
 
 def main():
@@ -68,6 +84,14 @@ def main():
         if a[ours].get('Fontname') != b[theirs].get('Fontname'):
             print('%-4s(%-8s) %-16s 우리 %-20s 볼케이노 %s   ←이름은 달라도 된다(파일 실제 이름을 쓴다)'
                   % (ours, theirs, 'Fontname', a[ours].get('Fontname'), b[theirs].get('Fontname')))
+    # ★제목 색은 인라인으로 준다 — 태그가 빠지면 강조색이 사라진다
+    #   (2026-10-09 ja 에서 실제로 그랬다: 중복 블록을 지우다 인라인 태그 줄까지 날아갔다).
+    ours = [t for _, t in events(sys.argv[1]) if chr(92) + 'c' in t]
+    theirs = [t for _, t in events(sys.argv[2]) if chr(92) + 'c' in t]
+    if len(ours) < len(theirs):
+        print('★제목 인라인 색 태그가 모자란다: 우리 %d개 · 볼케이노 %d개 — 강조색이 사라진다'
+              % (len(ours), len(theirs)))
+        bad += 1
     print('\n어긋난 곳 %d' % bad if bad else '\n어긋난 곳 없음')
     return 1 if bad else 0
 
