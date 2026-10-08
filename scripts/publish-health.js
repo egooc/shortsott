@@ -28,6 +28,21 @@ const DAYS = Number(arg('--days', 2));
 
 const PLATFORMS = ['naverclip', 'facebook_profile', 'instagram', 'threads', 'facebook', 'tiktok'];
 
+// ★라인을 갈라서 센다(소유주 2026-10-08: "지금 나간 그 네이버 클립이라는 게 명화관 스타일로
+//   나간 거 맞냐고"). 명화관과 린박스가 **같은 계정으로** 나가므로 합쳐 세면
+//   명화관이 0건인데 린박스가 채워서 멀쩡해 보인다 — 오늘 겪은 눈속임과 같은 종류다.
+//     명화관  20261007-dh_road-ko   (날짜-슬러그-로케일)
+//     린박스  final-<해시>.mp4
+//     쇼핑    ffshop… · ffstory…
+const lineOf = (draft) => {
+  const d = String(draft || '');
+  if (/^\d{8}[a-z]?-.+-(ko|ja)$/.test(d)) return '명화관';
+  if (/^final-[0-9a-f]+\.mp4$/i.test(d)) return '린박스';
+  if (/^ff(shop|story)/i.test(d)) return '쇼핑';
+  return '기타';
+};
+const LINES = ['명화관', '린박스', '쇼핑', '기타'];
+
 // ★날짜는 **KST 로 센다.** 기록의 `at` 은 UTC 라 그대로 자르면 아침 9시 전까지 «어제»가 된다 —
 //   «오늘 0건» 경고가 매일 아침 헛울린다(2026-10-08 실측).
 const KST = (iso) => new Date(Date.parse(iso) + 9 * 3600e3).toISOString().slice(0, 10);
@@ -47,34 +62,46 @@ const bl = readJson(path.join(D, 'blotato_publish_state.json'), { history: [] })
 const wp = readJson(path.join(D, 'web_publish_state.json'), { history: [] });
 
 const grid = {};
-for (const d of days) { grid[d] = {}; for (const p of PLATFORMS) grid[d][p] = new Set(); }
-for (const h of (bl.history || [])) {
-  const d = h.at ? KST(h.at) : '';
-  if (grid[d] && h.platform && grid[d][h.platform]) grid[d][h.platform].add(h.draft);
+for (const d of days) {
+  grid[d] = {};
+  for (const L of LINES) { grid[d][L] = {}; for (const p of PLATFORMS) grid[d][L][p] = new Set(); }
 }
-for (const h of (wp.history || [])) {
-  const d = h.at ? KST(h.at) : '';
-  if (grid[d] && h.site && grid[d][h.site]) grid[d][h.site].add(h.draft);
-}
+const put = (at, plat, draft) => {
+  const d = at ? KST(at) : '';
+  if (!grid[d] || !plat) return;
+  const L = lineOf(draft);
+  if (grid[d][L] && grid[d][L][plat]) grid[d][L][plat].add(draft);
+};
+for (const h of (bl.history || [])) put(h.at, h.platform, h.draft);
+for (const h of (wp.history || [])) put(h.at, h.site, h.draft);
+const cell = (d, p, L) => (L ? grid[d][L][p].size
+  : LINES.reduce((a, x) => a + grid[d][x][p].size, 0));
 
 console.log('# 명화관 발행 상태  ' + new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 16).replace('T', ' ') + ' KST');
 console.log('');
-console.log('날짜         ' + PLATFORMS.map((p) => p.slice(0, 9).padEnd(10)).join(''));
-for (const d of days) {
-  console.log(d.padEnd(13) + PLATFORMS.map((p) => String(grid[d][p].size).padEnd(10)).join(''));
+console.log('라인    날짜         ' + PLATFORMS.map((p) => p.slice(0, 9).padEnd(10)).join(''));
+for (const L of LINES) {
+  const any = days.some((d) => PLATFORMS.some((p) => grid[d][L][p].size));
+  if (!any && L !== '명화관') continue;              // 안 쓰는 라인은 줄을 비우지 않는다
+  for (const d of days) {
+    console.log(L.padEnd(8) + d.padEnd(13)
+      + PLATFORMS.map((p) => String(grid[d][L][p].size).padEnd(10)).join(''));
+  }
+  console.log('');
 }
 
 // 오늘 아무 데도 안 나갔으면 크게 알린다 — 새벽이면 아직 슬롯 전일 수 있으니 시각을 같이 적는다.
 const today = days[days.length - 1];
-const todayTotal = PLATFORMS.reduce((a, p) => a + grid[today][p].size, 0);
+// ★명화관만 본다. 합계로 보면 린박스가 채워 가린다.
+const todayTotal = PLATFORMS.reduce((a, p) => a + grid[today]['명화관'][p].size, 0);
 const hour = kstHour();
 if (todayTotal === 0) {
   console.log(`\n★오늘 아직 한 건도 안 나갔다 (지금 ${hour}시).`
     + (hour >= 11 ? '  ← 10시 백필이 돌았어야 한다. 로그를 봐라.' : '  (10시 백필 전이면 정상)'));
 }
 for (const p of PLATFORMS) {
-  const recent = days.reduce((a, d) => a + grid[d][p].size, 0);
-  if (recent === 0) console.log(`★${p}: 최근 ${DAYS}일 동안 0건 — 경로가 멎었는지 봐라`);
+  const recent = days.reduce((a, d) => a + grid[d]['명화관'][p].size, 0);
+  if (recent === 0) console.log(`★명화관 ${p}: 최근 ${DAYS}일 동안 0건 — 경로가 멎었는지 봐라`);
 }
 
 // 빠짐 추세
