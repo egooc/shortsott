@@ -29,6 +29,7 @@ import difflib
 import hashlib
 import io
 import json
+import re
 import os
 import sys
 
@@ -98,6 +99,34 @@ def old_copies(name):
     return out
 
 
+STEP_RE = re.compile(
+    r"'((?:setup|start|assets|env|probed|transcript|script|prompts|images|memes|voice|timing"
+    r"|subtitle|sfx|render_plan|render_mix|deliver|customize|feedback"
+    r"|rinbox_[a-z_]+|person_[a-z_]+|shop_[a-z_]+|stitch_[a-z_]+|redub_[a-z_]+|image_qc))'")
+
+# 모듈 이름 앞머리 = 기능군. 새 계열이 생기면 «새 기능»이다.
+FAMILY = ('film_', 'longform_', 'cardnews_', 'shop_', 'subject_', 'agy_', 'person_',
+          'redub_', 'source_', 'local_', 'info3d_', 'politics_', 'repair_', 'response_')
+
+
+def feature_scan(cur):
+    """실행기가 아는 **단계 이름**과 **모듈 계열**을 뽑는다 — 새 기능이 생기면 여기서 드러난다."""
+    steps = set()
+    for name in ('volcano_run.py', 'volcano_drive.py', 'film_editor.py'):
+        e = cur.get(name)
+        if not e:
+            continue
+        try:
+            steps |= set(STEP_RE.findall(io.open(e[0], encoding='utf-8', errors='replace').read()))
+        except OSError:
+            pass
+    fams = {}
+    for name in cur:
+        f = next((x for x in FAMILY if name.startswith(x)), '기타')
+        fams[f] = fams.get(f, 0) + 1
+    return {'steps': sorted(steps), 'families': fams}
+
+
 def lines(p):
     try:
         return io.open(p, encoding='utf-8', errors='replace').read().splitlines()
@@ -163,6 +192,16 @@ def main():
                for n in sorted(now) if n in base and base[n]['sha'] != now[n]['sha']]
     hot = [c['name'] for c in changed if c['name'] in HOT] + [n for n in added if n in HOT]
 
+    # ★새 «기능»을 본다 (소유주 2026-10-08: "AGY 말고 또 좋은 기능이 생길 수도 있잖아
+    #   그거 계속 주시하고 있어야 돼"). 파일이 바뀐 것과 기능이 는 것은 다른 이야기다.
+    feat = feature_scan(cur)
+    prev = state.get('features') or {}
+    new_steps = sorted(set(feat['steps']) - set(prev.get('steps') or []))
+    gone_steps = sorted(set(prev.get('steps') or []) - set(feat['steps']))
+    new_fams = sorted(set(feat['families']) - set(prev.get('families') or {}))
+    grew = [f for f, n in feat['families'].items()
+            if n > (prev.get('families') or {}).get(f, n)]
+
     print(f'실행기 파일 {len(now)}개 (기준선 {len(base)}개)')
     if not base:
         print('  첫 실행 — 기준선을 세운다. 다음부터 바뀐 것만 보여준다.')
@@ -179,6 +218,19 @@ def main():
     if not (changed or added or removed) and base:
         print('  변화 없음')
 
+    if new_steps or new_fams or grew:
+        print('\n★★새 기능으로 보이는 것')
+        if new_steps:
+            print('   새 단계:    ' + ', '.join(new_steps))
+        if new_fams:
+            print('   새 기능군:  ' + ', '.join(new_fams))
+        if grew:
+            delta = {f: feat['families'][f] - (prev.get('families') or {}).get(f, 0) for f in grew}
+            print('   파일이 는 기능군: ' + ', '.join('%s(+%d)' % (f, n) for f, n in delta.items()))
+        print('   → 우리에게 쓸모가 있나 보라. 쓸모 있으면 자체 렌더러에도 자리를 만든다.')
+    if gone_steps:
+        print('\n★사라진 단계: ' + ', '.join(gone_steps) + ' — 우리가 쓰고 있었는지 확인하라')
+
     if hot:
         print(f"\n★★렌더 결과를 바꿀 수 있는 파일이 {len(hot)}개 바뀌었다: {', '.join(hot)}")
         print('   차이를 보라:  python scripts/volcano_runner_watch.py --diff <파일>')
@@ -188,9 +240,11 @@ def main():
         if changed or added or removed:
             state['events'] = (state.get('events') or []) + [{
                 'at': dt.datetime.now().isoformat(timespec='seconds'),
-                'changed': changed, 'added': added, 'removed': removed, 'hot': hot}]
+                'changed': changed, 'added': added, 'removed': removed, 'hot': hot,
+                'new_steps': new_steps, 'new_families': new_fams}]
             state['events'] = state['events'][-200:]
         state['baseline'] = now
+        state['features'] = feat
         os.makedirs(os.path.dirname(STATE), exist_ok=True)
         with io.open(STATE, 'w', encoding='utf-8') as fh:
             json.dump(state, fh, ensure_ascii=False, indent=1)
