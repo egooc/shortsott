@@ -31,7 +31,23 @@ const kdIdx = process.argv.indexOf('--keep-days');
 const keepDays = kdIdx > 0 ? Number(process.argv[kdIdx + 1]) || 7 : 7;
 const cutoff = new Date(Date.now() - keepDays * 864e5).toISOString().slice(0, 10).replace(/-/g, '');
 const readJson = (f, fb) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return fb; } };
-const uploaded = new Set((readJson(YT_STATE, { history: [] }).history || []).map((h) => h.draft));
+// ★2026-10-08: «올라간 것»을 유튜브 이력으로만 세면 안 된다. 소유주가 2026-10-06 에
+//   명화관을 유튜브 없이 돌리기로 한 뒤로 그 이력이 안 늘어, 소셜·웹으로 나간 편이
+//   «한 번도 안 올라간 것»으로 보인다 — 이 가드가 통째로 무력해진다.
+//   유튜브·블로타토·웹(네이버클립·페이스북) 어디든 나갔으면 올라간 것으로 센다.
+const publishedAnywhere = () => {
+  const s = new Set();
+  for (const [f, pick] of [
+    ['auto_publish_state.json', (h) => h.draft],
+    ['blotato_publish_state.json', (h) => h.draft],
+    ['web_publish_state.json', (h) => h.draft],
+  ]) {
+    const st = readJson(path.join(ROOT, 'server', 'data', f), { history: [] });
+    for (const h of (st.history || [])) { const d = pick(h); if (d) s.add(d); }
+  }
+  return s;
+};
+const uploaded = publishedAnywhere();
 
 let bytes = 0; let count = 0;
 const sizeOf = (p) => {
