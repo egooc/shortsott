@@ -13,7 +13,10 @@
 #   글꼴      assets/fonts/  ko body.ttf(카페24 아네모네)·dialogue.ttf(서울한강체 M)
 #                            ja body.otf·dialogue.otf(Noto Sans JP)
 #   제목 99pt y211/y298 · 자막 82pt y1305 · 크레딧 64pt
-#   ★제목 2줄 색만 ASS 와 다르다 — ASS 는 노랑인데 완성본 10편 전부 RGB(240,64,32) 주황빨강.
+#   제목 1줄 흰색 · 2줄 노랑 — 볼케이노 완성본 실측(주황빨강은 린박스 스타일이다. LOOK 주석 참고)
+#
+# 장면별 확대 창(--focus)은 scripts/shot_focus.py 가 만든다 — AGY 피사체 영수증 자리를
+# 내가 프레임판을 보고 채우는 길이다(소유주 지시 2026-10-09).
 #
 # plan.json — 볼케이노 edit.json 에 source/transcript/cx 만 더한 모양이다
 # {
@@ -31,6 +34,15 @@
 import argparse, base64, hashlib, json, os, re, subprocess, sys, urllib.request
 import math
 from pathlib import Path
+
+import sys
+# ★콘솔 기본값(cp949)은 ✗ ⚠ 같은 기호를 못 쓴다 — 그러다 렌더 끝맣문에서
+#   UnicodeEncodeError 로 전체가 죽었다(2026-10-09 실제). 출력만 고친다.
+for _s in (sys.stdout, sys.stderr):
+    try:
+        _s.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        pass
 
 MIDFORM = Path(__file__).resolve().parents[1]
 W, H, FPS = 1080, 1920, 30
@@ -177,81 +189,6 @@ def tts(text, lang, cache):
     return wav, json.loads(meta.read_text(encoding='utf-8'))
 
 
-# ---------------------------------------------------------------- 자막 시각
-def check_transcript(words):
-    """전사가 **낱말 단위**인지 본다. 아니면 분명히 실패시킨다.
-
-    ★전사 형식이 두 가지다(2026-10-09 실측).
-      낱말 단위   [[0.24, 0.72, "Pizza"], ...]                      ← 우리가 쓸 수 있다
-      겹침 토막   [[12.72, 15.51, "That's enough. He's in the ..."],
-                  [15.51, 15.52, "house. Get out there and end this. Give"], ...]
-                  스트리밍 부분결과라 앞 것이 뒤에 통째로 또 나온다. 시각을 못 잰다.
-      겹침 토막을 그냥 받으면 자막이 엉뚱한 데 붙는다. **조용히 틀리느니 서는 게 낫다.**
-    """
-    if not words:
-        sys.exit('전사가 비어 있다')
-    long = sum(1 for w in words[:60] if len(str(w[2]).split()) > 3)
-    if long > len(words[:60]) * 0.4:
-        first = str(words[1][2] if len(words) > 1 else words[0][2])[:90]
-        sys.exit('전사가 낱말 단위가 아니다(겹침 토막으로 보인다) — 낱말 단위 전사를 써라. 첫 토막: %r' % first)
-
-
-def card_times(words, t0, t1, cards, join):
-    """자막 칸의 (시작, 끝, 보일글)을 돌려준다.
-
-    ★명화관 자막은 **번역문**이다(영어 원음 → 한국어/일본어). 그래서 린박스처럼 글자를
-      전사에 맞춰 볼 수 없다. 볼케이노 편집표가 칸마다 `word_ids` 를 달아 두는데,
-      그 **개수**가 곧 «이 칸이 전사 낱말 몇 개를 먹는가»다(bind_ko.json 이 같은 것을
-      [낱말수, 글] 짝으로 적어 둔다 — 2026-10-09 실측으로 확인).
-      그러므로 개수만큼 낱말을 걸어 가며 시각을 잰다.
-
-    칸 모양 둘 다 받는다
-      {'word_ids': [...], 'text': '치즈 크러스트 아직 있죠?'}   명화관 편집표 그대로
-      '보일 글'                                                 글자가 곧 전사인 경우(원음이 우리말)
-    """
-    toks = [(s0, e0, x) for s0, e0, x in words if s0 >= t0 - 1e-3 and e0 <= t1 + 1e-3]
-    out, i = [], 0
-    for c in cards:
-        if isinstance(c, dict):
-            n = max(1, len(c.get('word_ids') or []))
-            show = c.get('text', '')
-            if i >= len(toks):
-                raise SystemExit('전사 낱말이 모자란다 — 컷 %.2f~%.2f, 칸 %r' % (t0, t1, show))
-            a0 = toks[i][0]
-            b0 = toks[min(i + n, len(toks)) - 1][1]
-            i += n
-            out.append((a0, b0, show))
-            continue
-        # 글자로 맞추는 길(원음이 우리말일 때)
-        c, show = (c.split('|', 1) + [None])[:2] if '|' in c else (c, None)
-        want = c.replace(' ', '')
-        got, a0, b0 = '', None, None
-        while i < len(toks) and len(got) < len(want):
-            s0, e0, x = toks[i]
-            if a0 is None:
-                a0 = s0
-            got += x
-            b0 = e0
-            i += 1
-        if got != want:
-            raise SystemExit('자막이 전사 토큰과 안 맞는다: %r ≠ %r' % (c, got))
-        out.append((a0, b0, show or c))
-    return out
-
-
-# ---------------------------------------------------------------- ASS
-def ass_time(t):
-    t = max(0.0, t)
-    return '%d:%02d:%05.2f' % (int(t // 3600), int(t % 3600 // 60), t % 60)
-
-
-def esc(s):
-    return s.replace('\\', '\\\\').replace('{', '\\{').replace('}', '\\}')
-
-
-# 언어별 모양 — 기준 영상에서 재어 맞췄다(ja: rinbox69ja final · ko: rinbox68ko final).
-# 같은 글자를 시험 렌더해 폭·높이 오차 1~2% 안으로 역산했다(scratchpad calib_ko.py).
-# 각 항목: (글꼴, 크기, 색 &HAABBGGRR, 굵게, 기울임, 테두리, 세로 가운데)
 # 명화관 모양 — **엔진 자산·완성본에서 직접 쟀다**(docs/myeonghwagwan-render-spec.md 8항).
 # (글꼴, 크기, 색 &HAABBGGRR, 굵게, 기울임, 테두리, 세로 가운데)
 # ★제목 색은 **볼케이노 완성본**(edits/*/final-*.mp4)에서 쟀다. 제목1 흰색 · 제목2 노랑.
@@ -287,6 +224,7 @@ POS_Y = 5     # LOOK 항목에서 y 가 몇 번째인가
 POS_AL = 4    # 정렬
 
 
+# ---------------------------------------------------------------- 자막 시각
 def check_transcript(words):
     """전사가 **낱말 단위**인지 본다. 아니면 분명히 실패시킨다.
 
@@ -429,7 +367,7 @@ def measure_content(src, segs):
     return collections.Counter(valid).most_common(1)[0][0]
 
 
-def camera_expr(points, span, crop_w, c_off, c_span):
+def camera_expr(points, span, crop_w, c_off, c_span, axis=1):
     """카메라 점들을 ffmpeg crop 오프셋 식으로 바꾼다. **점 사이는 부드럽게 이어진다.**
 
     ★볼케이노 film_editor.py 1407~1422 를 그대로 옮겼다.
@@ -441,11 +379,14 @@ def camera_expr(points, span, crop_w, c_off, c_span):
       식 안에서 움직인다. 그래야 같은 그림이 나온다(2026-10-09 엔진 코드로 확인).
 
     points: [(프레임번호, cx), ...] — 프레임번호는 이 조각 안에서 0부터
+    axis=2 면 점의 셋째 칸(cy)을 세로로 쓴다(span·c_off·c_span 도 세로값을 준다).
+      ★엔진도 같은 함수를 축만 바꿔 두 번 부른다(film_editor.py 1469~1470).
     """
     def x(cx):
         return int(round(max(c_off, min(c_off + c_span - crop_w, cx * span - crop_w / 2)) / 2) * 2)
-    expr = str(x(points[-1][1]))
-    for (na, ca), (nb, cb) in reversed(list(zip(points, points[1:]))):
+    expr = str(x(points[-1][axis]))
+    for p, q in reversed(list(zip(points, points[1:]))):
+        na, ca, nb, cb = p[0], p[axis], q[0], q[axis]
         if nb <= na:
             continue
         expr = 'if(lt(n,%d),%d+(%d)*clip((n-%d)/%d,0,1),%s)' % (nb, x(ca), x(cb) - x(ca), na, nb - na, expr)
@@ -485,7 +426,114 @@ def pic_clip(src, t0, n_frames, points, mirror, out, zoom=(1.0, 0.5), content=No
          '-an', *LOSSLESS, out])
 
 
-SEG_LUFS = -17.0      # 구간 음량 기준 — 최종 loudnorm(-16) 전에 구간끼리 높이를 맞춘다
+def interp_point(points, t):
+    """장면의 카메라 점들에서 시각 t 의 (cx, cy) 를 선형으로 뽑는다.
+
+    조각 머리가 장면 가운데서 시작할 때(구간이 장면을 가로지를 때) 쓴다 — 머리 점을
+    **지어내지 않고** 장면이 그리던 길 위의 그 시각 값을 쓴다.
+    """
+    if t <= points[0][0]:
+        return points[0][1], points[0][2]
+    if t >= points[-1][0]:
+        return points[-1][1], points[-1][2]
+    for p, q in zip(points, points[1:]):
+        if p[0] <= t <= q[0] and q[0] > p[0]:
+            r = (t - p[0]) / (q[0] - p[0])
+            return p[1] + (q[1] - p[1]) * r, p[2] + (q[2] - p[2]) * r
+    return points[-1][1], points[-1][2]
+
+
+def pic_clip_shots(src, t0, n_frames, pieces, mirror, out, content, size):
+    """장면마다 창이 **다른** 그림 조각. 엔진 film_editor.picture_filter 와 같은 방식으로 굽는다.
+
+    왜 한 ffmpeg 안에서 split→trim→concat 하나: 조각을 따로 파일로 구워 붙이면 1프레임
+    조각의 길이를 concat 이 0 으로 쳐서 프레임을 흘린다(엔진 joined_pieces 주석의 사고 그대로).
+    settb=1/fps · setpts=N 으로 시각을 출력 격자에 다시 매긴다 — 엔진과 같다.
+
+    pieces: [{'a': 조각 첫 프레임, 'b': 끝 프레임(미포함),
+              'points': [(조각안 프레임, cx, cy), ...],
+              'crop': (가로비, 세로비)      ← AGY 식 피사체 창(가로·세로 둘 다 정한다)
+              또는 'view_width': 가로비      ← 손으로 정한 화각(세로는 알맹이 전체)
+             }, ...]
+    """
+    sw, sh = size
+    cwid, chei, cx0, cy0 = content
+    labels = ''.join('[view%d]' % i for i in range(len(pieces)))
+    graph = ['setpts=PTS-STARTPTS,fps=%d,split=%d%s' % (FPS, len(pieces), labels)]
+    for i, p in enumerate(pieces):
+        if 'crop' in p:
+            # ★창 크기는 **통짜 원본** 기준 비율이고 알맹이 네모 안으로 가둔다(엔진 1466~1467).
+            w = min(cwid, max(2, int(round(sw * p['crop'][0] / 2) * 2)))
+            h = min(chei, max(2, int(round(sh * p['crop'][1] / 2) * 2)))
+            xe = camera_expr(p['points'], sw, w, cx0, cwid, 1)
+            ye = camera_expr(p['points'], sh, h, cy0, chei, 2)
+            post = 'scale=%d:%d:flags=lanczos,setsar=1' % (PIC_W, PIC_H)
+        else:
+            # view_width — 가로만 정하고 세로는 알맹이 전체. 비율이 안 맞는 만큼 검은 띠가 생긴다
+            # (엔진 1487~1492 와 같다: force_original_aspect_ratio=decrease 뒤 가운데 pad).
+            w = min(cwid, max(2, int(round(sw * p['view_width'] / 2) * 2)))
+            h = chei
+            xe = camera_expr(p['points'], sw, w, cx0, cwid, 1)
+            ye = str(int((cy0 + (chei - h) / 2) // 2 * 2))
+            post = ('scale=%d:%d:force_original_aspect_ratio=decrease:force_divisible_by=2'
+                    ':flags=lanczos,pad=%d:%d:(ow-iw)/2:(oh-ih)/2:black,setsar=1'
+                    % (PIC_W, PIC_H, PIC_W, PIC_H))
+        graph.append("[view%d]trim=start_frame=%d:end_frame=%d,setpts=PTS-STARTPTS,"
+                     "crop=%d:%d:'%s':'%s',%s%s[pic%d]"
+                     % (i, p['a'], p['b'], w, h, xe, ye, post, ',hflip' if mirror else '', i))
+    graph.append(''.join('[pic%d]' % i for i in range(len(pieces)))
+                 + 'concat=n=%d:v=1:a=0,settb=1/%d,setpts=N' % (len(pieces), FPS))
+    run(['ffmpeg', '-loglevel', 'error', '-y', '-ss', '%.3f' % t0, '-i', src,
+         '-t', '%.3f' % (n_frames / FPS + 0.5), '-filter_complex', ';'.join(graph),
+         '-frames:v', n_frames, '-an', *LOSSLESS, out])
+
+
+def focus_pieces(shots, t0, nf, seg):
+    """이 구간(t0 부터 nf 프레임)에 걸치는 장면들을 **조각 목록**으로 바꾼다.
+
+    ★한두 프레임 조각은 앞 조각에 **붙인다.** 엔진은 1프레임 카메라 장면을 아예 반려한다
+      ("One-frame camera shot would flash" — film_editor.validate_camera). 창이 한 프레임만
+      튀면 깜빡임으로 보인다. 출력 격자에서 생긴 짧은 조각도 같은 이유로 붙인다.
+    """
+    t1 = t0 + nf / FPS
+    rel = [s for s in shots if s['end'] > t0 + 1e-6 and s['start'] < t1 - 1e-6]
+    if not rel:
+        return []
+    rel.sort(key=lambda s: s['start'])
+    raw = []
+    for s in rel:
+        a = max(0, min(nf, frames(s['start'] - t0)))
+        if raw and a <= raw[-1]['a'] + 1:      # 1프레임 이하 조각은 앞 조각이 이어 쓴다
+            continue
+        raw.append({'a': a, 'shot': s})
+    raw[0]['a'] = 0
+    out = []
+    for i, r in enumerate(raw):
+        b = raw[i + 1]['a'] if i + 1 < len(raw) else nf
+        if b - r['a'] < 1:
+            continue
+        s = r['shot']
+        piece = {'a': r['a'], 'b': b}
+        if 'view_width' in s:
+            piece['view_width'] = float(s['view_width'])
+        else:
+            piece['crop'] = tuple(s['crop'])
+        # 점을 조각 안 프레임으로 옮긴다. 머리 점은 장면이 그리던 길에서 뽑는다(지어내지 않는다).
+        pts, seen = [], set()
+        head = interp_point(s['points'], t0 + r['a'] / FPS)
+        pts.append((0, head[0], head[1]))
+        seen.add(0)
+        for p in s['points']:
+            n = frames(p[0] - t0) - r['a']
+            if 0 < n < b - r['a'] and n not in seen:
+                seen.add(n)
+                pts.append((n, p[1], p[2]))
+        piece['points'] = sorted(pts)
+        out.append(piece)
+    return out
+
+
+SEG_LUFS = -17.0      # 구간 음량 기준 — 최종 loudnorm(-13.5) 전에 구간끼리 높이를 맞춘다
 
 
 def level(wav, out, target=SEG_LUFS, cap=8.0):
@@ -510,6 +558,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('plan')
     ap.add_argument('--out', default=None)
+    ap.add_argument('--focus', default=None,
+                    help='장면별 확대 창(shot_focus.py solve 가 쓴 focus.json). '
+                         '없으면 창을 하나로 두고 cx 만 움직인다')
     a = ap.parse_args()
     ensure_assets()
     plan = json.loads(Path(a.plan).read_text(encoding='utf-8'))
@@ -521,7 +572,11 @@ def main():
     #   조각 파일(v00_0.mp4 …)을 서로 덮어써서 프레임이 모자란 완성본이 나온다
     #   (2026-10-09 실측: 5242 프레임이어야 할 것이 3838 로 나왔다).
     out = Path(a.out) if a.out else Path(a.plan).resolve().parent / '_render' / 'final.mp4'
-    work = Path(a.plan).resolve().parent / ('_render_' + out.stem)
+    out = out.resolve()
+    out.parent.mkdir(parents=True, exist_ok=True)
+    # ★작업 폴더 이름에 **담긴 폴더 이름까지** 넣는다. 이름(final.mp4)만 쓰면
+    #   _render/final.mp4 와 _render_focus/final.mp4 가 같은 작업 폴더를 쓴다.
+    work = Path(a.plan).resolve().parent / ('_render_' + out.parent.name + '_' + out.stem)
     work.mkdir(parents=True, exist_ok=True)
     cache = MIDFORM / 'cache' / 'tts'
     cache.mkdir(parents=True, exist_ok=True)
@@ -594,6 +649,23 @@ def main():
     content = measure_content(src, segs)
     if content:
         print('  알맹이 네모 %dx%d +%d+%d' % content)
+    r = run(['ffprobe', '-v', 'error', '-select_streams', 'v:0', '-show_entries',
+             'stream=width,height', '-of', 'csv=p=0', src])
+    size = tuple(int(x) for x in r.stdout.strip().split(',')[:2])
+
+    # 장면별 확대 창 — AGY 영수증 자리를 우리가 읽은 피사체로 채운 것(shot_focus.py)
+    focus = None
+    if a.focus:
+        focus = json.loads(Path(a.focus).read_text(encoding='utf-8'))
+        if focus.get('size') and tuple(focus['size']) != size:
+            sys.exit('focus 의 원본 크기 %s 가 이 원본 %s 와 다르다' % (focus['size'], list(size)))
+        fc = focus.get('content')
+        if fc and content and tuple(fc) != tuple(content):
+            print('⚠ focus 를 풀 때 잰 알맹이 네모 %s 와 지금 잰 %s 가 다르다 — 창이 조금 밀릴 수 있다'
+                  % (fc, list(content)))
+        print('  장면별 확대 창 %d개 · 배율 %.2f~%.2f · 판독 %s'
+              % (len(focus['shots']), min(s['zoom'] for s in focus['shots']),
+                 max(s['zoom'] for s in focus['shots']), focus.get('read_by', '?')))
 
     total = sum(g['dur'] for g in segs)
     if not 85 <= total <= 180:
@@ -615,7 +687,18 @@ def main():
         if pts[0][0] != 0:
             pts.insert(0, (0, pts[0][1]))  # 첫 점은 조각 머리에서 시작해야 한다
         v = work / ('v%02d.mp4' % k)
-        pic_clip(src, g['pic_in'], nf, pts, plan.get('mirror', True), v, tuple(g['zoom']), content)
+        pieces = focus_pieces(focus['shots'], g['pic_in'], nf, g) if focus else []
+        if not pieces and g.get('view_width'):
+            # 손으로 정한 화각 — 장면별 판독 없이 가로만 줄인다(엔진 view_width 경로)
+            pieces = [{'a': 0, 'b': nf, 'view_width': float(g['view_width']),
+                       'points': [(n0, c, 0.5) for n0, c in pts]}]
+        if pieces:
+            print('  %02d 장면 %d개 (창 %s)' % (k, len(pieces),
+                  ' '.join('%.2f' % (p['crop'][0] if 'crop' in p else p['view_width'])
+                           for p in pieces[:6])))
+            pic_clip_shots(src, g['pic_in'], nf, pieces, plan.get('mirror', True), v, content, size)
+        else:
+            pic_clip(src, g['pic_in'], nf, pts, plan.get('mirror', True), v, tuple(g['zoom']), content)
         parts_v.append(v)
         if g['kind'] == 'nar':
             parts_a.append(Path(g['wav']))

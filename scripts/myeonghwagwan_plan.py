@@ -20,6 +20,15 @@ import json
 import os
 import sys
 
+import sys
+# ★콘솔 기본값(cp949)은 ✗ ⚠ 같은 기호를 못 쓴다 — 그러다 렌더 끝맣문에서
+#   UnicodeEncodeError 로 전체가 죽었다(2026-10-09 실제). 출력만 고친다.
+for _s in (sys.stdout, sys.stderr):
+    try:
+        _s.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        pass
+
 
 def newest(pattern):
     hits = sorted(glob.glob(pattern), key=os.path.getmtime, reverse=True)
