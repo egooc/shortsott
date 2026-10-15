@@ -1280,7 +1280,7 @@
           "ep": 2,
           "id": "wowwG6rdY_s",
           "sec": 2794,
-          "region": "미확인"
+          "region": "JP 다운로드 확인(10-16)"
         }
       ],
       "verified_by": "東映時代劇YouTube 公式 1話 설명란(第1話「八百八町罷り通る」1976) + ja.wikipedia «桃太郎侍»(日本テレビ 1976-10-03~1981-09-27, 全258話, 第1話 同題) (2026-10-15)",
@@ -1329,6 +1329,86 @@
       "asr_fixes": {},
       "cast_source": "ja.wikipedia «桃太郎侍» 1976年版 主要キャスト (2026-10-15 확인)",
       "note": "高橋英樹 주연. 1話: 스리 누명 쓴 仙太를 돕던 つばめ가 桃太郎에게 구조, 松平藩 お家騒動·若殿 身代わり(공식 설명란). 近衛十四郎 浪人물 소진 후 ja 다음 소재(10-15 린박스 C)."
+    },
+    "jigoku-no-tatsu-1972": {
+      "match": "地獄の辰|jigoku",
+      "title_ja": "地獄の辰捕物控",
+      "title_ko": "지옥의 타츠 체포록",
+      "title_en": "Jigoku no Tatsu Torimonohikae",
+      "year": 1972,
+      "kind": "drama",
+      "broadcaster": "NET／東映",
+      "rights_tier": "preflight",
+      "rights_holder_ja": "東映",
+      "source_line_ja": "制作：東映／放送：NET系｜「地獄の辰捕物控」(1972)",
+      "watch_line_ja": "本編は権利者の公式チャンネルで無料公開されています。",
+      "credit_ja": "「地獄の辰捕物控」はぜひフルバージョンでご覧になることをおすすめします。",
+      "official_free": "東映時代劇YouTube（東映公式チャンネル）",
+      "source_channel": "東映時代劇YouTube",
+      "source_channel_id": "UCJm60FFiYSH2mJONr6vnV_A",
+      "locale_block": {
+        "ko": "소유주 방침 2026-09-30: ko 채널은 한국 드라마만 올린다. 일본 작품의 ko 발행 금지."
+      },
+      "available_episodes": [
+        {
+          "ep": 1,
+          "id": "_2SkMjFoiz4",
+          "sec": 2746,
+          "region": "JP 다운로드 확인(10-16)"
+        },
+        {
+          "ep": 2,
+          "id": "V1OjgLW6JPg",
+          "sec": null,
+          "region": "미확인"
+        }
+      ],
+      "verified_by": "東映時代劇YouTube 公式 1話 설명란(第1話「千羽鶴が泣いている」放送日 1972-10-05, 出演 北大路欣也・大原麗子・田中邦衛, 原作 笹沢左保) + ja.wikipedia «地獄の辰捕物控»(NET 1972-10-05~1973-03-29, 全26回, 第1話 同題) (2026-10-16)",
+      "cast": [
+        {
+          "name": "辰造",
+          "actor": "北大路欣也",
+          "aliases": [
+            "地獄の辰",
+            "辰"
+          ]
+        },
+        {
+          "name": "お玉",
+          "actor": "大原麗子",
+          "aliases": []
+        },
+        {
+          "name": "銀太",
+          "actor": "田中邦衛",
+          "aliases": []
+        },
+        {
+          "name": "磯貝源之進",
+          "actor": "稲葉義男",
+          "aliases": [
+            "磯貝"
+          ]
+        },
+        {
+          "name": "お京",
+          "actor": "五十嵐じゅん",
+          "aliases": []
+        },
+        {
+          "name": "松五郎",
+          "actor": "北村英三",
+          "aliases": []
+        },
+        {
+          "name": "留三郎",
+          "actor": "広瀬義宣",
+          "aliases": []
+        }
+      ],
+      "asr_fixes": {},
+      "cast_source": "ja.wikipedia «地獄の辰捕物控» キャスト (2026-10-16 확인)",
+      "note": "北大路欣也 주연, 전과자 岡っ引き 辰造. 1話: 深川 연쇄 かどわかし, 결혼 사흘째 아내 お玉 실종(공식 설명란). 桃太郎侍 1·2話 뒤 ja 다음 소재(10-16 린박스 C)."
     }
   },
   "banned_broadcasters": [],
