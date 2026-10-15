@@ -159,6 +159,22 @@ class ShortsSafeTest(unittest.TestCase):
                 rows = ss.check_ass(f.read(), font_dirs=(os.path.join(d, 'fonts'),))
             self.assertFalse(rows[0]['estimated'])
 
+    def test_video_preview_creates_qc_dir(self):
+        # 10-16: 새 편 폴더에 qc/ 가 없으면 --video 프레임 뽑기에서 죽었다
+        import shutil
+        import subprocess
+        if not shutil.which('ffmpeg'):
+            self.skipTest('ffmpeg 없음')
+        with tempfile.TemporaryDirectory() as d:
+            v = os.path.join(d, 'v.mp4')
+            subprocess.run(['ffmpeg', '-loglevel', 'error', '-y', '-f', 'lavfi', '-i', 'color=c=gray:s=108x192:d=2',
+                            '-pix_fmt', 'yuv420p', v], check=True)
+            p = os.path.join(d, 'cap.ass')
+            with open(p, 'w', encoding='utf-8') as f:
+                f.write(ass([r'{\an5\pos(540,1200)}자막']))
+            self.assertEqual(ss.main([p, '--video', v]), 0)
+            self.assertTrue(os.path.exists(os.path.join(d, 'qc', 'shorts_safe.jpg')))
+
     def test_cli_exit_codes_and_preview(self):
         with tempfile.TemporaryDirectory() as d:
             bad = os.path.join(d, 'bad.ass')

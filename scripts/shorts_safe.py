@@ -505,6 +505,7 @@ def main(argv=None):
             at = (pick['start'] + pick['end']) / 2
         jpg = a.out or os.path.join(os.path.dirname(os.path.abspath(a.ass)), 'qc', 'shorts_safe.jpg')
         frame = None
+        os.makedirs(os.path.dirname(os.path.abspath(jpg)), exist_ok=True)  # 프레임을 뽑기 전에 qc/ 를 만든다(10-16 새 편 폴더에서 죽음)
         if a.video and at is not None:
             frame = grab_frame(a.video, at, jpg + '.frame.jpg')
         preview(rows + tpl_rows, jpg, frame, at)
