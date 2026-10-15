@@ -25,6 +25,12 @@ test('--tags 를 바꾸면 다른 양산 틀도 센다 (#blacksmith → 7편, �
   assert.equal(r.mass, 7);
 });
 
+test('장인 작업: 꼬리표를 단 채널이 모두 같은 쌍 하나만 공유한다 (발굴 카드 실측과 같은 결)', () => {
+  const r = tally(items('tag_share', 'artisan_work_ko'));
+  assert.equal(r.mass, 7);
+  assert.deepEqual(r.shared_pairs, [{ pair: '#process #worker', channels: 7 }]);
+});
+
 // ── 잡으면 안 되는 것 ──
 test('공장 제조 과정: 꼬리표 소수(10% 미만), 조회 점유 1% 미만', () => {
   const r = tally(items('tag_share', 'factory_process_ko'));
