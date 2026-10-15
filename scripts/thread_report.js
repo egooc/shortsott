@@ -85,7 +85,8 @@ function jaAttrs(v, ctx) {
   if (pub && pub.work) a['작품'] = pub.work;
   // «出演：北大路欣也（辰造）…» 또는 «近衛十四郎さん・品川隆二さんほかが出演» — 첫 이름
   const cast = /出演[:：]\s*([^\n（(・、]+)/.exec(d) || /([^\s、。「」・]{2,8})さん[^。\n]*?が出演/.exec(d);
-  if (cast) a['주연'] = cast[1].trim();
+  // «この作品は近衛十四郎さん…» 처럼 앞 낱말이 붙어 잡히면 조사 뒤만 남긴다
+  if (cast) a['주연'] = cast[1].trim().split(/[はがのをも]/).pop();
   const series = /「([^」]{2,20})」はぜひ/.exec(d) || /放送[:：][^「]*「([^」]+)」/.exec(d);
   if (series && !a['작품']) a['작품'] = series[1];
   if (/浪人/.test(v.snippet.title + d.slice(0, 300))) a['浪人 언급'] = '있음';
