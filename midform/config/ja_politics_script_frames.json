@@ -1,7 +1,7 @@
 {
-  "version": "draft-20261016",
+  "version": "20261016-camp",
   "owner": "도구개발(초안) → ja 정치 세션이 확정",
-  "status": "초안 — 진영은 잠정으로 高市 정부·여당 보수 쪽(camp 칸) — 발굴 카드 실측 뒤 확정. 검사기(ja_politics_check.py)는 이 틀이 확정된 뒤 만든다.",
+  "status": "진영 확정(10-16 소유주 «여당 보수 쪽», 정치JA 화면·관리자 전달). 검사기(ja_politics_check.py)는 이 틀이 확정된 뒤 만든다.",
   "base": "쟁점브리핑 ko 틀(politics-hour episodes/<날짜>/BRIEF.md · issues/*.json · factcheck)을 일본어로 옮긴 것",
   "principles": [
     "사실만 쓴다. 모든 사실 문장에 출처(URL)가 붙는다.",
@@ -26,15 +26,22 @@
       ],
       "sides": {
         "ours": {
-          "name": "政府・与党側(잠정, 카드 뒤 확정)",
+          "name": "与党側(自民・維新)",
           "position": "입장 한 문장",
           "points": [
             "근거"
           ]
         },
         "other": {
-          "name": "野党側(잠정, 카드 뒤 확정)",
+          "name": "野党側(中道改革連合・立憲系・共産・れいわ)",
           "position": "입장 한 문장",
+          "points": [
+            "근거"
+          ]
+        },
+        "third": {
+          "name": "その他(参政党・日本保守党 — 与党でも野党ブロックでもない)",
+          "position": "입장 한 문장(있을 때만)",
           "points": [
             "근거"
           ]
@@ -72,7 +79,7 @@
       ],
       "quotes": [
         {
-          "side": "ours|other",
+          "side": "ours|other|third",
           "src": "src/<id>.mp4",
           "in": 0,
           "out": 0,
@@ -247,8 +254,36 @@
     "기타는 정치 세션 목록을 받아 채운다"
   ],
   "camp": {
-    "status": "잠정 — 발굴 카드 실측 뒤 확정(10-16 소유주 «추천대로», 관리자 전달)",
-    "ours": "高市 정부·여당(自民党 중심) 보수 쪽",
-    "other": "野党(立憲民主党 등) 및 정부 비판 쪽"
+    "status": "확정 — 10-16 소유주 «여당 보수 쪽»(정치JA 화면, 관리자 전달)",
+    "ours": {
+      "label": "与党(連立)",
+      "parties": [
+        "自由民主党",
+        "日本維新の会"
+      ]
+    },
+    "other": {
+      "label": "野党ブロック",
+      "parties": [
+        "中道改革連合",
+        "立憲民主党系",
+        "日本共産党",
+        "れいわ新選組"
+      ]
+    },
+    "third": {
+      "label": "別枠(与党でも野党ブロックでもない)",
+      "parties": [
+        "参政党",
+        "日本保守党"
+      ],
+      "note": "ours·other 어느 쪽으로도 묶지 않는다"
+    },
+    "source_policy": "소재는 @kanteijp(首相官邸 YouTube, PDL1.0) 영상만. gov-online·所信表明 화면은 쓰지 않는다.",
+    "first_episodes": [
+      "食料品消費税 1%",
+      "旧敵国条項",
+      "中東 激変緩和・物価高"
+    ]
   }
 }
