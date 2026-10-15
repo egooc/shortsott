@@ -88,6 +88,11 @@ class JaPoliticsCheckTest(unittest.TestCase):
         self.assertEqual(ids(extra, 'WARN'), {'RATIO'})
         extra, _, _ = C.ratio_check([s], fr, episode=True)
         self.assertEqual(ids(extra), {'RATIO', 'LEN'})
+        s['text_cards'] = [{'text': 'う' * 1000}]  # 글자 카드는 해설로 센다
+        s['script'].append({'type': 'card', 'c': 0})
+        extra, nar, _ = C.ratio_check([s], fr, episode=False)
+        self.assertEqual(ids(extra, 'WARN'), set())
+        self.assertAlmostEqual(nar, 1050 / 5.6, places=1)
         with tempfile.TemporaryDirectory() as d:
             p = Path(d) / 'issues' / '1.json'
             p.parent.mkdir()

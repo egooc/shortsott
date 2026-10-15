@@ -3,7 +3,8 @@
 
     python scripts/ja_politics_script_check.py issues/1.json [issues/2.json ...] [--episode] [--fetch] [--json]
 
-- 입력은 틀의 issue_schema 형식(issues/<no>.json). 해설·인용 순서는 선택 필드 script([{type:nar,text,read?},{type:quote,q:N}]).
+- 입력은 틀의 issue_schema 형식(issues/<no>.json). 해설·인용 순서는 선택 필드 script([{type:nar,text,read?},{type:quote,q:N},{type:card,c:N}]).
+  card = text_cards[N](官邸 원문 글자 카드, TTS 가 읽음) — 비율에선 해설로 센다.
 - 파일 여러 개 + --episode 면 한 편으로 보고 편 길이(20~40분)·해설 비율(≥60%)을 FAIL 로 건다. 아니면 비율은 WARN.
 - D3·D7: 국회 인용은 minutes.speech(회의록 원문)와 대조. 없으면 --fetch 로 회의록 API(speechID) 조회,
   그래도 없으면(회의록이 아직 API에 없음) FAIL 대신 «회의록 대조 대기» WARN.
@@ -63,7 +64,15 @@ def durations(s, fr):
     """(해설 초, 원음 초) — 해설은 읽기 글자 ÷ 속도."""
     rate = fr['episode_limits']['read_speed_chars_per_sec']
     qs = s.get('quotes', [])
-    nar = sum(len(seg.get('read') or seg.get('text', '')) for seg in s.get('script', []) if seg.get('type') == 'nar') / rate
+    cards = s.get('text_cards', [])
+    chars = 0
+    for seg in s.get('script', []):
+        if seg.get('type') == 'nar':
+            chars += len(seg.get('read') or seg.get('text', ''))
+        elif seg.get('type') == 'card' and isinstance(seg.get('c'), int) and 0 <= seg['c'] < len(cards):
+            # 官邸 원문 글자 카드 — TTS 가 읽으므로 해설로 센다(10-16 정치JA). 원문이라 D4·D5 해설 검사에선 뺀다.
+            chars += len(cards[seg['c']].get('read') or cards[seg['c']].get('text', ''))
+    nar = chars / rate
     used = [seg['q'] for seg in s.get('script', []) if seg.get('type') == 'quote' and isinstance(seg.get('q'), int)]
     src = sum(max(0.0, qs[i]['out'] - qs[i]['in']) for i in used if 0 <= i < len(qs))
     return nar, src
