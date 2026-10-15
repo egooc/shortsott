@@ -1,0 +1,122 @@
+[
+  {
+    "file": "supertonic_F2_01_kokkai.wav",
+    "voice": "F2",
+    "text": "ご指摘の点につきましては、政府として引き続き、慎重に検討してまいりたいと考えております。",
+    "sec": 7.37,
+    "chars": 44,
+    "chars_per_sec": 5.97,
+    "synth_sec": 1.87
+  },
+  {
+    "file": "supertonic_F2_02_kaisetsu.wav",
+    "voice": "F2",
+    "text": "では、なぜこの法案は、今の国会で見送られたのでしょうか。理由は、大きく三つあります。",
+    "sec": 7.49,
+    "chars": 42,
+    "chars_per_sec": 5.61,
+    "synth_sec": 1.78
+  },
+  {
+    "file": "supertonic_F2_03_suuji.wav",
+    "voice": "F2",
+    "text": "2026年度予算案の総額は115兆5千億円で、前の年度より3.2%増えました。",
+    "sec": 8.62,
+    "chars": 39,
+    "chars_per_sec": 4.52,
+    "synth_sec": 2.26
+  },
+  {
+    "file": "supertonic_F2_03b_suuji_kana.wav",
+    "voice": "F2",
+    "text": "二〇二六年度予算案の総額は百十五兆五千億円で、前の年度より三・二パーセント増えました。",
+    "sec": 9.31,
+    "chars": 43,
+    "chars_per_sec": 4.62,
+    "synth_sec": 2.28
+  },
+  {
+    "file": "supertonic_M1_01_kokkai.wav",
+    "voice": "M1",
+    "text": "ご指摘の点につきましては、政府として引き続き、慎重に検討してまいりたいと考えております。",
+    "sec": 7.75,
+    "chars": 44,
+    "chars_per_sec": 5.67,
+    "synth_sec": 1.82
+  },
+  {
+    "file": "supertonic_M1_02_kaisetsu.wav",
+    "voice": "M1",
+    "text": "では、なぜこの法案は、今の国会で見送られたのでしょうか。理由は、大きく三つあります。",
+    "sec": 7.88,
+    "chars": 42,
+    "chars_per_sec": 5.33,
+    "synth_sec": 1.8
+  },
+  {
+    "file": "supertonic_M1_03_suuji.wav",
+    "voice": "M1",
+    "text": "2026年度予算案の総額は115兆5千億円で、前の年度より3.2%増えました。",
+    "sec": 9.07,
+    "chars": 39,
+    "chars_per_sec": 4.3,
+    "synth_sec": 2.15
+  },
+  {
+    "file": "supertonic_M1_03b_suuji_kana.wav",
+    "voice": "M1",
+    "text": "二〇二六年度予算案の総額は百十五兆五千億円で、前の年度より三・二パーセント増えました。",
+    "sec": 9.8,
+    "chars": 43,
+    "chars_per_sec": 4.39,
+    "synth_sec": 2.31
+  },
+  {
+    "file": "supertonic_F2_04_pct_kana.wav",
+    "voice": "F2",
+    "text": "2026年度予算案の総額は115兆5千億円で、前の年度より3.2パーセント増えました。",
+    "sec": 9.04,
+    "chars": 43,
+    "chars_per_sec": 4.75
+  },
+  {
+    "file": "supertonic_F2_05_ten_kanji.wav",
+    "voice": "F2",
+    "text": "二千二十六年度予算案の総額は百十五兆五千億円で、前の年度より三点二パーセント増えました。",
+    "sec": 9.91,
+    "chars": 44,
+    "chars_per_sec": 4.44
+  },
+  {
+    "file": "supertonic_F2_06_mixed.wav",
+    "voice": "F2",
+    "text": "衆議院の定数は465で、与党は過半数の233議席を確保しました。投票率は53.85パーセントでした。",
+    "sec": 10.7,
+    "chars": 50,
+    "chars_per_sec": 4.67
+  },
+  {
+    "file": "supertonic_M1_04_pct_kana.wav",
+    "voice": "M1",
+    "text": "2026年度予算案の総額は115兆5千億円で、前の年度より3.2パーセント増えました。",
+    "sec": 9.52,
+    "chars": 43,
+    "chars_per_sec": 4.52
+  },
+  {
+    "file": "supertonic_M1_05_ten_kanji.wav",
+    "voice": "M1",
+    "text": "二千二十六年度予算案の総額は百十五兆五千億円で、前の年度より三点二パーセント増えました。",
+    "sec": 10.42,
+    "chars": 44,
+    "chars_per_sec": 4.22
+  },
+  {
+    "file": "supertonic_M1_06_mixed.wav",
+    "voice": "M1",
+    "text": "衆議院の定数は465で、与党は過半数の233議席を確保しました。投票率は53.85パーセントでした。",
+    "sec": 11.26,
+    "chars": 50,
+    "chars_per_sec": 4.44
+  }
+]
