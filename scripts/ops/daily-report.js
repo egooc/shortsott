@@ -5,7 +5,7 @@
 //   videos   volcano-runs/*/uploaded.json (그날 업로드한 편) · lane = config/channels.json 의 profileId 대응
 //            started_at = 회차 폴더 생성 · finished_at = final_tight.mp4 · render_secs = 컷 렌더 + 마무리 사슬(파일 시각 추정)
 //            subject_read_secs = subject_pos sheet→check 간격(화면 글자 피사체 칸 판독) · rejected 는 기록이 없어 null
-//   gpt      tools/gpt-ask.jsonl 의 session=N100 호출 수 (weekly_used_pct 는 로그인 전이라 null)
+//   gpt      tools/gpt-ask.jsonl 의 session=N100 호출 수 · weekly_used_pct 는 마지막 호출 limits 의 주간 창(로그인 전엔 null)
 //   load     server/output/metrics/resources-YYYYMMDD.jsonl (5분 샘플, 작업 volcano-resource-sample)
 //   volcano_watch server/output/volcano-watch/<오늘>.json (06:30 setup 감시, volcano-setup-watch.js)
 //   recovery 도구의쓸모·JP 회복 시험 — 신호=새 편 24h 100회, 회복=연속 2편 48h 1,000회 (videos.list 1단위/채널)
@@ -57,6 +57,14 @@ for (const w of fs.readdirSync(RUNS)) {
 
 const gptLog = lines(path.join(ROOT, 'server', 'output', 'task-logs', 'gpt-ask.jsonl')).filter((x) => x.session === 'N100' && Date.parse(x.at) >= d0 && Date.parse(x.at) < d1);
 
+// 주간 구독 한도 사용률 — gpt-ask.js 가 남기는 limits(window_min 10080 = 주간) 중 가장 최근 값
+function weeklyPct() {
+  const all = lines(path.join(ROOT, 'server', 'output', 'task-logs', 'gpt-ask.jsonl')).filter((x) => x.session === 'N100' && x.limits);
+  const l = all.pop(); if (!l) return null;
+  const w = [l.limits.primary, l.limits.secondary].find((x) => x && x.window_min === 10080);
+  return w ? w.used_pct : null;
+}
+
 const samples = lines(path.join(ROOT, 'server', 'output', 'metrics', `resources-${date.replace(/-/g, '')}.jsonl`));
 const byHour = {};
 for (const s of samples) { const h = new Date(Date.parse(s.at) + KST).getUTCHours(); (byHour[h] = byHour[h] || []).push(s.cpu_pct); }
@@ -97,7 +105,7 @@ async function recovery(pid, since) {
   const today = new Date(Date.now() + KST).toISOString().slice(0, 10);
   const vw = readJ(path.join(ROOT, 'server', 'output', 'volcano-watch', today + '.json'), null);
   const volcano_watch = vw ? `${vw.verdict} · 엔진 ${vw.engine} · 채널 ${vw.presets.length}개${vw.changed && vw.changed.length ? ' · ' + vw.changed.join(' / ') : ''}` : `${today} 06:30 기록 없음`;
-  const out = { date, source: 'N100', videos, gpt: { calls: gptLog.length, weekly_used_pct: null }, load, recovery: rv, volcano_watch };
+  const out = { date, source: 'N100', videos, gpt: { calls: gptLog.length, weekly_used_pct: weeklyPct() }, load, recovery: rv, volcano_watch };
   const dir = path.join(ROOT, 'server', 'output', 'daily-report'); fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, date + '.json'), JSON.stringify(out, null, 2) + '\n', 'utf8');
   process.stdout.write(JSON.stringify(out) + '\n');
