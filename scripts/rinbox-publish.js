@@ -300,6 +300,9 @@ function ledgerAppend(mp4, meta, extra) {
       .find((p) => fs.existsSync(p));
     const st = plan ? fs.statSync(plan) : null;
     const started = st ? new Date(Math.min(st.birthtimeMs || st.mtimeMs, st.mtimeMs)) : null;
+    // 소스 준비(받기·crop·전사) 시작 표시 — 소스를 받은 폴더(첫 편)에만 있다 (관리자 장부 규격 prep_started_at, 2026-10-15)
+    const prepFile = [path.join(dir, '..', 'prep_started_at.txt'), path.join(dir, 'prep_started_at.txt')].find((p) => fs.existsSync(p));
+    const prep = prepFile ? new Date(fs.readFileSync(prepFile, 'utf8').trim()) : null;
     const gi = process.argv.indexOf('--gpt');
     const rec = {
       at: new Date().toISOString(),
@@ -308,6 +311,7 @@ function ledgerAppend(mp4, meta, extra) {
       id: run.replace(/^rinbox/, ''),
       title: meta.title || '',
       ...(started ? { started_at: started.toISOString() } : {}),
+      ...(prep && Number.isFinite(prep.getTime()) ? { prep_started_at: prep.toISOString() } : {}),
       gpt_calls: gi >= 0 ? Number(process.argv[gi + 1]) || 0 : 0,
       rejected: 0,
       note: String(meta.work || ''),
