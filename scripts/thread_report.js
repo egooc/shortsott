@@ -227,7 +227,9 @@ if (require.main === module) {
     const lanes = arg('--lanes', Object.keys(LANES).join(',')).split(',');
     const { markdown } = await buildThreads({ lanes, minAgeH: +arg('--min-age-h', 72), x: +arg('--x', 3) });
     const date = arg('--date', kst(Date.now()).toISOString().slice(0, 10));
-    const out = path.join(ROOT, 'docs/reports', `${date}-threads.md`);
+    // 일부 레인만 돌리면 전체 보고서를 덮지 않는다
+    const all = lanes.length === Object.keys(LANES).length;
+    const out = path.join(ROOT, 'docs/reports', `${date}-threads${all ? '' : '-' + lanes.join('-')}.md`);
     fs.mkdirSync(path.dirname(out), { recursive: true });
     fs.writeFileSync(out, markdown, 'utf8');
     console.log(markdown);
