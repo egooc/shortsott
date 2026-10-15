@@ -33,6 +33,9 @@ function findMp4(filename) {
   let runs = [];
   try { runs = fs.readdirSync(RUNS_ROOT); } catch { return ''; }
   for (const run of runs) {
+    // 자체 렌더러(rinbox_render.py) 완성본은 <런>/_render/ 에 바로 놓인다(2026-10-08 볼케이노 자립).
+    const own = path.join(RUNS_ROOT, run, '_render', filename);
+    if (fs.existsSync(own)) return own;
     let hashes = [];
     try { hashes = fs.readdirSync(path.join(RUNS_ROOT, run, 'edits')); } catch { continue; }
     for (const h of hashes) {
@@ -48,6 +51,11 @@ function run(args) {
     { cwd: ROOT, encoding: 'utf8', timeout: 25 * 60 * 1000 });
   const out = `${r.stdout || ''}${r.stderr || ''}`;
   return { ok: r.status === 0, out };
+}
+
+function taskExists(name) {
+  const r = spawnSync('schtasks', ['/Query', '/TN', name], { encoding: 'utf8', windowsHide: true });
+  return r.status === 0;
 }
 
 function main() {
@@ -79,8 +87,22 @@ function main() {
       console.log(`건너뜀 패키지 없음 ${e.file} — 먼저 node scripts/rinbox-webpackage.js`);
       continue;
     }
+    // ★플랫폼별 권리자 차단 — rinbox-social 과 같은 카탈로그 칸을 본다(2026-10-12 SBS 예능팩토리 메타 차단).
+    //   사이트 이름 facebook_profile 은 카탈로그에선 facebook 으로 적는다.
+    const work = (catalog.works || {})[meta.work] || {};
+    const holder = String(work.rights_holder_ko || work.broadcaster || '');
+    const siteBlock = (site) => {
+      const pf = site === 'facebook_profile' ? 'facebook' : site;
+      return (work.platform_blocks || {})[pf] || Object.entries(catalog.holder_platform_blocks || {})
+        .filter(([h]) => h && holder.includes(h)).map(([, v]) => v[pf]).find(Boolean);
+    };
     for (const site of (SITES_BY_LOCALE[meta.locale] || [])) {
       if (done.has(`${e.file}:${site}`)) continue;
+      if (siteBlock(site)) { if (dry) console.log(`[차단] ${site} <- ${e.file}: ${siteBlock(site)}`); continue; }
+      // ★이미 «그 시각에 도는 1회성 작업»으로 넘긴 편은 다시 보내지 않는다(2026-10-08 중복 게시 사고).
+      //   예약 작업이 08:00 에 게시하는 중에 08:05 정기 실행이 «기록 없음 + 시각 지남»으로 보고 즉시 또 올렸다.
+      //   작업이 성공하면 web_publish_state 에 기록되고, 실패하면 coverage 보고에 빈 자리로 드러난다 — 중복보다 낫다.
+      if (taskExists(`midform-${site}-${e.file}`)) { if (dry) console.log(`[넘김] ${site} <- ${e.file} (예약 작업 있음)`); continue; }
       if (dry) { console.log(`[dry] ${site} <- ${e.file} (${meta.locale})`); continue; }
       console.log(`[보냄] ${site} <- ${e.file}`);
       // ★네이버의 네이티브 «등록 예약» 달력은 쓰지 않는다(2026-10-02 실측): 시각은 들어가는데

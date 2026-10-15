@@ -17,7 +17,7 @@ const path = require('path');
 const ROOT = path.join(__dirname, '..');
 require('dotenv').config({ path: path.join(ROOT, '.env') });
 
-const KEY = process.env.YOUTUBE_API_KEY || process.env.YT_API_KEY || '';
+const KEY = process.env.YOUTUBE_API_KEY_SEARCH || process.env.YOUTUBE_API_KEY || process.env.YT_API_KEY || '';
 const OUT_DIR = path.join(ROOT, 'server', 'output', 'rinbox-scout');
 
 function parseArgs(argv) {

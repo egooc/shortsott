@@ -34,17 +34,21 @@ const {
   loadJob
 } = require('../server/services/youtubeUploadService');
 const { normalizeUploadLoudness } = require('../server/services/uploadLoudnessService');
+const { riskOf, withNote, describeHits } = require('./lib/feedSafety');
 
 const CATALOG_PATH = path.join(ROOT, 'midform', 'config', 'rinbox_catalog.json');
 const APPROVALS_PATH = path.join(ROOT, 'server', 'data', 'rinbox_approvals.json');
 const STATE_PATH = path.join(ROOT, 'server', 'data', 'rinbox_publish_state.json');
 const REPORTS_DIR = path.join(ROOT, 'server', 'output', 'rinbox-publish-reports');
 
-// 슬롯 — 소유주 지시 2026-09-28: 명화관 08:00·12:00·18:00 의 **30분 뒤**에 린박스를 올린다.
-// 채널을 공유하므로 같은 시각에 두 편이 공개되면 서로 잡아먹는다. 30분을 띄워 둔 이유가 그것이다.
-// (그래서 명화관 슬롯과는 애초에 겹치지 않지만, 린박스끼리의 중복은 여전히 막아야 해서
-//  takenSlots 는 양쪽 기록을 다 본다.)
-const SLOT_TIMES_UTC9 = [[8, 30], [12, 30], [18, 30]];
+// 슬롯 — 08:00 · 12:00 · 18:00 KST (소유주 확인 2026-10-01: 원래 정해진 시간으로 되돌림).
+//
+// 왜 한때 30분 뒤였나: 2026-09-28 당시 같은 채널에 명화관이 08:00·12:00·18:00 으로 나가고 있어서,
+// 같은 시각에 두 편이 공개되면 서로 잡아먹기에 린박스를 30분 밀어 두었다. 2026-09-30 소유주가
+// **명화관 업로드를 중지**했고 `midform-auto-publish*` 가 전부 Disabled 라, 비켜 줄 상대가 없어졌다.
+// 미뤄 둘 이유가 사라졌으니 원래 시각으로 돌아온다. 명화관을 다시 켜면 이 값을 함께 봐야 한다.
+// (린박스끼리의 중복은 여전히 막아야 해서 takenSlots 는 양쪽 기록을 다 본다.)
+const SLOT_TIMES_UTC9 = [[8, 0], [12, 0], [18, 0]];
 const SLOT_LEAD_MIN = 45;
 
 // 채널 용도 ↔ 카드 포맷. 어긋나면 createUploadJob 이 배치 전체를 던진다(2026-09-25 38시간 정지).
@@ -94,6 +98,9 @@ function takenSlots() {
   const taken = new Set();
   for (const p of [path.join(ROOT, 'server', 'data', 'auto_publish_state.json'), STATE_PATH]) {
     for (const entry of (readJson(p, {}).history || [])) {
+      // ★retracted 가 붙은 편은 슬롯을 잡고 있지 않다. 유튜브에서 예약을 풀고 비공개로 세운 편이라
+      //   그 자리는 비어 있다 — 안 거르면 다음 편이 하루 뒤로 밀린다(2026-10-03 실제로 밀렸다).
+      if (entry.retracted) continue;
       if (entry.publishAt && entry.locale) taken.add(`${entry.locale}:${entry.publishAt}`);
     }
   }
@@ -244,6 +251,29 @@ function cmdApprove(mp4Arg, revoke) {
     console.log(`승인 취소: ${key}`);
     return;
   }
+  // 이름 관문(2026-10-09) — 자체 렌더 편은 plan 이 곁에 있다. 설명문까지 배역표와 대조하고, 틀리면 승인하지 않는다.
+  const plan = [path.join(path.dirname(mp4), '..', 'plan_local.json'), path.join(path.dirname(mp4), 'plan_local.json')]
+    .find((p) => fs.existsSync(p));
+  if (plan) {
+    const py = path.join(os.homedir(), '.volcano', 'venv', 'Scripts', 'python.exe');
+    try {
+      const out = execFileSync(py, [path.join(__dirname, 'rinbox_names.py'), plan, `${mp4}.rinbox.json`],
+        { encoding: 'utf8', env: { ...process.env, PYTHONIOENCODING: 'utf-8' } });
+      process.stdout.write(out);
+    } catch (e) {
+      process.stdout.write(String(e.stdout || ''));
+      throw new Error('이름 관문에서 막혔다 — 설명·원고의 이름을 배역표와 맞춘 뒤 다시 승인');
+    }
+  }
+  // 화면 검사(2026-10-09) — 렌더러가 남긴 screen.txt 가 FAIL 이면 승인하지 않는다(덧칠 글자·깜빡이는 샷 조각).
+  const screen = path.join(path.dirname(mp4), 'screen.txt');
+  if (plan && fs.existsSync(screen)) {
+    const txt = fs.readFileSync(screen, 'utf8');
+    if (/FAIL\s*$/.test(txt) && !process.argv.includes('--screen-ok')) {
+      process.stdout.write(txt);
+      throw new Error('화면 검사에서 막혔다 — 고쳐서 다시 렌더하거나, 눈으로 보고 괜찮으면 --screen-ok');
+    }
+  }
   approvals[key] = {
     approved_at: new Date().toISOString(),
     mp4_sha256: hash,                 // ★캡컷 매니페스트가 아니라 **완성본 바이트**에 묶는다
@@ -252,7 +282,41 @@ function cmdApprove(mp4Arg, revoke) {
     title: meta.title
   };
   writeJson(APPROVALS_PATH, approvals);
+  ledgerAppend(mp4, meta, { finished_at: approvals[key].approved_at });
   console.log(`승인: ${key}\n  mp4 sha256 ${hash}\n  ★이 파일을 다시 렌더하면 승인은 자동 무효가 된다`);
+}
+
+// 제작 장부(2026-10-15 소유주 지시, 관리자 매일 07:40 성과 보고) — 승인·업로드 때 한 줄씩 덧붙인다. 규격 docs/production-ledger.md.
+//   lane: 사이드카 work 가 longshort-* 면 ko_longshort(A 롱투숏), 그 외는 locale(C 린박스). 마지막 줄이 이긴다.
+//   started_at = 편집표(plan_local.json) 처음 만든 시각, render_secs 는 모른다(생략). --gpt N 으로 gpt-ask 횟수를 적는다.
+const LEDGER_PATH = path.join(__dirname, '..', 'server', 'data', 'production_ledger.jsonl');
+function ledgerAppend(mp4, meta, extra) {
+  try {
+    const dir = path.dirname(mp4);
+    const run = path.basename(path.basename(dir) === '_render' ? path.dirname(dir) : dir);
+    const isLs = /^longshort-/.test(String(meta.work || ''));
+    // 롱투숏 폴더엔 plan_local.json 이 없다 — make_plan.py 를 처음 쓴 때가 그 편의 시작(A 세션 기준, 2026-10-15)
+    const plan = ['plan_local.json', 'make_plan.py'].flatMap((f) => [path.join(dir, '..', f), path.join(dir, f)])
+      .find((p) => fs.existsSync(p));
+    const st = plan ? fs.statSync(plan) : null;
+    const started = st ? new Date(Math.min(st.birthtimeMs || st.mtimeMs, st.mtimeMs)) : null;
+    const gi = process.argv.indexOf('--gpt');
+    const rec = {
+      at: new Date().toISOString(),
+      session: isLs ? 'A 롱투숏' : 'C 린박스',
+      lane: isLs ? 'ko_longshort' : (meta.locale || ''),
+      id: run.replace(/^rinbox/, ''),
+      title: meta.title || '',
+      ...(started ? { started_at: started.toISOString() } : {}),
+      gpt_calls: gi >= 0 ? Number(process.argv[gi + 1]) || 0 : 0,
+      rejected: 0,
+      note: String(meta.work || ''),
+      ...extra
+    };
+    fs.appendFileSync(LEDGER_PATH, JSON.stringify(rec) + '\n', 'utf8');
+  } catch (e) {
+    console.log(`  (장부 기록 실패: ${e.message})`);
+  }
 }
 
 function cmdList() {
@@ -293,7 +357,12 @@ async function cmdPublish(mp4Arg, args) {
   if (dur > 180) throw new Error(`숏츠 하드 한도 180초 초과: ${dur.toFixed(2)}초`);
 
   // 3. 동기화 감사 (Speechmatics 낱말 시각 대조)
-  if (meta.workdir) {
+  // ★자체 렌더 편(rinbox_render.py)은 볼케이노 완주 상태가 없다 — workdir 가 있어도 볼케이노 감사를 건너뛴다.
+  //   대신 렌더러가 게이트·소리·화면·이름·재사용 관문을 이미 돌렸다(2026-10-09: workdir 를 넣었다가 발행이 막혔다).
+  const selfRendered = String(meta.renderer || '').startsWith('rinbox_render.py');
+  if (meta.workdir && selfRendered) {
+    lines.push('- 볼케이노 동기화 감사 해당 없음 (자체 렌더 — 렌더러 관문 통과본)');
+  } else if (meta.workdir) {
     const drive = readJson(path.join(meta.workdir, '.volcano_drive_state.json'), {});
     const done = drive.status === 'done' && (drive.args || {}).step === 'rinbox_finish';
     if (!done) throw new Error(`작업 폴더가 완주 상태가 아니다 (status=${drive.status}, step=${(drive.args || {}).step})`);
@@ -322,6 +391,12 @@ async function cmdPublish(mp4Arg, args) {
   }
   lines.push(`- 검수 승인 확인 (${approval.approved_at})`);
 
+  // 노출 안전(2026-10-12, 소유주 전자책 1장) — 막지 않는다. 위험 단어는 알리고, 폭력계 장면엔 픽션 안내문을 붙인다.
+  const hits = riskOf(meta.title, meta.description);
+  if (hits.length) lines.push(`- 위험 단어: ${describeHits(hits)}`);
+  const description = withNote(meta.description, locale, meta.title);
+  if (description !== meta.description) lines.push('- 설명란에 픽션 안내문을 붙였다');
+
   const profile = profileByPurpose(PURPOSE[locale]);
   if (!profile) throw new Error(`${locale} 업로드 프로필(${PURPOSE[locale]})이 연결돼 있지 않다`);
 
@@ -346,7 +421,7 @@ async function cmdPublish(mp4Arg, args) {
     filePath: uploadPath,
     originalName: path.basename(mp4),
     title: meta.title,
-    description: meta.description,
+    description,
     tags: meta.tags || [],
     variant: VARIANT[locale],
     uploadProfileId: profile.id,
@@ -378,6 +453,9 @@ async function cmdPublish(mp4Arg, args) {
         url: up.youtubeUrl || ''
       }].slice(-500);
       writeJson(STATE_PATH, state);
+      const ap = readJson(APPROVALS_PATH, {})[path.basename(mp4)] || {};
+      const vid = (String(up.youtubeUrl || '').match(/v=([\w-]{6,})/) || [])[1];
+      ledgerAppend(mp4, meta, { ...(ap.approved_at ? { finished_at: ap.approved_at } : {}), ...(vid ? { youtube_id: vid } : {}), publish_at: publishAt });
     }
     break;
   }

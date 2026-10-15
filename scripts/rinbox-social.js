@@ -19,7 +19,7 @@ const path = require('path');
 const ROOT = path.join(__dirname, '..');
 require('dotenv').config({ path: path.join(ROOT, '.env') });
 
-const { api, uploadLocalFile, buildTarget, scheduleFor } = require('./blotato-publish');
+const { api, uploadLocalFile, buildTarget, scheduleFor, zernioUpload, zernioIdFor } = require('./blotato-publish');
 
 const RINBOX_STATE = path.join(ROOT, 'server', 'data', 'rinbox_publish_state.json');
 const STATE_PATH = path.join(ROOT, 'server', 'data', 'rinbox_social_state.json');
@@ -59,6 +59,9 @@ function findMp4(filename, cache) {
   let runs = [];
   try { runs = fs.readdirSync(RUNS_ROOT); } catch { return ''; }
   for (const run of runs) {
+    // 자체 렌더러(rinbox_render.py) 완성본은 <런>/_render/ 에 바로 놓인다(2026-10-08 볼케이노 자립).
+    const own = path.join(RUNS_ROOT, run, '_render', filename);
+    if (fs.existsSync(own)) { cache[filename] = own; return own; }
     const editsDir = path.join(RUNS_ROOT, run, 'edits');
     let hashes = [];
     try { hashes = fs.readdirSync(editsDir); } catch { continue; }
@@ -97,7 +100,13 @@ function splitDescription(description) {
   for (const p of parts) {
     if (/풀버전|フルバージョン|full version/i.test(p) && !out.pitch) out.pitch = unwrap(p);
     else if (/^★/.test(p)) out.notice = unwrap(p);
-    else if (/^[─-]{5,}|출처|出典|source:/i.test(p)) out.source = unwrap(p.replace(/^[─-]{5,}\s*/, ''));
+    // ★출처 토막에서 **URL 줄을 버린다**(소유주 지시 2026-10-01).
+    //   소스 영상 딥링크를 캡션에 실으면 어느 작품의 어느 편을 쓰는지 경쟁자에게 그대로 넘어간다.
+    //   권리자 표기는 의무지만 딥링크는 의무가 아니다.
+    else if (/^[─-]{5,}|출처|出典|制作|제작|放送|source:/i.test(p)) {
+      out.source = unwrap(p.replace(/^[─-]{5,}\s*/, '')
+        .split('\n').filter((ln) => !/https?:\/\//.test(ln)).join('\n'));
+    }
     else if (!out.summary) out.summary = unwrap(p);
   }
   return out;
@@ -118,9 +127,13 @@ function composeCaption(meta, platform, spec) {
     : [meta.title, d.summary, d.pitch, d.source];
 
   let text = blocks.filter(Boolean).join('\n\n');
+  // ★마지막 방어선: 어떤 경로로든 URL 이 섞여 들어오면 지운다. 한 번 나가면 되돌릴 수 없다.
+  text = text.split('\n').filter((ln) => !/https?:\/\//.test(ln)).join('\n').replace(/\n{3,}/g, '\n\n').trim();
   const room = capMax - (tagLine ? tagLine.length + 2 : 0);
   if (text.length > room) text = `${text.slice(0, Math.max(0, room - 1)).trimEnd()}…`;
-  return tagLine ? `${text}\n\n${tagLine}` : text;
+  const out = tagLine ? `${text}\n\n${tagLine}` : text;
+  if (/https?:\/\//.test(out)) throw new Error('캡션에 URL 이 남았다 — 발행을 멈춘다');
+  return out;
 }
 
 function main() {
@@ -161,6 +174,16 @@ function main() {
     const localeCfg = config.locales?.[meta.locale];
     if (!localeCfg) { lines.push(`- SKIP(매핑 없음 ${meta.locale}): ${entry.file}`); continue; }
 
+    // ★플랫폼별 권리자 차단 (2026-10-12 소유주: «인스타 며칠째 SBS 예능팩토리에서 차단 거는데»)
+    //   판정은 플랫폼마다 독립이다 — 유튜브는 통과해도 인스타는 권리자가 막는다. 막힌 곳에 계속 올리면
+    //   차단이 쌓여 계정(200만 팔로워) 자체가 제한될 수 있다. 카탈로그 holder_platform_blocks[권리자][플랫폼]
+    //   또는 작품의 platform_blocks[플랫폼] 이 있으면 그 플랫폼만 건너뛴다.
+    const work = (catalog.works || {})[meta.work] || {};
+    const holder = String(work.rights_holder_ko || work.broadcaster || '');
+    const holderBlocks = Object.entries(catalog.holder_platform_blocks || {})
+      .filter(([h]) => h && holder.includes(h)).map(([, v]) => v);
+    const platformBlock = (pf) => (work.platform_blocks || {})[pf] || holderBlocks.map((b) => b[pf]).find(Boolean);
+
     for (const platform of wanted) {
       const mapping = localeCfg.platforms?.[platform];
       if (!mapping) continue;
@@ -169,6 +192,8 @@ function main() {
         continue;
       }
       if (done.has(`${entry.file}:${platform}`)) continue;
+      const pBlock = platformBlock(platform);
+      if (pBlock) { lines.push(`- BLOCKED(${platform}): ${entry.file} — ${pBlock}`); continue; }
       const spec = specs.platforms?.[platform] || {};
       let target;
       try { target = buildTarget(platform, mapping, {}); }
@@ -198,11 +223,15 @@ async function run() {
       continue;
     }
     try {
-      let mediaUrl = (state.media || {})[job.entry.file] || '';
+      // 저장소는 보낼 곳을 따라간다 — Zernio 로 가는 틱톡은 Zernio 저장소에 올려
+      // Blotato 저장소를 아예 안 거친다. 나머지 플랫폼은 그대로 Blotato.
+      const viaZernio = Boolean(zernioIdFor(job.mapping.accountId));
+      const bucket = viaZernio ? 'mediaZernio' : 'media';
+      let mediaUrl = (state[bucket] || {})[job.entry.file] || '';
       if (!mediaUrl) {
-        console.log(`[media] 업로드 ${job.entry.file}`);
-        mediaUrl = await uploadLocalFile(job.mp4);
-        state.media = { ...(state.media || {}), [job.entry.file]: mediaUrl };
+        console.log(`[media] 업로드 ${job.entry.file} → ${viaZernio ? 'Zernio' : 'Blotato'}`);
+        mediaUrl = viaZernio ? await zernioUpload(job.mp4) : await uploadLocalFile(job.mp4);
+        state[bucket] = { ...(state[bucket] || {}), [job.entry.file]: mediaUrl };
         writeJson(STATE_PATH, state);
       }
       const result = await api('POST', '/posts', {

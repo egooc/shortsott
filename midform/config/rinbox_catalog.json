@@ -28,7 +28,42 @@
       "rights_holder_ko": "SBS",
       "source_line_ko": "제작·배급: SBS｜「닥터스」(2016)",
       "watch_line_ko": "본편은 권리자의 공식 채널에서 보실 수 있습니다.",
-      "_internal_source_url": "https://www.youtube.com/watch?v=cSq6GzcVs9A"
+      "_internal_source_url": "https://www.youtube.com/watch?v=cSq6GzcVs9A",
+      "cast": [
+        {
+          "name": "홍지홍",
+          "actor": "김래원",
+          "aliases": [
+            "홍 선생님",
+            "지홍"
+          ]
+        },
+        {
+          "name": "유혜정",
+          "actor": "박신혜",
+          "aliases": [
+            "혜정"
+          ]
+        },
+        {
+          "name": "조수지",
+          "actor": "한혜진",
+          "aliases": [
+            "수지"
+          ],
+          "note": "11회 특별출연 · 잠금증후군 환자"
+        },
+        {
+          "name": "안성수",
+          "actor": "조대환",
+          "aliases": [],
+          "note": "11회 · 조수지의 보호자 행세"
+        }
+      ],
+      "cast_source": "2026-10-09 웹 검색(데일리안·텐아시아 2016 기사) — 교사였던 홍지홍과 학생 유혜정이 13년 뒤 의사로 재회 / 조수지·안성수: 텐아시아 2016-07-23·26 기사",
+      "asr_fixes": {
+        "조수진": "조수지"
+      }
     },
     "samgyopsal-desuga-2025": {
       "match": "サムギョプサル|삼겹살입니다만|samgyopsal",
@@ -89,7 +124,55 @@
       "rights_holder_ja": "テレビ朝日／東映",
       "source_line_ja": "制作：東映／放送：テレビ朝日｜「吉宗評判記 暴れん坊将軍」(1978)",
       "watch_line_ja": "本編は権利者の公式配信で無料公開されています。",
-      "_internal_source_url": "https://www.youtube.com/watch?v=aJhmV_Bdne4"
+      "_internal_source_url": "https://www.youtube.com/watch?v=aJhmV_Bdne4",
+      "cast": [
+        {
+          "name": "徳川吉宗",
+          "actor": "松平健",
+          "aliases": [
+            "吉宗",
+            "上様",
+            "徳田新之助",
+            "新之助",
+            "徳田"
+          ]
+        },
+        {
+          "name": "加納五郎左衛門",
+          "actor": "有島一郎",
+          "aliases": [
+            "爺",
+            "加納"
+          ]
+        },
+        {
+          "name": "辰五郎",
+          "actor": "北島三郎",
+          "aliases": [
+            "辰"
+          ]
+        },
+        {
+          "name": "大岡忠相",
+          "actor": "横内正",
+          "aliases": [
+            "大岡",
+            "越前"
+          ]
+        },
+        {
+          "name": "小川笙船",
+          "aliases": [
+            "笙船"
+          ],
+          "note": "実在の医者・小石川養生所の献言者(第4話系 rinbox08ja 原本)"
+        }
+      ],
+      "asr_fixes": {
+        "小川商船": "小川笙船",
+        "都会屋": "渡海屋"
+      },
+      "cast_source": "ja.wikipedia 暴れん坊将軍 (2026-10-09 확인)"
     },
     "jeonwon-ilgi-mbc": {
       "match": "전원일기|田園日記|jeonwon",
@@ -204,7 +287,28 @@
           "region": "unrestricted"
         }
       ],
-      "verified_by": "ja.wikipedia·東映ビデオ 특집 페이지로 방송국·방송기간·화수·주연·원작 확증(2026-10-02)"
+      "verified_by": "ja.wikipedia·東映ビデオ 특집 페이지로 방송국·방송기간·화수·주연·원작 확증(2026-10-02)",
+      "cast": [
+        {
+          "name": "月影兵庫",
+          "actor": "近衛十四郎",
+          "aliases": [
+            "兵庫",
+            "旦那"
+          ]
+        },
+        {
+          "name": "焼津の半次",
+          "actor": "品川隆二",
+          "aliases": [
+            "半次"
+          ]
+        }
+      ],
+      "asr_fixes": {
+        "判事": "半次"
+      },
+      "cast_source": "ja.wikipedia 素浪人 月影兵庫 (2026-10-09 확인)"
     },
     "jeonseol-gohyang-2008": {
       "match": "전설의 ?고향|jeonseol|gohyang",
@@ -432,7 +536,34 @@
           "title": "고현정과 조성하 — 사과 하나 깨물었을 뿐인데"
         }
       ],
-      "verified_by": "ko.wikipedia「사마귀 : 살인자의 외출」로 방송국·방영기간·부작·연출·극본 확증(2026-10-03). 권리 상태는 YouTube API 로 regionRestriction 비어 있음을 10편 전수 확인."
+      "verified_by": "ko.wikipedia「사마귀 : 살인자의 외출」로 방송국·방영기간·부작·연출·극본 확증(2026-10-03). 권리 상태는 YouTube API 로 regionRestriction 비어 있음을 10편 전수 확인.",
+      "cast": [
+        {
+          "name": "정이신",
+          "actor": "고현정",
+          "aliases": [
+            "사마귀"
+          ]
+        },
+        {
+          "name": "차수열",
+          "actor": "장동윤"
+        },
+        {
+          "name": "이정연",
+          "actor": "김보라"
+        }
+      ],
+      "asr_fixes": {
+        "정희씨": "정이신",
+        "정희 씨": "정이신",
+        "정희가": "정이신",
+        "정희는": "정이신",
+        "차수현": "차수열",
+        "정희진": "정이신",
+        "정희신": "정이신"
+      },
+      "cast_source": "ko.wikipedia 사마귀 : 살인자의 외출 (2026-10-08 확인)"
     },
     "taxi-driver-sbs-2021": {
       "match": "모범택시|taxi ?driver",
@@ -469,7 +600,22 @@
           "title": "열혈 검사 이솜 모음"
         }
       ],
-      "verified_by": "ko.wikipedia「모범택시 (드라마)」로 방송국·방영기간·부작·주연·원작 확증(2026-10-03). 권리 상태는 YouTube API 로 regionRestriction 비어 있음을 확인."
+      "verified_by": "ko.wikipedia「모범택시 (드라마)」로 방송국·방영기간·부작·주연·원작 확증(2026-10-03). 권리 상태는 YouTube API 로 regionRestriction 비어 있음을 확인.",
+      "cast": [
+        {
+          "name": "김도기",
+          "actor": "이제훈"
+        },
+        {
+          "name": "백성미",
+          "actor": "차지연",
+          "aliases": [
+            "백 회장",
+            "대모"
+          ]
+        }
+      ],
+      "cast_source": "ko.wikipedia 모범택시 (드라마) (2026-10-08 확인)"
     },
     "haunted-palace-sbs-2025": {
       "match": "귀궁|haunted ?palace",
@@ -509,7 +655,28 @@
       "locale_block": {
         "ja": "소유주 방침 2026-09-30: ja 채널은 일본 드라마만 올린다. 한국 드라마의 ja 발행 금지."
       },
-      "note": "2018-10-01~11-26 SBS 월화드라마 전 32부작(2회 연속 편성 기준). 이제훈·채수빈·이동건·김지수. 인천공항 운영팀 배경. ★무제한 재고는 1편뿐이지만 그 1편이 52만회 — 「공항 갑질남 참교육」 구조라 후킹이 세다(소유주 지시: 호기심·시각 후킹 우선)."
+      "note": "2018-10-01~11-26 SBS 월화드라마 전 32부작(2회 연속 편성 기준). 이제훈·채수빈·이동건·김지수. 인천공항 운영팀 배경. ★무제한 재고는 1편뿐이지만 그 1편이 52만회 — 「공항 갑질남 참교육」 구조라 후킹이 세다(소유주 지시: 호기심·시각 후킹 우선).",
+      "cast": [
+        {
+          "name": "이수연",
+          "actor": "이제훈",
+          "role": "여객서비스팀 신입"
+        },
+        {
+          "name": "한여름",
+          "actor": "채수빈",
+          "role": "여객서비스팀 1년차"
+        },
+        {
+          "name": "서인우",
+          "actor": "이동건"
+        },
+        {
+          "name": "양서군",
+          "actor": "김지수"
+        }
+      ],
+      "cast_source": "ko.wikipedia 여우각시별 (2026-10-09 확인) — ★신입은 이수연, 한여름은 1년차"
     },
     "dr-romantic-2-sbs-2020": {
       "match": "낭만닥터 ?김사부 ?2|dr\\.? ?romantic ?2",
@@ -530,6 +697,558 @@
         "ja": "소유주 방침 2026-09-30: ja 채널은 일본 드라마만 올린다. 한국 드라마의 ja 발행 금지."
       },
       "note": "2020-01-06~02-25 SBS 월화드라마 전 16부작. 한석규·이성경·안효섭. 돌담병원 배경. 넷플릭스 제공작. ★ko 채널 실측에서 메디컬(닥터스 2016)이 사극보다 10배 잘 나왔다 — 같은 장르에 넷플릭스 인지도까지 얹은 자리라 우선순위를 높게 둔다."
+    },
+    "wakatteitemo-abema-2024": {
+      "match": "わかっていても|the ?shapes ?of ?love",
+      "title_ja": "わかっていても the shapes of love",
+      "title_en": "The Shapes of Love",
+      "year": 2024,
+      "kind": "drama",
+      "broadcaster": "ABEMA",
+      "rights_tier": "preflight",
+      "rights_holder_ja": "ABEMA",
+      "source_line_ja": "製作：ABEMA｜「わかっていても the shapes of love」(2024)",
+      "watch_line_ja": "本編は権利者の公式チャンネルで無料公開されています。",
+      "credit_ja": "「わかっていても the shapes of love」はぜひフルバージョンでご覧になることをおすすめします。",
+      "official_free": "ABEMA ドラマ【公式】YouTube (第1話フル無料公開)",
+      "source_channel": "ABEMA ドラマ【公式】",
+      "source_channel_id": "UCqqGoWAZPC0D9HgZnnngb6g",
+      "locale_block": {
+        "ko": "소유주 방침 2026-09-30: ko 채널은 한국 드라마만 올린다. 일본 드라마의 ko 발행 금지."
+      },
+      "note": "2024-12-09~12-30 ABEMA 오리지널 전 8화. 주연 요코하마 류세이·미나미 사라. ★ABEMA 와 넷플릭스에 동시 공개된 작품이고, 1화 통편이 ABEMA 공식 유튜브에 지역제한 없이 올라와 있다(172만). 소유주 지적 2026-10-03「일본도 넷플릭스 있지?」에 대한 답 — 넷플릭스 자체는 DRM 때문에 못 쓰지만 같은 작품을 권리자가 유튜브에 무료 공개한 것은 쓸 수 있다. ja 채널을 1960~70년대 時代劇에서 현대극으로 옮기는 첫 편."
+    },
+    "musume-ga-ijime-bump-2025": {
+      "match": "娘がいじめをしていました",
+      "title_ja": "娘がいじめをしていました",
+      "year": 2025,
+      "kind": "drama",
+      "broadcaster": "BUMP",
+      "rights_tier": "preflight",
+      "rights_holder_ja": "BUMP（emole株式会社）",
+      "source_line_ja": "製作：BUMP｜「娘がいじめをしていました」(2025)",
+      "watch_line_ja": "本編は権利者の公式チャンネルで無料公開されています。",
+      "credit_ja": "「娘がいじめをしていました」はぜひフルバージョンでご覧になることをおすすめします。",
+      "official_free": "BUMPドラマ【公式】YouTube (1~8話まとめ無料公開)",
+      "source_channel": "BUMPドラマ【公式】",
+      "source_channel_id": "UCDcBT1mhfPOtW3Obfu42pGg",
+      "locale_block": {
+        "ko": "소유주 방침 2026-09-30: ko 채널은 한국 드라마만 올린다."
+      },
+      "note": "원작 しろやぎ秋吾 『娘がいじめをしていました』(KADOKAWA). BUMP 오리지널 숏드라마로 2025-09-03 배신 개시. 가해자 쪽 부모의 시점을 다룬다. 유튜브 1~8화 묶음 341만회. ★출연진·감독 이름은 로마자 표기만 확인돼 한자를 확정하지 못했다 — 설명문에 쓰지 않는다.",
+      "cast": [
+        {
+          "name": "赤木愛",
+          "aliases": [
+            "愛",
+            "愛ちゃん"
+          ]
+        },
+        {
+          "name": "馬場小春",
+          "aliases": [
+            "小春",
+            "こはる",
+            "小春ちゃん",
+            "こはるちゃん"
+          ]
+        },
+        {
+          "name": "赤木加奈子",
+          "aliases": [
+            "加奈子",
+            "赤木"
+          ]
+        },
+        {
+          "name": "馬場千春",
+          "aliases": [
+            "千春",
+            "馬場"
+          ]
+        }
+      ],
+      "cast_source": "めちゃコミック 原作紹介 (2026-10-08 확인)"
+    },
+    "shinuhodo-aishite-abema-2025": {
+      "match": "死ぬほど愛して",
+      "title_ja": "死ぬほど愛して",
+      "year": 2025,
+      "kind": "drama",
+      "broadcaster": "ABEMA",
+      "rights_tier": "preflight",
+      "rights_holder_ja": "ABEMA",
+      "source_line_ja": "製作：ABEMA｜「死ぬほど愛して」(2025)",
+      "watch_line_ja": "本編は権利者の公式チャンネルで無料公開されています。",
+      "credit_ja": "「死ぬほど愛して」はぜひフルバージョンでご覧になることをおすすめします。",
+      "official_free": "ABEMA ドラマ【公式】YouTube (無料公開分)",
+      "source_channel": "ABEMA ドラマ【公式】",
+      "source_channel_id": "UCqqGoWAZPC0D9HgZnnngb6g",
+      "locale_block": {
+        "ko": "소유주 방침 2026-09-30: ko 채널은 한국 드라마만 올린다."
+      },
+      "note": "2025-03-27 부터 ABEMA·넷플릭스 동시 공개, 전 8화. 주연 나리미야 히로키(8년 만의 배우 복귀)·타키모토 미오리. ABEMA 오리지널 드라마 역대 최다 1,500만 시청. ★살인 사건물이라 교살 회상·시신 묘사 구간이 있다 — 쇼츠로 쓸 때는 그 샷을 피해 자르라(2026-10-03 rinbox41ja)."
+    },
+    "hot-priest-sbs-2019": {
+      "match": "열혈사제|fiery ?priest",
+      "title_ko": "열혈사제",
+      "title_en": "The Fiery Priest",
+      "year": 2019,
+      "kind": "drama",
+      "broadcaster": "SBS",
+      "rights_tier": "preflight",
+      "rights_holder_ko": "SBS",
+      "source_line_ko": "제작·저작: SBS｜「열혈사제」(2019)",
+      "watch_line_ko": "본편은 권리자의 공식 채널에서 보실 수 있습니다.",
+      "credit_ko": "「열혈사제」는 꼭 풀버전으로 감상하시는 걸 추천드립니다.",
+      "official_free": "SBS Catch (SBS 공식 채널의 명대사 편집본)",
+      "source_channel": "SBS Catch",
+      "source_channel_id": "UC3re3ueOE_6VZK85zlEUWFA",
+      "locale_block": {
+        "ja": "소유주 방침 2026-09-30: ja 채널은 일본 드라마만 올린다."
+      },
+      "note": "2019-02-15~04-20 SBS 금토드라마 전 40부작(1회 70분, 35분 2회 연속 편성). 출연 김남길·이하늬·김성균·고준·금새록(웹 검색으로 확인한 범위). 넷플릭스 제공작. ★타짜 에피소드에서 「빙다리 핫바지」·「모란꽃을 뺐네요」는 신부가 아니라 수녀 쪽 대사다 — rinbox31ko 에서 신부로 잘못 적어 렌더까지 갔다가 버렸다(2026-10-03). 화자는 넓은 프레임으로 확인할 것.",
+      "cast": [
+        {
+          "name": "김해일",
+          "actor": "김남길",
+          "aliases": [
+            "해일",
+            "신부님"
+          ]
+        },
+        {
+          "name": "박경선",
+          "actor": "이하늬",
+          "aliases": [
+            "경선",
+            "영감님",
+            "검사님"
+          ]
+        },
+        {
+          "name": "구대영",
+          "actor": "김성균",
+          "aliases": [
+            "대영"
+          ]
+        },
+        {
+          "name": "김인경",
+          "actor": "백지원",
+          "aliases": [
+            "수녀님",
+            "십미호",
+            "평택 십미호"
+          ],
+          "note": "구담성당 수녀 · 과거 타짜"
+        }
+      ],
+      "cast_source": "2026-10-09 웹 검색(스포츠경향·텐아시아 2019 기사) / 김인경·백지원: 엑스포츠뉴스·뉴시스 2019 기사(2026-10-12 검색)"
+    },
+    "love-scout-sbs-2025": {
+      "match": "나의 ?완벽한 ?비서|love ?scout",
+      "title_ko": "나의 완벽한 비서",
+      "title_en": "Love Scout",
+      "year": 2025,
+      "kind": "drama",
+      "broadcaster": "SBS",
+      "rights_tier": "preflight",
+      "rights_holder_ko": "SBS",
+      "source_line_ko": "제작·저작: SBS｜「나의 완벽한 비서」(2025)",
+      "watch_line_ko": "본편은 권리자의 공식 채널에서 보실 수 있습니다.",
+      "credit_ko": "「나의 완벽한 비서」는 꼭 풀버전으로 감상하시는 걸 추천드립니다.",
+      "official_free": "SBS Catch (SBS 공식 채널의 모았캐치 편집본)",
+      "source_channel": "SBS Catch",
+      "source_channel_id": "UC3re3ueOE_6VZK85zlEUWFA",
+      "_internal_source_url": "https://www.youtube.com/watch?v=JY_xzj1NAmw",
+      "locale_block": {
+        "ja": "소유주 방침 2026-09-30: ja 채널은 일본 드라마만 올린다. 한국 드라마의 ja 발행 금지."
+      },
+      "note": "2025-01-03~02-14 SBS 금토드라마 전 12부작(위키백과 확인 2026-10-08). 한지민(강지윤)·이준혁(유은호)·김도훈·김윤혜. 헤드헌팅 회사 배경 오피스 로맨스. SBS Catch 재고 42편 — 2026-10-08 자체 렌더러로 첫 편(rinbox77ko). 원본은 레터박스(위 58px·높이 890)+그림 안 로고 → zoom 0.76·cy 0.49.",
+      "cast": [
+        {
+          "name": "강지윤",
+          "actor": "한지민",
+          "aliases": [
+            "강 대표"
+          ]
+        },
+        {
+          "name": "유은호",
+          "actor": "이준혁",
+          "aliases": [
+            "유 실장",
+            "은호 씨"
+          ]
+        }
+      ],
+      "asr_fixes": {
+        "은혼 씨": "은호",
+        "은우 씨": "은호",
+        "은호시에요": "은호 씨예요"
+      },
+      "cast_source": "ko.wikipedia 나의 완벽한 비서 (2026-10-08 확인)"
+    },
+    "jeonseol-gohyang-2009": {
+      "match": "2009 전설의 고향|전설의 고향 2009",
+      "title_ko": "전설의 고향",
+      "title_en": "Hometown Legends",
+      "year": 2009,
+      "kind": "drama",
+      "broadcaster": "KBS 2TV",
+      "rights_tier": "preflight",
+      "rights_holder_ko": "KBS",
+      "source_line_ko": "제작·저작: KBS｜「2009 전설의 고향」(2009)",
+      "watch_line_ko": "본편은 권리자의 공식 채널에서 무료 공개되어 있습니다.",
+      "credit_ko": "「전설의 고향」은 꼭 풀버전으로 감상하시는 걸 추천드립니다.",
+      "official_free": "KBS 같이삽시다 (KBS 공식 채널에서 본편 무료 공개)",
+      "source_channel": "KBS 같이삽시다",
+      "source_channel_id": "UCp3Vy7dFjIheDLbMekpdMQw",
+      "locale_block": {
+        "ja": "소유주 방침 2026-09-30: ja 채널은 일본 드라마만 올린다. 한국 드라마의 ja 발행 금지."
+      },
+      "note": "2009 전설의 고향: 2009년 8~9월 KBS 2TV 단막 시리즈. 「구미호」 2009-09-01 방송(전혜빈 출연, 국민일보·cine21 확인). 원본은 KBS 공식 채널 「KBS 같이삽시다」 본편 무료 공개, 1920x1080 업스케일, 우상단 채널 로고. 배역 이름은 기사로 확인 못 함 — 설명문에 배역 이름 대신 «구미호·사또» 같은 중립 호칭.",
+      "available_episodes": [
+        {
+          "ep": 1,
+          "videoId": "CTB2VUu5cmA",
+          "sec": 4113,
+          "views": 3666811,
+          "region": "unrestricted",
+          "title": "구미호 (2008)"
+        },
+        {
+          "videoId": "y7kmKtR4hUg",
+          "sec": 3900,
+          "views": 3734351,
+          "region": "unrestricted",
+          "title": "씨받이 (KBS 2009.8.24 방송)"
+        },
+        {
+          "videoId": "i3S_K2jBtCY",
+          "sec": 2820,
+          "views": 2222704,
+          "region": "unrestricted",
+          "title": "여우골"
+        },
+        {
+          "videoId": "nRSki4GtHr8",
+          "sec": 3420,
+          "views": 826661,
+          "region": "unrestricted",
+          "title": "구미호 (KBS 1997.07.12 방송)"
+        },
+        {
+          "videoId": "Vomle3lbKiU",
+          "sec": 3240,
+          "views": 763299,
+          "region": "unrestricted",
+          "title": "저승에서 핀 꽃 (KBS 1998.07.20 방송)"
+        },
+        {
+          "videoId": "2-ShZS7xS6I",
+          "sec": 3060,
+          "views": 777928,
+          "region": "unrestricted",
+          "title": "야호(野狐) (KBS 1996 방송)"
+        }
+      ],
+      "verified_by": "ko.wikipedia「2008 전설의 고향」·스포츠경향 2008-08-07 방송평으로 방송국·방영기간·화수·제1화 구미호·박민영 출연 확증(2026-10-02). 권리 상태는 YouTube API 로 regionRestriction 비어 있음을 6편 전수 확인.",
+      "cast": [],
+      "cast_source": "2026-10-12 웹 검색 — 전혜빈 구미호 역만 확인, 배역 이름 미확인",
+      "_internal_source_url": "https://www.youtube.com/watch?v=4f0G5FwGCMI"
+    },
+    "longshort-ttt": {
+      "match": "때때때 TTT",
+      "title_ko": "때때때 TTT",
+      "year": null,
+      "kind": "youtube_creator",
+      "lane": "longshort",
+      "broadcaster": "때때때 TTT",
+      "rights_tier": "preflight",
+      "rights_holder_ko": "때때때 TTT",
+      "source_line_ko": "원본: 유튜브 채널 「때때때 TTT」",
+      "watch_line_ko": "원본 영상은 「때때때 TTT」 채널에서 보실 수 있습니다.",
+      "source_channel": "때때때 TTT",
+      "locale_block": {
+        "ja": "롱투숏은 ko(냐옹시네마) 전용 — 2026-10-14 소유주 결정"
+      },
+      "note": "롱투숏(A 레인) 출처 크리에이터. 2026-10-14 소유주 결정으로 냐옹시네마가 롱투숏으로 전환되면서 등록. 국내 여행 유튜버, 설명란에 무단·법적 경고 없음(A 세션 확인). 편별 work 키 대신 크리에이터 단위 키를 쓴다.",
+      "cast": []
+    },
+    "longshort-yeokmasal-road": {
+      "match": "역마살 로드",
+      "title_ko": "역마살 로드",
+      "year": null,
+      "kind": "youtube_creator",
+      "lane": "longshort",
+      "broadcaster": "역마살 로드",
+      "rights_tier": "preflight",
+      "rights_holder_ko": "역마살 로드",
+      "source_line_ko": "원본: 유튜브 채널 「역마살 로드」",
+      "watch_line_ko": "원본 영상은 「역마살 로드」 채널에서 보실 수 있습니다.",
+      "source_channel": "역마살 로드",
+      "locale_block": {
+        "ja": "롱투숏은 ko(냐옹시네마) 전용 — 2026-10-14 소유주 결정"
+      },
+      "note": "롱투숏(A 레인) 출처 크리에이터. 2026-10-14 소유주 결정으로 냐옹시네마가 롱투숏으로 전환되면서 등록. 국내 여행 유튜버, 설명란에 무단·법적 경고 없음(A 세션 확인). 편별 work 키 대신 크리에이터 단위 키를 쓴다.",
+      "cast": []
+    },
+    "longshort-sangga": {
+      "match": "상가의 안녕히살아보기",
+      "title_ko": "상가의 안녕히살아보기",
+      "year": null,
+      "kind": "youtube_creator",
+      "lane": "longshort",
+      "broadcaster": "상가의 안녕히살아보기",
+      "rights_tier": "preflight",
+      "rights_holder_ko": "상가의 안녕히살아보기",
+      "source_line_ko": "원본: 유튜브 채널 「상가의 안녕히살아보기」",
+      "watch_line_ko": "원본 영상은 「상가의 안녕히살아보기」 채널에서 보실 수 있습니다.",
+      "source_channel": "상가의 안녕히살아보기",
+      "locale_block": {
+        "ja": "롱투숏은 ko(냐옹시네마) 전용 — 2026-10-14 소유주 결정"
+      },
+      "note": "롱투숏(A 레인) 출처 크리에이터. 2026-10-14 소유주 결정으로 냐옹시네마가 롱투숏으로 전환되면서 등록. 국내 여행 유튜버, 설명란에 무단·법적 경고 없음(A 세션 확인). 편별 work 키 대신 크리에이터 단위 키를 쓴다.",
+      "cast": []
+    },
+    "longshort-kkujun": {
+      "match": "꾸준",
+      "title_ko": "꾸준",
+      "year": null,
+      "kind": "youtube_creator",
+      "lane": "longshort",
+      "broadcaster": "꾸준",
+      "rights_tier": "preflight",
+      "rights_holder_ko": "꾸준",
+      "source_line_ko": "원본: 유튜브 채널 「꾸준」",
+      "watch_line_ko": "원본 영상은 「꾸준」 채널에서 보실 수 있습니다.",
+      "source_channel": "꾸준",
+      "locale_block": {
+        "ja": "롱투숏은 ko(냐옹시네마) 전용 — 2026-10-14 소유주 결정"
+      },
+      "note": "롱투숏(A 레인) 출처 크리에이터. 2026-10-14 소유주 결정으로 냐옹시네마가 롱투숏으로 전환되면서 등록. 국내 여행 유튜버, 설명란에 무단·법적 경고 없음(A 세션 확인). 편별 work 키 대신 크리에이터 단위 키를 쓴다.",
+      "cast": []
+    },
+    "longshort-joetube": {
+      "match": "Joe튜브",
+      "title_ko": "Joe튜브",
+      "year": null,
+      "kind": "youtube_creator",
+      "lane": "longshort",
+      "broadcaster": "Joe튜브",
+      "rights_tier": "preflight",
+      "rights_holder_ko": "Joe튜브",
+      "source_line_ko": "원본: 유튜브 채널 「Joe튜브」",
+      "watch_line_ko": "원본 영상은 「Joe튜브」 채널에서 보실 수 있습니다.",
+      "source_channel": "Joe튜브",
+      "locale_block": {
+        "ja": "롱투숏은 ko(냐옹시네마) 전용 — 2026-10-14 소유주 결정"
+      },
+      "note": "롱투숏(A 레인) 출처 크리에이터. 2026-10-14 소유주 결정으로 냐옹시네마가 롱투숏으로 전환되면서 등록. 국내 여행 유튜버, 설명란에 무단·법적 경고 없음(A 세션 확인). 편별 work 키 대신 크리에이터 단위 키를 쓴다.",
+      "cast": []
+    },
+    "longshort-nomadshaun": {
+      "match": "노마드션",
+      "title_ko": "노마드션",
+      "year": null,
+      "kind": "youtube_creator",
+      "lane": "longshort",
+      "broadcaster": "노마드션",
+      "rights_tier": "preflight",
+      "rights_holder_ko": "노마드션",
+      "source_line_ko": "원본: 유튜브 채널 「노마드션」",
+      "watch_line_ko": "원본 영상은 「노마드션」 채널에서 보실 수 있습니다.",
+      "source_channel": "노마드션",
+      "locale_block": {
+        "ja": "롱투숏은 ko(냐옹시네마) 전용 — 2026-10-14 소유주 결정"
+      },
+      "note": "롱투숏(A 레인) 출처 크리에이터. 2026-10-14 소유주 결정으로 냐옹시네마가 롱투숏으로 전환되면서 등록. 국내 여행 유튜버, 설명란에 무단·법적 경고 없음(A 세션 확인). 편별 work 키 대신 크리에이터 단위 키를 쓴다.",
+      "cast": []
+    },
+    "longshort-santaeunji": {
+      "match": "산타은지",
+      "title_ko": "산타은지",
+      "year": null,
+      "kind": "youtube_creator",
+      "lane": "longshort",
+      "broadcaster": "산타은지",
+      "rights_tier": "preflight",
+      "rights_holder_ko": "산타은지",
+      "source_line_ko": "원본: 유튜브 채널 「산타은지」",
+      "watch_line_ko": "원본 영상은 「산타은지」 채널에서 보실 수 있습니다.",
+      "source_channel": "산타은지",
+      "locale_block": {
+        "ja": "롱투숏은 ko(냐옹시네마) 전용 — 2026-10-14 소유주 결정",
+        "ko": "2026-10-15 채널 설명 «모든 영상의 저작권은 산타은지에게 있으며 불펌을 금지합니다» 확인 → 사용 중지(롱투숏 A 세션)"
+      },
+      "note": "롱투숏(A 레인) 출처 크리에이터. 2026-10-14 소유주 결정으로 냐옹시네마가 롱투숏으로 전환되면서 등록. 국내 여행 유튜버, 설명란에 무단·법적 경고 없음(A 세션 확인). 편별 work 키 대신 크리에이터 단위 키를 쓴다. ★10-15 불펌 금지 문구 발견, ko 차단.",
+      "cast": []
+    },
+    "longshort-wonji": {
+      "match": "원지의하루",
+      "title_ko": "원지의하루",
+      "year": null,
+      "kind": "youtube_creator",
+      "lane": "longshort",
+      "broadcaster": "원지의하루",
+      "rights_tier": "preflight",
+      "rights_holder_ko": "원지의하루",
+      "source_line_ko": "원본: 유튜브 채널 「원지의하루」",
+      "watch_line_ko": "원본 영상은 「원지의하루」 채널에서 보실 수 있습니다.",
+      "source_channel": "원지의하루",
+      "locale_block": {
+        "ja": "롱투숏은 ko(냐옹시네마) 전용 — 2026-10-14 소유주 결정"
+      },
+      "note": "롱투숏(A 레인) 출처 크리에이터. 2026-10-14 소유주 결정으로 냐옹시네마가 롱투숏으로 전환되면서 등록. 국내 여행 유튜버, 설명란에 무단·법적 경고 없음(A 세션 확인). 편별 work 키 대신 크리에이터 단위 키를 쓴다.",
+      "cast": []
+    },
+    "longshort-mikeokay": {
+      "match": "Mike Okay",
+      "title_ko": "Mike Okay",
+      "year": null,
+      "kind": "youtube_creator",
+      "lane": "longshort",
+      "broadcaster": "Mike Okay",
+      "rights_tier": "preflight",
+      "rights_holder_ko": "Mike Okay",
+      "source_line_ko": "원본: 유튜브 채널 「Mike Okay」",
+      "watch_line_ko": "원본 영상은 「Mike Okay」 채널에서 보실 수 있습니다.",
+      "source_channel": "Mike Okay",
+      "locale_block": {
+        "ja": "롱투숏은 ko(냐옹시네마) 전용 — 2026-10-14 소유주 결정"
+      },
+      "note": "롱투숏(A 레인) 해외 셀프캠 크리에이터. 2026-10-15 소유주 지시(«셀프캠 여행 유튜버»)로 등록. 채널 소개·상위 3편 설명란에 재업로드 금지·법적 경고 없음(A 세션 확인).",
+      "cast": []
+    },
+    "longshort-markwiens": {
+      "match": "Mark Wiens",
+      "title_ko": "Mark Wiens",
+      "year": null,
+      "kind": "youtube_creator",
+      "lane": "longshort",
+      "broadcaster": "Mark Wiens",
+      "rights_tier": "preflight",
+      "rights_holder_ko": "Mark Wiens",
+      "source_line_ko": "원본: 유튜브 채널 「Mark Wiens」",
+      "watch_line_ko": "원본 영상은 「Mark Wiens」 채널에서 보실 수 있습니다.",
+      "source_channel": "Mark Wiens",
+      "locale_block": {
+        "ja": "롱투숏은 ko(냐옹시네마) 전용 — 2026-10-14 소유주 결정"
+      },
+      "note": "롱투숏(A 레인) 해외 셀프캠 크리에이터. 2026-10-15 소유주 지시(«셀프캠 여행 유튜버»)로 등록. 채널 소개·상위 3편 설명란에 재업로드 금지·법적 경고 없음(A 세션 확인).",
+      "cast": []
+    },
+    "longshort-davidsbeenhere": {
+      "match": "Davidsbeenhere",
+      "title_ko": "Davidsbeenhere",
+      "year": null,
+      "kind": "youtube_creator",
+      "lane": "longshort",
+      "broadcaster": "Davidsbeenhere",
+      "rights_tier": "preflight",
+      "rights_holder_ko": "Davidsbeenhere",
+      "source_line_ko": "원본: 유튜브 채널 「Davidsbeenhere」",
+      "watch_line_ko": "원본 영상은 「Davidsbeenhere」 채널에서 보실 수 있습니다.",
+      "source_channel": "Davidsbeenhere",
+      "locale_block": {
+        "ja": "롱투숏은 ko(냐옹시네마) 전용 — 2026-10-14 소유주 결정"
+      },
+      "note": "롱투숏(A 레인) 해외 셀프캠 크리에이터. 2026-10-15 소유주 지시(«셀프캠 여행 유튜버»)로 등록. 채널 소개·상위 3편 설명란에 재업로드 금지·법적 경고 없음(A 세션 확인).",
+      "cast": []
+    },
+    "longshort-haraldbaldr": {
+      "match": "Harald Baldr",
+      "title_ko": "Harald Baldr",
+      "year": null,
+      "kind": "youtube_creator",
+      "lane": "longshort",
+      "broadcaster": "Harald Baldr",
+      "rights_tier": "preflight",
+      "rights_holder_ko": "Harald Baldr",
+      "source_line_ko": "원본: 유튜브 채널 「Harald Baldr」",
+      "watch_line_ko": "원본 영상은 「Harald Baldr」 채널에서 보실 수 있습니다.",
+      "source_channel": "Harald Baldr",
+      "locale_block": {
+        "ja": "롱투숏은 ko(냐옹시네마) 전용 — 2026-10-14 소유주 결정"
+      },
+      "note": "롱투숏(A 레인) 해외 셀프캠 크리에이터. 2026-10-15 소유주 지시(«셀프캠 여행 유튜버»)로 등록. 채널 소개·상위 3편 설명란에 재업로드 금지·법적 경고 없음(A 세션 확인).",
+      "cast": []
+    },
+    "surounin-hanayama-daikichi-1969": {
+      "match": "素浪人 ?花山大吉|花山大吉|hanayama",
+      "title_ja": "素浪人 花山大吉",
+      "title_ko": "스로닌 하나야마 다이키치",
+      "title_en": "Surounin Hanayama Daikichi",
+      "year": 1969,
+      "kind": "drama",
+      "broadcaster": "NET（現・テレビ朝日）／東映",
+      "rights_tier": "preflight",
+      "rights_holder_ja": "東映",
+      "source_line_ja": "制作：東映／放送：NET（現・テレビ朝日）系｜「素浪人 花山大吉」(1969)",
+      "watch_line_ja": "本編は権利者の公式チャンネルで無料公開されています。",
+      "credit_ja": "「素浪人 花山大吉」はぜひフルバージョンでご覧になることをおすすめします。",
+      "official_free": "東映時代劇YouTube（東映公式チャンネル）",
+      "source_channel": "東映時代劇YouTube",
+      "source_channel_id": "UCJm60FFiYSH2mJONr6vnV_A",
+      "locale_block": {
+        "ko": "소유주 방침 2026-09-30: ko 채널은 한국 드라마만 올린다. 일본 작품의 ko 발행 금지."
+      },
+      "available_episodes": [
+        {
+          "ep": 1,
+          "id": "OB-gAyUPcDU",
+          "sec": 2868,
+          "region": "unrestricted"
+        },
+        {
+          "ep": 2,
+          "id": "YvvFqZDiXF0",
+          "sec": 2868,
+          "region": "unrestricted"
+        }
+      ],
+      "verified_by": "東映時代劇YouTube 公式 1話 설명란(배역·1969) + 現代ビジネス gendai.media/articles/-/131005(NET 1969-01~1970-12, 토 20시, 全104話) (2026-10-15)",
+      "cast": [
+        {
+          "name": "花山大吉",
+          "actor": "近衛十四郎",
+          "aliases": [
+            "大吉",
+            "旦那",
+            "花山"
+          ]
+        },
+        {
+          "name": "焼津の半次",
+          "actor": "品川隆二",
+          "aliases": [
+            "半次"
+          ]
+        },
+        {
+          "name": "お咲",
+          "actor": "",
+          "aliases": [
+            "お咲ちゃん"
+          ],
+          "note": "現代ビジネス gendai.media/articles/-/131005 «娘のお咲» — 1話 茶店の娘として登場(배우 미확인)"
+        },
+        {
+          "name": "月影兵庫",
+          "actor": "近衛十四郎",
+          "aliases": [
+            "月影"
+          ],
+          "note": "前作の主人公。1話で半次が花山大吉を兵庫と見間違える(東映 公式 1話 説明란 «月影兵庫に瓜二つ»)"
+        }
+      ],
+      "asr_fixes": {
+        "判事": "半次"
+      },
+      "cast_source": "東映時代劇YouTube 第1話 설명란 «焼津の半次(品川隆二)…花山大吉(近衛十四郎)» (2026-10-15 확인)",
+      "note": "月影兵庫 후속작(같은 주연·같은 半次). 1969년 1월~1970년 12월 NET 토요일 20시, 全104話. 第1話「世の中上には上がいた」. 65세+ 일본 남성 타겟 1순위 후속 소재(10-15 린박스 C)."
     }
   },
   "banned_broadcasters": [],
@@ -559,7 +1278,60 @@
       "ddpUfN9D2KY 遠山の金さん(1975) 第01話",
       "XuVxcwL2mpw 大奥(1983) 第01話",
       "zyhjJ05F9fs 長七郎天下ご免！第01話"
-    ]
+    ],
+    "modern_sources_2026_10_03": {
+      "_doc": "ja 현대극 공급처 전수(2026-10-03). 각 채널 1,000편까지 훑어 «지역 무제한 + 9~40분»만 셈.",
+      "ABEMA ドラマ": {
+        "id": "UCqqGoWAZPC0D9HgZnnngb6g",
+        "unrestricted": 31,
+        "note": "현대 드라마 1화 통편(35분)을 무료·무제한 공개. 사실상 ja 판 SBS Catch.",
+        "top": [
+          [
+            "nkRzpUgSRCE",
+            "わかっていても(横浜流星)",
+            1726526
+          ],
+          [
+            "FWdUAkj46OU",
+            "透明なわたしたち",
+            1319938
+          ],
+          [
+            "MUMqFia2ppU",
+            "警視庁麻薬取締課 MOGURA",
+            866339
+          ],
+          [
+            "CdUBdDnDY8s",
+            "死ぬほど愛して",
+            352789
+          ]
+        ]
+      },
+      "BUMPドラマ": {
+        "id": "UCDcBT1mhfPOtW3Obfu42pGg",
+        "unrestricted": 40,
+        "note": "★2026-10-03 정정: 日テレ 계열이 아니다. emole 주식회사가 운영하는 일본 최대 숏드라마 앱 「BUMP」의 공식 채널이다. 1~8화 묶음을 무료·무제한 공개한다. 「いじめをした側の親」341만 등 참교육·갈등 구조라 후킹이 세다. 가로 1920x1080, 우상단 BUMP 로고(y 50~165) 크롭 필요.",
+        "top": [
+          [
+            "PXvGIqaYDBs",
+            "娘がいじめをしていました",
+            3419010
+          ],
+          [
+            "wJejwLcq4j8",
+            "3000万稼げ！",
+            2768659
+          ],
+          [
+            "nMTUGRExX5E",
+            "偏差値クライシス",
+            1352462
+          ]
+        ]
+      },
+      "_empty": "テレ朝ドラマ・カンテレドラマニア・FIVEドラマ・フジテレビドラマ・シンドラ 는 무제한 0편(전부 JP 잠금). ytvドラマ 는 1편뿐."
+    }
   },
   "_scout_queue_ko": {
     "_doc": "SBS Catch 2,000편 전수(2026-10-03) → 지역 무제한 «드라마 장면» 219편 / 작품 67개. scripts/_scan-by-work.js <channelId> <pages> 로 작품별로 다시 뽑을 수 있다. ★다른 방송사·넷플릭스는 비어 있다(ko-channel-rejects-period-drama 메모의 표 참조).",
@@ -697,5 +1469,11 @@
       }
     ],
     "_trap": "★_scan-by-work.js 의 SKIP 정규식은 «예능·홍보»를 다 걸러 내지 못한다. 김부장 PEpAKxQNWB0 은 제목이 드라마처럼 보였지만 실제론 배우 밸런스게임 토크였다. 내려받은 뒤 반드시 프레임을 눈으로 보고 드라마 장면인지 확인할 것."
+  },
+  "holder_platform_blocks": {
+    "SBS": {
+      "instagram": "2026-10-12 소유주: SBS 예능팩토리가 며칠째 인스타 차단 — SBS 작품은 인스타로 보내지 않는다",
+      "facebook": "2026-10-12 소유주: 인스타와 같은 메타 권리 관리 — SBS 작품은 페이스북에도 보내지 않는다"
+    }
   }
 }
