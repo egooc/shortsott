@@ -137,7 +137,8 @@
       ],
       "source": "出典：首相官邸ホームページ（https://www.youtube.com/watch?v=_sBjgdWjPwg）を加工して作成",
       "face_check": "pending",
-      "note": "PDL 뼈대 블록 ①"
+      "note": "PDL 뼈대 블록 ①",
+      "origin": "kantei"
     },
     {
       "side": "ours",
@@ -153,7 +154,8 @@
       "phrases": [],
       "source": "出典：首相官邸ホームページ（https://www.youtube.com/watch?v=_sBjgdWjPwg）を加工して作成",
       "face_check": "pending",
-      "note": "PDL 뼈대 블록 ② 課題(農業・外食・財源)"
+      "note": "PDL 뼈대 블록 ② 課題(農業・外食・財源)",
+      "origin": "kantei"
     },
     {
       "side": "ours",
@@ -174,7 +176,8 @@
         "2年後に確実に税率を戻し"
       ],
       "source": "映像: 衆議院インターネット審議中継 2026.10.07 本会議",
-      "face_check": "pending"
+      "face_check": "pending",
+      "origin": "kokkai"
     },
     {
       "side": "other",
@@ -195,7 +198,8 @@
         "苦しいのはいまです"
       ],
       "source": "映像: 衆議院インターネット審議中継 2026.10.07 本会議",
-      "face_check": "pending"
+      "face_check": "pending",
+      "origin": "kokkai"
     },
     {
       "side": "ours",
@@ -214,7 +218,8 @@
       },
       "phrases": [],
       "source": "映像: 衆議院インターネット審議中継 2026.10.13 予算委員会",
-      "face_check": "pending"
+      "face_check": "pending",
+      "origin": "kokkai"
     }
   ],
   "sources": [
