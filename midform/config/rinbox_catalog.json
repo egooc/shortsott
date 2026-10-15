@@ -1249,6 +1249,86 @@
       },
       "cast_source": "東映時代劇YouTube 第1話 설명란 «焼津の半次(品川隆二)…花山大吉(近衛十四郎)» (2026-10-15 확인)",
       "note": "月影兵庫 후속작(같은 주연·같은 半次). 1969년 1월~1970년 12월 NET 토요일 20시, 全104話. 第1話「世の中上には上がいた」. 65세+ 일본 남성 타겟 1순위 후속 소재(10-15 린박스 C)."
+    },
+    "momotaro-zamurai-1976": {
+      "match": "桃太郎侍|momotaro",
+      "title_ja": "桃太郎侍",
+      "title_ko": "모모타로 사무라이",
+      "title_en": "Momotaro-zamurai",
+      "year": 1976,
+      "kind": "drama",
+      "broadcaster": "日本テレビ／東映",
+      "rights_tier": "preflight",
+      "rights_holder_ja": "東映",
+      "source_line_ja": "制作：東映／放送：日本テレビ系｜「桃太郎侍」(1976)",
+      "watch_line_ja": "本編は権利者の公式チャンネルで無料公開されています。",
+      "credit_ja": "「桃太郎侍」はぜひフルバージョンでご覧になることをおすすめします。",
+      "official_free": "東映時代劇YouTube（東映公式チャンネル）",
+      "source_channel": "東映時代劇YouTube",
+      "source_channel_id": "UCJm60FFiYSH2mJONr6vnV_A",
+      "locale_block": {
+        "ko": "소유주 방침 2026-09-30: ko 채널은 한국 드라마만 올린다. 일본 작품의 ko 발행 금지."
+      },
+      "available_episodes": [
+        {
+          "ep": 1,
+          "id": "t3WOGxojKuY",
+          "sec": 2794,
+          "region": "JP 다운로드 확인(10-15)"
+        },
+        {
+          "ep": 2,
+          "id": "wowwG6rdY_s",
+          "sec": 2794,
+          "region": "미확인"
+        }
+      ],
+      "verified_by": "東映時代劇YouTube 公式 1話 설명란(第1話「八百八町罷り通る」1976) + ja.wikipedia «桃太郎侍»(日本テレビ 1976-10-03~1981-09-27, 全258話, 第1話 同題) (2026-10-15)",
+      "cast": [
+        {
+          "name": "桃太郎",
+          "actor": "高橋英樹",
+          "aliases": [
+            "桃さん",
+            "桃太郎侍"
+          ]
+        },
+        {
+          "name": "玉川つばめ",
+          "actor": "野川由美子",
+          "aliases": [
+            "つばめ",
+            "太夫"
+          ]
+        },
+        {
+          "name": "伊之助",
+          "actor": "植木等",
+          "aliases": [
+            "猿の伊之助"
+          ]
+        },
+        {
+          "name": "仙太",
+          "actor": "雷門ケン坊",
+          "aliases": []
+        },
+        {
+          "name": "玉川すずめ",
+          "actor": "西川峰子",
+          "aliases": [
+            "すずめ"
+          ]
+        },
+        {
+          "name": "仁兵ヱ",
+          "actor": "深江章喜",
+          "aliases": []
+        }
+      ],
+      "asr_fixes": {},
+      "cast_source": "ja.wikipedia «桃太郎侍» 1976年版 主要キャスト (2026-10-15 확인)",
+      "note": "高橋英樹 주연. 1話: 스리 누명 쓴 仙太를 돕던 つばめ가 桃太郎에게 구조, 松平藩 お家騒動·若殿 身代わり(공식 설명란). 近衛十四郎 浪人물 소진 후 ja 다음 소재(10-15 린박스 C)."
     }
   },
   "banned_broadcasters": [],
