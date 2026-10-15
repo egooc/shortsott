@@ -90,7 +90,7 @@
 
 ## 6) 도구개발에 요청할 것
 
-- **松竹シネマPLUSシアター·東映時代劇YouTube 신규 업로드 감시:** 수·토에 Data API로 지역 제한·길이·설명란 기한을 읽어 «무제한 時代劇 본편 + 공개 창»을 C에게 알린다.
+- ✅ **완료(도구 bda95b6, scripts/jidaigeki_watch.py, 수·토 21:30 알림, 채널 목록 midform/config/jidaigeki_watch.json).** 원래 요청: **松竹シネマPLUSシアター·東映時代劇YouTube 신규 업로드 감시:** 수·토에 Data API로 지역 제한·길이·설명란 기한을 읽어 «무제한 時代劇 본편 + 공개 창»을 C에게 알린다.
 - **yt-search.js `hl=ja` 문제:** `hl=ja`로 요청하면 innertube가 쇼츠를 `videoRenderer`로 돌려줘서 0건이 나온다(10-16 실측). 지금은 `--gl JP --hl ko`로 우회했다.
 
 ## 7) 판정 계획
