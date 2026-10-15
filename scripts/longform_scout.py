@@ -1,6 +1,7 @@
 """롱폼 to 쇼츠(채널 A) 에셋 찾기 — «최근 롱폼이 100만 넘는데 남들이 쇼츠로 안 따는 채널».
 
   python scripts/longform_scout.py [--min 1000000] [--q "검색어,검색어"] [--period month|week] [--out path]
+  python scripts/longform_scout.py --check ID,ID   # 고른 소스 롱폼이 S7 하한(10만+·30일+)을 넘는지
 
 왜 (2026-10-13 소유주: «여기서 새로운 롱폼투쇼츠를 할거야», 전자책 2장):
   · 수요 판정은 «최신 롱폼이 100만+» 하나. 롱폼으로 100만이면 쇼츠로 따면 통한다.
@@ -50,8 +51,33 @@ def man(n: int) -> str:
     return f"{round(n / 1e4)}만" if n >= 1e4 else str(n)
 
 
+def check_sources(ids: list, min_views: int, min_days: int) -> int:
+    # S7(10-15 전자책 규칙집, 소유주 승인): 롱→숏 소스 롱폼은 조회수 10만+ 그리고 올린 지 30일 지난 것만(알고리즘 검증 끝난 것).
+    # 검색 결과(flat)엔 업로드 날짜가 없어서, 고른 소스만 한 편씩 메타데이터로 확인한다.
+    import datetime
+    bad = 0
+    today = datetime.date.today()
+    for vid in ids:
+        p = subprocess.run(["yt-dlp", "--js-runtimes", "node", "--skip-download", "--print",
+                            "%(view_count)s|%(upload_date)s|%(title)s", "https://www.youtube.com/watch?v=" + vid],
+                           capture_output=True, text=True, encoding="utf-8")
+        if p.returncode != 0 or "|" not in p.stdout:
+            print(f"? {vid}: 조회 실패 {p.stderr.strip()[-120:]}")
+            bad += 1
+            continue
+        views, up, title = p.stdout.strip().split("|", 2)
+        days = (today - datetime.datetime.strptime(up, "%Y%m%d").date()).days
+        ok = int(views) >= min_views and days >= min_days
+        bad += not ok
+        print(f"{'통과' if ok else '탈락'} {vid} · {man(int(views))} · {days}일 · {title[:50]}")
+    return bad
+
+
 def main():
     ap = argparse.ArgumentParser()
+    ap.add_argument("--check", help="소스 롱폼 영상 ID(쉼표)를 S7 하한으로 판정만 한다")
+    ap.add_argument("--check-views", type=int, default=100_000)
+    ap.add_argument("--check-days", type=int, default=30)
     ap.add_argument("--min", type=int, default=1_000_000)
     ap.add_argument("--q", default=DEFAULT_Q)
     ap.add_argument("--period", default="month", choices=["week", "month", "year"])
@@ -59,7 +85,10 @@ def main():
     # 해외 롱폼도 소스로 쓴다(10-13 소유주: 지구관측소는 국내·해외 섞어 카테고리로) — 한글 제목 조건을 끈다
     ap.add_argument("--any-lang", action="store_true")
     a = ap.parse_args()
-    qs = [q.strip() for q in a.q.split(",") if q.strip()]
+    if a.check:
+        sys.exit(1 if check_sources([v.strip() for v in a.check.split(",") if v.strip()],
+                                    a.check_views, a.check_days) else 0)
+    qs =[q.strip() for q in a.q.split(",") if q.strip()]
 
     jobs = [(q, ln) for q in qs for ln in ("long", "medium")]
     seen = {}
