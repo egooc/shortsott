@@ -1,0 +1,5 @@
+{
+  "_note": "우리 채널 이름·핸들 — dup-check 가 검색 결과에서 «우리 편»을 가려낼 때 쓴다. youtube_upload_profiles.json 의 channelTitle 도 자동으로 합친다(이름이 바뀐 채널은 여기 새 이름을 둔다). N100 채널은 N100 세션이 채워 넣는다.",
+  "names": ["沼落ちシネマ", "지구관측소", "냐옹시네마", "최애모먼트", "쓸모연구소", "Mansa", "쟁점 브리핑", "쟁점브리핑", "너의사연은"],
+  "handles": ["@numaochicinema", "@지구관측소", "@ssul-mo-lab", "@mansa-d9o"]
+}
