@@ -1,0 +1,782 @@
+{
+  "lang": "ko",
+  "n": 20,
+  "stt_used": 0,
+  "stt_minutes": 0.0,
+  "skipped": 0,
+  "stopped": true,
+  "rows": [
+    {
+      "id": "C8pIZALXy0U",
+      "views": 3682386,
+      "sec": 31,
+      "source": "auto",
+      "speech_share": 0.194,
+      "chars_per_min": 44.5,
+      "first_speech_sec": 4.08,
+      "n_sentences": 2,
+      "avg_sentence_chars": 11.5,
+      "first_sentence": "이들도我的話我的愛是我為你付出的愛我的話我一",
+      "first_type": "statement",
+      "last_sentence": "ช",
+      "ending_cta": false,
+      "ending_question": false,
+      "endings": [
+        [
+          "我一",
+          1
+        ],
+        [
+          "ช",
+          1
+        ]
+      ],
+      "title_chars": 10,
+      "title_digit": false,
+      "title_q": false,
+      "title_excl": false,
+      "title_hashtags": 0,
+      "title_bracket": false,
+      "title_emoji": false,
+      "like_rate": 0.0121,
+      "comment_rate": 0.00044,
+      "group": "top"
+    },
+    {
+      "id": "dggNEhqI7cg",
+      "views": 43708,
+      "sec": 73,
+      "source": "none",
+      "speech_share": 0.0,
+      "chars_per_min": 0.0,
+      "first_speech_sec": null,
+      "n_sentences": 0,
+      "avg_sentence_chars": null,
+      "first_sentence": "",
+      "first_type": null,
+      "last_sentence": "",
+      "ending_cta": false,
+      "ending_question": false,
+      "endings": [],
+      "title_chars": 12,
+      "title_digit": true,
+      "title_q": true,
+      "title_excl": false,
+      "title_hashtags": 0,
+      "title_bracket": false,
+      "title_emoji": false,
+      "like_rate": 0.0086,
+      "comment_rate": 0.00037,
+      "group": "bottom"
+    },
+    {
+      "id": "iErdqmxnv40",
+      "views": 827922,
+      "sec": 37,
+      "source": "auto",
+      "speech_share": 0.806,
+      "chars_per_min": 170.3,
+      "first_speech_sec": 1.0,
+      "n_sentences": 13,
+      "avg_sentence_chars": 8.1,
+      "first_sentence": "집중해.",
+      "first_type": "statement",
+      "last_sentence": "아, 그런 재미 뽑으려다가 진짜 3천리로 나가는 거야.",
+      "ending_cta": false,
+      "ending_question": false,
+      "endings": [
+        [
+          "했어",
+          2
+        ],
+        [
+          "중해",
+          1
+        ],
+        [
+          "이야",
+          1
+        ],
+        [
+          "르다",
+          1
+        ],
+        [
+          "빨라",
+          1
+        ]
+      ],
+      "title_chars": 27,
+      "title_digit": true,
+      "title_q": false,
+      "title_excl": false,
+      "title_hashtags": 0,
+      "title_bracket": true,
+      "title_emoji": false,
+      "like_rate": 0.0046,
+      "comment_rate": 9e-05,
+      "group": "top"
+    },
+    {
+      "id": "2yEZEEvx6wI",
+      "views": 39545,
+      "sec": 30,
+      "source": "none",
+      "speech_share": 0.0,
+      "chars_per_min": 0.0,
+      "first_speech_sec": null,
+      "n_sentences": 0,
+      "avg_sentence_chars": null,
+      "first_sentence": "",
+      "first_type": null,
+      "last_sentence": "",
+      "ending_cta": false,
+      "ending_question": false,
+      "endings": [],
+      "title_chars": 15,
+      "title_digit": false,
+      "title_q": false,
+      "title_excl": false,
+      "title_hashtags": 0,
+      "title_bracket": false,
+      "title_emoji": false,
+      "like_rate": 0.006,
+      "comment_rate": 0.00013,
+      "group": "bottom"
+    },
+    {
+      "id": "MIsx8wYliME",
+      "views": 626207,
+      "sec": 29,
+      "source": "speechmatics",
+      "speech_share": 0.524,
+      "chars_per_min": 86.9,
+      "first_speech_sec": 1.28,
+      "n_sentences": 4,
+      "avg_sentence_chars": 10.5,
+      "first_sentence": "아이워드와 그 복귀라워드 아이미스 참동야구장.",
+      "first_type": "statement",
+      "last_sentence": "조루젠 감상.",
+      "ending_cta": false,
+      "ending_question": false,
+      "endings": [
+        [
+          "구장",
+          1
+        ],
+        [
+          "코드",
+          1
+        ],
+        [
+          "우스",
+          1
+        ],
+        [
+          "감상",
+          1
+        ]
+      ],
+      "title_chars": 12,
+      "title_digit": false,
+      "title_q": false,
+      "title_excl": false,
+      "title_hashtags": 0,
+      "title_bracket": false,
+      "title_emoji": false,
+      "like_rate": 0.0128,
+      "comment_rate": 0.00027,
+      "group": "top"
+    },
+    {
+      "id": "CoCq6KsvRPs",
+      "views": 35678,
+      "sec": 48,
+      "source": "none",
+      "speech_share": 0.0,
+      "chars_per_min": 0.0,
+      "first_speech_sec": null,
+      "n_sentences": 0,
+      "avg_sentence_chars": null,
+      "first_sentence": "",
+      "first_type": null,
+      "last_sentence": "",
+      "ending_cta": false,
+      "ending_question": false,
+      "endings": [],
+      "title_chars": 9,
+      "title_digit": false,
+      "title_q": true,
+      "title_excl": false,
+      "title_hashtags": 0,
+      "title_bracket": false,
+      "title_emoji": false,
+      "like_rate": 0.0078,
+      "comment_rate": 0.00034,
+      "group": "bottom"
+    },
+    {
+      "id": "uhTmoHL1KN0",
+      "views": 622396,
+      "sec": 21,
+      "source": "auto",
+      "speech_share": 1,
+      "chars_per_min": 202.9,
+      "first_speech_sec": 0.24,
+      "n_sentences": 12,
+      "avg_sentence_chars": 5.9,
+      "first_sentence": "왜?",
+      "first_type": "question",
+      "last_sentence": "M.",
+      "ending_cta": false,
+      "ending_question": false,
+      "endings": [
+        [
+          " 마",
+          3
+        ],
+        [
+          "왜",
+          1
+        ],
+        [
+          "운데",
+          1
+        ],
+        [
+          "가워",
+          1
+        ],
+        [
+          "않아",
+          1
+        ]
+      ],
+      "title_chars": 19,
+      "title_digit": false,
+      "title_q": false,
+      "title_excl": false,
+      "title_hashtags": 0,
+      "title_bracket": false,
+      "title_emoji": false,
+      "like_rate": 0.0049,
+      "comment_rate": 0.00012,
+      "group": "top"
+    },
+    {
+      "id": "4ilzqDGXJJs",
+      "views": 34002,
+      "sec": 37,
+      "source": "none",
+      "speech_share": 0.0,
+      "chars_per_min": 0.0,
+      "first_speech_sec": null,
+      "n_sentences": 0,
+      "avg_sentence_chars": null,
+      "first_sentence": "",
+      "first_type": null,
+      "last_sentence": "",
+      "ending_cta": false,
+      "ending_question": false,
+      "endings": [],
+      "title_chars": 15,
+      "title_digit": false,
+      "title_q": false,
+      "title_excl": false,
+      "title_hashtags": 0,
+      "title_bracket": false,
+      "title_emoji": false,
+      "like_rate": 0.0085,
+      "comment_rate": 0.00015,
+      "group": "bottom"
+    },
+    {
+      "id": "63lwvjBhtC0",
+      "views": 556237,
+      "sec": 15,
+      "source": "auto",
+      "speech_share": 0.981,
+      "chars_per_min": 212.0,
+      "first_speech_sec": 1.04,
+      "n_sentences": 4,
+      "avg_sentence_chars": 13.2,
+      "first_sentence": "그거 알지?",
+      "first_type": "question",
+      "last_sentence": "따라다라 [웃음] 따라다라다라 따라다라",
+      "ending_cta": false,
+      "ending_question": false,
+      "endings": [
+        [
+          "알지",
+          1
+        ],
+        [
+          "줄게",
+          1
+        ],
+        [
+          "는지",
+          1
+        ],
+        [
+          "다라",
+          1
+        ]
+      ],
+      "title_chars": 9,
+      "title_digit": false,
+      "title_q": false,
+      "title_excl": false,
+      "title_hashtags": 0,
+      "title_bracket": false,
+      "title_emoji": false,
+      "like_rate": 0.0095,
+      "comment_rate": 0.00022,
+      "group": "top"
+    },
+    {
+      "id": "1Rg0TJOhd8A",
+      "views": 32122,
+      "sec": 27,
+      "source": "none",
+      "speech_share": 0.0,
+      "chars_per_min": 0.0,
+      "first_speech_sec": null,
+      "n_sentences": 0,
+      "avg_sentence_chars": null,
+      "first_sentence": "",
+      "first_type": null,
+      "last_sentence": "",
+      "ending_cta": false,
+      "ending_question": false,
+      "endings": [],
+      "title_chars": 22,
+      "title_digit": true,
+      "title_q": false,
+      "title_excl": false,
+      "title_hashtags": 0,
+      "title_bracket": false,
+      "title_emoji": false,
+      "like_rate": 0.0137,
+      "comment_rate": 0.00028,
+      "group": "bottom"
+    },
+    {
+      "id": "xT6D10hgrSU",
+      "views": 478767,
+      "sec": 60,
+      "source": "speechmatics",
+      "speech_share": 0.413,
+      "chars_per_min": 97.0,
+      "first_speech_sec": 2.54,
+      "n_sentences": 17,
+      "avg_sentence_chars": 5.7,
+      "first_sentence": "나도",
+      "first_type": "statement",
+      "last_sentence": "조금씩 너에게 다가가.",
+      "ending_cta": false,
+      "ending_question": false,
+      "endings": [
+        [
+          "나도",
+          1
+        ],
+        [
+          "렇지",
+          1
+        ],
+        [
+          " 듯",
+          1
+        ],
+        [
+          "너무",
+          1
+        ],
+        [
+          "갑네",
+          1
+        ]
+      ],
+      "title_chars": 12,
+      "title_digit": false,
+      "title_q": false,
+      "title_excl": false,
+      "title_hashtags": 0,
+      "title_bracket": false,
+      "title_emoji": false,
+      "like_rate": 0.0161,
+      "comment_rate": 0.00023,
+      "group": "top"
+    },
+    {
+      "id": "EktuTaWo-Zg",
+      "views": 31926,
+      "sec": 24,
+      "source": "none",
+      "speech_share": 0.0,
+      "chars_per_min": 0.0,
+      "first_speech_sec": null,
+      "n_sentences": 0,
+      "avg_sentence_chars": null,
+      "first_sentence": "",
+      "first_type": null,
+      "last_sentence": "",
+      "ending_cta": false,
+      "ending_question": false,
+      "endings": [],
+      "title_chars": 20,
+      "title_digit": false,
+      "title_q": true,
+      "title_excl": false,
+      "title_hashtags": 0,
+      "title_bracket": false,
+      "title_emoji": false,
+      "like_rate": 0.0057,
+      "comment_rate": 6e-05,
+      "group": "bottom"
+    },
+    {
+      "id": "dK8RJ59sd-M",
+      "views": 352706,
+      "sec": 45,
+      "source": "auto",
+      "speech_share": 0.967,
+      "chars_per_min": 233.3,
+      "first_speech_sec": 2.2,
+      "n_sentences": 17,
+      "avg_sentence_chars": 10.3,
+      "first_sentence": "아, 뭐 하나 사가야 돼.",
+      "first_type": "statement",
+      "last_sentence": "M.",
+      "ending_cta": false,
+      "ending_question": false,
+      "endings": [
+        [
+          "응",
+          2
+        ],
+        [
+          " 돼",
+          1
+        ],
+        [
+          "래도",
+          1
+        ],
+        [
+          "할까",
+          1
+        ],
+        [
+          "갈까",
+          1
+        ]
+      ],
+      "title_chars": 10,
+      "title_digit": false,
+      "title_q": false,
+      "title_excl": false,
+      "title_hashtags": 0,
+      "title_bracket": false,
+      "title_emoji": false,
+      "like_rate": 0.0061,
+      "comment_rate": 0.0001,
+      "group": "top"
+    },
+    {
+      "id": "bpgP361BcWs",
+      "views": 29919,
+      "sec": 43,
+      "source": "none",
+      "speech_share": 0.0,
+      "chars_per_min": 0.0,
+      "first_speech_sec": null,
+      "n_sentences": 0,
+      "avg_sentence_chars": null,
+      "first_sentence": "",
+      "first_type": null,
+      "last_sentence": "",
+      "ending_cta": false,
+      "ending_question": false,
+      "endings": [],
+      "title_chars": 15,
+      "title_digit": false,
+      "title_q": false,
+      "title_excl": false,
+      "title_hashtags": 0,
+      "title_bracket": false,
+      "title_emoji": true,
+      "like_rate": 0.0064,
+      "comment_rate": 0.0001,
+      "group": "bottom"
+    },
+    {
+      "id": "asEWDi9jVIk",
+      "views": 314489,
+      "sec": 22,
+      "source": "auto",
+      "speech_share": 0.864,
+      "chars_per_min": 163.6,
+      "first_speech_sec": 0.24,
+      "n_sentences": 2,
+      "avg_sentence_chars": 30.0,
+      "first_sentence": "원투쓰 오케이 노 프리스 저기 프리스타일로 좀 찍고 싶다고 얘기 좀 해 줘",
+      "first_type": "statement",
+      "last_sentence": "[웃음] 내 의지가 아예 없잖아 이거는 잘못 걸라도 한참 잘못 걸른 거 같은데",
+      "ending_cta": false,
+      "ending_question": false,
+      "endings": [
+        [
+          " 줘",
+          1
+        ],
+        [
+          "은데",
+          1
+        ]
+      ],
+      "title_chars": 10,
+      "title_digit": false,
+      "title_q": false,
+      "title_excl": false,
+      "title_hashtags": 0,
+      "title_bracket": false,
+      "title_emoji": false,
+      "like_rate": 0.0086,
+      "comment_rate": 0.00014,
+      "group": "top"
+    },
+    {
+      "id": "t985cvzQIEI",
+      "views": 23350,
+      "sec": 24,
+      "source": "none",
+      "speech_share": 0.0,
+      "chars_per_min": 0.0,
+      "first_speech_sec": null,
+      "n_sentences": 0,
+      "avg_sentence_chars": null,
+      "first_sentence": "",
+      "first_type": null,
+      "last_sentence": "",
+      "ending_cta": false,
+      "ending_question": false,
+      "endings": [],
+      "title_chars": 4,
+      "title_digit": false,
+      "title_q": false,
+      "title_excl": false,
+      "title_hashtags": 0,
+      "title_bracket": false,
+      "title_emoji": true,
+      "like_rate": 0.0076,
+      "comment_rate": 0.00034,
+      "group": "bottom"
+    },
+    {
+      "id": "nAWSLYE2VNA",
+      "views": 299362,
+      "sec": 33,
+      "source": "auto",
+      "speech_share": 0.744,
+      "chars_per_min": 125.5,
+      "first_speech_sec": 0.16,
+      "n_sentences": 3,
+      "avg_sentence_chars": 23.0,
+      "first_sentence": "아보카도 흥미 요버트 아보카도",
+      "first_type": "statement",
+      "last_sentence": "아 요건 조금 안 맞다 못 먹겠어 요것다 밥을 말아먹는 거 같아 지금",
+      "ending_cta": false,
+      "ending_question": false,
+      "endings": [
+        [
+          "카도",
+          1
+        ],
+        [
+          "이야",
+          1
+        ],
+        [
+          "지금",
+          1
+        ]
+      ],
+      "title_chars": 15,
+      "title_digit": false,
+      "title_q": false,
+      "title_excl": false,
+      "title_hashtags": 0,
+      "title_bracket": true,
+      "title_emoji": false,
+      "like_rate": 0.0066,
+      "comment_rate": 0.00032,
+      "group": "top"
+    },
+    {
+      "id": "HU0TR6oqAso",
+      "views": 19978,
+      "sec": 61,
+      "source": "none",
+      "speech_share": 0.0,
+      "chars_per_min": 0.0,
+      "first_speech_sec": null,
+      "n_sentences": 0,
+      "avg_sentence_chars": null,
+      "first_sentence": "",
+      "first_type": null,
+      "last_sentence": "",
+      "ending_cta": false,
+      "ending_question": false,
+      "endings": [],
+      "title_chars": 14,
+      "title_digit": false,
+      "title_q": false,
+      "title_excl": false,
+      "title_hashtags": 0,
+      "title_bracket": false,
+      "title_emoji": false,
+      "like_rate": 0.0076,
+      "comment_rate": 0.00025,
+      "group": "bottom"
+    },
+    {
+      "id": "yhP2d8Jd9s8",
+      "views": 290698,
+      "sec": 52,
+      "source": "auto",
+      "speech_share": 0.844,
+      "chars_per_min": 182.3,
+      "first_speech_sec": 0.84,
+      "n_sentences": 15,
+      "avg_sentence_chars": 10.5,
+      "first_sentence": "크아상",
+      "first_type": "statement",
+      "last_sentence": "뭐랭크림 밤이 싹 합쳐졌을 때 오는 그 굉장히 강력한 그 한 포인트 한 끝이 있습니다.",
+      "ending_cta": false,
+      "ending_question": false,
+      "endings": [
+        [
+          "니다",
+          3
+        ],
+        [
+          "아상",
+          1
+        ],
+        [
+          "있다",
+          1
+        ],
+        [
+          "이야",
+          1
+        ],
+        [
+          "거야",
+          1
+        ]
+      ],
+      "title_chars": 22,
+      "title_digit": true,
+      "title_q": false,
+      "title_excl": false,
+      "title_hashtags": 0,
+      "title_bracket": false,
+      "title_emoji": false,
+      "like_rate": 0.0095,
+      "comment_rate": 0.0002,
+      "group": "top"
+    },
+    {
+      "id": "iQ-LA7XvlKU",
+      "views": 11725,
+      "sec": 28,
+      "source": "none",
+      "speech_share": 0.0,
+      "chars_per_min": 0.0,
+      "first_speech_sec": null,
+      "n_sentences": 0,
+      "avg_sentence_chars": null,
+      "first_sentence": "",
+      "first_type": null,
+      "last_sentence": "",
+      "ending_cta": false,
+      "ending_question": false,
+      "endings": [],
+      "title_chars": 12,
+      "title_digit": false,
+      "title_q": false,
+      "title_excl": false,
+      "title_hashtags": 0,
+      "title_bracket": false,
+      "title_emoji": false,
+      "like_rate": 0.0088,
+      "comment_rate": 0.0,
+      "group": "bottom"
+    }
+  ],
+  "diffs": [
+    {
+      "key": "title_q",
+      "top": 0.0,
+      "bottom": 0.3,
+      "effect": -0.6
+    },
+    {
+      "key": "title_bracket",
+      "top": 0.2,
+      "bottom": 0.0,
+      "effect": 0.4
+    },
+    {
+      "key": "title_emoji",
+      "top": 0.0,
+      "bottom": 0.2,
+      "effect": -0.4
+    },
+    {
+      "key": "like_rate",
+      "top": 0.009,
+      "bottom": 0.008,
+      "effect": 0.35
+    },
+    {
+      "key": "sec",
+      "top": 32.0,
+      "bottom": 33.5,
+      "effect": -0.34
+    },
+    {
+      "key": "title_chars",
+      "top": 12.0,
+      "bottom": 14.5,
+      "effect": 0.15
+    },
+    {
+      "key": "comment_rate",
+      "top": 0.0,
+      "bottom": 0.0,
+      "effect": 0.1
+    },
+    {
+      "key": "title_hashtags",
+      "top": 0.0,
+      "bottom": 0.0,
+      "effect": 0.0
+    },
+    {
+      "key": "title_digit",
+      "top": 0.2,
+      "bottom": 0.2,
+      "effect": 0.0
+    },
+    {
+      "key": "title_excl",
+      "top": 0.0,
+      "bottom": 0.0,
+      "effect": 0.0
+    }
+  ]
+}
