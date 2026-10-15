@@ -88,29 +88,57 @@ function isLikelyJsOperatorLine(line) {
   return /\?\?|\?\.|\?\s*:/.test(trimmed) && !/[가-힣ぁ-んァ-ン一-龥]\?{2,}|\?{2,}[가-힣ぁ-んァ-ン一-龥]/.test(trimmed);
 }
 
+// 한글 음절 조각(뱀·꾩 …)은 정상 낱말에도 나온다(뱀파이어·도마뱀). 깨진 글은 조각 옆에 ?·�·한자·다른 조각이 붙으므로
+// 이웃 글자가 그런 것일 때만 잡는다. 한자 조각(梨·蹂 …)은 예전처럼 어디에 있어도 잡는다.
+const HANGUL_SYLLABLE = /[가-힣]/;
+function isMojibakeNeighbor(ch) {
+  if (!ch) return false;
+  if (ch === '?' || ch === '�') return true;
+  if (/[一-龥]/.test(ch)) return true;
+  return SUSPICIOUS_FRAGMENTS.includes(ch);
+}
+function fragmentHit(line, fragment) {
+  let from = 0;
+  while (true) {
+    const i = line.indexOf(fragment, from);
+    if (i < 0) return false;
+    if (!HANGUL_SYLLABLE.test(fragment) || fragment.startsWith('?')) return true;
+    if (isMojibakeNeighbor(line[i - 1]) || isMojibakeNeighbor(line[i + fragment.length])) return true;
+    from = i + fragment.length;
+  }
+}
+
+// 정규식 리터럴 줄(= /…/, (/…/, .test( , new RegExp()에서는 ? 가 수량자다 — 개수 규칙에서 뺀다.
+function isLikelyRegexLine(line) {
+  return /(=\s*\/|\(\/|\.test\(|new RegExp\()/.test(line) && /\/[gimsuy]*[,;)\s]|\/[gimsuy]*$/.test(line.trim());
+}
+
 function inspectLine(line) {
   const trimmed = line.trim();
   if (trimmed.includes('"?? ?? ??" is acceptable')) return '';
   if (trimmed.startsWith('- Forbidden endings are absent:')) return '';
 
-  const codepointReason = hasSuspiciousCodepoint(line);
+  // 깨진 글자 제거용 정규식(/�/g)은 의도된 리터럴이다.
+  const codepointReason = /\/�\/[gimsuy]*/.test(line) ? '' : hasSuspiciousCodepoint(line);
   if (codepointReason) return codepointReason;
 
   for (const fragment of SUSPICIOUS_FRAGMENTS) {
-    if (line.includes(fragment)) return `fragment ${fragment}`;
+    if (fragmentHit(line, fragment)) return `fragment ${fragment}`;
   }
 
-  const questionCount = (line.match(/\?/g) || []).length;
-  if (line.includes('???')) return 'literal triple question marks';
-  const hasTernaryShape = line.includes(' ? ') && line.includes(' : ');
-  if (questionCount >= 4 && !line.includes('http') && !hasTernaryShape && !isLikelyJsOperatorLine(line)) return 'too many question marks';
-  if (/[?]{2,}\s*[가-힣ぁ-んァ-ン一-龥]|[가-힣ぁ-んァ-ン一-龥]\s*[?]{2,}/.test(line)) return 'question marks near CJK text';
+  // 따옴표로 감싼 '????' 는 연도 모름 자리표시다(rival-films·whitelist-from-list).
+  const stripped = line.replace(/(['"`])\?{4}\1/g, '$1$1');
+  const questionCount = (stripped.match(/\?/g) || []).length;
+  if (stripped.includes('???')) return 'literal triple question marks';
+  const hasTernaryShape = stripped.includes(' ? ') && stripped.includes(' : ');
+  if (questionCount >= 4 && !stripped.includes('http') && !hasTernaryShape && !isLikelyJsOperatorLine(stripped) && !isLikelyRegexLine(stripped)) return 'too many question marks';
+  if (/[?]{2,}\s*[가-힣ぁ-んァ-ン一-龥]|[가-힣ぁ-んァ-ン一-龥]\s*[?]{2,}/.test(stripped)) return 'question marks near CJK text';
 
   return '';
 }
 
 function main() {
-  const files = SCAN_TARGETS.flatMap((target) => walk(path.join(ROOT, target)));
+  const files = SCAN_TARGETS.flatMap((target) => walk(path.isAbsolute(target) ? target : path.join(ROOT, target)));
   const findings = [];
 
   for (const file of files) {
