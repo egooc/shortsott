@@ -1,0 +1,598 @@
+[
+  {
+    "idx": 1,
+    "keep": false,
+    "drop_reason": "実戦で斬れる人数の上限を裏づけられない",
+    "overlap_hr": null,
+    "answer": "刀には、遺体などを用いた試し斬りの結果を刻んだ截断銘がある。ただし、その記録から戦闘中に何人を斬れるかは判断できない。",
+    "hook": "試し斬りの記録でも、実戦で斬れる人数は分かりません。",
+    "period": "両方",
+    "sources": [
+      {
+        "url": "https://www.meihaku.jp/sword-basic/saidanmei/",
+        "title": "截断銘とは",
+        "publisher": "名古屋刀剣博物館・名古屋刀剣ワールド"
+      }
+    ],
+    "confidence": "low",
+    "punch": 5
+  },
+  {
+    "idx": 5,
+    "keep": false,
+    "drop_reason": "左利きの武士の具体的な運用を裏づけ不足",
+    "overlap_hr": null,
+    "answer": "博物館の解説では、刀を左腰に差す作法が紹介されている。ただし、左利きの武士が全員右手に矯正された、あるいは右腰に差したと一律に断定できる史料は今回確認できなかった。",
+    "hook": "左利きだから右腰に差した、とは断定できません。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://samidare.jp/yoshiaki/lavo?ca=4&o=sd&off=324&p=list",
+        "title": "歴史館からのお知らせ「右利きルールの話」",
+        "publisher": "最上義光歴史館"
+      }
+    ],
+    "confidence": "low",
+    "punch": 4
+  },
+  {
+    "idx": 9,
+    "keep": false,
+    "drop_reason": "現代の製作日数を戦国・江戸へ遡及できない",
+    "overlap_hr": null,
+    "answer": "現代の瑞泉鍛刀所には、一振りの鍛刀に20日から1カ月を要するという紹介がある。しかし、これを戦国・江戸の標準日数にはできず、鍛刀と研磨の工程も区別する必要がある。",
+    "hook": "刀一本の製作日数は、現代の数字では答えられません。",
+    "period": "両方",
+    "sources": [
+      {
+        "url": "https://www.touken.or.jp/museum/sword/step.html",
+        "title": "作刀工程と研磨",
+        "publisher": "日本美術刀剣保存協会・刀剣博物館"
+      },
+      {
+        "url": "https://www.mitsuipr.com/sights/encyclopedia/KA-005/",
+        "title": "日本刀の鍛刀技術を継承する日本製鋼所",
+        "publisher": "三井広報委員会"
+      }
+    ],
+    "confidence": "low",
+    "punch": 3
+  },
+  {
+    "idx": 13,
+    "keep": false,
+    "drop_reason": "他流試合と看板強奪を同一視できない",
+    "overlap_hr": null,
+    "answer": "武者修行で他流の武芸者と試合をすることはあった。一方、道場を襲って看板を奪うという定番場面が一般的だったことは、確認した出典では裏づけられない。",
+    "hook": "他流試合はありましたが、看板強奪まで本当とは限りません。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://kotobank.jp/word/%E6%AD%A6%E8%80%85%E4%BF%AE%E8%A1%8C-140464",
+        "title": "武者修行",
+        "publisher": "小学館『日本大百科全書』／コトバンク"
+      }
+    ],
+    "confidence": "mid",
+    "punch": 4
+  },
+  {
+    "idx": 17,
+    "keep": false,
+    "drop_reason": "創作の成立は確認できるが、制圧能力は裏づけられない",
+    "overlap_hr": null,
+    "answer": "銭形平次は野村胡堂が生み出した架空の人物で、投げ銭も作品の趣向である。銭を投げて犯人を倒す実在の捕物技術として、その有効性を示す出典は確認できなかった。",
+    "hook": "平次の投げ銭は、実在の捕物記録ではなく小説の技です。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://kodo-araebisu.jp/",
+        "title": "野村胡堂・あらえびす記念館",
+        "publisher": "野村胡堂・あらえびす記念館"
+      },
+      {
+        "url": "https://www.zenitaka.co.jp/company/zenigata.html",
+        "title": "「銭形平次」誕生秘話",
+        "publisher": "錢高組"
+      }
+    ],
+    "confidence": "mid",
+    "punch": 5
+  },
+  {
+    "idx": 21,
+    "keep": false,
+    "drop_reason": "遠山本人の潜入捜査を裏づける史料を確認できない",
+    "overlap_hr": null,
+    "answer": "江戸の町奉行所では、三廻り同心などが巡回・探索・逮捕を担当した。この職務分担だけから、遠山景元本人が町人姿で潜入した、あるいは絶対にしなかったとは断定できない。",
+    "hook": "江戸の捜査の実務を担ったのは、奉行配下の同心でした。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://kotobank.jp/word/%E5%90%8C%E5%BF%83-103740",
+        "title": "同心",
+        "publisher": "小学館『日本大百科全書』ほか／コトバンク"
+      }
+    ],
+    "confidence": "mid",
+    "punch": 4
+  },
+  {
+    "idx": 25,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "小伝馬町牢屋敷は主に未決の者を留置する施設で、獄舎は身分によって分かれていた。庶民向けの大牢・二間牢、一定の武士や僧侶・医師などを収める揚屋があり、取調べや拷問の施設も置かれた。",
+    "hook": "江戸では、牢屋に入っても身分で部屋が分かれました。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://www.chuoku-machikadotenjikan.jp/tenjikan/royashiki/",
+        "title": "小伝馬町牢屋敷展示館",
+        "publisher": "中央区まちかど展示館運営協議会"
+      }
+    ],
+    "confidence": "high",
+    "punch": 4
+  },
+  {
+    "idx": 29,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "辻斬りは、刀の切れ味を試すなどのために通行人を斬る犯罪だった。1742年の公事方御定書では、引き回しのうえ死罪とする重い処罰が定められていた。",
+    "hook": "辻斬りは武士の特権ではなく、引き回しのうえ死罪でした。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://kotobank.jp/word/%E8%BE%BB%E6%96%AC-1186446",
+        "title": "辻斬",
+        "publisher": "平凡社『改訂新版 世界大百科事典』／コトバンク"
+      }
+    ],
+    "confidence": "high",
+    "punch": 3
+  },
+  {
+    "idx": 33,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "将軍の居所である殿中では、抜刀は厳しく禁じられていた。浅野長矩の刃傷は朝廷の使者を迎える重要な儀礼の最中に起き、用いたのは殿中で携帯する小刀だった。",
+    "hook": "松の廊下で浅野が抜いたのは、実は小さな刀でした。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://www2.ntj.jac.go.jp/dglib/contents/learn/edc21/haikei/jidai1/ji1b.html",
+        "title": "赤穂事件―殿中における刃傷とは",
+        "publisher": "日本芸術文化振興会・文化デジタルライブラリー"
+      }
+    ],
+    "confidence": "high",
+    "punch": 4
+  },
+  {
+    "idx": 37,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "再仕官の難しさを浪人全員について数値化することはできないが、他家への奉公そのものを禁じる「奉公構」という処分があった。単なる失職と、この処分を受けた場合は分けて考える必要がある。",
+    "hook": "浪人には、次の主君に仕えることまで禁じられた人がいました。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://kotobank.jp/word/%E5%A5%89%E5%85%AC%E6%A7%8B-1413932",
+        "title": "奉公構",
+        "publisher": "小学館『精選版 日本国語大辞典』・平凡社『世界大百科事典』／コトバンク"
+      }
+    ],
+    "confidence": "high",
+    "punch": 4
+  },
+  {
+    "idx": 41,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "「拙者」は実際に使われた一人称で、主に武士が用いた。もとは自分をへりくだっていう言葉で、時代が下ると目下に対しても使われた。",
+    "hook": "侍らしい「拙者」は、もとは自分をへりくだる言葉でした。",
+    "period": "両方",
+    "sources": [
+      {
+        "url": "https://kotobank.jp/word/%E6%8B%99%E8%80%85-548148",
+        "title": "拙者",
+        "publisher": "小学館『精選版 日本国語大辞典』／コトバンク"
+      }
+    ],
+    "confidence": "high",
+    "punch": 3
+  },
+  {
+    "idx": 45,
+    "keep": false,
+    "drop_reason": "中世の髻切の説明を江戸の髷へ直結できない",
+    "overlap_hr": null,
+    "answer": "中世の「髻切」は、髻を切って烏帽子を着けられなくするなど、身分を示す姿を損なう侮辱だった。ただし、この説明をそのまま江戸時代の髷切りの場面全般へ当てはめることはできない。",
+    "hook": "中世には、髪を切られると烏帽子まで着けにくくなりました。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://kotobank.jp/word/%E9%AB%BB%E5%88%87-1211579",
+        "title": "髻切",
+        "publisher": "平凡社『改訂新版 世界大百科事典』／コトバンク"
+      }
+    ],
+    "confidence": "mid",
+    "punch": 4
+  },
+  {
+    "idx": 49,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "将軍の食事の毒見は実際に行われていた。東京都立図書館所蔵の江戸城本丸の図面解説では、「笹の間」が毒見をする場所だったと説明されている。",
+    "hook": "将軍の毒見は本当で、江戸城にはそのための部屋もありました。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://archive.library.metro.tokyo.lg.jp/da/detail?tilcod=0000000002-00006683",
+        "title": "御本丸御膳建拾畳之間笹之間､御側御用人衆部屋御側衆御談部屋下御納戸中御湯殿御拭板之間御薬部屋御新廊下地絵図",
+        "publisher": "東京都立図書館"
+      }
+    ],
+    "confidence": "high",
+    "punch": 4
+  },
+  {
+    "idx": 53,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "御庭番は徳川吉宗の時代に設けられ、日常は江戸城の門や庭の警備などを担当した。一方で、将軍らの命令を受け、大名の動向や政治の実情などを秘密裏に調べる役目も担った。",
+    "hook": "将軍の密偵・御庭番は、普段は城の警備もしていました。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://kotobank.jp/word/%E5%BE%A1%E5%BA%AD%E7%95%AA-453751",
+        "title": "御庭番",
+        "publisher": "小学館『日本大百科全書』・平凡社『百科事典マイペディア』／コトバンク"
+      }
+    ],
+    "confidence": "high",
+    "punch": 4
+  },
+  {
+    "idx": 57,
+    "keep": false,
+    "drop_reason": "上座・下座と畳配置を結びつける具体的根拠が不足",
+    "overlap_hr": null,
+    "answer": "畳には、吉凶によって敷き方を変える風習があった。ただし、畳の継ぎ目や向きから上座・下座を一律に判定できるという規則は、確認した出典では裏づけられない。",
+    "hook": "畳は部屋を埋めるだけでなく、吉凶で敷き替える風習もありました。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://kotobank.jp/word/%E7%95%B3-93406",
+        "title": "畳",
+        "publisher": "小学館『日本大百科全書』ほか／コトバンク"
+      }
+    ],
+    "confidence": "mid",
+    "punch": 3
+  },
+  {
+    "idx": 61,
+    "keep": false,
+    "drop_reason": "太鼓と鐘の使い分けを一律に説明する根拠が不足",
+    "overlap_hr": null,
+    "answer": "陣鐘は、戦場で軍勢の進退を知らせるために使われた。「太鼓なら前進、鐘なら退却」という固定的な使い分けを、戦国の軍勢全般に適用できる出典は確認できなかった。",
+    "hook": "陣鐘は、退却だけでなく軍勢の進退を知らせる道具でした。",
+    "period": "戦国",
+    "sources": [
+      {
+        "url": "https://museum.umic.jp/bunkazai/document2/083.php",
+        "title": "銅製陣鐘",
+        "publisher": "上田市"
+      }
+    ],
+    "confidence": "mid",
+    "punch": 3
+  },
+  {
+    "idx": 65,
+    "keep": false,
+    "drop_reason": "兜を固定する紐という説明にとどまり意外性が弱い",
+    "overlap_hr": null,
+    "answer": "兜の緒は、兜をかぶる際に用いる紐で、「忍緒」ともいう。「勝ち緒」という別名もあり、取り付け方は兜によって異なる。",
+    "hook": "「勝って兜の緒を締めよ」の緒は、兜を固定する紐です。",
+    "period": "戦国",
+    "sources": [
+      {
+        "url": "https://www.chiba-muse.or.jp/SONAN/kikaku/yoroi/sinobinoo.htm",
+        "title": "忍緒",
+        "publisher": "千葉県立総南博物館（旧サイト）"
+      }
+    ],
+    "confidence": "high",
+    "punch": 2
+  },
+  {
+    "idx": 69,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "1581年の鳥取城攻めでは、包囲によって兵糧が尽き、城内で木の根や草の根まで食べる状況になった。籠城一般の献立ではなく、鳥取城の具体例として扱うのが適切である。",
+    "hook": "鳥取城では、米が尽きると木や草の根まで食べていました。",
+    "period": "戦国",
+    "sources": [
+      {
+        "url": "https://www.cgr.mlit.go.jp/tottori/tono/25shisanmeguri/fudoki_h19/totorijyou/fukuro.html",
+        "title": "鳥取城築城と袋川―二回目の鳥取城攻略",
+        "publisher": "国土交通省中国地方整備局"
+      }
+    ],
+    "confidence": "high",
+    "punch": 4
+  },
+  {
+    "idx": 73,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "江戸の火消しは、延焼しそうな建物を取り壊して火の広がりを防ぐ「破壊消防」を行った。家を壊すのは、燃え移る先を減らして周囲を守るためだった。",
+    "hook": "江戸の火消しは、町を守るために家を壊していました。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://www.edotokyo.metro.tokyo.lg.jp/ja/basics/glossary/hikeshi/",
+        "title": "火消｜用語でひもとく江戸文化",
+        "publisher": "東京都"
+      }
+    ],
+    "confidence": "high",
+    "punch": 5
+  },
+  {
+    "idx": 77,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "文久3年（1863）には、武家・町方に対して夜間の提灯なしの一人歩きを禁じた触書が確認できる。ただし、これを江戸時代全体・全国共通の通行規則とすることはできない。",
+    "hook": "幕末の江戸には、提灯なしの一人歩きを禁じた触書があります。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://crd.ndl.go.jp/reference/entry/index.php?id=1000246591&page=ref_view",
+        "title": "江戸時代、夜道を歩く際に提灯を用いていたようだが、用いることを必須とするお触書があったか。",
+        "publisher": "東京都立中央図書館／国立国会図書館レファレンス協同データベース"
+      }
+    ],
+    "confidence": "high",
+    "punch": 4
+  },
+  {
+    "idx": 81,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "そろばんは江戸時代より前に日本で使われており、前田利家が1592年に使用したとされる品も伝わる。江戸時代には『塵劫記』などの算術書を通じて広まった。",
+    "hook": "江戸の商人より前に、戦国武将もそろばんを使っていました。",
+    "period": "両方",
+    "sources": [
+      {
+        "url": "https://www.soroban.or.jp/museum/history/",
+        "title": "そろばんの歴史",
+        "publisher": "全国珠算教育連盟・日本そろばん資料館"
+      }
+    ],
+    "confidence": "high",
+    "punch": 3
+  },
+  {
+    "idx": 85,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "浮世絵の値段は一律ではなく、大判錦絵の20文程度という数字も目安である。幕末の国貞「東海道五十三次之内 二川 石川友市」には、並100文・中150文・極上摺200文という販売価格が紹介されている。",
+    "hook": "浮世絵には、同じ絵でも値段が倍になる豪華な摺りがありました。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://artexhibition.jp/topics/features/20221215-AEJ1136667/",
+        "title": "美術展ナビ×太田記念美術館【いろはde浮世絵】第1回「いろはの㋑」",
+        "publisher": "読売新聞社・美術展ナビ／太田記念美術館協力"
+      }
+    ],
+    "confidence": "high",
+    "punch": 4
+  },
+  {
+    "idx": 89,
+    "keep": false,
+    "drop_reason": "高下駄の高さの理由を直接裏づけられない",
+    "overlap_hr": null,
+    "answer": "花魁道中で高い三枚歯の下駄を履き、独特の歩き方で姿を見せたことは確認できる。しかし、下駄を高くした理由を一つに絞れる根拠は今回確認できなかった。",
+    "hook": "花魁の高下駄は実在しますが、高さの理由は断定できません。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://www.meihaku.jp/berabou/berabou-tweet09/",
+        "title": "べらぼう9話-①「玉菊燈籠恋の地獄」",
+        "publisher": "名古屋刀剣博物館・名古屋刀剣ワールド"
+      }
+    ],
+    "confidence": "low",
+    "punch": 5
+  },
+  {
+    "idx": 93,
+    "keep": false,
+    "drop_reason": "時期・換算対象で変わり、単一の金額に答えられない",
+    "overlap_hr": null,
+    "answer": "一両の現在価値は、江戸時代のどの時期か、米価・賃金など何を基準にするかで大きく変わる。貨幣博物館も複数の換算例を示しており、「一両は現在の何円」と固定することはできない。",
+    "hook": "同じ一両でも、米と給料で比べると今の値段は変わります。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://www.imes.boj.or.jp/cm/history/edojidaino1ryowa/index.html",
+        "title": "江戸時代の1両は今のいくら？―昔のお金の現在価値―",
+        "publisher": "日本銀行金融研究所貨幣博物館"
+      }
+    ],
+    "confidence": "high",
+    "punch": 4
+  },
+  {
+    "idx": 97,
+    "keep": false,
+    "drop_reason": "粉の配合説と価格説があり、語源を確定できない",
+    "overlap_hr": null,
+    "answer": "「二八」には、そば粉と小麦粉の配合を指す説と、二×八＝十六文という値段を指す説がある。確認した博物館の調査でも、どちらか一方を唯一の語源とは確定していない。",
+    "hook": "二八蕎麦の「二八」は、粉の割合だけでは説明しきれません。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://www.edo-tokyo-museum.or.jp/library/reference/10543.html",
+        "title": "蕎麦の歴史について。",
+        "publisher": "江戸東京博物館"
+      }
+    ],
+    "confidence": "high",
+    "punch": 4
+  },
+  {
+    "idx": 101,
+    "keep": false,
+    "drop_reason": "侍の握り飯の材料を具体的に裏づける出典が不足",
+    "overlap_hr": null,
+    "answer": "戦陣食には焼き米や、蒸した飯を乾燥させた糒などが用いられた。ただし、この資料から侍の握り飯が白米・玄米・雑穀のどれだったかを一律に決めることはできない。",
+    "hook": "侍の携帯食には、握り飯のほかに乾燥させた飯もありました。",
+    "period": "戦国",
+    "sources": [
+      {
+        "url": "https://www.i-manabi.jp/system/regionals/regionals/ecode:1/13/view/2141",
+        "title": "えひめ、その食とくらし―江戸時代に至る食生活",
+        "publisher": "愛媛県生涯学習センター"
+      }
+    ],
+    "confidence": "mid",
+    "punch": 3
+  },
+  {
+    "idx": 105,
+    "keep": false,
+    "drop_reason": "必ず一服で終わるという前提を裏づけられない",
+    "overlap_hr": null,
+    "answer": "煙管は雁首の火皿に刻んだたばこの葉を入れ、火を付けて吸う道具だった。確認できた博物館解説には吸う回数の説明がなく、「一服」を必ず一回の吸引とする根拠も得られなかった。",
+    "hook": "煙管の「一服」を、一回吸うことと決めつけるのは危険です。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://www.mogurin.or.jp/museum/project/h30/kiseru.html",
+        "title": "キセル（広島城跡八丁堀地点出土）",
+        "publisher": "広島市文化財団・ひろしまWEB博物館"
+      }
+    ],
+    "confidence": "low",
+    "punch": 3
+  },
+  {
+    "idx": 109,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "帯の結び方や位置は流行・年齢・婚姻状態などと関係し、若い未婚女性は後帯、年配の既婚女性は前帯という区別もあった。前帯だけで遊女と判定することはできず、年代による変化も考慮する必要がある。",
+    "hook": "帯を前で結ぶのは、遊女だけでなく既婚女性にも見られました。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://www.city.ono.hyogo.jp/section/~kokokan/koukokan/zouhin/1-8_obi.html",
+        "title": "帯をしめる",
+        "publisher": "小野市立好古館"
+      },
+      {
+        "url": "https://crd.ndl.go.jp/reference/entry/index.php?id=1000300531&page=ref_view",
+        "title": "花魁（遊女）はなぜ帯を前に結んでいたのか。",
+        "publisher": "練馬区立練馬図書館／国立国会図書館レファレンス協同データベース"
+      }
+    ],
+    "confidence": "high",
+    "punch": 4
+  },
+  {
+    "idx": 113,
+    "keep": false,
+    "drop_reason": "庶民への普及と素材差だけでは意外性が弱い",
+    "overlap_hr": null,
+    "answer": "蚊帳は江戸時代に庶民にも広まり、すべてが富裕層専用の高級品だったわけではない。素材には麻などがあり、絹を使った高級なものもあった。",
+    "hook": "蚊帳は富裕層だけの道具ではなく、江戸には庶民にも広まりました。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://www.city.himi.toyama.jp/section/museum/natsunoshitsurai.html",
+        "title": "氷見の民家―夏のしつらい",
+        "publisher": "氷見市立博物館"
+      }
+    ],
+    "confidence": "high",
+    "punch": 2
+  },
+  {
+    "idx": 117,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "江戸時代の婚礼は、家で行うのが基本だった。家での婚礼は明治以降も続き、一般には婿方の家などで三々九度や祝いの食事を行った。",
+    "hook": "江戸の結婚式は、神社よりも家で挙げるのが基本でした。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://online.bunka.go.jp/heritages/detail/209435/1",
+        "title": "婚礼用一の膳",
+        "publisher": "文化庁・文化遺産オンライン／山﨑記念中野区立歴史民俗資料館"
+      },
+      {
+        "url": "https://www.ndl.go.jp/kaleido/38/2",
+        "title": "ふりかえるブライダル―第二章 さまざまな挙式スタイル",
+        "publisher": "国立国会図書館"
+      }
+    ],
+    "confidence": "high",
+    "punch": 3
+  },
+  {
+    "idx": 121,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "慶応2年（1866）の品川宿の書上げでは、通常の旅籠代は上1000文・中848文・下700文だった。一方、公用旅行者には大幅に安い宿賃で泊まる者がおり、宿側の負担になっていた。",
+    "hook": "幕末の旅籠では、役人の安泊まりが宿を苦しめていました。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://adeac.jp/shinagawa-city/texthtml/d000010/mp000010/ht002830",
+        "title": "品川区史―旅籠屋の取締り",
+        "publisher": "品川区・しながわデジタルアーカイブ"
+      }
+    ],
+    "confidence": "high",
+    "punch": 4
+  },
+  {
+    "idx": 125,
+    "keep": false,
+    "drop_reason": "馬一頭の日走距離と中継通信の速度を分けた根拠が不足",
+    "overlap_hr": null,
+    "answer": "戦国大名は伝馬制度を整え、馬の提供を受けて文書や物資を運ぶ仕組みを用いた。中継を含む情報の到達時間を、そのまま馬一頭が一日に走れる距離には換算できない。",
+    "hook": "早馬の速さは、一頭の馬が一日走る距離だけでは測れません。",
+    "period": "両方",
+    "sources": [
+      {
+        "url": "https://www.postalmuseum.jp/publication/research/research_09_all.pdf",
+        "title": "郵政博物館研究紀要 第9号",
+        "publisher": "郵政博物館"
+      }
+    ],
+    "confidence": "low",
+    "punch": 3
+  }
+]

@@ -1,0 +1,464 @@
+[
+  {
+    "idx": 128,
+    "keep": false,
+    "drop_reason": "代表例が伝承に依存し、大将同士の実戦として確定できない",
+    "overlap_hr": null,
+    "answer": "信玄と謙信の一騎打ちは『甲陽軍鑑』に描かれ、長野市立博物館も関連する伝承を紹介している。ただし、この記述だけで実際に二人が戦ったとは断定できない。",
+    "hook": "信玄と謙信の一騎打ち、銅像があっても史実確定ではない。",
+    "period": "戦国",
+    "sources": [
+      {
+        "url": "https://www.city.nagano.nagano.jp/museum/other/park.html",
+        "title": "川中島古戦場史跡公園案内",
+        "publisher": "長野市立博物館"
+      }
+    ],
+    "confidence": "low",
+    "punch": 5
+  },
+  {
+    "idx": 130,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "討ち取った首は大将らによる首実検に出され、誰の首か確認された。実検の前に髪を整えたり化粧を施したりする作業もあり、『おあむ物語』などに記されている。",
+    "hook": "討ち取った首には、検分の前に化粧を施すこともあった。",
+    "period": "戦国",
+    "sources": [
+      {
+        "url": "https://kotobank.jp/word/%E9%A6%96%E5%AE%9F%E6%A4%9C-55841",
+        "title": "首実検",
+        "publisher": "平凡社『改訂新版 世界大百科事典』ほか／コトバンク"
+      }
+    ],
+    "confidence": "high",
+    "punch": 5
+  },
+  {
+    "idx": 132,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "落ち武者狩りには、武装した村の百姓たちも加わった。村への狼藉を防ぐ自衛と、鎧兜などを奪って換金する目的があった。",
+    "hook": "逃げる武将を襲ったのは、敵兵だけでなく村人でもあった。",
+    "period": "戦国",
+    "sources": [
+      {
+        "url": "https://www.rs.tottori-u.ac.jp/course/international/2018/pdf/1_2018.pdf",
+        "title": "ラジオドラマ再発見―「因伯千一夜 津黒城主の最后」に見る鳥取の歴史と営み―",
+        "publisher": "鳥取大学地域学部"
+      }
+    ],
+    "confidence": "mid",
+    "punch": 5
+  },
+  {
+    "idx": 134,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "梯子を使って城へ攻め入る方法は実際にあった。平攻めでは、盾や竹束で身を守って接近し、堀を埋めるなどの準備と組み合わせて使われた。",
+    "hook": "城攻めの梯子は実在したが、その前に堀を埋める仕事もあった。",
+    "period": "戦国",
+    "sources": [
+      {
+        "url": "https://kotobank.jp/word/%E5%9F%8E%E6%94%BB%E3%82%81-536294",
+        "title": "城攻め",
+        "publisher": "小学館『日本大百科全書』／コトバンク"
+      }
+    ],
+    "confidence": "high",
+    "punch": 4
+  },
+  {
+    "idx": 136,
+    "keep": false,
+    "drop_reason": "戦国甲冑の防矢性能や、矢が多数刺さった状態での継戦を裏づけられない",
+    "overlap_hr": null,
+    "answer": "大鎧が弓矢への防御を重視して発達したことは確認できる。ただし、これは主に平安・鎌倉期の説明であり、戦国の鎧が何本の矢を防げたかという答えには使えない。",
+    "hook": "鎧に矢が何本刺さっても平気、とは史料から言い切れない。",
+    "period": "戦国",
+    "sources": [
+      {
+        "url": "https://rekihaku.pref.hyogo.lg.jp/digital_museum/bugu-kacchuu/kc_ooyoroi/",
+        "title": "甲冑の種類と変遷 大鎧",
+        "publisher": "兵庫県立歴史博物館"
+      }
+    ],
+    "confidence": "low",
+    "punch": 5
+  },
+  {
+    "idx": 138,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "戦国当時の史料では、ドラマのような専任参謀を意味する「軍師」という役職名は確認されない。軍事に関与した側近や、出陣の吉凶などを占う軍配者と、後世の軍師像を区別する必要がある。",
+    "hook": "戦国ドラマの花形「軍師」は、そのまま当時の役職名ではない。",
+    "period": "戦国",
+    "sources": [
+      {
+        "url": "https://koken-publication.com/archives/4446",
+        "title": "軍師人気の黄昏【呉座勇一】",
+        "publisher": "月刊『公研』"
+      },
+      {
+        "url": "https://www.edo-tokyo-museum.or.jp/s-exhibition/kanbe/",
+        "title": "軍師官兵衛",
+        "publisher": "東京都江戸東京博物館"
+      }
+    ],
+    "confidence": "mid",
+    "punch": 5
+  },
+  {
+    "idx": 140,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "落城時の女性には、救出されたり脱出したりして生き延びた例がある。千姫は大坂城から救出され、大垣城に籠城した家臣の娘おあむについても、脱出の体験が『おあむ物語』として伝わる。",
+    "hook": "落城から生き延びたのは、姫だけでなく家臣の娘もいた。",
+    "period": "両方",
+    "sources": [
+      {
+        "url": "https://www.city.joso.lg.jp/kurashi_gyousei/kurashi/gakkou_kyouiku/isan/cityregi_bunka/historic_site/senhimenohaka.html",
+        "title": "千姫の墓",
+        "publisher": "常総市"
+      },
+      {
+        "url": "https://www.ogakikanko.jp/pamphlet/pdf/oamu.pdf",
+        "title": "おあむ物語 戦国女性の生き様",
+        "publisher": "大垣市・大垣観光協会"
+      }
+    ],
+    "confidence": "mid",
+    "punch": 4
+  },
+  {
+    "idx": 142,
+    "keep": false,
+    "drop_reason": "戦い方や配置の相談という説明に留まり、意外性が弱い",
+    "overlap_hr": null,
+    "answer": "軍議では戦い方や部隊の配置などが相談された。新城市の長篠・設楽原合戦の解説では、柵の配置や鉄砲隊を含む軍勢の配置を決めたとしている。",
+    "hook": "合戦前の軍議では、奇策よりも部隊の配置が大きな問題だった。",
+    "period": "戦国",
+    "sources": [
+      {
+        "url": "https://www.city.shinshiro.lg.jp/kanko/taiga/shinshiro/danjouyama.html",
+        "title": "其の十 三河武士の意地「弾正山の布陣」",
+        "publisher": "新城市"
+      }
+    ],
+    "confidence": "mid",
+    "punch": 2
+  },
+  {
+    "idx": 144,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "戦国期の根来寺勢力は鉄砲を取り入れ、鉄砲隊を組織して戦った。僧兵の武器を薙刀だけで描くと、こうした火器の運用を見落としてしまう。",
+    "hook": "薙刀の僧兵だけではない、根来寺には鉄砲隊もいた。",
+    "period": "戦国",
+    "sources": [
+      {
+        "url": "https://www.city.iwade.lg.jp/soshiki/16/1609.html",
+        "title": "根来寺の歴史",
+        "publisher": "岩出市"
+      }
+    ],
+    "confidence": "high",
+    "punch": 5
+  },
+  {
+    "idx": 146,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "茶の湯で特別視された名物茶壺は、信長や秀吉が戦功の褒美に用い、一国一城に匹敵すると評されるほど高く評価された。すべての茶器に城一つ分の定価があった、という意味ではない。",
+    "hook": "城に匹敵した茶壺、その価値は武将への恩賞にもなった。",
+    "period": "戦国",
+    "sources": [
+      {
+        "url": "https://kunishitei.bunka.go.jp/heritage/detail/201/00010686",
+        "title": "唐物茶壺〈銘松花〉",
+        "publisher": "文化庁・国指定文化財等データベース"
+      }
+    ],
+    "confidence": "high",
+    "punch": 5
+  },
+  {
+    "idx": 148,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "堀全体の深さと、水面から底までの水深は別である。江戸期の金沢城いもり堀は深さ10メートル以上とされる一方、往時の水深は約1.5メートルで、復元もそれに合わせている。",
+    "hook": "深さ十メートル超の城の堀、水深は約一・五メートルだった。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://shiro-niwa.pref.ishikawa.lg.jp/kanazawa-castle/explore/imori-canal.php",
+        "title": "いもり堀",
+        "publisher": "石川県・金沢城公園"
+      }
+    ],
+    "confidence": "high",
+    "punch": 5
+  },
+  {
+    "idx": 150,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "江戸時代には大小二本差しが武士の身分を示したが、常に二本だったわけではない。屋敷でくつろぐときや忍びの外出では、脇差や短刀を一本だけ差すこともあった。",
+    "hook": "江戸の武士も、家でくつろぐときは一本差しになった。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://museum.city.fukuoka.jp/exhibition/528/",
+        "title": "福岡藩士伝来・刀と槍の装具展",
+        "publisher": "福岡市博物館"
+      }
+    ],
+    "confidence": "high",
+    "punch": 4
+  },
+  {
+    "idx": 152,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "江戸時代にも居合や抜刀術が盛んで、刀を抜く行為は実戦に限らなかった。ただし、武士全体の生涯の斬り合い経験や抜刀回数を一律に示すことはできない。",
+    "hook": "戦のない江戸でも、武士が刀を抜く稽古は盛んだった。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://museum.city.fukuoka.jp/exhibition/528/",
+        "title": "福岡藩士伝来・刀と槍の装具展",
+        "publisher": "福岡市博物館"
+      }
+    ],
+    "confidence": "high",
+    "punch": 3
+  },
+  {
+    "idx": 154,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "町奉行所の与力は同心を指揮して行政・裁判などを担い、同心には巡回・探索などの役目もあった。両者は家筋による継承が強く、同心から与力への昇格は極めてまれだった。",
+    "hook": "同心は手柄を立てれば与力になれる、という仕組みではなかった。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://kotobank.jp/word/%E4%B8%8E%E5%8A%9B-146520",
+        "title": "与力",
+        "publisher": "平凡社『改訂新版 世界大百科事典』ほか／コトバンク"
+      },
+      {
+        "url": "https://kotobank.jp/word/%E5%90%8C%E5%BF%83-103740",
+        "title": "同心",
+        "publisher": "小学館『日本大百科全書』ほか／コトバンク"
+      }
+    ],
+    "confidence": "high",
+    "punch": 3
+  },
+  {
+    "idx": 156,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "下級武士の内職には、傘作りやうちわ作りなどがあった。丸亀藩ではうちわ作りが下級武士の内職として奨励され、地場産業の発展につながった。",
+    "hook": "武士の内職は実在し、丸亀ではうちわ作りまで奨励された。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://www.city.marugame.lg.jp/page/3056.html",
+        "title": "うちわ",
+        "publisher": "丸亀市"
+      },
+      {
+        "url": "https://hongofujiyama.jp/guidance/cultural-property/museum/",
+        "title": "古民家ミニ博物館「昔の道具 和傘」",
+        "publisher": "本郷ふじやま公園"
+      }
+    ],
+    "confidence": "high",
+    "punch": 4
+  },
+  {
+    "idx": 158,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "大名の正室や嫡子らを江戸に置く制度には、人質として大名を統制する意味があった。藩主が参勤交代で国元へ戻っても、家族まで一緒に帰る仕組みではなかった。",
+    "hook": "殿様が国へ帰っても、江戸に残る妻子には人質の意味があった。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://museum.city.fukuoka.jp/archives/leaflet/392/index.html",
+        "title": "福岡藩主の参勤交代",
+        "publisher": "福岡市博物館"
+      }
+    ],
+    "confidence": "high",
+    "punch": 4
+  },
+  {
+    "idx": 160,
+    "keep": false,
+    "drop_reason": "謁見資格と顔を上げる作法は別で、一律の禁止を裏づけられない",
+    "overlap_hr": null,
+    "answer": "将軍への謁見には御目見以上・以下という資格の区別があった。ただし、それだけでは謁見中に顔を上げてよいかは分からず、全員に共通する禁止としては確認できない。",
+    "hook": "将軍に会える資格と、顔を上げてよい作法は別の話。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://www.archives.go.jp/exhibition/digital/hatamotogokenin/shousai.html",
+        "title": "旗本御家人―資料一覧",
+        "publisher": "国立公文書館"
+      }
+    ],
+    "confidence": "low",
+    "punch": 3
+  },
+  {
+    "idx": 162,
+    "keep": false,
+    "drop_reason": "一日の純利益を示す、条件の明確な史料を確認できない",
+    "overlap_hr": null,
+    "answer": "魚を扱う棒手振りが魚河岸で仕入れ、町へ売り歩いたことは確認できる。しかし、仕入れ代などを差し引いた一日の稼ぎを代表する金額は、今回確認した出典からは示せない。",
+    "hook": "棒手振りの売上を、そのまま一日の稼ぎとは言えない。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://www.ndl.go.jp/kaleido/entry/30/2.html",
+        "title": "第2章 売りタイ！―天下タイ平～魚と人の江戸時代～",
+        "publisher": "国立国会図書館"
+      }
+    ],
+    "confidence": "low",
+    "punch": 3
+  },
+  {
+    "idx": 164,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "公認の富くじ「御免富」は、修復・再建費を集める寺社が主催した。販売場所は原則として境内だったが、実際には町人の請負業者が運営し、市中で札を売る業者もいた。",
+    "hook": "江戸の公認富くじは寺社が主催し、町人業者も商売にした。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://www.soumu.metro.tokyo.lg.jp/01soumu-archives/07edo_tokyo/0703kaidoku/0703kaidoku_old/0703kaidoku15/0703kaidoku15_2",
+        "title": "史料解説―富くじの明治維新",
+        "publisher": "東京都公文書館"
+      }
+    ],
+    "confidence": "high",
+    "punch": 4
+  },
+  {
+    "idx": 166,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "奉公開始の年齢は一律ではないが、近江商人博物館が示す商家の例では10歳頃に丁稚となる。掃除や使い走りと読み書き・そろばんを学び、初めての帰省は奉公5年目とされる。",
+    "hook": "十歳頃に店へ入り、初めて家へ帰れるのは五年目の例も。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://e-omi-muse.com/omishounin/about2.html",
+        "title": "近江商人とは―商人の一生",
+        "publisher": "東近江市近江商人博物館"
+      }
+    ],
+    "confidence": "high",
+    "punch": 4
+  },
+  {
+    "idx": 168,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "質屋には衣類・装身具・家具など、身近な生活用具が預けられた。江戸時代の白石の質屋文書には、布団や蚊帳、風呂敷の質入れも確認できる。",
+    "hook": "質屋に預けたのは宝物だけではなく、布団や蚊帳もだった。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://kotobank.jp/word/%E8%B3%AA%E5%B1%8B-73884",
+        "title": "質屋",
+        "publisher": "小学館『日本大百科全書』／コトバンク"
+      },
+      {
+        "url": "https://rekishi.irides.tohoku.ac.jp/document/ep/uploads/shiroishi_watanabe2.pdf",
+        "title": "渡辺家文書目録Ⅱ 所収「渡辺屋の質商い」",
+        "publisher": "白石市教育委員会／東北大学公開"
+      }
+    ],
+    "confidence": "high",
+    "punch": 4
+  },
+  {
+    "idx": 170,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "幕末の風俗誌『守貞謾稿』では、江戸の女性は月1～2回髪を洗い、夏はさらに頻繁だったと記される。一方、京坂の女性や江戸の御殿女中は洗髪が少ないともあり、地域・身分・季節による違いがあった。",
+    "hook": "江戸の女性の洗髪は月一、二回、ただし夏には回数が増えた。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://www.cosmetic-culture.po-holdings.co.jp/culture/cosmehistory/026.html",
+        "title": "伝統化粧の完成期 江戸時代13 日本髪の手入れ方法＜洗髪＞",
+        "publisher": "ポーラ文化研究所"
+      }
+    ],
+    "confidence": "high",
+    "punch": 5
+  },
+  {
+    "idx": 172,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "手紙は飛脚などが運び、途中で担当者を交代する仕組みもあった。津藩の飛脚記録には途中で交代する例と走り通す例があり、民間の飛脚問屋には書状を引き受けた記録も残る。",
+    "hook": "江戸の手紙は、一人の健脚だけでなく交代の仕組みで届いた。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://www.postalmuseum.jp/publication/research/docs/research_05_02.pdf",
+        "title": "近世中期における津藩の飛脚制度",
+        "publisher": "郵政博物館"
+      },
+      {
+        "url": "https://www.postalmuseum.jp/collection/genre/detail-193463.html",
+        "title": "御用飛脚通帳（飛脚文書）",
+        "publisher": "郵政博物館"
+      }
+    ],
+    "confidence": "high",
+    "punch": 4
+  },
+  {
+    "idx": 174,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "移動に制限があるなかでも、伊勢参りなど信仰を目的とする旅は認められた。参詣の旅には名所見物や温泉などの楽しみも加わり、物見遊山を兼ねるようになった。",
+    "hook": "江戸の庶民は、お参りの旅で観光や温泉も楽しんでいた。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://rekihaku.pref.hyogo.lg.jp/digital_museum/trip/column_syomin/",
+        "title": "コラム：庶民の旅について",
+        "publisher": "兵庫県立歴史博物館"
+      }
+    ],
+    "confidence": "high",
+    "punch": 4
+  }
+]

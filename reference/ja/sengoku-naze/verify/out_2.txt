@@ -1,0 +1,613 @@
+[
+  {
+    "idx": 2,
+    "keep": false,
+    "drop_reason": "峰で打つという語義は確認できるが、実際の使用例や気絶させる描写の裏づけが不足。",
+    "overlap_hr": null,
+    "answer": "峰打ちは、刀の刃ではなく背の部分で相手を打つことを指す。ただし、確認した出典だけでは、時代劇のように相手を気絶させる技として使われていたとは断定できない。",
+    "hook": "峰打ちで気絶、あの定番場面は史実の裏づけが足りない。",
+    "period": "両方",
+    "sources": [
+      {
+        "url": "https://kotobank.jp/word/峰打ち-639326",
+        "title": "峰打ち",
+        "publisher": "小学館『デジタル大辞泉』（コトバンク）"
+      }
+    ],
+    "confidence": "low",
+    "punch": 5
+  },
+  {
+    "idx": 6,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "刀には雨露への対策があり、戦国時代ごろの柄では鮫皮に黒漆を塗ることが多かった。布や革の鞘袋にも、刀を雨水や汚損から守る役割があった。",
+    "hook": "侍の刀にも雨対策があり、漆に加えて専用の袋まであった。",
+    "period": "両方",
+    "sources": [
+      {
+        "url": "https://www.touken.or.jp/museum/sword/tousougu.html",
+        "title": "刀装・刀装具",
+        "publisher": "日本美術刀剣保存協会・刀剣博物館"
+      },
+      {
+        "url": "https://www.meihaku.jp/sword-basic/sayabukuro-toha/",
+        "title": "鞘袋（刀袋）とは？ 白鞘袋・拵袋の違いと役割",
+        "publisher": "名古屋刀剣博物館"
+      }
+    ],
+    "confidence": "high",
+    "punch": 4
+  },
+  {
+    "idx": 10,
+    "keep": false,
+    "drop_reason": "具体的な購入例はあるが、浪人が買う実用刀の相場を示す根拠が不足。",
+    "overlap_hr": null,
+    "answer": "徳川美術館の「刀 無銘 助真」には、尾張徳川家が文政12年に100両で購入した記録がある。ただし、大名家の名刀購入例を江戸の一般的な刀の値段として扱うことはできない。",
+    "hook": "百両で買われた刀はある。でも、それが侍の刀の相場ではない。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://www.tokugawa-art-museum.jp/collections/刀%E3%80%80無銘-助真/",
+        "title": "刀 無銘 助真",
+        "publisher": "徳川美術館"
+      }
+    ],
+    "confidence": "mid",
+    "punch": 3
+  },
+  {
+    "idx": 14,
+    "keep": false,
+    "drop_reason": "果たし合いの存在と合法性は別で、許否を判断できる具体的法令・処分例が不足。",
+    "overlap_hr": null,
+    "answer": "戦国・江戸時代に、武士の果たし合いが行われたことは確認できる。しかし、果たし状を送れば決闘が許されたという制度までは、確認した出典では裏づけられない。",
+    "hook": "果たし状を書いても、それだけで決闘の許可にはならない。",
+    "period": "両方",
+    "sources": [
+      {
+        "url": "https://kotobank.jp/word/決闘-59704",
+        "title": "決闘",
+        "publisher": "小学館『日本大百科全書』（コトバンク）"
+      }
+    ],
+    "confidence": "low",
+    "punch": 4
+  },
+  {
+    "idx": 18,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "岡っ引きは奉行所の正式な役人ではなく、同心が私的に使う捜査の協力者だった。目明しとも呼ばれ、情報収集や犯人捜索などに携わった。",
+    "hook": "町を取り締まる岡っ引き、実は奉行所の役人ではなかった。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://adeac.jp/nakatsugawa-city/texthtml/d100040/mp000040/ht012830",
+        "title": "山口村誌 上巻「目明し」",
+        "publisher": "中津川市"
+      }
+    ],
+    "confidence": "high",
+    "punch": 4
+  },
+  {
+    "idx": 22,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "大岡忠相は実在するが、「大岡政談」の多くは創作や、他人の事件を忠相の裁きとして語ったものだった。例えば天一坊事件を担当したのは、勘定奉行の稲生下野守である。",
+    "hook": "大岡越前の名裁きには、別の奉行の事件まで混ざっている。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://kotobank.jp/word/大岡政談-39062",
+        "title": "大岡政談",
+        "publisher": "小学館『日本大百科全書』（コトバンク）"
+      }
+    ],
+    "confidence": "high",
+    "punch": 5
+  },
+  {
+    "idx": 26,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "神津島の流人については、原則として自活が求められたと説明されている。仕送りや手に職のない流人は、島民から食料を分けてもらうなどして生活した。",
+    "hook": "島流しの先でも、食い扶持は自分で確保するのが原則だった。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://kozushima.com/kanko/meisho/shiseki/225/",
+        "title": "流人墓地",
+        "publisher": "神津島観光協会"
+      }
+    ],
+    "confidence": "mid",
+    "punch": 4
+  },
+  {
+    "idx": 30,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "切捨御免は、武士が誰でも自由に斬れる権利ではなく、無礼討ちが正当と認められる場合に限られた。正当性を証明できなければ処罰されるため、行列を横切っただけで無条件に斬ってよいとはいえない。",
+    "hook": "切捨御免でも、理由を証明できなければ武士が罰せられた。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://kotobank.jp/word/切捨御免-1159878",
+        "title": "切捨御免",
+        "publisher": "山川出版社『山川 日本史小辞典 改訂新版』ほか（コトバンク）"
+      }
+    ],
+    "confidence": "high",
+    "punch": 5
+  },
+  {
+    "idx": 34,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "下級武士の給与は所属や役職で異なるが、幕府の同心では30俵2人扶持が標準とされる。これは米による給与の表し方で、下級武士全員の一律の給料ではない。",
+    "hook": "幕府の同心の給料は、現金の月給ではなく米三十俵と扶持。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://kotobank.jp/word/同心-103740",
+        "title": "同心",
+        "publisher": "山川出版社『山川 日本史小辞典 改訂新版』（コトバンク）"
+      }
+    ],
+    "confidence": "high",
+    "punch": 3
+  },
+  {
+    "idx": 38,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "次男・三男には、他家の養子になる道のほか、独立せず親や兄の家で「部屋住み」として暮らす場合もあった。名古屋市博物館には、武家の次男を他家の養子に出す願書も収蔵されている。",
+    "hook": "武家に生まれても、次男三男が自分の家を持てるとは限らない。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://kotobank.jp/word/部屋住み-625587",
+        "title": "部屋住み",
+        "publisher": "小学館『デジタル大辞泉』（コトバンク）"
+      },
+      {
+        "url": "https://jpsearch.go.jp/item/NagoyaCity_Museum-503_0030_00022_0000",
+        "title": "斎藤播磨守の次男を川原鎌三郎方の養子へ遣す旨に関する願書、下書か",
+        "publisher": "名古屋市博物館（ジャパンサーチ掲載）"
+      }
+    ],
+    "confidence": "high",
+    "punch": 3
+  },
+  {
+    "idx": 42,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "「ござる」は実際に使われた言葉で、中世末期には丁寧語として一般化していた。武士専用の言葉ではなく、江戸時代には「ござります」「ございます」などが優勢になる変化もあった。",
+    "hook": "「ござる」は実在したが、武士だけの話し言葉ではなかった。",
+    "period": "両方",
+    "sources": [
+      {
+        "url": "https://kotobank.jp/word/御座る-500915",
+        "title": "御座る",
+        "publisher": "小学館『精選版 日本国語大辞典』（コトバンク）"
+      }
+    ],
+    "confidence": "high",
+    "punch": 4
+  },
+  {
+    "idx": 46,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "裃は礼装として形式化する過程で肩が大きくなり、張りを保つため肩衣に鯨のひげや竹ひごを入れたものがあった。初めから、時代劇で見るような大きく張った肩だったわけではない。",
+    "hook": "裃の張った肩には、クジラのひげを仕込んだものがある。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://kotobank.jp/word/裃-46681",
+        "title": "裃",
+        "publisher": "平凡社『改訂新版 世界大百科事典』（コトバンク）"
+      }
+    ],
+    "confidence": "high",
+    "punch": 5
+  },
+  {
+    "idx": 50,
+    "keep": false,
+    "drop_reason": "時期と集計範囲が指定されておらず、女性の総数を確定できない。",
+    "overlap_hr": null,
+    "answer": "辞典では大奥の女中を数百人規模と説明しているが、女中自身の召使などもいた。「大奥には何人」と答えるには、いつの、どこまでの人員を数えるかを定める必要がある。",
+    "hook": "大奥の人数は、女中の召使まで数えるかでも変わってしまう。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://kotobank.jp/word/大奥-39066",
+        "title": "大奥",
+        "publisher": "平凡社『百科事典マイペディア』『改訂新版 世界大百科事典』（コトバンク）"
+      }
+    ],
+    "confidence": "mid",
+    "punch": 3
+  },
+  {
+    "idx": 54,
+    "keep": false,
+    "drop_reason": "伝承と逃走用通路の実証を区別できず、城一般について断定できない。",
+    "overlap_hr": null,
+    "answer": "宇陀松山城には、天守に通じると伝えられる人工の穴があるが、奈良県の解説は関連する文献が見つかっていないとしている。穴や伝承の存在だけでは、城主の逃走用だったとは証明できない。",
+    "hook": "城の抜け穴は、穴が残っていても逃走路とは証明できない。",
+    "period": "両方",
+    "sources": [
+      {
+        "url": "https://www.pref.nara.lg.jp/ikasu-nara/naranoshiro/udamatsuyamajo/index.html",
+        "title": "宇陀松山城",
+        "publisher": "奈良県"
+      }
+    ],
+    "confidence": "low",
+    "punch": 5
+  },
+  {
+    "idx": 58,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "二条城二の丸御殿では、部屋の用途や対面する相手に応じて障壁画の主題が異なる。来訪者を迎える遠侍には虎が描かれる一方、将軍の居間・寝室に当たる白書院には水墨の山水画が用いられた。",
+    "hook": "同じ御殿でも、客を迎える部屋は虎、寝室には水墨画。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://nijo-jocastle.city.kyoto.lg.jp/introduction/highlights/ninomaru/",
+        "title": "二の丸御殿・庭園",
+        "publisher": "京都市・元離宮二条城"
+      }
+    ],
+    "confidence": "high",
+    "punch": 4
+  },
+  {
+    "idx": 62,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "旗指物は、戦場で敵味方や所属を見分ける目印だった。個人を識別する指物には、自分の武功を周囲に認めさせる役割もあった。",
+    "hook": "背中の旗は味方の目印、しかも自分の手柄を知らせる看板。",
+    "period": "戦国",
+    "sources": [
+      {
+        "url": "https://museum.city.fukuoka.jp/archives/leaflet/283/index.html",
+        "title": "No.283 旗指物",
+        "publisher": "福岡市博物館"
+      },
+      {
+        "url": "https://kotobank.jp/word/旗指物-601742",
+        "title": "旗指物",
+        "publisher": "平凡社『改訂新版 世界大百科事典』（コトバンク）"
+      }
+    ],
+    "confidence": "high",
+    "punch": 4
+  },
+  {
+    "idx": 66,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "甲冑を着て泳ぐ技は実在し、弘化2年の将軍による水泳上覧では甲冑泳ぎも披露された。ただし、これは訓練された泳法の記録で、鎧姿なら誰でも容易に泳げたという意味ではない。",
+    "hook": "鎧を着たまま泳ぐ技は、将軍の前でも披露されていた。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://www.archives.go.jp/exhibition/digital/hatamotogokenin2/contents/07.html",
+        "title": "水泳上覧（弘化雑記）",
+        "publisher": "国立公文書館"
+      }
+    ],
+    "confidence": "high",
+    "punch": 5
+  },
+  {
+    "idx": 70,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "手裏剣は十字形だけではなく、棒状のものも武士の武器として存在した。十字形などの放射状の手裏剣も近世の忍術書に記載があるため、形そのものをすべて創作とはいえない。",
+    "hook": "手裏剣は十字形だけではない。武士が使う棒状のものもあった。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://ninjacenter.rscn.mie-u.ac.jp/blog/2018/20180629/",
+        "title": "旗本史料にみる手裏剣",
+        "publisher": "三重大学国際忍者研究センター"
+      }
+    ],
+    "confidence": "high",
+    "punch": 4
+  },
+  {
+    "idx": 74,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "半鐘は、火事の発生だけでなく、鳴らし方で状況を伝える道具だった。江戸の火の見櫓では、火元との距離や風向きから危険度を判断し、危険が高いと乱打して知らせたと説明されている。",
+    "hook": "火事の半鐘は、鳴っているかより鳴らし方が重要だった。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://www.city.miki.lg.jp/site/shobo/3537.html",
+        "title": "消防ミュージアム 紹介",
+        "publisher": "三木市消防本部"
+      },
+      {
+        "url": "https://www.kabuki-bito.jp/special/knowledge/secom-anzen/post-anzen-03/5/",
+        "title": "第三回 気が荒く喧嘩っ早い江戸の火消し達",
+        "publisher": "松竹・歌舞伎美人"
+      }
+    ],
+    "confidence": "mid",
+    "punch": 4
+  },
+  {
+    "idx": 78,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "江戸時代の不定時法では、昼と夜をそれぞれ六等分して時刻を定めた。そのため、昼の長い夏は昼の一刻が長く、冬は短くなった。",
+    "hook": "江戸の一刻は一定ではなく、夏の昼ほど長くなっていた。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://museum.seiko.co.jp/knowledge/relation_16/",
+        "title": "不定時法の説明",
+        "publisher": "セイコーミュージアム 銀座"
+      }
+    ],
+    "confidence": "high",
+    "punch": 5
+  },
+  {
+    "idx": 82,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "江戸の銭湯には混浴があり、幕府は繰り返し禁止を命じた。男女を分ける対応も取られたため、江戸時代を通じて全銭湯が混浴だったわけではない。",
+    "hook": "江戸の銭湯には混浴があった。でも幕府は何度も禁じていた。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://www.1010.or.jp/menu/history/rekishi05.html",
+        "title": "銭湯の歴史 日本編 第5回 江戸の銭湯は混浴",
+        "publisher": "東京都浴場組合"
+      }
+    ],
+    "confidence": "high",
+    "punch": 4
+  },
+  {
+    "idx": 86,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "江戸の歌舞伎には、夜明けから日没まで、ほぼ一日がかりで上演する興行があった。「朝から晩まで」はおおむね当てはまるが、現代の夜公演のように考えるとずれる。",
+    "hook": "江戸の歌舞伎見物は、夜明けから日暮れまでの一日仕事。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://www.nntt.jac.go.jp/library/library/course03_06.html",
+        "title": "シェイクスピアの時代に歌舞伎は何を描いたのか？ 第6頁",
+        "publisher": "新国立劇場（講師：古井戸秀夫）"
+      }
+    ],
+    "confidence": "high",
+    "punch": 4
+  },
+  {
+    "idx": 90,
+    "keep": false,
+    "drop_reason": "小判を指す語義は確認できるが、菓子箱で賄賂を渡す定番場面の史料が不足。",
+    "overlap_hr": null,
+    "answer": "「山吹色」には、その色から小判や大判を指す用法があり、江戸時代の作品にも用例がある。ただし、「山吹色の菓子」を菓子箱で渡すという時代劇の場面が、そのまま当時の慣行だったとは確認できない。",
+    "hook": "「山吹色」が小判を指す言い方は、江戸の作品にも出てくる。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://kotobank.jp/word/山吹色-193023",
+        "title": "山吹色",
+        "publisher": "小学館『精選版 日本国語大辞典』（コトバンク）"
+      }
+    ],
+    "confidence": "mid",
+    "punch": 2
+  },
+  {
+    "idx": 94,
+    "keep": false,
+    "drop_reason": "一文で茶一服という価格紹介だけでは、逆説や視覚的な意外性が弱い。",
+    "overlap_hr": null,
+    "answer": "江戸には、茶一服を一文で提供する一銭茶屋があった。ただし、この例から江戸時代全体の一文の購買力を一律に示すことはできない。",
+    "hook": "たった一文でも、江戸では茶を一服飲める店があった。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://kotobank.jp/word/一銭茶屋-434334",
+        "title": "一銭茶屋",
+        "publisher": "小学館『デジタル大辞泉』（コトバンク）"
+      }
+    ],
+    "confidence": "high",
+    "punch": 2
+  },
+  {
+    "idx": 98,
+    "keep": false,
+    "drop_reason": "大きさは確認できるが、大きかった理由を裏づけられない。",
+    "overlap_hr": null,
+    "answer": "東京都立中央図書館の調査では、江戸の握りずしを現代の2〜3倍の大きさとする複数の文献が紹介されている。ただし、なぜその大きさになったのかは、この回答からは確定できない。",
+    "hook": "江戸の握り寿司は、今の二〜三倍もの大きさだったという。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://crd.ndl.go.jp/reference/entry/index.php?id=1000021679&page=ref_view",
+        "title": "江戸時代の握りずしはどのくらいの大きさだったのか",
+        "publisher": "東京都立中央図書館・国立国会図書館レファレンス協同データベース"
+      }
+    ],
+    "confidence": "mid",
+    "punch": 5
+  },
+  {
+    "idx": 102,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "白米に偏った食生活でビタミンB1が不足すると、脚気を発症した。江戸で多発したため「江戸わずらい」と呼ばれたが、白米を食べれば必ず病気になるという意味ではない。",
+    "hook": "白いご飯で満腹でも、栄養不足で江戸わずらいになった。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://www.maff.go.jp/chushi/seisan/mugi/mugiproject/attach/pdf/event-1.pdf",
+        "title": "大麦の機能性と活用・利用拡大について",
+        "publisher": "農研機構（農林水産省中国四国農政局掲載）"
+      }
+    ],
+    "confidence": "high",
+    "punch": 5
+  },
+  {
+    "idx": 106,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "江戸時代には、お歯黒は既婚女性の化粧として定着していた。お歯黒の道具は婚礼調度にも組み込まれ、歯を黒く染めることが装いの一部だった。",
+    "hook": "黒い歯は汚れではなく、結婚した女性を示す化粧だった。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://online.bunka.go.jp/db/heritages/detail/413941",
+        "title": "丸蝶紋散蒔絵歯黒道具",
+        "publisher": "文化庁・文化遺産データベース"
+      }
+    ],
+    "confidence": "high",
+    "punch": 4
+  },
+  {
+    "idx": 110,
+    "keep": false,
+    "drop_reason": "種類ごとの用途説明が中心で、短尺向けの明確な逆説が弱い。",
+    "overlap_hr": null,
+    "answer": "下駄には雨天や湿った地面に対応する役割があったが、草履にも湿地で使えるよう工夫した重ね草履があった。「晴れは草履、雨は下駄」という単純な二分では説明できない。",
+    "hook": "晴れは草履、雨は下駄、それだけでは昔の履物は分からない。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://kotobank.jp/word/草履-89748",
+        "title": "草履",
+        "publisher": "小学館『日本大百科全書』（コトバンク）"
+      },
+      {
+        "url": "https://kotobank.jp/word/下駄-59469",
+        "title": "下駄",
+        "publisher": "小学館『日本大百科全書』ほか（コトバンク）"
+      }
+    ],
+    "confidence": "high",
+    "punch": 2
+  },
+  {
+    "idx": 114,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "江戸では、柳や黒文字などの木の先をほぐした房楊枝で歯を磨いた。歯磨き粉も売られており、房楊枝と組み合わせて使われた。",
+    "hook": "江戸の歯ブラシは、木の先をほぐして作った房楊枝だった。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://www.dent-kng.or.jp/museum/ja/hanohaku02/",
+        "title": "江戸時代の歯ブラシは？",
+        "publisher": "神奈川県歯科医師会・歯の博物館"
+      }
+    ],
+    "confidence": "high",
+    "punch": 4
+  },
+  {
+    "idx": 118,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "三行半は通常、夫から妻へ渡す離縁状で、離婚の確認と再婚を認める役割を持った。ただし、離婚を求めるのが夫だけだったわけではなく、妻が縁切寺に訴える道もあった。",
+    "hook": "三行半は夫から妻へ、でも離婚を求めたのが妻の場合もある。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://www.meiji.ac.jp/museum/6t5h7p00000lwns6-att/museumeyes64.pdf",
+        "title": "museum eyes 第64号「身近な古文書 離縁状」",
+        "publisher": "明治大学博物館"
+      },
+      {
+        "url": "https://www.city.isesaki.lg.jp/soshiki/kyoikubu/hogo/bunkazaihogo/shitei/rekishi/1735.html",
+        "title": "縁切寺満徳寺文書",
+        "publisher": "伊勢崎市"
+      }
+    ],
+    "confidence": "high",
+    "punch": 4
+  },
+  {
+    "idx": 122,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "江戸から京都までの東海道は約496キロあり、徒歩を中心に渡船・駕籠・馬なども利用する旅で、約2週間が目安とされる。旅人の体力や天候、寄り道によって日数は変わる。",
+    "hook": "江戸から京都へは約二週間、徒歩中心で五百キロ近い旅だった。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://www.town.tochigi-nakagawa.lg.jp/10kouhou/2007/0707/files/22.pdf",
+        "title": "広報なかがわ 平成19年7月号「保永堂東海道から竪絵東海道」",
+        "publisher": "那珂川町・那珂川町馬頭広重美術館"
+      }
+    ],
+    "confidence": "high",
+    "punch": 3
+  },
+  {
+    "idx": 126,
+    "keep": false,
+    "drop_reason": "架橋しなかった理由を単一の説で断定する根拠が不足。渡し舟という場面設定も要修正。",
+    "overlap_hr": null,
+    "answer": "江戸時代の大井川では橋だけでなく渡船も禁じられ、旅人は川越人足の肩や輦台に乗って渡った。架橋しなかった理由については、防衛や河川条件などを切り分けて確認する必要があり、防衛目的だけとは断定しない。",
+    "hook": "橋のない大井川では、実は渡し舟まで禁じられていた。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://shimada-ta.jp/tourist/ooigawakawagoshi-historic-ruins/",
+        "title": "大井川川越遺跡",
+        "publisher": "島田市観光協会"
+      },
+      {
+        "url": "https://www.city.shimada.shizuoka.jp/fs/9/0/5/4/0/7/_/toueiga.pdf",
+        "title": "大井川の川越しに関する学習資料",
+        "publisher": "島田市"
+      }
+    ],
+    "confidence": "mid",
+    "punch": 4
+  }
+]

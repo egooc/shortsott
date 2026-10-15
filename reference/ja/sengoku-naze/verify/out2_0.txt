@@ -1,0 +1,449 @@
+[
+  {
+    "idx": 127,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "戦場で名や家柄などを名乗る慣行はあったが、戦国の合戦で必ず互いに名乗ってから戦ったわけではない。集団戦や鉄砲戦の発達に伴って名乗りの意義は薄れ、旗指物などによる識別が重要になった。",
+    "hook": "「やあやあ我こそは」は、戦国合戦の必須作法ではなかった。",
+    "period": "戦国",
+    "sources": [
+      {
+        "url": "https://kotobank.jp/word/%E5%90%8D%E4%B9%97-1572475",
+        "title": "日本大百科全書「名乗」",
+        "publisher": "小学館（コトバンク）"
+      }
+    ],
+    "confidence": "high",
+    "punch": 4
+  },
+  {
+    "idx": 129,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "馬上で刀剣を使う戦い方はあったが、騎乗する武士の戦闘には弓や槍も含まれていた。刀だけを振るって突撃する姿を、時代や戦況を問わない標準形とはできない。",
+    "hook": "馬上の武士は刀も使ったが、弓や槍でも戦っていた。",
+    "period": "戦国",
+    "sources": [
+      {
+        "url": "https://budo-world.taiiku.tsukuba.ac.jp/wp-content/uploads/2025/09/8f1b0577d534f54d5c41f2714cc268f9-2.pdf",
+        "title": "武道文化論・武道思想史特講",
+        "publisher": "筑波大学"
+      }
+    ],
+    "confidence": "mid",
+    "punch": 3
+  },
+  {
+    "idx": 131,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "首実検では、大将や討たれた人物を知る者が首の身元を確かめ、討ち取った者の功績を確認した。『おあむ物語』などには、実検前に首の髪を整え、化粧を施す作業も記されている。",
+    "hook": "討ち取った首は、そのまま見せず化粧することもあった。",
+    "period": "戦国",
+    "sources": [
+      {
+        "url": "https://kotobank.jp/word/%E9%A6%96%E5%AE%9F%E6%A4%9C-55841",
+        "title": "「首実検」",
+        "publisher": "小学館・平凡社（コトバンク）"
+      }
+    ],
+    "confidence": "high",
+    "punch": 5
+  },
+  {
+    "idx": 133,
+    "keep": false,
+    "drop_reason": "実行例は確認できるが、当時の卑怯観を裏づける出典が不足",
+    "overlap_hr": null,
+    "answer": "1600年の花巻城攻撃など、夜討ちの実行例は確認できる。ただし、夜討ちが行われた事実だけでは、当時の人々が卑怯だと思わなかったとは断定できない。",
+    "hook": "夜討ちは実行されたが、卑怯と思われなかったかは別問題。",
+    "period": "戦国",
+    "sources": [
+      {
+        "url": "https://kotobank.jp/word/%E8%8A%B1%E5%B7%BB%E5%9F%8E-180235",
+        "title": "日本の城がわかる事典「花巻城」",
+        "publisher": "講談社（コトバンク）"
+      }
+    ],
+    "confidence": "low",
+    "punch": 3
+  },
+  {
+    "idx": 135,
+    "keep": false,
+    "drop_reason": "戦闘の種類・地域・史料の集計範囲で異なり、最多の武器を断定できない",
+    "overlap_hr": null,
+    "answer": "戦国後期の研究では、攻城戦と野戦、地域の違いによって使用武器や負傷の傾向が異なると指摘されている。限られた負傷記録から、戦国の合戦全体で最も多く人を傷つけた武器を一つに決めることはできない。",
+    "hook": "戦国の負傷記録だけでは、最も人を傷つけた武器は決まらない。",
+    "period": "戦国",
+    "sources": [
+      {
+        "url": "https://www.chubu.ac.jp/documents/digibook/glocal/glocal021/pageindices/index8.html",
+        "title": "GLOCAL Vol.21「戦国後期における戦闘方法の再検討」",
+        "publisher": "中部大学大学院国際人間学研究科"
+      }
+    ],
+    "confidence": "mid",
+    "punch": 4
+  },
+  {
+    "idx": 137,
+    "keep": false,
+    "drop_reason": "家紋の紹介が中心となり、単独のショートとして意外性が弱い",
+    "overlap_hr": null,
+    "answer": "陣幕には家紋を大きく染め抜いた例がある。MIHO MUSEUM所蔵の17世紀の陣幕には、紫地に島津家の十文字紋が白く表されている。",
+    "hook": "陣幕は白地だけではなく、紫に大きな家紋の例もある。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://www.miho.jp/booth/html/artcon/00000366.htm",
+        "title": "十文字紋陣幕屏風",
+        "publisher": "MIHO MUSEUM"
+      }
+    ],
+    "confidence": "high",
+    "punch": 2
+  },
+  {
+    "idx": 139,
+    "keep": false,
+    "drop_reason": "有名例も伝承として紹介され、確実な実在例を裏づけられない",
+    "overlap_hr": null,
+    "answer": "武田信廉が信玄の影武者を務めたという話などはあるが、辞典でも伝承として扱われている。今回確認した出典だけでは、時代劇のような影武者の実在を確定できない。",
+    "hook": "有名な影武者の話も、実在が確認された話とは限らない。",
+    "period": "戦国",
+    "sources": [
+      {
+        "url": "https://kotobank.jp/word/%E5%BD%B1%E6%AD%A6%E8%80%85-461256",
+        "title": "日本大百科全書「影武者」",
+        "publisher": "小学館（コトバンク）"
+      }
+    ],
+    "confidence": "low",
+    "punch": 5
+  },
+  {
+    "idx": 141,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "名古屋市図書館が紹介する『徳川実紀』の記述では、幼い家康は織田方の人質だった時期に熱田の加藤氏宅や万松寺で暮らした。これは家康の一例で、人質全員の住居や待遇が同じだったとはいえない。",
+    "hook": "人質の幼い家康には、民家や寺で暮らした時期がある。",
+    "period": "戦国",
+    "sources": [
+      {
+        "url": "https://www.library.city.nagoya.jp/reference/chosahoukoku/chosahoukoku_38.html",
+        "title": "調査団報告書 No.38",
+        "publisher": "名古屋市図書館"
+      }
+    ],
+    "confidence": "mid",
+    "punch": 4
+  },
+  {
+    "idx": 143,
+    "keep": false,
+    "drop_reason": "勝鬨の掛け声と作法が既存動画の主題と重なる",
+    "overlap_hr": "武士の「エイエイオー」は、なぜ神を招く声ともいわれる？",
+    "answer": "軍陣作法では、大将の「えいえい」に軍勢が「おう」と応じ、これを三度繰り返す形が紹介されている。ただし、後世に整えられた作法を戦国の全合戦にそのまま当てはめることはできない。",
+    "hook": "勝鬨の「えい」と「おう」は、大将と兵の掛け合いだった。",
+    "period": "両方",
+    "sources": [
+      {
+        "url": "https://kotobank.jp/word/%E9%AC%A8-582200",
+        "title": "「鬨」",
+        "publisher": "小学館・平凡社（コトバンク）"
+      }
+    ],
+    "confidence": "high",
+    "punch": 3
+  },
+  {
+    "idx": 145,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "茶の湯は文化的な楽しみであるとともに、武将の権威を示す政治的な手段にもなった。信長は名物茶道具を集め、限られた家臣に茶会の開催を許すことで、茶の湯を特権として利用した。",
+    "hook": "信長の家臣にとって、茶会を開けること自体が特権だった。",
+    "period": "戦国",
+    "sources": [
+      {
+        "url": "https://www.kyohaku.go.jp/jp/exhibitions/special/chanoyu_2022/",
+        "title": "特別展 京に生きる文化 茶の湯",
+        "publisher": "京都国立博物館"
+      }
+    ],
+    "confidence": "high",
+    "punch": 4
+  },
+  {
+    "idx": 147,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "城の石垣づくりには穴太衆などの専門の石工が携わり、自然石を組み合わせて積む技術も用いられた。大石の運搬には木のそり「修羅」を使い、下に丸太を敷くなどして大勢で引いた。",
+    "hook": "城の巨大な石は、木のそりに載せて人力で運んだ。",
+    "period": "両方",
+    "sources": [
+      {
+        "url": "https://kotobank.jp/word/%E7%A9%B4%E7%94%9F-1143332",
+        "title": "改訂新版 世界大百科事典「穴生」",
+        "publisher": "平凡社（コトバンク）"
+      },
+      {
+        "url": "https://www.city.otsu.lg.jp/bz/a/03/15/60691.html",
+        "title": "穴太衆積みの石垣",
+        "publisher": "大津市"
+      },
+      {
+        "url": "https://rekihaku.pref.hyogo.lg.jp/wp-content/uploads/2024/03/17b9c04858f0e4f8023400204501bc22-2.pdf",
+        "title": "常設展示ワークシート解答「築城の様子」",
+        "publisher": "兵庫県立歴史博物館"
+      }
+    ],
+    "confidence": "high",
+    "punch": 5
+  },
+  {
+    "idx": 149,
+    "keep": false,
+    "drop_reason": "占術の存在は確認できるが、出陣日を決定した具体例の裏づけが不足",
+    "overlap_hr": null,
+    "answer": "日時や方角の吉凶を占う軍配の術は存在した。ただし、確認した辞典解説でも実戦への影響は明確でないとされ、武将が占いに従って出陣日を決めたと一括りにはできない。",
+    "hook": "戦の日を占う術はあったが、実戦への影響は明確ではない。",
+    "period": "戦国",
+    "sources": [
+      {
+        "url": "https://kotobank.jp/word/%E8%BB%8D%E9%85%8D-58450",
+        "title": "改訂新版 世界大百科事典「軍配」",
+        "publisher": "平凡社（コトバンク）"
+      }
+    ],
+    "confidence": "mid",
+    "punch": 3
+  },
+  {
+    "idx": 151,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "江戸時代、町人や百姓による刀剣の所持が一律に禁じられていたわけではない。腰に差して歩く帯刀の規制は時期・地域・刀の種類などで異なり、所持と帯刀を区別する必要がある。",
+    "hook": "江戸の町人にも刀はあったが、差して歩く規則は別だった。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://rekishi.irides.tohoku.ac.jp/document/ep/uploads/dewanokuni_shominkenshi.pdf",
+        "title": "出羽国の庶民剣士―武田軍太「武元流剣術実録」の世界―",
+        "publisher": "東北大学"
+      }
+    ],
+    "confidence": "high",
+    "punch": 4
+  },
+  {
+    "idx": 153,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "懐剣は懐に携える護身用の短刀で、武家の女性の婚礼などでは守り刀としても贈られた。自害だけを目的とする道具と決めつけるのは不正確である。",
+    "hook": "武家の花嫁の懐剣は、身を守る刀で、お守りでもあった。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://www.meihaku.jp/touken-qa/touken-qa-detail_1-7/",
+        "title": "短刀は何種類あるの？",
+        "publisher": "名古屋刀剣博物館"
+      }
+    ],
+    "confidence": "high",
+    "punch": 4
+  },
+  {
+    "idx": 155,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "旗本も御家人も将軍直属の家臣だが、原則として将軍に謁見する資格があるのが旗本、ないのが御家人だった。旗本は基本的に一万石未満で、単に収入の多寡だけで区別した呼び名ではない。",
+    "hook": "将軍直属の家臣でも、将軍に謁見できない身分があった。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://www.museum.yokosuka.kanagawa.jp/archives/nature-history/27827",
+        "title": "旗本の２つの顔―官僚としての旗本、領主としての旗本―",
+        "publisher": "横須賀市自然・人文博物館"
+      }
+    ],
+    "confidence": "high",
+    "punch": 3
+  },
+  {
+    "idx": 157,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "武士の喧嘩も処罰の対象で、必ず双方が同じ刑になったわけではない。1652年の加賀藩の事例では、宿場での争いの後に仲直りを命じられた木村弥兵衛が相手を付け狙い続け、切腹となったことが記録されている。",
+    "hook": "武士の喧嘩には、仲直りを破った末に切腹となった例もある。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://www.jstage.jst.go.jp/article/kagahan/5/0/5_24/_pdf",
+        "title": "堀井雅弘「近世武士の喧嘩と武人性」",
+        "publisher": "加賀藩研究ネットワーク"
+      }
+    ],
+    "confidence": "mid",
+    "punch": 4
+  },
+  {
+    "idx": 159,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "幕法違反だけでなく、正式な跡継ぎを残せず家が断絶することも改易の理由になった。江戸初期には危篤時の養子縁組である末期養子も厳しく制限され、家の継承の失敗が領地没収につながった。",
+    "hook": "大名は、悪事を働かなくても跡継ぎ不在で領地を失った。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://kotobank.jp/word/%E6%94%B9%E6%98%93-42113",
+        "title": "改訂新版 世界大百科事典「改易」",
+        "publisher": "平凡社（コトバンク）"
+      }
+    ],
+    "confidence": "high",
+    "punch": 4
+  },
+  {
+    "idx": 161,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "宿ごとに人馬を継ぐ陸上輸送は大量輸送に向かず、海や川の舟運が大量の物資を運ぶ役割を担った。菱垣廻船は大坂から江戸へ木綿・醤油・油・酒などの日用品を運んだ。",
+    "hook": "江戸の日用品は、人馬より大量に運べる船が支えていた。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://www.lmuse.or.jp/collection/gallery/edo/06.html",
+        "title": "菱垣廻船",
+        "publisher": "物流博物館"
+      }
+    ],
+    "confidence": "high",
+    "punch": 4
+  },
+  {
+    "idx": 163,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "『守貞謾稿』に記された冷水売りは、冷水に寒晒粉の団子や白糖を加えた飲み物を売っていた。生活用の飲み水を届ける水屋とは区別される、夏の甘味を楽しむ商売だった。",
+    "hook": "江戸の冷水売りは、水に団子と砂糖を入れて売っていた。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://www.library.metro.tokyo.lg.jp/portals/0/edo/tokyo_library/modal/index.html?d=5373",
+        "title": "俳優見立夏商人",
+        "publisher": "東京都立図書館"
+      }
+    ],
+    "confidence": "high",
+    "punch": 5
+  },
+  {
+    "idx": 165,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "消防大学校の刊行誌では、江戸に約260年間で約90件の大火があったと整理されている。単純平均では約3年に1度になるが、これは小火を含めた全火災の発生頻度ではない。",
+    "hook": "江戸は大火だけでも、単純平均で約三年に一度だった。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://fdmc.fdma.go.jp/investigation/docs/9-10.pdf",
+        "title": "「警防活動の歴史と安全管理」『消防研修』第100号",
+        "publisher": "総務省消防庁 消防大学校"
+      }
+    ],
+    "confidence": "mid",
+    "punch": 4
+  },
+  {
+    "idx": 167,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "日本芸術文化振興会の解説では、丁稚から手代を経て番頭になるまで15〜20年をかける昇進の道筋が紹介されている。ただし全国共通の年限ではなく、店の制度や本人の昇進によって異なった。",
+    "hook": "番頭になるまで、十五〜二十年かかる奉公の道があった。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://www2.ntj.jac.go.jp/dglib/contents/learn/edc16/uta/etc/shikitari/nenkibouko.html",
+        "title": "文化デジタルライブラリー「年季奉公と昇進」",
+        "publisher": "日本芸術文化振興会"
+      },
+      {
+        "url": "https://www.osakamushis.jp/news/2022/tenjigae/221004.html",
+        "title": "商家の奉公人",
+        "publisher": "大阪歴史博物館"
+      }
+    ],
+    "confidence": "mid",
+    "punch": 3
+  },
+  {
+    "idx": 169,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "江戸後期の一石橋では、迷子の特徴を書いた紙を石標の「たづぬる方」に貼り、心当たりのある人が「しらする方」に情報を貼った。迷子の保護には町内が責任を持ち、石標が情報交換の掲示板として使われた。",
+    "hook": "江戸の迷子探しには、石でできた伝言板が使われていた。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://www.syougai.metro.tokyo.lg.jp/bunkazai/week/chuo/",
+        "title": "八重洲散策コース「一石橋迷子しらせ石標」",
+        "publisher": "東京都教育委員会"
+      }
+    ],
+    "confidence": "high",
+    "punch": 5
+  },
+  {
+    "idx": 171,
+    "keep": false,
+    "drop_reason": "火鉢の使用例はあるが、家の中の寒さを具体的に裏づける出典が不足",
+    "overlap_hr": null,
+    "answer": "1858年の浮世絵には、火鉢の上に竹籠を置き、子どもの着物を温める様子が描かれている。ただし、その図から室温や家全体の暖かさを判断することはできない。",
+    "hook": "火鉢で子の着物は温めたが、室温が何度かはわからない。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://jmapps.ne.jp/minatokyodo/det.html?data_id=48",
+        "title": "江戸名所百人美女 溜いけ",
+        "publisher": "港区立郷土歴史館"
+      }
+    ],
+    "confidence": "low",
+    "punch": 3
+  },
+  {
+    "idx": 173,
+    "keep": true,
+    "drop_reason": "",
+    "overlap_hr": null,
+    "answer": "江戸では、捨て子の養育も町役人が担う町政の仕事に含まれていた。拾った個人だけに任される問題ではなく、町の仕組みが養育に関わっていたことを確認できる。",
+    "hook": "江戸の捨て子の養育は、町役人の仕事にもなっていた。",
+    "period": "江戸",
+    "sources": [
+      {
+        "url": "https://kotobank.jp/word/%E6%B1%9F%E6%88%B8-36887",
+        "title": "日本大百科全書「江戸」",
+        "publisher": "小学館（コトバンク）"
+      }
+    ],
+    "confidence": "mid",
+    "punch": 3
+  }
+]
