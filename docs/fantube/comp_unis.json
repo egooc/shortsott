@@ -1,0 +1,95 @@
+{
+  "period": "month",
+  "rows": [
+    {
+      "q": "아일릿 모카",
+      "results": 24,
+      "relevant": 19,
+      "otherChannels": 18,
+      "otherTop": 1020000,
+      "otherMedian": 6050.0,
+      "ownerShorts": 0,
+      "verdict": "포화 — 다들 올리는데 안 나온다, 넘겨라"
+    },
+    {
+      "q": "유니스 진현주",
+      "results": 0,
+      "relevant": 0,
+      "otherChannels": 0,
+      "otherTop": 0,
+      "otherMedian": 0,
+      "ownerShorts": 0,
+      "verdict": "공백 — 쇼츠 수요 미확인(롱폼 수요만 있음), 먼저 들어가 본다"
+    },
+    {
+      "q": "유니스 나나",
+      "results": 25,
+      "relevant": 16,
+      "otherChannels": 6,
+      "otherTop": 250000,
+      "otherMedian": 9150.0,
+      "ownerShorts": 0,
+      "verdict": "경쟁 있음 — 덜 다뤄진 회차·인물로 좁혀라"
+    },
+    {
+      "q": "유니스 젤리당카",
+      "results": 0,
+      "relevant": 0,
+      "otherChannels": 0,
+      "otherTop": 0,
+      "otherMedian": 0,
+      "ownerShorts": 0,
+      "verdict": "공백 — 쇼츠 수요 미확인(롱폼 수요만 있음), 먼저 들어가 본다"
+    },
+    {
+      "q": "유니스 코토코",
+      "results": 5,
+      "relevant": 4,
+      "otherChannels": 2,
+      "otherTop": 110000,
+      "otherMedian": 74500.0,
+      "ownerShorts": 0,
+      "verdict": "공백 — 쇼츠 수요 미확인(롱폼 수요만 있음), 먼저 들어가 본다"
+    },
+    {
+      "q": "유니스 방윤하",
+      "results": 0,
+      "relevant": 0,
+      "otherChannels": 0,
+      "otherTop": 0,
+      "otherMedian": 0,
+      "ownerShorts": 0,
+      "verdict": "공백 — 쇼츠 수요 미확인(롱폼 수요만 있음), 먼저 들어가 본다"
+    },
+    {
+      "q": "유니스 엘리시아",
+      "results": 4,
+      "relevant": 3,
+      "otherChannels": 2,
+      "otherTop": 140000,
+      "otherMedian": 85500.0,
+      "ownerShorts": 0,
+      "verdict": "공백 — 쇼츠 수요 미확인(롱폼 수요만 있음), 먼저 들어가 본다"
+    },
+    {
+      "q": "유니스 오윤아",
+      "results": 28,
+      "relevant": 18,
+      "otherChannels": 13,
+      "otherTop": 340000,
+      "otherMedian": 24000,
+      "ownerShorts": 0,
+      "verdict": "경쟁 있음 — 덜 다뤄진 회차·인물로 좁혀라"
+    },
+    {
+      "q": "유니스 임서원",
+      "results": 34,
+      "relevant": 26,
+      "otherChannels": 14,
+      "otherTop": 4520000,
+      "otherMedian": 140000.0,
+      "ownerShorts": 0,
+      "verdict": "경쟁 있음 — 덜 다뤄진 회차·인물로 좁혀라"
+    }
+  ]
+}

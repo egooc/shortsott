@@ -1,0 +1,65 @@
+{
+  "period": "year",
+  "rows": [
+    {
+      "q": "엔믹스 규진",
+      "results": 25,
+      "relevant": 12,
+      "otherChannels": 9,
+      "otherTop": 3350000,
+      "otherMedian": 160000,
+      "ownerShorts": 1,
+      "verdict": "경쟁 있음 — 덜 다뤄진 회차·인물로 좁혀라"
+    },
+    {
+      "q": "하츠투하츠 예온",
+      "results": 25,
+      "relevant": 17,
+      "otherChannels": 13,
+      "otherTop": 2380000,
+      "otherMedian": 9900,
+      "ownerShorts": 0,
+      "verdict": "경쟁 있음 — 덜 다뤄진 회차·인물로 좁혀라"
+    },
+    {
+      "q": "아일릿 윤아",
+      "results": 42,
+      "relevant": 41,
+      "otherChannels": 25,
+      "otherTop": 6880000,
+      "otherMedian": 690000,
+      "ownerShorts": 1,
+      "verdict": "경쟁 있음 — 덜 다뤄진 회차·인물로 좁혀라"
+    },
+    {
+      "q": "아일릿 모카",
+      "results": 15,
+      "relevant": 11,
+      "otherChannels": 10,
+      "otherTop": 10170000,
+      "otherMedian": 350000.0,
+      "ownerShorts": 0,
+      "verdict": "경쟁 있음 — 덜 다뤄진 회차·인물로 좁혀라"
+    },
+    {
+      "q": "유니스",
+      "results": 25,
+      "relevant": 22,
+      "otherChannels": 8,
+      "otherTop": 140000,
+      "otherMedian": 1350.0,
+      "ownerShorts": 0,
+      "verdict": "경쟁 있음 — 덜 다뤄진 회차·인물로 좁혀라"
+    },
+    {
+      "q": "idntt",
+      "results": 24,
+      "relevant": 22,
+      "otherChannels": 9,
+      "otherTop": 3730000,
+      "otherMedian": 5100,
+      "ownerShorts": 2,
+      "verdict": "경쟁 있음 — 덜 다뤄진 회차·인물로 좁혀라"
+    }
+  ]
+}

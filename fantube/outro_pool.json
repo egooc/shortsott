@@ -1,0 +1,6 @@
+[
+  {"id": "ohoho", "note": "나이트 루틴 «오오오~» 근접", "src": "D:/volcano-runs/fantube/src/kyujin_night.mp4", "start": 1.6, "end": 5.2, "camera": "fixed", "x": 300, "crop": 1000, "dreamy": true, "gain": 1.1, "rule": "«오오오» 1.79~4.82 끝까지(+0.38), 3.40 샷 경계는 클립 안쪽이라 그대로(양쪽 15프레임 넘음)"},
+  {"id": "molla", "note": "호텔 브이로그 입 삐죽+«몰라?!»+웃음 (이름표 KYUJIN 확인, 박힌 자막 y≥900 은 crop 880 으로 뺌)", "src": "D:/volcano-runs/fantube/src/outro/RSi4_300.mp4", "start": 3.27, "end": 6.0, "camera": "fixed", "x": 180, "crop": 880, "dreamy": true, "gain": 1.0, "rule": "«몰라» 3.38 + 웃음 끝 5.69(+0.31), 시작은 샷 경계 3.23+1프레임"},
+  {"id": "sleeping", "note": "파자마 «Sleeping Time!» (SFace 0.76~0.81) · 박힌 «Sleeping Time!» 빼려고 crop 920", "src": "D:/volcano-runs/fantube/src/kyujin_pajama.mp4", "start": 759.0, "end": 760.55, "camera": "fixed", "x": 505, "crop": 920, "dreamy": true, "gain": 1.0, "rule": "«슬리핑 타임» 끝 760.38, 760.60 샷 경계 −1프레임"},
+  {"id": "hello", "note": "나이트 루틴 손 흔들며 인사 (SFace 0.51~0.64)", "src": "D:/volcano-runs/fantube/src/kyujin_night.mp4", "start": 14.37, "end": 17.08, "camera": "fixed", "x": 470, "crop": 1000, "dreamy": true, "gain": 1.1, "rule": "«(여러)분 규진임미다» 끝 16.73(+0.35), 앞 13.87~14.33 짧은 샷(5·9프레임)은 빼려고 경계 14.33+1프레임에서 시작, 16.23 경계는 안쪽"}
+]

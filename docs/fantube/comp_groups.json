@@ -1,0 +1,205 @@
+{
+  "period": "month",
+  "rows": [
+    {
+      "q": "리센느",
+      "results": 67,
+      "relevant": 37,
+      "otherChannels": 18,
+      "otherTop": 5180000,
+      "otherMedian": 215000.0,
+      "ownerShorts": 0,
+      "verdict": "경쟁 있음 — 덜 다뤄진 회차·인물로 좁혀라"
+    },
+    {
+      "q": "프로미스나인",
+      "results": 25,
+      "relevant": 15,
+      "otherChannels": 13,
+      "otherTop": 400000,
+      "otherMedian": 35000,
+      "ownerShorts": 0,
+      "verdict": "경쟁 있음 — 덜 다뤄진 회차·인물로 좁혀라"
+    },
+    {
+      "q": "올데이프로젝트",
+      "results": 25,
+      "relevant": 21,
+      "otherChannels": 15,
+      "otherTop": 430000,
+      "otherMedian": 2200,
+      "ownerShorts": 2,
+      "verdict": "포화 — 다들 올리는데 안 나온다, 넘겨라"
+    },
+    {
+      "q": "하츠투하츠",
+      "results": 25,
+      "relevant": 24,
+      "otherChannels": 16,
+      "otherTop": 1210000,
+      "otherMedian": 30500.0,
+      "ownerShorts": 0,
+      "verdict": "경쟁 있음 — 덜 다뤄진 회차·인물로 좁혀라"
+    },
+    {
+      "q": "키키 KiiiKiii",
+      "results": 25,
+      "relevant": 24,
+      "otherChannels": 16,
+      "otherTop": 580000,
+      "otherMedian": 1400.0,
+      "ownerShorts": 0,
+      "verdict": "포화 — 다들 올리는데 안 나온다, 넘겨라"
+    },
+    {
+      "q": "코르티스",
+      "results": 25,
+      "relevant": 25,
+      "otherChannels": 21,
+      "otherTop": 370000,
+      "otherMedian": 9300,
+      "ownerShorts": 1,
+      "verdict": "포화 — 다들 올리는데 안 나온다, 넘겨라"
+    },
+    {
+      "q": "아일릿",
+      "results": 25,
+      "relevant": 25,
+      "otherChannels": 17,
+      "otherTop": 1280000,
+      "otherMedian": 3300,
+      "ownerShorts": 0,
+      "verdict": "포화 — 다들 올리는데 안 나온다, 넘겨라"
+    },
+    {
+      "q": "투어스 TWS",
+      "results": 44,
+      "relevant": 42,
+      "otherChannels": 30,
+      "otherTop": 1260000,
+      "otherMedian": 13000.0,
+      "ownerShorts": 0,
+      "verdict": "포화 — 다들 올리는데 안 나온다, 넘겨라"
+    },
+    {
+      "q": "보이넥스트도어",
+      "results": 25,
+      "relevant": 25,
+      "otherChannels": 14,
+      "otherTop": 910000,
+      "otherMedian": 23000.0,
+      "ownerShorts": 0,
+      "verdict": "경쟁 있음 — 덜 다뤄진 회차·인물로 좁혀라"
+    },
+    {
+      "q": "투이드 TUIDE",
+      "results": 25,
+      "relevant": 21,
+      "otherChannels": 16,
+      "otherTop": 800000,
+      "otherMedian": 1100.0,
+      "ownerShorts": 1,
+      "verdict": "포화 — 다들 올리는데 안 나온다, 넘겨라"
+    },
+    {
+      "q": "베스티 BESTie",
+      "results": 25,
+      "relevant": 25,
+      "otherChannels": 19,
+      "otherTop": 4030000,
+      "otherMedian": 46000,
+      "ownerShorts": 0,
+      "verdict": "경쟁 있음 — 덜 다뤄진 회차·인물로 좁혀라"
+    },
+    {
+      "q": "유니스 UNIS",
+      "results": 14,
+      "relevant": 12,
+      "otherChannels": 8,
+      "otherTop": 890000,
+      "otherMedian": 1650.0,
+      "ownerShorts": 0,
+      "verdict": "경쟁 있음 — 덜 다뤄진 회차·인물로 좁혀라"
+    },
+    {
+      "q": "캣츠아이",
+      "results": 86,
+      "relevant": 81,
+      "otherChannels": 30,
+      "otherTop": 21830000,
+      "otherMedian": 68000.0,
+      "ownerShorts": 3,
+      "verdict": "경쟁 있음 — 덜 다뤄진 회차·인물로 좁혀라"
+    },
+    {
+      "q": "idntt",
+      "results": 10,
+      "relevant": 9,
+      "otherChannels": 4,
+      "otherTop": 14000,
+      "otherMedian": 1200.0,
+      "ownerShorts": 0,
+      "verdict": "경쟁 있음 — 덜 다뤄진 회차·인물로 좁혀라"
+    },
+    {
+      "q": "튜넥스 TUNEXX",
+      "results": 0,
+      "relevant": 0,
+      "otherChannels": 0,
+      "otherTop": 0,
+      "otherMedian": 0,
+      "ownerShorts": 0,
+      "verdict": "공백 — 쇼츠 수요 미확인(롱폼 수요만 있음), 먼저 들어가 본다"
+    },
+    {
+      "q": "키스오브라이프",
+      "results": 0,
+      "relevant": 0,
+      "otherChannels": 0,
+      "otherTop": 0,
+      "otherMedian": 0,
+      "ownerShorts": 0,
+      "verdict": "공백 — 쇼츠 수요 미확인(롱폼 수요만 있음), 먼저 들어가 본다"
+    },
+    {
+      "q": "베이비몬스터",
+      "results": 25,
+      "relevant": 25,
+      "otherChannels": 20,
+      "otherTop": 820000,
+      "otherMedian": 24000.0,
+      "ownerShorts": 0,
+      "verdict": "포화 — 다들 올리는데 안 나온다, 넘겨라"
+    },
+    {
+      "q": "QWER",
+      "results": 25,
+      "relevant": 24,
+      "otherChannels": 22,
+      "otherTop": 370000,
+      "otherMedian": 25000.0,
+      "ownerShorts": 1,
+      "verdict": "포화 — 다들 올리는데 안 나온다, 넘겨라"
+    },
+    {
+      "q": "엔믹스",
+      "results": 82,
+      "relevant": 78,
+      "otherChannels": 25,
+      "otherTop": 22750000,
+      "otherMedian": 99000,
+      "ownerShorts": 0,
+      "verdict": "경쟁 있음 — 덜 다뤄진 회차·인물로 좁혀라"
+    },
+    {
+      "q": "아이브",
+      "results": 25,
+      "relevant": 23,
+      "otherChannels": 20,
+      "otherTop": 330000,
+      "otherMedian": 38500.0,
+      "ownerShorts": 0,
+      "verdict": "경쟁 있음 — 덜 다뤄진 회차·인물로 좁혀라"
+    }
+  ]
+}

@@ -1,0 +1,295 @@
+{
+  "period": "month",
+  "rows": [
+    {
+      "q": "리센느 원이",
+      "results": 25,
+      "relevant": 25,
+      "otherChannels": 21,
+      "otherTop": 590000,
+      "otherMedian": 22000,
+      "ownerShorts": 0,
+      "verdict": "포화 — 다들 올리는데 안 나온다, 넘겨라"
+    },
+    {
+      "q": "리센느 미나미",
+      "results": 49,
+      "relevant": 48,
+      "otherChannels": 43,
+      "otherTop": 24720000,
+      "otherMedian": 77000,
+      "ownerShorts": 0,
+      "verdict": "경쟁 있음 — 덜 다뤄진 회차·인물로 좁혀라"
+    },
+    {
+      "q": "리센느 제나",
+      "results": 48,
+      "relevant": 44,
+      "otherChannels": 33,
+      "otherTop": 3700000,
+      "otherMedian": 36000,
+      "ownerShorts": 0,
+      "verdict": "경쟁 있음 — 덜 다뤄진 회차·인물로 좁혀라"
+    },
+    {
+      "q": "리센느 메이",
+      "results": 25,
+      "relevant": 24,
+      "otherChannels": 17,
+      "otherTop": 6960000,
+      "otherMedian": 85000,
+      "ownerShorts": 0,
+      "verdict": "경쟁 있음 — 덜 다뤄진 회차·인물로 좁혀라"
+    },
+    {
+      "q": "리센느 리브",
+      "results": 25,
+      "relevant": 25,
+      "otherChannels": 20,
+      "otherTop": 170000,
+      "otherMedian": 43000.0,
+      "ownerShorts": 0,
+      "verdict": "경쟁 있음 — 덜 다뤄진 회차·인물로 좁혀라"
+    },
+    {
+      "q": "하츠투하츠 지우",
+      "results": 25,
+      "relevant": 22,
+      "otherChannels": 19,
+      "otherTop": 1040000,
+      "otherMedian": 19000,
+      "ownerShorts": 0,
+      "verdict": "포화 — 다들 올리는데 안 나온다, 넘겨라"
+    },
+    {
+      "q": "하츠투하츠 카르멘",
+      "results": 20,
+      "relevant": 11,
+      "otherChannels": 10,
+      "otherTop": 360000,
+      "otherMedian": 8850.0,
+      "ownerShorts": 0,
+      "verdict": "경쟁 있음 — 덜 다뤄진 회차·인물로 좁혀라"
+    },
+    {
+      "q": "하츠투하츠 유하",
+      "results": 40,
+      "relevant": 36,
+      "otherChannels": 22,
+      "otherTop": 4580000,
+      "otherMedian": 103000.0,
+      "ownerShorts": 0,
+      "verdict": "경쟁 있음 — 덜 다뤄진 회차·인물로 좁혀라"
+    },
+    {
+      "q": "하츠투하츠 스텔라",
+      "results": 25,
+      "relevant": 18,
+      "otherChannels": 18,
+      "otherTop": 390000,
+      "otherMedian": 95000.0,
+      "ownerShorts": 0,
+      "verdict": "경쟁 있음 — 덜 다뤄진 회차·인물로 좁혀라"
+    },
+    {
+      "q": "하츠투하츠 주은",
+      "results": 25,
+      "relevant": 15,
+      "otherChannels": 11,
+      "otherTop": 670000,
+      "otherMedian": 3400,
+      "ownerShorts": 0,
+      "verdict": "경쟁 있음 — 덜 다뤄진 회차·인물로 좁혀라"
+    },
+    {
+      "q": "하츠투하츠 에이나",
+      "results": 25,
+      "relevant": 23,
+      "otherChannels": 20,
+      "otherTop": 990000,
+      "otherMedian": 22500.0,
+      "ownerShorts": 0,
+      "verdict": "포화 — 다들 올리는데 안 나온다, 넘겨라"
+    },
+    {
+      "q": "하츠투하츠 이안",
+      "results": 25,
+      "relevant": 21,
+      "otherChannels": 20,
+      "otherTop": 500000,
+      "otherMedian": 4100.0,
+      "ownerShorts": 0,
+      "verdict": "포화 — 다들 올리는데 안 나온다, 넘겨라"
+    },
+    {
+      "q": "하츠투하츠 예온",
+      "results": 25,
+      "relevant": 9,
+      "otherChannels": 8,
+      "otherTop": 860000,
+      "otherMedian": 4400.0,
+      "ownerShorts": 0,
+      "verdict": "경쟁 있음 — 덜 다뤄진 회차·인물로 좁혀라"
+    },
+    {
+      "q": "엔믹스 해원",
+      "results": 25,
+      "relevant": 16,
+      "otherChannels": 11,
+      "otherTop": 4660000,
+      "otherMedian": 44000,
+      "ownerShorts": 0,
+      "verdict": "경쟁 있음 — 덜 다뤄진 회차·인물로 좁혀라"
+    },
+    {
+      "q": "엔믹스 릴리",
+      "results": 25,
+      "relevant": 16,
+      "otherChannels": 12,
+      "otherTop": 130000,
+      "otherMedian": 36000.0,
+      "ownerShorts": 0,
+      "verdict": "경쟁 있음 — 덜 다뤄진 회차·인물로 좁혀라"
+    },
+    {
+      "q": "엔믹스 설윤",
+      "results": 25,
+      "relevant": 22,
+      "otherChannels": 19,
+      "otherTop": 56000,
+      "otherMedian": 5400,
+      "ownerShorts": 0,
+      "verdict": "포화 — 다들 올리는데 안 나온다, 넘겨라"
+    },
+    {
+      "q": "엔믹스 배이",
+      "results": 24,
+      "relevant": 11,
+      "otherChannels": 11,
+      "otherTop": 110000,
+      "otherMedian": 7300,
+      "ownerShorts": 0,
+      "verdict": "경쟁 있음 — 덜 다뤄진 회차·인물로 좁혀라"
+    },
+    {
+      "q": "엔믹스 규진",
+      "results": 15,
+      "relevant": 5,
+      "otherChannels": 5,
+      "otherTop": 250000,
+      "otherMedian": 1100,
+      "ownerShorts": 0,
+      "verdict": "경쟁 있음 — 덜 다뤄진 회차·인물로 좁혀라"
+    },
+    {
+      "q": "아일릿 원희",
+      "results": 46,
+      "relevant": 43,
+      "otherChannels": 30,
+      "otherTop": 12970000,
+      "otherMedian": 51000.0,
+      "ownerShorts": 1,
+      "verdict": "경쟁 있음 — 덜 다뤄진 회차·인물로 좁혀라"
+    },
+    {
+      "q": "아일릿 모카",
+      "results": 25,
+      "relevant": 2,
+      "otherChannels": 2,
+      "otherTop": 10000,
+      "otherMedian": 5700.0,
+      "ownerShorts": 0,
+      "verdict": "공백 — 쇼츠 수요 미확인(롱폼 수요만 있음), 먼저 들어가 본다"
+    },
+    {
+      "q": "아일릿 이로하",
+      "results": 25,
+      "relevant": 25,
+      "otherChannels": 16,
+      "otherTop": 220000,
+      "otherMedian": 45000.0,
+      "ownerShorts": 1,
+      "verdict": "경쟁 있음 — 덜 다뤄진 회차·인물로 좁혀라"
+    },
+    {
+      "q": "아일릿 윤아",
+      "results": 20,
+      "relevant": 13,
+      "otherChannels": 9,
+      "otherTop": 340000,
+      "otherMedian": 5200,
+      "ownerShorts": 0,
+      "verdict": "경쟁 있음 — 덜 다뤄진 회차·인물로 좁혀라"
+    },
+    {
+      "q": "아일릿 민주",
+      "results": 20,
+      "relevant": 9,
+      "otherChannels": 8,
+      "otherTop": 52000,
+      "otherMedian": 6750.0,
+      "ownerShorts": 0,
+      "verdict": "경쟁 있음 — 덜 다뤄진 회차·인물로 좁혀라"
+    },
+    {
+      "q": "키스오브라이프 쥴리",
+      "results": 0,
+      "relevant": 0,
+      "otherChannels": 0,
+      "otherTop": 0,
+      "otherMedian": 0,
+      "ownerShorts": 0,
+      "verdict": "공백 — 쇼츠 수요 미확인(롱폼 수요만 있음), 먼저 들어가 본다"
+    },
+    {
+      "q": "키스오브라이프 나띠",
+      "results": 5,
+      "relevant": 3,
+      "otherChannels": 1,
+      "otherTop": 3000,
+      "otherMedian": 3000,
+      "ownerShorts": 2,
+      "verdict": "공백 — 쇼츠 수요 미확인(롱폼 수요만 있음), 먼저 들어가 본다"
+    },
+    {
+      "q": "키스오브라이프 벨",
+      "results": 0,
+      "relevant": 0,
+      "otherChannels": 0,
+      "otherTop": 0,
+      "otherMedian": 0,
+      "ownerShorts": 0,
+      "verdict": "공백 — 쇼츠 수요 미확인(롱폼 수요만 있음), 먼저 들어가 본다"
+    },
+    {
+      "q": "키스오브라이프 하늘",
+      "results": 0,
+      "relevant": 0,
+      "otherChannels": 0,
+      "otherTop": 0,
+      "otherMedian": 0,
+      "ownerShorts": 0,
+      "verdict": "공백 — 쇼츠 수요 미확인(롱폼 수요만 있음), 먼저 들어가 본다"
+    },
+    {
+      "q": "키오프",
+      "results": 25,
+      "relevant": 23,
+      "otherChannels": 21,
+      "otherTop": 130000,
+      "otherMedian": 11000,
+      "ownerShorts": 0,
+      "verdict": "포화 — 다들 올리는데 안 나온다, 넘겨라"
+    },
+    {
+      "q": "튜넥스",
+      "results": 25,
+      "relevant": 15,
+      "otherChannels": 11,
+      "otherTop": 96000,
+      "otherMedian": 15000,
+      "ownerShorts": 3,
+      "verdict": "경쟁 있음 — 덜 다뤄진 회차·인물로 좁혀라"
+    }
+  ]
+}
