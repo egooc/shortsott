@@ -13,8 +13,10 @@ function params(period) {
 
 function views(text) {
   // hl=ko «조회수 1.2만회» · «조회수 3억회» · «조회수 950회»
-  const m = /조회수\s*([\d.,]+)\s*(천|만|억)?\s*회/.exec(text || '');
+  // hl=ja «1.2万 回視聴» · «3億 回視聴»
+  const m = /조회수\s*([\d.,]+)\s*(천|만|억)?\s*회/.exec(text || '') || /([\d.,]+)\s*(万|億)?\s*回視聴/.exec(text || '');
   if (!m) return null;
+  if (m[2] === '万') m[2] = '만'; else if (m[2] === '億') m[2] = '억';
   const n = Number(m[1].replace(/,/g, ''));
   return Math.round(n * ({ 천: 1e3, 만: 1e4, 억: 1e8 }[m[2]] || 1));
 }
@@ -25,7 +27,7 @@ function collect(o, out, tok) {
     const v = o.shortsLockupViewModel;
     const id = v.onTap?.innertubeCommand?.reelWatchEndpoint?.videoId;
     const acc = v.accessibilityText || '';
-    if (id) out.push({ id, title: acc.split(/,\s*조회수/)[0].trim(), view_count: views(acc) });
+    if (id) out.push({ id, title: acc.split(/,\s*(?:조회수|[\d.,]+\s*[万億]?\s*回視聴)/)[0].trim(), view_count: views(acc) });
   }
   if (o.continuationCommand?.token) tok.push(o.continuationCommand.token);
   for (const k of Object.keys(o)) collect(o[k], out, tok);
