@@ -11,6 +11,8 @@
 - 원고: yt-dlp 자동 자막(json3) 먼저. 없으면 Speechmatics(rinbox_transcribe 의 submit/wait 를 import) —
   채널당 --max-stt 편 또는 합계 --max-stt-min 분 중 먼저 닿는 쪽까지, 넘으면 «전사 생략 N편». --no-stt 면 아예 안 쓴다.
 - 429 가 나오면 그 자리에서 자막 받기를 멈춘다(재시도·우회 없음). 받은 편만으로 표를 쓰고 «429 중단»을 적는다.
+  관리자 10-16: 요청 사이 3~5초 무작위 · 한 번에 새로 받는 자막 20편 · 429 나면 그 채널은 그날 접음(종료 코드 3 → 다음 채널) ·
+  하루 실행 3회(첫 실행 + 재시도 2회). 기록은 캐시의 fetch_log.json.
 - 캐시 server/data/ref_analyze/<채널>/(gitignore), 산출 reference/<lane>/<채널>/{channel,upload,script}.json + class.md.
 문장 분할은 근사다: 자막 구두점(。.?!) 또는 0.7초+ 쉼에서 끊는다. 숫자는 «사람이 눈으로 확인할 근거»와 같이 본다.
 """
@@ -18,6 +20,7 @@ import argparse
 import datetime as dt
 import json
 import math
+import random
 import re
 import statistics as st
 import subprocess
@@ -143,6 +146,17 @@ class Stop(Exception):
     pass
 
 
+def gate(log, today, max_429=1, max_runs=3):
+    """오늘 이 채널 자막을 더 받아도 되나 — (ok, 이유). log = {날짜: {'runs': n, '429': n}}.
+    관리자 10-16: 429 가 나면 그 채널은 그날 접는다 · 하루 재시도 2회(= 실행 3회)까지."""
+    d = log.get(today, {})
+    if d.get('429', 0) >= max_429:
+        return False, '오늘 429 %d회 — 이 채널은 내일 다시' % d['429']
+    if d.get('runs', 0) >= max_runs:
+        return False, '오늘 자막 받기 %d회 — 하루 상한' % d['runs']
+    return True, ''
+
+
 def auto_subs(vid, lang, cache):
     f = cache / ('%s.%s.json3' % (vid, lang))
     if f.exists():
@@ -152,12 +166,16 @@ def auto_subs(vid, lang, cache):
                         'https://www.youtube.com/watch?v=' + vid], capture_output=True, text=True, encoding='utf-8', errors='replace')
     if '429' in p.stderr:
         raise Stop('429')
+    auto_subs.fetched += 1
     for cand in (f, cache / ('%s.%s-orig.json3' % (vid, lang))):
         if cand.exists():
             if cand != f:
                 cand.replace(f)
             return f
     return None
+
+
+auto_subs.fetched = 0
 
 
 def words_from_json3(f):
@@ -360,7 +378,11 @@ def main(argv=None):
     ap.add_argument('--no-stt', action='store_true', help='Speechmatics 안 씀(자동 자막만)')
     ap.add_argument('--max-stt', type=int, default=20)
     ap.add_argument('--max-stt-min', type=float, default=180)
-    ap.add_argument('--sleep', type=float, default=6.0, help='자막 요청 사이 쉼(초)')
+    ap.add_argument('--sleep-min', type=float, default=3.0, help='자막 요청 사이 쉼 하한(초, 무작위)')
+    ap.add_argument('--sleep-max', type=float, default=5.0)
+    ap.add_argument('--max-fetch', type=int, default=20, help='한 번 실행에 새로 받는 자막 상한(캐시는 안 셈)')
+    ap.add_argument('--max-429', type=int, default=1, help='하루 429 이만큼이면 이 채널은 그날 접음')
+    ap.add_argument('--max-runs', type=int, default=3, help='하루 자막 받기 실행 상한(첫 실행 + 재시도 2회)')
     a = ap.parse_args(argv)
 
     now = dt.datetime.now(dt.timezone.utc)
@@ -375,13 +397,29 @@ def main(argv=None):
     up = upload_table(rows, now)
 
     notes, srows, stt_n, stt_min, skipped, stopped = [], [], 0, 0.0, 0, False
+    logf = cache / 'fetch_log.json'
+    log = json.loads(logf.read_text(encoding='utf-8')) if logf.exists() else {}
+    today = now.astimezone(KST).date().isoformat()
+    ok, why = gate(log, today, a.max_429, a.max_runs)
+    if not ok:
+        stopped = True
+        notes.append('자막 받기 건너뜀 — %s(캐시만으로 표를 쓴다)' % why)
+    else:
+        log.setdefault(today, {'runs': 0, '429': 0})['runs'] += 1
     order = [r for pair in zip(top, bot) for r in pair]  # 상·하위 번갈아 — 중간에 멈춰도 두 군이 같이 남는다
     for r in order:
         words, source = None, 'none'
-        if not stopped:
+        cached = (cache / ('%s.%s.json3' % (r['id'], a.lang))).exists() or (cache / ('%s.stt.json' % r['id'])).exists()
+        if not cached and auto_subs.fetched + stt_n >= a.max_fetch:
+            stopped = stopped or 'cap'
+        if not stopped or cached:
+            before = auto_subs.fetched + stt_n
             try:
-                f = auto_subs(r['id'], a.lang, cache)
-                if f:
+                sttf = cache / ('%s.stt.json' % r['id'])
+                f = None if sttf.exists() else auto_subs(r['id'], a.lang, cache)
+                if sttf.exists():  # 이미 전사한 편 — 자막 요청 없이 캐시
+                    words, source = json.loads(sttf.read_text(encoding='utf-8')), 'speechmatics'
+                elif f:
                     words, source = words_from_json3(f), 'auto'
                 elif a.no_stt:
                     skipped += 1
@@ -394,26 +432,31 @@ def main(argv=None):
                     skipped += 1
             except Stop:
                 stopped = True
-                notes.append('429 중단 — %s 이후 자막을 받지 않았다(재시도·우회 없음)' % r['id'])
-            time.sleep(a.sleep)
+                log.setdefault(today, {'runs': 0, '429': 0})['429'] += 1
+                notes.append('429 중단 — %s 이후 자막을 받지 않았다(재시도·우회 없음, 이 채널은 오늘 접음)' % r['id'])
+            if auto_subs.fetched + stt_n > before:
+                time.sleep(random.uniform(a.sleep_min, a.sleep_max))
         row = script_row(r, words or [], a.lang, source)
         row.update(title_row(r))
         row['group'] = 'top' if r in top else 'bottom'
         srows.append(row)
+    if stopped == 'cap':
+        notes.append('이번 실행 상한 %d편까지 받았다 — 나머지는 다음 시간대에 같은 명령으로(캐시 이어 받기)' % a.max_fetch)
+    logf.write_text(json.dumps(log, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     if skipped:
         notes.append('전사 생략 %d편(자동 자막 없음 · STT 상한 또는 --no-stt)' % skipped)
     if stt_n:
         notes.append('Speechmatics %d편 · %.1f분 사용' % (stt_n, stt_min))
     sc = {'lang': a.lang, 'n': len(srows), 'stt_used': stt_n, 'stt_minutes': round(stt_min, 1), 'skipped': skipped,
-          'stopped_429': stopped, 'rows': srows}
+          'stopped': stopped, 'rows': srows}
     diffs = compare([x for x in srows if x['group'] == 'top'], [x for x in srows if x['group'] == 'bottom'])
     sc['diffs'] = diffs
     for name, obj in (('channel.json', ch), ('upload.json', up), ('script.json', sc)):
         (out / name).write_text(json.dumps(obj, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     (out / 'class.md').write_text(class_md(ch, up, sc, diffs, a.lane, notes) + '\n', encoding='utf-8')
     print('%s → %s (표본 %d, 자동 자막 %d, STT %d, 생략 %d%s)' % (meta['title'], out.relative_to(ROOT), len(srows),
-          sum(x['source'] == 'auto' for x in srows), stt_n, skipped, ', 429 중단' if stopped else ''))
-    return 0
+          sum(x['source'] == 'auto' for x in srows), stt_n, skipped, ', 중단: %s' % stopped if stopped else ''))
+    return 3 if stopped is True else 0  # 3 = 429·하루 상한으로 접음 → 다음 채널로
 
 
 if __name__ == '__main__':

@@ -59,6 +59,12 @@ class RefAnalyzeTest(unittest.TestCase):
         row = R.script_row(r, [[0, 4, '가'], [1, 5, '나'], [8, 9, '다']], 'ko', 'auto')
         self.assertEqual(row['speech_share'], 0.6)
 
+    def test_gate(self):
+        self.assertEqual(R.gate({}, '2026-10-16')[0], True)
+        self.assertEqual(R.gate({'2026-10-16': {'runs': 1, '429': 1}}, '2026-10-16')[0], False)
+        self.assertEqual(R.gate({'2026-10-16': {'runs': 3, '429': 0}}, '2026-10-16')[0], False)
+        self.assertEqual(R.gate({'2026-10-15': {'runs': 3, '429': 1}}, '2026-10-16')[0], True)
+
 
 if __name__ == '__main__':
     unittest.main()
