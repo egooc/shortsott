@@ -47,6 +47,15 @@ class WindowTest(unittest.TestCase):
         self.assertTrue(self.st('期間限定で配信中')[1].startswith('기간 미상'))
         self.assertEqual(self.st('本編です')[1], '기한 표기 없음')
 
+    def test_relative_limited_from_publish(self):
+        # 国際放映 «1週間限定無料配信»·«半年間限定», 新東宝 «2週間限定» — 공개일부터
+        w, s = self.st('【名優・宝田明主演ドラマ・1週間限定無料配信】平四郎危機一発 第13話', '2026-10-12')
+        self.assertEqual(w['end'], dt.date(2026, 10, 19))
+        self.assertTrue(s.startswith('공개 중'))
+        w, _ = self.st('【半年間限定無料配信】平四郎危機一発 第1話', '2026-05-01')
+        self.assertEqual(w['end'], dt.date(2026, 10, 30))
+        self.assertEqual(self.st('【2週間限定無料配信】北海の叛乱', '2026-09-01')[1], '기간 경과')
+
     def test_year_rollover(self):
         # 12월에 올린 «1/5まで» 류는 다음 해
         w, _ = self.st('※12/20-1/5無料公開', '2025-12-20')

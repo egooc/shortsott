@@ -98,6 +98,14 @@ def parse_window(desc, published):
     if m:
         y, mo, d = m.groups()
         return {'start': None, 'end': _date(y or year_for(mo), mo, d), 'raw': m.group(0), 'kind': 'until'}
+    # «1週間限定無料配信»·«2週間限定»·«半年間限定» — 공개일부터 센다(国際放映·新東宝)
+    m = re.search(r'(半年間?|\d+)\s*(週間|ヶ月|か月|カ月|日間|年間)?\s*限定', t)
+    if m and (m.group(1).startswith('半年') or m.group(2)):
+        n = 1 if m.group(1).startswith('半年') else int(m.group(1))
+        days = {'週間': 7 * n, 'ヶ月': 30 * n, 'か月': 30 * n, 'カ月': 30 * n, '日間': n, '年間': 365 * n}.get(m.group(2) or '', 0)
+        if m.group(1).startswith('半年'):
+            days = 182
+        return {'start': pub, 'end': pub + dt.timedelta(days=days), 'raw': m.group(0), 'kind': 'window'}
     m = re.search(r'【?年内限定】?', t)
     if m:
         return {'start': None, 'end': dt.date(pub.year, 12, 31), 'raw': m.group(0), 'kind': 'until'}
@@ -160,9 +168,13 @@ def run(mx=100, today=None):
     first = not state
     rows = []
     for ch in conf['channels']:
+        ch_first = ch['id'] not in state  # 새로 더한 채널은 그 채널만 기준선으로 잡는다
         seen = state.setdefault(ch['id'], {})
+        inc = re.compile(ch['include']) if ch.get('include') else None  # AMG 처럼 時代劇만 볼 채널
         for v in fetch_channel(ch, key, mx):
             sn, cd = v['snippet'], v['contentDetails']
+            if inc and not inc.search(sn['title']):
+                continue
             mins = iso_minutes(cd.get('duration'))
             # 松竹은 창을 제목에 적는다(«※10/14-10/27無料公開») — 제목을 먼저 본다
             w = parse_window(sn['title'] + '\n' + sn.get('description', ''), sn.get('publishedAt', ''))
@@ -173,7 +185,7 @@ def run(mx=100, today=None):
                          'minutes': round(mins, 1), 'feature': mins >= conf.get('min_minutes', 20),
                          'kr_visible': ok_kr, 'region': region, 'window': {k: (x.isoformat() if isinstance(x, dt.date) else x)
                                                                            for k, x in w.items()},
-                         'status': window_status(w, today), 'new': new and not first})
+                         'status': window_status(w, today), 'new': new and not ch_first})
     sp.write_text(json.dumps(state, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     return rows, first, today
 
@@ -190,21 +202,21 @@ def report(rows, first, today):
     if new:
         lines.append('## 새로 공개')
         for r in new:
-            lines.append('- [%s] %s (%s분) %s · %s · %s · https://youtu.be/%s' % (
+            lines.append('- [%s] %s (%s분) %s · %s · %s · ID %s · https://youtu.be/%s' % (
                 r['channel'], r['title'], r['minutes'], r['published'], r['status'],
-                '한국 OK' if r['kr_visible'] else '소재 아님(%s)' % r['region'], r['id']))
+                '한국 OK' if r['kr_visible'] else '소재 아님(%s)' % r['region'], r['id'], r['id']))
         lines.append('')
     soon = sorted([r for r in usable if r['window'].get('end')], key=lambda r: r['window']['end'])
     if soon:
         lines.append('## 끝나는 날이 있는 공개 중 본편(빠른 순)')
         for r in soon[:30]:
-            lines.append('- [%s] %s · %s · https://youtu.be/%s' % (r['channel'], r['title'][:60], r['status'], r['id']))
+            lines.append('- [%s] %s · %s · ID %s · https://youtu.be/%s' % (r['channel'], r['title'][:60], r['status'], r['id'], r['id']))
         lines.append('')
     unk = [r for r in feat if r['status'].startswith('기간 미상')]
     if unk:
         lines.append('## 기간 미상 — 설명란을 사람이 확인')
         for r in unk[:20]:
-            lines.append('- [%s] %s · «%s» · https://youtu.be/%s' % (r['channel'], r['title'][:60], r['window']['raw'], r['id']))
+            lines.append('- [%s] %s · «%s» · ID %s · https://youtu.be/%s' % (r['channel'], r['title'][:60], r['window']['raw'], r['id'], r['id']))
         lines.append('')
     lines.append('※ 받지 않았다. 컷 밀도는 받은 뒤 화면검사로 잰다. 기간 경과 편의 사용 여부는 소유주 결정 대기.')
     return '\n'.join(lines) + '\n'
