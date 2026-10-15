@@ -132,6 +132,22 @@ class ShortsSafeTest(unittest.TestCase):
             self.assertEqual(ss.main([a_, '--no-preview']), 0)
             self.assertEqual(ss.main([a_, '--tpl', t, '--no-preview']), 4)
 
+    def test_fonts_dir_next_to_ass(self):
+        # N100: 편 폴더의 ASS 옆 fonts/ 에 글꼴이 있다 — 인자 없이 찾아야 한다
+        src = ss.find_font('Noto Sans JP', True)
+        if not src:
+            self.skipTest('Noto Sans JP 글꼴 없음')
+        import shutil
+        with tempfile.TemporaryDirectory() as d:
+            os.makedirs(os.path.join(d, 'fonts'))
+            shutil.copy(src, os.path.join(d, 'fonts', 'x.otf'))
+            p = os.path.join(d, 'cap.ass')
+            with open(p, 'w', encoding='utf-8') as f:
+                f.write(ass([r'{\an5\pos(540,1200)}字幕']).replace('Pretendard', 'Noto Sans JP'))
+            with open(p, encoding='utf-8') as f:
+                rows = ss.check_ass(f.read(), font_dirs=(os.path.join(d, 'fonts'),))
+            self.assertFalse(rows[0]['estimated'])
+
     def test_cli_exit_codes_and_preview(self):
         with tempfile.TemporaryDirectory() as d:
             bad = os.path.join(d, 'bad.ass')

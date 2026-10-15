@@ -16,7 +16,7 @@
   4. 좌우: 글자는 x 60~1020 안.
   5. 효과 문구·딴지도 같은 선. 영상 상자(핵심 피사체)는 아래 끝>1450이면 경고만.
 
-글자 폭: 스타일의 Fontname 으로 글꼴 파일을 찾아(midform assets/fonts, 시스템 글꼴, --fonts-dir) 실측한다.
+글자 폭: 스타일의 Fontname 으로 글꼴 파일을 찾아(--fonts-dir, ASS 옆 fonts/, midform assets/fonts, 시스템 글꼴) 실측한다.
   libass 는 글꼴 크기를 «줄 높이»(OS/2 usWinAscent+usWinDescent)로 쓴다 — em = 크기 ÷ (줄 높이/unitsPerEm).
   Noto Sans JP 는 1.448 이라 1em 으로 셈하면 폭이 1.45배 부푼다(10-16 C 실측: 122ja 제목 계산 1022 vs 실제 약 700).
   글꼴을 못 찾으면 어림한다(한글·한자·가나 = 크기 1배, 그 밖 0.6배, 공백 0.3배 — 넓게 잡는 쪽). 그 줄엔 «폭 어림» 표시.
@@ -468,7 +468,9 @@ def main(argv=None):
         return 2
 
     with io.open(a.ass, encoding='utf-8-sig') as f:
-        rows = check_ass(f.read(), a.font, set(a.skip_style), set(a.decor_style), tuple(a.fonts_dir))
+        # ASS 옆 fonts/ 는 늘 먼저 본다(N100 own_render 는 편 폴더에 fonts/ 를 복사해 둔다)
+        dirs = tuple(a.fonts_dir) + (os.path.join(os.path.dirname(os.path.abspath(a.ass)), 'fonts'),)
+        rows = check_ass(f.read(), a.font, set(a.skip_style), set(a.decor_style), dirs)
     fails = [r for r in rows if any(i[0] == 'FAIL' for i in r['issues'])]
     tpl_fails = [r for r in tpl_rows if any(i[0] == 'FAIL' for i in r['issues'])]
     warns = [i for r in rows + tpl_rows for i in r['issues'] if i[0] == 'WARN']
