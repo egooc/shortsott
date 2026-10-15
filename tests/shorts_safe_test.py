@@ -83,6 +83,55 @@ class ShortsSafeTest(unittest.TestCase):
         self.assertTrue(any(lv == 'WARN' and 'made.video' in m for lv, _, m in issues))
         self.assertFalse(any('wild.narr' in m for _, _, m in issues))
 
+    def test_rinbox122ja_font_metrics_regression(self):
+        # 10-16 C 실측: libass 는 크기를 줄 높이(Noto Sans JP 1.448em)로 쓴다. 제목 「岸に着いていた」 실폭 약 700(x 190~890)
+        # 1em 으로 셈하던 첫 판은 1022 로 부풀어 120~122ja 가 전부 오탐 FAIL 이었다. 진짜 걸린 것은 출처 CR(중심 1539) 하나.
+        path = os.path.join(os.path.dirname(__file__), 'fixtures', 'shorts_safe', 'rinbox122ja_cap.ass')
+        if not ss.find_font('Noto Sans JP', True):
+            self.skipTest('Noto Sans JP 글꼴 없음')
+        with open(path, encoding='utf-8') as f:
+            rows = ss.check_ass(f.read())
+        t2 = next(r for r in rows if r['style'] == 'T2')
+        self.assertTrue(680 <= t2['box'][2] - t2['box'][0] <= 730, t2['box'])
+        self.assertFalse(any(r['estimated'] for r in rows))
+        bad = {r['style'] for r in rows if any(i[0] == 'FAIL' for i in r['issues'])}
+        self.assertEqual(bad, {'CR'})
+        cap = max(r['box'][2] - r['box'][0] for r in rows if r['style'] == 'CAP')
+        self.assertLess(cap, 640)
+
+    def test_font_metrics_reader(self):
+        f = ss.find_font('Noto Sans JP', True)
+        if not f:
+            self.skipTest('Noto Sans JP 글꼴 없음')
+        self.assertEqual(ss.font_metrics(f), (1000, 1448))
+        self.assertAlmostEqual(ss.em_size(146, f), 100.8, places=1)
+
+    def test_decor_grade_downgrades_to_warn(self):
+        tpl = {'elements': [
+            {'name': 'ticker', 'box': [0, 1438, 1080, 1652], 'grade': 'decor'},
+            {'name': 'bug', 'box': [800, 26, 1000, 70], 'grade': 'decor'},
+            {'name': 'source', 'box': [60, 1520, 400, 1560]},
+        ]}
+        issues = ss.check_template(tpl)
+        self.assertFalse(any(lv == 'FAIL' and ('ticker' in m or 'bug' in m) for lv, _, m in issues))
+        self.assertTrue(any(lv == 'WARN' and 'ticker' in m for lv, _, m in issues))
+        self.assertTrue(any(lv == 'FAIL' and 'source' in m for lv, _, m in issues))
+        f = [r for r in ss.check_ass(ass([r'{\an5\pos(540,1745)}티커']), decor_styles={'NAR'})
+             if any(i[0] == 'FAIL' for i in r['issues'])]
+        self.assertEqual(f, [])
+
+    def test_ass_with_frame_text_boxes(self):
+        # 롱투숏: 제목은 ASS 가 아니라 frame.mov 에 그린다 → --tpl 로 상자를 같이 넣는다
+        with tempfile.TemporaryDirectory() as d:
+            a_ = os.path.join(d, 'cap.ass')
+            with open(a_, 'w', encoding='utf-8') as f:
+                f.write(ass([r'{\an5\pos(540,1200)}자막']))
+            t = os.path.join(d, 'frame.json')
+            with open(t, 'w', encoding='utf-8') as f:
+                f.write('{"elements": [{"name": "frame.title", "box": [90, 80, 990, 280]}]}\n')
+            self.assertEqual(ss.main([a_, '--no-preview']), 0)
+            self.assertEqual(ss.main([a_, '--tpl', t, '--no-preview']), 4)
+
     def test_cli_exit_codes_and_preview(self):
         with tempfile.TemporaryDirectory() as d:
             bad = os.path.join(d, 'bad.ass')
