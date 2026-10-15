@@ -42,25 +42,27 @@
 | motion.py / tempo.py | N100 | volcano-runs/tools/ | 콜드오픈 펀치·반전 흔들림 / 완성본 1.12배(사슬 맨 끝) | N100, 정치(motion) | 숏폼 레인 전부 | 제안 |
 | mix_ambient.py | N100 | volcano-runs/tools/mix_ambient.py | 현장음을 내레이션 아래로(−3dB·덕킹) | N100 | ko_longshort·fantube — longshort_bed 와 같은 일, 통일 검토 | 중복 후보 |
 | contact_sheet.py | N100 | volcano-runs/tools/contact_sheet.py | 영상 → 1fps 타임코드 시트(장면 고르기) | N100 | 전부(각 레인에 비슷한 시트 도구 있음 — 통일 검토) | 제안 |
-| own_check / own_tts / own_gate | N100 | volcano-runs/tools/ | 편집표 검사 · Typecast 직접 TTS · 볼케이노 엔진 코드(film_editor.py) 로컬 반려 검사 | N100 | 볼케이노 엔진 규격 쓰는 레인 | 채택 |
+| own_check / own_tts / own_gate | N100 | volcano-runs/tools/ | 편집표 검사(10-15부터 엔진 source_shots 직접 읽음) · Typecast 직접 TTS · 볼케이노 엔진 코드(film_editor.py) 로컬 반려 검사 · own_gate.spec_checks(채널별 원고 규격·금지 상투구) | N100 | 볼케이노 엔진 규격 쓰는 레인 | 채택 |
+| own_policy.py + own_text.py | N100 | volcano-runs/tools/ | 10-15 신설. facts.json(숫자 문장은 출처·확인 필수) · P1 가이드 6항목(컨택트 시트 p1.json 판독, 욕설 사전, 애매하면 FAIL) · S1 국내 중복도(제목 검색 10만+ 경고 → _gate_log) · 박힌 글자·로고(own_text, rinbox_screen 이식) | N100 5채널 | shop(facts·P1), ko_longshort(P1), politics(P1), 전 레인(S1 — 메인 PC는 yt-search.js 기반 dup-check 로) | 채택 → 공용 후보 |
+| script-frames.json + script-guides/*.md | N100 | volcano-channel/config, recipes | 채널별 원고 틀(문장 수·글자·어미·길이·금지 구절) + 벤치 1위 기반 지침서 5개. «다섯 채널이 달라져야» 소유주 지시의 구현 | N100 5채널 | 레인별 지침서 틀(R8)로 전 레인 참고 | 채택 |
 | brand_art.py | A 롱투숏 | D:/volcano-runs/ls_tools/brand_art.py | 채널 로고·배너 생성 | ko_longshort | 새 채널 전부(라이드랩·엔진룸·どうぶつ劇場 이름 바뀔 때) | 제안 |
 
 ## 2. 검사·관문
 
 | 도구 | 만든 세션 | 경로 | 하는 일 | 쓰는 레인 | 옮길 후보 레인 | 상태 |
 |---|---|---|---|---|---|---|
-| rinbox_screen.py (+보조 경계 검사 10-15) | C 린박스 | scripts/rinbox_screen.py | 컷 경계·깜빡임 화면 검사. 10-15부터 ffmpeg scene>0.12 로 덩어리 앞뒤 15프레임 안 경계면 FAIL | ja, ko_longshort, politics_short, fantube(pieces.json), 명화관 shot_focus(shot_cuts import) | shop(시험 중), N100 | **채택(공용)** |
+| rinbox_screen.py (+보조 경계 검사 10-15) | C 린박스 | scripts/rinbox_screen.py | 컷 경계·깜빡임 화면 검사. 10-15부터 ffmpeg scene>0.12 로 덩어리 앞뒤 15프레임 안 경계면 FAIL | ja, ko_longshort, politics_short, fantube(pieces.json), 명화관 shot_focus(shot_cuts import) | shop(시험 중), N100 채택(10-15, 글자 검출부만 ~/volcano-runs/tools/own_text.py 로 이식, own_check 경고, 편당 +30~56초) | **채택(공용)** |
 | rinbox_edges.py | C 린박스 | scripts/rinbox_edges.py | 흑백·저대비 컷 경계 재검사(10-15 ls18·ls23 잡음). 렌더 전 단독 검사로도 씀(편집표만으로 앞뒤 경계 확인) | ja, ko_longshort | 보조 검사로 rinbox_screen 에 흡수됨 | 채택 |
 | rinbox_names.py | C 린박스 | scripts/rinbox_names.py | 이름 관문(배역표·asr_fixes 와 자막·설명 대조, 승인이 부름) | ja | ko_longshort, politics_short(인물명) | 제안 |
 | rinbox_reuse.py | C 린박스 | scripts/rinbox_reuse.py | 재사용 관문(전사 12-gram 으로 이미 쓴 대사 구간 막음) | ja | ko_longshort, fantube | 제안 |
-| rinbox_faces.py | C 린박스 | scripts/rinbox_faces.py | YuNet 얼굴 추적 카메라(샷별 cx, 화자=입 움직임) | ja, 명화관 shot_focus(import) | politics_short(자막 x 좌표), N100(요청) | 제안 |
+| rinbox_faces.py | C 린박스 | scripts/rinbox_faces.py | YuNet 얼굴 추적 카메라(샷별 cx, 화자=입 움직임) | ja, 명화관 shot_focus(import) | politics_short(자막 x 좌표). N100 은 동물 소재라 제외(10-15 판단) | 제안 |
 | rinbox_flashfix.py | C 린박스 | scripts/rinbox_flashfix.py | 깜빡임 자리 도우미(경계·걸친 낱말·dB) | ja | ko_longshort | 제안 |
 | rinbox_transcribe.py | C 린박스 | scripts/rinbox_transcribe.py | Speechmatics 전사(낱말 시각) | ja, ko_longshort | 전 레인 | 채택 |
 | strobe_check.py | C 린박스 | D:/volcano-runs/_preset_trials/strobe_check.py (시험 폴더) | TTS 결제 전 스트로브(깜빡임) 검사 | ja | B(무대 편 광과민 검사로 나중에)·정치(무료 TTS 라 불필요) | 보류 |
 | snap_captions.py | C 린박스 | D:/volcano-runs/_preset_trials/snap_captions.py (시험 폴더, scripts/ 에 없음) | 자막을 전사 토큰 경계에 맞춤(손으로 끊으면 반려) | ja | A·정치 보류(각자 분절기가 토큰 경계) | 제안 |
 | 이름표·깜빡임 도우미(rinbox-machine-gates) | C 린박스 | scripts/ (메모리 rinbox-machine-gates) | 승인이 FAIL 을 막는 기계 관문 묶음 | ja | — | 채택 |
 | burned-subtitle 검사(.venv-vision) | C/쇼핑 | D:/midform/.venv-vision | 박힌 자막 구조 검사(밝기 말고 구조) | ja, shop | ko_longshort(박힌 예능 자막 소스) | 제안 |
-| ocr_lama_erase.py | 쇼핑 | scripts/ocr_lama_erase.py | 박힌 자막 LaMa 지우기(원본). crop 복사본 `_night_tools/ocr_lama_erase_crop.py` 는 화질 비교 전까지 안 씀 | shop, ko_longshort(--grow 60, 10-15 Mike Okay 영어 자막 207초에 2시간) | fantube | 채택 · **중복(crop 판) 보류** |
+| ocr_lama_erase.py | 쇼핑 | scripts/ocr_lama_erase.py | 박힌 자막 LaMa 지우기(원본). crop 복사본 `_night_tools/ocr_lama_erase_crop.py` 는 화질 비교 전까지 안 씀 | shop, ko_longshort(--grow 60, 10-15 Mike Okay 영어 자막 207초에 2시간). ★구간·영역 옵션 없음(옵션: --fps 6 · --grow 60 · --engine lama|propainter · --max-len) — 자막 구간만 ffmpeg 로 잘라 지우고 원본과 concat, 제품 글자·옷 글자가 있는 컷은 지우기에 넣지 말 것(쇼핑·A 10-15 합의, A 는 seg_mix 로 원본 컷 되돌림). 개선 후보: --range/--roi 옵션 | fantube | 채택 · **중복(crop 판) 보류** |
 | 화면 검사 두 단계 렌더(--no-finish/--finish-only) | N100 | volcano-runs/tools/own_render.py | 시트 판독 뒤 마무리만 다시 | N100 | — | 채택 |
 | 쇼츠 분절 card_times 검사 | 정치 | politics-hour/shorts/ | 자막 칸이 토큰 경계인지 검사 | politics_short | — | 채택 |
 | factcheck 폴더 규칙 | 정치 | politics-hour/episodes/<날짜>/factcheck/script_N.md | gpt-ask 결과 원문 저장, 개수 = 장부 gpt_calls | politics_long | 전 레인(GPT 결과 보관 규칙) | 채택 |
@@ -135,3 +137,28 @@
 | source-scout | 저장소 .claude/skills | 소스 채널 정찰→조사 큐→카탈로그 등록 | A(새 크리에이터), B(화제), N100 |
 | rinbox-standard-recipe (메모리) | 공용 메모리 | 화면검사→모았캐치→ASR→편집표→카메라→눈검사 | A, 정치 쇼츠 |
 | draft-verify · rebuild-loop · run-diagnose · run-source · script-review | 저장소 .claude/skills | 옛 midform 영화 파이프라인용 | (명화관 중단으로 휴면) |
+
+## 6. 전자책 규칙에서 나온 도구 후보 (10-15, 근거 docs/ebook-rules-20261015.md)
+
+소유주가 공유한 유료 전자책 9권에서 뽑은 규칙 중 기계로 만들 수 있는 것. 상태는 전부 «제안». 구현 후보 세션이 받아 만들면 1~3장으로 옮긴다.
+
+| 도구 | 소유 | 경로 | 하는 일 | 쓰는 레인 | 후보 레인 | 상태 |
+|---|---|---|---|---|---|---|
+| dup-check | 도구개발 | scripts/dup-check.js (+ midform/config/own_channels.json, tests/dupCheck.test.js) | 10-15 구현. 제목 후보·키워드 → yt-search.js 쇼츠(관련도순 상위 30) → «남의 채널 · 10만+ · 제목 2-gram 겹침 0.5+»면 WARN(종료 코드 4), 우리 편은 «자기 잠식» 상위10 수로 따로. --lane ko|ja · --threshold · --log(기본 server/data/dup_check_log.jsonl, 쇼핑 _gate_log 형식). 장면 동일 판정은 사람 — 작품명 키워드와 제목 후보를 같이 넣어라 | — | ja(C), ko_longshort, shop, N100 | 참고용으로 격하(10-15 밤 소유주, 도구 세션에 직접: «숏폼은 제목·해시태그로는 안 된다, 이미지 검색 아니면». 게이트 아님, 코드는 유지, 정리는 소유주 결정) |
+| tag-share | 도구개발 | scripts/tag-share.js (+ tests/tagShare.test.js) | 10-15 구현. 검색 결과의 양산 꼬리표(#worker #process 등, --tags로 변경) 비율·한국어 제목+꼬리표 비율·조회 점유·꼬리표 채널 수·꼬리표 편/나머지 중앙값·3채널+ 공통 영어 꼬리표 쌍. 문턱 없음(숫자만), --from으로 기존 yt-search --json 결과 재집계(네트워크 0). 실측 10-15 «대장간 장인» 51편 중 16편(31%)을 16채널이 한 편씩 → 양산망 신호 | — | 발굴, N100 | 채택(발굴, 10-15 카드 3)에 기본 항목) |
+| autocap.py + checkcap.py | C 린박스(scratchpad) | 린박스 세션 scratchpad → scripts/ 이식 후보 | 10-15 C 실측. autocap = 구간의 전사 토큰으로 자막 칸 초안 생성, checkcap = 렌더러 card_times와 같은 규칙으로 렌더 전 자막 대조(음성 사기 전에 멈춤). 도입 뒤 자막 불일치 렌더 중단 3회 → 0회. 명화관 렌더러에도 같은 card_times 있음 | — | ja(C) 사용 중, ko_longshort·명화관 틀 | 후보(도구개발 이식 대기) |
+| thread-report | (제안) 관리자 | manager-report.js 확장 | 결 탐지 주간 리포트: 날짜순 조회수, 중앙값 3배 튀는 편의 공통 속성, 다음 주 큐 비중 | — | 전 레인 | 제안 |
+| emotion-label | (제안) 쇼핑 | gpt-ask 라벨링 | 감정/정보 라벨 게이트: 비중 40~55%, 첫·예고·끝 문장 감정, 화면 묘사 그대로 ≤30%, 탈요약 수치(인용 ≤30%·형용사 ≤20%·문장 ≤45자·의견 1·질문 1) | — | shop, N100, ko_longshort(해설), politics_short | 제안 |
+| kill-shot | (제안) A | 비전 지도 점수 + cuts | 첫 0~3초 컷이 상위 10% 자극 장면인지, 내레이션보다 먼저인지 | — | ko_longshort, N100, shop | 제안 |
+| guide-6 | (제안) N100 own_check 확장 | rinbox_screen 틀 + 텍스트 사전 | 가이드 6항목(아이·노출·성적·욕설·피·폭력) 사전 검사, 애매하면 FAIL, 회복 시험 채널 소급 | — | N100(1순위), ko_longshort, politics | 제안 |
+| ledger-hourly | (제안) 관리자 | production_ledger + manager-report | 레인별 시급(제작시간×조회×RPM 계수)·원가 8% 표시, 시급 5만 미만 2주면 경고 | — | 전 레인 | 제안 |
+| source-floor | (제안) A | longform_scout·longform_competition | 롱→숏 소스 하한 10만+·30일, 소스 채널 조회/영상 수 등급, 라이징 채널(구독 ≤1만·일 100만·1개월), 복제형 채널명 비율 40% | — | ko_longshort, fantube, N100 | 제안 |
+| ref-9dim | (제안) A | longform_competition 확장 | 레퍼런스 9차원(문장 길이·종결어미·후킹까지 문장 수·엔딩 유형·제목 글자수/숫자/느낌표·평균 컷 길이·킬샷 위치)을 상·하위 조회수군으로 | — | 전 레인 지침서 | 제안 |
+| timecode-guard | (제안) 각 렌더러 | cuts + ffprobe | 편집표 행 3요소(소스 ID·ms·내용) 결측·소스 길이 초과 컷 폐기 | — | 전 레인 | 제안 |
+| silence-gap | (제안) 정치 | ffmpeg silencedetect | 본문 중 −40 dBFS 이하 0.35초 이상 연속이면 FAIL | — | politics, shop, N100 | 제안 |
+| title-lint | (제안) 정치 | 문자열 검사 | 롱폼 제목 `좌측 후킹 \| 우측 정리`, 공백 포함 25~35자, 40자 초과 반려 | — | politics_long | 제안 |
+| trend-kr | (제안) 정치 또는 B | 구글 트렌드 KR RSS | 당일 논란 토픽 수집 → 정치/아이돌 분류, 24h 만료 | — | politics, fantube(18시) | 제안 |
+| comment-pairs | (제안) B | vidiq_video_comments / API | 댓글에서 인물 쌍·반복 구절 → 다음 편 큐·지침서 반복 구절 | — | fantube, N100 | 제안 |
+| appeal-template | (제안) 관리자 | docs/appeal-template.md | 수익 정지(재사용·독창성) 항소문 5요소 | — | 전 레인 | 제안 |
+| desc-template | (제안) N100·쇼핑 | 원고·장면 | 설명란 200자 요약 → 리포트형 → «교육적 목적» → 영어 태그 5개 | — | N100, shop | 제안 |
+| exp-quota | (제안) 관리자 | 장부 structure 필드 | 2군 시험 슬롯(주 1편)·새 구조 실험 쿼터(8편 중 2편) 카운터 | — | 전 레인 | 제안 |

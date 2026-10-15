@@ -121,3 +121,6 @@ tmp_*
 *.bak-*
 # 레퍼런스 채널에서 받은 원본 오디오. 용량이 크고 우리가 만든 것이 아니다
 midform/materials/reference_shorts/*.m4a
+
+# 소유주 유료 자료 보관함 — 로컬 전용, 커밋 금지
+inbox/
