@@ -47,6 +47,7 @@ CENTER_MAX_W = 860
 LINE_H_EST = 1.2  # 글꼴을 못 찾았을 때 줄 높이 = 크기 x 1.2 (넓게). 찾으면 libass 대로 크기 x 1.0
 HERE = os.path.dirname(os.path.abspath(__file__))
 FONT_DIRS = [os.path.join(HERE, '..', 'assets', 'fonts'),
+             os.path.join(os.environ.get('MIDFORM', 'D:/midform'), 'assets', 'fonts'),  # 파일을 옮겨 돌려도 찾게
              os.path.join(os.environ.get('WINDIR', 'C:/Windows'), 'Fonts'),
              os.path.join(os.environ.get('LOCALAPPDATA', ''), 'Microsoft', 'Windows', 'Fonts'),
              '/usr/share/fonts', '/usr/local/share/fonts', os.path.expanduser('~/.fonts'),
@@ -342,7 +343,26 @@ def ass_boxes(text, font=None, font_dirs=()):
         out.append({'start': t2s(ev.get('Start', '0:00:00.00')), 'end': t2s(ev.get('End', '0:00:00.00')),
                     'style': ev.get('Style', ''), 'text': body.replace('\\N', ' / '),
                     'box': [round(v, 1) for v in box], 'centered': an in (2, 5, 8),
-                    'font': ff, 'estimated': not ff})
+                    'font': ff, 'estimated': not ff,
+                    'anchor_x': x * sx if (an - 1) % 3 != 1 else (box[0] + box[2]) / 2})
+    return out
+
+
+EST_MIN = 1 / 1.5  # 어림 폭이 실제보다 넓을 수 있는 최대 비율(Noto Sans JP 1.448)
+
+
+def _soften_estimated(b, name, grade):
+    """폭을 어림한 줄: 가장 좁게 잡아도(폭 x EST_MIN) 걸리는 것만 FAIL, 폭 때문에만 걸린 것은 WARN.
+    위아래 침범(bottom_ui·top_ui)은 폭과 무관하니 그대로 FAIL."""
+    x0, y0, x1, y1 = b['box']
+    ax = b['anchor_x']
+    narrow = (ax + (x0 - ax) * EST_MIN, y0, ax + (x1 - ax) * EST_MIN, y1)
+    still = {(rule) for lv, rule, _ in check_box(narrow, name, 'text', b['centered'], grade) if lv == 'FAIL'}
+    out = []
+    for lv, rule, msg in b['issues']:
+        if lv == 'FAIL' and rule not in still:
+            lv, msg = 'WARN', msg + ' [폭 어림 — 글꼴로 실측 필요]'
+        out.append((lv, rule, msg))
     return out
 
 
@@ -352,8 +372,10 @@ def check_ass(text, font=None, skip_styles=(), decor_styles=(), font_dirs=()):
         if b['style'] in skip_styles:
             continue
         name = '[%s %.2fs] %s%s' % (b['style'], b['start'], b['text'][:20], ' (폭 어림)' if b['estimated'] else '')
-        b['issues'] = check_box(b['box'], name, 'text', b['centered'],
-                                'decor' if b['style'] in decor_styles else 'content')
+        grade = 'decor' if b['style'] in decor_styles else 'content'
+        b['issues'] = check_box(b['box'], name, 'text', b['centered'], grade)
+        if b['estimated']:
+            b['issues'] = _soften_estimated(b, name, grade)
         rows.append(b)
     return rows
 

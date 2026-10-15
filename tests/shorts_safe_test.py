@@ -57,8 +57,19 @@ class ShortsSafeTest(unittest.TestCase):
         self.assertIn('top_ui', [i[1] for i in f[0]['issues']])
 
     def test_centered_too_wide(self):
-        f = self.fails(ass([r'{\an5\pos(540,900)}' + '가' * 15]))  # 15 x 64 = 960 > 860
+        f = self.fails(ass([r'{\an5\pos(540,900)}' + '가' * 22]))  # 어림 1408, 가장 좁게 잡아도 939 > 860
         self.assertIn('center_width', [i[1] for i in f[0]['issues']])
+
+    def test_estimated_width_only_overflow_is_warn(self):
+        # 10-16 관리자: 글꼴을 못 찾아 폭을 어림한 줄은 폭 때문에만 걸리면 WARN, 위아래 침범은 그대로 FAIL
+        rows = ss.check_ass(ass([r'{\an5\pos(540,900)}' + '가' * 15]))  # 어림 960, 좁게 640
+        self.assertTrue(rows[0]['estimated'])
+        self.assertTrue(rows[0]['issues'])
+        self.assertEqual({i[0] for i in rows[0]['issues']}, {'WARN'})  # 줄 폭·좌우·버튼 열 모두 폭 탓
+        rows = ss.check_ass(ass([r'{\an5\pos(540,1745)}' + '가' * 15]))
+        lv = {i[1]: i[0] for i in rows[0]['issues']}
+        self.assertEqual(lv['bottom_ui'], 'FAIL')
+        self.assertEqual(lv['center_width'], 'WARN')
 
     def test_playres_scaling(self):
         # 540x960 캔버스의 y=872 = 1920 기준 1744
