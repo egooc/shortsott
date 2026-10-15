@@ -1,7 +1,7 @@
 {
-  "version": "20261016-camp",
+  "version": "20261016-camp2",
   "owner": "도구개발(초안) → ja 정치 세션이 확정",
-  "status": "진영 확정(10-16 소유주 «여당 보수 쪽», 정치JA 화면·관리자 전달). 검사기(ja_politics_check.py)는 이 틀이 확정된 뒤 만든다.",
+  "status": "진영 확정(10-16 소유주 «여당 보수 쪽»). 소재·비율은 정치JA·관리자 합의(10-16). 검사기: scripts/ja_politics_script_check.py.",
   "base": "쟁점브리핑 ko 틀(politics-hour episodes/<날짜>/BRIEF.md · issues/*.json · factcheck)을 일본어로 옮긴 것",
   "principles": [
     "사실만 쓴다. 모든 사실 문장에 출처(URL)가 붙는다.",
@@ -90,13 +90,15 @@
           "text": "원문 전체(받아쓴 것)",
           "minutes": {
             "speechURL": "kokkai.ndl.go.jp 발언 URL(국회 발언이면 필수)",
-            "speechID": "회의록 API speechID"
+            "speechID": "회의록 API speechID",
+            "speech": "(선택) 회의록 발언 원문 — 있으면 D3·D7 을 오프라인 대조, 없으면 --fetch 로 speechID 조회"
           },
           "phrases": [
             "센 *한마디*(원문 그대로)"
           ],
           "source": "映像: <채널명> 2026.10.09",
-          "face_check": "ok"
+          "face_check": "ok",
+          "origin": "kantei|kokkai (비우면 src·source·tag 로 추정)"
         }
       ],
       "sources": [
@@ -110,7 +112,20 @@
       "keywords": [
         "인물·위원회·논점 낱말 5~8개"
       ],
-      "notes": "명예훼손 위험·확인 못 한 것·썸네일 한 줄"
+      "notes": "명예훼손 위험·확인 못 한 것·썸네일 한 줄",
+      "script": [
+        {
+          "type": "nar",
+          "text": "해설 문장(화면 자막용)",
+          "read": "(선택) 읽기용 — 한자 숫자·パーセント"
+        },
+        {
+          "type": "quote",
+          "q": 0,
+          "note": "quotes[] 번호"
+        }
+      ],
+      "factcheck": "factcheck/script_<no>.md (issues/ 옆) — F1"
     }
   },
   "episode_frame": [
@@ -124,7 +139,7 @@
     },
     {
       "id": "opening",
-      "what": "「争点ブリーフィングです。〇月〇日です。」 + 오늘 논점 목록(타임라인 카드)",
+      "what": "「<チャンネル名>です。〇月〇日です。」 + 오늘 논점 목록(타임라인 카드) — 채널명 미정, 정해지면 바꾼다",
       "sec": [
         30,
         60
@@ -144,7 +159,7 @@
         },
         {
           "id": "quotes",
-          "what": "발언 인용 — 발언자 본인 목소리만, 한 구간 15~50초, 논점당 인용 합계 6~9분"
+          "what": "발언 인용 — 발언자 본인 목소리만. 한 구간: kantei 길이 제한 없음 / 국회 중계 ≤20초. 편 전체: 해설 ≥60%·원음 ≤40%·편 20~40분(source_limits·episode_limits)"
         },
         {
           "id": "sides",
@@ -249,7 +264,7 @@
     "정당색(ko 정당 → ja 정당)",
     "음성(Supertonic lang 'ko' 고정 → 'ja', supertonic_worker 복제)",
     "썸네일 문구 규칙",
-    "채널명·오프닝 문구(쟁점 브리핑 → 争点ブリーフィング 가칭)",
+    "채널명·오프닝 문구(쟁점 브리핑 → <チャンネル名> 자리표시, 채널명 미정)",
     "출처 표기 형식(영상: → 映像:)",
     "기타는 정치 세션 목록을 받아 채운다"
   ],
@@ -279,11 +294,50 @@
       ],
       "note": "ours·other 어느 쪽으로도 묶지 않는다"
     },
-    "source_policy": "소재는 @kanteijp(首相官邸 YouTube, PDL1.0) 영상만. gov-online·所信表明 화면은 쓰지 않는다.",
+    "source_policy": "화면 소재: @kanteijp(首相官邸 YouTube, PDL1.0 — 길이 제한 없음, 出典+加工 표기) 주력 + 衆参 인터넷 심의 중계(著作権法32条 인용, 한 구간 ≤20초). gov-online·所信表明 본회의장 화면은 쓰지 않는다.",
     "first_episodes": [
       "食料品消費税 1%",
       "旧敵国条項",
       "中東 激変緩和・物価高"
     ]
+  },
+  "source_limits": {
+    "kantei": {
+      "match": [
+        "kanteijp",
+        "首相官邸",
+        "kantei.go.jp"
+      ],
+      "max_quote_sec": null,
+      "credit": "出典+加工 표기(PDL1.0)"
+    },
+    "kokkai": {
+      "match": [
+        "衆議院",
+        "参議院",
+        "shugiintv",
+        "webtv.sangiin",
+        "kokkai.ndl.go.jp"
+      ],
+      "max_quote_sec": 20,
+      "credit": "著作権法32条 인용 — 출처 명시"
+    },
+    "banned": {
+      "match": [
+        "gov-online",
+        "所信表明"
+      ],
+      "why": "gov-online·所信表明 본회의장 화면은 쓰지 않는다"
+    }
+  },
+  "episode_limits": {
+    "narration_share_min": 0.6,
+    "source_audio_share_max": 0.4,
+    "episode_min": [
+      20,
+      40
+    ],
+    "read_speed_chars_per_sec": 5.6,
+    "why": "인계 §2, 관리자 확인 10-16. 해설 秒 = 읽기 글자 ÷ 5.6(naze 실측값 차용, Supertonic F2 ja)"
   }
 }
