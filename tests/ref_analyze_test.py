@@ -65,6 +65,17 @@ class RefAnalyzeTest(unittest.TestCase):
         self.assertEqual(R.gate({'2026-10-16': {'runs': 3, '429': 0}}, '2026-10-16')[0], False)
         self.assertEqual(R.gate({'2026-10-15': {'runs': 3, '429': 1}}, '2026-10-16')[0], True)
 
+    def test_bad_transcript_excluded_from_text_cells(self):
+        self.assertFalse(R.transcript_ok('이들도我的話我的愛是我為你付出的愛我的話', 'ko'))
+        self.assertTrue(R.transcript_ok('그거 알지? 여기 진짜 좋다', 'ko'))
+        top = [{'source': 'auto', 'transcript_ok': i > 0, 'first_type': 'question', 'first_speech_sec': 1.0 + i * 0.1}
+               for i in range(4)]
+        bot = [{'source': 'auto', 'transcript_ok': True, 'first_type': 'statement', 'first_speech_sec': 3.0 + i * 0.1}
+               for i in range(4)]
+        d = {x['key']: x for x in R.compare(top, bot)}
+        self.assertEqual(d['first_type=question']['top'], 1.0)  # 오류 1편 빼고 3편
+        self.assertIn('first_speech_sec', d)
+
 
 if __name__ == '__main__':
     unittest.main()

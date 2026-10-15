@@ -31,6 +31,7 @@
           1
         ]
       ],
+      "transcript_ok": false,
       "title_chars": 10,
       "title_digit": false,
       "title_q": false,
@@ -58,6 +59,7 @@
       "ending_cta": false,
       "ending_question": false,
       "endings": [],
+      "transcript_ok": null,
       "title_chars": 12,
       "title_digit": true,
       "title_q": true,
@@ -106,6 +108,7 @@
           1
         ]
       ],
+      "transcript_ok": true,
       "title_chars": 27,
       "title_digit": true,
       "title_q": false,
@@ -133,6 +136,7 @@
       "ending_cta": false,
       "ending_question": false,
       "endings": [],
+      "transcript_ok": null,
       "title_chars": 15,
       "title_digit": false,
       "title_q": false,
@@ -177,6 +181,7 @@
           1
         ]
       ],
+      "transcript_ok": false,
       "title_chars": 12,
       "title_digit": false,
       "title_q": false,
@@ -204,6 +209,7 @@
       "ending_cta": false,
       "ending_question": false,
       "endings": [],
+      "transcript_ok": null,
       "title_chars": 9,
       "title_digit": false,
       "title_q": true,
@@ -252,6 +258,7 @@
           1
         ]
       ],
+      "transcript_ok": true,
       "title_chars": 19,
       "title_digit": false,
       "title_q": false,
@@ -279,6 +286,7 @@
       "ending_cta": false,
       "ending_question": false,
       "endings": [],
+      "transcript_ok": null,
       "title_chars": 15,
       "title_digit": false,
       "title_q": false,
@@ -323,6 +331,7 @@
           1
         ]
       ],
+      "transcript_ok": true,
       "title_chars": 9,
       "title_digit": false,
       "title_q": false,
@@ -350,6 +359,7 @@
       "ending_cta": false,
       "ending_question": false,
       "endings": [],
+      "transcript_ok": null,
       "title_chars": 22,
       "title_digit": true,
       "title_q": false,
@@ -398,6 +408,7 @@
           1
         ]
       ],
+      "transcript_ok": true,
       "title_chars": 12,
       "title_digit": false,
       "title_q": false,
@@ -425,6 +436,7 @@
       "ending_cta": false,
       "ending_question": false,
       "endings": [],
+      "transcript_ok": null,
       "title_chars": 20,
       "title_digit": false,
       "title_q": true,
@@ -473,6 +485,7 @@
           1
         ]
       ],
+      "transcript_ok": true,
       "title_chars": 10,
       "title_digit": false,
       "title_q": false,
@@ -500,6 +513,7 @@
       "ending_cta": false,
       "ending_question": false,
       "endings": [],
+      "transcript_ok": null,
       "title_chars": 15,
       "title_digit": false,
       "title_q": false,
@@ -536,6 +550,7 @@
           1
         ]
       ],
+      "transcript_ok": false,
       "title_chars": 10,
       "title_digit": false,
       "title_q": false,
@@ -563,6 +578,7 @@
       "ending_cta": false,
       "ending_question": false,
       "endings": [],
+      "transcript_ok": null,
       "title_chars": 4,
       "title_digit": false,
       "title_q": false,
@@ -603,6 +619,7 @@
           1
         ]
       ],
+      "transcript_ok": false,
       "title_chars": 15,
       "title_digit": false,
       "title_q": false,
@@ -630,6 +647,7 @@
       "ending_cta": false,
       "ending_question": false,
       "endings": [],
+      "transcript_ok": null,
       "title_chars": 14,
       "title_digit": false,
       "title_q": false,
@@ -678,6 +696,7 @@
           1
         ]
       ],
+      "transcript_ok": true,
       "title_chars": 22,
       "title_digit": true,
       "title_q": false,
@@ -705,6 +724,7 @@
       "ending_cta": false,
       "ending_question": false,
       "endings": [],
+      "transcript_ok": null,
       "title_chars": 12,
       "title_digit": false,
       "title_q": false,

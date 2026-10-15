@@ -276,7 +276,18 @@ def script_row(r, words, lang, source):
             'first_sentence': sents[0]['text'] if sents else '', 'first_type': first_type(sents[0]['text'], lang) if sents else None,
             'last_sentence': last, 'ending_cta': any(w.lower() in last.lower() for w in CTA[lang]),
             'ending_question': bool(re.search(r'[?？]$', last)),
-            'endings': Counter(ending(s['text'], lang) for s in sents).most_common(5)}
+            'endings': Counter(ending(s['text'], lang) for s in sents).most_common(5),
+            'transcript_ok': transcript_ok(' '.join(s['text'] for s in sents), lang) if sents else None}
+
+
+def transcript_ok(text, lang):
+    """자막이 말을 받아 적었나 — ko 인데 한자·가나가 20%+ 면 노래 가사·외국어 오인식으로 본다.
+    손 표시(flags.json bad_transcript)가 이걸 덮어쓴다. 소리 나는 대로 적은 한국어는 기계로 못 잡는다(A 눈 표시 필요)."""
+    body = re.sub(r'[\s\W\d_]', '', text)
+    if not body or lang != 'ko':
+        return True
+    foreign = len(re.findall(r'[぀-ヿ一-鿿]', body))
+    return foreign / len(body) < 0.2
 
 
 def title_row(r):
@@ -295,6 +306,7 @@ NUM = ['sec', 'speech_share', 'chars_per_min', 'first_speech_sec', 'n_sentences'
        'title_hashtags', 'like_rate', 'comment_rate']
 BOOL = ['ending_cta', 'ending_question', 'title_digit', 'title_q', 'title_excl', 'title_bracket', 'title_emoji']
 CAT = ['first_type']
+TEXT = {'n_sentences', 'avg_sentence_chars', 'ending_cta', 'ending_question', 'first_type'}  # 받아 적은 글자 자체를 보는 칸
 SPEECH = {'speech_share', 'chars_per_min', 'first_speech_sec', 'n_sentences', 'avg_sentence_chars', 'ending_cta',
           'ending_question', 'first_type'}
 
@@ -302,7 +314,10 @@ SPEECH = {'speech_share', 'chars_per_min', 'first_speech_sec', 'n_sentences', 'a
 def compare(top, bot):
     """원고 칸은 전사가 있는 편끼리만(전사 없음 ≠ 말 없음), 제목·반응 칸은 전부."""
     out = []
-    has = lambda xs, k: [x for x in xs if k.split('=')[0] not in SPEECH or x.get('source', 'auto') != 'none']  # noqa: E731
+    def has(xs, k):
+        k = k.split('=')[0]
+        return [x for x in xs if (k not in SPEECH or x.get('source', 'auto') != 'none')
+                and (k not in TEXT or x.get('transcript_ok') is not False)]
     for k in NUM:
         a = [x[k] for x in has(top, k) if x.get(k) is not None]
         b = [x[k] for x in has(bot, k) if x.get(k) is not None]
@@ -352,6 +367,7 @@ def class_md(ch, up, sc, diffs, lane, notes):
     tn = sum(x['source'] != 'none' for x in sc['rows'] if x['group'] == 'top')
     bn = sum(x['source'] != 'none' for x in sc['rows'] if x['group'] == 'bottom')
     L += ['', '효과 = (상위 평균 − 하위 평균) ÷ 표준편차(비율 칸은 차이×2). |효과| ≥ 0.8 이 큰 차이. 표본이 작아 방향만 본다.',
+          '⚠전사 오류 편(외국어·가사 오인식 자동 판정 + flags.json 손 표시)은 문장 칸(문장 수·평균 글자·첫 문장 유형·끝 문장)에서 빼고, 첫 말 시각·말 비중엔 남긴다.',
           '원고 칸(말 비중·문장·첫 문장 유형 등)은 전사가 있는 편끼리만 비교 — 지금 상위 %d · 하위 %d편%s.'
           % (tn, bn, ' (3편 미만인 군이 있어 원고 칸은 비교 보류)' if min(tn, bn) < 3 else ''), '',
           '## 원고 근거 — 상위군 첫 문장', '']
@@ -359,8 +375,9 @@ def class_md(ch, up, sc, diffs, lane, notes):
     for vid in ch['top_ids']:
         x = tops.get(vid)
         if x and x['first_sentence']:
-            L.append('- [%s회 · %s초] %s  `https://youtube.com/shorts/%s` (첫 말 %s초)'
-                     % (f"{x['views']:,}", x['sec'], x['first_sentence'][:60], vid, x['first_speech_sec']))
+            L.append('- [%s회 · %s초] %s%s  `https://youtube.com/shorts/%s` (첫 말 %s초)'
+                     % (f"{x['views']:,}", x['sec'], '' if x.get('transcript_ok') is not False else '⚠전사 오류(문장 칸 제외) ',
+                        x['first_sentence'][:60], vid, x['first_speech_sec']))
     L += ['', '## 분류', '', '- 포맷 코드: (사람 지정 — 발굴 포맷 카탈로그 이름)', '- 결 태그: (사람 지정 — 위 Top 5·첫 문장을 보고 3~5개)',
           '- 우리 레인 대비: 지구관측소 롱투숏 편이 30편 쌓이면 같은 표로 나란히 잰다(A 요청).', '']
     return '\n'.join(L)
@@ -393,6 +410,8 @@ def main(argv=None):
     cache.mkdir(parents=True, exist_ok=True)
     out.mkdir(parents=True, exist_ok=True)
     pool, top, bot = pick(rows, a.n, now)
+    flagf = out / 'flags.json'  # 사람이 표시한 전사 오류 — {"bad_transcript": [{"id":…, "why":…, "by":…}]}
+    bad = {x['id'] for x in (json.loads(flagf.read_text(encoding='utf-8')).get('bad_transcript', []) if flagf.exists() else [])}
     ch = channel_table(meta, rows, pool, top, bot, now)
     up = upload_table(rows, now)
 
@@ -432,11 +451,15 @@ def main(argv=None):
                     skipped += 1
             except Stop:
                 stopped = True
-                log.setdefault(today, {'runs': 0, '429': 0})['429'] += 1
+                day = log.setdefault(today, {'runs': 0, '429': 0})
+                day['429'] += 1
+                day.setdefault('429_at', []).append(dt.datetime.now(KST).strftime('%H:%M:%S'))  # 제한 폭 가늠용(관리자 10-16)
                 notes.append('429 중단 — %s 이후 자막을 받지 않았다(재시도·우회 없음, 이 채널은 오늘 접음)' % r['id'])
             if auto_subs.fetched + stt_n > before:
                 time.sleep(random.uniform(a.sleep_min, a.sleep_max))
         row = script_row(r, words or [], a.lang, source)
+        if r['id'] in bad:
+            row['transcript_ok'] = False
         row.update(title_row(r))
         row['group'] = 'top' if r in top else 'bottom'
         srows.append(row)
