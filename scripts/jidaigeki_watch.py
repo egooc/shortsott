@@ -167,6 +167,8 @@ def run(mx=100, today=None):
     state = json.loads(sp.read_text(encoding='utf-8')) if sp.exists() else {}
     first = not state
     rows = []
+    # ★결 우선 — thread_report 실측(近衛十四郎 91%·暴れん坊将軍 75%, 10-16). C 가 설정 파일에 더한다
+    prio = [k for k in conf.get('priority_keywords', []) if k]
     for ch in conf['channels']:
         ch_first = ch['id'] not in state  # 새로 더한 채널은 그 채널만 기준선으로 잡는다
         seen = state.setdefault(ch['id'], {})
@@ -185,14 +187,16 @@ def run(mx=100, today=None):
                          'minutes': round(mins, 1), 'feature': mins >= conf.get('min_minutes', 20),
                          'kr_visible': ok_kr, 'region': region, 'window': {k: (x.isoformat() if isinstance(x, dt.date) else x)
                                                                            for k, x in w.items()},
-                         'status': window_status(w, today), 'new': new and not ch_first})
+                         'status': window_status(w, today), 'new': new and not ch_first,
+                         'priority': [k for k in prio if k in sn['title'] or k in sn.get('description', '')]})
     sp.write_text(json.dumps(state, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     return rows, first, today
 
 
 def report(rows, first, today):
     feat = [r for r in rows if r['feature']]
-    new = [r for r in feat if r['new']]
+    star = lambda r: '★결 우선(%s) ' % '·'.join(r['priority']) if r.get('priority') else ''  # noqa: E731
+    new = sorted([r for r in feat if r['new']], key=lambda r: not r.get('priority'))
     usable = [r for r in feat if r['kr_visible'] and r['status'] not in ('기간 경과',)]
     lines = ['# 時代劇 공식 채널 감시 %s%s' % (today.isoformat(), ' (기준선 첫 실행)' if first else ''), '']
     lines.append('본편(%d분+) %d편 · 새로 공개 %d편 · 한국에서 보이고 기간 안 지난 것 %d편 · 기간 경과 %d편 · JP 한정 등 %d편'
@@ -202,15 +206,15 @@ def report(rows, first, today):
     if new:
         lines.append('## 새로 공개')
         for r in new:
-            lines.append('- [%s] %s (%s분) %s · %s · %s · ID %s · https://youtu.be/%s' % (
-                r['channel'], r['title'], r['minutes'], r['published'], r['status'],
+            lines.append('- %s[%s] %s (%s분) %s · %s · %s · ID %s · https://youtu.be/%s' % (
+                star(r), r['channel'], r['title'], r['minutes'], r['published'], r['status'],
                 '한국 OK' if r['kr_visible'] else '소재 아님(%s)' % r['region'], r['id'], r['id']))
         lines.append('')
-    soon = sorted([r for r in usable if r['window'].get('end')], key=lambda r: r['window']['end'])
+    soon = sorted([r for r in usable if r['window'].get('end')], key=lambda r: (not r.get('priority'), r['window']['end']))
     if soon:
         lines.append('## 끝나는 날이 있는 공개 중 본편(빠른 순)')
         for r in soon[:30]:
-            lines.append('- [%s] %s · %s · ID %s · https://youtu.be/%s' % (r['channel'], r['title'][:60], r['status'], r['id'], r['id']))
+            lines.append('- %s[%s] %s · %s · ID %s · https://youtu.be/%s' % (star(r), r['channel'], r['title'][:60], r['status'], r['id'], r['id']))
         lines.append('')
     unk = [r for r in feat if r['status'].startswith('기간 미상')]
     if unk:
