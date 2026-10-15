@@ -1,0 +1,19 @@
+{
+  "note": "時代劇 공식 채널 공개 감시(scripts/jidaigeki_watch.py). 발굴 표 docs/category-cards/2026-10-16-ja-jidaigeki-official-free-channels.md",
+  "min_minutes": 20,
+  "schedule": "수·토 21:30 JST(=KST)",
+  "notify": [
+    "C 린박스",
+    "발굴"
+  ],
+  "channels": [
+    {
+      "id": "UCt2Qfx6YHCEWlsYfD38NtEA",
+      "name": "松竹シネマPLUSシアター"
+    },
+    {
+      "id": "UCJm60FFiYSH2mJONr6vnV_A",
+      "name": "東映時代劇YouTube"
+    }
+  ]
+}
