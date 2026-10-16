@@ -158,9 +158,15 @@ async function comments() {
   const H = await api();
   for (const i of q.items.filter((x) => !x.commentId && new Date(x.publishAt) <= Date.now())) {
     const meta = JSON.parse(fs.readFileSync(i.meta, 'utf8'));
+    // 플랫폼별 링크 분리(10/17 소유주 «링크 구조 분할 진행»): 고정 댓글의 쿠팡 링크는 subId yt 판으로 — 리포트에서 유튜브 댓글 경로를 따로 본다
+    let text = meta.pinned_comment;
+    if (meta.affiliate_link && text.includes(meta.affiliate_link)) {
+      const yt = await require('./shop_fanout').subLink(meta, 'yt').catch(() => '');
+      if (yt) text = text.split(meta.affiliate_link).join(yt);
+    }
     const r = await fetch('https://www.googleapis.com/youtube/v3/commentThreads?part=snippet', {
       method: 'POST', headers: { ...H, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ snippet: { videoId: i.videoId, topLevelComment: { snippet: { textOriginal: require('./disclosure_cfg').stripText(meta.pinned_comment) } } } }),
+      body: JSON.stringify({ snippet: { videoId: i.videoId, topLevelComment: { snippet: { textOriginal: require('./disclosure_cfg').stripText(text) } } } }),
     });
     const j = await r.json();
     if (r.ok) { i.commentId = j.id; console.log(`  ✓ 댓글 ${i.videoId}`); } else console.log(`  ✗ 댓글 ${i.videoId} ${r.status}`);

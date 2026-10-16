@@ -72,7 +72,7 @@
 - 길이 `ffprobe` 로 25~40초인지.
 
 ## 7. 등록
-1. 인포크 번호: `cd D:/midform && node scripts/inpock_add.js --key <이름> --url <short> --title "<짧은 상품명>" --image <wd>/cp_img.jpg`
+1. 인포크 번호: 메타를 먼저 쓴 뒤(3번) 인포크용 링크를 만든다 `cd D:/midform && node scripts/shop_fanout.js sublink D:/volcano-runs/_upload/<이름>.json inpock` → 나온 링크로 `node scripts/inpock_add.js --key <이름> --url <그 링크> --title "<짧은 상품명>" --image <wd>/cp_img.jpg` (10/17 소유주 «링크 구조 분할»: 인포크 경로는 subId inpock, 메타 affiliate_link 는 기본 링크 그대로)
 2. 다른 판: `cd <wd> && python D:/midform/scripts/shop_social_plan.py <wd> && python D:/midform/scripts/ff_render.py plan_social.json --out <이름>_social.mp4 > render_social.log 2>&1 && python D:/midform/scripts/ff_render.py plan_ig.json --out <이름>_ig.mp4 > render_ig.log 2>&1` — 두 판 끝 3초를 시트로 확인.
 3. 메타 `D:/volcano-runs/_upload/<이름>.json` — `ffref03.json` 과 같은 키(file=_ff.mp4, title "<결과/의문> #상품군 #살림팁류", description, pinned_comment, affiliate_link, product, categoryId 26, defaultLanguage ko, content_type growth, remake_of). JSON 은 node `JSON.stringify(x,null,2)` + `fs.writeFileSync(..., 'utf8')` 로만 쓴다.
    - 설명란 끝 출처: 일본·영미권 소스만 `@핸들` 한 줄씩. **중국 소스(더우인·샤오홍슈·콰이쇼우·중국 계정)는 적지 않는다.**
