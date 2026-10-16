@@ -103,6 +103,15 @@ async function add(files) {
     process.stdout.write(r.stdout); process.stderr.write(r.stderr);
     if (r.status) { console.log(`  ✗ ${path.basename(meta)} 업로드 실패 — 대기열에 넣지 않음`); continue; }
     const res = JSON.parse(r.stdout.trim().split('\n').pop());
+    // 태그 관문(10/16 쟁점브리핑 태그 0개 사고): 넣고 다시 읽어 0개면 예약 공개를 거두고 퍼뜨리지 않는다
+    const tagN = await require('./shop_yt_tags').ensureTags(res.videoId, meta);
+    if (!tagN) {
+      const held = await require('./shop_yt_tags').holdPrivate(res.videoId);
+      console.log(`  ✗ ${path.basename(meta)} 태그 0개 — 예약 공개 ${held ? '거둠(비공개 유지)' : '거두기도 실패'} · 퍼뜨리지 않음, 보고 필요`);
+      q.items.push({ meta, videoId: res.videoId, publishAt: '', blocked: 'tags', addedAt: new Date().toISOString() });
+      writeQ(q);
+      continue;
+    }
     taken.add(slot.toISOString());
     q.items.push({ meta, videoId: res.videoId, publishAt: slot.toISOString(), commentId: res.commentId, pinned: false,
                    addedAt: new Date().toISOString() });
