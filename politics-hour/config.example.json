@@ -1,0 +1,12 @@
+{
+  "python": "python",
+  "hyperframes": "0.8.140",
+  "google_project": "project-b341a363-4d35-4813-a99",
+  "google_voice": "ko-KR-Neural2-C",
+  "supertonic": {
+    "python": "D:/midform/tts-lab/supertonic/.venv/Scripts/python.exe",
+    "dir": "D:/midform/tts-lab/supertonic",
+    "voice": "F2",
+    "speed": 1.05
+  }
+}
