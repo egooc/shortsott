@@ -1,5 +1,5 @@
 {
-  "version": "20261016-camp2",
+  "version": "20261016-ratio40",
   "owner": "도구개발(초안) → ja 정치 세션이 확정",
   "status": "진영 확정(10-16 소유주 «여당 보수 쪽»). 소재·비율은 정치JA·관리자 합의(10-16). 검사기: scripts/ja_politics_script_check.py.",
   "base": "쟁점브리핑 ko 틀(politics-hour episodes/<날짜>/BRIEF.md · issues/*.json · factcheck)을 일본어로 옮긴 것",
@@ -98,7 +98,9 @@
           ],
           "source": "映像: <채널명> 2026.10.09",
           "face_check": "ok",
-          "origin": "kantei|kokkai (비우면 src·source·tag 로 추정)"
+          "origin": "kantei|kokkai (비우면 src·source·tag 로 추정)",
+          "q_pair": "(선택) 같은 값끼리 «질문→답» 한 쌍, 예 p1",
+          "q_role": "ask|answer"
         }
       ],
       "sources": [
@@ -159,7 +161,7 @@
         },
         {
           "id": "quotes",
-          "what": "발언 인용 — 발언자 본인 목소리만. 한 구간: kantei 길이 제한 없음 / 국회 중계 ≤20초. 편 전체: 해설 ≥60%·원음 ≤40%·편 20~40분(source_limits·episode_limits)"
+          "what": "발언 인용 — 발언자 본인 목소리만. 한 구간: kantei 길이 제한 없음 / 국회 중계 ≤20초. 쟁점마다 «누가 묻고 누가 받았나» 질문→답 한 쌍 이상(q_pair). 편 전체: 원음 ≤60%·해설 ≥40%·편 20~40분(source_limits·episode_limits)"
         },
         {
           "id": "sides",
@@ -331,13 +333,22 @@
     }
   },
   "episode_limits": {
-    "narration_share_min": 0.6,
-    "source_audio_share_max": 0.4,
+    "narration_share_min": 0.4,
+    "source_audio_share_max": 0.6,
     "episode_min": [
       20,
       40
     ],
     "read_speed_chars_per_sec": 5.6,
-    "why": "인계 §2, 관리자 확인 10-16. 해설 秒 = 읽기 글자 ÷ 5.6(naze 실측값 차용, Supertonic F2 ja)"
+    "why": "10-16 소유주 확정 «원음 60:해설 40»(정치JA 전달). 해설 秒 = 읽기 글자 ÷ 5.6(naze 실측값 차용, Supertonic F2 ja)"
+  },
+  "shorts_limits": {
+    "narration_share_min": 0.85,
+    "source_audio_sec_max": 15,
+    "length_sec": [
+      60,
+      75
+    ],
+    "why": "10-16 정치JA·관리자 합의 — 쇼츠는 해설이 끌고 원음은 합계 15초까지"
   }
 }

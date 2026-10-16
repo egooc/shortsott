@@ -56,6 +56,14 @@ class TitleLintTest(unittest.TestCase):
         self.assertIn(('FAIL', 'banned'), self.levels('立憲議員が発狂した理由 | 争点ブリーフィング10月', lang='ja'))
         self.assertNotIn(('WARN', 'number'), self.levels('高市総理の答弁を三分で | 争点ブリーフィング解説', lang='ja'))
 
+    def test_politics_ja_lane(self):
+        self.assertEqual(TL.main(['高市総理、消費税1%の理由 | 争点まとめ', '--lane', 'politics_ja']), 0)
+        self.assertEqual(TL.main(['高市総理が野党を論破した日 | 消費税1%', '--lane', 'politics_ja']), 4)
+        mock = TL.LANES['politics_ja']['mock']
+        self.assertIn(('FAIL', 'mock'), self.levels('野党撃沈 | 消費税1%の国会答弁まとめ', lang='ja', mock=mock))
+        # 16~30자: 31자면 WARN(40 넘으면 FAIL 은 그대로)
+        self.assertIn(('WARN', 'length'), self.levels('あ' * 14 + ' | ' + 'い' * 14 + '1', lang='ja', mn=16, mx=30))
+
 
 if __name__ == '__main__':
     unittest.main()

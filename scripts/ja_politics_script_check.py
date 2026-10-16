@@ -202,20 +202,37 @@ def check(s, fr=None, base=None, fetch=False):
             if wrong:
                 out.append(('FAIL', 'F1', 'factcheck 에 «틀림» %d건 — 고친 뒤 표를 다시 낸다' % wrong))
 
+    # 질문→답 쌍(레퍼런스 상위 편 Top5 1번: «누가 묻고 누가 받았나») — 10-16 정치JA
+    pairs = {}
+    for q in quotes:
+        if q.get('q_pair'):
+            pairs.setdefault(q['q_pair'], set()).add(q.get('q_role'))
+    if not any({'ask', 'answer'} <= roles for roles in pairs.values()):
+        out.append(('WARN', 'PAIR', '질문→답 쌍(q_pair 에 ask·answer 둘 다)이 없다'))
+
     if not s.get('script'):
         out.append(('WARN', 'RATIO', 'script 가 없다 — 해설·원음 비율을 잴 수 없다'))
     return out
 
 
-def ratio_check(items, fr, episode):
-    lim = fr['episode_limits']
+def ratio_check(items, fr, episode, shorts=False):
+    lim = fr['shorts_limits'] if shorts else fr['episode_limits']
     nar = sum(durations(s, fr)[0] for s in items)
     src = sum(durations(s, fr)[1] for s in items)
     out = []
     if nar + src <= 0:
         return out, nar, src
     share = nar / (nar + src)
-    lv = 'FAIL' if episode else 'WARN'
+    lv = 'FAIL' if episode or shorts else 'WARN'
+    if shorts:
+        if share < lim['narration_share_min']:
+            out.append(('FAIL', 'RATIO', '쇼츠 해설 %.0f%% — ≥%d%%' % (share * 100, lim['narration_share_min'] * 100)))
+        if src > lim['source_audio_sec_max']:
+            out.append(('FAIL', 'RATIO', '쇼츠 원음 합계 %.1f초 — ≤%d초' % (src, lim['source_audio_sec_max'])))
+        lo, hi = lim['length_sec']
+        if not lo <= nar + src <= hi:
+            out.append(('FAIL', 'LEN', '쇼츠 %.0f초 — %d~%d초 밖' % (nar + src, lo, hi)))
+        return out, nar, src
     if share < lim['narration_share_min']:
         out.append((lv, 'RATIO', '해설 %.0f%% · 원음 %.0f%% — 해설 ≥%d%%'
                     % (share * 100, 100 - share * 100, lim['narration_share_min'] * 100)))
@@ -233,6 +250,7 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description='ja 정치 롱폼 원고 검사(D1~D7·F1·소재·비율)')
     ap.add_argument('issues', nargs='+')
     ap.add_argument('--episode', action='store_true', help='파일들을 한 편으로 보고 편 길이·비율을 FAIL 로')
+    ap.add_argument('--shorts', action='store_true', help='쇼츠 원고 — shorts_limits(해설 ≥85%·원음 ≤15초·60~75초)')
     ap.add_argument('--fetch', action='store_true', help='회의록 API 로 speechID 원문 조회')
     ap.add_argument('--json', action='store_true')
     a = ap.parse_args(argv)
@@ -243,7 +261,7 @@ def main(argv=None):
         s = json.loads(path.read_text(encoding='utf-8'))
         items.append(s)
         report.append({'file': p, 'no': s.get('no'), 'issues': check(s, fr, path, a.fetch)})
-    extra, nar, src = ratio_check(items, fr, a.episode)
+    extra, nar, src = ratio_check(items, fr, a.episode, a.shorts)
     fails = [i for r in report for i in r['issues'] if i[0] == 'FAIL'] + [i for i in extra if i[0] == 'FAIL']
     if a.json:
         print(json.dumps({'ok': not fails, 'files': report, 'episode': extra,

@@ -3,6 +3,7 @@
 
     python scripts/title_lint.py "제목" [--lang ko|ja] [--min 25] [--max 35] [--reject 40] [--json]
     python scripts/title_lint.py --file titles.txt [--lang ja]      # 한 줄에 제목 하나
+    python scripts/title_lint.py "제목" --lane politics_ja           # ja 정치: 16~30자 · 감정·조롱어 FAIL
 
 판정(levels): FAIL = 반려 / WARN = 사람 확인.
 - FAIL: « | » 구분자 없음·둘 이상 · 길이 > reject · 금지어(욕설·비하·혐오 — 侮辱罪·명예훼손 대비, ja 원고 틀 D5 와 같은 결)
@@ -23,8 +24,15 @@ BANNED = {
            'チョン', 'シナ人', '土人', 'ブサイク', '低能'],
 }
 
+# 레인별 기본값 — 10-16 정치JA: ja 정치는 16~30자(25~35 는 時代劇 실측), 감정·조롱어는 FAIL
+LANES = {
+    'politics_ja': {'lang': 'ja', 'min': 16, 'max': 30,
+                    'mock': ['論破', '撃沈', 'ブチギレ', 'ヤバい', 'やばい', 'すごすぎる', 'まさか', '発狂', '逝く', 'ｗ']},
+}
+LANES['politics_ja_short'] = LANES['politics_ja']
 
-def lint(title, lang='ko', mn=25, mx=35, reject=40):
+
+def lint(title, lang='ko', mn=25, mx=35, reject=40, mock=()):
     out = []
     t = title.strip()
     n = len(t)
@@ -46,6 +54,9 @@ def lint(title, lang='ko', mn=25, mx=35, reject=40):
     hits = [w for w in BANNED.get(lang, []) if w in t]
     if hits:
         out.append(('FAIL', 'banned', '금지어: %s' % ', '.join(hits)))
+    hits = [w for w in mock if w in t and w not in BANNED.get(lang, [])]
+    if hits:
+        out.append(('FAIL', 'mock', '감정·조롱어: %s' % ', '.join(hits)))
     if not re.search(r'[0-9０-９]|[一二三四五六七八九十百千万億兆]', t if lang == 'ja' else re.sub(r'[一-龥]', '', t)):
         out.append(('WARN', 'number', '숫자가 없다(숫자 제목이 클릭률에 유리 — 규칙집 T 계열)'))
     return out
@@ -57,18 +68,23 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description='롱폼 제목 린터(T3)')
     ap.add_argument('title', nargs='?')
     ap.add_argument('--file')
-    ap.add_argument('--lang', default='ko', choices=['ko', 'ja'])
-    ap.add_argument('--min', type=int, default=25)
-    ap.add_argument('--max', type=int, default=35)
+    ap.add_argument('--lane', choices=sorted(LANES), help='레인 기본값(lang·길이·감정어) — 따로 준 --lang/--min/--max 가 이긴다')
+    ap.add_argument('--lang', choices=['ko', 'ja'])
+    ap.add_argument('--min', type=int)
+    ap.add_argument('--max', type=int)
     ap.add_argument('--reject', type=int, default=40)
     ap.add_argument('--json', action='store_true')
     a = ap.parse_args(argv)
+    lane = LANES.get(a.lane, {})
+    a.lang = a.lang or lane.get('lang', 'ko')
+    a.min = a.min if a.min is not None else lane.get('min', 25)
+    a.max = a.max if a.max is not None else lane.get('max', 35)
     titles = ([a.title] if a.title else []) + (Path(a.file).read_text(encoding='utf-8').splitlines() if a.file else [])
     titles = [t for t in titles if t.strip()]
     if not titles:
         ap.print_usage()
         return 2
-    res = [{'title': t, 'chars': len(t.strip()), 'issues': lint(t, a.lang, a.min, a.max, a.reject)} for t in titles]
+    res = [{'title': t, 'chars': len(t.strip()), 'issues': lint(t, a.lang, a.min, a.max, a.reject, lane.get('mock', ()))} for t in titles]
     fail = any(lv == 'FAIL' for r in res for lv, _, _ in r['issues'])
     if a.json:
         print(json.dumps({'ok': not fail, 'titles': res}, ensure_ascii=False, indent=2))

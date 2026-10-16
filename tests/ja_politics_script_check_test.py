@@ -104,6 +104,22 @@ class JaPoliticsCheckTest(unittest.TestCase):
             fc.write_text('| 문장 | 판정 |\n|---|---|\n| a | 맞음 |\n', encoding='utf-8')
             self.assertNotIn('F1', ids(C.check(GOOD, fr, p)))
 
+    def test_pair_and_shorts(self):
+        self.assertIn('PAIR', ids(C.check(GOOD), 'WARN'))
+        s = copy.deepcopy(GOOD)
+        s['quotes'][0].update(q_pair='p1', q_role='ask')
+        s['quotes'][1].update(q_pair='p1', q_role='answer')
+        self.assertNotIn('PAIR', ids(C.check(s), 'WARN'))
+        fr = C.frames()
+        sh = copy.deepcopy(GOOD)
+        sh['quotes'][0]['out'] = 20.0
+        sh['script'] = [{'type': 'nar', 'text': 'あ' * 350}, {'type': 'quote', 'q': 0}]  # 해설 62.5초 + 원음 10초 = 86%
+        extra, _, _ = C.ratio_check([sh], fr, False, shorts=True)
+        self.assertEqual(ids(extra), set())
+        sh['quotes'][0]['out'] = 30.0  # 원음 20초 > 15초
+        extra, _, _ = C.ratio_check([sh], fr, False, shorts=True)
+        self.assertIn('RATIO', ids(extra))
+
 
 if __name__ == '__main__':
     unittest.main()
