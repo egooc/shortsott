@@ -120,6 +120,23 @@ class JaPoliticsCheckTest(unittest.TestCase):
         extra, _, _ = C.ratio_check([sh], fr, False, shorts=True)
         self.assertIn('RATIO', ids(extra))
 
+    def test_shorts_from_longform(self):
+        s = copy.deepcopy(GOOD)
+        s['shorts'] = [{'id': 's1', 'title': '消費税1%の理由', 'shorts_from': [{'q': 0, 'in': 12.0, 'out': 20.0}],
+                        'script': [{'type': 'nar', 'text': 'あ' * 300}, {'type': 'clip', 'f': 0},
+                                   {'type': 'nar', 'text': '続きは本編で。' + 'い' * 50}]}]
+        self.assertEqual(ids(C.check_shorts(s)), set())
+        self.assertEqual(ids(C.check_shorts(s), 'WARN'), set())
+        bad = copy.deepcopy(s)
+        bad['shorts'][0]['shorts_from'][0].update(**{'in': 5.0})  # quotes[0] 은 10~22초
+        self.assertIn('SHORT', ids(C.check_shorts(bad)))
+        bad = copy.deepcopy(s)
+        bad['script'] = [seg for seg in bad['script'] if seg.get('q') != 0]  # 롱폼에 안 쓴 인용
+        self.assertIn('SHORT', ids(C.check_shorts(bad)))
+        bad = copy.deepcopy(s)
+        bad['shorts'][0]['script'][-1]['text'] = 'い' * 57
+        self.assertIn('LEAD', ids(C.check_shorts(bad), 'WARN'))
+
 
 if __name__ == '__main__':
     unittest.main()

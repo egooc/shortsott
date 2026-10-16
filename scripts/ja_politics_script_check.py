@@ -8,6 +8,8 @@
 - 파일 여러 개 + --episode 면 한 편으로 보고 편 길이(20~40분)·해설 비율(≥60%)을 FAIL 로 건다. 아니면 비율은 WARN.
 - D3·D7: 국회 인용은 minutes.speech(회의록 원문)와 대조. 없으면 --fetch 로 회의록 API(speechID) 조회,
   그래도 없으면(회의록이 아직 API에 없음) FAIL 대신 «회의록 대조 대기» WARN.
+- shorts[]: 쇼츠는 롱폼에 실제로 쓴 quotes 구간 안에서만(«롱폼 밖 장면» FAIL) · shorts_limits · 끝 해설 롱폼 유도 WARN.
+  shorts[i].script = [{type:nar,text},{type:clip,f:<shorts_from 번호>}] (clip 이 없으면 shorts_from 전부를 원음으로 센다).
 - F1: issues/ 옆 factcheck/script_<no>.md. 없거나 «틀림» 판정이 남아 있으면 FAIL.
 종료 코드: 0 통과(WARN 만), 4 FAIL 있음, 2 인자 오류.
 왜 (2026-10-16 정치JA 요청·관리자 합의): 명예훼손(刑法230条の2)·인용(著作権法32条) 위험을 사람이 원고를 다 읽기 전에 거른다.
@@ -244,6 +246,52 @@ def ratio_check(items, fr, episode, shorts=False):
     return out, nar, src
 
 
+LEAD = ('本編', '今週の国会', '続きは', 'フル', '詳しくは', '概要欄', '長尺', 'ロング')
+
+
+def check_shorts(s, fr=None):
+    """issues/<n>.json 의 shorts[] — 소유주 원칙(10-16): 쇼츠는 그 롱폼에 실제로 들어간 발췌의 일부에서 자른다.
+    1단계는 롱폼 편집 타임코드 대신 quotes 구간 + 롱폼 script 사용 여부로 본다."""
+    fr = fr or frames()
+    lim = fr['shorts_limits']
+    rate = fr['episode_limits']['read_speed_chars_per_sec']
+    quotes = s.get('quotes', [])
+    used = {seg.get('q') for seg in s.get('script', []) if seg.get('type') == 'quote'}
+    out = []
+    for sh in s.get('shorts', []):
+        sid = sh.get('id', '?')
+        froms = sh.get('shorts_from', [])
+        if not froms:
+            out.append(('FAIL', 'SHORT', '%s: shorts_from 이 비었다' % sid))
+        for j, f in enumerate(froms):
+            qi = f.get('q')
+            q = quotes[qi] if isinstance(qi, int) and 0 <= qi < len(quotes) else None
+            if q is None or not (q.get('in', 0) - 0.05 <= f.get('in', -1) < f.get('out', -1) <= q.get('out', 0) + 0.05):
+                out.append(('FAIL', 'SHORT', '%s: shorts_from[%d] 롱폼 밖 장면 — quotes[%s] 구간 안이 아니다' % (sid, j, qi)))
+            elif qi not in used:
+                out.append(('FAIL', 'SHORT', '%s: shorts_from[%d] 롱폼 밖 장면 — quotes[%d] 가 롱폼 script 에 안 쓰였다' % (sid, j, qi)))
+        clips = [seg.get('f') for seg in sh.get('script', []) if seg.get('type') == 'clip']
+        picked = [froms[i] for i in clips if isinstance(i, int) and 0 <= i < len(froms)] if clips else froms
+        src = sum(max(0.0, f.get('out', 0) - f.get('in', 0)) for f in picked)
+        nars = [seg for seg in sh.get('script', []) if seg.get('type') == 'nar']
+        nar = sum(len(seg.get('read') or seg.get('text', '')) for seg in nars) / rate
+        if nar + src > 0:
+            if nar / (nar + src) < lim['narration_share_min']:
+                out.append(('FAIL', 'RATIO', '%s: 쇼츠 해설 %.0f%% — ≥%d%%' % (sid, nar / (nar + src) * 100, lim['narration_share_min'] * 100)))
+            if src > lim['source_audio_sec_max']:
+                out.append(('FAIL', 'RATIO', '%s: 쇼츠 원음 합계 %.1f초 — ≤%d초' % (sid, src, lim['source_audio_sec_max'])))
+            lo, hi = lim['length_sec']
+            if not lo <= nar + src <= hi:
+                out.append(('FAIL', 'LEN', '%s: 쇼츠 %.0f초 — %d~%d초 밖' % (sid, nar + src, lo, hi)))
+        if not nars or not any(w in nars[-1].get('text', '') for w in LEAD):
+            out.append(('WARN', 'LEAD', '%s: 마지막 해설에 롱폼 유도(本編·今週の国会 등)가 없다' % sid))
+        for t in [seg.get('text', '') for seg in nars] + [sh.get('title', '')]:
+            w = [x for x in INSULT if x in t]
+            if w:
+                out.append(('FAIL', 'D5', '%s: 쇼츠 해설·제목에 %s' % (sid, w)))
+    return out
+
+
 def main(argv=None):
     if hasattr(sys.stdout, 'reconfigure'):
         sys.stdout.reconfigure(encoding='utf-8')
@@ -260,7 +308,7 @@ def main(argv=None):
         path = Path(p)
         s = json.loads(path.read_text(encoding='utf-8'))
         items.append(s)
-        report.append({'file': p, 'no': s.get('no'), 'issues': check(s, fr, path, a.fetch)})
+        report.append({'file': p, 'no': s.get('no'), 'issues': check(s, fr, path, a.fetch) + check_shorts(s, fr)})
     extra, nar, src = ratio_check(items, fr, a.episode, a.shorts)
     fails = [i for r in report for i in r['issues'] if i[0] == 'FAIL'] + [i for i in extra if i[0] == 'FAIL']
     if a.json:

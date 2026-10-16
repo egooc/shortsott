@@ -1,5 +1,5 @@
 {
-  "version": "20261016-ratio40",
+  "version": "20261016-shorts",
   "owner": "도구개발(초안) → ja 정치 세션이 확정",
   "status": "진영 확정(10-16 소유주 «여당 보수 쪽»). 소재·비율은 정치JA·관리자 합의(10-16). 검사기: scripts/ja_politics_script_check.py.",
   "base": "쟁점브리핑 ko 틀(politics-hour episodes/<날짜>/BRIEF.md · issues/*.json · factcheck)을 일본어로 옮긴 것",
@@ -127,7 +127,35 @@
           "note": "quotes[] 번호"
         }
       ],
-      "factcheck": "factcheck/script_<no>.md (issues/ 옆) — F1"
+      "factcheck": "factcheck/script_<no>.md (issues/ 옆) — F1",
+      "shorts": [
+        {
+          "id": "s1",
+          "title": "쇼츠 제목(title_lint --lane politics_ja_short)",
+          "shorts_from": [
+            {
+              "q": 0,
+              "in": 0,
+              "out": 0,
+              "note": "quotes[q] 구간 안, 그 quote 가 롱폼 script 에 쓰였어야 함"
+            }
+          ],
+          "script": [
+            {
+              "type": "nar",
+              "text": "해설"
+            },
+            {
+              "type": "clip",
+              "f": 0
+            },
+            {
+              "type": "nar",
+              "text": "끝 — 本編·今週の国会 등 롱폼 유도"
+            }
+          ]
+        }
+      ]
     }
   },
   "episode_frame": [
@@ -349,6 +377,7 @@
       60,
       75
     ],
-    "why": "10-16 정치JA·관리자 합의 — 쇼츠는 해설이 끌고 원음은 합계 15초까지"
+    "why": "10-16 정치JA·관리자 합의 — 쇼츠는 해설이 끌고 원음은 합계 15초까지",
+    "source_rule": "10-16 소유주: 쇼츠는 그 롱폼에 실제로 들어간 발췌의 일부에서 자른다(1단계는 quotes 구간 기준)"
   }
 }
