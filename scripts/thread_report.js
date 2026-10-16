@@ -19,7 +19,10 @@ const LANES = {
   ja: { profile: 'full_draft_channel', label: 'ja 沼落ちシネマ (C 린박스)' },
   ko_longshort: { profile: 'channel_krvyh_mq', label: 'ko 지구관측소 (A 롱투숏 · 이전 ko 린박스 포함)' },
   shop: { profile: 'channel_ju89dqsw', label: '쇼핑 @ssul-mo-lab' },
+  // N100 은 채널 토큰이 이 PC 에 없다 → 장부(n100_*) + 발굴용 키 공개 통계. 공개 전·비공개 편은 «조회 없음».
+  n100: { ledger: true, label: 'N100 레인들 (장부 n100_* · 공개 통계)' },
 };
+const N100_SKIP = /쓸모연구소/; // 소유주: 쓸모연구소는 판정에서 항상 논외(ssulmo-lab-always-out-of-scope)
 const DOW = ['일', '월', '화', '수', '목', '금', '토'];
 
 const readJson = (f, fb) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return fb; } };
@@ -134,6 +137,72 @@ function context() {
   return { rinbox, ledgerByYt, ledgerIds, jaIds };
 }
 
+// ── N100(장부 기반) ─────────────────────────────────────────────────────────
+function n100Rows() {
+  const out = [];
+  for (const l of fs.readFileSync(path.join(DATA, 'production_ledger.jsonl'), 'utf8').split('\n')) {
+    try { const r = JSON.parse(l); if (String(r.lane || '').startsWith('n100_')) out.push(r); } catch { /* 빈 줄 */ }
+  }
+  return out;
+}
+
+async function publicStats(ids) {
+  // 발굴용 키(YOUTUBE_API_KEY_SEARCH)로 videos.list — 공개 편만 돌아온다. 키가 없으면 빈 Map(«조회 없음»).
+  const env = (() => { try { return fs.readFileSync(path.join(ROOT, '.env'), 'utf8'); } catch { return ''; } })();
+  const line = env.split('\n').find((l) => l.startsWith('YOUTUBE_API_KEY_SEARCH='));
+  const stats = new Map();
+  if (!line || !ids.length) return stats;
+  const key = line.split('=').slice(1).join('=').trim().replace(/^['"]|['"]$/g, '');
+  for (let i = 0; i < ids.length; i += 50) {
+    const r = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,status&id=${ids.slice(i, i + 50).join(',')}&key=${key}`);
+    if (r.status === 429 || r.status === 403) { const e = new Error('공개 통계 ' + r.status); e.code = r.status; throw e; }
+    for (const v of (await r.json()).items || []) {
+      stats.set(v.id, { views: +v.statistics.viewCount || 0, title: v.snippet.title, pub: Date.parse(v.snippet.publishedAt), privacy: v.status.privacyStatus });
+    }
+  }
+  return stats;
+}
+
+function analyseN100(rows, stats, { now, minAgeH, x }) {
+  const lanes = {};
+  for (const r of rows) {
+    if (N100_SKIP.test(r.note || '')) continue;
+    const L = (lanes[r.lane] = lanes[r.lane] || { lane: r.lane, made: 0, days: new Set(), render: [], rejected: 0, channel: '', items: [] });
+    L.made++; L.rejected += r.rejected || 0;
+    L.days.add(String(r.finished_at || r.at || '').slice(0, 10));
+    if (r.render_secs != null) L.render.push(r.render_secs);
+    const ch = /채널=([^·]+)/.exec(r.note || ''); if (ch) L.channel = ch[1].trim();
+    const s = r.youtube_id && stats.get(r.youtube_id);
+    if (s && s.pub <= now) L.items.push({ id: r.youtube_id, title: s.title, views: s.views, ageH: (now - s.pub) / 3600e3 });
+  }
+  return Object.values(lanes).map((L) => {
+    const pool = L.items.filter((i) => i.ageH >= minAgeH);
+    const med = median(pool.map((i) => i.views));
+    return { lane: L.lane, channel: L.channel, made: L.made, perDay: L.days.size ? L.made / L.days.size : 0,
+      renderMed: median(L.render), rejected: L.rejected, withViews: L.items.length, pool: pool.length, med,
+      hot: pool.filter((i) => med > 0 && i.views >= x * med).sort((a, b) => b.views - a.views) };
+  }).sort((a, b) => a.lane.localeCompare(b.lane));
+}
+
+function renderN100(res, label, x, minAgeH) {
+  const L = [`## ${label}`, ''];
+  if (res.error) return [...L, `_조회 실패: ${res.error}_`, ''];
+  if (!res.lanes.length) return [...L, '_장부에 n100_* 행이 없다._', ''];
+  L.push('| 레인 | 채널 | 만든 편 | 하루 | 렌더 중앙(초) | 반려 | 조회 있는 편 | 집계 | 중앙 조회 | ' + x + '배+ |', '|---|---|---|---|---|---|---|---|---|---|');
+  for (const r of res.lanes) {
+    const views = r.withViews ? `${r.withViews}` : '조회 없음';
+    L.push(`| ${r.lane} | ${r.channel} | ${r.made} | ${r.perDay.toFixed(1)} | ${fmt(r.renderMed)} | ${r.rejected} | ${views} | ${r.pool} | ${r.pool ? fmt(r.med) : '—'} | ${r.hot.length} |`);
+  }
+  L.push('', `조회는 발굴용 키 공개 통계 — 공개 전·비공개 편은 안 보여서 «조회 없음, 편수·렌더만». 집계는 공개 ${minAgeH}시간 지난 편. 쓸모연구소는 논외(소유주).`, '');
+  const hot = res.lanes.flatMap((r) => r.hot.map((h) => ({ ...h, lane: r.lane, base: r.med })));
+  if (hot.length) {
+    L.push('| 레인 | 조회 | 배수 | 제목 |', '|---|---|---|---|');
+    for (const h of hot.slice(0, 15)) L.push(`| ${h.lane} | ${fmt(h.views)} | ${(h.views / h.base).toFixed(1)} | ${String(h.title).replace(/\|/g, '/').slice(0, 40)} |`);
+    L.push('');
+  }
+  return L;
+}
+
 // ── 결 표 ───────────────────────────────────────────────────────────────────
 function analyse(lane, items, ctx, { now, minAgeH, x }) {
   const seenId = new Set();
@@ -206,6 +275,12 @@ async function buildThreads({ lanes = Object.keys(LANES), now = Date.now(), minA
   const results = {};
   for (const lane of lanes) {
     try {
+      if (LANES[lane].ledger) {
+        const rows = n100Rows();
+        const stats = await publicStats([...new Set(rows.map((r) => r.youtube_id).filter(Boolean))]);
+        results[lane] = { lanes: analyseN100(rows, stats, { now, minAgeH, x }) };
+        continue;
+      }
       const { items } = await channelVideos(LANES[lane].profile);
       results[lane] = analyse(lane, items, ctx, { now, minAgeH, x });
     } catch (e) {
@@ -215,11 +290,14 @@ async function buildThreads({ lanes = Object.keys(LANES), now = Date.now(), minA
   }
   const md = [`# 레인별 결 탐지 ${kst(now).toISOString().slice(0, 10)}`, '',
     `기준: 공개 ${minAgeH}시간 지난 편의 레인 중앙값 × ${x}. 조회는 채널 토큰 videos.list(조회만). 속성은 장부·린박스 발행 기록·설명란·제목에서 뽑았다.`, ''];
-  for (const lane of lanes) md.push(...render(results[lane] || { error: '안 돌림' }, LANES[lane].label, x, minAgeH));
+  for (const lane of lanes) {
+    const fn = LANES[lane].ledger ? renderN100 : render;
+    md.push(...fn(results[lane] || { error: '안 돌림' }, LANES[lane].label, x, minAgeH));
+  }
   return { markdown: md.join('\n') + '\n', results };
 }
 
-module.exports = { buildThreads, analyse, titleShape, jaAttrs, koAttrs, LANES };
+module.exports = { buildThreads, analyse, analyseN100, titleShape, jaAttrs, koAttrs, LANES };
 
 if (require.main === module) {
   (async () => {

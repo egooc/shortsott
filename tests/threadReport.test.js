@@ -38,3 +38,20 @@ test('제목 틀·출연 추출', () => {
   const v = vid('z', 1, 5, 't', '制作：東映\n出演：北大路欣也（辰造）・大原麗子');
   assert.strictEqual(jaAttrs(v, { rinbox: new Map() })['주연'], '北大路欣也');
 });
+
+test('N100: 장부 행으로 편수·렌더를 세고, 공개 통계가 없으면 조회 없음 · 쓸모연구소는 뺀다', () => {
+  const { analyseN100 } = require('../scripts/thread_report');
+  const row = (id, lane, yt, ch, day) => ({ lane, id, youtube_id: yt, render_secs: 300, rejected: 0, note: `채널=${ch}`, finished_at: `2026-10-${day}T01:00:00+09:00` });
+  const rows = [row('o1', 'n100_ko_event', 'y1', '야생일지', 10), row('o2', 'n100_ko_event', 'y2', '야생일지', 10),
+    row('o3', 'n100_ko_event', 'y3', '야생일지', 11), row('o4', 'n100_ko_event', 'y4', '야생일지', 11),
+    row('o5', 'n100_ko_mon2_old', 'y5', '쓸모연구소', 11), row('o6', 'n100_ko_robot', null, '로보토리', 12)];
+  const pub = NOW - 5 * 864e5;
+  const stats = new Map([['y1', { views: 1000, title: 'a', pub }], ['y2', { views: 1100, title: 'b', pub }],
+    ['y3', { views: 900, title: 'c', pub }], ['y4', { views: 9000, title: 'd', pub }]]);
+  const r = analyseN100(rows, stats, { now: NOW, minAgeH: 72, x: 3 });
+  assert.deepStrictEqual(r.map((l) => l.lane), ['n100_ko_event', 'n100_ko_robot']);
+  const ev = r[0];
+  assert.strictEqual(ev.made, 4); assert.strictEqual(ev.perDay, 2); assert.strictEqual(ev.pool, 4);
+  assert.deepStrictEqual(ev.hot.map((h) => h.id), ['y4']);
+  assert.strictEqual(r[1].withViews, 0); // 조회 없음
+});
