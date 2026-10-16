@@ -29,15 +29,18 @@ LANES = {
     'politics_ja': {'lang': 'ja', 'min': 16, 'max': 30,
                     'mock': ['論破', '撃沈', 'ブチギレ', 'ヤバい', 'やばい', 'すごすぎる', 'まさか', '発狂', '逝く', 'ｗ']},
 }
-LANES['politics_ja_short'] = LANES['politics_ja']
+# 쇼츠는 구분자 없이 질문·사건형(해설형 쇼츠 레퍼런스 4채널 실측, 10-16 정치JA) — « | » 는 롱폼 T3 규칙
+LANES['politics_ja_short'] = dict(LANES['politics_ja'], separator=False)
 
 
-def lint(title, lang='ko', mn=25, mx=35, reject=40, mock=()):
+def lint(title, lang='ko', mn=25, mx=35, reject=40, mock=(), separator=True):
     out = []
     t = title.strip()
     n = len(t)
     seps = t.count('|')
-    if seps == 0:
+    if not separator:
+        pass
+    elif seps == 0:
         out.append(('FAIL', 'separator', '구분자 « | » 가 없다'))
     elif seps > 1:
         out.append(('FAIL', 'separator', '구분자 « | » 가 %d개다(하나만)' % seps))
@@ -84,7 +87,7 @@ def main(argv=None):
     if not titles:
         ap.print_usage()
         return 2
-    res = [{'title': t, 'chars': len(t.strip()), 'issues': lint(t, a.lang, a.min, a.max, a.reject, lane.get('mock', ()))} for t in titles]
+    res = [{'title': t, 'chars': len(t.strip()), 'issues': lint(t, a.lang, a.min, a.max, a.reject, lane.get('mock', ()), lane.get('separator', True))} for t in titles]
     fail = any(lv == 'FAIL' for r in res for lv, _, _ in r['issues'])
     if a.json:
         print(json.dumps({'ok': not fail, 'titles': res}, ensure_ascii=False, indent=2))

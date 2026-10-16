@@ -63,6 +63,9 @@ class TitleLintTest(unittest.TestCase):
         self.assertIn(('FAIL', 'mock'), self.levels('野党撃沈 | 消費税1%の国会答弁まとめ', lang='ja', mock=mock))
         # 16~30자: 31자면 WARN(40 넘으면 FAIL 은 그대로)
         self.assertIn(('WARN', 'length'), self.levels('あ' * 14 + ' | ' + 'い' * 14 + '1', lang='ja', mn=16, mx=30))
+        # 쇼츠 레인은 구분자 없이 통과, 롱폼 레인은 구분자 없으면 FAIL
+        self.assertEqual(TL.main(['なぜ消費税は1%になったのか', '--lane', 'politics_ja_short']), 0)
+        self.assertEqual(TL.main(['なぜ消費税は1%になったのか', '--lane', 'politics_ja']), 4)
 
 
 if __name__ == '__main__':
