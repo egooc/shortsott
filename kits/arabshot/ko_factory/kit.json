@@ -1,0 +1,160 @@
+{
+  "key": "ko_factory",
+  "name": "도구의쓸모(제조 공정)",
+  "lang": "ko",
+  "guide": "recipes/script-guides/제조공정.md",
+  "frames": [
+    "1 공정 공개(기본) — 완성품 킬샷 → 과정 → 완성 대조(E1)",
+    "2 기계 해설 — 기계를 «놈»으로 부르는 캐릭터 해설",
+    "3 손과 기계 대조 — 사람 손이 화면에 나올 때만"
+  ],
+  "sentences": [
+    7,
+    8
+  ],
+  "chars": [
+    200,
+    235
+  ],
+  "d": [
+    3,
+    4
+  ],
+  "cuts": [
+    10,
+    13
+  ],
+  "seconds": [
+    34,
+    44
+  ],
+  "voice": {
+    "style": "haeyo",
+    "share": 0.5,
+    "run": 3,
+    "kinds": 3,
+    "flat": 0.25,
+    "note": "니다 → 인데요 → 죠 흐름, 마지막은 완성품을 다시 가리키는 판정 한마디(«~인 셈이죠»). 숫자 판정은 facts.json 근거 있을 때만.",
+    "cap": {
+      "~네요": 0.12
+    }
+  },
+  "banned": [
+    "심지어",
+    "장인 정신",
+    "기계가 사람을 대체"
+  ],
+  "ending": "완성품을 다시 가리키는 판정 한마디",
+  "tpl": {
+    "key": "factory",
+    "bg": "blur",
+    "box": [
+      0,
+      380,
+      1080,
+      1080
+    ],
+    "cap": {
+      "mode": "pop",
+      "font": "BM DoHyeon",
+      "size": 82,
+      "c": "&H00FFFFFF",
+      "oc": "&H002B82D9",
+      "o": 8,
+      "y": 1420
+    }
+  },
+  "desc": {
+    "body_example": "쇳물이 틀에 들어간 지 3초, 벌겋던 덩어리가 손잡이 모양으로 굳어 나옵니다. 그런데 이 공장, 사람이 만지는 건 마지막 한 번뿐입니다.",
+    "credit": "@원작자",
+    "hashtags": [
+      "#shorts",
+      "#공장",
+      "#제조과정"
+    ],
+    "tags": [
+      "공장",
+      "제조",
+      "공정",
+      "기계"
+    ]
+  },
+  "extra_rules": [
+    "P1(p1.json)에 «위험 행위» 항목 추가 — 불꽃·달군 쇠·기계 끼임 장면은 따로 판정(카드 6장)",
+    "제조사 공식 채널의 홍보용 공정 영상은 쓰지 않는다(기업 권리자 일괄 신고 위험, 카드 6장 P4)",
+    "소스는 레딧 원작자 클립 + @표기만(해외 양산 채널 15곳은 원작자 아님 — 주제 발굴용 레퍼런스로만)"
+  ],
+  "note": "10-16 관리자 범위: 도구의쓸모 교체 1순위 제조 공정 복귀(docs/category-cards/2026-10-15-dogu-category-swap.md). 회복 시험 판정 전에는 연결하지 않는다.",
+  "channel": {
+    "base": {
+      "status": "준비 — 회복 시험 판정 전 연결 금지",
+      "lang": "ko",
+      "format": "사건형",
+      "channelTitle": "도구의쓸모",
+      "plannedTitle": "라이드랩",
+      "handle": "@라이드랩z",
+      "per_day": 1,
+      "max_per_day": 1,
+      "slots_kst": [
+        12
+      ],
+      "voice": {
+        "voice_id": "tc_6a6194d59eea84806aea652c",
+        "name": "Hyunjun",
+        "emotion": "toneup",
+        "tempo": 1.15
+      }
+    },
+    "lanes": [
+      "manufacturing",
+      "Machinists",
+      "CNC",
+      "EngineeringPorn",
+      "oddlysatisfying",
+      "Welding",
+      "Foundry"
+    ],
+    "category": "제조 공정(공장·기계 가공·주조·CNC)",
+    "pinpoint": "10-15 발굴 카드 1순위 «제조 공정 복귀» — 10-12 이전 이 채널의 원래 결. 수요 중앙 5.7만·100만+ 6편, 복제형 핸들 5%, 양산 꼬리표 6%. 원작자 레딧 클립 + @표기만, 제조사 공식 홍보 영상 금지, 불꽃·달군 쇠·기계 끼임은 P1 위험 행위로 따로 판정. «중앙값보다 천장»을 노리는 카테고리.",
+    "look": {
+      "band": "#1B1D21"
+    },
+    "caption_style": {
+      "narr": {
+        "font": "BM DoHyeon",
+        "size": 110,
+        "color": "#FFFFFF",
+        "outline_color": "#D9822B",
+        "outline": 10,
+        "karaoke": {
+          "idle_color": "#9AA0A6",
+          "pop": true
+        }
+      },
+      "dialogue": {
+        "font": "ONE Mobile POP OTF",
+        "color": "#FFC400",
+        "outline": 9
+      },
+      "effect": {
+        "font": "ONE Mobile POP OTF",
+        "color": "#5EC8FF",
+        "outline": 6
+      }
+    }
+  },
+  "bgm": {
+    "title": "Industrial Revolution",
+    "file": "Industrial_Revolution.mp3",
+    "folder_name": "도구의쓸모",
+    "source_url": "https://incompetech.com/music/royalty-free/",
+    "note": "무쓸모 Mechanolith 와 겹치지 않는 곡. N100 이 받아 sha256·길이 확인"
+  },
+  "guide_body": "guide_body.md",
+  "decision": "(아직 없음) 10-16 관리자 범위로 미리 만든 키트. 도구의쓸모 회복 시험이 «실패»로 판정되고 소유주가 교체를 고르면 여기에 날짜·말을 적는다. 그 전에는 연결하지 않는다.",
+  "bench": [
+    "@whatsmovie_kr",
+    "@foodie_a",
+    "@FactoryTrip2022"
+  ]
+}

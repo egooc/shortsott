@@ -1,0 +1,134 @@
+{
+  "key": "ko_mon",
+  "name": "도구의쓸모",
+  "lang": "ko",
+  "guide": "recipes/script-guides/도구의쓸모.md",
+  "frames": [
+    "1 원리 공개(기본)",
+    "2 사건 해설",
+    "3 정체 확인(모델이 확인될 때만)"
+  ],
+  "sentences": [
+    7,
+    8
+  ],
+  "chars": [
+    200,
+    235
+  ],
+  "d": [
+    3,
+    4
+  ],
+  "cuts": [
+    10,
+    12
+  ],
+  "seconds": [
+    34,
+    44
+  ],
+  "voice": {
+    "style": "haeyo",
+    "share": 0.5,
+    "run": 3,
+    "kinds": 3,
+    "flat": 0.25,
+    "note": "니다 → 인데요 → 죠 흐름, 마지막은 출처 있는 «~다고».",
+    "cap": {
+      "~네요": 0.12
+    }
+  },
+  "banned": [
+    "심지어"
+  ],
+  "tpl": {
+    "key": "bike",
+    "bg": "none",
+    "box": [
+      0,
+      0,
+      1080,
+      1920
+    ],
+    "cap": {
+      "mode": "box",
+      "font": "BM DoHyeon",
+      "size": 80,
+      "c": "&H00FFFFFF",
+      "oc": "&H28000000",
+      "o": 16,
+      "y": 1430
+    }
+  },
+  "desc": {
+    "body_example": "바닥이 훤히 비치는 호수 얼음판, 바퀴 아래로 하얀 금이 지나갑니다. 그런데 이 자전거, 이번이 처음이 아니었습니다.",
+    "credit": "@Joran_nilsen",
+    "hashtags": [
+      "#shorts"
+    ],
+    "tags": [
+      "자전거"
+    ]
+  },
+  "note": "회귀용 — N100 10-16 샘플(ott170-ko·bike TPL·ko_mon frames) 그대로. 이게 통과해야 검사기가 맞다.",
+  "channel": {
+    "base": {
+      "status": "운영중",
+      "lang": "ko",
+      "format": "사건형",
+      "channelTitle": "도구의쓸모",
+      "plannedTitle": "라이드랩",
+      "handle": "@라이드랩z",
+      "per_day": 1,
+      "max_per_day": 1,
+      "slots_kst": [
+        12
+      ],
+      "voice": {
+        "voice_id": "tc_6a6194d59eea84806aea652c",
+        "name": "Hyunjun",
+        "emotion": "toneup",
+        "tempo": 1.15
+      }
+    },
+    "lanes": [
+      "Dirtbikes",
+      "motocross",
+      "motorcycles",
+      "Trials",
+      "Supermoto",
+      "MTB",
+      "bicycling",
+      "ebikes",
+      "BMX"
+    ],
+    "category": "바이크(오토바이·자전거·MTB·전기바이크)",
+    "look": {
+      "band": "#170A0C"
+    },
+    "caption_style": {
+      "narr": {
+        "font": "BM DoHyeon",
+        "size": 110,
+        "color": "#FFFFFF",
+        "outline_color": "#A0101E",
+        "outline": 10,
+        "karaoke": {
+          "idle_color": "#A8ADB4",
+          "pop": true
+        }
+      },
+      "dialogue": {
+        "font": "ONE Mobile POP OTF",
+        "color": "#4DF35F",
+        "outline": 9
+      },
+      "effect": {
+        "font": "ONE Mobile POP OTF",
+        "color": "#FF70AB",
+        "outline": 6
+      }
+    }
+  }
+}

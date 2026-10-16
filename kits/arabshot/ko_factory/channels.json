@@ -1,0 +1,59 @@
+{
+  "ko_factory": {
+    "status": "준비 — 회복 시험 판정 전 연결 금지",
+    "lang": "ko",
+    "format": "사건형",
+    "channelTitle": "도구의쓸모",
+    "plannedTitle": "라이드랩",
+    "handle": "@라이드랩z",
+    "per_day": 1,
+    "max_per_day": 1,
+    "slots_kst": [
+      12
+    ],
+    "voice": {
+      "voice_id": "tc_6a6194d59eea84806aea652c",
+      "name": "Hyunjun",
+      "emotion": "toneup",
+      "tempo": 1.15
+    },
+    "lanes": [
+      "manufacturing",
+      "Machinists",
+      "CNC",
+      "EngineeringPorn",
+      "oddlysatisfying",
+      "Welding",
+      "Foundry"
+    ],
+    "category": "제조 공정(공장·기계 가공·주조·CNC)",
+    "pinpoint": "10-15 발굴 카드 1순위 «제조 공정 복귀» — 10-12 이전 이 채널의 원래 결. 수요 중앙 5.7만·100만+ 6편, 복제형 핸들 5%, 양산 꼬리표 6%. 원작자 레딧 클립 + @표기만, 제조사 공식 홍보 영상 금지, 불꽃·달군 쇠·기계 끼임은 P1 위험 행위로 따로 판정. «중앙값보다 천장»을 노리는 카테고리.",
+    "look": {
+      "band": "#1B1D21"
+    },
+    "caption_style": {
+      "narr": {
+        "font": "BM DoHyeon",
+        "size": 110,
+        "color": "#FFFFFF",
+        "outline_color": "#D9822B",
+        "outline": 10,
+        "karaoke": {
+          "idle_color": "#9AA0A6",
+          "pop": true
+        }
+      },
+      "dialogue": {
+        "font": "ONE Mobile POP OTF",
+        "color": "#FFC400",
+        "outline": 9
+      },
+      "effect": {
+        "font": "ONE Mobile POP OTF",
+        "color": "#5EC8FF",
+        "outline": 6
+      }
+    },
+    "template": "factory"
+  }
+}
