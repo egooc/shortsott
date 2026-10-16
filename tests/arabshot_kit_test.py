@@ -42,6 +42,12 @@ class ArabshotKitTest(unittest.TestCase):
         # tpl: y>1440 · &H 색 · (y 1500 이면 shorts_safe 안전 영역도 FAIL) / desc: r·u/ · #shorts / channel: band / frames: d
         self.assertGreaterEqual(len(fails(bad)), 6)
 
+    def test_video_box_bottom(self):
+        k = load('ko_factory')
+        self.assertEqual([m for lv, a, m in K.check(k) if a == 'tpl'], [])
+        k['tpl']['box'] = [0, 380, 1080, 1080]  # 아래 끝 1460 — N100 실측 subject_low WARN
+        self.assertEqual(len([m for lv, a, m in K.check(k) if lv == 'WARN' and a == 'tpl']), 1)
+
     def test_range_warnings(self):
         k = load('ko_factory')
         k['seconds'] = [20, 25]  # 초당 글자 8~11.8 · 컷당 1.5~2.5초
@@ -57,7 +63,7 @@ class ArabshotKitTest(unittest.TestCase):
             self.assertEqual(list(fr), ['ko_factory'])
             self.assertEqual(fr['ko_factory']['cuts'], [10, 13])
             line = (dst / 'tpl.py').read_text(encoding='utf-8').splitlines()[1]
-            self.assertTrue(line.startswith("'factory': dict(bg='blur', box=(0, 380, 1080, 1080), cap=dict(mode='pop'"))
+            self.assertTrue(line.startswith("'factory': dict(bg='blur', box=(0, 380, 1080, 1070), cap=dict(mode='pop'"))
             ch = json.loads((dst / 'channels.json').read_text(encoding='utf-8'))['ko_factory']
             self.assertEqual((ch['template'], ch['slots_kst'], ch['handle']), ('factory', [12], '@라이드랩z'))
             self.assertIn('위험 행위', (dst / 'guide.md').read_text(encoding='utf-8'))

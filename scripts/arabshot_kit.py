@@ -92,6 +92,8 @@ def check(kit):
     if not (isinstance(box, list) and len(box) == 4 and box[0] >= 0 and box[1] >= 0
             and box[0] + box[2] <= 1080 and box[1] + box[3] <= 1920):
         out.append(('FAIL', 'tpl', 'box (x, y, w, h) 가 1080x1920 밖: %r' % box))
+    elif t.get('bg') != 'none' and box[1] + box[3] > 1450:
+        out.append(('WARN', 'tpl', '영상 칸 아래 끝 %d > 1450 — N100 check_template subject_low' % (box[1] + box[3])))
     if cap.get('mode') not in MODES:
         out.append(('FAIL', 'tpl', 'cap.mode 는 %s 중 하나: %r' % ('|'.join(sorted(MODES)), cap.get('mode'))))
     for c in ('c', 'k', 'oc'):
