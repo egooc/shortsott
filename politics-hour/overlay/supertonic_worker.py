@@ -24,11 +24,24 @@ tts = load_text_to_speech(str(root / 'assets' / 'onnx'), False)
 style = load_voice_style([str(root / 'assets' / 'voice_styles' / f'{job["voice"]}.json')])
 sr, gap = tts.sample_rate, float(job.get('gap', .3))
 pieces, cues, t = [], [], 0.0
+
+
+def trim(w, db=-40.0, pad=.05):
+    """문장 앞뒤 무음을 pad 초만 남기고 자른다 — 합성기가 양끝에 0.5초 안팎을 붙여 문장 사이가 1.3~1.6초로 벌어졌다(10/16편 E4)."""
+    hop = max(1, int(sr * .01))
+    rms = np.sqrt(np.convolve(w.astype(np.float64) ** 2, np.ones(hop) / hop, mode='same'))
+    on = np.flatnonzero(rms > 10 ** (db / 20))
+    if not on.size:
+        return w
+    return w[max(0, on[0] - int(sr * pad)):min(len(w), on[-1] + int(sr * pad))]
+
+
 for i, (sentence, parts) in enumerate(job['sentences']):
     np.random.seed(zlib.crc32(sentence.encode()))          # 같은 문장은 같은 소리
     wav, dur = tts(sentence, 'ko', style, int(job.get('steps', 8)), float(job.get('speed', 1.05)))
-    d = float(dur[0])
-    pieces.append(wav[0, :int(sr * d)])
+    w = trim(wav[0, :int(sr * float(dur[0]))])
+    d = len(w) / sr
+    pieces.append(w)
     weights = [max(1, len(p.replace(' ', ''))) for p in parts]
     acc = 0
     for p, w in zip(parts, weights):

@@ -10,6 +10,6 @@ GOOGLE_PROJECT = _c.get('google_project', 'project-b341a363-4d35-4813-a99')
 GOOGLE_VOICE = _c.get('google_voice', 'ko-KR-Neural2-C')
 # 로컬 무료 TTS. 목소리 F2 는 소유주가 10종 중 고른 것(10/13)
 SUPERTONIC = dict({'python': 'D:/midform/tts-lab/supertonic/.venv/Scripts/python.exe', 'dir': 'D:/midform/tts-lab/supertonic',
-                   'voice': 'F2', 'speed': 1.05, 'steps': 8, 'gap': 0.3}, **_c.get('supertonic', {}))
+                   'voice': 'F2', 'speed': 1.05, 'steps': 8, 'gap': 0.4}, **_c.get('supertonic', {}))
 ASSETS = HOME / 'assets'
 MODELS = HOME / 'models'
