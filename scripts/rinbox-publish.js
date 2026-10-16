@@ -340,20 +340,27 @@ async function tagGate(profile, videoId, tags) {
   if (!tok) throw new Error('토큰을 못 받았다');
   const H = { Authorization: `Bearer ${tok}`, 'Content-Type': 'application/json' };
   const get = async () => (await (await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet,status&id=${videoId}`, { headers: H })).json()).items?.[0];
-  let item;
-  for (let i = 0; i < 6 && !item; i += 1) { item = await get(); if (!item) await new Promise((r) => setTimeout(r, 5000)); }
+  // ★갓 올린 영상은 30초 넘게 0개로 읽히거나 수정이 403 을 받는다(팬튜브 실측) — 20초 간격, 3분까지 본 뒤에만 판정한다.
+  const WAIT = 20000, TRIES = 9;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  let item, n = 0;
+  for (let i = 0; i < TRIES; i += 1) {
+    item = (await get()) || item;
+    n = (item?.snippet.tags || []).length;
+    if (n > 0) return { count: n, inserted: false, blocked: false };
+    if (i < TRIES - 1) await sleep(WAIT);
+  }
   if (!item) throw new Error(`영상이 안 읽힌다 ${videoId}`);
-  let n = (item.snippet.tags || []).length;
-  if (n > 0) return { count: n, inserted: false, blocked: false };
   if (tags.length) {
-    const sn = item.snippet;
-    const snippet = { title: sn.title, description: sn.description, tags, categoryId: sn.categoryId, defaultLanguage: sn.defaultLanguage, defaultAudioLanguage: sn.defaultAudioLanguage };
-    await fetch('https://www.googleapis.com/youtube/v3/videos?part=snippet', { method: 'PUT', headers: H, body: JSON.stringify({ id: videoId, snippet }) });
-    for (let i = 0; i < 6 && n === 0; i += 1) {
-      await new Promise((r) => setTimeout(r, 5000));
-      n = ((await get())?.snippet.tags || []).length;
+    for (let i = 0; i < TRIES; i += 1) {
+      const sn = item.snippet;
+      const snippet = { title: sn.title, description: sn.description, tags, categoryId: sn.categoryId, defaultLanguage: sn.defaultLanguage, defaultAudioLanguage: sn.defaultAudioLanguage };
+      await fetch('https://www.googleapis.com/youtube/v3/videos?part=snippet', { method: 'PUT', headers: H, body: JSON.stringify({ id: videoId, snippet }) });
+      await sleep(WAIT);
+      item = (await get()) || item;
+      n = (item.snippet.tags || []).length;
+      if (n > 0) return { count: n, inserted: true, blocked: false };
     }
-    if (n > 0) return { count: n, inserted: true, blocked: false };
   }
   const st = { ...item.status, privacyStatus: 'private' };
   delete st.publishAt; delete st.uploadStatus; delete st.failureReason; delete st.rejectionReason;
