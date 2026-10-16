@@ -332,6 +332,35 @@ function cmdList() {
   }
 }
 
+// 태그 게이트(2026-10-16, 관리자 공지 — 쟁점브리핑 태그 0개 사고). 올린 직후 API 로 다시 읽어
+// 0개면 사이드카 태그를 넣고 또 읽는다. 그래도 0개면 예약을 풀어 비공개로 남긴다(공개 금지).
+async function tagGate(profile, videoId, tags) {
+  const b = new URLSearchParams({ client_id: profile.oauthClientId, client_secret: profile.oauthClientSecret, refresh_token: profile.refreshToken, grant_type: 'refresh_token' });
+  const tok = (await (await fetch('https://oauth2.googleapis.com/token', { method: 'POST', body: b })).json()).access_token;
+  if (!tok) throw new Error('토큰을 못 받았다');
+  const H = { Authorization: `Bearer ${tok}`, 'Content-Type': 'application/json' };
+  const get = async () => (await (await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet,status&id=${videoId}`, { headers: H })).json()).items?.[0];
+  let item;
+  for (let i = 0; i < 6 && !item; i += 1) { item = await get(); if (!item) await new Promise((r) => setTimeout(r, 5000)); }
+  if (!item) throw new Error(`영상이 안 읽힌다 ${videoId}`);
+  let n = (item.snippet.tags || []).length;
+  if (n > 0) return { count: n, inserted: false, blocked: false };
+  if (tags.length) {
+    const sn = item.snippet;
+    const snippet = { title: sn.title, description: sn.description, tags, categoryId: sn.categoryId, defaultLanguage: sn.defaultLanguage, defaultAudioLanguage: sn.defaultAudioLanguage };
+    await fetch('https://www.googleapis.com/youtube/v3/videos?part=snippet', { method: 'PUT', headers: H, body: JSON.stringify({ id: videoId, snippet }) });
+    for (let i = 0; i < 6 && n === 0; i += 1) {
+      await new Promise((r) => setTimeout(r, 5000));
+      n = ((await get())?.snippet.tags || []).length;
+    }
+    if (n > 0) return { count: n, inserted: true, blocked: false };
+  }
+  const st = { ...item.status, privacyStatus: 'private' };
+  delete st.publishAt; delete st.uploadStatus; delete st.failureReason; delete st.rejectionReason;
+  await fetch('https://www.googleapis.com/youtube/v3/videos?part=status', { method: 'PUT', headers: H, body: JSON.stringify({ id: videoId, status: st }) });
+  return { count: 0, inserted: Boolean(tags.length), blocked: true };
+}
+
 async function cmdPublish(mp4Arg, args) {
   const { mp4, meta } = loadTarget(mp4Arg);
   const lines = [`# rinbox-publish ${new Date().toISOString()}`, `- 파일: ${mp4}`];
@@ -401,6 +430,7 @@ async function cmdPublish(mp4Arg, args) {
   const description = withNote(meta.description, locale, meta.title);
   if (description !== meta.description) lines.push('- 설명란에 픽션 안내문을 붙였다');
 
+  if (!(meta.tags || []).length) throw new Error('사이드카에 tags 가 없다 — 태그 0개로는 올리지 않는다');
   const profile = profileByPurpose(PURPOSE[locale]);
   if (!profile) throw new Error(`${locale} 업로드 프로필(${PURPOSE[locale]})이 연결돼 있지 않다`);
 
@@ -443,7 +473,15 @@ async function cmdPublish(mp4Arg, args) {
     if (!cur || ['queued', 'running', 'cancelling'].includes(cur.status)) continue;
     const full = loadJob(job.jobId);
     const up = (full.items || [])[0] || {};
-    const ok = up.status === 'completed' || Boolean(up.youtubeUrl);
+    let ok = up.status === 'completed' || Boolean(up.youtubeUrl);
+    const vidNow = (String(up.youtubeUrl || '').match(/v=([w-]{6,})/) || [])[1];
+    if (ok && vidNow) {
+      try {
+        const g = await tagGate(profile, vidNow, meta.tags || []);
+        if (g.blocked) { ok = false; lines.push(`- ✗ 태그 게이트: 0개 — 예약을 풀고 비공개로 남겼다(${vidNow}). 관리자에게 보고`); }
+        else lines.push(`- 태그 게이트: ${g.count}개${g.inserted ? ' (0개라서 넣었다)' : ''}`);
+      } catch (e) { lines.push(`- ⚠ 태그 게이트 확인 실패: ${e.message} — node scripts/rinbox-publish.js 재확인 필요`); }
+    }
     console.log(`RESULT ${cur.status}: ${up.youtubeUrl || up.error || up.status || ''}`);
     lines.push(`- 결과: ${ok ? 'OK' : 'FAIL'} ${up.youtubeUrl || up.error || up.status || ''}`);
     if (ok) {
