@@ -2,6 +2,7 @@
 //
 //   node scripts/shop_yt_tags.js <videoId> <meta.json> [--dry-run]     한 편
 //   node scripts/shop_yt_tags.js --audit [--days 7] [--dry-run]        schedule_shopping.json 최근 N일 공개·예약분 점검, 0개면 넣는다
+//   node scripts/shop_yt_tags.js --list --purpose <업로드 프로필 purpose> [--days 7]   어느 채널이든 최근 N일 업로드 중 태그 0개 목록만(고치지 않음, 0개 있으면 종료 코드 4)
 //   require('./shop_yt_tags').ensureTags(videoId, metaPath) → 확인된 태그 개수(0 이면 실패)
 // 태그는 메타 "tags" 가 있으면 그것, 없으면 제목 해시태그 + 상품명 낱말 + 쇼핑 공통 태그로 만든다.
 // ★videos.update 는 snippet 을 통째로 바꾼다 — 원래 값을 읽어 와서 tags 만 바꿔 돌려보낸다(참고: politics-hour/yt_tags.js).
@@ -32,9 +33,10 @@ function buildTags(meta) {
   return kept;
 }
 
-async function headers() {
+async function headers(purpose = 'shopping') {
   const store = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'server', 'data', 'youtube_upload_profiles.json'), 'utf8'));
-  const p = store.profiles.find((x) => x.purpose === 'shopping');
+  const p = store.profiles.find((x) => x.purpose === purpose);
+  if (!p) throw new Error(`업로드 프로필 없음: ${purpose}`);
   const c = new OAuth2Client(p.oauthClientId, p.oauthClientSecret, p.oauthRedirectUri);
   c.setCredentials({ refresh_token: p.refreshToken });
   return { Authorization: `Bearer ${(await c.getAccessToken()).token}`, 'Content-Type': 'application/json' };
@@ -84,6 +86,35 @@ if (require.main === module) {
   (async () => {
     const a = process.argv.slice(2);
     const dryRun = a.includes('--dry-run');
+    if (a[0] === '--list') {
+      const purpose = a[a.indexOf('--purpose') + 1];
+      if (!a.includes('--purpose') || !purpose) throw new Error('--list 는 --purpose <p> 가 필요하다');
+      const days = Number(a[a.indexOf('--days') + 1]) || 7;
+      const since = Date.now() - days * 864e5;
+      const H = await headers(purpose);
+      const ch = (await (await fetch('https://www.googleapis.com/youtube/v3/channels?part=contentDetails,snippet&mine=true', { headers: H })).json()).items?.[0];
+      const up = ch.contentDetails.relatedPlaylists.uploads;
+      const ids = [];
+      let page = '';
+      for (let k = 0; k < 4; k++) {
+        const j = await (await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?part=contentDetails&maxResults=50&playlistId=${up}${page ? `&pageToken=${page}` : ''}`, { headers: H })).json();
+        for (const it of j.items || []) ids.push(it.contentDetails.videoId);
+        if (!j.nextPageToken) break; page = j.nextPageToken;
+      }
+      let total = 0, zero = 0;
+      for (let k = 0; k < ids.length; k += 50) {
+        const j = await (await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet,status&id=${ids.slice(k, k + 50).join(',')}`, { headers: H })).json();
+        for (const v of j.items || []) {
+          const when = Date.parse(v.status.publishAt || v.snippet.publishedAt);
+          if (when < since) continue;
+          total++;
+          const n = (v.snippet.tags || []).length;
+          if (!n) { zero++; console.log(`  0개 ${v.id} ${v.status.privacyStatus}${v.status.publishAt ? ` 예약 ${v.status.publishAt}` : ''} ${v.snippet.title.slice(0, 50)}`); }
+        }
+      }
+      console.log(`[${purpose}] ${ch.snippet.title} 최근 ${days}일 ${total}편 · 태그 0개 ${zero}편`);
+      process.exit(zero ? 4 : 0);
+    }
     if (a[0] === '--audit') {
       const days = Number(a[a.indexOf('--days') + 1]) || 7;
       const since = Date.now() - days * 864e5;
