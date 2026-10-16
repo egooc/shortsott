@@ -1,6 +1,7 @@
 // 올라간 영상에 upload.json 의 tags 를 넣고, 다시 읽어 확인한다(yt-upload.js 는 태그를 넣지 않는다 — 10/16편 태그 0개 사고).
 //
-//   node politics-hour/yt_tags.js <videoId> <upload.json> [--dry-run]
+//   node politics-hour/yt_tags.js <videoId> <upload.json> [--dry-run] [--gate]
+// --gate: 확인이 끝내 안 되면 공개 예약을 취소한다(비공개로 두고 publishAt 삭제) — 관리자 10/16 «태그 확인 빠지면 공개 멈춤».
 // ★videos.update 는 snippet 을 통째로 바꾼다 — 원래 값을 읽어 와서 tags 만 바꿔 돌려보낸다.
 const fs = require('fs');
 const path = require('path');
@@ -28,11 +29,19 @@ const { OAuth2Client } = require(path.join(__dirname, '..', 'node_modules', 'goo
   if (j.error) throw new Error(`실패 ${JSON.stringify(j.error).slice(0, 300)}`);
   // 바로 읽으면 옛 값이 온다(반영 지연) — 몇 번 다시 읽는다
   let after, ok = false;
-  for (let i = 0; i < 6 && !ok; i++) {
-    await new Promise((res) => setTimeout(res, 5000));
+  // 10/17편: 30초 안에는 0개로 읽혔고 그 뒤에 20개가 보였다 — 최대 3분 기다린다
+  for (let i = 0; i < 18 && !ok; i++) {
+    await new Promise((res) => setTimeout(res, 10000));
     after = await get();
     ok = (after.snippet.tags || []).length === tags.length && after.snippet.title === s.title && after.snippet.description === s.description;
   }
   console.log(`[tags] 확인 ${(after.snippet.tags || []).length}개 · 제목·설명 그대로 ${ok} · ${new Date().toISOString()}`);
+  if (!ok && process.argv.includes('--gate')) {
+    const st = (await (await fetch(`https://www.googleapis.com/youtube/v3/videos?part=status&id=${videoId}`, { headers: H })).json()).items[0].status;
+    const status = { privacyStatus: 'private', embeddable: st.embeddable, license: st.license, publicStatsViewable: st.publicStatsViewable, selfDeclaredMadeForKids: st.madeForKids };
+    const g = await (await fetch('https://www.googleapis.com/youtube/v3/videos?part=status', { method: 'PUT', headers: H, body: JSON.stringify({ id: videoId, status }) })).json();
+    console.log(g.error ? `[gate] 공개 취소 실패 ${JSON.stringify(g.error).slice(0, 200)}` : `[gate] 태그 확인 실패 → 공개 예약 취소(비공개 유지, 예약 ${st.publishAt || '없음'} 삭제) · 관리자 보고 필요`);
+    process.exit(2);
+  }
   if (!ok) process.exit(1);
 })().catch((e) => { console.error('[tags]', e.message); process.exit(1); });
