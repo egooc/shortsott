@@ -162,12 +162,41 @@ function resourceSection() {
   return [...summary, '', '| 시 | CPU 평균/최고 % | GPU 평균/최고 % | RAM GB | 포화 샘플 | CPU 많이 쓴 프로세스(CPU-분) |', '|---|---|---|---|---|---|', ...rows].join('\n');
 }
 
+// 6. 결 탐지 — 도구개발 scripts/thread_report.js(10-16). 채널 토큰 videos.list만 쓰고 검색은 하지 않는다.
+async function threadsSection() {
+  const { buildThreads } = require('./thread_report');
+  const { markdown } = await buildThreads();
+  return markdown || '_집계할 편이 없습니다._';
+}
+
+// 7. 태그 점검 — 쇼핑 scripts/shop_yt_tags.js --list(9aef2f1). 10-16 사고(태그 0개로 공개 → 조회 3) 뒤 전 레인 게이트.
+//    프로필마다 최근 2일 공개·예약분을 읽어 0개 편을 적는다(고치지 않음). 쓸모연구소(shopping_old_ssulmo)는 논외.
+async function tagsSection() {
+  const { execFileSync } = require('child_process');
+  const store = JSON.parse(fs.readFileSync(PROFILES, 'utf8'));
+  const purposes = store.profiles.map((p) => p.purpose).filter((p) => p && p !== 'shopping_old_ssulmo');
+  const rows = []; let zeroTotal = 0;
+  for (const purpose of purposes) {
+    try {
+      const out = execFileSync('node', [path.join(ROOT, 'scripts/shop_yt_tags.js'), '--list', '--purpose', purpose, '--days', '2'], { encoding: 'utf8', timeout: 60000, stdio: ['ignore', 'pipe', 'pipe'] });
+      const lines = out.trim().split('\n'); rows.push(`- ${lines[lines.length - 1]}`);
+    } catch (e) {
+      const out = String(e.stdout || '').trim();
+      if (e.status === 4 && out) { const ls = out.split('\n'); zeroTotal++; rows.push(`- ⚠ ${ls[ls.length - 1]}`, ...ls.slice(0, -1).map((l) => `    - ${l}`)); }
+      else rows.push(`- ${purpose}: _확인 실패: ${(e.stderr || e.message || '').toString().trim().split('\n')[0]}_`);
+    }
+  }
+  return [zeroTotal ? `**⚠ 태그 0개 채널 ${zeroTotal}곳 — 해당 세션에 즉시 삽입·확인 지시.**` : '태그 0개 편 없음(최근 2일 공개·예약분).', '', ...rows].join('\n');
+}
+
 (async () => {
   const sec = async (title, fn) => { try { return `## ${title}\n\n${await fn()}`; } catch (e) { return `## ${title}\n\n_실패: ${e.message}_`; } };
   const parts = [`# 성과 보고 ${DATE} (KST, 다음 날 07:40 기준)`, '',
     await sec('1. 성과 — 유튜브', youtubeSection), '', await sec('2. 편수·편당 시간 (제작 장부)', ledgerSection), '',
     await sec('3. Claude 토큰 (세션별, 그날 00~24시)', claudeSection), '', await sec('4. GPT (gpt-ask)', gptSection), '',
-    await sec('5. 병목 — 시간대별 자원', resourceSection), ''];
+    await sec('5. 병목 — 시간대별 자원', resourceSection), '',
+    await sec('6. 결 탐지 (레인 중앙값 3배 넘은 편의 공통 속성, 공개 72시간 경과분)', threadsSection), '',
+    await sec('7. 태그 점검 (최근 2일 공개·예약분, 0개면 ⚠)', tagsSection), ''];
   fs.mkdirSync(OUT_DIR, { recursive: true });
   const out = path.join(OUT_DIR, `${DATE}-perf.md`);
   fs.writeFileSync(out, parts.join('\n') + '\n', 'utf8');
