@@ -142,9 +142,22 @@ def money_kana(m):
     return int_kana(v)
 
 
+def age_kana(n):
+    """나이 — say() 는 «68歳»를 «ろくじゅうはち歳»로 남겨 합성기가 «はちさい»로 읽었다(10-18 역전사). 촉음까지 히라가나로."""
+    k = int_kana(n)
+    for a, b in (('いち', 'いっ'), ('はち', 'はっ'), ('じゅう', 'じゅっ')):
+        if k.endswith(a):
+            k = k[:-len(a)] + b
+            break
+    return k + 'さい'
+
+
 def to_say(text):
-    """TTS 입력 — 정치JA scripts/ja_num_reading.say()(조수사까지 히라가나, 역전사 불일치 0)를 그대로 쓴다(10-17 관리자: 읽기 변환은 하나로)."""
+    """TTS 입력 — 정치JA scripts/ja_num_reading.say()(조수사까지 히라가나, 역전사 불일치 0)를 그대로 쓴다(10-17 관리자: 읽기 변환은 하나로).
+    say() 가 아직 못 하는 나이(歳)만 앞에서 바꿔 넘긴다."""
     from ja_num_reading import say
+    text = re.sub(r'(\d+)歳', lambda m: age_kana(int(m.group(1))), text)
+    text = re.sub(r'(?<![\d.])9年', 'きゅうねん', text)   # «くねん»은 합성기가 문맥 따라 흐리게 읽어 «3年»·«0年»으로 들렸다(10-18 역전사 3회) — きゅうねん 도 표준 읽기
     return say(text)
 
 

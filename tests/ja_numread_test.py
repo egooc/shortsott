@@ -33,5 +33,12 @@ class JaNumreadTest(unittest.TestCase):
         self.assertEqual(N.to_say('1つ目の質問'), 'ひとつ目の質問')   # say() 가 «いちつ» 로 읽던 곳
         self.assertTrue(N.to_say('1回につき').startswith('いっかい'))
 
+    def test_say_age_and_nine_year(self):   # 10-18 역전사: «はち歳»·«くねん» 오독
+        self.assertEqual(N.to_say('68歳で'), 'ろくじゅうはっさいで')
+        self.assertEqual(N.to_say('1歳'), 'いっさい')
+        self.assertEqual(N.to_say('20歳'), 'にじゅっさい')
+        self.assertEqual(N.to_say('65歳以上'), 'ろくじゅうごさい以上')
+        self.assertIn('きゅうねん', N.to_say('令和9年分'))
+
 if __name__ == '__main__':
     unittest.main()
