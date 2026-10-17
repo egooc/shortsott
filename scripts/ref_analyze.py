@@ -4,6 +4,7 @@
     python scripts/ref_analyze.py @traveler_ttt --lane ko_longshort [--n 20] [--shorts] [--lang ko] [--no-stt] [--max-stt 20 --max-stt-min 180]
     python scripts/ref_analyze.py UC69z_1ZtKQjG5fa-_sKBBfg --lane ko_longshort --shorts
     python scripts/ref_analyze.py @brave_chat --lane ko_case --long --min-sec 1200   # 롱폼만(쇼츠 섞인 채널)
+    python scripts/ref_analyze.py nenkin_refs --lane ja_nenkin --lang ja --ids HSI_wfjHGko,DKPRM30rVmA   # 영상 단위
 
 - 메타: 발굴용 Data API 키(YOUTUBE_API_KEY_SEARCH, 공개 통계만). --shorts 면 UUSH 재생목록(쇼츠 탭)만 본다.
 - 표본: 공개 72시간+ · 최근 90일(모자라면 최근 200편까지 넓힘) → 조회 상위 n/2 · 하위 n/2.
@@ -393,11 +394,103 @@ def class_md(ch, up, sc, diffs, lane, notes):
     return '\n'.join(L)
 
 
+def fetch_videos(ids):
+    rows = []
+    for i in range(0, len(ids), 50):
+        for v in yt('videos', part='snippet,statistics,contentDetails,status', id=','.join(ids[i:i + 50])).get('items', []):
+            s = v['statistics']
+            rows.append({'id': v['id'], 'title': v['snippet']['title'], 'pub': v['snippet']['publishedAt'],
+                         'channel': v['snippet']['channelTitle'], 'channel_id': v['snippet']['channelId'],
+                         'sec': iso_sec(v['contentDetails']['duration']), 'views': int(s.get('viewCount', 0)),
+                         'likes': int(s.get('likeCount', 0)), 'comments': int(s.get('commentCount', 0)),
+                         'privacy': v.get('status', {}).get('privacyStatus', 'public')})
+    order = {x: k for k, x in enumerate(ids)}
+    return sorted(rows, key=lambda r: order.get(r['id'], 99))
+
+
+def transcript_md(r, words, lang):
+    """시각 박은 문장 전사 — 따라 만들 원고 구조를 사람이 읽는 용도."""
+    L = ['# %s' % r['title'], '', '- %s · %s · %s회 · %d분 %02d초 · https://youtu.be/%s'
+         % (r.get('channel', ''), r['pub'][:10], f"{r['views']:,}", r['sec'] // 60, r['sec'] % 60, r['id']), '']
+    for s in sentences(words, lang):
+        L.append('[%02d:%02d] %s' % (int(s['start']) // 60, int(s['start']) % 60, s['text']))
+    return '\n'.join(L) + '\n'
+
+
+def run_ids(a, now):
+    """영상 단위(--ids) — 상·하위 비교 없이 지정한 영상들의 원고 표 + 시각 박은 전사. 다른 채널끼리 섞어도 된다."""
+    ids = [x.strip() for x in a.ids.split(',') if x.strip()]
+    rows = fetch_videos(ids)
+    label = re.sub(r'[^\w.-]', '_', a.channel)
+    cache = ROOT / 'server' / 'data' / 'ref_analyze' / '_videos'
+    out = ROOT / 'reference' / a.lane / label
+    (out / 'transcripts').mkdir(parents=True, exist_ok=True)
+    cache.mkdir(parents=True, exist_ok=True)
+    logf = cache / 'fetch_log.json'
+    log = json.loads(logf.read_text(encoding='utf-8')) if logf.exists() else {}
+    today = now.astimezone(KST).date().isoformat()
+    ok, why = gate(log, today, a.max_429, a.max_runs)
+    stopped, notes, srows, stt_n, stt_min = (not ok), ([] if ok else ['자막 받기 건너뜀 — ' + why]), [], 0, 0.0
+    if ok:
+        log.setdefault(today, {'runs': 0, '429': 0})['runs'] += 1
+    for r in rows:
+        words, source = None, 'none'
+        sttf = cache / ('%s.stt.json' % r['id'])
+        cached = sttf.exists() or (cache / ('%s.%s.json3' % (r['id'], a.lang))).exists()
+        if cached or not stopped:
+            before = auto_subs.fetched + stt_n
+            try:
+                f = None if sttf.exists() else auto_subs(r['id'], a.lang, cache)
+                if sttf.exists():
+                    words, source = json.loads(sttf.read_text(encoding='utf-8')), 'speechmatics'
+                elif f:
+                    words, source = words_from_json3(f), 'auto'
+                elif not a.no_stt and stt_min + r['sec'] / 60 <= a.max_stt_min:
+                    words = stt(r['id'], a.lang, cache)
+                    source = 'speechmatics' if words else 'none'
+                    stt_n += 1
+                    stt_min += r['sec'] / 60
+                else:
+                    notes.append('%s 전사 생략(자동 자막 없음 · STT 상한 또는 --no-stt)' % r['id'])
+            except Stop:
+                stopped = True
+                day = log.setdefault(today, {'runs': 0, '429': 0})
+                day['429'] += 1
+                day.setdefault('429_at', []).append(dt.datetime.now(KST).strftime('%H:%M:%S'))
+                notes.append('429 중단 — %s 부터 받지 않았다(재시도·우회 없음)' % r['id'])
+            if auto_subs.fetched + stt_n > before:
+                time.sleep(random.uniform(a.sleep_min, a.sleep_max))
+        row = script_row(r, words or [], a.lang, source)
+        row.update(title_row(r))
+        row.update({'title': r['title'], 'channel': r['channel'], 'pub': r['pub'][:10]})
+        if words:
+            row['sentences_per_min'] = round(row['n_sentences'] / max(r['sec'] / 60, 0.1), 1)
+            (out / 'transcripts' / ('%s.md' % r['id'])).write_text(transcript_md(r, words, a.lang), encoding='utf-8')
+        srows.append(row)
+    logf.write_text(json.dumps(log, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+    if stt_n:
+        notes.append('Speechmatics %d편 · %.1f분 사용' % (stt_n, stt_min))
+    (out / 'script.json').write_text(json.dumps({'lang': a.lang, 'ids': ids, 'rows': srows, 'notes': notes},
+                                                ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+    L = ['# %s — 영상 단위 원고 표 (ref-analyze, %s)' % (a.channel, dt.date.today()), '',
+         '| 영상 | 채널 | 조회 | 길이 | 전사 | 말 비중 | 분당 문장 | 문장 평균 글자 | 첫 말(초) |', '|---|---|---|---|---|---|---|---|---|']
+    for x in srows:
+        L.append('| [%s](https://youtu.be/%s) | %s | %s | %d:%02d | %s | %s | %s | %s | %s |'
+                 % (x['title'][:30], x['id'], x['channel'], f"{x['views']:,}", x['sec'] // 60, x['sec'] % 60, x['source'],
+                    x['speech_share'], x.get('sentences_per_min', '-'), x['avg_sentence_chars'] or '-', x['first_speech_sec']))
+    L += ['', '전사 전문(시각 박은 문장)은 transcripts/<id>.md.'] + ['- ' + n for n in notes]
+    (out / 'ref.md').write_text('\n'.join(L) + '\n', encoding='utf-8')
+    print('%s → %s (%d편, 전사 %d, STT %d%s)' % (a.channel, out.relative_to(ROOT), len(srows),
+          sum(x['source'] != 'none' for x in srows), stt_n, ', 중단' if stopped else ''))
+    return 3 if stopped else 0
+
+
 def main(argv=None):
     if hasattr(sys.stdout, 'reconfigure'):
         sys.stdout.reconfigure(encoding='utf-8', errors='replace')
     ap = argparse.ArgumentParser(description='ref-analyze 1단계')
-    ap.add_argument('channel', help='@핸들 또는 UC… 채널 ID')
+    ap.add_argument('channel', help='@핸들 또는 UC… 채널 ID (--ids 면 산출 폴더 이름)')
+    ap.add_argument('--ids', help='영상 단위: 영상 ID 쉼표 목록(상·하위 비교 없이 원고 표 + 시각 박은 전사)')
     ap.add_argument('--lane', required=True)
     ap.add_argument('--n', type=int, default=20, help='원고 표본 수(상위 n/2 + 하위 n/2)')
     ap.add_argument('--shorts', action='store_true', help='쇼츠 탭(UUSH)만')
@@ -417,6 +510,8 @@ def main(argv=None):
         ap.error('--shorts 와 --long 은 같이 못 쓴다')
 
     now = dt.datetime.now(dt.timezone.utc)
+    if a.ids:
+        return run_ids(a, now)
     meta, rows = fetch_channel(a.channel, a.shorts, long=a.long)
     if a.min_sec:
         meta['min_sec'], meta['n_before_min_sec'] = a.min_sec, len(rows)
