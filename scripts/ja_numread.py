@@ -105,6 +105,50 @@ def check_line(display):
     return read, values_arabic(display) == k, values_arabic(display), k
 
 
+# ---------- 말소리용 히라가나 읽기(금액·비율) ----------
+# 10-17 실측: Supertonic ja 는 «五点一〇五»를 5.15 로, «三万四千五百円»을 3万1500 으로 들리게 읽었다(Speechmatics 역전사).
+# 금액·비율·万 단위는 히라가나로 넣어 읽기를 못 박는다. 날짜·나이 등 조수사는 한자 그대로(合成기가 조수사 읽기는 맞게 한다).
+KANA_D = ['', 'いち', 'に', 'さん', 'よん', 'ご', 'ろく', 'なな', 'はち', 'きゅう']
+KANA_DEC = ['ゼロ', 'いち', 'に', 'さん', 'よん', 'ご', 'ろく', 'なな', 'はち', 'きゅう']
+HYAKU = {1: 'ひゃく', 3: 'さんびゃく', 6: 'ろっぴゃく', 8: 'はっぴゃく'}
+SEN = {1: 'せん', 3: 'さんぜん', 8: 'はっせん'}
+
+
+def kana_10k(n):
+    q, n = divmod(n, 1000); out = SEN.get(q, KANA_D[q] + 'せん') if q else ''
+    q, n = divmod(n, 100); out += HYAKU.get(q, KANA_D[q] + 'ひゃく') if q else ''
+    q, n = divmod(n, 10); out += ('じゅう' if q == 1 else KANA_D[q] + 'じゅう') if q else ''
+    return out + KANA_D[n]
+
+
+def int_kana(n):
+    if n == 0:
+        return 'ゼロ'
+    out = ''
+    for v, unit in ((10 ** 8, 'おく'), (10 ** 4, 'まん')):
+        q, n = divmod(n, v)
+        if q:
+            out += kana_10k(q) + unit
+    return out + kana_10k(n)
+
+
+
+
+def money_kana(m):
+    v = values_arabic(m.group())[0]
+    if isinstance(v, float):
+        a, b = ('%s' % v).split('.')
+        return int_kana(int(a)) + 'てん' + ''.join(KANA_DEC[int(c)] for c in b)
+    return int_kana(v)
+
+
+def to_say(text):
+    """TTS 입력: 금액·비율은 히라가나, 나머지 숫자는 한자."""
+    text = re.sub(r'(\d[\d,]*(?:\.\d+)?(?:億\d[\d,]*)?(?:万\d[\d,]*)?|\d[\d,]*(?:\.\d+)?万)(?=円|パーセント|%)', money_kana, text)
+    text = re.sub(r'\d[\d,]*万(?:\d[\d,]*)?', money_kana, text)
+    return to_read(text)
+
+
 def main(argv=None):
     if hasattr(sys.stdout, 'reconfigure'):
         sys.stdout.reconfigure(encoding='utf-8')

@@ -25,6 +25,14 @@ class JaNumreadTest(unittest.TestCase):
         # 사람이 손으로 고친 읽기가 값을 바꾸면 잡는다
         self.assertNotEqual(N.values_arabic('8,052円'), N.values_kanji('八万五十二円'))
 
+    def test_say_kana_for_money(self):
+        # 10-17 역전사 실측: 한자로는 5.105→5.15, 3万4500→3万1500 으로 들렸다
+        self.assertEqual(N.to_say('年およそ3万4500円'), '年およそさんまんよんせんごひゃく円')
+        self.assertEqual(N.to_say('5.105パーセント'), 'ごてんいちゼロごパーセント')
+        self.assertEqual(N.to_say('8,052円'), 'はっせんごじゅうに円')
+        self.assertEqual(N.to_say('300万円と600円'), 'さんびゃくまん円とろっぴゃく円')
+        self.assertEqual(N.to_say('73歳'), '七十三歳')   # 조수사는 한자
+
 
 if __name__ == '__main__':
     unittest.main()
