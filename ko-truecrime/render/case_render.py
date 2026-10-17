@@ -28,7 +28,8 @@ import tts  # noqa: E402  정치 롱폼 음성(Supertonic F2) — import 만
 
 HYPERFRAMES = '0.8.140'
 FPS = 30
-CODE = '2026-10-18a'
+CODE = '2026-10-18b'   # J컷·프리즈(카메라 문법 10-18)
+J = 0.4                 # J컷: 다음 바디캠 소리를 해설 끝 0.4초에 먼저 깐다(docs/camera-grammar-found-footage.md)
 GSAP = Path('D:/midform/politics-hour/assets/gsap.min.js')
 LOCKS = [Path('D:/midform/politics-hour/RENDERING.lock'), Path('D:/midform/politics-hour/RENDERING-ja.lock')]
 FREE_GB = 8
@@ -241,7 +242,7 @@ def wav_seconds(p):
         return w.getnframes() / w.getframerate()
 
 
-def render_nar(ep, blk, spec, blur, folder, tts_only):
+def render_nar(ep, blk, spec, blur, folder, tts_only, lead=None):
     wav = folder / 'voice.wav'
     if not (wav.exists() and (folder / 'cues.json').exists()):
         _, cues = tts.speak('supertonic', ' '.join(blk['sentences']), str(wav))
@@ -260,17 +261,21 @@ def render_nar(ep, blk, spec, blur, folder, tts_only):
     hf_render(hf, folder / 'screen.mp4', 'mp4')
     out = folder / 'segment.mp4'
     subprocess.run(['ffmpeg', '-nostdin', '-v', 'error', '-y', '-i', str(folder / 'screen.mp4'), '-i', str(wav),
-                    '-filter_complex', f'[1:a]apad=whole_dur={d:.3f},aresample=48000,loudnorm=I=-16:TP=-1.5:LRA=11[a]', '-map', '0:v', '-map', '[a]',
+                    *(['-ss', f'{lead[1]:.3f}', '-t', f'{J:.3f}', '-i', str(ep / 'raw' / f'{lead[0]}.mp4')] if lead else []),
+                    '-filter_complex', f'[1:a]apad=whole_dur={d:.3f},aresample=48000,loudnorm=I=-16:TP=-1.5:LRA=11[a0];' + (
+                        f'[2:a]aresample=48000,loudnorm=I=-16:TP=-1.5:LRA=11,afade=t=in:d=0.15,adelay={int((d - J) * 1000)}|{int((d - J) * 1000)}[jl];'
+                        f'[a0][jl]amix=inputs=2:duration=first:normalize=0[a]' if lead else '[a0]anull[a]'), '-map', '0:v', '-map', '[a]',
                     '-t', f'{d:.3f}', '-r', str(FPS), '-c:v', 'libx264', '-crf', '20', '-preset', 'medium', '-pix_fmt', 'yuv420p',
                     '-c:a', 'aac', '-b:a', '160k', '-ac', '2', '-ar', '48000', str(out)], check=True)
     (folder / 'screen.mp4').unlink(missing_ok=True)
     return out
 
 
-def render_cam(ep, blk, spec, blur, folder):
+def render_cam(ep, blk, spec, blur, folder, jcut=False):
     src = ep / 'raw' / f'{blk["clip"]}.mp4'
-    a, b = blk['in'], blk['out']
-    d = round(b - a, 3)
+    a, b = blk['in'] + (J if jcut else 0), blk['out']      # J컷이면 앞 0.4초 소리는 앞 해설 끝에 이미 깔렸다
+    fz = float(spec.get('freeze', 0))                         # 프리즈: 자백 장면 한 번만 — 끝 프레임을 fz 초 멈춘다
+    d = round(b - a + fz, 3)
     hf = folder / 'hf'
     tag = f'<div id="tag">{SRC_TAG[0]}<i>{SRC_TAG[1]}</i></div>'
     sb, sj = lines_html([[x - a, y - a, who, t] for x, y, who, t in blk['subs']], False)
@@ -280,9 +285,10 @@ def render_cam(ep, blk, spec, blur, folder):
     x, y, vw, vh = VID
     boxes = [bx for bx in blur.get(blk['clip'], []) if bx[1] >= a and bx[0] <= b]
     fc = (blur_chain(boxes, w, h, '0:v', a) +
-          f';[bl]fps={FPS},scale={vw}:{vh}:force_original_aspect_ratio=decrease,pad={vw}:{vh}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1[v0];'
+          (f';[bl]tpad=stop_mode=clone:stop_duration={fz:.2f}[bz]' if fz else ';[bl]null[bz]') +
+          f';[bz]fps={FPS},scale={vw}:{vh}:force_original_aspect_ratio=decrease,pad={vw}:{vh}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1[v0];'
           f'color=c=0x14171c:s=1920x1080:r={FPS}:d={d:.3f}[bg];[bg][v0]overlay={x}:{y}[b1];[b1][1:v]overlay=format=auto,setsar=1[v];'
-          f'[0:a]aresample=48000,loudnorm=I=-16:TP=-1.5:LRA=11,afade=t=in:d=0.15,afade=t=out:st={max(0, d - .3):.2f}:d=0.3[a]')
+          f'[0:a]apad=whole_dur={d:.3f},aresample=48000,loudnorm=I=-16:TP=-1.5:LRA=11,afade=t=in:d=0.15,afade=t=out:st={max(0, d - .3):.2f}:d=0.3[a]')
     out = folder / 'segment.mp4'
     subprocess.run(['ffmpeg', '-nostdin', '-v', 'error', '-y', '-ss', f'{a:.3f}', '-t', f'{d:.3f}', '-i', str(src), '-i', str(folder / 'overlay.mov'),
                     '-filter_complex', fc, '-map', '[v]', '-map', '[a]', '-t', f'{d:.3f}', '-c:v', 'libx264', '-crf', '20', '-preset', 'medium',
@@ -310,14 +316,19 @@ def main(argv=None):
     for i in rng:
         blk, spec = blocks[i], vis[blocks[i]['vid']]
         clip = blk.get('clip') or spec.get('clip')
-        folder = ep / 'seg' / f'{i:03d}-{blk["kind"]}-{key([blk, spec, blur.get(clip, []), CODE])}'
+        nb = blocks[i + 1] if i + 1 < len(blocks) else None          # J컷은 이웃 블록에 달려 있다 — 이웃의 종류·시작점도 키에
+        pb = blocks[i - 1] if i else None
+        link = [nb and (nb['kind'], nb.get('clip'), nb.get('in')), pb and pb['kind']]
+        folder = ep / 'seg' / f'{i:03d}-{blk["kind"]}-{key([blk, spec, blur.get(clip, []), CODE, link])}'
         folder.mkdir(parents=True, exist_ok=True)
         final = folder / 'segment.mp4'
         if not final.exists():
+            nxt = blocks[i + 1] if i + 1 < len(blocks) else None
+            prv = blocks[i - 1] if i else None
             if blk['kind'] == 'nar':
-                render_nar(ep, blk, spec, blur, folder, tts_only)
+                render_nar(ep, blk, spec, blur, folder, tts_only, (nxt['clip'], nxt['in']) if nxt and nxt['kind'] == 'cam' else None)
             elif not tts_only:
-                render_cam(ep, blk, spec, blur, folder)
+                render_cam(ep, blk, spec, blur, folder, jcut=bool(prv and prv['kind'] == 'nar'))
         if final.exists():
             dur = float(subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', str(final)],
                                        capture_output=True, text=True).stdout or 0)
