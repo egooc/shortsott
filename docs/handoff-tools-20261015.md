@@ -79,6 +79,8 @@
 - BGM 없음 — 보유 무료 곡(assets/bgm/shopping, Komiku CC0)은 쇼핑용 경쾌한 곡뿐이라 연금 해설과 안 맞고 고령 시청자는 목소리 명료도가 우선. 소유주가 원하면 나중에 조용한 CC0 곡을 -28dB 정도로 깐다.
 - 렌더 전 역전사: 숫자 219/220·고유명사 55/55(num_audit.py, 읽기 표 yomi.json). 표 칸 기호 B·C·D는 합성기가 삼켜 해설에서 뺐다.
 
+- **10-18 최종: 로컬 완성** — ja-nenkin/ep01/episode.mp4 · 25.3분 · 자료 화면 74.5%(그래프 9.8) · 발굴 4·6·7·9 재채점 통과(4cc207e) · 포장 권장 제목 ③(keywords.json title_candidates[2])+썸네일 B(thumb/thumb_b.png) · 사람 숫자 확인 대기(human_check.md) · 사소 2건은 ja-nenkin/NEXT.md, ②편 뒤 한 번에.
+
 ## 8. ② ko 실화 시험편(ko-truecrime) — 10-18
 
 - 소재 A(2018 콜로라도 프레데릭 일가족 사건). **업로드 후보에서 제외 — 로컬 시험 전용**(발굴 6칸: 넷플릭스 동일 화면 Content ID 위험·ko 중복 큼). 목적은 레퍼런스 틀 재현과 «원음 ≤50%» 구조 시험.
