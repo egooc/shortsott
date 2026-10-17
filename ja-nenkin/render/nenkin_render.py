@@ -97,8 +97,28 @@ def chunks(sentence, limit=26):
     return [c.rstrip('。、') for c in res]
 
 
-def speak(sentences, out):
-    job = dict(SUPERTONIC, out=str(Path(out).resolve()), sentences=[[N.to_say(s), chunks(s)] for s in sentences])
+def load_yomi(ep):
+    """ep/yomi.json 의 읽기 표(없으면 빈 표)."""
+    f = ep / 'yomi.json'
+    return json.loads(f.read_text(encoding='utf-8')).get('yomi', {}) if f.exists() else {}
+
+
+def apply_yomi(text, yomi):
+    """고유명사·기호를 TTS 읽기로 — 영문 한 글자(표 칸 기호 A·B·C·D)는 앞뒤가 영문이 아닐 때만."""
+    for w in sorted(yomi, key=len, reverse=True):
+        pat = (r'(?<![A-Za-z])' + re.escape(w) + r'(?![A-Za-z])') if w.isascii() else re.escape(w)
+        text = re.sub(pat, yomi[w], text)
+    return text
+
+
+def seg_name(i, blk, spec, yomi):
+    """seg 폴더 이름 — 읽기 표가 걸리는 장면만 키에 그 항목을 넣어, 표를 고치면 그 장면만 다시 합성된다."""
+    hit = {w: r for w, r in sorted(yomi.items()) if any(apply_yomi(s, {w: r}) != s for s in blk['sentences'])}
+    return f'{i:03d}-{blk["vid"]}-{key([blk, spec, CODE] + ([hit] if hit else []))}'
+
+
+def speak(sentences, out, yomi=None):
+    job = dict(SUPERTONIC, out=str(Path(out).resolve()), sentences=[[N.to_say(apply_yomi(s, yomi or {})), chunks(s)] for s in sentences])
     with tempfile.NamedTemporaryFile('w', suffix='.json', delete=False, encoding='utf-8') as f:
         json.dump(job, f, ensure_ascii=False)
     r = subprocess.run([SUPERTONIC['python'], str(HERE / 'supertonic_worker.py'), f.name],
@@ -567,10 +587,11 @@ def main(argv=None):
         wait_gate()
     work = ep / 'seg'
     work.mkdir(exist_ok=True)
+    yomi = load_yomi(ep)
     parts, total = [], 0.0
     for i in rng:
         blk, spec = blocks[i], vis[blocks[i]['vid']]
-        folder = work / f'{i:03d}-{blk["vid"]}-{key([blk, spec, CODE])}'
+        folder = work / seg_name(i, blk, spec, yomi)
         final = folder / 'segment.mp4'
         if not final.exists():
             folder.mkdir(parents=True, exist_ok=True)
@@ -578,7 +599,7 @@ def main(argv=None):
             if wav.exists() and (folder / 'cues.json').exists():      # --tts-only 로 미리 만든 소리는 다시 합성하지 않는다
                 cues = json.loads((folder / 'cues.json').read_text(encoding='utf-8'))
             else:
-                cues = speak(blk['sentences'], wav)
+                cues = speak(blk['sentences'], wav, yomi)
                 (folder / 'cues.json').write_text(json.dumps(cues, ensure_ascii=False) + '\n', encoding='utf-8')
             if '--tts-only' in argv:
                 print(f'[{i}] tts {wav_seconds(wav):.1f}s', flush=True)
