@@ -12,17 +12,18 @@ const { OAuth2Client } = require(path.join(__dirname, '..', 'node_modules', 'goo
 
 const QUEUE = 'D:/volcano-runs/_upload/schedule_shopping.json';
 const COMMON = ['살림템', '살림꿀팁', '생활꿀팁', '꿀템', '정리정돈', '자취템', '살림', '생활용품', '쿠팡추천템', '쇼츠'];
-const STOP = new Set(['세트', '개입', '대형', '소형', '중형', '1개', '2개', '3개', '4개', '5개', '다용도', '길이조절']);
+const STOP = new Set(['세트', '개입', '대형', '소형', '중형', '1개', '2개', '3개', '4개', '5개', '다용도', '길이조절', '일반형', '기본형', '포함', '대용량', '단품', '본품', '리필']);
 
 function buildTags(meta) {
   if (Array.isArray(meta.tags) && meta.tags.length) return meta.tags;
   const out = [];
   const add = (t) => { t = String(t).replace(/^#/, '').trim(); if (t.length >= 2 && !out.includes(t)) out.push(t); };
   for (const h of String(meta.title || '').match(/#[^\s#]+/g) || []) add(h);
-  const words = String(meta.product || '').replace(/[()[\]\-·,/+]/g, ' ').split(/\s+/)
+  // 괄호 안은 옵션(«스펀지 일체형»·«수납 바구니 포함»)이라 상품 이름 끝 명사구를 가린다 — 빼고 본다
+  const words = String(meta.product || '').replace(/\([^)]*\)|\[[^\]]*\]/g, ' ').replace(/[()[\]\-·,/+]/g, ' ').split(/\s+/)
     .filter((w) => /[가-힣]/.test(w) && w.length >= 2 && !STOP.has(w) && !/^\d/.test(w));
   // 상품명 낱말을 하나씩 넣으면 «소변»·«있는»·«핑크» 같은 쓰레기 태그가 생긴다 — 끝 명사구만(마지막 1·2·3 낱말)
-  const nouns = words.filter((w) => !/(할|는|은|한|된|그레이|화이트|블랙|핑크)$/.test(w));
+  const nouns = words.filter((w) => !STOP.has(w) && !/(할|는|은|한|된|포함|그레이|화이트|블랙|핑크)$/.test(w));
   if (nouns.length) add(nouns[nouns.length - 1]);
   if (nouns.length >= 2) add(nouns.slice(-2).join(' '));
   if (nouns.length >= 3) add(nouns.slice(-3).join(' '));
