@@ -54,6 +54,14 @@ if epj.exists():
     nar = next((s for s in segs if s['type'] == 'nar'), {})
     hay = ' '.join([' '.join(w[1] for w in cold.get('words', [])), nar.get('text', ''), json.dumps(nar.get('visual', {}), ensure_ascii=False)])
     need(big_words(ep / 'thumb' / 'thumb_k.json'), hay, '롱폼 첫 30초(콜드오픈+도입)')
+# 제목 맨 앞 낱말 = 썸네일 1순위 큰 낱말(관리자 10-17): 롱폼 upload.json 제목이 big[0] 으로 시작해야 한다.
+top = (big_words(ep / 'thumb' / 'thumb_k.json') or [''])[0]
+for up in sys.argv[2:]:
+    if '/shorts/' in up.replace('\\', '/'):
+        continue
+    t = json.loads(Path(up).read_text(encoding='utf-8')).get('title', '')
+    if top and not t.startswith(top):
+        bad.append(f'{Path(up).name}: 제목 «{t}» 이 썸네일 1순위 낱말 «{top}» 으로 시작하지 않음')
 for up in sys.argv[2:]:
     if '/shorts/' not in up.replace('\\', '/'):
         continue
