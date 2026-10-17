@@ -1,5 +1,5 @@
 // 최애모먼트 태그 넣기·확인 — politics-hour/yt_tags.js 를 팬튜브용으로(yt-upload.js 는 태그를 넣지 않는다, 10/16 쟁점브리핑 태그 0개 사고).
-//   node fantube/yt_tags.js <videoId> <upload.json> [--check] [--gate] [--reschedule <ISO>]
+//   node fantube/yt_tags.js <videoId> <upload.json> [--check] [--gate] [--reschedule <ISO>] [--unschedule]
 // tags 는 upload.json 의 tags, 없으면 설명란 해시태그 + 기본 묶음. --check 는 개수만 읽는다.
 // --title <제목>: 제목도 같이 바꾼다(포장 교체, 10/17 소유주 «트렌드 멤버 먼저»).
 // --gate: 넣은 뒤 다시 읽어 0개면 예약을 풀고 비공개로 둔다(공개 금지) — exit 2.
@@ -35,6 +35,12 @@ function tagsOf(meta) {
   const now = (item.snippet.tags || []).length;
   console.log(`[tags] ${videoId} ${item.snippet.title.slice(0, 40)} — 지금 ${now}개 → ${tags.length}개`);
   if (process.argv.includes('--check')) return;
+  if (process.argv.includes('--unschedule')) {      // 교체된 예약분 내리기 — 비공개·예약 없음(10/17 관리자: 장부엔 retracted)
+    const st = { privacyStatus: 'private', selfDeclaredMadeForKids: item.status.selfDeclaredMadeForKids };
+    const r = await (await fetch('https://www.googleapis.com/youtube/v3/videos?part=status', { method: 'PUT', headers: H, body: JSON.stringify({ id: videoId, status: st }) })).json();
+    console.log(`[tags] 예약 해제 ${r.error ? '실패 ' + JSON.stringify(r.error).slice(0, 200) : r.status.privacyStatus + ' ' + (r.status.publishAt || '예약 없음')}`);
+    return;
+  }
   const re = process.argv.indexOf('--reschedule');
   if (re > 0) {                                     // 게이트가 푼 예약을 되살린다
     const st = { privacyStatus: 'private', publishAt: new Date(process.argv[re + 1]).toISOString(), selfDeclaredMadeForKids: item.status.selfDeclaredMadeForKids };
