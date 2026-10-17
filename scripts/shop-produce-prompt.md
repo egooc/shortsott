@@ -7,6 +7,7 @@
 - `D:/volcano-runs/_upload/produce.lock` 의 `need` 편을 만든다(보통 1~2).
 - 각 편은 따로 끝까지 마친다(편 하나 끝 → 다음 편). 시간 한도는 회차 전체 3시간.
 - `D:/midform/politics-hour/RENDERING.lock` 이 있으면 정치 롱폼이 렌더 중이다 — 무거운 일(LaMa 지우기·ff_render)은 동시에 여러 개 돌리지 말고 한 번에 하나씩.
+- 무거운 일(LaMa 지우기·ff_render·STT·TTS)을 하나 시작하기 전마다(10/16 관리자 규칙 — 정치 렌더가 겹친 작업 때문에 메모리 부족으로 꺼졌다): ① `D:/midform/politics-hour/RENDERING.lock`·`RENDERING-ja.lock` 이 없고 ② 빈 메모리 8GB 이상(`node -e "console.log((require('os').freemem()/2**30).toFixed(1))"`)인지 본다. 미달이면 15분 기다렸다 다시 본다. 회차 3시간 한도 안에서 못 하면 그 편은 멈추고 보고서에 «메모리·잠금 대기로 멈춤»을 적는다. 기다린 횟수는 보고서에 적는다.
 - 디스크(10/15 D: 여유 6GB대까지 떨어짐): 편을 시작할 때마다 `df -h /d` 로 D: 여유를 본다. 한 편에 약 1GB 를 쓴다. 3GB 미만이면 그 편은 시작하지 않고 보고서에 «디스크 부족 멈춤»을 적고 끝낸다. 편이 끝나면 `src/` 의 쓰지 않은 원본과 `footage/*_raw.mp4`(지우기 전 클립)를 그 자리에서 지운다(clean 클립·렌더 결과·시트는 남긴다). 다른 폴더는 지우지 않는다.
 
 ## 1. 소재 고르기
