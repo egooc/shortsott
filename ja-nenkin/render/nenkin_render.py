@@ -103,6 +103,7 @@ html,body{{margin:0;background:{CREAM}}}
 .cap{{position:absolute;left:60px;right:60px;bottom:14px;height:262px;display:flex;align-items:center;justify-content:center;text-align:center;opacity:0}}
 .cap span{{font-weight:900;font-size:92px;line-height:1.18;letter-spacing:.03em;color:{INK};max-width:1720px}}
 .cap em{{font-style:normal;color:{RED}}}
+.cap nw{{white-space:nowrap}}
 #src{{position:absolute;right:40px;bottom:290px;font-size:26px;font-weight:700;color:#4A4A4A;background:rgba(255,255,255,.85);padding:2px 12px}}
 #fic{{position:absolute;right:40px;top:30px;font-size:30px;font-weight:900;color:#fff;background:#6B6B6B;padding:4px 18px 6px;border-radius:8px}}
 #stage{{position:absolute;left:14px;right:14px;top:110px;bottom:290px}}
@@ -330,6 +331,8 @@ def stage(spec, d, img_dir, doc_dir, cues):
                 continue
             body += f'<div class="c card{" r" if it.get("red") else ""}" id="o{k}"><small>{esc(it["label"])}</small><b>{esc(it["value"])}</b></div>'
             a = max(prev, ck.at(it.get('kw'), it['value'], prev + .6))
+            if k == 0 and not it.get('kw'):      # 첫 카드는 장면과 같이 — 금액이 말에 나올 때까지 판이 비어 있지 않게
+                a = .3
             if k > 0 and isinstance(items[k - 1], str):       # 연산 기호는 카드 바로 앞에
                 js.append(f'tl.from("#o{k - 1}",{{opacity:0,scale:.3,rotate:-90,duration:.35,ease:"back.out(2)"}},{a - .2:.2f});')
             js.append(f'tl.from("#o{k}",{{opacity:0,x:60,duration:.45,ease:"power3.out"}},{a:.2f});')
@@ -436,14 +439,18 @@ def transitions(d):
             f'tl.to("#stage",{{opacity:0,duration:.28,ease:"power1.in"}},{max(.6, d - .3):.2f});']
 
 
+NOBREAK = re.compile(r'(?:年約|年|月|約|毎月)?(?<![\d#x])\d[\d,.]*(?:[万億]\d[\d,]*)*[万億]?(?:円|歳|回|人|か月|年|月|日|パーセント|%)?')
+
+
 def captions(cues, d, emph=()):
     body, js = '', []
     for i, (a, b, text) in enumerate(cues):
-        tx = esc(text)
+        tx = NOBREAK.sub(lambda m: f'<nw>{m.group()}</nw>', esc(text))   # «年 / 11万円» 같은 숫자 덩어리 중간 줄바꿈 금지(강조보다 먼저 묶는다)
         for w in sorted(emph, key=len, reverse=True):
             tx = tx.replace(esc(w), f'<em>{esc(w)}</em>')
         body += f'<div class="cap" id="c{i}"><span>{tx}</span></div>'
-        js.append(f'tl.set("#c{i}",{{opacity:1}},{a:.3f});tl.set("#c{i}",{{opacity:0}},{min(b, d - .04):.3f});')
+        end = cues[i + 1][0] if i + 1 < len(cues) else d   # 문장 사이 쉼에도 자막 띠를 비우지 않는다(다음 자막이 뜰 때 내린다)
+        js.append(f'tl.set("#c{i}",{{opacity:1}},{a:.3f});tl.set("#c{i}",{{opacity:0}},{min(end, d - .04):.3f});')
     return body, js
 
 
