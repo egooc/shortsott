@@ -1,0 +1,169 @@
+{
+  "lang": "ja",
+  "ids": [
+    "HSI_wfjHGko",
+    "DKPRM30rVmA",
+    "gRwnjxnto9o"
+  ],
+  "rows": [
+    {
+      "id": "HSI_wfjHGko",
+      "views": 608395,
+      "sec": 1839,
+      "source": "speechmatics",
+      "speech_share": 0.966,
+      "chars_per_min": 321.8,
+      "first_speech_sec": 0.02,
+      "n_sentences": 392,
+      "avg_sentence_chars": 25.2,
+      "first_sentence": "10月に入って日本年金機構から届いているハガキ年金振込通知書です。",
+      "first_type": "number",
+      "last_sentence": "知っていれば下げられるお金、取り戻せるお金があります。",
+      "ending_cta": false,
+      "ending_question": false,
+      "endings": [
+        [
+          "ます",
+          135
+        ],
+        [
+          "です",
+          121
+        ],
+        [
+          "ん",
+          25
+        ],
+        [
+          "か",
+          17
+        ],
+        [
+          "い",
+          14
+        ]
+      ],
+      "transcript_ok": true,
+      "title_chars": 56,
+      "title_digit": true,
+      "title_q": false,
+      "title_excl": false,
+      "title_hashtags": 0,
+      "title_bracket": true,
+      "title_emoji": false,
+      "like_rate": 0.0059,
+      "comment_rate": 9e-05,
+      "title": "【10月に届くハガキ】年金振込通知書、絶対に確認してほしい2か所。見ずに捨てると夫婦で年12万円払い続けることも",
+      "channel": "年金・給付金 手続きノート",
+      "pub": "2026-10-03",
+      "sentences_per_min": 12.8
+    },
+    {
+      "id": "DKPRM30rVmA",
+      "views": 441613,
+      "sec": 1858,
+      "source": "speechmatics",
+      "speech_share": 0.964,
+      "chars_per_min": 299.6,
+      "first_speech_sec": 0.06,
+      "n_sentences": 301,
+      "avg_sentence_chars": 30.8,
+      "first_sentence": "年金をもらいながら働いている皆さん。",
+      "first_type": "statement",
+      "last_sentence": "それでは次回の動画もお楽しみに。",
+      "ending_cta": false,
+      "ending_question": false,
+      "endings": [
+        [
+          "です",
+          97
+        ],
+        [
+          "ます",
+          91
+        ],
+        [
+          "ん",
+          19
+        ],
+        [
+          "い",
+          17
+        ],
+        [
+          "か",
+          15
+        ]
+      ],
+      "transcript_ok": true,
+      "title_chars": 40,
+      "title_digit": true,
+      "title_q": false,
+      "title_excl": false,
+      "title_hashtags": 0,
+      "title_bracket": false,
+      "title_emoji": false,
+      "like_rate": 0.0054,
+      "comment_rate": 4e-05,
+      "title": "10月15日の年金、8月と違う人はここを見る｜働く65歳の通知書3か所と戻るお金",
+      "channel": "山本聡の年金・給付金ノート",
+      "pub": "2026-10-02",
+      "sentences_per_min": 9.7
+    },
+    {
+      "id": "gRwnjxnto9o",
+      "views": 2588138,
+      "sec": 1198,
+      "source": "speechmatics",
+      "speech_share": 0.941,
+      "chars_per_min": 439.8,
+      "first_speech_sec": 0.02,
+      "n_sentences": 290,
+      "avg_sentence_chars": 30.3,
+      "first_sentence": "はい、どうも。",
+      "first_type": "statement",
+      "last_sentence": "いけ。",
+      "ending_cta": false,
+      "ending_question": false,
+      "endings": [
+        [
+          "ね",
+          79
+        ],
+        [
+          "です",
+          63
+        ],
+        [
+          "ます",
+          48
+        ],
+        [
+          "い",
+          13
+        ],
+        [
+          "ました",
+          12
+        ]
+      ],
+      "transcript_ok": true,
+      "title_chars": 82,
+      "title_digit": true,
+      "title_q": true,
+      "title_excl": true,
+      "title_hashtags": 0,
+      "title_bracket": true,
+      "title_emoji": false,
+      "like_rate": 0.003,
+      "comment_rate": 6e-05,
+      "title": "【緊急速報！】2026年10月3日から年金振込通知書が届く！絶対チェックのポイント2つを分かりやすく解説／なにが通知される？届かない人はいるの？全部答えます！",
+      "channel": "おかまもch | おかんのお金守るチャンネル",
+      "pub": "2026-10-02",
+      "sentences_per_min": 14.5
+    }
+  ],
+  "notes": [
+    "Speechmatics 3편 · 81.6분 사용"
+  ]
+}

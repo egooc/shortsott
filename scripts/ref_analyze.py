@@ -440,7 +440,7 @@ def run_ids(a, now):
         if cached or not stopped:
             before = auto_subs.fetched + stt_n
             try:
-                f = None if sttf.exists() else auto_subs(r['id'], a.lang, cache)
+                f = None if (sttf.exists() or a.stt_only) else auto_subs(r['id'], a.lang, cache)
                 if sttf.exists():
                     words, source = json.loads(sttf.read_text(encoding='utf-8')), 'speechmatics'
                 elif f:
@@ -498,6 +498,7 @@ def main(argv=None):
     ap.add_argument('--min-sec', type=int, default=0, help='이 길이(초) 미만은 표본에서 뺀다(예: 롱폼만 1200)')
     ap.add_argument('--lang', default='ko', choices=['ko', 'ja', 'en'])
     ap.add_argument('--no-stt', action='store_true', help='Speechmatics 안 씀(자동 자막만)')
+    ap.add_argument('--stt-only', action='store_true', help='--ids 에서 자막 요청 없이 Speechmatics 만(자막 창 밖 — 관리자 10-16 «메타·Speechmatics만»)')
     ap.add_argument('--max-stt', type=int, default=20)
     ap.add_argument('--max-stt-min', type=float, default=180)
     ap.add_argument('--sleep-min', type=float, default=3.0, help='자막 요청 사이 쉼 하한(초, 무작위)')
