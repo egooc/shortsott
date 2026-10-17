@@ -113,12 +113,62 @@ img{{mix-blend-mode:multiply}}
 '''
 
 
+# v2(10-17 소유주 «레퍼런스와 너무 비슷하면 안 된다 → 일본 고령층 대상 매체에서»): サライ·ハルメク 잡지 특집면 문법 —
+# 명조 헤드라인·평면 생지색·藍(구조)·朱(강조)·가는 金茶 괘선·원형 삽화·세로쓰기 장 표시. 질감 없음(소유주 취향).
+AI, SHU, KIN, KINARI, SUMI = '#1D3557', '#C8442A', '#B08D57', '#F6F3EC', '#1A2433'
+THEME = f'''
+@font-face{{font-family:Serif;src:url(assets/NotoSerifJP.ttf);font-weight:100 900}}
+#root{{background:{KINARI};color:{SUMI}}}
+#frame,#band,#chap{{display:none}}
+#side{{position:absolute;left:0;top:0;bottom:0;width:150px;background:{AI}}}
+#side .no{{position:absolute;left:0;right:0;top:44px;text-align:center;font-family:Serif;font-weight:900;font-size:40px;color:{KIN};letter-spacing:.1em}}
+#side .ti{{position:absolute;left:0;right:0;top:120px;bottom:300px;margin:auto;writing-mode:vertical-rl;font-family:Serif;font-weight:900;font-size:50px;
+  line-height:1.15;color:#fff;letter-spacing:.1em;white-space:nowrap;display:flex;align-items:flex-start;justify-content:center}}
+#capbar{{position:absolute;left:150px;right:0;bottom:0;height:248px;background:#fff;border-top:3px solid {AI}}}
+#capbar::before{{content:"";position:absolute;left:0;top:-3px;width:180px;height:9px;background:{SHU}}}
+.cap{{left:190px;right:50px;bottom:0;height:248px}}
+.cap span{{color:{SUMI};font-size:92px;line-height:1.16;word-break:auto-phrase;text-wrap:balance;letter-spacing:.02em}}
+#src{{right:40px;top:8px;bottom:auto;font-family:Serif;font-size:24px;font-weight:700;color:#5B5B5B;background:none;padding:0;z-index:5}}
+#fic{{right:40px;top:46px;background:none;color:{SHU};border:3px solid {SHU};border-radius:0;font-family:Serif;font-size:32px;padding:2px 16px 4px}}
+#stage{{left:150px;right:0;top:40px;bottom:262px}}
+.card{{background:#fff;border:none;border-top:4px solid {AI};border-bottom:2px solid {KIN};border-radius:0;box-shadow:none}}
+em,.red{{color:{SHU}}}
+img{{mix-blend-mode:normal}}
+#pic{{width:{{PIC}}px;height:{{PIC}}px;object-fit:cover;object-position:50% 14%;border-radius:50%;background:#fff;
+  box-shadow:0 0 0 10px {KINARI},0 0 0 14px {KIN}}}
+#ti div,#cd .ln,#ls .it,#tt,#fl .q{{word-break:auto-phrase;text-wrap:balance}}
+#ti div{{font-family:Serif;color:{SUMI}}}
+#ti .k{{font-family:Serif;background:none;color:{SHU};border:4px solid {SHU};border-radius:0;font-size:60px;padding:0 30px 6px}}
+#cd .h,#ls .h{{display:block;background:none;color:{AI};font-family:Serif;font-weight:900;font-size:60px;padding:0 0 10px;margin-bottom:16px;
+  border-bottom:2px solid {KIN};border-radius:0}}
+#cd .ln{{color:{SUMI}}}
+#ls .it i{{color:{SHU}}}
+#ls .it.on{{color:{SHU}}}
+#cs .c small{{background:{AI};border-radius:0;font-family:Sans}}
+#cs .c b{{font-family:Serif;color:{SUMI};white-space:nowrap}}
+#cs .c.r{{border-top-color:{SHU}}} #cs .c.r small{{background:{SHU}}} #cs .c.r b{{color:{SHU}}}
+#cs .op{{color:{KIN};font-family:Serif}}
+#tb th{{background:{AI};border-color:{AI};font-family:Serif}}
+#tb td{{border:none;border-bottom:2px solid #D9CFBD;font-family:Sans}}
+#tb tr.hi td{{color:{SHU};outline:none;background:#FBEDE8}}
+#tt{{font-family:Serif;color:{AI}}}
+#fl .n{{background:{SHU};border-radius:0;font-family:Serif}}
+#fl .a{{color:{AI}}}
+#mo .m b{{background:{AI};border-radius:0;font-family:Serif}} #mo .m.on b{{background:{SHU}}}
+.bx{{border-color:{SHU}}} .nb{{background:{SHU};font-family:Serif}}
+#bb{{border-color:{AI};border-radius:0;font-family:Serif;color:{AI}}}
+'''
+
+
 def chrome(blk, spec):
-    body = '<div id="frame"></div><div id="band"></div>'
-    if blk['chap'] and blk['chap'] not in ('0', 'まとめ'):
-        body += f'<div id="chap">{esc(blk["chap"])}</div>'
-    elif blk['chap'] == 'まとめ':
-        body += '<div id="chap">まとめ・やること</div>'
+    chap = blk['chap']
+    if chap == '0':
+        no, ti = '', '年金・給付金 手続きノート'
+    elif chap == 'まとめ':
+        no, ti = '', 'まとめ'
+    else:
+        no, ti = (chap.split('. ', 1) + [''])[:2] if '. ' in chap else ('', chap)
+    body = f'<div id="side"><div class="no">{esc(("第" + "〇一二三四五六七八九"[int(no)] + "章") if no.isdigit() else "")}</div><div class="ti" style="font-size:{min(50, 640 // max(1, len(ti)))}px">{esc(ti)}</div></div><div id="capbar"></div>'
     if spec.get('fiction'):
         body += '<div id="fic">架空の例</div>'
     if spec.get('source'):
@@ -171,7 +221,7 @@ def stage(spec, d, img_dir, doc_dir, cues):
         pw, ph = spec.get('page', [1654, 2339])
         H = 680
         cw, ch = (x1 - x0) * pw, (y1 - y0) * ph
-        sc = min(H / ch, 1500 / cw)
+        sc = min(H / ch, 1640 / cw)
         W, Hh = cw * sc, ch * sc
         css = f'''#dv{{position:absolute;left:0;right:0;top:0;margin:auto;width:{W:.0f}px;height:{Hh:.0f}px;overflow:hidden;border:4px solid #999;background:#fff;
   box-shadow:0 12px 30px rgba(0,0,0,.18)}}
@@ -196,10 +246,10 @@ def stage(spec, d, img_dir, doc_dir, cues):
         css = f'''#cs{{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:34px}}
 #cs .c{{padding:24px 40px 30px;text-align:center;min-width:300px}}
 #cs .c small{{display:block;font-weight:900;font-size:50px;color:#fff;background:{BLUE};margin:-24px -40px 18px;padding:8px 20px 12px;border-radius:18px 18px 0 0}}
-#cs .c b{{font-weight:900;font-size:{spec.get("size", 96)}px}}
+#cs .c b{{font-weight:900;font-size:{int(spec.get("size", 96) * 1.2)}px}}
 #cs .c.r{{border-color:{RED}}} #cs .c.r small{{background:{RED}}} #cs .c.r b{{color:{RED}}}
 #cs .op{{font-weight:900;font-size:110px;color:{BLUE}}}
-#nt{{position:absolute;left:0;right:0;bottom:10px;text-align:center;font-weight:700;font-size:44px;color:#333}}'''
+#nt{{position:absolute;left:0;right:0;bottom:70px;text-align:center;font-weight:700;font-size:46px;color:#333;word-break:auto-phrase}}'''
         body, k = '<div id="cs">', 0
         for it in spec['items']:
             if isinstance(it, str):
@@ -283,18 +333,20 @@ def captions(cues, d, emph=()):
     return body, js
 
 
-def page(folder, cid, d, css, body, js, ep):
+def page(folder, cid, d, css, body, js, ep, pic=560):
     folder.mkdir(parents=True, exist_ok=True)
     (folder / 'assets').mkdir(exist_ok=True)
     if not (folder / 'assets' / 'NotoSansJP.ttf').exists():
         shutil.copy2(FONTS / 'NotoSansJP.ttf', folder / 'assets' / 'NotoSansJP.ttf')
+    if not (folder / 'assets' / 'NotoSerifJP.ttf').exists():   # 굵기 가변(OFL, Google Fonts) — 명조 헤드라인 900
+        shutil.copy2(HERE / 'fonts' / 'NotoSerifJP-VF.ttf', folder / 'assets' / 'NotoSerifJP.ttf')
     shutil.copy2(GSAP, folder / 'assets' / 'gsap.min.js')
     for sub in ('img', 'docs'):
         link = folder / sub
         if not link.exists():
             shutil.copytree(ep / sub, link)
     (folder / 'index.html').write_text(
-        f'<!doctype html><html lang="ja"><head><meta charset="utf-8"><style>{CSS}{css}</style></head><body>'
+        f'<!doctype html><html lang="ja"><head><meta charset="utf-8"><style>{CSS}{css}{THEME.replace("{PIC}", str(pic))}</style></head><body>'
         f'<div id="root" data-composition-id="{cid}" data-width="1920" data-height="1080" data-duration="{d:.3f}">'
         f'<section class="clip" data-start="0" data-duration="{d:.3f}" style="position:absolute;inset:0">{body}</section></div>'
         f'<script src="assets/gsap.min.js"></script><script>const tl=gsap.timeline({{paused:true}});{"".join(js)}'
