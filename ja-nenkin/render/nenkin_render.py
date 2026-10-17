@@ -30,6 +30,30 @@ FONTS = ROOT / 'politics-hour-ja' / 'assets' / 'fonts'
 GSAP = ROOT / 'politics-hour-ja' / 'assets' / 'gsap.min.js'
 HYPERFRAMES = '0.8.140'
 FPS = 30
+LOCKS = [Path('D:/midform/politics-hour/RENDERING.lock'), Path('D:/midform/politics-hour/RENDERING-ja.lock')]
+FREE_GB = 8      # 관리자 10-17 23:19: 무거운 작업 전 다른 레인 lock 없음 + 빈 메모리 8GB 이상, 미달이면 15분마다 재확인
+
+
+def free_gb():
+    import ctypes
+
+    class MS(ctypes.Structure):
+        _fields_ = [('dwLength', ctypes.c_ulong), ('dwMemoryLoad', ctypes.c_ulong)] + [(n, ctypes.c_ulonglong) for n in
+                    ('total', 'avail', 'tpf', 'apf', 'tv', 'av', 'aev')]
+    m = MS(); m.dwLength = ctypes.sizeof(MS)
+    ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(m))
+    return m.avail / 2 ** 30
+
+
+def wait_gate():
+    import time
+    while True:
+        locks = [x.name for x in LOCKS if x.exists()]
+        gb = free_gb()
+        print(f'[관문] 다른 레인 lock {", ".join(locks) or "없음"} · 빈 메모리 {gb:.1f}GB', flush=True)
+        if not locks and gb >= FREE_GB:
+            return gb
+        time.sleep(15 * 60)
 CODE = '2026-10-17a'
 SUPERTONIC = {'python': 'D:/midform/tts-lab/supertonic/.venv/Scripts/python.exe', 'dir': 'D:/midform/tts-lab/supertonic',
               'voice': 'F2', 'speed': 1.05, 'steps': 8, 'gap': 0.45, 'lang': 'ja', 'num_reading': False}
@@ -539,6 +563,8 @@ def main(argv=None):
                 shutil.copy2(p, out / 'png' / f'v{i:03d}_{blk["vid"]}.png')
             print(i, blk['vid'], flush=True)
         return 0
+    if '--no-gate' not in argv:
+        wait_gate()
     work = ep / 'seg'
     work.mkdir(exist_ok=True)
     parts, total = [], 0.0
