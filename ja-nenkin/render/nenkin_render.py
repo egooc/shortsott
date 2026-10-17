@@ -104,9 +104,10 @@ def load_yomi(ep):
 
 
 def apply_yomi(text, yomi):
-    """고유명사·기호를 TTS 읽기로 — 영문 한 글자(표 칸 기호 A·B·C·D)는 앞뒤가 영문이 아닐 때만."""
+    """고유명사·기호를 TTS 읽기로 — 영문 한 글자(표 칸 기호 A·B·C·D)는 앞뒤가 영문이 아닐 때만.
+    10-18 역전사: 쉼표 바로 뒤의 «ビー»는 합성기가 삼킨다(«なら、ビーの»는 0/8, «ならビーの»는 들림) — 기호 앞 쉼표는 소리에서만 뺀다."""
     for w in sorted(yomi, key=len, reverse=True):
-        pat = (r'(?<![A-Za-z])' + re.escape(w) + r'(?![A-Za-z])') if w.isascii() else re.escape(w)
+        pat = (r'、?(?<![A-Za-z])' + re.escape(w) + r'(?![A-Za-z])') if w.isascii() else re.escape(w)
         text = re.sub(pat, yomi[w], text)
     return text
 

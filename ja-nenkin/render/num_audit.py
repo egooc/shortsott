@@ -87,7 +87,7 @@ def main(argv=None):
     tag = 'all' if not only else 'only_' + '_'.join(map(str, only))
     wav, tr = au / f'{tag}.wav', au / f'{tag}.json'
     offs = concat([folders[i] / 'voice.wav' for i in idx], wav)
-    if not tr.exists():
+    if not tr.exists() or only:   # --only 는 재합성 직후 확인용 — 같은 장면 묶음의 옛 받아쓰기를 재사용하면 옛 소리를 대조한다(10-18)
         subprocess.run([sys.executable, '-X', 'utf8', str(HERE.parents[1] / 'scripts' / 'rinbox_transcribe.py'),
                         str(wav), str(tr), '--lang', 'ja'], check=True)
     words = json.loads(tr.read_text(encoding='utf-8'))
