@@ -428,8 +428,11 @@ def main(argv=None):
         if not final.exists():
             folder.mkdir(parents=True, exist_ok=True)
             wav = folder / 'voice.wav'
-            cues = speak(blk['sentences'], wav)
-            (folder / 'cues.json').write_text(json.dumps(cues, ensure_ascii=False) + '\n', encoding='utf-8')
+            if wav.exists() and (folder / 'cues.json').exists():      # --tts-only 로 미리 만든 소리는 다시 합성하지 않는다
+                cues = json.loads((folder / 'cues.json').read_text(encoding='utf-8'))
+            else:
+                cues = speak(blk['sentences'], wav)
+                (folder / 'cues.json').write_text(json.dumps(cues, ensure_ascii=False) + '\n', encoding='utf-8')
             if '--tts-only' in argv:
                 print(f'[{i}] tts {wav_seconds(wav):.1f}s', flush=True)
                 continue
