@@ -24,7 +24,7 @@ for up in sys.argv[2:]:
     u = json.loads(Path(up).read_text(encoding='utf-8'))
     tags = u.get('tags') or []
     hay = ' '.join([u.get('title', ''), *u.get('description', '').split('\n')[:2], *tags])
-    short = '/shorts/' in up.replace('\\', '/')
+    short = 'shorts' in Path(up).resolve().parts
     miss = [k for k in kws if k.split('(')[0].strip() not in hay]
     if short and len(kws) - len(miss) < 2:
         bad.append(f'{Path(up).name}: 쇼츠 키워드 {len(kws) - len(miss)}개 (2개 이상이어야 함)')
@@ -57,13 +57,13 @@ if epj.exists():
 # 제목 맨 앞 낱말 = 썸네일 1순위 큰 낱말(관리자 10-17): 롱폼 upload.json 제목이 big[0] 으로 시작해야 한다.
 top = (big_words(ep / 'thumb' / 'thumb_k.json') or [''])[0]
 for up in sys.argv[2:]:
-    if '/shorts/' in up.replace('\\', '/'):
+    if 'shorts' in Path(up).resolve().parts:
         continue
     t = json.loads(Path(up).read_text(encoding='utf-8')).get('title', '')
     if top and not t.startswith(top):
         bad.append(f'{Path(up).name}: 제목 «{t}» 이 썸네일 1순위 낱말 «{top}» 으로 시작하지 않음')
 for up in sys.argv[2:]:
-    if '/shorts/' not in up.replace('\\', '/'):
+    if 'shorts' not in Path(up).resolve().parts:
         continue
     name = Path(up).name.split('.')[0]
     plan = Path(up).parent.parent / 'ls' / Path(up).parent.name / name / 'plan.json'
