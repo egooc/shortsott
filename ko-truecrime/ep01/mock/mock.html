@@ -1,0 +1,38 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+@font-face{font-family:K;src:url(NotoSansKR-VF.ttf);font-weight:100 900}
+:root{--bg:#14171c;--panel:#1d222a;--line:#2e3540;--amber:#f2b33d;--txt:#e9edf2;--dim:#7d8794;--red:#e0483e}
+html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:var(--bg);font-family:K;color:var(--txt)}
+.top{position:absolute;left:0;right:0;top:0;height:92px;border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 48px;gap:28px}
+.top .no{font-weight:800;font-size:26px;letter-spacing:4px;color:var(--amber)}
+.top .t{font-weight:800;font-size:34px}
+.top .st{margin-left:auto;font-size:26px;color:var(--dim);font-weight:600;letter-spacing:1px}
+.rail{position:absolute;left:48px;top:140px;width:300px}
+.rail .h{font-size:22px;letter-spacing:4px;color:var(--dim);font-weight:700;margin-bottom:22px}
+.step{position:relative;padding:0 0 46px 44px;font-size:30px;font-weight:700;color:var(--dim)}
+.step::before{content:"";position:absolute;left:8px;top:12px;width:16px;height:16px;border-radius:50%;border:3px solid var(--dim);background:var(--bg)}
+.step::after{content:"";position:absolute;left:17px;top:34px;bottom:0;width:2px;background:var(--line)}
+.step:last-child::after{display:none}
+.step small{display:block;font-size:22px;font-weight:600;margin-top:4px}
+.step.done{color:#aab3bf}.step.done::before{background:#aab3bf;border-color:#aab3bf}
+.step.on{color:var(--txt)}.step.on::before{background:var(--amber);border-color:var(--amber);box-shadow:0 0 0 8px rgba(242,179,61,.18)}
+.step.on small{color:var(--amber)}
+.vid{position:absolute;left:400px;top:132px;width:1472px;height:828px;background:#000;border:1px solid var(--line)}
+.vid img{width:100%;height:100%;object-fit:cover;display:block}
+.tag{position:absolute;left:20px;top:20px;background:rgba(20,23,28,.86);border-left:6px solid var(--red);padding:8px 18px;font-size:26px;font-weight:800}
+.tag i{font-style:normal;color:var(--dim);font-weight:600;margin-left:14px;font-size:22px}
+.sub{position:absolute;left:400px;width:1472px;bottom:24px;height:96px;display:flex;align-items:center;gap:22px;background:var(--panel);border-top:3px solid var(--amber);padding:0 30px;box-sizing:border-box}
+.sub b{flex:none;font-size:26px;font-weight:800;color:var(--bg);background:var(--amber);padding:4px 16px;border-radius:4px}
+.sub span{font-size:42px;font-weight:800}
+.q{position:absolute;left:48px;bottom:150px;width:300px;font-size:26px;line-height:1.5;color:var(--dim);font-weight:600}
+.q b{color:var(--txt);display:block;font-size:30px;margin-top:6px}
+</style></head><body>
+<div class="top"><span class="no">CASE 01</span><span class="t">남편의 말은 네 번 바뀌었다</span><span class="st">2018.08.13 · 미국 콜로라도주 프레데릭</span></div>
+<div class="rail"><div class="h">진술 기록</div>
+<div class="step done">① 안부 확인<small>8월 13일 오후</small></div>
+<div class="step on">② 이웃 집 CCTV<small>8월 13일 밤 · 지금</small></div>
+<div class="step">③ 거짓말 탐지<small>8월 15일</small></div>
+<div class="step">④ 자백<small>8월 15일</small></div></div>
+<div class="q">지금 그의 설명<b>«작업 도구를<br>싣고 있었어요»</b></div>
+<div class="vid"><img src="frame.jpg"><div class="tag">실제 경찰 바디캠<i>Weld County 지방검찰청 공개</i></div></div>
+<div class="sub"><b>남편</b><span>그건 그냥 일할 때 쓰는 도구예요.</span></div>
+</body></html>
