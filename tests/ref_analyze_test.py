@@ -76,6 +76,12 @@ class RefAnalyzeTest(unittest.TestCase):
         self.assertEqual(d['first_type=question']['top'], 1.0)  # 오류 1편 빼고 3편
         self.assertIn('first_speech_sec', d)
 
+    def test_playlist_choice(self):
+        c = {'id': 'UCabc123', 'contentDetails': {'relatedPlaylists': {'uploads': 'UUabc123'}}}
+        self.assertEqual(R.playlist_id(c), 'UUabc123')
+        self.assertEqual(R.playlist_id(c, shorts=True), 'UUSHabc123')
+        self.assertEqual(R.playlist_id(c, long=True), 'UULFabc123')
+
 
 if __name__ == '__main__':
     unittest.main()

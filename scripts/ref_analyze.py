@@ -3,6 +3,7 @@
 
     python scripts/ref_analyze.py @traveler_ttt --lane ko_longshort [--n 20] [--shorts] [--lang ko] [--no-stt] [--max-stt 20 --max-stt-min 180]
     python scripts/ref_analyze.py UC69z_1ZtKQjG5fa-_sKBBfg --lane ko_longshort --shorts
+    python scripts/ref_analyze.py @brave_chat --lane ko_case --long --min-sec 1200   # 롱폼만(쇼츠 섞인 채널)
 
 - 메타: 발굴용 Data API 키(YOUTUBE_API_KEY_SEARCH, 공개 통계만). --shorts 면 UUSH 재생목록(쇼츠 탭)만 본다.
 - 표본: 공개 72시간+ · 최근 90일(모자라면 최근 200편까지 넓힘) → 조회 상위 n/2 · 하위 n/2.
@@ -56,11 +57,19 @@ def iso_sec(d):
     return sum(int(x or 0) * k for x, k in zip(m.groups(), (86400, 3600, 60, 1))) if m else 0
 
 
-def fetch_channel(ref, shorts, cap=200):
+def playlist_id(c, shorts=False, long=False):
+    if shorts:
+        return 'UUSH' + c['id'][2:]   # 쇼츠 탭
+    if long:
+        return 'UULF' + c['id'][2:]   # 동영상 탭(쇼츠·라이브 제외)
+    return c['contentDetails']['relatedPlaylists']['uploads']
+
+
+def fetch_channel(ref, shorts, cap=200, long=False):
     q = {'part': 'snippet,statistics,contentDetails'}
     q.update({'id': ref} if ref.startswith('UC') else {'forHandle': ref})
     c = yt('channels', **q)['items'][0]
-    pl = ('UUSH' + c['id'][2:]) if shorts else c['contentDetails']['relatedPlaylists']['uploads']
+    pl = playlist_id(c, shorts, long)
     ids, page = [], None
     while len(ids) < cap:
         q = {'part': 'contentDetails', 'maxResults': 50, 'playlistId': pl}
@@ -352,7 +361,8 @@ LABEL = {'sec': '길이(초)', 'speech_share': '말 비중', 'chars_per_min': '�
 def class_md(ch, up, sc, diffs, lane, notes):
     L = ['# %s — 분류 (ref-analyze 1단계, %s)' % (ch['title'], dt.date.today()), '',
          '- 채널: %s `%s` · 구독 %s · 레인 `%s` · 재생목록 %s' % (ch.get('handle') or '', ch['id'], f"{ch['subs']:,}", lane, ch['playlist']),
-         '- 표본: %s편 중 %s(%s) → 상위 %d · 하위 %d' % (ch['n_fetched'], ch['n_pool'], ch['pool_rule'], len(ch['top_ids']), len(ch['bottom_ids'])),
+         '- 표본: %s편 중 %s(%s) → 상위 %d · 하위 %d' % (ch['n_fetched'], ch['n_pool'], ch['pool_rule'], len(ch['top_ids']), len(ch['bottom_ids']))
+         + (' · %d초 미만 제외(받은 %d편 기준, 업로드 표도 이 길이만)' % (ch['min_sec'], ch['n_before_min_sec']) if ch.get('min_sec') else ''),
          '- 조회 중앙 %s · 하위25 %s · 상위25 %s · 퍼짐 %s배 · 3배+ 편 %.0f%% · 중앙 길이 %s초'
          % (f"{ch['views_median']:,}", f"{ch['p25']:,}", f"{ch['p75']:,}", ch['spread_p75_over_median'], ch['share_over_3x'] * 100, ch['duration_median_sec']),
          '- 업로드: 30일 %s편 · 활동일 중앙 %s편/일 · 간격 중앙 %sh · 주로 %s시(KST)'
@@ -391,6 +401,8 @@ def main(argv=None):
     ap.add_argument('--lane', required=True)
     ap.add_argument('--n', type=int, default=20, help='원고 표본 수(상위 n/2 + 하위 n/2)')
     ap.add_argument('--shorts', action='store_true', help='쇼츠 탭(UUSH)만')
+    ap.add_argument('--long', action='store_true', help='동영상 탭(UULF — 쇼츠·라이브 제외)만')
+    ap.add_argument('--min-sec', type=int, default=0, help='이 길이(초) 미만은 표본에서 뺀다(예: 롱폼만 1200)')
     ap.add_argument('--lang', default='ko', choices=['ko', 'ja', 'en'])
     ap.add_argument('--no-stt', action='store_true', help='Speechmatics 안 씀(자동 자막만)')
     ap.add_argument('--max-stt', type=int, default=20)
@@ -401,9 +413,14 @@ def main(argv=None):
     ap.add_argument('--max-429', type=int, default=1, help='하루 429 이만큼이면 이 채널은 그날 접음')
     ap.add_argument('--max-runs', type=int, default=3, help='하루 자막 받기 실행 상한(첫 실행 + 재시도 2회)')
     a = ap.parse_args(argv)
+    if a.shorts and a.long:
+        ap.error('--shorts 와 --long 은 같이 못 쓴다')
 
     now = dt.datetime.now(dt.timezone.utc)
-    meta, rows = fetch_channel(a.channel, a.shorts)
+    meta, rows = fetch_channel(a.channel, a.shorts, long=a.long)
+    if a.min_sec:
+        meta['min_sec'], meta['n_before_min_sec'] = a.min_sec, len(rows)
+        rows = [r for r in rows if r['sec'] >= a.min_sec]
     slug = re.sub(r'[^\w.-]', '_', (meta['handle'] or meta['id']).lstrip('@'))
     cache = ROOT / 'server' / 'data' / 'ref_analyze' / slug
     out = ROOT / 'reference' / a.lane / slug
