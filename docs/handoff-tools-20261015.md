@@ -72,3 +72,9 @@
 2. dup-check 만들기(yt-search.js 그대로 쓰고 감싸기만, ko/ja 두 레인, _gate_log 형식은 쇼핑 `_gate_log.jsonl`과 맞춤) → 회귀: C가 10-15에 확인한 «花山大吉 일본 쇼츠 0건», «暴れん坊将軍 상위에 우리 편 3개» 재현.
 3. ref-analyze 1단계(ref-9dim) 설계안을 A에게(관리자 경유) 보여 주고 longform_competition 확장으로 갈지 별도로 갈지 합의. 분석 4종 표의 열 이름을 먼저 고정하고(책 06: 수집 항목 고정), 첫 표본은 C의 ja 벤치(東映時代劇 쇼츠 상위 20편)와 N100 도구의쓸모 대체 후보 채널로.
 4. 템플릿 세트 v1 범위를 N100과 합의(도구의쓸모 교체 대비).
+
+## 7. 연금 ①편(ja-nenkin/ep01) 상태 — 10-18
+
+- 로컬 완성본 episode.mp4(25.3분), 썸네일 thumb/thumb.png, 설명란 description.txt, 키워드·제목 후보 keywords.json. 업로드 없음.
+- BGM 없음 — 보유 무료 곡(assets/bgm/shopping, Komiku CC0)은 쇼핑용 경쾌한 곡뿐이라 연금 해설과 안 맞고 고령 시청자는 목소리 명료도가 우선. 소유주가 원하면 나중에 조용한 CC0 곡을 -28dB 정도로 깐다.
+- 렌더 전 역전사: 숫자 219/220·고유명사 55/55(num_audit.py, 읽기 표 yomi.json). 표 칸 기호 B·C·D는 합성기가 삼켜 해설에서 뺐다.
