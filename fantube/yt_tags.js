@@ -1,6 +1,7 @@
 // 최애모먼트 태그 넣기·확인 — politics-hour/yt_tags.js 를 팬튜브용으로(yt-upload.js 는 태그를 넣지 않는다, 10/16 쟁점브리핑 태그 0개 사고).
 //   node fantube/yt_tags.js <videoId> <upload.json> [--check] [--gate] [--reschedule <ISO>]
 // tags 는 upload.json 의 tags, 없으면 설명란 해시태그 + 기본 묶음. --check 는 개수만 읽는다.
+// --title <제목>: 제목도 같이 바꾼다(포장 교체, 10/17 소유주 «트렌드 멤버 먼저»).
 // --gate: 넣은 뒤 다시 읽어 0개면 예약을 풀고 비공개로 둔다(공개 금지) — exit 2.
 // ★videos.update 는 snippet 을 통째로 바꾼다 — 원래 값을 읽어 tags 만 바꿔 돌려보낸다.
 const fs = require('fs');
@@ -42,6 +43,8 @@ function tagsOf(meta) {
     return;
   }
   const s = item.snippet;
+  const ti = process.argv.indexOf('--title');
+  if (ti > 0) s.title = process.argv[ti + 1];
   const snippet = { title: s.title, description: s.description, tags, categoryId: s.categoryId, defaultLanguage: s.defaultLanguage, defaultAudioLanguage: s.defaultAudioLanguage };
   // 갓 올린 영상은 처리 중이라 403 forbidden 이 난다(ep09, 10/16) — 20초 간격으로 다시
   for (let i = 0; i < 6; i++) {
