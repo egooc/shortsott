@@ -146,7 +146,17 @@ def to_say(text):
     """TTS 입력 — 정치JA scripts/ja_num_reading.say()(조수사까지 히라가나, 역전사 불일치 0)를 그대로 쓴다(10-17 관리자: 읽기 변환은 하나로).
     10-18 역전사에서 나온 歳(촉음)·9年(きゅうねん) 오독은 정치JA 가 say() 에 반영했다."""
     from ja_num_reading import say
-    return say(text)
+
+    def lead8(m):   # 10-18 역전사: 숫자 첫머리 «はち»는 Supertonic 이 «は»로 삼켜 85万→«1,015万»·8万→«は1,000万»으로 들렸다. 첫 글자만 「八」로 넣으면 0건
+        g = m.group()
+        if re.fullmatch(r'8\d万円', g):   # «線は八じゅうご»는 «は»가 겹쳐 «115万»으로 들렸다 — 万 단위 딱 떨어지는 금액은 한자 통째(八十五万円, 3회 0건)
+            return int_kanji(int(g[:2])) + '万円'
+        k = say(g)
+        return '八' + k[2:] if k.startswith('はち') else k
+    return say(LEAD8.sub(lead8, text))
+
+
+LEAD8 = re.compile(r'(?<![\d,.])8[\d,]*(?:\.\d+)?(?:[万億][\d,]*)*(?:円|歳|年|か月|月|日|回|人|パーセント)?')
 
 
 def main(argv=None):

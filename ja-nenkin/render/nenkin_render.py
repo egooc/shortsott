@@ -54,9 +54,9 @@ def wait_gate():
         if not locks and gb >= FREE_GB:
             return gb
         time.sleep(15 * 60)
-CODE = '2026-10-17a'
+CODE = '2026-10-18b'   # 10-18 말 속도 1.0·문장 사이 0.7초 — 0.95는 숫자 중간이 끊겨 역전사 불일치 11/218(0.97도 2건), 1.0은 0
 SUPERTONIC = {'python': 'D:/midform/tts-lab/supertonic/.venv/Scripts/python.exe', 'dir': 'D:/midform/tts-lab/supertonic',
-              'voice': 'F2', 'speed': 1.05, 'steps': 8, 'gap': 0.45, 'lang': 'ja', 'num_reading': False}
+              'voice': 'F2', 'speed': 1.0, 'steps': 8, 'gap': 0.7, 'lang': 'ja', 'num_reading': False}
 BLUE, BLUE_D, CREAM, BAND, RED, INK, GREEN = '#1E5AA8', '#143F7A', '#FFFCF4', '#FFF1B8', '#D62A1E', '#1B1B1B', '#2E8B57'
 esc = lambda s: html.escape(str(s), quote=True)
 

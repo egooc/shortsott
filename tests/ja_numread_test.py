@@ -40,5 +40,11 @@ class JaNumreadTest(unittest.TestCase):
         self.assertEqual(N.to_say('65歳以上'), 'ろくじゅうごさい以上')
         self.assertIn('きゅうねん', N.to_say('令和9年分'))
 
+    def test_say_leading_eight(self):   # 10-18 역전사: 숫자 첫머리 «はち»를 합성기가 삼킨다
+        self.assertEqual(N.to_say('線は85万円'), '線は八十五万円')
+        self.assertEqual(N.to_say('年8万4500円'), '年八まんよんせんごひゃくえん')
+        self.assertEqual(N.to_say('8,052円'), 'はっせんごじゅうにえん')
+        self.assertEqual(N.to_say('180万円'), 'ひゃくはちじゅうまんえん')
+
 if __name__ == '__main__':
     unittest.main()
