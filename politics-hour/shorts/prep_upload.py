@@ -1,7 +1,10 @@
 """쇼츠 업로드 메타(<name>.upload.json)를 만든다: python prep_upload.py 20261015"""
-import json, sys
+import json, subprocess, sys
 from pathlib import Path
 day = sys.argv[1]
+# 관리자 10-17: 롱폼 keywords.json 없이는 업로드 단계로 못 넘어간다(없으면 중단·보고)
+if subprocess.run([sys.executable, str(Path(__file__).resolve().parent.parent / 'upload_gate.py'), str(Path(__file__).resolve().parent.parent / 'episodes' / day)]).returncode:
+    sys.exit('[prep_upload] 중단 — keywords.json 관문 실패, 관리자에게 보고')
 specs = json.loads(Path(day + '.json').read_text(encoding='utf-8'))
 titles = json.loads(Path(day + '_titles.json').read_text(encoding='utf-8'))
 for s in specs:
