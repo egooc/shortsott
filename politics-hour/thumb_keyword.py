@@ -69,13 +69,15 @@ tag(18, 18, cfg['main'], 30)
 for i, s in enumerate(side):
     tag(mw + 12, i * HT // len(side) + 14, s, 22)
 # 보조 줄(작게, 빨간 칩) → 1순위 낱말(가장 크게, 노랑) → 2순위 낱말(두 번째, 흰)
+one = len(big) == 1                       # 큰 낱말 하나면 글자 덩어리를 아래로 내린다
+sy, by = (500, 690) if one else (392, 572)
 if cfg.get('sub'):
     ss = fit(cfg['sub'], 44, W - 120)
     tw = d.textlength(cfg['sub'], font=f(ss))
-    d.rounded_rectangle([40, 392 - ss, 40 + tw + 32, 392 + 14], 10, fill=(214, 24, 36))
-    d.text((56, 392), cfg['sub'], font=f(ss), fill=(255, 255, 255), anchor='ls')
+    d.rounded_rectangle([40, sy - ss, 40 + tw + 32, sy + 14], 10, fill=(214, 24, 36))
+    d.text((56, sy), cfg['sub'], font=f(ss), fill=(255, 255, 255), anchor='ls')
 s1 = fit(big[0], 190, W - 60)
-d.text((34, 572), big[0], font=f(s1), fill=(255, 222, 0), anchor='ls', stroke_width=9, stroke_fill=(0, 0, 0))
+d.text((34, by), big[0], font=f(s1), fill=(255, 222, 0), anchor='ls', stroke_width=9, stroke_fill=(0, 0, 0))
 if len(big) > 1:
     s2 = fit(big[1], 118, W - 60)
     d.text((38, 700), big[1], font=f(s2), fill=(255, 255, 255), anchor='ls', stroke_width=7, stroke_fill=(0, 0, 0))
