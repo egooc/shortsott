@@ -671,6 +671,19 @@ def punch_expr(times, amp=0.07, dur=0.25):
     return f"1+{amp}*({'+'.join(terms) or '0'})"
 
 
+def shot_points(seg):
+    """shots 구간: seg.shots = [[원본 시각, 창 크기, x, y], ...](샷 시작마다 한 줄) → [(구간 프레임, 창, x, y)], 첫 점은 0."""
+    out = []
+    for t, cw, x, y in sorted(seg['shots']):
+        f = max(0, round((t - seg['start']) * FPS))
+        if out and f <= out[-1][0]:
+            out[-1] = (out[-1][0], int(cw), int(x) // 2 * 2, int(y) // 2 * 2)
+        else:
+            out.append((f, int(cw), int(x) // 2 * 2, int(y) // 2 * 2))
+    out[0] = (0,) + out[0][1:]
+    return out
+
+
 def keep_off_logo(points, box):
     """원본 고정 로고(logo_box = [x0, y0, x1, y1], 원본 화소)가 창에 들어오지 않게 카메라 x 를 묶는다.
     로고가 왼쪽 절반이면 창 왼쪽 끝을 로고 오른쪽 너머로, 오른쪽이면 창 오른쪽 끝을 로고 왼쪽 앞으로."""
@@ -687,6 +700,13 @@ def screen(spec, folder, segs, cams):
     pieces, f0 = [], 0
     for s, cam in zip(segs, cams):
         n_fr = int(round(float(s['fill']) * FPS)) if s.get('fill') else round((s['end'] - s['start']) * FPS)
+        if s.get('camera') == 'shots':                  # 샷마다 창이 다르다 — 관문에는 샷 하나를 조각 하나로
+            pts = shot_points(s) + [(n_fr, 0, 0, 0)]
+            for (fa, c, x, y), (fb, *_) in zip(pts, pts[1:]):
+                pieces.append({'seg': len(pieces), 'out_f0': f0 + fa, 'frames': fb - fa, 'src_t0': round(s['start'] + fa / FPS, 3),
+                               'cam': [[0, x, True]], 'cw': c, 'ch': c, 'y': y})
+            f0 += n_fr
+            continue
         cw = s.get('crop', 540 if s.get('camera') == 'track' else CROP_W)
         ch = cw
         if s.get('camera') == 'wide':
@@ -714,6 +734,18 @@ def compose(spec, folder, overlay, pic_only=False):
             crop = (f"split[wa{i}][wb{i}];[wa{i}]scale=-2:{VH},crop={VW}:{VH},gblur=sigma=28,eq=brightness=-0.10[wg{i}];"
                     f"[wb{i}]scale={VW}:-2[wf{i}];[wg{i}][wf{i}]overlay=0:(H-h)/2")
             cams.append([(0, 0, True)])
+        elif s.get('camera') == 'shots':                # 샷마다 창 크기·위치 — 방송 자막 띠가 있는 샷은 당겨서(창 아래끝 < 자막 위끝) 피하고
+            pts = shot_points(s)                        # 없는 샷은 풀어서 넓게(10/18 소유주: 지우기·블러 대신 확대했다 풀었다)
+            def step(vals):                              # 입력 프레임(in) 기준 계단(it 는 0.3초 늦었다) — scale(eval=frame)+crop 은 크기가 바뀔 때 crop 이 다시 설정돼
+                e = str(vals[-1][1])                     # 창이 첫 샷 자리로 돌아갔다(10/18 실측). zoompan 은 출력 크기가 고정이라 안전하다
+                for (f, v), (g, _) in reversed(list(zip(vals, vals[1:]))):
+                    e = f"if(lt(in,{g}),{v},{e})"
+                return e
+            cz, ex, ey = (step([(f, c) for f, c, _, _ in pts]), step([(f, x) for f, _, x, _ in pts]),
+                          step([(f, y) for f, _, _, y in pts]))
+            crop = (f"pad={SRC_W}:{SRC_W}:0:0,"           # 정사각 입력이어야 zoompan 의 보이는 창이 정사각(cw x cw)
+                    f"zoompan=z='{SRC_W}/({cz})':x='{ex}':y='{ey}':d=1:s={VW}x{VH}:fps={FPS}")
+            cams.append([(f, x, True) for f, _, x, _ in pts])
         elif s.get('camera') == 'fixed':                # 움짤 등: 창을 x 에 고정
             cw = s.get('crop', CROP_W)
             crop = f"crop={cw}:{cw}:{int(s['x'])}:{int(s.get('crop_y', 0))}"
