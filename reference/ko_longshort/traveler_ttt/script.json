@@ -4,11 +4,11 @@
   "stt_used": 0,
   "stt_minutes": 0.0,
   "skipped": 0,
-  "stopped": true,
+  "stopped": false,
   "rows": [
     {
       "id": "C8pIZALXy0U",
-      "views": 3682386,
+      "views": 3686646,
       "sec": 31,
       "source": "auto",
       "speech_share": 0.194,
@@ -44,36 +44,57 @@
       "group": "top"
     },
     {
-      "id": "dggNEhqI7cg",
-      "views": 43708,
-      "sec": 73,
-      "source": "none",
-      "speech_share": 0.0,
-      "chars_per_min": 0.0,
-      "first_speech_sec": null,
-      "n_sentences": 0,
-      "avg_sentence_chars": null,
-      "first_sentence": "",
-      "first_type": null,
-      "last_sentence": "",
+      "id": "je6rw-_-dXA",
+      "views": 43980,
+      "sec": 41,
+      "source": "auto",
+      "speech_share": 0.456,
+      "chars_per_min": 49.8,
+      "first_speech_sec": 0.4,
+      "n_sentences": 6,
+      "avg_sentence_chars": 5.7,
+      "first_sentence": "이건 오니언스",
+      "first_type": "statement",
+      "last_sentence": "너무 맛있다.",
       "ending_cta": false,
       "ending_question": false,
-      "endings": [],
-      "transcript_ok": null,
-      "title_chars": 12,
+      "endings": [
+        [
+          "있다",
+          2
+        ],
+        [
+          "언스",
+          1
+        ],
+        [
+          "팽이",
+          1
+        ],
+        [
+          "같아",
+          1
+        ],
+        [
+          "크림",
+          1
+        ]
+      ],
+      "transcript_ok": true,
+      "title_chars": 24,
       "title_digit": true,
-      "title_q": true,
+      "title_q": false,
       "title_excl": false,
       "title_hashtags": 0,
       "title_bracket": false,
       "title_emoji": false,
-      "like_rate": 0.0086,
-      "comment_rate": 0.00037,
+      "like_rate": 0.0066,
+      "comment_rate": 0.0002,
       "group": "bottom"
     },
     {
       "id": "iErdqmxnv40",
-      "views": 827922,
+      "views": 833677,
       "sec": 37,
       "source": "auto",
       "speech_share": 0.806,
@@ -122,21 +143,42 @@
     },
     {
       "id": "2yEZEEvx6wI",
-      "views": 39545,
+      "views": 39580,
       "sec": 30,
-      "source": "none",
-      "speech_share": 0.0,
-      "chars_per_min": 0.0,
-      "first_speech_sec": null,
-      "n_sentences": 0,
-      "avg_sentence_chars": null,
-      "first_sentence": "",
-      "first_type": null,
-      "last_sentence": "",
+      "source": "auto",
+      "speech_share": 0.644,
+      "chars_per_min": 108.0,
+      "first_speech_sec": 6.64,
+      "n_sentences": 7,
+      "avg_sentence_chars": 7.7,
+      "first_sentence": "적당해.",
+      "first_type": "statement",
+      "last_sentence": "M.",
       "ending_cta": false,
       "ending_question": false,
-      "endings": [],
-      "transcript_ok": null,
+      "endings": [
+        [
+          "당해",
+          1
+        ],
+        [
+          "있어",
+          1
+        ],
+        [
+          "니야",
+          1
+        ],
+        [
+          "그냥",
+          1
+        ],
+        [
+          "이야",
+          1
+        ]
+      ],
+      "transcript_ok": true,
       "title_chars": 15,
       "title_digit": false,
       "title_q": false,
@@ -150,7 +192,7 @@
     },
     {
       "id": "MIsx8wYliME",
-      "views": 626207,
+      "views": 628277,
       "sec": 29,
       "source": "speechmatics",
       "speech_share": 0.524,
@@ -190,26 +232,47 @@
       "title_bracket": false,
       "title_emoji": false,
       "like_rate": 0.0128,
-      "comment_rate": 0.00027,
+      "comment_rate": 0.00026,
       "group": "top"
     },
     {
       "id": "CoCq6KsvRPs",
-      "views": 35678,
+      "views": 35709,
       "sec": 48,
-      "source": "none",
-      "speech_share": 0.0,
-      "chars_per_min": 0.0,
-      "first_speech_sec": null,
-      "n_sentences": 0,
-      "avg_sentence_chars": null,
-      "first_sentence": "",
-      "first_type": null,
-      "last_sentence": "",
+      "source": "auto",
+      "speech_share": 0.81,
+      "chars_per_min": 195.0,
+      "first_speech_sec": 0.12,
+      "n_sentences": 14,
+      "avg_sentence_chars": 11.1,
+      "first_sentence": "드디어 말인가?",
+      "first_type": "question",
+      "last_sentence": "e",
       "ending_cta": false,
       "ending_question": false,
-      "endings": [],
-      "transcript_ok": null,
+      "endings": [
+        [
+          "아요",
+          2
+        ],
+        [
+          "은데",
+          2
+        ],
+        [
+          "인가",
+          1
+        ],
+        [
+          "그래",
+          1
+        ],
+        [
+          "케이",
+          1
+        ]
+      ],
+      "transcript_ok": true,
       "title_chars": 9,
       "title_digit": false,
       "title_q": true,
@@ -223,7 +286,7 @@
     },
     {
       "id": "uhTmoHL1KN0",
-      "views": 622396,
+      "views": 622548,
       "sec": 21,
       "source": "auto",
       "speech_share": 1,
@@ -272,21 +335,42 @@
     },
     {
       "id": "4ilzqDGXJJs",
-      "views": 34002,
+      "views": 34025,
       "sec": 37,
-      "source": "none",
-      "speech_share": 0.0,
-      "chars_per_min": 0.0,
-      "first_speech_sec": null,
-      "n_sentences": 0,
-      "avg_sentence_chars": null,
-      "first_sentence": "",
-      "first_type": null,
-      "last_sentence": "",
+      "source": "auto",
+      "speech_share": 1,
+      "chars_per_min": 196.2,
+      "first_speech_sec": 0.04,
+      "n_sentences": 8,
+      "avg_sentence_chars": 15.1,
+      "first_sentence": "어 그럼 나가서 사님 허리 한번 잡아볼까?",
+      "first_type": "question",
+      "last_sentence": "와, 게르비 너무 빡센데.",
       "ending_cta": false,
       "ending_question": false,
-      "endings": [],
-      "transcript_ok": null,
+      "endings": [
+        [
+          "거야",
+          2
+        ],
+        [
+          "니야",
+          2
+        ],
+        [
+          "볼까",
+          1
+        ],
+        [
+          "저해",
+          1
+        ],
+        [
+          "명]",
+          1
+        ]
+      ],
+      "transcript_ok": true,
       "title_chars": 15,
       "title_digit": false,
       "title_q": false,
@@ -294,13 +378,13 @@
       "title_hashtags": 0,
       "title_bracket": false,
       "title_emoji": false,
-      "like_rate": 0.0085,
+      "like_rate": 0.0086,
       "comment_rate": 0.00015,
       "group": "bottom"
     },
     {
       "id": "63lwvjBhtC0",
-      "views": 556237,
+      "views": 556404,
       "sec": 15,
       "source": "auto",
       "speech_share": 0.981,
@@ -345,21 +429,42 @@
     },
     {
       "id": "1Rg0TJOhd8A",
-      "views": 32122,
+      "views": 32149,
       "sec": 27,
-      "source": "none",
-      "speech_share": 0.0,
-      "chars_per_min": 0.0,
-      "first_speech_sec": null,
-      "n_sentences": 0,
-      "avg_sentence_chars": null,
-      "first_sentence": "",
-      "first_type": null,
-      "last_sentence": "",
+      "source": "auto",
+      "speech_share": 0.603,
+      "chars_per_min": 115.6,
+      "first_speech_sec": 0.04,
+      "n_sentences": 8,
+      "avg_sentence_chars": 6.5,
+      "first_sentence": "완전 예뻐.",
+      "first_type": "statement",
+      "last_sentence": "네.",
       "ending_cta": false,
       "ending_question": false,
-      "endings": [],
-      "transcript_ok": null,
+      "endings": [
+        [
+          "예뻐",
+          1
+        ],
+        [
+          "대요",
+          1
+        ],
+        [
+          "돼요",
+          1
+        ],
+        [
+          "와",
+          1
+        ],
+        [
+          "니다",
+          1
+        ]
+      ],
+      "transcript_ok": true,
       "title_chars": 22,
       "title_digit": true,
       "title_q": false,
@@ -373,7 +478,7 @@
     },
     {
       "id": "xT6D10hgrSU",
-      "views": 478767,
+      "views": 479274,
       "sec": 60,
       "source": "speechmatics",
       "speech_share": 0.413,
@@ -422,21 +527,42 @@
     },
     {
       "id": "EktuTaWo-Zg",
-      "views": 31926,
+      "views": 31965,
       "sec": 24,
-      "source": "none",
-      "speech_share": 0.0,
-      "chars_per_min": 0.0,
-      "first_speech_sec": null,
-      "n_sentences": 0,
-      "avg_sentence_chars": null,
-      "first_sentence": "",
-      "first_type": null,
-      "last_sentence": "",
+      "source": "auto",
+      "speech_share": 0.655,
+      "chars_per_min": 152.5,
+      "first_speech_sec": 1.52,
+      "n_sentences": 5,
+      "avg_sentence_chars": 12.2,
+      "first_sentence": "어 프로포즈야.",
+      "first_type": "statement",
+      "last_sentence": "와, 낭만 있다.",
       "ending_cta": false,
       "ending_question": false,
-      "endings": [],
-      "transcript_ok": null,
+      "endings": [
+        [
+          "즈야",
+          1
+        ],
+        [
+          "했어",
+          1
+        ],
+        [
+          ".이",
+          1
+        ],
+        [
+          "주네",
+          1
+        ],
+        [
+          "있다",
+          1
+        ]
+      ],
+      "transcript_ok": true,
       "title_chars": 20,
       "title_digit": false,
       "title_q": true,
@@ -450,7 +576,7 @@
     },
     {
       "id": "dK8RJ59sd-M",
-      "views": 352706,
+      "views": 353736,
       "sec": 45,
       "source": "auto",
       "speech_share": 0.967,
@@ -493,27 +619,48 @@
       "title_hashtags": 0,
       "title_bracket": false,
       "title_emoji": false,
-      "like_rate": 0.0061,
+      "like_rate": 0.0062,
       "comment_rate": 0.0001,
       "group": "top"
     },
     {
       "id": "bpgP361BcWs",
-      "views": 29919,
+      "views": 29946,
       "sec": 43,
-      "source": "none",
-      "speech_share": 0.0,
-      "chars_per_min": 0.0,
-      "first_speech_sec": null,
-      "n_sentences": 0,
-      "avg_sentence_chars": null,
-      "first_sentence": "",
-      "first_type": null,
-      "last_sentence": "",
+      "source": "auto",
+      "speech_share": 0.778,
+      "chars_per_min": 152.1,
+      "first_speech_sec": 0.48,
+      "n_sentences": 19,
+      "avg_sentence_chars": 5.7,
+      "first_sentence": "야.",
+      "first_type": "statement",
+      "last_sentence": "am",
       "ending_cta": false,
       "ending_question": false,
-      "endings": [],
-      "transcript_ok": null,
+      "endings": [
+        [
+          "래라",
+          3
+        ],
+        [
+          "밑에",
+          2
+        ],
+        [
+          "려고",
+          2
+        ],
+        [
+          "야",
+          1
+        ],
+        [
+          "뭐야",
+          1
+        ]
+      ],
+      "transcript_ok": true,
       "title_chars": 15,
       "title_digit": false,
       "title_q": false,
@@ -527,7 +674,7 @@
     },
     {
       "id": "asEWDi9jVIk",
-      "views": 314489,
+      "views": 315608,
       "sec": 22,
       "source": "auto",
       "speech_share": 0.864,
@@ -564,21 +711,30 @@
     },
     {
       "id": "t985cvzQIEI",
-      "views": 23350,
+      "views": 23372,
       "sec": 24,
-      "source": "none",
-      "speech_share": 0.0,
-      "chars_per_min": 0.0,
-      "first_speech_sec": null,
-      "n_sentences": 0,
-      "avg_sentence_chars": null,
-      "first_sentence": "",
-      "first_type": null,
-      "last_sentence": "",
+      "source": "auto",
+      "speech_share": 0.863,
+      "chars_per_min": 172.5,
+      "first_speech_sec": 0.16,
+      "n_sentences": 2,
+      "avg_sentence_chars": 34.5,
+      "first_sentence": "아파 아파",
+      "first_type": "statement",
+      "last_sentence": "아 앞뒤로 아파 저는 정관 수술해서 상관이 없는데 혹시 다른 분들 고장이 날까 봐 걱정이네 이게 조심해 그렇게 너무 그렇게 하면 총각들은 부서질 수도 있겠어 아씨",
       "ending_cta": false,
       "ending_question": false,
-      "endings": [],
-      "transcript_ok": null,
+      "endings": [
+        [
+          "아파",
+          1
+        ],
+        [
+          "아씨",
+          1
+        ]
+      ],
+      "transcript_ok": true,
       "title_chars": 4,
       "title_digit": false,
       "title_q": false,
@@ -592,7 +748,7 @@
     },
     {
       "id": "nAWSLYE2VNA",
-      "views": 299362,
+      "views": 299789,
       "sec": 33,
       "source": "auto",
       "speech_share": 0.744,
@@ -633,21 +789,42 @@
     },
     {
       "id": "HU0TR6oqAso",
-      "views": 19978,
+      "views": 20016,
       "sec": 61,
-      "source": "none",
-      "speech_share": 0.0,
-      "chars_per_min": 0.0,
-      "first_speech_sec": null,
-      "n_sentences": 0,
-      "avg_sentence_chars": null,
-      "first_sentence": "",
-      "first_type": null,
-      "last_sentence": "",
+      "source": "auto",
+      "speech_share": 0.796,
+      "chars_per_min": 164.3,
+      "first_speech_sec": 0.24,
+      "n_sentences": 10,
+      "avg_sentence_chars": 16.7,
+      "first_sentence": "프랑스에서는 와인이 10 이상이면 나이",
+      "first_type": "number",
+      "last_sentence": "16,000원 치고 훌륭하지.이 이 정도면은 16,000원에이 정도만 내면 훌륭하지.",
       "ending_cta": false,
       "ending_question": false,
-      "endings": [],
-      "transcript_ok": null,
+      "endings": [
+        [
+          "나이",
+          1
+        ],
+        [
+          "거다",
+          1
+        ],
+        [
+          "렸어",
+          1
+        ],
+        [
+          "있지",
+          1
+        ],
+        [
+          "리야",
+          1
+        ]
+      ],
+      "transcript_ok": true,
       "title_chars": 14,
       "title_digit": false,
       "title_q": false,
@@ -655,13 +832,13 @@
       "title_hashtags": 0,
       "title_bracket": false,
       "title_emoji": false,
-      "like_rate": 0.0076,
+      "like_rate": 0.0075,
       "comment_rate": 0.00025,
       "group": "bottom"
     },
     {
       "id": "yhP2d8Jd9s8",
-      "views": 290698,
+      "views": 290958,
       "sec": 52,
       "source": "auto",
       "speech_share": 0.844,
@@ -710,21 +887,42 @@
     },
     {
       "id": "iQ-LA7XvlKU",
-      "views": 11725,
+      "views": 11746,
       "sec": 28,
-      "source": "none",
-      "speech_share": 0.0,
-      "chars_per_min": 0.0,
-      "first_speech_sec": null,
-      "n_sentences": 0,
-      "avg_sentence_chars": null,
-      "first_sentence": "",
-      "first_type": null,
-      "last_sentence": "",
+      "source": "auto",
+      "speech_share": 0.889,
+      "chars_per_min": 152.1,
+      "first_speech_sec": 0.16,
+      "n_sentences": 9,
+      "avg_sentence_chars": 7.9,
+      "first_sentence": "야, 근데 여기 한번 봐봐.",
+      "first_type": "statement",
+      "last_sentence": "Welcome to",
       "ending_cta": false,
       "ending_question": false,
-      "endings": [],
-      "transcript_ok": null,
+      "endings": [
+        [
+          "대박",
+          2
+        ],
+        [
+          "봐봐",
+          1
+        ],
+        [
+          "히요",
+          1
+        ],
+        [
+          "좋아",
+          1
+        ],
+        [
+          " 봐",
+          1
+        ]
+      ],
+      "transcript_ok": true,
       "title_chars": 12,
       "title_digit": false,
       "title_q": false,
@@ -732,17 +930,35 @@
       "title_hashtags": 0,
       "title_bracket": false,
       "title_emoji": false,
-      "like_rate": 0.0088,
+      "like_rate": 0.0089,
       "comment_rate": 0.0,
       "group": "bottom"
     }
   ],
   "diffs": [
     {
+      "key": "n_sentences",
+      "top": 14.0,
+      "bottom": 8.0,
+      "effect": 0.94
+    },
+    {
+      "key": "avg_sentence_chars",
+      "top": 9.2,
+      "bottom": 9.5,
+      "effect": -0.55
+    },
+    {
+      "key": "like_rate",
+      "top": 0.009,
+      "bottom": 0.008,
+      "effect": 0.41
+    },
+    {
       "key": "title_q",
       "top": 0.0,
-      "bottom": 0.3,
-      "effect": -0.6
+      "bottom": 0.2,
+      "effect": -0.4
     },
     {
       "key": "title_bracket",
@@ -757,31 +973,73 @@
       "effect": -0.4
     },
     {
-      "key": "like_rate",
-      "top": 0.009,
-      "bottom": 0.008,
-      "effect": 0.35
-    },
-    {
-      "key": "sec",
-      "top": 32.0,
-      "bottom": 33.5,
-      "effect": -0.34
-    },
-    {
-      "key": "title_chars",
-      "top": 12.0,
-      "bottom": 14.5,
-      "effect": 0.15
+      "key": "first_type=question",
+      "top": 0.33,
+      "bottom": 0.2,
+      "effect": 0.27
     },
     {
       "key": "comment_rate",
       "top": 0.0,
       "bottom": 0.0,
-      "effect": 0.1
+      "effect": 0.25
+    },
+    {
+      "key": "first_speech_sec",
+      "top": 1.02,
+      "bottom": 0.2,
+      "effect": 0.24
+    },
+    {
+      "key": "first_type=number",
+      "top": 0.0,
+      "bottom": 0.1,
+      "effect": -0.2
+    },
+    {
+      "key": "sec",
+      "top": 32.0,
+      "bottom": 33.5,
+      "effect": -0.14
+    },
+    {
+      "key": "chars_per_min",
+      "top": 166.95,
+      "bottom": 152.3,
+      "effect": 0.12
+    },
+    {
+      "key": "speech_share",
+      "top": 0.825,
+      "bottom": 0.787,
+      "effect": -0.07
+    },
+    {
+      "key": "title_chars",
+      "top": 12.0,
+      "bottom": 15.0,
+      "effect": -0.07
+    },
+    {
+      "key": "first_type=statement",
+      "top": 0.67,
+      "bottom": 0.7,
+      "effect": -0.07
     },
     {
       "key": "title_hashtags",
+      "top": 0.0,
+      "bottom": 0.0,
+      "effect": 0.0
+    },
+    {
+      "key": "ending_cta",
+      "top": 0.0,
+      "bottom": 0.0,
+      "effect": 0.0
+    },
+    {
+      "key": "ending_question",
       "top": 0.0,
       "bottom": 0.0,
       "effect": 0.0
