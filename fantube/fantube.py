@@ -48,7 +48,7 @@ esc = lambda s: html.escape(str(s), quote=True)  # noqa: E731
 # ───────────────────────── 카메라(린박스 얼굴 추적) ─────────────────────────
 def segments(spec):
     """편을 이루는 구간들. spec.segments 가 없으면 src/start/end 한 구간(예전 spec).
-    구간: {"src","start","end", "camera": "talk"|"track", "transcript"(talk), "track"(track: stage_track.py 결과),
+    구간: {"src","start","end", "camera": "talk"|"track"|"wide"(16:9 통째), "transcript"(talk), "track"(track: stage_track.py 결과),
            "crop": 정사각 창 크기(기본 CROP_W), "crop_y"(talk), "logo_box", "gain": 소리 배율}"""
     if spec.get('segments'):
         return spec['segments']
@@ -688,8 +688,11 @@ def screen(spec, folder, segs, cams):
     for s, cam in zip(segs, cams):
         n_fr = int(round(float(s['fill']) * FPS)) if s.get('fill') else round((s['end'] - s['start']) * FPS)
         cw = s.get('crop', 540 if s.get('camera') == 'track' else CROP_W)
+        ch = cw
+        if s.get('camera') == 'wide':
+            cw, ch = SRC_W, 1080
         pieces.append({'seg': len(pieces), 'out_f0': f0, 'frames': n_fr, 'src_t0': round(s['start'], 3),
-                       'cam': [list(c) for c in cam], 'cw': cw, 'ch': cw, 'y': int(s.get('crop_y', 0))})
+                       'cam': [list(c) for c in cam], 'cw': cw, 'ch': ch, 'y': int(s.get('crop_y', 0))})
         f0 += n_fr
     (rd / 'pieces.json').write_text(json.dumps({'source': str(segs[0]['src']), 'mirror': False, 'fps': FPS,
                                                 'pieces': pieces}, ensure_ascii=False) + '\n', encoding='utf-8')
@@ -707,7 +710,11 @@ def compose(spec, folder, overlay, pic_only=False):
     cams = []
     for i, s in enumerate(segs):
         ins += ['-ss', f"{s['start']:.3f}", '-t', f"{s['end'] - s['start']:.3f}", '-i', str(s['src'])]
-        if s.get('camera') == 'fixed':                # 움짤 등: 창을 x 에 고정
+        if s.get('camera') == 'wide':                 # 예능 등 16:9 통째(10/17 소유주: 얼굴·방송 자막 잘림 금지) — 뒤는 같은 화면 흐림
+            crop = (f"split[wa{i}][wb{i}];[wa{i}]scale=-2:{VH},crop={VW}:{VH},gblur=sigma=28,eq=brightness=-0.10[wg{i}];"
+                    f"[wb{i}]scale={VW}:-2[wf{i}];[wg{i}][wf{i}]overlay=0:(H-h)/2")
+            cams.append([(0, 0, True)])
+        elif s.get('camera') == 'fixed':                # 움짤 등: 창을 x 에 고정
             cw = s.get('crop', CROP_W)
             crop = f"crop={cw}:{cw}:{int(s['x'])}:{int(s.get('crop_y', 0))}"
             cams.append([(0, int(s['x']), True)])
