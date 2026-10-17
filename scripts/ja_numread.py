@@ -142,11 +142,19 @@ def money_kana(m):
     return int_kana(v)
 
 
+TSU = {'1': 'ひとつ', '2': 'ふたつ', '3': 'みっつ', '4': 'よっつ', '5': 'いつつ', '6': 'むっつ', '7': 'ななつ', '8': 'やっつ', '9': 'ここのつ'}
+NIN = {'1': 'ひとり', '2': 'ふたり'}
+KAI = {'1': 'いっかい', '6': 'ろっかい', '8': 'はっかい', '10': 'じゅっかい'}
+
+
 def to_say(text):
-    """TTS 입력: 금액·비율은 히라가나, 나머지 숫자는 한자."""
-    text = re.sub(r'(\d[\d,]*(?:\.\d+)?(?:億\d[\d,]*)?(?:万\d[\d,]*)?|\d[\d,]*(?:\.\d+)?万)(?=円|パーセント|%)', money_kana, text)
-    text = re.sub(r'\d[\d,]*万(?:\d[\d,]*)?', money_kana, text)
-    return to_read(text)
+    """TTS 입력 — 정치JA scripts/ja_num_reading.say()(조수사까지 히라가나, 84개 역전사 0 불일치)를 쓰고(10-17 합의),
+    say() 가 아직 못 읽는 つ·人·回 조수사만 앞에서 히라가나로 바꾼다(«1つ目»→いちつ目 실측)."""
+    from ja_num_reading import say
+    text = re.sub(r'(?<![\d,])([1-9])つ', lambda m: TSU[m.group(1)], text)
+    text = re.sub(r'(?<![\d,])([12])人', lambda m: NIN[m.group(1)], text)
+    text = re.sub(r'(?<![\d,])(10|[168])回', lambda m: KAI[m.group(1)], text)
+    return say(text)
 
 
 def main(argv=None):

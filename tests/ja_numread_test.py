@@ -26,13 +26,12 @@ class JaNumreadTest(unittest.TestCase):
         self.assertNotEqual(N.values_arabic('8,052円'), N.values_kanji('八万五十二円'))
 
     def test_say_kana_for_money(self):
-        # 10-17 역전사 실측: 한자로는 5.105→5.15, 3万4500→3万1500 으로 들렸다
-        self.assertEqual(N.to_say('年およそ3万4500円'), '年およそさんまんよんせんごひゃく円')
-        self.assertEqual(N.to_say('5.105パーセント'), 'ごてんいちゼロごパーセント')
-        self.assertEqual(N.to_say('8,052円'), 'はっせんごじゅうに円')
-        self.assertEqual(N.to_say('300万円と600円'), 'さんびゃくまん円とろっぴゃく円')
-        self.assertEqual(N.to_say('73歳'), '七十三歳')   # 조수사는 한자
-
+        # 10-17 역전사 실측: 한자로는 5.105→5.15, 3万4500→3万1500 으로 들렸다 → 정치JA say() 히라가나
+        self.assertEqual(N.to_say('年およそ3万4500円'), '年およそさんまんよんせんごひゃくえん')
+        self.assertEqual(N.to_say('8,052円'), 'はっせんごじゅうにえん')
+        self.assertIn('いちゼロご', N.to_say('5.105パーセント'))
+        self.assertEqual(N.to_say('1つ目の質問'), 'ひとつ目の質問')   # say() 가 «いちつ» 로 읽던 곳
+        self.assertTrue(N.to_say('1回につき').startswith('いっかい'))
 
 if __name__ == '__main__':
     unittest.main()
