@@ -259,9 +259,10 @@ class Clock:
         return round(min(max(t, .25), self.d - .6), 2)
 
 
+# 10-18 발굴 채점: 0부터 0.9초로 세면 정지 화면 표본에 중간값(«年2万円»)이 찍힌다 → 60%에서 0.45초만
 COUNT_JS = '''function jpn(v,u){v=Math.round(v);var m=Math.floor(v/10000),r=v%10000,s='';
 if(m)s+=m+'万';if(r||!m)s+=(m?r:r.toLocaleString('ja-JP'));return s+u}
-function countUp(sel,to,u,t,pre){var o={v:0},q=(to%10000===0&&to>=10000)?10000:(to%100===0?100:1);tl.to(o,{v:to,duration:.9,ease:"power2.out",onUpdate:function(){
+function countUp(sel,to,u,t,pre){var o={v:to*.6},q=(to%10000===0&&to>=10000)?10000:(to%100===0?100:1);tl.to(o,{v:to,duration:.45,ease:"power2.out",onUpdate:function(){
 document.querySelectorAll(sel).forEach(function(e){e.textContent=(pre||'')+jpn(Math.round(o.v/q)*q,u)})}},t);}
 '''
 
@@ -293,10 +294,8 @@ def stage(spec, d, img_dir, doc_dir, cues):
             a = .15 if i == 0 else ck.at(None, ln, .15 + i * .45)
             js.append(f'tl.from("#t{i}",{{opacity:0,y:36,duration:.5,ease:"power3.out"}},{a:.2f});')
             for k, em in enumerate(re.findall(r'<em>(.*?)</em>', ln)):
-                mv = money(em)
-                if mv:
-                    js.append(f'countUp("#t{i} em",{mv[0]},"{mv[1]}",{a + .1:.2f},"{mv[2]}");')
-                js.append(f'tl.from("#t{i} em",{{scale:1.25,duration:.45,ease:"back.out(3)"}},{a + .9:.2f});')
+                # 큰 글자 판의 금액은 세지 않고 최종값을 바로 — 썸네일·첫 20초 표본에 중간값이 찍히지 않게(10-18 발굴)
+                js.append(f'tl.from("#t{i} em",{{scale:1.25,duration:.45,ease:"back.out(3)"}},{a + .3:.2f});')
         if spec.get('img'):
             css += '#ti{right:620px}#pic{position:absolute;right:40px;bottom:0}'
             body += f'<img id="pic" src="img/{spec["img"]}">'
@@ -406,7 +405,7 @@ def stage(spec, d, img_dir, doc_dir, cues):
         prev, times = .5, []
         for i, r in enumerate(spec['rows']):
             kw = (spec.get('at') or [None] * 12)[i] if spec.get('at') else None
-            a = max(prev, ck.at(kw, ' '.join(map(str, r)), prev + .6))
+            a = .4 if i == 0 else max(prev, ck.at(kw, ' '.join(map(str, r)), prev + .6))   # 첫 행은 장면과 같이 — 빈 표 화면 12%(10-18 발굴)
             times.append(a)
             js.append(f'tl.from("#r{i}",{{opacity:0,x:-30,duration:.4,ease:"power2.out"}},{a:.2f});')
             js.append(f'tl.to("#r{i} .mk",{{scaleY:1,duration:.25}},{a + .1:.2f});')
@@ -418,6 +417,58 @@ def stage(spec, d, img_dir, doc_dir, cues):
                     sel = f'#r{i} td:nth-child({j + 1})' + (' span' if '<span' in str(c) else '')
                     js.append(f'countUp("{sel}",{mv[0]},"{mv[1]}",{a + .05:.2f},"{mv[2]}");')
             prev = a + .35
+        return css, body, js
+    if t == 'bars':           # 막대그래프 — 묶음이 말 순서대로 자라고, 값은 막대 끝에서 세며 올라간다(10-18 발굴: 그래프 0장)
+        groups = spec['groups']
+        top = spec.get('max') or max(sum(b['value'] for b in g['bars']) if spec.get('stack') else max(b['value'] for b in g['bars']) for g in groups)
+        W = spec.get('bw', 1050)
+        css = f'''#bc{{position:absolute;left:0;right:0;top:0;bottom:0;margin:auto;width:{spec.get("w", 1600)}px;height:max-content;padding:22px 48px 30px}}
+#bc .g{{display:flex;align-items:center;margin:18px 0}}
+#bc .h{{font-weight:900;font-size:52px;color:{AI};margin-bottom:10px}}
+#bc .gl{{flex:none;width:300px;white-space:nowrap;font-weight:900;font-size:{spec.get("size", 56)}px;color:{SUMI}}}
+#bc .bs{{flex:1}}
+#bc .b{{display:flex;align-items:center;margin:8px 0}}
+#bc .bar{{height:{spec.get("bh", 64)}px;background:#9AA7B8;transform-origin:left center;border-radius:4px}}
+#bc .bar.r{{background:{SHU}}}
+#bc .seg{{display:inline-block;height:100%;transform-origin:left center}}
+#bc .bn{{flex:none;white-space:nowrap;font-weight:800;font-size:42px;color:#555;width:200px}}
+#bc .bv{{font-weight:900;font-size:{spec.get("size", 56)}px;margin-left:18px;white-space:nowrap}}
+#bc .bv.r{{color:{SHU}}}
+#bc .lg{{font-weight:800;font-size:38px;color:#555;margin-top:10px}}
+#bc .lg i{{display:inline-block;width:34px;height:26px;margin:0 10px 0 26px;vertical-align:-3px}}
+#nt{{position:absolute;left:0;right:0;bottom:60px;text-align:center;font-weight:900;font-size:60px;color:{SHU};word-break:auto-phrase}}'''
+        body, prev = '<div id="bc" class="card">' + (f'<div class="h">{esc(spec["title"])}</div>' if spec.get('title') else ''), .3
+        for i, g in enumerate(groups):
+            body += f'<div class="g" id="g{i}"><div class="gl">{esc(g["label"])}</div><div class="bs">'
+            if spec.get('stack'):
+                tot = sum(b['value'] for b in g['bars'])
+                segs = ''.join(f'<i class="seg" id="g{i}s{k}" style="width:{b["value"] / tot * 100:.2f}%;background:{b.get("color", SHU if b.get("red") else "#9AA7B8")}"></i>'
+                               for k, b in enumerate(g['bars']))
+                body += (f'<div class="b"><div class="bar" style="width:{tot / top * W:.0f}px;background:none;display:flex">{segs}</div>'
+                         f'<b class="bv{" r" if g.get("red") else ""}" id="g{i}v0">{esc(g.get("total_label", ""))}</b></div>')
+            else:
+                for k, b in enumerate(g['bars']):
+                    body += (f'<div class="b">' + (f'<span class="bn">{esc(b["name"])}</span>' if b.get('name') else '')
+                             + f'<div class="bar{" r" if b.get("red") else ""}" id="g{i}b{k}" style="width:{b["value"] / top * W:.0f}px"></div>'
+                             f'<b class="bv{" r" if b.get("red") else ""}" id="g{i}v{k}">{esc(b["label"])}</b></div>')
+            body += '</div></div>'
+            kw = (spec.get('at') or [None] * 12)[i] if spec.get('at') else None
+            a = .4 if i == 0 else max(prev, ck.at(kw, g['label'], prev + .8))
+            js.append(f'tl.from("#g{i}",{{opacity:0,duration:.3}},{a:.2f});')
+            if spec.get('stack'):
+                for k, b in enumerate(g['bars']):
+                    js.append(f'tl.from("#g{i}s{k}",{{scaleX:0,duration:.5,ease:"power2.out"}},{a + .1 + k * .55:.2f});')
+                js.append(f'tl.from("#g{i}v0",{{opacity:0,x:-20,duration:.3}},{a + .1 + len(g["bars"]) * .55:.2f});')
+            else:
+                for k, b in enumerate(g['bars']):
+                    js.append(f'tl.from("#g{i}b{k}",{{scaleX:0,duration:.55,ease:"power2.out"}},{a + .1 + k * .35:.2f});')
+                    js.append(f'tl.from("#g{i}v{k}",{{opacity:0,x:-20,duration:.3}},{a + .45 + k * .35:.2f});')
+            prev = a + .6
+        if spec.get('legend'):
+            body += '<div class="lg">' + ''.join(f'<i style="background:{c}"></i>{esc(n)}' for n, c in spec['legend']) + '</div>'
+        body += '</div>' + (f'<div id="nt">{esc(spec["note"])}</div>' if spec.get('note') else '')
+        if spec.get('note'):
+            js.append(f'tl.from("#nt",{{opacity:0,y:16,duration:.4}},{max(prev, ck.at(None, spec["note"], prev + .4)):.2f});')
         return css, body, js
     if t in ('toc', 'list'):  # 목차·목록 — 항목이 말할 때 들어오고, 앞 항목은 옅어진다(지금 말하는 것에 눈이 가게)
         on = spec.get('on', -1)
