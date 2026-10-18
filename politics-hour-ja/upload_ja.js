@@ -34,12 +34,12 @@ async function main() {
     if (!last) throw new Error('yt-upload 결과에 videoId 없음');
     videoId = JSON.parse(last).videoId;
   }
-  // 처리 완료 확인은 ko politics-hour/yt_processed.js 를 쓴다 — yt_tags_ja·views_check_ja 가 succeeded 아니면 종료코드 5로 멈춘다
+  // 처리 완료 확인은 ko politics-hour/yt_processed.js 를 쓴다 — yt_tags_ja·ko views_check(8265b53, JA 바닥·조회 0 보류 포함) 가 succeeded 아니면 종료코드 5로 멈춘다
   const done = await require('../politics-hour/yt_processed')(videoId, await auth());
   if (done !== true) { console.error(`[upload-ja] 처리 완료 아님 — ${done} · 태그·점검 안 걸고 멈춤, 관리자 보고`); process.exit(5); }
   if (!at) at = (await (await fetch(`https://www.googleapis.com/youtube/v3/videos?part=status&id=${videoId}`, { headers: await auth() })).json()).items[0].status.publishAt;
   execFileSync('node', [path.join(__dirname, 'yt_tags_ja.js'), videoId, meta, '--gate'], { cwd: ROOT, stdio: 'inherit' });
-  if (at) execFileSync('node', [path.join(__dirname, 'views_check_ja.js'), videoId, '--schedule', at], { cwd: ROOT, stdio: 'inherit' });
+  if (at) execFileSync('node', [path.join(ROOT, 'politics-hour', 'views_check.js'), videoId, '--schedule', at], { cwd: ROOT, stdio: 'inherit' });
   const pk = path.join(ep, 'packages.json');
   if (fs.existsSync(pk)) {
     const p = JSON.parse(fs.readFileSync(pk, 'utf8'));
