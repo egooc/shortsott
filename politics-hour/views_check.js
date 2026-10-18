@@ -116,13 +116,13 @@ async function repack(videoId, h, views, H) {
       const pad = (n) => String(n).padStart(2, '0');
       const day = `${t.getFullYear()}/${pad(t.getMonth() + 1)}/${pad(t.getDate())}`;   // 로컬 시각(KST)
       const hm = `${pad(t.getHours())}:${pad(t.getMinutes())}`;
-      const cmd = `cmd /c cd /d ${path.join(__dirname, '..')} && node politics-hour\\views_check.js ${videoId} ${h} >> server\\data\\politics_views_task.log 2>&1`;
+      const cmd = `cmd /c cd /d ${path.join(__dirname, '..')} && node politics-hour\\views_check.js ${videoId} ${h} >> server\\data\\politics_views_task_${videoId}.log 2>&1`;
       execFileSync('schtasks', ['/Create', '/F', '/SC', 'ONCE', '/TN', `politics_views_${videoId}_${h}h`, '/SD', day, '/ST', hm, '/TR', cmd], { stdio: 'inherit' });
       console.log(`[views] 등록 ${videoId} +${h}h → ${day} ${hm}`);
     }
     if (!process.argv.includes('--short')) {   // 1주 뒤에도 끝내지 않는다: 매일 07:00 점검(교체는 주 1회) — 소유주 10-18
       const t = new Date(pub.getTime() + 192 * 3600e3), pad = (n) => String(n).padStart(2, '0');
-      const cmd = `cmd /c cd /d ${path.join(__dirname, '..')} && node politics-hour\\views_check.js ${videoId} auto >> server\\data\\politics_views_task.log 2>&1`;
+      const cmd = `cmd /c cd /d ${path.join(__dirname, '..')} && node politics-hour\\views_check.js ${videoId} auto >> server\\data\\politics_views_task_${videoId}.log 2>&1`;
       execFileSync('schtasks', ['/Create', '/F', '/SC', 'DAILY', '/TN', `politics_views_${videoId}_daily`, '/SD', `${t.getFullYear()}/${pad(t.getMonth() + 1)}/${pad(t.getDate())}`, '/ST', '07:00', '/TR', cmd], { stdio: 'inherit' });
       console.log(`[views] 등록 ${videoId} 매일 07:00 (+192h부터, 교체는 주 1회)`);
     }
