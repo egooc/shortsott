@@ -28,7 +28,8 @@ def hits(text, lang='ko', lane=None, W=None):
     """[(범주, [낱말…])] — 걸린 것만."""
     W = W or load()
     L = W[lang]
-    t = re.sub(r'#', ' ', text or '')
+    t = re.sub(r'https?://\S+|@\S+', ' ', text or '')   # 원작자 @핸들·URL 은 낱말 맞추기 전에 지운다(N100 «@shitonthebeach» 오탐, 10-18)
+    t = re.sub(r'#', ' ', t)
     ex = W['exclude']
     for x in ex.get('common', []) + ex.get(f'{lang}_common', []) + (ex.get(lane, []) if lane else []):
         t = t.replace(x, ' ')

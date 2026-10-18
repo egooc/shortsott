@@ -35,4 +35,5 @@ assert cats('사업의 시발점') == [] and cats('존나 웃김') == ['욕설']
 assert cats('三匹が斬る！の殺陣', 'ja', 'jp_highlight') == [] and '칼·흉기' in cats('辻斬りが出る', 'ja', 'jp_highlight')
 assert '총기' in cats('鉄砲を構え', 'ja') and cats('銃後の守り', 'ja') == []
 assert cats('子どもの頃から助け合って', 'ja') == [] and '어린아이 대상' in cats('子どもたちが', 'ja')   # 어린 시절 회상은 아동 대상 아님(.4)
+assert cats('원작 @shitonthebeach https://youtu.be/shit_x') == [] and cats('shit happens') == ['욕설']   # 핸들·URL 은 안 본다(.5)
 print('OK')
