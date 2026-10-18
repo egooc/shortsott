@@ -25,8 +25,8 @@ const ALERT = path.join(DATA, 'politics_alerts.jsonl');
 const append = (f, o) => fs.appendFileSync(f, JSON.stringify(o) + '\n', 'utf8');
 const HOURS = [4, 8, 12, 24, 48, 72, 96, 120, 144, 168];   // 첫날 4시간마다(새 영상 노출이 몰리는 때), 그 뒤 하루 한 번 1주 — 안 나오면 계속 돌린다(10-18 소유주)
 const FLOOR_SCALE = { politics_ja: 0.5 };   // 채널별 바닥 배율 — JA 는 ko 의 절반(관리자 10-18, JA 사본 값)
-// 공개 뒤 조회 0인 롱폼(소유주 «피드 0 = 가이드 의심»): 이 채널들은 교체로 덮지 않고 보고만. ko 는 10/18 실측(교체 70분 만에 0→72)대로 교체 + 같은 줄 경고.
-const ZERO_HOLD = new Set(['politics_ja']);
+// 공개 뒤 조회 0인 롱폼: 교체 보류 채널(지금은 없음). 관리자 10-18 통일 — 롱폼은 «키워드·태그가 문제»(10/18 교체 70분 만에 0→72)라 0이어도 교체 + alerts 에 가이드 의심 경고. 피드 0 = 가이드 비공개는 쇼츠(+6h)만.
+const ZERO_HOLD = new Set([]);
 const FLOOR = { 3: 20, 6: 40, 4: 25, 8: 50, 12: 70, 24: 100, 48: 200, 72: 300, 96: 350, 120: 400, 144: 450, 168: 500 };   // 롱폼 «아예 안 받는» 선 — 10/15 2,663회·10/17 +6h 19회 실측 기준, 데이터 쌓이면 조정
 
 async function auth(purpose = 'politics') {   // 채널 = packages.json 의 purpose(다른 롱폼 레인, 도구개발 10-18)
