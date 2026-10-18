@@ -18,6 +18,8 @@ const { OAuth2Client } = require(path.join(__dirname, '..', 'node_modules', 'goo
   c.setCredentials({ refresh_token: p.refreshToken });
   const H = { Authorization: `Bearer ${(await c.getAccessToken()).token}`, 'Content-Type': 'application/json' };
   const get = async () => (await (await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}`, { headers: H })).json()).items?.[0];
+  const done = await require('../politics-hour/yt_processed')(videoId, H);   // 처리 거절된 영상엔 관문을 걸지 않는다(관리자 §7 10-18) — ko 파일 그대로 호출
+  if (done !== true) { console.log(`[tags] 처리 완료 아님 — ${done} · 태그·예약 관문 중단, 관리자 보고`); process.exit(5); }
   const item = await get();
   if (!item) throw new Error(`영상 없음 ${videoId}`);
   console.log(`[tags] ${item.snippet.title.slice(0, 50)} — 지금 ${(item.snippet.tags || []).length}개 → ${tags.length}개`);

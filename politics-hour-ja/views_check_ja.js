@@ -88,6 +88,12 @@ async function repack(videoId, h, views, H) {
   if (a2 === '--schedule') {
     const pub = new Date(a3);
     if (isNaN(pub)) throw new Error('publishAt 이 날짜가 아니다');
+    const done = await require('../politics-hour/yt_processed')(videoId, await auth());   // 처리 거절된 영상엔 점검을 등록하지 않는다(관리자 §7 10-18) — ko 파일 그대로 호출
+    if (done !== true) {
+      console.log(`[views] ${videoId} 처리 완료 아님 — ${done} · 점검 등록 안 함`);
+      append(ALERT, { at: new Date().toISOString(), id: videoId, channel: 'ja', alert: `업로드 처리 완료 아님(${done}) — 점검 등록 안 함, 관리자 보고` });
+      process.exit(5);
+    }
     for (const h of HOURS) {
       const t = new Date(pub.getTime() + h * 3600e3);
       if (t < Date.now()) continue;   // 이미 지난 점검은 건너뛴다(오래된 편에 늦게 걸 때)
