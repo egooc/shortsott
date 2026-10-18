@@ -9,6 +9,7 @@
 하나라도 어긋나면 exit 3 — 업로드하지 말고 관리자에게 보고."""
 import json, sys
 from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts')); import guide_words   # 가이드 낱말 공용 판정(소유주 10-18 «조회 0 = 가이드 위반»)
 
 ep = Path(sys.argv[1])
 bad = []
@@ -88,6 +89,7 @@ for up in sys.argv[2:]:
     first = [c.split('|')[-1] for c in (seq[0]['captions'][:3] if seq else [])]
     hay = ' '.join([*pj.get('title', []), *[c for n in pj.get('narration', []) for c in n.get('cards', [])], *first])
     need(big_words(ep / 'thumb' / f'thumb_k_{name}.json'), hay, f'{name} 첫 5초(제목·해설 카드·첫 자막)')
+bad += guide_words.gate_lines([*sys.argv[2:], *[p for p in [ep / 'packages.json'] if p.exists()]], lang='ko', lane='politics')   # 제목·설명·태그·썸네일 낱말, 우회 GUIDE_OK=1 은 소유주 말 있을 때만
 for b in bad:
     print('[gate] FAIL', b)
 if bad:
