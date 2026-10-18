@@ -62,6 +62,19 @@ for up in sys.argv[2:]:
     t = json.loads(Path(up).read_text(encoding='utf-8')).get('title', '')
     if top and not t.startswith(top):
         bad.append(f'{Path(up).name}: 제목 «{t}» 이 썸네일 1순위 낱말 «{top}» 으로 시작하지 않음')
+# 자동 교체 대체 포장(packages.json 1번~, 관리자 10-18): 포장마다 big(인용 썸네일의 핵심 낱말)이 있어야 하고,
+# 제목은 big[0] 으로 시작, big 낱말은 롱폼 첫 30초에 나와야 한다 — 교체 순간엔 사람이 못 보니 업로드 전에 미리 통과시킨다.
+pkp = ep / 'packages.json'
+if pkp.exists() and epj.exists():
+    for i, pkg in enumerate(json.loads(pkp.read_text(encoding='utf-8'))['packages'][1:], 1):
+        if not pkg.get('big'):
+            bad.append(f'packages.json {i}번: big(핵심 낱말) 없음')
+            continue
+        if not pkg['title'].startswith(pkg['big'][0]):
+            bad.append(f'packages.json {i}번: 제목 «{pkg["title"]}» 이 «{pkg["big"][0]}» 으로 시작하지 않음')
+        if not (Path(__file__).resolve().parent.parent / pkg['thumbnail']).exists():
+            bad.append(f'packages.json {i}번: 썸네일 없음 {pkg["thumbnail"]}')
+        need(pkg['big'], hay, f'packages.json {i}번 첫 30초')
 for up in sys.argv[2:]:
     if 'shorts' not in Path(up).resolve().parts:
         continue
