@@ -34,4 +34,5 @@ assert cats('아기 고양이 구조') == [] and cats('커터칼로 보온재를
 assert cats('사업의 시발점') == [] and cats('존나 웃김') == ['욕설'] and cats('WHAT THE FUCK') == ['욕설']
 assert cats('三匹が斬る！の殺陣', 'ja', 'jp_highlight') == [] and '칼·흉기' in cats('辻斬りが出る', 'ja', 'jp_highlight')
 assert '총기' in cats('鉄砲を構え', 'ja') and cats('銃後の守り', 'ja') == []
+assert cats('子どもの頃から助け合って', 'ja') == [] and '어린아이 대상' in cats('子どもたちが', 'ja')   # 어린 시절 회상은 아동 대상 아님(.4)
 print('OK')
