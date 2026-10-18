@@ -66,7 +66,8 @@ async function repack(videoId, h, views, H) {
   }
   pk.applied.push({ idx, at: new Date().toISOString(), h, views, from: title });
   fs.writeFileSync(pf, JSON.stringify(pk, null, 2) + '\n', 'utf8');
-  return { idx, title: next.title || title, style: next.style };
+  // 마지막 대체 포장을 걸었으면 «소진» 표시 — 다음 점검 전에 세션이 새 포장(롱폼 속 다른 발언·게이트 통과)을 붙인다(관리자 10-18). 없으면 순환은 최후 수단
+  return { idx, title: next.title || title, style: next.style, exhausted: idx === n };
 }
 
 (async () => {
@@ -108,7 +109,7 @@ async function repack(videoId, h, views, H) {
   console.log(`[views] ${videoId} +${h}h 조회 ${views} · 직전 편 ${prev ? `${prev.id} ${prev.views}` : '기록 없음(첫 기준)'} · ${why ? `미달(${why})` : '통과'}`);
   if (why) {
     const sw = long && !process.argv.includes('--no-repack') ? await repack(videoId, h, views, H) : null;
-    const msg = sw?.kept ? `포장 ${sw.idx}번 유지(직전 교체 3시간 안)` : sw ? `포장 ${sw.idx}번(${sw.style || ''})으로 자동 교체 «${sw.title}»` : '교체할 포장 없음 — 제목·태그·썸네일부터 다시(재업로드 금지)';
+    const msg = sw?.kept ? `포장 ${sw.idx}번 유지(직전 교체 3시간 안)` : sw ? `포장 ${sw.idx}번(${sw.style || ''})으로 자동 교체 «${sw.title}»${sw.exhausted ? ' · 포장 소진 — 새 포장 필요' : ''}` : '교체할 포장 없음 — 제목·태그·썸네일부터 다시(재업로드 금지)';
     console.log(`[views] ${msg}`);
     append(ALERT, { ...row, alert: `공개 +${h}h 조회 ${views} 미달(${why}) — ${msg}, 관리자 보고`, repack: sw });
     process.exit(4);
