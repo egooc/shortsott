@@ -1,10 +1,16 @@
 // 공개 뒤 조회 사후 점검(관리자·소유주 10-17): 공개 +3h·+6h 조회가 전날 편 같은 시점의 절반 미만이면 제목·태그·썸네일부터 다시 쓴다(재업로드 금지).
 //
 //   node politics-hour/views_check.js <videoId> <시간 3|6>                 지금 조회를 기록하고 직전 편 같은 시점과 비교
-//   node politics-hour/views_check.js <videoId> --schedule <publishAt ISO>   +3h·+6h 에 위 점검이 돌게 Windows 작업 스케줄러에 1회성 작업 2개 등록
+//   node politics-hour/views_check.js <videoId> --schedule <publishAt ISO>   +3h·+6h·+24h 에 위 점검이 돌게 Windows 작업 스케줄러에 1회성 작업 3개 등록
 //
 // ★Data API 는 «지금» 조회만 준다 — 전날 같은 시점 값은 이 스크립트가 날마다 남긴 기록(server/data/politics_views.jsonl)에서 찾는다.
 // 미달이면 server/data/politics_alerts.jsonl 에 한 줄 남기고 exit 4 — 관리자 보고는 이 줄을 보고 한다(스케줄 작업은 세션에 말을 못 건다).
+//
+// ★자동 포장 교체(10-18 소유주 «성과가 아예 없으면 썸네일·키워드를 자동으로 바꿔 줘야»): 롱폼이 미달이면
+//   에피소드 폴더의 packages.json 에서 아직 안 쓴 다음 포장(제목+썸네일)을 그 자리에서 API 로 갈아 끼운다(재업로드 아님).
+//   미달 = 바닥값(FLOOR) 미만 또는 직전 편 같은 시점의 절반 미만. 포장이 다 떨어지면 알림만. --no-repack 이면 교체 안 함.
+//   packages.json: {"video_id": "...", "packages": [{"title", "thumbnail", "style"}, ...], "applied": [{"idx", "at", "h", "views"}]}
+//   packages[0] 은 업로드 때 포장(기록용) — 교체는 1번부터. 키워드(keywords.json 1~2위)는 대체 제목에도 남긴다.
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
@@ -14,14 +20,46 @@ const DATA = path.join(__dirname, '..', 'server', 'data');
 const LOG = path.join(DATA, 'politics_views.jsonl');
 const ALERT = path.join(DATA, 'politics_alerts.jsonl');
 const append = (f, o) => fs.appendFileSync(f, JSON.stringify(o) + '\n', 'utf8');
+const HOURS = [3, 6, 24];
+const FLOOR = { 3: 20, 6: 40, 24: 100 };   // 롱폼 «아예 안 받는» 선 — 10/15 2,663회·10/17 +6h 19회 실측 기준, 데이터 쌓이면 조정
+
+// 다음 포장으로 교체 — 성공하면 {idx, title, style}, 쓸 포장이 없으면 null
+async function repack(videoId, h, views, H) {
+  const eps = path.join(__dirname, 'episodes');
+  const pf = fs.readdirSync(eps).map((d) => path.join(eps, d, 'packages.json'))
+    .find((f) => fs.existsSync(f) && JSON.parse(fs.readFileSync(f, 'utf8')).video_id === videoId);
+  if (!pf) return null;
+  const pk = JSON.parse(fs.readFileSync(pf, 'utf8'));
+  pk.applied = pk.applied || [];
+  const idx = Math.max(0, ...pk.applied.map((a) => a.idx)) + 1;
+  const next = pk.packages[idx];
+  if (!next) return null;
+  const v = (await (await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}`, { headers: H })).json()).items[0];
+  const { title, description, tags, categoryId, defaultLanguage } = v.snippet;
+  const up = await fetch('https://www.googleapis.com/youtube/v3/videos?part=snippet', {
+    method: 'PUT', headers: { ...H, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: videoId, snippet: { title: next.title || title, description, tags, categoryId, defaultLanguage } }),
+  });
+  if (!up.ok) throw new Error(`제목 교체 실패 ${up.status}: ${(await up.text()).slice(0, 200)}`);
+  if (next.thumbnail) {
+    const img = fs.readFileSync(path.join(__dirname, '..', next.thumbnail));
+    const tr = await fetch(`https://www.googleapis.com/upload/youtube/v3/thumbnails/set?videoId=${videoId}`, {
+      method: 'POST', headers: { ...H, 'Content-Type': next.thumbnail.endsWith('.png') ? 'image/png' : 'image/jpeg' }, body: img,
+    });
+    if (!tr.ok) throw new Error(`썸네일 교체 실패 ${tr.status}: ${(await tr.text()).slice(0, 200)}`);
+  }
+  pk.applied.push({ idx, at: new Date().toISOString(), h, views, from: title });
+  fs.writeFileSync(pf, JSON.stringify(pk, null, 2) + '\n', 'utf8');
+  return { idx, title: next.title || title, style: next.style };
+}
 
 (async () => {
   const [videoId, a2, a3] = process.argv.slice(2);
-  if (!videoId || !a2) throw new Error('usage: node politics-hour/views_check.js <videoId> <3|6> | --schedule <publishAt>');
+  if (!videoId || !a2) throw new Error('usage: node politics-hour/views_check.js <videoId> <3|6|24> [--no-repack] | --schedule <publishAt>');
   if (a2 === '--schedule') {
     const pub = new Date(a3);
     if (isNaN(pub)) throw new Error('publishAt 이 날짜가 아니다');
-    for (const h of [3, 6]) {
+    for (const h of HOURS) {
       const t = new Date(pub.getTime() + h * 3600e3);
       const pad = (n) => String(n).padStart(2, '0');
       const day = `${t.getFullYear()}/${pad(t.getMonth() + 1)}/${pad(t.getDate())}`;   // 로컬 시각(KST)
@@ -46,10 +84,14 @@ const append = (f, o) => fs.appendFileSync(f, JSON.stringify(o) + '\n', 'utf8');
   const prev = rows.filter((r) => r.h === h && r.long === long && r.id !== videoId).pop();
   const row = { at: new Date().toISOString(), id: videoId, h, long, views, title: v.snippet.title, prev: prev ? { id: prev.id, views: prev.views } : null };
   append(LOG, row);
-  const low = prev && views < prev.views / 2;
-  console.log(`[views] ${videoId} +${h}h 조회 ${views} · 직전 편 ${prev ? `${prev.id} ${prev.views}` : '기록 없음(첫 기준)'} · ${low ? '미달 — 제목·태그·썸네일 다시' : '통과'}`);
-  if (low) {
-    append(ALERT, { ...row, alert: `공개 +${h}h 조회 ${views} < 직전 편 ${prev.views}의 절반 — 제목·태그·썸네일부터 다시(재업로드 금지), 관리자 보고` });
+  const floor = long ? FLOOR[h] || 0 : 0;
+  const why = [views < floor ? `바닥 ${floor} 미만` : '', prev && views < prev.views / 2 ? `직전 편 ${prev.views}의 절반 미만` : ''].filter(Boolean).join(' · ');
+  console.log(`[views] ${videoId} +${h}h 조회 ${views} · 직전 편 ${prev ? `${prev.id} ${prev.views}` : '기록 없음(첫 기준)'} · ${why ? `미달(${why})` : '통과'}`);
+  if (why) {
+    const sw = long && !process.argv.includes('--no-repack') ? await repack(videoId, h, views, H) : null;
+    const msg = sw ? `포장 ${sw.idx}번(${sw.style || ''})으로 자동 교체 «${sw.title}»` : '교체할 포장 없음 — 제목·태그·썸네일부터 다시(재업로드 금지)';
+    console.log(`[views] ${msg}`);
+    append(ALERT, { ...row, alert: `공개 +${h}h 조회 ${views} 미달(${why}) — ${msg}, 관리자 보고`, repack: sw });
     process.exit(4);
   }
 })().catch((e) => { console.error('[views]', e.message); process.exit(1); });
