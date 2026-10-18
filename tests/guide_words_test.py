@@ -12,6 +12,7 @@ import guide_words as G  # noqa: E402
 
 W = G.load()
 assert set(W) >= {'ko', 'ja', 'exclude'} and 'common' in W['exclude']
+assert W.get("_version"), "정본 _version 없음 — 바꿀 때마다 날짜.번호 올리고 변경 보고에 한 줄"
 assert len(W['ko']['categories']) == 7 and len(W['ja']['categories']) == 7
 cats = lambda t, lang='ko', lane=None: [c for c, _ in G.hits(t, lang, lane, W)]
 assert cats('펄펄 끓는 물에 손 넣었더니') == ['위험 행위']
