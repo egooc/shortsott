@@ -25,8 +25,8 @@ const DATA = path.join(__dirname, '..', 'server', 'data');
 const LOG = path.join(DATA, 'politics_ja_views.jsonl');
 const ALERT = path.join(DATA, 'politics_alerts.jsonl');
 const append = (f, o) => fs.appendFileSync(f, JSON.stringify(o) + '\n', 'utf8');
-const HOURS = [3, 6, 24];   // ja 는 관리자 10-18 값으로 시작 — ko 는 4·8·12·24…168   // 첫날 4시간마다(새 영상 노출이 몰리는 때), 그 뒤 하루 한 번 1주 — 안 나오면 계속 돌린다(10-18 소유주)
-const FLOOR = { 3: 10, 6: 20, 24: 50 };   // 롱폼 «아예 안 받는» 선 — 10/15 2,663회·10/17 +6h 19회 실측 기준, 데이터 쌓이면 조정
+const HOURS = [3, 6, 24, 48, 72, 96, 120, 144, 168];   // 10-18 관리자: +3·+6·+24h 뒤 1주 매일, 그 뒤는 매일 작업(daily)이 하루 1회 점검·주 1회 교체   // ja 는 관리자 10-18 값으로 시작 — ko 는 4·8·12·24…168   // 첫날 4시간마다(새 영상 노출이 몰리는 때), 그 뒤 하루 한 번 1주 — 안 나오면 계속 돌린다(10-18 소유주)
+const FLOOR = { 3: 10, 6: 20, 24: 50, 48: 100, 72: 150, 96: 175, 120: 200, 144: 225, 168: 250, daily: 250 };   // 48h~ 는 ko 바닥의 절반(3·6·24h 와 같은 비율)   // 롱폼 «아예 안 받는» 선 — 10/15 2,663회·10/17 +6h 19회 실측 기준, 데이터 쌓이면 조정
 
 async function auth() {
   const store = JSON.parse(fs.readFileSync(path.join(DATA, 'youtube_upload_profiles.json'), 'utf8'));
@@ -54,14 +54,23 @@ async function repack(videoId, h, views, H) {
   if (lastA && h !== 'now' && Date.now() - new Date(lastA.at) < 3 * 3600e3) {
     return { idx: lastA.idx, title: pk.packages[lastA.idx].title, style: '직전 교체 3시간 안 — 유지', kept: true };
   }
+  // 1주 뒤 매일 점검(daily)은 주 1회만 교체 — 새 묶음이 한 주 노출을 받게 둔다(10-18 관리자)
+  if (lastA && h === 'daily' && Date.now() - new Date(lastA.at) < 7 * 86400e3) {
+    return { idx: lastA.idx, title: pk.packages[lastA.idx].title, style: '직전 교체 7일 안 — 유지', kept: true };
+  }
   const last = lastA ? lastA.idx : 0;
   const idx = (last % n) + 1;
   const next = pk.packages[idx];
   const v = (await (await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}`, { headers: H })).json()).items[0];
   const { title, description, tags, categoryId, defaultLanguage } = v.snippet;
+  // 묶음 = 제목·썸네일·태그·해시태그·설명 첫 두 줄(10-18 소유주 «썸네일·제목·키워드·해시태그 다 성과에 따라 수정»)
+  let desc = description;
+  if (next.desc_head?.length) desc = [...next.desc_head, ...desc.split('\n').slice(next.desc_head.length)].join('\n');
+  if (next.hashtags?.length) desc = desc.replace(/\n(#\S+\s*)+$/, '') + '\n\n' + next.hashtags.join(' ');
+  desc = desc.replace(/\n{3,}/g, '\n\n');
   const up = await fetch('https://www.googleapis.com/youtube/v3/videos?part=snippet', {
     method: 'PUT', headers: { ...H, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id: videoId, snippet: { title: next.title || title, description, tags, categoryId, defaultLanguage } }),
+    body: JSON.stringify({ id: videoId, snippet: { title: next.title || title, description: desc, tags: next.tags?.length ? next.tags : tags, categoryId, defaultLanguage } }),
   });
   if (!up.ok) throw new Error(`제목 교체 실패 ${up.status}: ${(await up.text()).slice(0, 200)}`);
   if (next.thumbnail) {
@@ -73,7 +82,8 @@ async function repack(videoId, h, views, H) {
   }
   pk.applied.push({ idx, at: new Date().toISOString(), h, views, from: title });
   fs.writeFileSync(pf, JSON.stringify(pk, null, 2) + '\n', 'utf8');
-  return { idx, title: next.title || title, style: next.style };
+  // 마지막 대체 묶음을 걸었으면 «소진» — 관리자에게 알리고 세션이 새 묶음을 붙인다. 못 붙이면 1번부터 다시 돈다
+  return { idx, title: next.title || title, style: next.style, exhausted: idx === n };
 }
 
 (async () => {
@@ -104,9 +114,17 @@ async function repack(videoId, h, views, H) {
       execFileSync('schtasks', ['/Create', '/F', '/SC', 'ONCE', '/TN', `politics_ja_views_${videoId}_${h}h`, '/SD', day, '/ST', hm, '/TR', cmd], { stdio: 'inherit' });
       console.log(`[views] 등록 ${videoId} +${h}h → ${day} ${hm}`);
     }
+    {   // 1주 뒤부터 끝없이 하루 1회(교체는 주 1회) — 끝내지 않는다(10-18 관리자)
+      const t = new Date(pub.getTime() + 192 * 3600e3);
+      const pad = (n) => String(n).padStart(2, '0');
+      const day = `${t.getFullYear()}/${pad(t.getMonth() + 1)}/${pad(t.getDate())}`, hm = `${pad(t.getHours())}:${pad(t.getMinutes())}`;
+      const cmd = `cmd /c cd /d ${path.join(__dirname, '..')} && node politics-hour-ja\\views_check_ja.js ${videoId} daily >> server\\data\\politics_ja_views_task.log 2>&1`;
+      execFileSync('schtasks', ['/Create', '/F', '/SC', 'DAILY', '/TN', `politics_ja_views_${videoId}_daily`, '/SD', day, '/ST', hm, '/TR', cmd], { stdio: 'inherit' });
+      console.log(`[views] 등록 ${videoId} 매일 ${hm} (${day}부터)`);
+    }
     return;
   }
-  const h = Number(a2);
+  const h = a2 === 'daily' ? 'daily' : Number(a2);
   const H = await auth();
   const v = (await (await fetch(`https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet,contentDetails&id=${videoId}`, { headers: H })).json()).items?.[0];
   if (!v) throw new Error(`영상 없음 ${videoId}`);
@@ -127,7 +145,7 @@ async function repack(videoId, h, views, H) {
   }
   if (why) {
     const sw = long && !process.argv.includes('--no-repack') ? await repack(videoId, h, views, H) : null;
-    const msg = sw?.kept ? `포장 ${sw.idx}번 유지(직전 교체 3시간 안)` : sw ? `포장 ${sw.idx}번(${sw.style || ''})으로 자동 교체 «${sw.title}»` : '교체할 포장 없음 — 제목·태그·썸네일부터 다시(재업로드 금지)';
+    const msg = sw?.kept ? `포장 ${sw.idx}번 유지(${sw.style})` : sw?.exhausted ? `포장 ${sw.idx}번(${sw.style || ''})으로 자동 교체 «${sw.title}» — 대체 묶음 소진, 새 묶음 필요` : sw ? `포장 ${sw.idx}번(${sw.style || ''})으로 자동 교체 «${sw.title}»` : '교체할 포장 없음 — 제목·태그·썸네일부터 다시(재업로드 금지)';
     console.log(`[views] ${msg}`);
     append(ALERT, { ...row, channel: 'ja', alert: `공개 +${h}h 조회 ${views} 미달(${why}) — ${msg}, 관리자 보고`, repack: sw });
     process.exit(4);

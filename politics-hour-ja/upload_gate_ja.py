@@ -77,6 +77,17 @@ for i, pkg in enumerate(pkgs, 1):
     bad += [f'packages.json {i}번: «{w}» 이 첫 30초에 없음' for w in miss]
     if not miss:
         print(f'[gate-ja] PASS 대체 포장 {i}번 «{pkg["title"]}»')
+# 묶음마다 제목·썸네일·키워드·태그·해시태그·설명 첫 두 줄이 다 있어야 한다(10-18 소유주 «성과에 따라 계속 수정할 준비») — 교체 때 통째로 바뀐다
+if pkp.exists():
+    for i, pkg in enumerate(json.loads(pkp.read_text(encoding='utf-8'))['packages']):
+        miss = [k for k in ('title', 'thumbnail', 'keywords', 'tags', 'hashtags', 'desc_head') if not pkg.get(k)]
+        tag_len = sum(len(t) + (2 if ' ' in t else 0) for t in pkg.get('tags', [])) + max(len(pkg.get('tags', [])) - 1, 0)
+        if miss:
+            bad.append(f'packages.json {i}번 묶음: {"·".join(miss)} 없음')
+        elif len(pkg['desc_head']) != 2 or tag_len > 500 or not all(h.startswith('#') for h in pkg['hashtags']):
+            bad.append(f'packages.json {i}번 묶음: 설명 첫 줄 {len(pkg["desc_head"])}줄(2여야) · 태그 {tag_len}자(500 이하) · 해시태그 # 확인')
+        else:
+            print(f'[gate-ja] PASS {i}번 묶음 6칸(태그 {len(pkg["tags"])}개 {tag_len}자)')
 # 커뮤니티 가이드 낱말(10-18 소유주 «제재 없이 조회 0 = 가이드 위반», 정본 config/guide_words.json · 도구개발 공용 판정) — 걸리면 종료 4
 guide = guide_words.gate_lines([*sys.argv[2:], *[x for x in [ep / 'packages.json', ep / 'keywords.json'] if x.exists()]], lang='ja', lane='politics_ja')
 bad += guide
