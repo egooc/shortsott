@@ -13,7 +13,7 @@ import guide_words as G  # noqa: E402
 W = G.load()
 assert set(W) >= {'ko', 'ja', 'exclude'} and 'common' in W['exclude']
 assert W.get("_version"), "정본 _version 없음 — 바꿀 때마다 날짜.번호 올리고 변경 보고에 한 줄"
-assert len(W['ko']['categories']) == 7 and len(W['ja']['categories']) == 7
+assert len(W['ko']['categories']) == 8 and len(W['ja']['categories']) == 8   # 7범주 + 욕설(.3)
 cats = lambda t, lang='ko', lane=None: [c for c, _ in G.hits(t, lang, lane, W)]
 assert cats('펄펄 끓는 물에 손 넣었더니') == ['위험 행위']
 assert cats('끓는 물의 정체') == []                       # 대상만 있으면 안 걸림
@@ -30,4 +30,8 @@ with tempfile.TemporaryDirectory() as td:
     bad = G.gate_lines([str(p)], 'ko')
     assert len(bad) == 1 and '1번 제목' in bad[0], bad
     assert G.main(['--lang', 'ko', str(p)]) == 4
+assert cats('아기 고양이 구조') == [] and cats('커터칼로 보온재를') == [] and cats('총알처럼 빠른') == []   # N100 오탐(.3)
+assert cats('사업의 시발점') == [] and cats('존나 웃김') == ['욕설'] and cats('WHAT THE FUCK') == ['욕설']
+assert cats('三匹が斬る！の殺陣', 'ja', 'jp_highlight') == [] and '칼·흉기' in cats('辻斬りが出る', 'ja', 'jp_highlight')
+assert '총기' in cats('鉄砲を構え', 'ja') and cats('銃後の守り', 'ja') == []
 print('OK')

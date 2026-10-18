@@ -39,8 +39,9 @@ def hits(text, lang='ko', lane=None, W=None):
         act = [w for w in risky['actions'] if w in t]
         if obj and act:
             out.append(('위험 행위', obj + act))
+    tl = t.lower()   # 영문 욕설(fuck·shit)은 대소문자 무시
     for cat, words in L['categories'].items():
-        f = [w for w in words if w in t]
+        f = [w for w in words if w in t or (w.isascii() and w in tl)]
         if f:
             out.append((cat, f))
     return out
