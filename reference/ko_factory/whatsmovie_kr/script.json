@@ -8,7 +8,7 @@
   "rows": [
     {
       "id": "XEmCVNDRG7s",
-      "views": 2359184,
+      "views": 2359187,
       "sec": 60,
       "source": "auto",
       "speech_share": 1,
@@ -57,7 +57,7 @@
     },
     {
       "id": "d99AyrAEm2Y",
-      "views": 2473,
+      "views": 2474,
       "sec": 80,
       "source": "none",
       "speech_share": 0.0,
@@ -85,7 +85,7 @@
     },
     {
       "id": "RuPBGL6nVpg",
-      "views": 486001,
+      "views": 486293,
       "sec": 134,
       "source": "none",
       "speech_share": 0.0,
@@ -113,7 +113,7 @@
     },
     {
       "id": "XQHmT6hw8LU",
-      "views": 2014,
+      "views": 2016,
       "sec": 63,
       "source": "none",
       "speech_share": 0.0,
@@ -196,9 +196,9 @@
       "group": "bottom"
     },
     {
-      "id": "jRSyvtbRURI",
-      "views": 85313,
-      "sec": 79,
+      "id": "DRPUrpXTqMg",
+      "views": 85973,
+      "sec": 43,
       "source": "none",
       "speech_share": 0.0,
       "chars_per_min": 0.0,
@@ -212,20 +212,20 @@
       "ending_question": false,
       "endings": [],
       "transcript_ok": null,
-      "title_chars": 27,
+      "title_chars": 20,
       "title_digit": false,
       "title_q": false,
       "title_excl": false,
       "title_hashtags": 0,
       "title_bracket": false,
       "title_emoji": false,
-      "like_rate": 0.0032,
-      "comment_rate": 1e-05,
+      "like_rate": 0.0064,
+      "comment_rate": 3e-05,
       "group": "top"
     },
     {
       "id": "v17JuXcjMPM",
-      "views": 1726,
+      "views": 1727,
       "sec": 152,
       "source": "none",
       "speech_share": 0.0,
@@ -252,9 +252,9 @@
       "group": "bottom"
     },
     {
-      "id": "DRPUrpXTqMg",
-      "views": 83595,
-      "sec": 43,
+      "id": "jRSyvtbRURI",
+      "views": 85324,
+      "sec": 79,
       "source": "none",
       "speech_share": 0.0,
       "chars_per_min": 0.0,
@@ -268,20 +268,20 @@
       "ending_question": false,
       "endings": [],
       "transcript_ok": null,
-      "title_chars": 20,
+      "title_chars": 27,
       "title_digit": false,
       "title_q": false,
       "title_excl": false,
       "title_hashtags": 0,
       "title_bracket": false,
       "title_emoji": false,
-      "like_rate": 0.0064,
-      "comment_rate": 4e-05,
+      "like_rate": 0.0032,
+      "comment_rate": 1e-05,
       "group": "top"
     },
     {
       "id": "AiwFek5rzsM",
-      "views": 1711,
+      "views": 1712,
       "sec": 177,
       "source": "none",
       "speech_share": 0.0,
@@ -309,7 +309,7 @@
     },
     {
       "id": "Tw_TqaGbqCE",
-      "views": 75745,
+      "views": 75756,
       "sec": 156,
       "source": "none",
       "speech_share": 0.0,
@@ -337,7 +337,7 @@
     },
     {
       "id": "ebbwLfyDW3w",
-      "views": 1619,
+      "views": 1620,
       "sec": 105,
       "source": "none",
       "speech_share": 0.0,
@@ -365,7 +365,7 @@
     },
     {
       "id": "UDmEs4sLkAM",
-      "views": 71161,
+      "views": 71164,
       "sec": 53,
       "source": "none",
       "speech_share": 0.0,
@@ -421,7 +421,7 @@
     },
     {
       "id": "KyCERJzmrx4",
-      "views": 65327,
+      "views": 65597,
       "sec": 35,
       "source": "none",
       "speech_share": 0.0,
@@ -561,7 +561,7 @@
     },
     {
       "id": "NiUG9WoAXY8",
-      "views": 146,
+      "views": 149,
       "sec": 62,
       "source": "none",
       "speech_share": 0.0,
@@ -583,8 +583,8 @@
       "title_hashtags": 0,
       "title_bracket": false,
       "title_emoji": false,
-      "like_rate": 0.0137,
-      "comment_rate": 0.00685,
+      "like_rate": 0.0134,
+      "comment_rate": 0.00671,
       "group": "bottom"
     }
   ],
@@ -593,7 +593,7 @@
       "key": "like_rate",
       "top": 0.008,
       "bottom": 0.012,
-      "effect": -1.08
+      "effect": -1.07
     },
     {
       "key": "title_hashtags",

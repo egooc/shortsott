@@ -1,0 +1,114 @@
+{
+  "lang": "ko",
+  "ids": [
+    "DacCDOWimbI",
+    "CrN4JCZkUfc"
+  ],
+  "rows": [
+    {
+      "id": "DacCDOWimbI",
+      "views": 908822,
+      "sec": 1719,
+      "source": "speechmatics",
+      "speech_share": 0.62,
+      "chars_per_min": 204.0,
+      "first_speech_sec": 8.54,
+      "n_sentences": 338,
+      "avg_sentence_chars": 17.3,
+      "first_sentence": "2022년 5월 11일 밤, 텍사스 오스틴의 한 주택가 에서 여러 발의 총성이 울려 퍼집니다.",
+      "first_type": "number",
+      "last_sentence": "그녀가 끝내 달리지 못했던 길은 너무나 많이 남아 있었습니다.",
+      "ending_cta": false,
+      "ending_question": false,
+      "endings": [
+        [
+          "니다",
+          127
+        ],
+        [
+          "아",
+          11
+        ],
+        [
+          "나",
+          8
+        ],
+        [
+          "4",
+          6
+        ],
+        [
+          " 아",
+          5
+        ]
+      ],
+      "transcript_ok": true,
+      "title_chars": 52,
+      "title_digit": true,
+      "title_q": false,
+      "title_excl": false,
+      "title_hashtags": 0,
+      "title_bracket": true,
+      "title_emoji": false,
+      "like_rate": 0.0067,
+      "comment_rate": 0.00052,
+      "title": "살해되기 1시간 전, 그녀는 누군가와 식사를 하고 있었다 -FBI까지 나선 국제 추적(바디캠)",
+      "channel": "제니의 사건기록",
+      "pub": "2026-08-15",
+      "sentences_per_min": 11.8
+    },
+    {
+      "id": "CrN4JCZkUfc",
+      "views": 126180,
+      "sec": 1818,
+      "source": "speechmatics",
+      "speech_share": 0.595,
+      "chars_per_min": 203.4,
+      "first_speech_sec": 0.26,
+      "n_sentences": 473,
+      "avg_sentence_chars": 13.0,
+      "first_sentence": "2023년 12월 11일 아침, 미국 사우스캐롤라이나 형사 2명이 한 부부의 집을 찾아갑니다.",
+      "first_type": "number",
+      "last_sentence": "지폐의 일련 번호, 편의점에서 찍힌 신발 한 켤레, 그리고 사건 서류를 덥지 않은 수사관들의 8년이었습니다.",
+      "ending_cta": false,
+      "ending_question": false,
+      "endings": [
+        [
+          "니다",
+          154
+        ],
+        [
+          "아",
+          13
+        ],
+        [
+          "나",
+          10
+        ],
+        [
+          " 아",
+          8
+        ],
+        [
+          "스",
+          7
+        ]
+      ],
+      "transcript_ok": true,
+      "title_chars": 32,
+      "title_digit": true,
+      "title_q": false,
+      "title_excl": false,
+      "title_hashtags": 0,
+      "title_bracket": true,
+      "title_emoji": false,
+      "like_rate": 0.0081,
+      "comment_rate": 0.00023,
+      "title": "8년 동안 묻혀있던 일가족 4명 몰살 사건(미국실화바디캠)",
+      "channel": "로건의 현장기록",
+      "pub": "2026-10-11",
+      "sentences_per_min": 15.6
+    }
+  ],
+  "notes": []
+}
