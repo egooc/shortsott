@@ -76,6 +76,13 @@ if pkp.exists() and epj.exists():
         if not (Path(__file__).resolve().parent.parent / pkg['thumbnail']).exists():
             bad.append(f'packages.json {i}번: 썸네일 없음 {pkg["thumbnail"]}')
         need(pkg['big'], hay, f'packages.json {i}번 첫 30초')
+        if 'tags' in pkg and not 15 <= len(pkg['tags']) <= 25:   # 교체 때 태그도 통째로 바뀐다(관리자 10-18)
+            bad.append(f'packages.json {i}번: 태그 {len(pkg["tags"])}개 (15~25개여야 함)')
+        if 'tags' in pkg or 'desc_head' in pkg:
+            phay = ' '.join([pkg['title'], *pkg.get('desc_head', []), *pkg.get('tags', [])])
+            for k in kws:
+                if k.split('(')[0].strip() not in phay:
+                    bad.append(f'packages.json {i}번: 키워드 «{k}» 가 제목·desc_head·tags 에 없음')
 for up in sys.argv[2:]:
     if 'shorts' not in Path(up).resolve().parts:
         continue
