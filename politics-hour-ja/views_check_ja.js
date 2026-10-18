@@ -25,8 +25,8 @@ const DATA = path.join(__dirname, '..', 'server', 'data');
 const LOG = path.join(DATA, 'politics_ja_views.jsonl');
 const ALERT = path.join(DATA, 'politics_alerts.jsonl');
 const append = (f, o) => fs.appendFileSync(f, JSON.stringify(o) + '\n', 'utf8');
-const HOURS = [3, 6, 24, 48, 72, 96, 120, 144, 168];   // 10-18 관리자: +3·+6·+24h 뒤 1주 매일, 그 뒤는 매일 작업(daily)이 하루 1회 점검·주 1회 교체   // ja 는 관리자 10-18 값으로 시작 — ko 는 4·8·12·24…168   // 첫날 4시간마다(새 영상 노출이 몰리는 때), 그 뒤 하루 한 번 1주 — 안 나오면 계속 돌린다(10-18 소유주)
-const FLOOR = { 3: 10, 6: 20, 24: 50, 48: 100, 72: 150, 96: 175, 120: 200, 144: 225, 168: 250, daily: 250 };   // 48h~ 는 ko 바닥의 절반(3·6·24h 와 같은 비율)   // 롱폼 «아예 안 받는» 선 — 10/15 2,663회·10/17 +6h 19회 실측 기준, 데이터 쌓이면 조정
+const HOURS = [3, 6, 24, 48, 72, 96, 120, 144, 168];   // 10-18 관리자: +3·+6·+24h 뒤 1주 매일, 그 뒤는 매일 07:00 auto 가 하루 1회 점검·주 1회 교체   // ja 는 관리자 10-18 값으로 시작 — ko 는 4·8·12·24…168   // 첫날 4시간마다(새 영상 노출이 몰리는 때), 그 뒤 하루 한 번 1주 — 안 나오면 계속 돌린다(10-18 소유주)
+const FLOOR = { 3: 10, 6: 20, 24: 50, 48: 100, 72: 150, 96: 175, 120: 200, 144: 225, 168: 250 };   // 48h~ 는 ko 바닥의 절반(3·6·24h 와 같은 비율)   // 롱폼 «아예 안 받는» 선 — 10/15 2,663회·10/17 +6h 19회 실측 기준, 데이터 쌓이면 조정
 
 async function auth() {
   const store = JSON.parse(fs.readFileSync(path.join(DATA, 'youtube_upload_profiles.json'), 'utf8'));
@@ -54,8 +54,8 @@ async function repack(videoId, h, views, H) {
   if (lastA && h !== 'now' && Date.now() - new Date(lastA.at) < 3 * 3600e3) {
     return { idx: lastA.idx, title: pk.packages[lastA.idx].title, style: '직전 교체 3시간 안 — 유지', kept: true };
   }
-  // 1주 뒤 매일 점검(daily)은 주 1회만 교체 — 새 묶음이 한 주 노출을 받게 둔다(10-18 관리자)
-  if (lastA && h === 'daily' && Date.now() - new Date(lastA.at) < 7 * 86400e3) {
+  // 1주(+168h) 뒤 매일 점검은 주 1회만 교체 — 새 묶음이 한 주 노출을 받게 둔다(ko 1ef5c90 과 같음)
+  if (lastA && h !== 'now' && h > 168 &&Date.now() - new Date(lastA.at) < 7 * 86400e3) {
     return { idx: lastA.idx, title: pk.packages[lastA.idx].title, style: '직전 교체 7일 안 — 유지', kept: true };
   }
   const last = lastA ? lastA.idx : 0;
@@ -114,27 +114,25 @@ async function repack(videoId, h, views, H) {
       execFileSync('schtasks', ['/Create', '/F', '/SC', 'ONCE', '/TN', `politics_ja_views_${videoId}_${h}h`, '/SD', day, '/ST', hm, '/TR', cmd], { stdio: 'inherit' });
       console.log(`[views] 등록 ${videoId} +${h}h → ${day} ${hm}`);
     }
-    {   // 1주 뒤부터 끝없이 하루 1회(교체는 주 1회) — 끝내지 않는다(10-18 관리자)
-      const t = new Date(pub.getTime() + 192 * 3600e3);
-      const pad = (n) => String(n).padStart(2, '0');
-      const day = `${t.getFullYear()}/${pad(t.getMonth() + 1)}/${pad(t.getDate())}`, hm = `${pad(t.getHours())}:${pad(t.getMinutes())}`;
-      const cmd = `cmd /c cd /d ${path.join(__dirname, '..')} && node politics-hour-ja\\views_check_ja.js ${videoId} daily >> server\\data\\politics_ja_views_task.log 2>&1`;
-      execFileSync('schtasks', ['/Create', '/F', '/SC', 'DAILY', '/TN', `politics_ja_views_${videoId}_daily`, '/SD', day, '/ST', hm, '/TR', cmd], { stdio: 'inherit' });
-      console.log(`[views] 등록 ${videoId} 매일 ${hm} (${day}부터)`);
+    {   // 1주 뒤에도 끝내지 않는다: +192h부터 매일 07:00 `<id> auto`(교체는 주 1회) — ko 1ef5c90 과 같은 형식
+      const t = new Date(pub.getTime() + 192 * 3600e3), pad = (n) => String(n).padStart(2, '0');
+      const cmd = `cmd /c cd /d ${path.join(__dirname, '..')} && node politics-hour-ja\\views_check_ja.js ${videoId} auto >> server\\data\\politics_ja_views_task.log 2>&1`;
+      execFileSync('schtasks', ['/Create', '/F', '/SC', 'DAILY', '/TN', `politics_ja_views_${videoId}_daily`, '/SD', `${t.getFullYear()}/${pad(t.getMonth() + 1)}/${pad(t.getDate())}`, '/ST', '07:00', '/TR', cmd], { stdio: 'inherit' });
+      console.log(`[views] 등록 ${videoId} 매일 07:00 (+192h부터, 교체는 주 1회)`);
     }
     return;
   }
-  const h = a2 === 'daily' ? 'daily' : Number(a2);
   const H = await auth();
-  const v = (await (await fetch(`https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet,contentDetails&id=${videoId}`, { headers: H })).json()).items?.[0];
+  const v = (await (await fetch(`https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet,contentDetails,status&id=${videoId}`, { headers: H })).json()).items?.[0];
   if (!v) throw new Error(`영상 없음 ${videoId}`);
+  const h = a2 === 'auto' ? Math.round((Date.now() - new Date(v.status?.publishAt || v.snippet.publishedAt)) / 86400e3) * 24 : Number(a2);   // 매일 점검은 공개 뒤 날수×24(ko 와 같음)
   const views = Number(v.statistics.viewCount || 0);
   const long = !/^PT(\d+S|[0-2]M)/.test(v.contentDetails.duration);   // 3분 미만은 쇼츠 — 롱폼끼리만 비교
   const rows = fs.existsSync(LOG) ? fs.readFileSync(LOG, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)) : [];
   const prev = rows.filter((r) => r.h === h && r.long === long && r.id !== videoId).pop();
   const row = { at: new Date().toISOString(), id: videoId, h, long, views, title: v.snippet.title, prev: prev ? { id: prev.id, views: prev.views } : null };
   append(LOG, row);
-  const floor = long ? FLOOR[h] || 0 : 0;
+  const floor = long ? FLOOR[h] || (h > 168 ? FLOOR[168] : 0) : 0;
   const why = [views < floor ? `바닥 ${floor} 미만` : '', prev && views < prev.views / 2 ? `직전 편 ${prev.views}의 절반 미만` : ''].filter(Boolean).join(' · ');
   console.log(`[views] ${videoId} +${h}h 조회 ${views} · 직전 편 ${prev ? `${prev.id} ${prev.views}` : '기록 없음(첫 기준)'} · ${why ? `미달(${why})` : '통과'}`);
   // 10-18 소유주 «제재 표시 없이도 조회 0 = 커뮤니티 가이드 위반으로 본다» → 조회 0 이면 포장 교체보다 먼저 관리자 보고(교체 안 함)
@@ -142,6 +140,19 @@ async function repack(videoId, h, views, H) {
     console.log('[views] 조회 0 — 가이드 위반 의심, 포장 교체 보류하고 관리자 보고');
     append(ALERT, { ...row, channel: 'ja', alert: `공개 +${h}h 조회 0 — 가이드 위반 의심(제재 표시 없어도), 포장 교체 보류·관리자 판단 대기`, repack: null });
     process.exit(4);
+  }
+  // 새 포장이 조회를 받는 중이면 누적이 바닥 아래여도 그대로 둔다(ko 같은 규칙 — 교체 뒤 시간당 증가 ≥ FLOOR[h]/h 면 유지)
+  const eps = path.join(__dirname, 'episodes');
+  const pf = long && why ? fs.readdirSync(eps).map((d) => path.join(eps, d, 'packages.json')).find((f) => fs.existsSync(f) && JSON.parse(fs.readFileSync(f, 'utf8')).video_id === videoId) : null;
+  const pk = pf ? JSON.parse(fs.readFileSync(pf, 'utf8')) : null;
+  const lastA = pk?.applied?.[pk.applied.length - 1];
+  if (lastA && lastA.views != null) {
+    const hrs = Math.max((Date.now() - new Date(lastA.at)) / 3600e3, 0.25), rate = (views - lastA.views) / hrs, need = floor / h;
+    if (rate >= need) {
+      console.log(`[views] 포장 ${lastA.idx}번이 받는 중 — 교체 뒤 시간당 ${rate.toFixed(1)}회(기준 ${need.toFixed(1)}) · 유지`);
+      append(LOG, { ...row, kept: { idx: lastA.idx, rate: +rate.toFixed(1), need: +need.toFixed(1) } });
+      return;
+    }
   }
   if (why) {
     const sw = long && !process.argv.includes('--no-repack') ? await repack(videoId, h, views, H) : null;
