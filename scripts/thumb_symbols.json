@@ -1,0 +1,30 @@
+{
+  "fork": {
+    "ko": "두 갈래 길",
+    "prompt": "a single road that splits into two diverging paths at a crossroads, one path leading toward a bright warm horizon and the other into a dark cold fog, seen from a low wide angle"
+  },
+  "crack": {
+    "ko": "갈라진 땅",
+    "prompt": "dry ground splitting apart with a deep jagged crack running across the foreground into the distance, dust rising, dramatic low sun"
+  },
+  "collapse": {
+    "ko": "무너지는 건물",
+    "prompt": "a tall corporate office tower crumbling and tilting, chunks breaking away in slow motion, generic building with no signage or logos"
+  },
+  "scale": {
+    "ko": "기울어진 저울",
+    "prompt": "a large old-fashioned balance scale tilted heavily to one side, one empty pan high and one pan low, on a clean stage"
+  },
+  "shutter": {
+    "ko": "녹슨 셔터",
+    "prompt": "a row of shops with rusty pulled-down metal roll shutters, empty street, a single flickering streetlight, no signs or readable text"
+  },
+  "graph_down": {
+    "ko": "추락하는 그래프",
+    "prompt": "a giant glowing line chart arrow rising then plunging sharply downward and breaking through the floor, abstract space, no numbers or labels"
+  },
+  "storm": {
+    "ko": "먹구름",
+    "prompt": "heavy dark storm clouds rolling over a lone small factory on a hill, a thin beam of sunlight breaking through behind it"
+  }
+}

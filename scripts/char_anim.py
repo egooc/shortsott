@@ -108,18 +108,21 @@ def panels(path, cols, rows):
     return [im[r * H // rows:(r + 1) * H // rows, c * W // cols:(c + 1) * W // cols].copy() for r in range(rows) for c in range(cols)]
 
 
-def bg_mask(p):
-    """칸 테두리에서 이어진 밝은 영역 = 배경(True)."""
-    light = (p.min(axis=2) >= WHITE).astype(np.uint8)
+def bg_mask(p, white=WHITE, chroma=None):
+    """칸 테두리에서 이어진 밝은 영역 = 배경(True). chroma 를 주면 채도 낮은(회색) 그림자도 배경으로(max-min < chroma)."""
+    light = p.min(axis=2) >= white
+    if chroma is not None:
+        light &= (p.max(axis=2).astype(int) - p.min(axis=2)) < chroma
+    light = light.astype(np.uint8)
     h, w = light.shape
     n, lab = cv2.connectedComponents(light, connectivity=4)
     border = set(np.unique(np.concatenate([lab[0], lab[-1], lab[:, 0], lab[:, -1]]))) - {0}
     return np.isin(lab, list(border)) & (light > 0)
 
 
-def to_rgba(p):
+def to_rgba(p, white=WHITE, chroma=None):
     """흰 배경 → 알파. 배경과 닿은 경계 띠만 밝기로 부드럽게, 흰 번짐은 빼서 색을 되살린다."""
-    bg = bg_mask(p)
+    bg = bg_mask(p, white, chroma)
     fg = ~bg
     # 옆 칸에서 넘어온 조각: 테두리에 붙은 작은 덩어리(가장 큰 덩어리의 2% 미만)는 지운다
     n, lab, st, _ = cv2.connectedComponentsWithStats(fg.astype(np.uint8), connectivity=8)

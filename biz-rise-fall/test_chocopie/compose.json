@@ -1,0 +1,25 @@
+{
+  "product": {
+    "name": "chocolate pie snack cake",
+    "desc": "a round chocolate-coated snack cake with a soft marshmallow layer inside, one cake cut in half to show the white marshmallow center, plus one whole cake behind it; plain unbranded, no wrapper"
+  },
+  "chip": "기업 흥망",
+  "variants": [
+    {
+      "symbol": "fork",
+      "top": "초코파이는 남았다",
+      "bottom": "그룹은 왜 무너졌나"
+    },
+    {
+      "symbol": "crack",
+      "top": "초코파이 vs 동양",
+      "bottom": "2001년 갈라선 운명"
+    },
+    {
+      "symbol": "scale",
+      "top": "초코파이",
+      "bottom": "같은 뿌리, 다른 운명",
+      "quote": true
+    }
+  ]
+}
