@@ -62,9 +62,9 @@ async function ensureTags(videoId, metaPath, { dryRun = false, H } = {}) {
   const j = await (await fetch('https://www.googleapis.com/youtube/v3/videos?part=snippet', { method: 'PUT', headers: H,
     body: JSON.stringify({ id: videoId, snippet }) })).json();
   if (j.error) { console.log(`  ✗ 태그 넣기 실패 ${videoId} ${JSON.stringify(j.error).slice(0, 200)}`); return 0; }
-  // 바로 읽으면 옛 값이 온다(반영 지연) — 몇 번 다시 읽는다
-  for (let i = 0; i < 6; i++) {
-    await new Promise((res) => setTimeout(res, 5000));
+  // 바로 읽으면 옛 값이 온다(반영 지연) — 몇 번 다시 읽는다. 10/19 ffref16 은 30초 안에 안 보였다가 나중에 15개로 확인됐다(거짓 탈락) — 3분까지 기다린다
+  for (let i = 0; i < 12; i++) {
+    await new Promise((res) => setTimeout(res, i < 6 ? 5000 : 25000));
     const a = (await getItem(H, videoId)).snippet;
     const n = (a.tags || []).length;
     if (n > 0 && a.title === s.title && a.description === s.description) { console.log(`  ✓ 태그 ${videoId} 확인 ${n}개`); return n; }
