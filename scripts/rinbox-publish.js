@@ -240,6 +240,37 @@ function loadTarget(mp4Arg) {
   return { mp4, metaPath, meta };
 }
 
+// 가이드라인 관문(2026-10-18 소유주: «제재 없이도 피드를 못 받으면 커뮤니티 가이드 위반 — 위험한 거·칼·마약·총기·살인·피·어린아이 대상»).
+// 제목·설명·태그·화면 제목(plan title)에 걸리면 승인·발행을 멈춘다. 한국어 낱말은 롱투숏 guide_check.py 를 그대로 부르고(복사 금지),
+// 일본어 낱말은 midform/config/guide_words_ja.json. 時代劇은 칼·피가 소재라 행위 낱말을 빼고 «정체·반전» 틀로 다시 쓴다.
+// 우회(GUIDE_OK=1)는 소유주 말이 있을 때만.
+const GUIDE_PY = 'D:/volcano-runs/ls_tools/guide_check.py';
+function guideGate(mp4, meta) {
+  if (process.env.GUIDE_OK === '1') return [];
+  const W = readJson(path.join(ROOT, 'midform', 'config', 'guide_words_ja.json'), { categories: {}, exclude: [] });
+  const plan = [path.join(path.dirname(mp4), '..', 'plan_local.json'), path.join(path.dirname(mp4), 'plan_local.json')].find((p) => fs.existsSync(p));
+  const shown = plan ? [].concat(readJson(plan, {}).title || []).join('') : '';
+  const fields = { 제목: meta.title || '', 설명: String(meta.description || '').split('★権利者')[0], 태그: (meta.tags || []).join(' '), 화면제목: shown };
+  const why = [];
+  for (const [k, v] of Object.entries(fields)) {
+    let t = v;
+    for (const x of W.exclude || []) t = t.split(x).join(' ');
+    for (const [cat, words] of Object.entries(W.categories || {})) {
+      const hit = words.filter((w) => t.includes(w));
+      if (hit.length) why.push(`${k} · ${cat}: ${hit.join(',')}`);
+    }
+  }
+  if (fs.existsSync(GUIDE_PY)) {
+    try {
+      execFileSync('python', ['-I', '-X', 'utf8', GUIDE_PY, `${mp4}.rinbox.json`], { encoding: 'utf8', env: { ...process.env, PYTHONIOENCODING: 'utf-8' } });
+    } catch (e) {
+      if (e.status === 4) why.push(...String(e.stdout || '').split(/\r?\n/).filter((l) => /^\s+\S/.test(l) && !/대체 제목/.test(l)).map((l) => l.trim()));
+      else why.push(`한국어 점검기 실행 실패(${e.status}) — ${String(e.stderr || e.message).trim().split(/\r?\n/).pop()}`);
+    }
+  }
+  return why;
+}
+
 function cmdApprove(mp4Arg, revoke) {
   const { mp4, meta } = loadTarget(mp4Arg);
   const hash = sha256File(mp4);
@@ -265,6 +296,8 @@ function cmdApprove(mp4Arg, revoke) {
       throw new Error('이름 관문에서 막혔다 — 설명·원고의 이름을 배역표와 맞춘 뒤 다시 승인');
     }
   }
+  const gw = guideGate(mp4, meta);
+  if (gw.length) { console.log(gw.map((l) => `  ✗ ${l}`).join('\n')); throw new Error('가이드라인 관문에서 막혔다 — 행위 낱말을 빼고 «정체·반전» 틀로 다시 쓴 뒤 승인'); }
   // 화면 검사(2026-10-09) — 렌더러가 남긴 screen.txt 가 FAIL 이면 승인하지 않는다(덧칠 글자·깜빡이는 샷 조각).
   const screen = path.join(path.dirname(mp4), 'screen.txt');
   if (plan && fs.existsSync(screen)) {
@@ -437,6 +470,9 @@ async function cmdPublish(mp4Arg, args) {
   const description = withNote(meta.description, locale, meta.title);
   if (description !== meta.description) lines.push('- 설명란에 픽션 안내문을 붙였다');
 
+  const gwp = guideGate(mp4, meta);
+  if (gwp.length) throw new Error(`가이드라인 관문: ${gwp.join(' / ')} — 발행 중단`);
+  lines.push('- 가이드라인 관문 통과');
   if (!(meta.tags || []).length) throw new Error('사이드카에 tags 가 없다 — 태그 0개로는 올리지 않는다');
   const profile = profileByPurpose(PURPOSE[locale]);
   if (!profile) throw new Error(`${locale} 업로드 프로필(${PURPOSE[locale]})이 연결돼 있지 않다`);
