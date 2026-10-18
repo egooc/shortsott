@@ -31,11 +31,16 @@ async function auth() {
   return { Authorization: `Bearer ${(await c.getAccessToken()).token}` };
 }
 
+function packagesPath(videoId) {
+  const eps = path.join(__dirname, 'episodes');
+  return fs.readdirSync(eps).map((d) => path.join(eps, d, 'packages.json'))
+    .find((f) => fs.existsSync(f) && JSON.parse(fs.readFileSync(f, 'utf8')).video_id === videoId);
+}
+const findPackages = (videoId) => { const f = packagesPath(videoId); return f ? JSON.parse(fs.readFileSync(f, 'utf8')) : null; };
+
 // 다음 포장으로 교체 — 성공하면 {idx, title, style}, 쓸 포장이 없으면 null
 async function repack(videoId, h, views, H) {
-  const eps = path.join(__dirname, 'episodes');
-  const pf = fs.readdirSync(eps).map((d) => path.join(eps, d, 'packages.json'))
-    .find((f) => fs.existsSync(f) && JSON.parse(fs.readFileSync(f, 'utf8')).video_id === videoId);
+  const pf = packagesPath(videoId);
   if (!pf) return null;
   const pk = JSON.parse(fs.readFileSync(pf, 'utf8'));
   pk.applied = pk.applied || [];
@@ -50,8 +55,9 @@ async function repack(videoId, h, views, H) {
   const last = lastA ? lastA.idx : 0;
   const idx = (last % n) + 1;
   const next = pk.packages[idx];
-  const v = (await (await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}`, { headers: H })).json()).items[0];
+  const v = (await (await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&id=${videoId}`, { headers: H })).json()).items[0];
   const { title, description, tags, categoryId, defaultLanguage } = v.snippet;
+  views = views ?? Number(v.statistics.viewCount || 0);   // 교체 순간 조회 — 다음 점검이 «새 포장이 받는 중인가»를 이 값에서 잰다
   const up = await fetch('https://www.googleapis.com/youtube/v3/videos?part=snippet', {
     method: 'PUT', headers: { ...H, 'Content-Type': 'application/json' },
     body: JSON.stringify({ id: videoId, snippet: { title: next.title || title, description, tags, categoryId, defaultLanguage } }),
@@ -107,6 +113,18 @@ async function repack(videoId, h, views, H) {
   const floor = long ? FLOOR[h] || 0 : 0;
   const why = [views < floor ? `바닥 ${floor} 미만` : '', prev && views < prev.views / 2 ? `직전 편 ${prev.views}의 절반 미만` : ''].filter(Boolean).join(' · ');
   console.log(`[views] ${videoId} +${h}h 조회 ${views} · 직전 편 ${prev ? `${prev.id} ${prev.views}` : '기록 없음(첫 기준)'} · ${why ? `미달(${why})` : '통과'}`);
+  // 새 포장이 조회를 받는 중이면 누적이 바닥 아래여도 그대로 둔다(10-18 소유주 «조회 나오는데» — 10/18 교체 70분 만에 0→72):
+  // 교체 뒤 시간당 증가가 바닥값의 시간당 몫(FLOOR[h]/h) 이상이면 통과.
+  const pk = long && why ? findPackages(videoId) : null;
+  const lastA = pk?.applied?.[pk.applied.length - 1];
+  if (lastA && lastA.views != null) {
+    const hrs = Math.max((Date.now() - new Date(lastA.at)) / 3600e3, 0.25), rate = (views - lastA.views) / hrs, need = floor / h;
+    if (rate >= need) {
+      console.log(`[views] 포장 ${lastA.idx}번이 받는 중 — 교체 뒤 시간당 ${rate.toFixed(1)}회(기준 ${need.toFixed(1)}) · 유지`);
+      append(LOG, { ...row, kept: { idx: lastA.idx, rate: +rate.toFixed(1), need: +need.toFixed(1) } });
+      return;
+    }
+  }
   if (why) {
     const sw = long && !process.argv.includes('--no-repack') ? await repack(videoId, h, views, H) : null;
     const msg = sw?.kept ? `포장 ${sw.idx}번 유지(직전 교체 3시간 안)` : sw ? `포장 ${sw.idx}번(${sw.style || ''})으로 자동 교체 «${sw.title}»${sw.exhausted ? ' · 포장 소진 — 새 포장 필요' : ''}` : '교체할 포장 없음 — 제목·태그·썸네일부터 다시(재업로드 금지)';
