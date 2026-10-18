@@ -24,6 +24,9 @@ const LOG = path.join(DATA, 'politics_views.jsonl');
 const ALERT = path.join(DATA, 'politics_alerts.jsonl');
 const append = (f, o) => fs.appendFileSync(f, JSON.stringify(o) + '\n', 'utf8');
 const HOURS = [4, 8, 12, 24, 48, 72, 96, 120, 144, 168];   // 첫날 4시간마다(새 영상 노출이 몰리는 때), 그 뒤 하루 한 번 1주 — 안 나오면 계속 돌린다(10-18 소유주)
+const FLOOR_SCALE = { politics_ja: 0.5 };   // 채널별 바닥 배율 — JA 는 ko 의 절반(관리자 10-18, JA 사본 값)
+// 공개 뒤 조회 0인 롱폼(소유주 «피드 0 = 가이드 의심»): 이 채널들은 교체로 덮지 않고 보고만. ko 는 10/18 실측(교체 70분 만에 0→72)대로 교체 + 같은 줄 경고.
+const ZERO_HOLD = new Set(['politics_ja']);
 const FLOOR = { 3: 20, 6: 40, 4: 25, 8: 50, 12: 70, 24: 100, 48: 200, 72: 300, 96: 350, 120: 400, 144: 450, 168: 500 };   // 롱폼 «아예 안 받는» 선 — 10/15 2,663회·10/17 +6h 19회 실측 기준, 데이터 쌓이면 조정
 
 async function auth(purpose = 'politics') {   // 채널 = packages.json 의 purpose(다른 롱폼 레인, 도구개발 10-18)
@@ -34,7 +37,7 @@ async function auth(purpose = 'politics') {   // 채널 = packages.json 의 purp
   return { Authorization: `Bearer ${(await c.getAccessToken()).token}` };
 }
 
-const ROOTS = [path.join(__dirname, 'episodes'), ...['ja-nenkin', 'ko-truecrime', 'biz-rise-fall'].map((d) => path.join(__dirname, '..', d))];   // 각 레인 <레인>/<ep>/packages.json
+const ROOTS = [path.join(__dirname, 'episodes'), ...['ja-nenkin', 'ko-truecrime', 'biz-rise-fall', 'politics-hour-ja/episodes'].map((d) => path.join(__dirname, '..', d))];   // 각 레인 <레인>/<ep>/packages.json
 function packagesPath(videoId) {
   return ROOTS.filter((r) => fs.existsSync(r)).flatMap((r) => fs.readdirSync(r).map((d) => path.join(r, d, 'packages.json')))
     .find((f) => fs.existsSync(f) && JSON.parse(fs.readFileSync(f, 'utf8')).video_id === videoId);
@@ -148,7 +151,7 @@ async function repack(videoId, h, views, H) {
     append(ALERT, { ...row, alert: `${msg}, 관리자 보고` });
     process.exit(4);
   }
-  const floor = long ? FLOOR[h] || (h > 168 ? FLOOR[168] : 0) : 0;
+  const floor = long ? (FLOOR[h] || (h > 168 ? FLOOR[168] : 0)) * (FLOOR_SCALE[purpose] ?? 1) : 0;
   const why = [views < floor ? `바닥 ${floor} 미만` : '', prev && views < prev.views / 2 ? `직전 편 ${prev.views}의 절반 미만` : ''].filter(Boolean).join(' · ');
   console.log(`[views] ${videoId} +${h}h 조회 ${views} · 직전 편 ${prev ? `${prev.id} ${prev.views}` : '기록 없음(첫 기준)'} · ${why ? `미달(${why})` : '통과'}`);
   // 새 포장이 조회를 받는 중이면 누적이 바닥 아래여도 그대로 둔다(10-18 소유주 «조회 나오는데» — 10/18 교체 70분 만에 0→72):
@@ -163,11 +166,17 @@ async function repack(videoId, h, views, H) {
       return;
     }
   }
+  const zero = long && views === 0 && h >= 4;
+  if (why && zero && ZERO_HOLD.has(purpose)) {
+    console.log('[views] 조회 0 = 가이드 의심, 교체 아님 — 범주 낱말·프레임 점검');
+    append(ALERT, { ...row, alert: `공개 +${h}h 조회 0 = 가이드 의심, 교체 아님 — 범주 낱말·프레임 점검, 관리자 보고` });
+    process.exit(4);
+  }
   if (why) {
     const sw = long && !process.argv.includes('--no-repack') ? await repack(videoId, h, views, H) : null;
     const msg = sw?.kept ? `포장 ${sw.idx}번 유지(${sw.style})` : sw ? `포장 ${sw.idx}번(${sw.style || ''})으로 자동 교체 «${sw.title}»${sw.exhausted || sw.wrapped ? ' · 포장 소진 — 새 포장 후보 필요(관리자)' : ''}` : '교체할 포장 없음 — 제목·태그·썸네일부터 다시(재업로드 금지)';
     console.log(`[views] ${msg}`);
-    append(ALERT, { ...row, alert: `공개 +${h}h 조회 ${views} 미달(${why}) — ${msg}, 관리자 보고`, repack: sw });
+    append(ALERT, { ...row, alert: `공개 +${h}h 조회 ${views} 미달(${why}) — ${msg}${zero ? ' · 조회 0 = 가이드 의심(범주 낱말·프레임도 점검)' : ''}, 관리자 보고`, repack: sw });
     process.exit(4);
   }
 })().catch((e) => { console.error('[views]', e.message); process.exit(1); });
