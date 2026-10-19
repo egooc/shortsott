@@ -73,7 +73,7 @@ python -X utf8 ko-corp/render/corp_render.py ko-corp/ep01                    # �
 
 재개(13:00 창이자 관리자 «릴스 끝» 뒤, 연금JA 우선 — 락 없음·빈 메모리 8GB 확인 후):
 ```
-python -X utf8 ko-corp/render/ref_overlap_ko.py ko-corp/ep01/script.txt  # ⓪ 레퍼런스 문장 일치(관리자 10-20 필수, 종료 4면 TTS·렌더 금지)
+python -X utf8 scripts/ref_overlap.py ko-corp/ep01/script.txt --lane corp_ko  # ⓪ 레퍼런스 문장 일치(관리자 10-20 필수, 종료 0 아니면 TTS 정지 · 전사는 도구개발 09시 창이 reference/ko_corp/corp_refs/transcripts 에 · 12:30까지 없으면 도구개발에 상태 묻고 가까운 4편만 Speechmatics)
 python -X utf8 ko-corp/render/corp_render.py ko-corp/ep01 --tts-only     # ① 음성(약 20분)
 python -X utf8 ko-corp/render/audit.py ko-corp/ep01                       # ② 역전사 대조 — 0불일치까지 원고 고쳐 ①②
 python -X utf8 ko-corp/render/corp_render.py ko-corp/ep01                # ③ 렌더(약 2시간, 17시에 끊으면 다음 창에서 이어짐)
