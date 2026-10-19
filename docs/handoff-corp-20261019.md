@@ -67,7 +67,10 @@ python -X utf8 ko-corp/render/corp_render.py ko-corp/ep01                    # �
 채널명 «갈림길 경제» 확정(문구 ko-corp/channel.md), 채널 생성은 소유주가 샘플을 본 뒤. TTS 는 정치 RENDERING.lock(일시정지·유지) 때문에 시작 전 —
 대기 루프는 06:50 에 tools/stop_tts_0650.ps1 이 끈다. 밤에 락이 풀려 일부 합성됐으면 ep01/voice/ 에 장면별로 남아 이어 쓴다.
 
-재개(재부팅 뒤 13:00 창, 연금JA 우선 — 락 없음·빈 메모리 8GB 확인 후):
+**10-19 밤 변경(관리자):** 07:00 재부팅 보류(릴스 먼저). 음성 73장면은 10-19 17:52 합성 끝, 대기 프로세스 없음.
+재합성·렌더는 관리자 «릴스 끝» 알림을 받은 뒤 시작한다. 17시를 넘기면 조각을 저장하고 다음 날 이어 간다.
+
+재개(13:00 창이자 관리자 «릴스 끝» 뒤, 연금JA 우선 — 락 없음·빈 메모리 8GB 확인 후):
 ```
 python -X utf8 ko-corp/render/corp_render.py ko-corp/ep01 --tts-only     # ① 음성(약 20분)
 python -X utf8 ko-corp/render/audit.py ko-corp/ep01                       # ② 역전사 대조 — 0불일치까지 원고 고쳐 ①②
