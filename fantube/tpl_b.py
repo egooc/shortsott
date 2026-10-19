@@ -20,7 +20,7 @@ W, H = 1080, 1920
 VY, VH = 320, 1150                       # 영상 칸
 FONT = 'D:/midform/politics-hour/assets/fonts/'
 BOLD, BODY = FONT + 'Paperlogy-8ExtraBold.ttf', FONT + 'ROKAFSansMedium.ttf'
-FULL = FONT + 'SBAggroB.ttf'            # 완성형 전부 — 남의 댓글(«왤케» 등, Paperlogy 에 없는 글자)은 이걸로
+FULL = 'C:/Windows/Fonts/malgunbd.ttf'   # 완성형 11,172자 전부 — 남의 댓글(«왤케»·«이넼» 등 Paperlogy·어그로체에 없는 글자)은 이걸로
 BG, PINK = (245, 246, 248), (255, 90, 120)
 FPS = 30
 
@@ -67,9 +67,18 @@ def comment_png(c, out):
 def cap_png(c, out):
     im = Image.new('RGBA', (W, H), (0, 0, 0, 0))
     d = ImageDraw.Draw(im)
+    check(c['text'], BOLD)
+    if c.get('style') == 'tts':                      # 해설 한 줄 — 영상 위쪽 검은 말풍선
+        ft = f(BOLD, 52)
+        lines = c['text'].split('\n')
+        tw = max(d.textlength(ln, font=ft) for ln in lines)
+        d.rounded_rectangle((W / 2 - tw / 2 - 34, VY + 50, W / 2 + tw / 2 + 34, VY + 50 + 40 + 66 * len(lines)), 24, fill=(20, 20, 20, 235))
+        for i, ln in enumerate(lines):
+            d.text((W // 2, VY + 50 + 20 + 33 + 66 * i), ln, font=ft, fill=(255, 225, 60), anchor='mm')
+        im.save(out)
+        return
     size, col = (74, (255, 225, 60)) if c.get('style') == 'pop' else (62, 'white')
     y = VY + VH - 110
-    check(c['text'], BOLD)
     for i, ln in enumerate(c['text'].split('\n')[::-1]):
         d.text((W // 2, y - i * (size + 14)), ln, font=f(BOLD, size), fill=col, stroke_width=8, stroke_fill='black', anchor='mm')
     im.save(out)
@@ -94,8 +103,23 @@ def main(spec_path):
     for i, c in enumerate(s['caps']):
         cap_png(c, work / f'k{i}.png')
         over.append((work / f'k{i}.png', c['t0'], c['t1']))
+    voices = []                                      # 중간 TTS 한 줄(PDF 규칙 7) — 정치 롱폼 Supertonic F2 를 그대로 import
+    if s.get('voice'):
+        sys.path.insert(0, 'D:/midform/politics-hour/overlay')
+        import tts
+        for i, v in enumerate(s['voice']):
+            wav = work / f'tts{i}.wav'
+            tts.supertonic(v['text'], wav)
+            dur = float(subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', str(wav)],
+                                       capture_output=True, text=True).stdout)
+            voices.append((wav, v['t0'], v['t0'] + dur))
+            c = {'text': v.get('show', v['text']), 'style': 'tts'}
+            cap_png(c, work / f'kt{i}.png')
+            over.append((work / f'kt{i}.png', v['t0'], v['t0'] + dur))
     for p, _, _ in over:
         args += ['-loop', '1', '-framerate', str(FPS), '-i', str(p)]
+    for wav, _, _ in voices:
+        args += ['-i', str(wav)]
 
     fc, vs, as_ = [], [], []
     for i, g in enumerate(s['segs']):
@@ -112,8 +136,17 @@ def main(spec_path):
     n = len(s['segs'])
     total = sum(g['b'] - g['a'] for g in s['segs'])
     fc.append(''.join(v + a for v, a in zip(vs, as_)) + f'concat=n={n}:v=1:a=1[vc][ac0]')
-    fc.append(f"[ac0]afade=t=out:st={total - 0.4:.3f}:d=0.4[ac]")
     bi = len(srcs)
+    if voices:                                       # 해설 동안 원음 25%로 낮추고 섞는다
+        duck = '+'.join(f'between(t,{a:.2f},{b:.2f})' for _, a, b in voices)
+        fc.append(f"[ac0]volume='if({duck},0.25,1)':eval=frame[ad]")
+        vi = bi + 1 + len(over)
+        for k, (_, a, _) in enumerate(voices):
+            fc.append(f"[{vi + k}:a]aresample=48000,volume=1.6,adelay={int(a * 1000)}:all=1[vv{k}]")
+        fc.append('[ad]' + ''.join(f'[vv{k}]' for k in range(len(voices))) + f'amix=inputs={1 + len(voices)}:normalize=0:duration=first[am]')
+        fc.append(f"[am]afade=t=out:st={total - 0.4:.3f}:d=0.4[ac]")
+    else:
+        fc.append(f"[ac0]afade=t=out:st={total - 0.4:.3f}:d=0.4[ac]")
     fc.append(f'[{bi}:v][vc]overlay=0:{VY}:shortest=1[o0]')
     for j, (_, t0, t1) in enumerate(over):
         fc.append(f"[o{j}][{bi + 1 + j}:v]overlay=0:0:enable='between(t,{t0},{t1})':shortest=1[o{j + 1}]")

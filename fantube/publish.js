@@ -28,8 +28,8 @@ if (gc.status !== 0 || minor) {
 const tg = M.tags || [];
 const dq = M.dup_queries || [`${tg[0] || '엔믹스'} ${tg[2] || ''}`.trim(), `${tg[0] || '엔믹스'} ${tg[5] || tg[3] || ''}`.trim()];
 const fd = spawnSync('python', ['D:/volcano-runs/ls_tools/frame_dup.py', M.file, ...dq.flatMap((q) => ['--query', q]), '--work', 'D:/volcano-runs/fantube/_dup'],
-  { encoding: 'utf8', env: { ...process.env, PYTHONIOENCODING: 'utf-8' } });
-process.stdout.write(fd.stdout); process.stderr.write(fd.stderr);
+  { encoding: 'utf8', timeout: 600000, env: { ...process.env, PYTHONIOENCODING: 'utf-8' } });   // 경고용이라 10분 넘으면 접고 발행(ep17 15분+)
+process.stdout.write(fd.stdout || ''); process.stderr.write(fd.stderr);
 fs.appendFileSync('D:/volcano-runs/fantube/_upload/frame_dup.jsonl', JSON.stringify({ at: new Date().toISOString(), ep, file: M.file, queries: dq, status: fd.status, summary: (fd.stdout || '').trim().split('\n').pop() }) + '\n', 'utf8');
 if (fd.status === 4) console.error(`[publish] 이미지 중복 경고(${ep}) — 발행은 계속, 관리자에게 한 줄 보고`);
 if (process.argv.includes('--check-only')) process.exit(0);
