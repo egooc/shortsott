@@ -98,3 +98,9 @@
 5. 70초 안에 첫 답 한 조각.
 1편 KP9kKSX9H84 은 그대로 두고 +24h(10-20 18:00 KST) 뒤 지속 곡선으로 첫 70초 표를 관리자에게.
 지속 곡선: 지금 토큰(force-ssl)으로 youtubeanalytics v2 reports 가 열린다(10-19 확인, `dimensions=elapsedVideoTimeRatio, metrics=audienceWatchRatio,relativeRetentionPerformance, filters=video==ID`). 공개 전·집계 지연 땐 rows 0.
+
+## 10. 감정 열·댓글 (관리자 전달 큰제로 칼럼 Z7·Z4, 10-19, docs/keunzero-column-rules-20261019.md)
+
+- 2편 후보 표에 열 하나 추가: «이 인물·쟁점에서 지금 보수 60대+ 시청자가 대신 느끼려는 감정» 한 문장(인물명 없이 감정+상황). 근거 = 최근 터진 일본 보수 채널 5~10편(결은 시기마다 바뀐다).
+- 선정 기준 = 오르는 키워드 × 지금의 감정 × 관저·국회 영상 유무.
+- 1편 +24h 곡선 보고 때 공개 댓글이 있으면 좋아요 순 5개 + «무엇에 반응했나» 한 줄(도구개발 comment_mine 전엔 수동, commentThreads.list order=relevance).
