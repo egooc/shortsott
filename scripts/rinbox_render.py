@@ -275,7 +275,7 @@ def pic_clip(src, t0, n_frames, cx, mirror, out, zoom=(1.0, 0.5)):
 
 # 길이 창 — 위쪽 50→59 (2026-10-11 소유주: «59초 안에서 아크가 닫혀야»). 결말을 자르느니 길이를 쓴다.
 LEN_MIN, LEN_MAX = 40, 59
-SEG_LUFS = -17.0      # 구간 음량 기준 — 최종 loudnorm(-16) 전에 구간끼리 높이를 맞춘다
+SEG_LUFS = -17.0      # 구간 음량 기준 — 최종 loudnorm(-14) 전에 구간끼리 높이를 맞춘다
 
 
 def level(wav, out, target=SEG_LUFS, cap=8.0):
@@ -507,7 +507,7 @@ def main():
 
     # 5) 소리 크기를 편마다 같게 — 2패스(film_editor.py 1815~1820, 명화관 명세 10장 2항).
     #   1패스는 목표에서 0.3 LU 비켜 났다. 재고 나서 linear=true 로 한 번에 맞춘다. 무음이면 측정을 지어내지 않는다.
-    norm = 'loudnorm=I=-16:LRA=11:TP=-1.5'
+    norm = 'loudnorm=I=-14:LRA=11:TP=-1.5'   # 카이안 K12 -14 LUFS (10-19)
     r = subprocess.run(['ffmpeg', '-hide_banner', '-i', str(out), '-af', norm + ':print_format=json', '-f', 'null', '-'],
                        capture_output=True, text=True, encoding='utf-8', errors='replace')
     m = json.loads(r.stderr[r.stderr.rindex('{'):r.stderr.rindex('}') + 1])
