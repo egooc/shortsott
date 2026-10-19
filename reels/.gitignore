@@ -1,0 +1,10 @@
+# 영상·이미지·전사는 로컬 전용(소유주·의뢰인 자료)
+inbox/
+*.mp4
+*.png
+*.jpg
+*.json
+!work/*/erase_spec*.json
+work/*/ov_h/
+work/*/ov_v/
+assets/fonts/
