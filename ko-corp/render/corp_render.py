@@ -30,7 +30,7 @@ import nenkin_render as R  # noqa: E402  판·시계·하이퍼프레임 렌더 
 from ko_say import say  # noqa: E402
 
 FPS = 30
-CODE = '2026-10-19a'
+CODE = '2026-10-19b'   # b: 판 글씨 키움(미리보기 1차)
 SUPERTONIC = {'python': 'D:/midform/tts-lab/supertonic/.venv/Scripts/python.exe', 'dir': 'D:/midform/tts-lab/supertonic',
               'voice': 'F2', 'speed': 1.02, 'steps': 8, 'gap': 0.45, 'lang': 'ko', 'num_reading': False}
 WORKER = ROOT / 'ja-nenkin' / 'render' / 'supertonic_worker.py'      # lang 키를 받는 판(정치 원본은 ko 고정) — import 경로만
@@ -82,7 +82,8 @@ THEME = f'''
 #tt{{color:{YELLOW}!important;font-family:P}}
 #bc .h{{color:{YELLOW}!important;font-family:P}} #bc .gl{{color:{CREAM}!important}} #bc .bn{{color:{MUTE}!important}}
 #bc .bar{{background:{MUTE}}} #bc .bar.r{{background:{YELLOW}}} #bc .bv{{color:{CREAM}}} #bc .bv.r{{color:{YELLOW}}}
-#fl .n{{background:{YELLOW};color:{GREEN_D};font-family:P}} #fl .q{{color:{CREAM}}} #fl .a{{color:{YELLOW}}}
+#fl .n{{background:{YELLOW};color:{GREEN_D};font-family:P;font-size:62px!important}} #fl .q{{color:{CREAM};font-size:86px!important}} #fl .a{{color:{YELLOW};font-size:70px!important}}
+#fl{{width:1700px!important}}
 #cd em,#ls em,#fl em{{background:linear-gradient(transparent 62%,rgba(242,193,78,.25) 62%) no-repeat;background-size:0% 100%}}
 '''
 
@@ -174,14 +175,14 @@ def stage(spec, d, cues):
     if t == 'split':           # 두 갈래 비교판 — 뿌리 하나에서 두 줄기, 줄기마다 단계가 말 순서대로
         L, Rt = spec['left'], spec['right']
         css = f'''#sp{{position:absolute;inset:0}}
-#sp .root{{position:absolute;left:0;right:0;top:0;margin:auto;width:max-content;padding:14px 46px 18px;font-weight:900;font-size:56px;
+#sp .root{{position:absolute;left:0;right:0;top:60px;margin:auto;width:max-content;padding:14px 50px 20px;font-weight:900;font-size:66px;
   background:{LINE};border-radius:14px;color:{CREAM}}}
-#sp svg{{position:absolute;left:0;top:96px;width:100%;height:90px}}
-#sp .col{{position:absolute;top:200px;width:760px;padding:24px 36px 30px}}
+#sp svg{{position:absolute;left:0;top:176px;width:100%;height:114px}}
+#sp .col{{position:absolute;top:270px;width:840px;box-sizing:border-box;padding:28px 44px 34px}}
 #sp .col.l{{left:0}} #sp .col.r{{right:0}}
-#sp .col h3{{margin:0 0 16px;font-family:P;font-weight:400;font-size:56px}}
+#sp .col h3{{margin:0 0 18px;font-family:P;font-weight:400;font-size:72px}}
 #sp .col.l h3{{color:{YELLOW}}} #sp .col.r h3{{color:{CORAL}}}
-#sp .col .it{{font-weight:800;font-size:46px;line-height:1.35;margin:10px 0;color:{CREAM}}}
+#sp .col .it{{font-weight:800;font-size:{54 if max(len(L['items']), len(Rt['items'])) > 2 else 60}px;line-height:1.3;margin:10px 0;color:{CREAM}}}
 #sp .col .it::before{{content:"↓ ";color:{MUTE}}}
 #sp .col .it:first-of-type::before{{content:""}}
 #sp .end{{font-weight:900}}'''
@@ -189,8 +190,8 @@ def stage(spec, d, cues):
             return (f'<div class="col card {side}" id="c{side}"><h3>{esc(c["title"])}</h3>' +
                     ''.join(f'<div class="it" id="{side}{i}">{x}</div>' for i, x in enumerate(c['items'])) + '</div>')
         body = (f'<div id="sp"><div class="root" id="rt">{esc(spec["root"])}</div>'
-                f'<svg viewBox="0 0 1752 90" preserveAspectRatio="none"><path id="pl" d="M876 0 V30 H380 V90" fill="none" stroke="{YELLOW}" stroke-width="5"/>'
-                f'<path id="pr" d="M876 0 V30 H1372 V90" fill="none" stroke="{CORAL}" stroke-width="5"/></svg>' + col(L, 'l') + col(Rt, 'r') + '</div>')
+                f'<svg viewBox="0 0 1752 114" preserveAspectRatio="none"><path id="pl" d="M876 0 V30 H420 V114" fill="none" stroke="{YELLOW}" stroke-width="5"/>'
+                f'<path id="pr" d="M876 0 V30 H1332 V114" fill="none" stroke="{CORAL}" stroke-width="5"/></svg>' + col(L, 'l') + col(Rt, 'r') + '</div>')
         js = ['tl.from("#rt",{opacity:.4,y:-16,duration:.45},0);',
               'tl.fromTo("#pl",{strokeDasharray:700,strokeDashoffset:700},{strokeDashoffset:0,duration:.6},.35);',
               'tl.fromTo("#pr",{strokeDasharray:700,strokeDashoffset:700},{strokeDashoffset:0,duration:.6},.35);',
@@ -208,9 +209,9 @@ def stage(spec, d, cues):
         css = f'''#og{{position:absolute;inset:0}}
 #og .top{{position:absolute;left:0;right:0;top:20px;margin:auto;width:max-content;padding:16px 56px 20px;font-family:P;font-size:64px;
   background:{YELLOW};color:{GREEN_D};border-radius:14px}}
-#og .ln{{position:absolute;left:120px;right:120px;top:190px;height:4px;background:{LINE};transform-origin:center}}
-#og .row{{position:absolute;left:0;right:0;top:240px;display:flex;flex-wrap:wrap;justify-content:center;gap:24px 26px}}
-#og .kid{{width:{spec.get("kw", 380)}px;padding:20px 10px 24px;text-align:center;font-weight:800;font-size:46px;color:{CREAM}}}
+#og .ln{{position:absolute;left:120px;right:120px;top:200px;height:4px;background:{LINE};transform-origin:center}}
+#og .row{{position:absolute;left:0;right:0;top:260px;display:flex;flex-wrap:wrap;justify-content:center;gap:30px 30px}}
+#og .kid{{width:{spec.get("kw", 520)}px;padding:26px 10px 30px;text-align:center;font-weight:800;font-size:60px;color:{CREAM}}}
 #og .kid small{{display:block;font-size:30px;color:{MUTE};font-weight:600;margin-top:6px}}
 #og .kid.hi{{border-color:{CORAL};color:{CORAL}}}'''
         body = f'<div id="og"><div class="top" id="otop">{esc(spec["top"])}</div><div class="ln" id="oln"></div><div class="row">' + ''.join(
@@ -226,12 +227,12 @@ def stage(spec, d, cues):
     if t == 'calendar':        # 만기 달력 — 달마다 갚을 날짜 점이 찍히고, 몰린 달은 산호색
         ms = spec['months']
         css = f'''#ca{{position:absolute;inset:0;display:grid;grid-template-columns:repeat(6,1fr);gap:22px;align-content:center}}
-#ca .m{{padding:14px 18px 20px;min-height:200px}}
-#ca .m b{{display:block;font-family:P;font-weight:400;font-size:46px;color:{CREAM};margin-bottom:12px}}
+#ca .m{{padding:18px 22px 24px;min-height:330px}}
+#ca .m b{{display:block;font-family:P;font-weight:400;font-size:64px;color:{CREAM};margin-bottom:12px}}
 #ca .m.hi{{border-color:{CORAL}}} #ca .m.hi b{{color:{CORAL}}}
-#ca .dot{{display:inline-block;width:30px;height:30px;border-radius:50%;background:{MUTE};margin:5px}}
+#ca .dot{{display:inline-block;width:42px;height:42px;border-radius:50%;background:{MUTE};margin:6px}}
 #ca .m.hi .dot{{background:{CORAL}}}
-#ca .tag{{display:block;font-weight:800;font-size:30px;color:{YELLOW};margin-top:8px}}'''
+#ca .tag{{display:block;font-weight:800;font-size:38px;color:{YELLOW};margin-top:8px}}'''
         body = '<div id="ca">' + ''.join(
             f'<div class="m card{" hi" if m.get("hi") else ""}" id="m{i}"><b>{esc(m["m"])}</b>' + ''.join(f'<i class="dot" id="m{i}d{k}"></i>' for k in range(m.get('dots', 0)))
             + (f'<span class="tag">{esc(m["tag"])}</span>' if m.get('tag') else '') + '</div>' for i, m in enumerate(ms)) + '</div>'
@@ -251,8 +252,8 @@ def chrome(spec):
         body += f'<div id="head">{esc(spec["label"])}</div>'
     if spec.get('source'):
         body += f'<div id="src">자료: {esc(spec["source"])}</div>'
-    if spec.get('note'):
-        body += f'<div id="note">{esc(spec["note"])}</div>'
+    if spec.get('badge'):
+        body += f'<div id="note">{esc(spec["badge"])}</div>'
     return body
 
 
@@ -345,8 +346,13 @@ def scene_html(spec, d, cues, emph):
 
 
 def seg_dir(ep, i, blk, spec):
-    """장면 조각 폴더 — 원고·판·음성 설정이 같으면 같은 폴더(다시 만들지 않는다). audit.py 도 이것으로 찾는다."""
+    """장면 조각 폴더 — 원고·판·렌더 코드가 같으면 같은 폴더(다시 만들지 않는다)."""
     return Path(ep) / 'seg' / f'{i:03d}-{blk["vid"]}-{key([blk, spec, CODE, SUPERTONIC])}'
+
+
+def voice_dir(ep, blk):
+    """음성 폴더 — 문장·음성 설정·숫자 읽기만으로 정한다(판을 고쳐도 음성은 다시 만들지 않는다). audit.py 도 이것으로 찾는다."""
+    return Path(ep) / 'voice' / f'{blk["vid"]}-{key([blk["sentences"], SUPERTONIC, [say(s) for s in blk["sentences"]]])}'
 
 
 def main(argv=None):
@@ -404,16 +410,18 @@ def main(argv=None):
         folder = seg_dir(ep, i, blk, spec)
         final = folder / 'segment.mp4'
         if not final.exists():
-            folder.mkdir(parents=True, exist_ok=True)
-            wav = folder / 'voice.wav'
-            if wav.exists() and (folder / 'cues.json').exists():
-                cues = json.loads((folder / 'cues.json').read_text(encoding='utf-8'))
+            vd = voice_dir(ep, blk)
+            vd.mkdir(parents=True, exist_ok=True)
+            wav = vd / 'voice.wav'
+            if wav.exists() and (vd / 'cues.json').exists():
+                cues = json.loads((vd / 'cues.json').read_text(encoding='utf-8'))
             else:
                 cues = speak(blk['sentences'], wav)
-                (folder / 'cues.json').write_text(json.dumps(cues, ensure_ascii=False) + '\n', encoding='utf-8')
+                (vd / 'cues.json').write_text(json.dumps(cues, ensure_ascii=False) + '\n', encoding='utf-8')
             if '--tts-only' in argv:
                 print(f'[{i}] tts {wav_seconds(wav):.1f}s', flush=True)
                 continue
+            folder.mkdir(parents=True, exist_ok=True)
             d = round(wav_seconds(wav) + .45, 3)
             css, body, js, board = scene_html(spec, d, cues, emph)
             page(folder / 'hf', f's{i}', d, css, body, js, board)

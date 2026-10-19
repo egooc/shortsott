@@ -93,7 +93,7 @@ def main(argv=None):
     vis = json.loads((ep / 'visuals.json').read_text(encoding='utf-8'))
     vis.pop('_emph', None)
     idx = only or list(range(len(blocks)))
-    folders = [C.seg_dir(ep, i, blocks[i], vis[blocks[i]['vid']]) for i in idx]
+    folders = [C.voice_dir(ep, blocks[i]) for i in idx]
     lack = [f.name for f in folders if not (f / 'voice.wav').exists()]
     if lack:
         raise SystemExit('voice.wav 없음: ' + ', '.join(lack[:5]))
