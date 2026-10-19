@@ -11,7 +11,8 @@ const path = require('path');
 const { OAuth2Client } = require(path.join(__dirname, '..', 'node_modules', 'google-auth-library'));
 
 const QUEUE = 'D:/volcano-runs/_upload/schedule_shopping.json';
-const COMMON = ['살림템', '살림꿀팁', '생활꿀팁', '꿀템', '정리정돈', '자취템', '살림', '생활용품', '쿠팡추천템', '쇼츠'];
+// 태그는 내용 일치만(10/19 관리자 전달, 전 레인 공통) — 편마다 안 맞을 수 있는 «정리정돈»·«자취템», 내용과 무관한 «쇼츠»는 뺐다
+const COMMON = ['살림템', '살림꿀팁', '생활꿀팁', '꿀템', '살림', '생활용품', '쿠팡추천템'];
 const STOP = new Set(['세트', '개입', '대형', '소형', '중형', '1개', '2개', '3개', '4개', '5개', '다용도', '길이조절', '일반형', '기본형', '포함', '대용량', '단품', '본품', '리필']);
 
 function buildTags(meta) {
