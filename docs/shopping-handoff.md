@@ -23,6 +23,7 @@
 **세션 안 cron(재부팅이면 사라짐 → 세션이 다시 만든다)**: 매일 03:13 밤 생산 점검, 07:37 fill 점검. 점검이 끝날 때마다 다음 날 것을 새로 만든다.
 
 **재부팅 뒤 재개(쇼핑 세션)**
+0. 10/20 00:30·03:30 밤 생산은 소유주 결정으로 보류(릴스 렌더가 CPU 사용) — 두 작업을 Disable 했고 `midform-shop-produce-reenable`(10/20 06:00, 1회)이 다시 켠다. 재부팅 뒤 `schtasks /query /tn midform-shop-produce-0030` 이 «준비»인지 확인, 아니면 `powershell Enable-ScheduledTask -TaskName midform-shop-produce-0030` (0330 도). 보류 동안 놓친 회차가 몰려 돌지 않게 두 작업의 «놓친 회차 실행»은 껐다(필요하면 나중에 다시 켤 것).
 1. `tail -30 D:/volcano-runs/_upload/fill.log` — 오늘 08·18시 예약이 됐는지. 안 돌았으면 `D:/midform/scripts/tasks/shop-fill.cmd` 1회.
 2. `node scripts/shop_yt_tags.js --audit --days 3` — 태그 0개 편 없는지.
 3. `schtasks /query /tn midform-shop-naver-<편>` — 오늘 편 네이버 작업 남아 있는지.
