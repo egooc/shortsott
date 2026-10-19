@@ -36,7 +36,7 @@ function tagsOf(meta) {
   console.log(`[tags] ${videoId} ${item.snippet.title.slice(0, 40)} — 지금 ${now}개 → ${tags.length}개`);
   if (process.argv.includes('--check')) return;
   if (process.argv.includes('--unschedule')) {      // 교체된 예약분 내리기 — 비공개·예약 없음(10/17 관리자: 장부엔 retracted)
-    const st = { privacyStatus: 'private', selfDeclaredMadeForKids: item.status.selfDeclaredMadeForKids };
+    const st = { privacyStatus: 'private', publishAt: null, selfDeclaredMadeForKids: item.status.selfDeclaredMadeForKids };  // publishAt 을 빼면 예약이 그대로 남는다(10/20 ep11 실측) — null 로 지운다
     const r = await (await fetch('https://www.googleapis.com/youtube/v3/videos?part=status', { method: 'PUT', headers: H, body: JSON.stringify({ id: videoId, status: st }) })).json();
     console.log(`[tags] 예약 해제 ${r.error ? '실패 ' + JSON.stringify(r.error).slice(0, 200) : r.status.privacyStatus + ' ' + (r.status.publishAt || '예약 없음')}`);
     return;
