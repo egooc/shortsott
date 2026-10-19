@@ -307,6 +307,41 @@ function cmdApprove(mp4Arg, revoke) {
   writeJson(APPROVALS_PATH, approvals);
   ledgerAppend(mp4, meta, { finished_at: approvals[key].approved_at });
   console.log(`승인: ${key}\n  mp4 sha256 ${hash}\n  ★이 파일을 다시 렌더하면 승인은 자동 무효가 된다`);
+  if (!process.argv.includes('--no-frame-dup')) frameDup(mp4, meta);
+}
+
+// 화면 중복도(2026-10-19 관리자 지시, 롱투숏 frame_dup.py 를 그대로 부른다 — 복사·수정 금지).
+// 첫 컷 3장을 같은 작품 검색어 2개로 모은 영상과 dHash 비교. ★경고만 — 승인·발행은 막지 않고 _gate_log 에 남긴다.
+const FRAME_DUP_PY = 'D:/volcano-runs/ls_tools/frame_dup.py';
+const GATE_LOG = 'D:/volcano-runs/_gate_log.jsonl';
+function frameDup(mp4, meta) {
+  if (!fs.existsSync(FRAME_DUP_PY)) { console.log(`  [frame_dup] 도구 없음: ${FRAME_DUP_PY}`); return; }
+  const cat = readJson(path.join(ROOT, 'midform', 'config', 'rinbox_catalog.json'), { works: {} });
+  const name = cat.works?.[meta.work]?.title_ja || meta.work;
+  const queries = meta.locale === 'ja' ? [name, `${name} 名場面`] : [name, `${name} 명장면`];
+  // ★완성본 그대로 넣으면 위아래 검은 판·제목 글자가 dHash(9x8)를 지배해 무관한 영상과 10/64가 나온다(131ja 실측 —
+  //   다큐 상처 컷과 일치). 그래서 첫 5초의 그림 창(rinbox_render PIC_Y0~Y1 = 450~1470)만 잘라 넘긴다.
+  const pic = mp4.replace(/\.mp4$/i, '.dup_pic.mp4');
+  try {
+    execFileSync('ffmpeg', ['-v', 'error', '-y', '-i', mp4, '-t', '5', '-vf', 'crop=1080:1020:0:450', '-an', pic]);
+  } catch (e) { console.log('  [frame_dup] 그림 창 자르기 실패 — 건너뜀'); return; }
+  const args = ['-I', '-X', 'utf8', FRAME_DUP_PY, pic, ...queries.flatMap((q) => ['--query', q]),
+    '--work', 'D:/volcano-runs/_frame_dup_vids'];
+  let status = 0, out = '';
+  try {
+    out = execFileSync('python', args, { encoding: 'utf8', timeout: 900000, env: { ...process.env, PYTHONIOENCODING: 'utf-8' } });
+  } catch (e) { status = e.status; out = String(e.stdout || ''); if (status !== 4) { console.log(`  [frame_dup] 실행 실패(${status}) — 건너뜀`); return; } }
+  console.log(`  [frame_dup] ${out.trim().split(/\r?\n/).pop()}`);
+  if (status !== 4) return;
+  // 우리가 자른 원본 본편(카탈로그 available_episodes)과 맞는 건 당연하다 — 경고에서 뺀다.
+  const own = new Set((cat.works?.[meta.work]?.available_episodes || []).map((e) => e.videoId).filter(Boolean));
+  const res = readJson(pic.replace(/\.mp4$/i, '.frame_dup.json'), { rows: [] });
+  const hits = (res.rows || []).filter((r) => r.min_dist != null && r.min_dist <= (res.warn || 10) && !own.has(r.id));
+  if (!hits.length) { console.log('  [frame_dup] 일치는 원본 본편뿐 — 경고 없음'); return; }
+  fs.appendFileSync(GATE_LOG, `${JSON.stringify({ at: new Date().toISOString(), wd: path.basename(mp4, '.mp4'), source: 'C 린박스',
+    kind: 'frame_dup', message: '첫 컷이 같은 작품 영상과 화면 지문 일치(경고만, 발행 그대로)',
+    detail: { queries, hits: hits.map((r) => ({ id: r.id, min_dist: r.min_dist, our_cut: r.our_cut, their_sec: r.their_sec })) } })}\n`, 'utf8');
+  console.log(`  ⚠ [frame_dup] 경고 ${hits.length}건 — ${hits.map((r) => `${r.id} ${r.min_dist}/64`).join(', ')} → _gate_log 기록, 관리자에게 한 줄`);
 }
 
 // 제작 장부(2026-10-15 소유주 지시, 관리자 매일 07:40 성과 보고) — 승인·업로드 때 한 줄씩 덧붙인다. 규격 docs/production-ledger.md.
