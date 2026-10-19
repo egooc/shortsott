@@ -98,3 +98,4 @@
 - ★10-19 16:40 미리 돌린 nvenc 시험 실패: PATH 의 ffmpeg 9.0(gyan) 은 nvenc API 13.1(드라이버 610+)이 필요한데 드라이버는 12.2. 재부팅으로는 안 고쳐진다. 드라이버 560.94(RTX 2060), .env FFMPEG_PATH 도 같은 9.0. 다만 레인 렌더러(scripts·politics-hour·ja-nenkin·ls_tools·fantube) 중 nvenc 를 쓰는 곳은 0 — 지금 영향 없음, 쓰려면 드라이버 610+ 갱신.
 - 멈추면 안 되는 시각대: 없음. 렌더 창 규칙(ko 18:30~00:30·ja 03~06 회피, 빈 메모리 8GB)은 그대로.
 - rising_keywords 2차(재부팅 뒤, 기업 가이드 2차 다음): ① 에버그린 자동완성 확장(낱말+ㄱ~ㅎ / あ~わ) ② 정치JA 급상승 0 대응 — 야후 재팬 리얼타임 공개 페이지·구글 트렌드 JP 실시간 항목. ③ keywordScore(lane, keyword)는 10-19 완료(db3e7f3). schtasks midform-rising-keywords(08·14시 --all)는 관리자가 등록.
+- retention_curve.js(재부팅 뒤, 기업 가이드 2차 다음·rising 2차와 같은 줄): 레인별 공개 롱폼의 Analytics 지속 곡선(elapsedVideoTimeRatio·audienceWatchRatio·relativeRetentionPerformance, 정치 ko 토큰으로 200 확인) → 1·2·5·10·25·50% 잔존율, 첫 2% 이탈률, 최대 급락 1% 구간, 되감기(상승) 구간 → server/data/retention/<id>.json + 07:40 manager-report 한 줄(레인별 최근 3편 첫 2% 이탈·최대 급락 위치). 토큰은 채널별이라 경로를 인자로 받는다. 실측 예: 쟁점브리핑 10/15편 1%→97.7·2%→54.7·4%→36.4.
