@@ -153,6 +153,8 @@ function naver(meta, mp4, atIso, dry, log) {
   const r = spawnSync('schtasks', ['/create', '/f', '/tn', name, '/tr', cmd, '/sc', 'once',
     '/sd', `${k.getUTCFullYear()}/${pad(k.getUTCMonth() + 1)}/${pad(k.getUTCDate())}`, '/st', `${pad(k.getUTCHours())}:${pad(k.getUTCMinutes())}`], { encoding: 'utf8' });
   if (r.status !== 0) throw new Error(`네이버 작업 등록 실패: ${(r.stderr || r.stdout || '').trim().slice(0, 160)}`);
+  // 그 시각에 PC 가 꺼져 있었으면(10/20 07:00 재부팅) 켜진 뒤 바로 돌게 — schtasks /create 에는 이 옵션이 없다. 실패해도 등록은 유효
+  spawnSync('powershell', ['-NoProfile', '-Command', `$t=Get-ScheduledTask -TaskName '${name}'; $t.Settings.StartWhenAvailable=$true; Set-ScheduledTask -InputObject $t | Out-Null`], { encoding: 'utf8' });
   log(`  ✓ naverclip @ ${pad(k.getUTCHours())}:${pad(k.getUTCMinutes())} KST (작업 ${name})`);
 }
 

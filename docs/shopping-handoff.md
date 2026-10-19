@@ -4,6 +4,34 @@
 **결론부터**: 파이프라인은 렌더 직전까지 뚫었다. 막고 있는 것은 기술이 아니라 **비용**이다
 (§8). 그 판단이 먼저다.
 
+## ★현재(2026-10-19) — ff 레인 운영 요약·재부팅 재개
+
+아래 §0 이후는 9월 볼케이노 프리셋 시절 기록이다. 지금은 자체 렌더러 `scripts/ff_render.py`(최종 -14 LUFS) 레인으로 돈다.
+
+**돌아가는 것 — 윈도우 예약 작업(schtasks, 재부팅 뒤 자동 복귀)**
+| 작업 | 시각 | 하는 일 |
+|---|---|---|
+| midform-shop-produce-0030 / -0330 | 00:30 · 03:30 | `scripts/tasks/shop-produce.cmd` → `shop-produce-guard.js --claim` → `claude -p scripts/shop-produce-prompt.md`(재고 목표 4, 하룻밤 2편, 회차 3시간 한도). 보고서 `D:/volcano-runs/_upload/produce.log` |
+| midform-shop-fill | 07:20 | `shop_schedule.js fill 2` — 재고(`stock_new_channel.json` ready)에서 08·18시 유튜브 예약, 태그 관문(`shop_yt_tags.js`), Blotato·Zernio(틱톡)·네이버 클립 작업 등록, 장부. 로그 `_upload/fill.log` |
+| midform-shop-naver-<편> | 그 편 공개 시각 | 네이버 클립 업로드(편마다 1회, fill 이 만든다) |
+| midform-shop-comments-0805 / -1805 | 08:05 · 18:05 | 고정 댓글 |
+| midform-shop-metrics | 23:30 | 성과 수집 |
+| midform-shop-weekly | 월 07:00 | 주간 보고 |
+
+10/19: fill·comments-0805·네이버 작업에 «놓친 회차는 켜진 뒤 실행»(StartWhenAvailable)을 켰다. 새 네이버 작업도 shop_fanout 이 켠다. 모든 작업은 로그온 상태에서만 돈다(Interactive) — 재부팅 뒤 로그인해야 돈다.
+
+**세션 안 cron(재부팅이면 사라짐 → 세션이 다시 만든다)**: 매일 03:13 밤 생산 점검, 07:37 fill 점검. 점검이 끝날 때마다 다음 날 것을 새로 만든다.
+
+**재부팅 뒤 재개(쇼핑 세션)**
+1. `tail -30 D:/volcano-runs/_upload/fill.log` — 오늘 08·18시 예약이 됐는지. 안 돌았으면 `D:\midform\scripts	asks\shop-fill.cmd` 1회.
+2. `node scripts/shop_yt_tags.js --audit --days 3` — 태그 0개 편 없는지.
+3. `schtasks /query /tn midform-shop-naver-<편>` — 오늘 편 네이버 작업 남아 있는지.
+4. 관리자에게 새 주소로 첫 메시지, 다음 03:13·07:37 cron 재등록.
+
+**소유주 결정 대기(10/19)**: 쇼핑 틱톡 Blotato 복귀(연결 뒤 accountId 교체·Zernio 매핑 62703 삭제), 2계정 분리(키우기/팔기)·이름·브랜드 표시, 하룻밤 3편(MAX_PER_NIGHT 3·TARGET 6), 키우기 100% 전환, 롱폼(발굴 레퍼런스 카드 docs/category-cards/2026-10-19-shopping-longform-reference.md 뒤 착수, 설명란 고지·직접 촬영 여부), 인포크 플랫폼별 분리 방식, 조회 0 자동 비공개 허락.
+
+**유튜브 쇼핑 제휴 목표(10/19)**: 구독 500 + 롱폼 3,000시간(또는 90일 쇼츠 300만). 10/19 실측 구독 56·유효 시청 0시간(전부 쇼츠)·90일 쇼츠 36,524·YPP 미가입.
+
 ---
 
 ## 0. 지금 상태 요약
