@@ -79,3 +79,11 @@
 - 10-20 04:30 렌더: **2편 원고·episode 폴더 없음(주 1편 «今週の国会»)** → 이번 새벽 렌더 없음.
 - 렌더 중 끊어야 할 때(06:50 규칙): 렌더 프로세스를 죽이면 `finally` 가 안 돌 수 있으니 `politics-hour/RENDERING-ja.lock` 을 손으로 지운다. 끝난 조각은 `<workdir>/seg/NNN-*/normalized.mp4` 로 남고 다시 돌리면 건너뛴다.
 - 재개 명령: `python politics-hour-ja/render/ja_render.py politics-hour-ja/episodes/<날짜>/episode.json` (같은 명령 그대로, 끝난 조각 재사용 → concat → -14 LUFS).
+
+## 8. 주제 선정은 상승 검색어 먼저 (관리자 전달 소유주 지시 10-19 17:2x, 2편부터)
+
+- 후보 소스: 구글 트렌드 급상승(JP) · 구글/유튜브 자동완성(일본어) 전날 20시→당일 09시 변화 · 야후 재팬 검색 급상승 공개 페이지(로그인·키 없이 보이는 범위만).
+- 그중 관저·국회 영상(PDL·인용 범위)이 있는 주제만 롱폼. 뉴스는 인용 소재일 뿐 주제 근거가 아님.
+- keywords.json `basis` 에 rising 근거(소스·시각·변화) 기록, 포장 1위 낱말 = 상승 키워드.
+- 도구: 도구개발 rising_keywords.js 가 나오면 import(사본 금지), 없으면 수동.
+- 착수 때 2편 후보 표(상승 점수·영상 유무·사유)를 관리자에게 먼저.
