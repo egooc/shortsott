@@ -20,6 +20,11 @@ const { resolveTool } = require('../utils/toolPaths');
 
 const TARGET_LUFS = -14;
 const LOUDNESS_TOLERANCE_LU = 2;
+// 카이안 K12 (10-19 관리자): 레인 렌더러가 -16 목표였던 것을 -14로 옮기는 중이라 10-21 00:00 KST 부터 ±1.
+// 그 전에는 ±2 유지 + -15 미만이면 경고 로그만.
+const TIGHT_TOLERANCE_LU = 1;
+const TIGHT_FROM = Date.parse('2026-10-21T00:00:00+09:00');
+const WARN_BELOW_LUFS = -15;
 const TRUE_PEAK_CEILING_DB = -1;
 const LOUDNORM_FILTER = 'loudnorm=I=-14:TP=-1.5:LRA=11';
 const MEASURE_TIMEOUT_MS = 120000;
@@ -70,9 +75,13 @@ async function measureLoudness(filePath) {
   return { integratedLufs, truePeakDb };
 }
 
-function needsNormalization(measured) {
+function toleranceAt(now = Date.now()) {
+  return now >= TIGHT_FROM ? TIGHT_TOLERANCE_LU : LOUDNESS_TOLERANCE_LU;
+}
+
+function needsNormalization(measured, now = Date.now()) {
   if (!measured) return false;
-  if (Math.abs(measured.integratedLufs - TARGET_LUFS) > LOUDNESS_TOLERANCE_LU) return true;
+  if (Math.abs(measured.integratedLufs - TARGET_LUFS) > toleranceAt(now)) return true;
   return measured.truePeakDb !== null && measured.truePeakDb > TRUE_PEAK_CEILING_DB;
 }
 
@@ -93,6 +102,9 @@ async function normalizeUploadLoudness(filePath, log = () => {}) {
   if (!measured) {
     // No audio stream or unparsable output: nothing to normalize.
     return passthrough;
+  }
+  if (measured.integratedLufs < WARN_BELOW_LUFS && toleranceAt() > TIGHT_TOLERANCE_LU) {
+    log(`Loudness WARN: ${measured.integratedLufs} LUFS is below ${WARN_BELOW_LUFS} (target ${TARGET_LUFS}); renderer should normalize to -14 (tolerance tightens to ±1 on 2026-10-21).`);
   }
   if (!needsNormalization(measured)) {
     log(`Loudness OK (${measured.integratedLufs} LUFS / ${measured.truePeakDb} dBTP); no normalization needed.`);
@@ -139,6 +151,9 @@ module.exports = {
     PEAK_RE,
     TARGET_LUFS,
     LOUDNESS_TOLERANCE_LU,
+    TIGHT_TOLERANCE_LU,
+    TIGHT_FROM,
+    toleranceAt,
     TRUE_PEAK_CEILING_DB,
     LOUDNORM_FILTER
   }

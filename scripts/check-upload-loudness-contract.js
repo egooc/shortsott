@@ -76,6 +76,20 @@ assert(
   needsNormalization({ integratedLufs: -14.5, truePeakDb: -0.5 }) === true,
   'loudness in tolerance but true peak above -1 dBTP must still be normalized'
 );
+const BEFORE = Date.parse('2026-10-20T23:59:00+09:00');
+const AFTER = Date.parse('2026-10-21T00:00:00+09:00');
+assert(
+  needsNormalization({ integratedLufs: -15.8, truePeakDb: -1.5 }, BEFORE) === false,
+  'before 2026-10-21 a -15.8 LUFS file stays inside the ±2 window (warn only)'
+);
+assert(
+  needsNormalization({ integratedLufs: -15.8, truePeakDb: -1.5 }, AFTER) === true,
+  'from 2026-10-21 00:00 KST the window is ±1, so -15.8 LUFS is normalized'
+);
+assert(
+  loudnessTest.toleranceAt(BEFORE) === 2 && loudnessTest.toleranceAt(AFTER) === 1,
+  'tolerance switches from 2 to 1 LU at 2026-10-21 00:00 KST'
+);
 assert(
   needsNormalization(null) === false,
   'no measurement (no audio stream) means passthrough, not normalization'
