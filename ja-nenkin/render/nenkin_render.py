@@ -574,7 +574,9 @@ def captions(cues, d, emph=()):
             tx = tx.replace(esc(w), f'<em>{esc(w)}</em>')
         body += f'<div class="cap" id="c{i}"><span>{tx}</span></div>'
         end = cues[i + 1][0] if i + 1 < len(cues) else d   # 문장 사이 쉼에도 자막 띠를 비우지 않는다(다음 자막이 뜰 때 내린다)
-        js.append(f'tl.set("#c{i}",{{opacity:1}},{a:.3f});tl.set("#c{i}",{{opacity:0}},{min(end, d - .04):.3f});')
+        # 장면 경계에서 띠가 1~2프레임 비던 곳 87(10-19 발굴): 첫 자막은 2프레임 앞당기고(0 아래로는 안 감), 마지막 자막은 장면 끝까지 둔다
+        start = max(0.0, a - 2 / FPS) if i == 0 else a
+        js.append(f'tl.set("#c{i}",{{opacity:1}},{start:.3f});' + (f'tl.set("#c{i}",{{opacity:0}},{end:.3f});' if i + 1 < len(cues) else ''))
     return body, js
 
 
