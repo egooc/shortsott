@@ -4,7 +4,7 @@
     python ja-nenkin/render/num_audit.py ja-nenkin/ep01            # 이어 붙이기 → 받아쓰기(이미 있으면 재사용) → 대조
     python ja-nenkin/render/num_audit.py ja-nenkin/ep01 --only 12,40   # 그 장면만 다시 받아써서 대조(재합성 뒤)
 
-결과: ep/audit/report.md 와 «숫자 N/M·고유명사 N/M»(맞은 수/전체) 한 줄. 불일치가 있으면 종료 코드 4.
+결과: ep/audit/report.md 와 «숫자 N/M·고유명사 N/M»(맞은 수/전체) 한 줄. 실제 불일치면 종료 코드 4, 소수 «점 빠짐»(형식)만이면 3(청취 확인).
 고유명사는 ep/yomi.json 의 audit 표(표기: [들려도 되는 다른 표기…])로 장면마다 대본 횟수만큼 들렸는지 센다.
 """
 import json
@@ -94,24 +94,37 @@ def main(argv=None):
     yf = ep / 'yomi.json'
     table = json.loads(yf.read_text(encoding='utf-8')).get('audit', {}) if yf.exists() else {}
     bad, total, lines = 0, 0, []
-    nbad, ntotal = 0, 0
+    nbad, ntotal, nfmt = 0, 0, 0
     for k, i in enumerate(idx):
         heard = ''.join(w for a, b, w in words if offs[k] - .05 <= (a + b) / 2 < offs[k + 1] + .05)
         want = Counter(v for s in blocks[i]['sentences'] for v in N.values_arabic(s))
         got = Counter(nums(heard))
         miss = want - got
+        # 소수가 «점» 없이 붙어 들린 것(5.105→5105)은 받아쓰기 형식 문제 — 실제 오독과 나눠 적고 청취로 확인(10-19 관리자, ko 13.3→133 사례)
+        fmt = Counter()
+        for v, n in list(miss.items()):
+            if isinstance(v, float) and v != int(v):
+                glued = int(repr(v).replace('.', ''))
+                k_ = min(n, (got - Counter(want))[glued])
+                if k_:
+                    fmt[v] = k_
+                    miss[v] -= k_
+        miss = +miss
         total += sum(want.values())
+        nfmt += sum(fmt.values())
         nw, nmiss = names(blocks[i]['sentences'], heard, table)
         ntotal += nw
         nbad += sum(nmiss.values())
-        if miss or nmiss:
+        if miss or nmiss or fmt:
             bad += sum(miss.values())
-            lines.append(f'- [{i}] {blocks[i]["vid"]}: 숫자 대본 {dict(want)} · 빠짐 {dict(miss)} · 고유명사 빠짐 {nmiss}\n  들림: {heard}')
-    head = f'역전사 대조: 숫자 {total - bad}/{total}·고유명사 {ntotal - nbad}/{ntotal} (불일치 숫자 {bad}건·고유명사 {nbad}건)'
+            lines.append(f'- [{i}] {blocks[i]["vid"]}: 숫자 대본 {dict(want)} · 실제 오독 {dict(miss)} · 점 빠짐(형식·청취 확인) {dict(fmt)}'
+                         f' · 고유명사 빠짐 {nmiss}\n  들림: {heard}')
+    head = (f'역전사 대조: 숫자 {total - bad}/{total}·고유명사 {ntotal - nbad}/{ntotal} '
+            f'(실제 오독 숫자 {bad}건·고유명사 {nbad}건 · 점 빠짐 형식 {nfmt}건 — 청취 확인)')
     (au / f'report_{tag}.md').write_text(head + '\n\n' + '\n'.join(lines) + '\n', encoding='utf-8')
     print(head)
     print('\n'.join(lines))
-    return 4 if bad or nbad else 0
+    return 4 if bad or nbad else (3 if nfmt else 0)   # 3 = 형식만 — 해당 장면 청취 뒤 통과
 
 
 if __name__ == '__main__':
