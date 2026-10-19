@@ -12,6 +12,7 @@
 
 | 도구 | 만든 세션 | 경로 | 하는 일 | 쓰는 레인 | 옮길 후보 레인 | 상태 |
 |---|---|---|---|---|---|---|
+| lcut.py + tts_audit.py | 정치 ko | politics-hour/overlay/lcut.py · overlay/tts_audit.py (7e1e206) | L컷: 인용→다음 조각 경계마다 원본 소리 0.4초 페이드(캐시 보존·영상 복사, 음량 정규화 전) / TTS 역전사 관문: 해설 음성→Speechmatics→숫자·고유명사 대조(소수 덩어리 비교), upload_gate 요구. 10/19편에서 오독 3건 적발 | politics_ko(10/20편~) | politics_ja(import 가능), nenkin·corp(tts_audit) | 채택 |
 | ff_render.py | 쇼핑 | scripts/ff_render.py (01a8a45, 10-19 등재) | 쇼핑쇼츠 자체 렌더러(후킹→경험→비밀→원리→증거→CTA, 정사각 창, 최종 loudnorm I=-14 TP -1.5). 키는 코드에 없음(~/.volcano/keys) | shop | N100 쇼핑 2레인(어랍숏 창 템플릿 대안), reels | 채택 |
 | loudnorm_final | 도구개발 | scripts/loudnorm_final.py normalize(out) | 2패스 loudnorm -14 LUFS·TP -1.5, 영상 스트림 복사. 10-19 전 레인 -16 → -14 전환의 공용 모듈 | politics_ja(2편~), ko_longshort(ship.py), nenkin(2편~), fantube(tpl_b) | politics(렌더 뒤), corp | 채택 |
 | nenkin_render.py | 도구개발 → 연금JA(10-19 이관) | ja-nenkin/render/nenkin_render.py | 연금 롱폼 렌더러(큰 자막 92px·도표 56px+, 녹판 도식, 자막 띠 경계 수정 2편~) | nenkin | corp(도식·자막 모듈 import, ko 글꼴·진녹색) | 채택 |
@@ -98,6 +99,7 @@
 
 | 도구 | 만든 세션 | 경로 | 하는 일 | 쓰는 레인 | 옮길 후보 레인 | 상태 |
 |---|---|---|---|---|---|---|
+| rising_keywords.js | 도구개발 | scripts/rising_keywords.js (2169e0a) · 후보 config/rising_seeds.json · 출력 server/data/rising_keywords/<레인>_latest.json · 예약 midform-rising-keywords 08:00·14:00 | 롱폼 주제 선정 관문(10-19 소유주 «뉴스가 아니라 올라오는 키워드»): 구글 트렌드 급상승 RSS(KR·JP)+구글·유튜브·네이버 자동완성 스냅샷 → rising_score·전일/7일 새 보조어·자동완성 폭. 데이터랩은 키 없어 skipped | politics_ko(10/20편~), politics_ja(2편~), nenkin, corp | 전 롱폼 레인·발굴 | 채택 · 2차: 에버그린 자동완성 확장(ㄱ~ㅎ) |
 | yt_monetize_ko.js | A 롱투숏 | D:/volcano-runs/ls_tools/yt_monetize_ko.js | 채널 구독·365일 시청 시간·90일 쇼츠 조회(Analytics API, 토큰 미출력) — 수익 창출 고정 채널 선별용 | ko_longshort | 전 레인(관리자 07:40 보고에 월 1회) | 채택 · 옮길 1순위 |
 | uploadLoudnessService ±1 | 도구개발 | server/services/uploadLoudnessService.js (5053b10) | 업로드 때 음성 -14 정규화(막지 않음). 10-21 00:00부터 허용 폭 ±1, 그 전 ±2+경고. auto-publish·rinbox-publish 경로만(정치 업로더 안 거침) | ja, ko_longshort, shop, fantube | politics(경로 추가 여부) | 채택 |
 | rinbox-publish.js (+장부 자동 기록 10-15) | C 린박스 | scripts/rinbox-publish.js | 승인→예약 업로드→장부 | ja, ko_longshort | fantube(yt-upload.js 직접), politics, shop(각자 업로드) — 통일 검토 | 채택 |
