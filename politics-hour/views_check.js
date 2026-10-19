@@ -126,6 +126,8 @@ async function repack(videoId, h, views, H) {
       execFileSync('schtasks', ['/Create', '/F', '/SC', 'DAILY', '/TN', `politics_views_${videoId}_daily`, '/SD', `${t.getFullYear()}/${pad(t.getMonth() + 1)}/${pad(t.getDate())}`, '/ST', '07:00', '/TR', cmd], { stdio: 'inherit' });
       console.log(`[views] 등록 ${videoId} 매일 07:00 (+192h부터, 교체는 주 1회)`);
     }
+    // 꺼져 있던 시각(재부팅 등)의 점검은 켜진 뒤 바로 돈다 — schtasks /Create 로는 못 거는 설정(10-20 07:00 재부팅)
+    execFileSync('powershell', ['-NoProfile', '-Command', `Get-ScheduledTask -TaskName 'politics_views_${videoId}_*' | ForEach-Object { $s = $_.Settings; $s.StartWhenAvailable = $true; Set-ScheduledTask -TaskName $_.TaskName -Settings $s | Out-Null }`], { stdio: 'inherit' });
     return;
   }
   const H = await auth(findPackages(videoId)?.purpose);
