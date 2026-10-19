@@ -11,8 +11,9 @@ const path = require('path');
 const DIR = 'D:/volcano-runs/_upload';
 const LOCK = path.join(DIR, 'produce.lock');
 const STATE = path.join(DIR, 'produce_state.json');
-const TARGET = 4;          // 이틀치 — 하룻밤 실패해도 다음 날 슬롯이 비지 않게
-const MAX_PER_NIGHT = 2;   // 한 편 30~40분(자막 지우기가 대부분), 07:20 fill 전에 끝나야 한다
+const TARGET = 14;         // 상시 재고 14편(2편/일×1주) — 10/20 소유주 «쇼핑 밤 생산 한도 상향»(4였을 땐 생산=소비라 재고가 안 쌓였다)
+const MAX_PER_NIGHT = 4;   // 00:30·03:30 회차 × MAX_PER_RUN (10/20 2→4)
+const MAX_PER_RUN = 2;     // 한 회차 3시간 안에 끝낼 수 있는 편수 — 03:30 회차도 07:20 fill 전에 끝나야 한다
 const LOCK_STALE_MS = 4 * 3600e3;
 
 const readJson = (p, d) => { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return d; } };
@@ -46,7 +47,7 @@ if (mode === '--claim') {
     console.log('[guard] 오래된 잠금을 치운다');
   }
   if (left.length >= TARGET) { console.log(`[guard] 재고 ${left.length}편 ≥ ${TARGET} — 건너뜀`); process.exit(10); }
-  const need = Math.min(MAX_PER_NIGHT - today.made, TARGET - left.length);
+  const need = Math.min(MAX_PER_RUN, MAX_PER_NIGHT - today.made, TARGET - left.length);
   if (need <= 0) { console.log(`[guard] 오늘 한도(${MAX_PER_NIGHT}편) 다 씀 — 건너뜀`); process.exit(10); }
   fs.writeFileSync(LOCK, `${JSON.stringify({ at: new Date().toISOString(), stockBefore: left, need }, null, 2)}\n`, 'utf8');
   console.log(`[guard] 재고 ${left.length}편 → ${need}편 만든다`);
