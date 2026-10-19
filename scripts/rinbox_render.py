@@ -520,6 +520,17 @@ def main():
          '-af', norm + ',alimiter=limit=0.75:level=false,aresample=48000',
          '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', tmp])
     os.replace(tmp, out)
+    # -14 로 올리자 리미터가 피크를 깎아 목표에서 1 LU 넘게 모자란 편이 생겼다(118ja -15.3, 10-20).
+    #   한 번 더 재서 모자란 만큼 올리고 같은 리미터로 다시 누른다.
+    r = subprocess.run(['ffmpeg', '-hide_banner', '-i', str(out), '-af', 'ebur128', '-f', 'null', '-'],
+                       capture_output=True, text=True, encoding='utf-8', errors='replace')
+    li = re.findall(r'I:\s+(-?[\d.]+) LUFS', r.stderr)
+    if li and -14 - float(li[-1]) > 0.5:
+        print('음량 보정 %s → -14 LUFS (+%.1f dB)' % (li[-1], -14 - float(li[-1])))
+        run(['ffmpeg', '-loglevel', 'error', '-y', '-i', out,
+             '-af', 'volume=%.2fdB,alimiter=limit=0.75:level=false,aresample=48000' % (-14 - float(li[-1])),
+             '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', tmp])
+        os.replace(tmp, out)
     gate(out, total)
     # 눈검사용 시트 — 2초마다 한 장. 앞 샷이 오프닝(박힌 제목·좌우반전 글자)이거나 로고가 들어오는 걸
     # 기계가 못 잡으므로 발행 승인 전에 반드시 이걸 본다(2026-10-08 暴れん坊将軍 806초 오프닝 사고).
