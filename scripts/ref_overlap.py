@@ -2,7 +2,7 @@
 """원고 ↔ 레퍼런스 전사 문장 단위 일치 검사 — 공용(10-20, 연금JA ja-nenkin/render/ref_overlap.py 에서 옮김).
 롱폼 원고 관문(렌더 전 필수): 연금 ja · 기업 ko · 정치 ko · 정치 JA.
 
-    python scripts/ref_overlap.py <원고> [--lane nenkin_ja|corp_ko|politics_ko|politics_ja] [--refs DIR ...] [--th 0.7] [--json out]
+    python scripts/ref_overlap.py <원고> [--lane nenkin_ja|corp_ko|politics_ko|politics_ja] [--refs DIR ...] [--lang ko|ja] [--th 0.7] [--json out]
 
 원고 형식(확장자로 고름):
     .txt  — 한 줄 = 한 문장 묶음, '#'·'@' 로 시작하는 줄은 건너뜀(연금·기업)
@@ -11,6 +11,7 @@
     폴더  — 그 안의 script.txt → script_*.py → seg/*/cues.json 순으로
 
 레퍼런스 전사 폴더 규약(연금JA 그대로): DIR/*.md(·*.txt), 줄 앞 '[mm:ss]'·'[h:mm:ss]' 는 지우고, '#'·'- ' 머리줄은 건너뜀.
+언어(--lang, 기본은 레인 설정): ja = 줄마다 나눔, ko = 타임코드 줄을 이어 붙여 다시 나눔(문장부호 없는 긴 덩어리는 40·80자 창).
 --refs 를 안 주면 config/ref_overlap.json 의 레인 기본 폴더.
 
 문장부호·공백을 지운 뒤 difflib 비율 ≥ th 인 쌍을 보여 준다.
@@ -29,7 +30,8 @@ CONFIG = ROOT / 'config' / 'ref_overlap.json'
 LEDGER = ROOT / 'server' / 'data' / 'gate_errors.jsonl'
 MIN_LEN = 8
 _PUNCT = re.compile(r'[、。，,.「」『』“”‘’"\'？?！!・…~\-–—()（）\[\]<>《》«»:：;；\s]')
-_SPLIT = re.compile(r'(?<=[。？！?!.])\s*|(?<=다\.)|(?<=요\.)')
+_SPLIT = re.compile(r'(?<=[。？！?!.])\s*')
+WINS, LONG = ((40, 10), (80, 20)), 100   # ko 자동 자막은 문장부호가 거의 없다 → 긴 덩어리는 40자·80자 창으로 잘라 맞댄다(짧은 원고 문장·긴 문장 둘 다 0.7 이상 나오게)
 _STAMP = re.compile(r'^\[\d+:\d+(?::\d+)?\]\s*')
 
 
@@ -41,17 +43,48 @@ def split_sentences(text):
     return [s.strip() for s in _SPLIT.split(text) if s and s.strip()]
 
 
-def ref_sentences(dirs):
-    """[(파일 stem, 정규화 문장, 원문)]"""
+def _windows(n):
+    """정규화 길이 n 이 LONG 을 넘으면 [(시작, 끝)] 창들, 아니면 None."""
+    if n <= LONG:
+        return None
+    return [(i, min(i + w, n)) for w, step in WINS for i in range(0, max(n - w, 0) + step, step)]
+
+
+def ref_sentences(dirs, lang='ja'):
+    """[(파일 stem, 정규화 문장, 원문)]
+    ja: 타임코드 줄마다 «。？！» 로 나눈다(연금JA 원판 그대로).
+    ko: 한국어 전사는 타임코드 한 줄이 문장 조각이라 파일 하나의 줄을 이어 붙인 뒤 «. ? !» 로 다시 나눈다
+        (기업 흥망 ko-corp/render/ref_overlap_ko.py 9f731f7 의 방식). 문장부호 없는 긴 덩어리는 40·80자 창으로."""
     out = []
     for d in dirs:
         for f in sorted(list(Path(d).glob('*.md')) + list(Path(d).glob('*.txt'))):
+            lines = []
             for line in f.read_text(encoding='utf-8').splitlines():
+                stamped = bool(_STAMP.match(line))
                 line = _STAMP.sub('', line).strip()
-                if not line or line.startswith(('#', '- ')):
+                if not line or line.startswith(('#', '- ')) or (lang == 'ko' and not stamped and f.suffix == '.md' and _has_stamps(f)):
                     continue
-                out += [(f.stem, norm(s), s) for s in split_sentences(line) if len(norm(s)) >= MIN_LEN]
+                lines.append(line)
+            chunks = split_sentences(' '.join(lines)) if lang == 'ko' else [s for l in lines for s in split_sentences(l)]
+            for s in chunks:
+                ns = norm(s)
+                if len(ns) < MIN_LEN:
+                    continue
+                win = _windows(len(ns)) if lang == 'ko' else None
+                if win:
+                    out += [(f.stem, ns[a:b], ns[a:b]) for a, b in win]
+                else:
+                    out.append((f.stem, ns, s))
     return out
+
+
+_STAMP_CACHE = {}
+
+
+def _has_stamps(f):
+    if f not in _STAMP_CACHE:
+        _STAMP_CACHE[f] = any(_STAMP.match(l) for l in f.read_text(encoding='utf-8').splitlines())
+    return _STAMP_CACHE[f]
 
 
 def _py_narration(path):
@@ -92,15 +125,18 @@ def script_sentences(path):
     return [s for l in lines for s in split_sentences(l)]
 
 
+def lane_cfg(lane):
+    return json.loads(CONFIG.read_text(encoding='utf-8'))['lanes'][lane]
+
+
 def lane_refs(lane):
-    cfg = json.loads(CONFIG.read_text(encoding='utf-8'))
-    return [ROOT / d for d in cfg['lanes'][lane]['refs']]
+    return [ROOT / d for d in lane_cfg(lane)['refs']]
 
 
-def check(script, refs_dirs, th=0.7):
+def check(script, refs_dirs, th=0.7, lang='ja'):
     """→ {'hits': [{ratio, mine, ref_file, ref}], 'mine': n, 'refs': n, 'error': str|None}"""
     missing = [str(d) for d in refs_dirs if not Path(d).is_dir()]
-    refs = ref_sentences([d for d in refs_dirs if Path(d).is_dir()])
+    refs = ref_sentences([d for d in refs_dirs if Path(d).is_dir()], lang)
     mine = [s for s in script_sentences(script) if len(norm(s)) >= MIN_LEN]
     res = {'script': str(script), 'th': th, 'mine': len(mine), 'refs': len(refs), 'hits': [], 'error': None}
     if missing:
@@ -145,11 +181,12 @@ def main(argv=None):
     th = float(argv[argv.index('--th') + 1]) if '--th' in argv else 0.7
     lane = argv[argv.index('--lane') + 1] if '--lane' in argv else None
     refs = [argv[i + 1] for i, a in enumerate(argv) if a == '--refs']
+    if not refs and not lane:
+        lane = 'nenkin_ja'   # 옛 연금JA 호출(인자 없이)과 같은 기본값
     if not refs:
-        if not lane:
-            lane = 'nenkin_ja'   # 옛 연금JA 호출(인자 없이)과 같은 기본값
         refs = lane_refs(lane)
-    res = check(argv[0], refs, th)
+    lang = argv[argv.index('--lang') + 1] if '--lang' in argv else (lane_cfg(lane).get('lang', 'ja') if lane else 'ja')
+    res = check(argv[0], refs, th, lang)
     for h in res['hits']:
         print(f'{h["ratio"]:.2f} | {h["mine"]} || {h["ref_file"]}: {h["ref"]}')
     if '--json' in argv:

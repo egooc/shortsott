@@ -41,6 +41,25 @@ with tempfile.TemporaryDirectory() as t:
     assert ro.main([str(c), '--refs', str(empty)]) == 5
     assert ro.main([str(c), '--refs', str(t / 'nope')]) == 5
     assert len(ro.LEDGER.read_text(encoding='utf-8').splitlines()) == 2
+    # ko: 타임코드 줄이 문장 조각 → 이어 붙여 다시 나눈다(ja 방식으론 못 잡음)
+    kr = t / 'kr'
+    kr.mkdir()
+    (kr / 'k1.md').write_text('# 제목\n설명 줄은 타임코드가 없어 건너뜀 문장입니다.\n[0:01] 해태는 과자 회사에서\n[0:03] 출발해 건설과 전자로\n[0:05] 몸집을 키웠습니다. 그리고\n', encoding='utf-8')
+    ks = t / 'ks.txt'
+    ks.write_text('해태는 과자 회사에서 출발해 건설과 전자로 몸집을 키웠습니다.\n', encoding='utf-8')
+    assert len(ro.check(ks, [kr], lang='ja')['hits']) == 0
+    assert len(ro.check(ks, [kr], lang='ko')['hits']) == 1
+    # ko: 문장부호 없는 자동 자막 덩어리는 60자 창으로
+    blob = ' '.join(f'[0:{i:02d}] {w}' for i, w in enumerate(
+        ('그 시절 사람들은 아무도 몰랐습니다 회사가 이미 기울고 있다는 사실을 '
+         '은행은 계속 돈을 빌려줬고 직원들은 월급이 밀린 줄도 모른 채 일했고 '
+         '결국 어느 월요일 아침 부도 소식이 신문 일면에 실렸고 주가는 바닥으로 떨어졌으며 '
+         '거래처 수백 곳이 함께 무너졌고 그 뒤로 십 년 동안 소송이 이어졌습니다 그리고 남은 것은 빚뿐이었습니다').split()))
+    (kr / 'k2.md').write_text(blob.replace('] ', '] ', 1).replace(' [', '\n['), encoding='utf-8')
+    kb = t / 'kb.txt'
+    kb.write_text('은행은 계속 돈을 빌려줬고 직원들은 월급이 밀린 줄도 모른 채 일했습니다.\n', encoding='utf-8')
+    assert len(ro.check(kb, [kr], lang='ko')['hits']) == 1, ro.check(kb, [kr], lang='ko')
     # 레인 설정 읽기
     assert ro.lane_refs('nenkin_ja')[0].name == 'transcripts'
+    assert ro.lane_cfg('corp_ko')['lang'] == 'ko' and ro.lane_cfg('politics_ja')['lang'] == 'ja'
 print('OK')
