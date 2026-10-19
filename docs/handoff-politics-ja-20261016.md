@@ -87,3 +87,14 @@
 - keywords.json `basis` 에 rising 근거(소스·시각·변화) 기록, 포장 1위 낱말 = 상승 키워드.
 - 도구: 도구개발 rising_keywords.js 가 나오면 import(사본 금지), 없으면 수동.
 - 착수 때 2편 후보 표(상승 점수·영상 유무·사유)를 관리자에게 먼저.
+
+## 9. 도입 70초 규칙 (관리자 §7 10-19, 2편부터)
+
+쟁점브리핑 3편 지속 곡선: 콜드오픈 5초 뒤 «채널명·날짜·목차 낭독» 25~30초에서 절반 이탈(−33~−65%p), 첫 원음 75초 뒤.
+1. 0~5초: 썸네일 인물·낱말 장면(화면+소리).
+2. 인사·채널명·날짜 낭독 삭제 — 채널명은 화면 구석.
+3. 목차 대신 «이 편이 답하는 질문» 한 줄, 15초 안.
+4. 첫 발췌 원음 40초 안(그 앞 해설 카드는 1장만).
+5. 70초 안에 첫 답 한 조각.
+1편 KP9kKSX9H84 은 그대로 두고 +24h(10-20 18:00 KST) 뒤 지속 곡선으로 첫 70초 표를 관리자에게.
+지속 곡선: 지금 토큰(force-ssl)으로 youtubeanalytics v2 reports 가 열린다(10-19 확인, `dimensions=elapsedVideoTimeRatio, metrics=audienceWatchRatio,relativeRetentionPerformance, filters=video==ID`). 공개 전·집계 지연 땐 rows 0.
