@@ -66,11 +66,12 @@ def run(ep, retranscribe=False):
         subprocess.run([sys.executable, '-X', 'utf8', str(SCRIPTS / 'rinbox_transcribe.py'), str(wav), str(tr), '--lang', 'ko'], check=True)
     words = json.loads(tr.read_text(encoding='utf-8'))
     table = name_table(ep)
+    vf = au / 'verified.json'
+    verified = json.loads(vf.read_text(encoding='utf-8')) if vf.exists() else {}
     total = bad = ntotal = nbad = 0
     lines, notes = [], []
-    for k, (i, s, _) in enumerate(nars):
-        sents = sentences(s['text'])
-        heard = ' '.join(w for a, b, w in words if offs[k] - .05 <= (a + b) / 2 < offs[k + 1] + .05)
+    def judge(sents, heard):
+        """한 해설 조각의 원고 문장들 ↔ 들린 글 → (원고 숫자, 빠진 숫자, 점 빠짐, 고유명사 원고 수, 빠진 고유명사)."""
         # 받아쓰기는 수를 대개 아라비아 숫자로 «14일» «13.3이었습니다» 처럼 붙여 준다 — 아라비아 숫자는 원고와 같은 파서로,
         # 남은 한글 부분만 한자어·고유어 수 파서로 읽는다(«14일»의 «일»을 1로 붙여 읽지 않게)
         # 소수(18.2%·27.1%)는 한 덩어리로 맞춘다 — 쪼개 세면 «27.1→27.2» 가 다른 곳의 1 에 묻힌다(10/19편 실측)
@@ -87,16 +88,38 @@ def run(ep, retranscribe=False):
         heard_vals = A.script_values(rest) + A.values(re.sub(r'\d[\d,.]*', ' ', rest))
         want = Counter(v for x in sents for v in A.script_values(DEC.sub(' ', x))) + Counter(dec_want)
         miss = (want - Counter(dec_want)) - Counter(heard_vals) + dmiss
-        total += sum(want.values()); bad += sum(miss.values())
-        flat, nmiss = heard.replace(' ', ''), {}
+        flat, nmiss, nt = heard.replace(' ', ''), {}, 0
         for w, alts in table.items():
             n = sum(x.replace(' ', '').count(w.replace(' ', '')) for x in sents)
             if n:
-                ntotal += n
-                got = sum(flat.count(x.replace(' ', '')) for x in [w, *alts])
+                nt += n
+                forms = sorted({x.replace(' ', '') for x in [w, *alts]}, key=len, reverse=True)   # 긴 표기부터 한 번만 센다(«모스탄씨»·«모스탄» 겹쳐 세기 방지)
+                got = len(re.findall('|'.join(map(re.escape, forms)), flat))
                 if got < n:
                     nmiss[w] = n - got
-        nbad += sum(nmiss.values())
+        return want, miss, squash, nt, nmiss
+
+    for k, (i, s, voice) in enumerate(nars):
+        sents = sentences(s['text'])
+        heard = ' '.join(w for a, b, w in words if offs[k] - .05 <= (a + b) / 2 < offs[k + 1] + .05)
+        want, miss, squash, nt, nmiss = judge(sents, heard)
+        if miss or nmiss:
+            # 긴 파일 받아쓰기는 낱말을 통째로 빠뜨리기도 한다(10/20편 «모스 탄» — 조각만 따로 받아쓰니 들렸다) → 그 조각만 다시 받아써 한 번 더 본다
+            one = au / f'seg_{i:03d}.json'
+            if retranscribe or not one.exists() or voice.stat().st_mtime > one.stat().st_mtime:
+                subprocess.run([sys.executable, '-X', 'utf8', str(SCRIPTS / 'rinbox_transcribe.py'), str(voice), str(one), '--lang', 'ko'], check=True)
+            heard2 = ' '.join(w for a, b, w in json.loads(one.read_text(encoding='utf-8')))
+            want2, miss2, squash2, nt2, nmiss2 = judge(sents, heard2)
+            if sum(miss2.values()) + sum(nmiss2.values()) < sum(miss.values()) + sum(nmiss.values()):
+                notes.append(f'- [{i}] 전체 받아쓰기에서 빠짐 {dict(miss)}{nmiss} → 조각만 다시 받아쓰니 {"모두 들림" if not (miss2 or nmiss2) else dict(miss2) | nmiss2}')
+                heard, miss, squash, nmiss = heard2, miss2, squash2, nmiss2
+        # 짧게 잘라 다시 들어 확인한 것(audit/verified.json {"조각 번호": {"낱말": "근거 파일·들린 표기"}}) — 근거 없이는 안 지운다
+        for w, why in verified.get(str(i), {}).items():
+            if w in nmiss:
+                notes.append(f'- [{i}] «{w}» 짧게 잘라 다시 받아쓰기로 확인: {why}')
+                nmiss.pop(w)
+        total += sum(want.values()); bad += sum(miss.values())
+        ntotal += nt; nbad += sum(nmiss.values())
         if squash:
             notes.append(f'- [{i}] 점 빠짐(받아쓰기 형식으로 봄) {squash}')
         if miss or nmiss:
