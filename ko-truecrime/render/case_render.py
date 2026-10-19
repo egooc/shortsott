@@ -38,6 +38,11 @@ STAGES = [('① 안부 확인', '8월 13일 오후'), ('② 이웃 집 CCTV', '8
 TITLE = ('CASE 01', '남편의 말은 네 번 바뀌었다')
 PLACE = '2018.08.13 · 미국 콜로라도주 프레데릭'
 SRC_TAG = ('실제 경찰 바디캠', 'Weld County 지방검찰청 공개')
+ROOM_CLIPS = {'eWsXwpgCG8Q', 'HmlqYkJ7tW0', 'kojfzl_1DAg', 'TXOoW_miMU4', 'GjBGT1x8H6c'}   # 조사실 고정 카메라(발굴 10-19: 바디캠 꼬리표 금지)
+
+
+def src_tag(clip):
+    return '조사실 영상' if clip in ROOM_CLIPS else SRC_TAG[0]
 esc = html.escape
 
 CSS = '''@font-face{font-family:K;src:url(assets/NotoSansKR-VF.ttf);font-weight:100 900}
@@ -159,7 +164,7 @@ def panel(spec, d):
     t = spec['type']
     img = '<img src="still.jpg">' if spec.get('clip') else ''
     if t == 'still':
-        return f'<div id="panel">{img}</div><div id="tag">{SRC_TAG[0]}<i>{SRC_TAG[1]} · 정지 화면</i></div>', []
+        return f'<div id="panel">{img}</div><div id="tag">{src_tag(spec.get("clip"))}<i>{SRC_TAG[1]} · 정지 화면</i></div>', []
     if t == 'title':
         lines = ''.join(f'<div class="big" id="b{i}">{x}</div>' for i, x in enumerate(spec['lines']))
         sm = f'<div class="sm">{esc(spec["sub"])}</div>' if spec.get('sub') else ''
@@ -277,7 +282,7 @@ def render_cam(ep, blk, spec, blur, folder, jcut=False):
     fz = float(spec.get('freeze', 0))                         # 프리즈: 자백 장면 한 번만 — 끝 프레임을 fz 초 멈춘다
     d = round(b - a + fz, 3)
     hf = folder / 'hf'
-    tag = f'<div id="tag">{SRC_TAG[0]}<i>{SRC_TAG[1]}</i></div>'
+    tag = f'<div id="tag">{src_tag(blk["clip"])}<i>{SRC_TAG[1]}</i></div>'
     sb, sj = lines_html([[x - a, y - a, who, t] for x, y, who, t in blk['subs']], False)
     page(hf, 'c', d, chrome(spec) + tag + sb, sj, transparent=True)
     hf_render(hf, folder / 'overlay.mov', 'mov')
