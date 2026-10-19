@@ -16,12 +16,13 @@ def CH(n, t, img):
 
 V = {
     "_emph": ["196억 원", "2,155억 원", "3조 3,000억 원", "3조 3,900억 원", "1만 원", "1,177억 원", "부도", "법정관리", "출자전환", "화의"],
-    "hook_shelf": P('hook_shelf', move='in'),
+    "hook_shelf": P('hook_shelf', move='in', badge='그림은 이해를 돕는 그림'),
+    "hook_answer": {"type": "year", "label": "답의 첫 조각", "date": "<em>196억 원</em>", "size": 190, "lines": ["1997년 11월 1일, 막지 못한 어음"], "sub": "그룹 금융권 빚 3조 3,000억 원에 비하면 작은 돈", "source": "MBC 뉴스데스크 1997.11.1"},
     "hook_split": {"type": "split", "label": "한 그룹에서 나온 제품, 지금의 주인", "root": "옛 해태그룹",
                    "left": {"title": "과자", "items": ["홈런볼 · 맛동산", "크라운해태 계열"]},
                    "right": {"title": "그 밖", "items": ["부라보콘 → 빙그레", "갈아만든배 → LG생활건강", "타이거즈 → KIA"]}},
     "hook_question": P('hook_question', move='in'),
-    "hook_promise": P('hook_promise', move='right', badge='그림은 이해를 돕는 그림'),
+    "hook_promise": P('hook_promise', move='right'),
     "ch1_title": CH('1', '과자 회사의 시작', 'candy_era'),
     "y1945": {"type": "year", "label": "시작", "date": "1945년 10월 3일", "lines": ["해태제과 합명회사 설립"], "source": "한국민족문화대백과"},
     "founders": {"type": "list", "label": "창업자는 네 사람", "items": ["박병규", "민후식", "신덕발", "한달성"], "mark": "·", "size": 66, "w": 900},

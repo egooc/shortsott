@@ -1,14 +1,14 @@
 {
   "video_id": null,
   "purpose": "corp_ko",
-  "note": "10-19 포장 3묶음. purpose=corp_ko 는 새 채널 연결 전 임시 이름 — 연결 때 youtube_upload_profiles 의 purpose 와 맞출 것. 업로드 전 썸네일 3장 thumb_compose 로 생성.",
+  "note": "10-19 포장 3묶음. purpose=corp_ko 는 새 채널 연결 전 임시 이름 — 연결 때 youtube_upload_profiles 의 purpose 와 맞출 것. 업로드 전 썸네일 3장 thumb_compose 로 생성. 10-19 콜드오픈 규칙: 첫 5초 낱말 «홈런볼 만들던 그 회사» 와 맞춰 홈런볼 묶음을 0번(업로드 포장)으로.",
   "packages": [
     {
-      "title": "해태그룹 몰락의 진짜 이유｜과자는 남고 그룹은 196억에 무너졌다",
-      "thumbnail": "ko-corp/ep01/thumb/compose/thumb_0.png",
-      "style": "compose collapse",
+      "title": "홈런볼 만들던 그 회사는 왜 사라졌나｜해태그룹 부도와 해체의 전말",
+      "thumbnail": "ko-corp/ep01/thumb/compose/thumb_1.png",
+      "style": "compose fork",
       "big": [
-        "해태그룹"
+        "홈런볼"
       ],
       "tags": [
         "해태그룹",
@@ -41,11 +41,11 @@
       ]
     },
     {
-      "title": "홈런볼 만들던 그 회사는 왜 사라졌나｜해태그룹 부도와 해체의 전말",
-      "thumbnail": "ko-corp/ep01/thumb/compose/thumb_1.png",
-      "style": "compose fork",
+      "title": "해태그룹 몰락의 진짜 이유｜과자는 남고 그룹은 196억에 무너졌다",
+      "thumbnail": "ko-corp/ep01/thumb/compose/thumb_0.png",
+      "style": "compose collapse",
       "big": [
-        "홈런볼"
+        "해태그룹"
       ],
       "tags": [
         "해태그룹",

@@ -14,7 +14,19 @@
   "hook_shelf": {
     "type": "pic",
     "img": "hook_shelf.png",
-    "move": "in"
+    "move": "in",
+    "badge": "그림은 이해를 돕는 그림"
+  },
+  "hook_answer": {
+    "type": "year",
+    "label": "답의 첫 조각",
+    "date": "<em>196억 원</em>",
+    "size": 190,
+    "lines": [
+      "1997년 11월 1일, 막지 못한 어음"
+    ],
+    "sub": "그룹 금융권 빚 3조 3,000억 원에 비하면 작은 돈",
+    "source": "MBC 뉴스데스크 1997.11.1"
   },
   "hook_split": {
     "type": "split",
@@ -44,8 +56,7 @@
   "hook_promise": {
     "type": "pic",
     "img": "hook_promise.png",
-    "move": "right",
-    "badge": "그림은 이해를 돕는 그림"
+    "move": "right"
   },
   "ch1_title": {
     "type": "chapter",
