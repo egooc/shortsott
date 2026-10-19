@@ -119,3 +119,8 @@
 - 48h(10-21 18:00) 노출 0이면 새 채널 2편 — 관리자 권고. **→ 10-20 01:10 소유주 확정(A3 ①):** 10-21 18:00 KST 점검에서 1편 노출 0(스튜디오 수치는 소유주가 봄)이면 새 채널로 간다 — 1편은 지금 채널에서 비공개, 새 채널에 공개, 2편도 새 채널. 그때까지 2편 제작은 진행하고 업로드는 판정 뒤. 판정 전에 Analytics 노출 대용 수치(조회·트래픽 소스) 한 줄 준비.
 - **D23(10-20 소유주): 롱폼 공개 시각은 16:00 JST**(오늘 쇼츠 12:00·16:00 은 그대로).
 - 10-19 22시 쇼츠 2편 업로드(소유주 «쇼츠올려»): s1 Mb-YpYisR3A 旧敵国条項が消えない理由(10-20 12:00 JST)·s2 VaOD0gD4umk 消費税が0%じゃなく1%の理由(16:00 JST). 렌더 `python politics-hour-ja/shorts/make_short_ja.py <plan.json> <id>`(56b4997), 역전사 `scripts/rinbox_transcribe.py <mp4> <out> --lang ja`. +6h 점검 schtasks. 점검은 ko views_check `--short --purpose politics_ja`(820c73f)로 재등록, 우회 packages.json 삭제.
+
+## 13. 원고 레퍼런스 겹침 관문 (관리자 10-20, 전 롱폼 레인)
+
+- 2편부터 원고 → `python scripts/ref_overlap.py <원고> --lane politics_ja`(종료 0 통과·4 걸림·5 검사 불가) → 통과 뒤 TTS. 렌더 전 필수.
+- 레퍼런스: `python politics-hour-ja/ref_fill.py` 가 reference/ja/politics-* 의 받아 둔 전사를 reference/ja_politics/politics_refs/transcripts/ 에 md로(30파일·163편, 커밋 안 함). 1편 해설 시험 종료 0.
