@@ -151,5 +151,20 @@ async function main() {
   for (const l of lanes) await runLane(l, S[l], opts);
 }
 
+// views_check 등에서: 특정 키워드의 최신 점수(«공개 시점 상승 지속» 칸). 없으면 null.
+//   const { keywordScore } = require('D:/midform/scripts/rising_keywords.js');
+//   keywordScore('politics_ko', '한동훈') → { at, rising_score, day_new, week_new, ac_width, rank, of, trend_traffic }
+function keywordScore(lane, keyword) {
+  const p = path.join(OUT, `${lane}_latest.json`);
+  if (!fs.existsSync(p)) return null;
+  const d = JSON.parse(fs.readFileSync(p, 'utf8'));
+  const i = d.rows.findIndex((r) => r.keyword === keyword);
+  const j = i >= 0 ? i : d.rows.findIndex((r) => r.keyword.includes(keyword) || keyword.includes(r.keyword));
+  if (j < 0) return null;
+  const r = d.rows[j];
+  return { at: d.at, rising_score: r.rising_score, day_new: r.day_new, week_new: r.week_new, ac_width: r.ac_width,
+    rank: j + 1, of: d.rows.length, trend_traffic: r.evidence.trend ? r.evidence.trend.traffic : 0 };
+}
+
 if (require.main === module) main().catch((e) => { console.error(e.message); process.exit(1); });
-module.exports = { trends, suggest, runLane };
+module.exports = { trends, suggest, runLane, keywordScore };
