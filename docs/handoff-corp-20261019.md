@@ -56,6 +56,21 @@ python -X utf8 ko-corp/render/corp_render.py ko-corp/ep01                    # �
 
 포장 3묶음(제목·썸네일·키워드·태그·해시태그·설명 첫 두 줄·purpose) → `scripts/packages_gate.py`, 제목 첫 낱말 = 썸네일 큰 글씨 → 비공개 예약 → processingStatus 확인 → 태그 삽입 + yt_tags --gate → 공개 뒤 views_check(politics-hour import) 첫날 4h·매일.
 
+## 6-1. 재부팅 인계 (10-20 07:00 메인 PC 재부팅)
+
+상태(10-19 마감): 원고 v3(장면 73개·약 6,200자), 장면표·그림 27장·포장 3묶음·썸네일 3장 완료, 미리보기 눈 검사 끝(판 글씨·두 갈래 겹침 고침 dd796cc).
+채널명 «갈림길 경제» 확정(문구 ko-corp/channel.md), 채널 생성은 소유주가 샘플을 본 뒤. TTS 는 정치 RENDERING.lock(일시정지·유지) 때문에 시작 전 —
+대기 루프는 06:50 에 tools/stop_tts_0650.ps1 이 끈다. 밤에 락이 풀려 일부 합성됐으면 ep01/voice/ 에 장면별로 남아 이어 쓴다.
+
+재개(재부팅 뒤 13:00 창, 연금JA 우선 — 락 없음·빈 메모리 8GB 확인 후):
+```
+python -X utf8 ko-corp/render/corp_render.py ko-corp/ep01 --tts-only     # ① 음성(약 20분)
+python -X utf8 ko-corp/render/audit.py ko-corp/ep01                       # ② 역전사 대조 — 0불일치까지 원고 고쳐 ①②
+python -X utf8 ko-corp/render/corp_render.py ko-corp/ep01                # ③ 렌더(약 2시간, 17시에 끊으면 다음 창에서 이어짐)
+python -X utf8 ko-corp/tools/make_sample.py ko-corp/ep01                 # ④ 4구간 샘플(30MB 이하) → 관리자
+```
+길이: TTS 실측 뒤 20분에 모자라면 원고 보강(새 장면만 합성) — 후보는 research/a2.md 의 1997 그룹 연표·기아 인수 경과.
+
 ## 7. 남은 일 (10-19 기준)
 
 1. GPT 사실 확인 답 받기 → 원고 대조·보강(13분 → 20분)
