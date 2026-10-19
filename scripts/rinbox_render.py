@@ -562,7 +562,7 @@ def gate(out, total):
     li = re.findall(r'I:\s+(-?[\d.]+) LUFS', r.stderr)
     tp = re.findall(r'Peak:\s+(-?[\d.]+) dBFS', r.stderr)
     gaps = re.findall(r'silence_duration: ([\d.]+)', r.stderr)
-    if not li or abs(float(li[-1]) + 16) > 1.0:
+    if not li or abs(float(li[-1]) + 14) > 1.0:   # 카이안 K12 -14 LUFS (10-19)
         bad.append('음량 %s LUFS' % (li[-1] if li else '?'))
     if tp and float(tp[-1]) > -1.0:
         bad.append('피크 %s dBFS' % tp[-1])
