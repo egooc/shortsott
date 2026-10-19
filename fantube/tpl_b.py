@@ -144,9 +144,9 @@ def main(spec_path):
         for k, (_, a, _) in enumerate(voices):
             fc.append(f"[{vi + k}:a]aresample=48000,volume=1.6,adelay={int(a * 1000)}:all=1[vv{k}]")
         fc.append('[ad]' + ''.join(f'[vv{k}]' for k in range(len(voices))) + f'amix=inputs={1 + len(voices)}:normalize=0:duration=first[am]')
-        fc.append(f"[am]afade=t=out:st={total - 0.4:.3f}:d=0.4[ac]")
+        fc.append(f"[am]afade=t=out:st={total - 0.4:.3f}:d=0.4,loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000[ac]")   # -14 LUFS(10/19 공통 규칙)
     else:
-        fc.append(f"[ac0]afade=t=out:st={total - 0.4:.3f}:d=0.4[ac]")
+        fc.append(f"[ac0]afade=t=out:st={total - 0.4:.3f}:d=0.4,loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000[ac]")   # -14 LUFS(10/19 공통 규칙)
     fc.append(f'[{bi}:v][vc]overlay=0:{VY}:shortest=1[o0]')
     for j, (_, t0, t1) in enumerate(over):
         fc.append(f"[o{j}][{bi + 1 + j}:v]overlay=0:0:enable='between(t,{t0},{t1})':shortest=1[o{j + 1}]")
