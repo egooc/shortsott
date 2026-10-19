@@ -1,0 +1,28 @@
+{
+  "_doc": "scripts/ref_overlap.py 레인별 레퍼런스 전사 폴더(10-20). 규약: 폴더/*.md, 줄 앞 [mm:ss] 허용, #·- 머리줄 건너뜀(연금JA 형식). 폴더가 없거나 비면 검사는 종료 5(검사 불가)로 소리 낸다.",
+  "lanes": {
+    "nenkin_ja": {
+      "refs": [
+        "reference/ja_nenkin/nenkin_refs/transcripts"
+      ]
+    },
+    "corp_ko": {
+      "refs": [
+        "reference/ko_corp/corp_refs/transcripts"
+      ],
+      "_note": "기업 가이드 2차(10-20)에서 몰랐던 경제 자막을 이 폴더에 md로 채움"
+    },
+    "politics_ko": {
+      "refs": [
+        "reference/ko_politics/politics_refs/transcripts"
+      ],
+      "_note": "경쟁 해설 채널 전사 — 정치 ko 세션이 채움. 에피소드 transcripts/(인용 원본)는 일부러 넣지 않는다"
+    },
+    "politics_ja": {
+      "refs": [
+        "reference/ja_politics/politics_refs/transcripts"
+      ],
+      "_note": "경쟁 해설 채널 전사 — 정치JA 세션이 채움"
+    }
+  }
+}
