@@ -1,5 +1,11 @@
 # 팬튜브(최애모먼트, idol_fantube_ko) 인계 (2026-10-19)
 
+## 10-20 07:00 재부팅 대비 (10-19 밤 기록)
+- **00:37 ep18 렌더·발행(세션 크론 ae0f16f4, 일회성):** lock 없음·빈 메모리 8GB+ 확인 → `python fantube/tpl_b.py D:/volcano-runs/fantube/ep18/spec.json` → 0.25초 장면 검사·눈 검사 → `node fantube/publish.js ep18 D:/volcano-runs/fantube/_upload/ep18_jypbook.json 2026-10-20T18:00:00+09:00` → 태그 통과 시 `node fantube/yt_tags.js HbFqC4IS1ro <meta> --unschedule`(ep11) · `node fantube/ledger.js ep11 --youtube-id HbFqC4IS1ro --retracted "..."`. lock 이면 15분마다 재확인, **06:30 넘으면 시작 안 함**(재부팅 뒤 같은 명령 그대로, 공개 시각만 18:00 전이면 유지).
+- **재개 명령 한 줄(재부팅 뒤 ep18 미완일 때):** `python fantube/tpl_b.py D:/volcano-runs/fantube/ep18/spec.json && node fantube/publish.js ep18 D:/volcano-runs/fantube/_upload/ep18_jypbook.json 2026-10-20T18:00:00+09:00`
+- **자동화 구분:** 저조회 비공개 = schtasks `midform-low-views-private`(매시 :50, 자동 복귀). 태그 삽입·게이트·장부 = publish.js 안에서 업로드와 같이(세션 손 작업, 루프 없음). 예약 교체(ep11→ep18) = 세션 크론(00:37 일회성, 재부팅 전 끝남). 포장 교체 = 팬튜브엔 루프 없음(쇼츠, 수동). «공개 6h 조회 0 → 비공개» = 세션 수동 점검(루프 없음). 재부팅 뒤 다시 걸 세션 크론: 없음.
+- **다음 할 일:** ep09 -FZp2Z-6wWc(10/21 08:00, 규진 단독) 교체할 새 편(PDF 규칙·20~30초·첫 줄 해설, tpl_b.py). 소유주 답 대기: ep18 규진 미포함 허용·ep17 KBS 소스·ep15z/ep16 승인.
+
 ## 정리 상태 — ★취소(10-19, 관리자 오독)
 소유주 원문 «아직 확정은 아닌데. 팬튜브랑 롱투숏·린박스·롱폼·쇼핑 가져간다니까» → 팬튜브 유지. 제작·업로드 재개(08시 정규+18시 트렌드), 예약분 그대로, ep15z·ep16 시안은 소유주 승인 대기로 복귀. 아래는 취소된 정리 당시 기록(재개 명령·실측·자료 위치는 그대로 유효).
 
