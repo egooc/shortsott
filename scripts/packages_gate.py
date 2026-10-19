@@ -11,6 +11,8 @@
 묶음마다: 제목이 big[0] 으로 시작 · 썸네일 파일 있음 · 태그 15~25개 · keywords.json 1·2위가 제목·desc_head·태그 안에 ·
 해시태그 1~5개(#로 시작) · desc_head 두 줄. 그리고 guide_words 가이드 낱말 0.
 종료 코드 0 = 통과 · 4 = 걸림(업로드 중단).
+경고(△, 막지 않음 — 차단 여부는 소유주 뒤, 카이안 K6 10-19): 태그·해시태그 중 제목과 설명 두 줄에 함께 나오는 낱말 수 < 2 ·
+태그가 원고(script.txt, 없으면 seg/*/cues.json·*.srt)에 실제로 나오는 비율 < 50%.
 """
 import json
 import os
@@ -30,6 +32,45 @@ def keywords(ep):
         return []
     k = json.loads(kp.read_text(encoding='utf-8')).get('keywords', [])
     return [x if isinstance(x, str) else x.get('keyword', '') for x in k][:2]
+
+
+WARN_COMMON, WARN_RATIO = 2, 0.5   # 측정 뒤 조정
+
+
+def content_text(ep):
+    """영상 안 말 — 원고 우선, 없으면 자막 큐·srt."""
+    s = ep / 'script.txt'
+    if s.exists():
+        return s.read_text(encoding='utf-8')
+    parts = [f.read_text(encoding='utf-8') for f in sorted(ep.glob('seg/*/cues.json')) + sorted(ep.glob('*.srt'))]
+    return '\n'.join(parts)
+
+
+def norm(s):
+    return ''.join(s.split()).lower()
+
+
+def warnings(ep, lang='ko'):
+    """[(묶음 번호, 공통 낱말 [..], 원고에 나온 태그 비율, 원고에 없는 태그 [..])] 와 경고 줄."""
+    ep = Path(ep)
+    pk = json.loads((ep / 'packages.json').read_text(encoding='utf-8'))
+    body = norm(content_text(ep))
+    stats, lines = [], []
+    for i, p in enumerate(pk.get('packages', [])):
+        words = list(dict.fromkeys([*p.get('tags', []), *(h.lstrip('#') for h in p.get('hashtags', []))]))
+        head = norm(' '.join(p.get('desc_head', [])))
+        common = [w for w in words if norm(w) and norm(w) in norm(p.get('title', '')) and norm(w) in head]
+        tags = p.get('tags', [])
+        miss = [w for w in tags if not all(norm(x) in body for x in w.split())] if body else []   # 여러 낱말 태그는 낱말마다
+        ratio = 1 - len(miss) / len(tags) if tags and body else None
+        stats.append((i, common, ratio, miss))
+        if len(common) < WARN_COMMON:
+            lines.append(f'{i}번: 제목·설명 두 줄·태그 공통 낱말 {len(common)}개 {common} (≥{WARN_COMMON} 권장)')
+        if ratio is None:
+            lines.append(f'{i}번: 원고(script.txt·cues.json·srt) 없음 — 태그-내용 일치 못 잼')
+        elif ratio < WARN_RATIO:
+            lines.append(f'{i}번: 원고에 나오는 태그 {ratio:.0%} (≥{WARN_RATIO:.0%} 권장) · 없는 태그 {miss[:8]}')
+    return stats, lines
 
 
 def check(ep, lang='ko', lane=None):
@@ -76,6 +117,9 @@ def main(argv=None):
     lane = argv[argv.index('--lane') + 1] if '--lane' in argv else None
     bad = check(argv[0], lang, lane)
     print('\n'.join(f'✗ {b}' for b in bad) if bad else f'✓ 포장 관문 통과 ({argv[0]})')
+    warn = warnings(argv[0], lang)[1] if (Path(argv[0]) / 'packages.json').exists() else []
+    if warn:
+        print('\n'.join(f'△ {w}' for w in warn))
     return 4 if bad else 0
 
 

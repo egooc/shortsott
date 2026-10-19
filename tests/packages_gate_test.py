@@ -39,6 +39,12 @@ def main():
         write(ep / 'packages.json', good)
         if G.check(ep):
             print('FAIL 정상 포장이 걸림', G.check(ep)); ok = False
+        (ep / 'script.txt').write_text('연금 신청 방법과 기초연금, 국민연금을 정리합니다.', encoding='utf-8')
+        st, wl = G.warnings(ep)
+        if not (st[0][2] is not None and st[0][2] < 0.5 and any('원고에 나오는 태그' in w for w in wl)):
+            print('FAIL 태그-내용 경고 못 냄', st[0][2], wl); ok = False
+        if G.check(ep):
+            print('FAIL 경고가 관문을 막음'); ok = False
         bad = dict(good, purpose=None, packages=[
             pkg('국민연금 이야기', '연금', 'nope.png', tags=TAGS[:5], hashtags=['연금'], desc_head=['한 줄']),
             pkg('연금 받는 날', '연금', rel, tags=TAGS[:15] + ['총기 난사'])])
