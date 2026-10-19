@@ -27,7 +27,7 @@
         "源泉徴収",
         "年金生活者",
         "夫婦 年金",
-        "年11万円 損"
+        "11万円"
       ],
       "hashtags": [
         "#扶養親族等申告書",
@@ -78,8 +78,8 @@
     },
     {
       "title": "扶養親族等申告書の書き方｜今年はじめて届いた人へ",
-      "thumbnail": "ja-nenkin/ep01/thumb/thumb.png",
-      "style": "A 서류명",
+      "thumbnail": "ja-nenkin/ep01/thumb/thumb_c.png",
+      "style": "C 서류 실물",
       "big": [
         "扶養親族等申告書"
       ],
@@ -100,8 +100,9 @@
         "年金 手取り",
         "源泉徴収",
         "年金生活者",
-        "扶養親族等申告書 初めて",
-        "年金 封筒"
+        "今年はじめて",
+        "年金 封筒",
+        "書き方"
       ],
       "hashtags": [
         "#扶養親族等申告書",
@@ -115,6 +116,6 @@
     }
   ],
   "applied": [],
-  "note": "10-19 포장 3묶음(관리자 10-18 규칙): 0번=업로드 포장(제목③ 훅 금액+썸네일 B), 1번=A 서류명 書き方, 2번=今年はじめて. 썸네일은 A·B 두 장이라 2번은 A 재사용. purpose=nenkin 은 채널 연결 전 임시 이름 — 연결 때 youtube_upload_profiles 의 purpose 와 맞출 것. 교체는 politics-hour/views_check.js.",
+  "note": "10-19 포장 3묶음(관리자 10-18 규칙): 0번=업로드 포장(제목③ 훅 금액+썸네일 B), 1번=A 서류명 書き方, 2번=今年はじめて. 썸네일은 묶음마다 A·B·C 따로(10-19 C 추가 — 서류 실물+今年はじめて). purpose=nenkin 은 채널 연결 전 임시 이름 — 연결 때 youtube_upload_profiles 의 purpose 와 맞출 것. 교체는 politics-hour/views_check.js.",
   "purpose": "nenkin"
 }

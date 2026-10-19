@@ -708,7 +708,10 @@ def main(argv=None):
     lst.write_text(''.join(f"file '{p.as_posix()}'\n" for p in parts), encoding='utf-8')
     out = ep / (f'episode_{only}.mp4' if only else 'episode.mp4')
     subprocess.run(['ffmpeg', '-nostdin', '-v', 'error', '-y', '-f', 'concat', '-safe', '0', '-i', str(lst),
-                    '-af', 'loudnorm=I=-16:TP=-1.5:LRA=11', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '160k', str(out)], check=True)
+                    '-c:v', 'copy', '-c:a', 'aac', '-b:a', '160k', str(out)], check=True)
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'scripts'))
+    import loudnorm_final   # 카이안 K12 -14 LUFS 2패스(옛 1패스 I=-16 은 ①편 -16.0 으로 나왔다)
+    print(loudnorm_final.normalize(out))
     print(out, f'{total / 60:.1f}분')
     return 0
 
