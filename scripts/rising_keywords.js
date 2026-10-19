@@ -6,7 +6,9 @@
 //   ① 구글 트렌드 급상승 RSS(trends.google.com/trending/rss?geo=KR|JP) — 제목·대략 검색량·뉴스 제목
 //   ② 자동완성 스냅샷: 구글·유튜브(suggestqueries), 네이버(ac.search.naver.com, ko 만) — 후보 낱말마다, 시각 표시
 //      → 전 스냅샷(20시간+ 전 = 전일비, 6.5일+ 전 = 7일비)과 비교해 «새로 생긴 보조어 수»
-//   ③ 네이버 데이터랩: .env 에 NAVER_DATALAB_CLIENT_ID 가 있을 때만. 없으면 건너뛰고 표에 표시(발급은 소유주 손)
+//   ③ 네이버 데이터랩 검색어 트렌드(ko 레인만): 키는 ~/.volcano/keys/naver_hub_id·naver_hub_secret(쇼핑 naver_trend.py 와 같은 앱).
+//      후보 5개씩 묶어 최근 4주 일 단위 상대값 → «최근 3일 평균 / 이전 7일 평균» = datalab_ratio, 점수에 가산.
+//      파일이 없으면 skipped. 일 1,000건 한도라 레인당 호출 수를 표에 적는다. 키 값은 찍지 않는다.
 // 출력: server/data/rising_keywords/<lane>/<YYYYMMDD-HHMM>.json(스냅샷) · <lane>_latest.json({후보: rising_score, 전일비, 7일비, 근거}) · 표
 // 후보 사전: config/rising_seeds.json(rising = 상승률 순, evergreen = 자동완성 폭 순)
 // 요청은 1초 간격, 429·403 이 나면 그 소스는 그날 멈춘다(우회 금지). 키·토큰 값은 찍지 않는다.
@@ -21,6 +23,37 @@ const UA = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' };
 const DAY = 864e5;
 const blocked = new Set();
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const KEYS = path.join(require('os').homedir(), '.volcano', 'keys');
+
+// 데이터랩: {키워드: ratio|null}, 호출 수, 상태
+async function datalab(cands) {
+  const idf = path.join(KEYS, 'naver_hub_id'), sef = path.join(KEYS, 'naver_hub_secret');
+  if (!fs.existsSync(idf) || !fs.existsSync(sef)) return { ratio: {}, calls: 0, status: 'skipped: ~/.volcano/keys/naver_hub_* 없음' };
+  const headers = { 'X-Naver-Client-Id': fs.readFileSync(idf, 'utf8').trim(), 'X-Naver-Client-Secret': fs.readFileSync(sef, 'utf8').trim(), 'Content-Type': 'application/json' };
+  const kst = (d) => new Date(d.getTime() + 9 * 36e5).toISOString().slice(0, 10);
+  const end = new Date(Date.now() - DAY), start = new Date(end.getTime() - 27 * DAY);
+  const ratio = {};
+  let calls = 0, status = 'ok';
+  for (let i = 0; i < cands.length; i += 5) {
+    const group = cands.slice(i, i + 5);
+    const body = { startDate: kst(start), endDate: kst(end), timeUnit: 'date',
+      keywordGroups: group.map((k) => ({ groupName: k.slice(0, 20), keywords: [k] })) };
+    await sleep(300);
+    calls += 1;
+    const r = await fetch('https://openapi.naver.com/v1/datalab/search', { method: 'POST', headers, body: JSON.stringify(body) });
+    if (r.status === 429 || r.status === 401 || r.status === 403) { status = `stopped: HTTP ${r.status}`; break; }
+    if (!r.ok) { status = `partial: HTTP ${r.status}`; continue; }
+    const j = await r.json();
+    (j.results || []).forEach((res, n) => {
+      const byDay = Object.fromEntries((res.data || []).map((x) => [x.period, x.ratio]));
+      const days = [];
+      for (let d = 0; d < 10; d++) days.push(byDay[kst(new Date(end.getTime() - d * DAY))] || 0);
+      const recent = (days[0] + days[1] + days[2]) / 3, prev = days.slice(3, 10).reduce((a, b) => a + b, 0) / 7;
+      ratio[group[n]] = prev > 0 ? Math.round((recent / prev) * 100) / 100 : (recent > 0 ? 9.99 : null);
+    });
+  }
+  return { ratio, calls, status };
+}
 
 async function get(src, url) {
   if (blocked.has(src)) return null;
@@ -105,6 +138,7 @@ async function runLane(name, L, opts) {
   const snap = { at: now.toISOString(), lane: name, trends: tr, ac };
   fs.writeFileSync(path.join(dir, `${stamp(now)}.json`), JSON.stringify(snap, null, 2) + '\n', 'utf8');
 
+  const dl = L.lang === 'ko' ? await datalab(cands) : { ratio: {}, calls: 0, status: 'skipped: ja 레인(네이버는 ko 전용)' };
   const day = previous(dir, now, 20 * 36e5);
   const week = previous(dir, now, 6.5 * DAY);
   const rows = cands.map((q) => {
@@ -114,12 +148,14 @@ async function runLane(name, L, opts) {
     const wNew = fresh(w, week && week.ac[q] ? words(week.ac[q]) : null);
     const trendPts = t ? Math.round(5 * Math.log10(Math.max(10, t.traffic))) : 0;
     const width = w.size;
-    const score = L.mode === 'rising'
+    const dr = dl.ratio[q] ?? null;
+    const dlPts = dr === null ? 0 : Math.max(-5, Math.min(10, 5 * (dr - 1)));   // 1.0 = 평소, 2.0 = +5, 3.0 이상 = +10
+    const score = (L.mode === 'rising'
       ? 2 * (dNew ? dNew.length : 0) + 0.5 * (wNew ? wNew.length : 0) + trendPts + 0.2 * width
-      : width + (wNew ? wNew.length : 0);
+      : width + (wNew ? wNew.length : 0)) + dlPts;
     return {
       keyword: q, rising_score: Math.round(score * 10) / 10,
-      day_new: dNew ? dNew.length : null, week_new: wNew ? wNew.length : null, ac_width: width,
+      day_new: dNew ? dNew.length : null, week_new: wNew ? wNew.length : null, ac_width: width, datalab_ratio: dr,
       evidence: {
         trend: t ? { title: t.title, traffic: t.traffic, at: t.at, news: t.news.slice(0, 2) } : null,
         new_today: (dNew || []).slice(0, 6), new_week: (wNew || []).slice(0, 6),
@@ -127,14 +163,14 @@ async function runLane(name, L, opts) {
       },
     };
   }).sort((a, b) => b.rising_score - a.rising_score);
-  const datalab = process.env.NAVER_DATALAB_CLIENT_ID ? 'key present (미구현 — 2차)' : 'skipped: .env 에 키 없음(발급은 소유주)';
-  const res = { at: now.toISOString(), lane: name, mode: L.mode, baseline: { day: day ? day.at : null, week: week ? week.at : null }, datalab, blocked: [...blocked], rows };
+  const datalabInfo = `${dl.status} · 호출 ${dl.calls}건(일 1,000건 한도)`;
+  const res = { at: now.toISOString(), lane: name, mode: L.mode, baseline: { day: day ? day.at : null, week: week ? week.at : null }, datalab: datalabInfo, datalab_calls: dl.calls, blocked: [...blocked], rows };
   fs.writeFileSync(path.join(OUT, `${name}_latest.json`), JSON.stringify(res, null, 2) + '\n', 'utf8');
 
-  console.log(`\n== ${name} (${L.mode}) · 후보 ${rows.length} · 기준 전일 ${day ? stamp(new Date(day.at)) : '없음'} · 7일 ${week ? stamp(new Date(week.at)) : '없음'} · 데이터랩 ${datalab}`);
-  console.log('순위 | 낱말 | 점수 | 전일 새 보조어 | 7일 새 | 자동완성 폭 | 급상승');
+  console.log(`\n== ${name} (${L.mode}) · 후보 ${rows.length} · 기준 전일 ${day ? stamp(new Date(day.at)) : '없음'} · 7일 ${week ? stamp(new Date(week.at)) : '없음'} · 데이터랩 ${datalabInfo}`);
+  console.log('순위 | 낱말 | 점수 | 전일 새 보조어 | 7일 새 | 자동완성 폭 | 데이터랩 3일/7일 | 급상승');
   rows.slice(0, opts.top).forEach((r, i) => console.log(
-    `${i + 1} | ${r.keyword} | ${r.rising_score} | ${r.day_new ?? '-'} | ${r.week_new ?? '-'} | ${r.ac_width} | ${r.evidence.trend ? r.evidence.trend.traffic + '+' : ''}`));
+    `${i + 1} | ${r.keyword} | ${r.rising_score} | ${r.day_new ?? '-'} | ${r.week_new ?? '-'} | ${r.ac_width} | ${r.datalab_ratio ?? '-'} | ${r.evidence.trend ? r.evidence.trend.traffic + '+' : ''}`));
   return res;
 }
 
@@ -162,7 +198,7 @@ function keywordScore(lane, keyword) {
   const j = i >= 0 ? i : d.rows.findIndex((r) => r.keyword.includes(keyword) || keyword.includes(r.keyword));
   if (j < 0) return null;
   const r = d.rows[j];
-  return { at: d.at, rising_score: r.rising_score, day_new: r.day_new, week_new: r.week_new, ac_width: r.ac_width,
+  return { at: d.at, rising_score: r.rising_score, day_new: r.day_new, week_new: r.week_new, ac_width: r.ac_width, datalab_ratio: r.datalab_ratio ?? null,
     rank: j + 1, of: d.rows.length, trend_traffic: r.evidence.trend ? r.evidence.trend.traffic : 0 };
 }
 
