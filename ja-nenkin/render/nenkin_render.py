@@ -4,7 +4,7 @@
     python ja-nenkin/render/nenkin_render.py ja-nenkin/ep01 [--only 0-5] [--tts-only]
 
 - 뼈대(하이퍼프레임 page·hf_render·ffmpeg 합성)는 politics-hour-ja/render/ja_render.py 의 함수를 복사해 왔다(관리자 10-17: 복사해 자기 모듈로,
-  화면 템플릿은 가져오지 말 것). 화면은 레퍼런스(@年金給付金手続きノート) 문법 — 장 이름표·가운데 판 하나·아래 2줄 자막·출처 작은 글씨 —
+  화면 템플릿은 가져오지 말 것). 화면은 레퍼런스 문법 — 장 이름표·가운데 판 하나·아래 2줄 자막·출처 작은 글씨 —
   을 따르되 색·그림은 새로, 글씨는 레퍼런스보다 크게(소유주 10-17 «노인 시청자»): 자막 92px·판 글자 56px 이상.
 - 숫자: 자막은 아라비아 숫자, TTS 입력은 scripts/ja_numread.to_say(금액·비율 히라가나). 렌더 전 --check 로 값 검산.
 - 렌더는 낮에만(ko 18:30~00:30·ja 03~06·쇼핑 00:30/03:30 피함).
@@ -54,6 +54,7 @@ def wait_gate():
         if not locks and gb >= FREE_GB:
             return gb
         time.sleep(15 * 60)
+CHANNEL = '年金書類の読み方教室'   # 소유주 10-20 00:40 확정
 CODE = '2026-10-18b'   # 10-18 말 속도 1.0·문장 사이 0.7초 — 0.95는 숫자 중간이 끊겨 역전사 불일치 11/218(0.97도 2건), 1.0은 0
 SUPERTONIC = {'python': 'D:/midform/tts-lab/supertonic/.venv/Scripts/python.exe', 'dir': 'D:/midform/tts-lab/supertonic',
               'voice': 'F2', 'speed': 1.0, 'steps': 8, 'gap': 0.7, 'lang': 'ja', 'num_reading': False}
@@ -210,7 +211,7 @@ img{{mix-blend-mode:normal}}
 def chrome(blk, spec):
     chap = blk['chap']
     if chap == '0':
-        no, ti = '', '年金・給付金 手続きノート'
+        no, ti = '', CHANNEL   # 레퍼런스 채널명·문구는 렌더 틀 상수에 넣지 않는다(10-20, 남의 채널명이 1편 띠에 박혔던 사고)
     elif chap == 'まとめ':
         no, ti = '', 'まとめ'
     else:
