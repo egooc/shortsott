@@ -45,17 +45,29 @@ def normalize(src, dst=None, target=TARGET):
         if dst != src:
             dst.write_bytes(src.read_bytes())
         return {'before': before, 'after': before, 'tp': tp, 'skipped': True}
-    af = (f'loudnorm=I={target}:TP={TP}:LRA={LRA}:measured_I={m["input_i"]}:measured_TP={m["input_tp"]}'
+    ln = (f'loudnorm=I={target}:TP={TP}:LRA={LRA}:measured_I={m["input_i"]}:measured_TP={m["input_tp"]}'
           f':measured_LRA={m["input_lra"]}:measured_thresh={m["input_thresh"]}:offset={m["target_offset"]}:linear=true')
+    # 원본 피크가 높으면 linear 만으로는 TP 를 못 지키고, AAC 인코딩도 피크를 넘긴다(정치 ko 10/19편 TP -0.2, 10-19 보고).
+    # 그래서 TP > -1 이면 48k 로 내린 뒤 리미터(alimiter, 샘플 피크)를 -2.5 → -4 dBFS 로 걸어 다시 만든다.
     tmp = dst.with_name(dst.stem + '.loudnorm_tmp' + dst.suffix)
-    r = _ff(['-y', '-i', str(src), '-map', '0', '-c:v', 'copy', '-af', af, '-ar', '48000', '-c:a', 'aac', '-b:a', '192k',
-             '-movflags', '+faststart', str(tmp)])
-    if r.returncode != 0 or not tmp.exists():
+    best = None
+    for lim_db in (None, -2.5, -4.0):
+        af = ln + ',aresample=48000' + (f',alimiter=limit={10 ** (lim_db / 20):.4f}:level=disabled' if lim_db else '')
+        r = _ff(['-y', '-i', str(src), '-map', '0', '-c:v', 'copy', '-af', af, '-ar', '48000', '-c:a', 'aac', '-b:a', '192k',
+                 '-movflags', '+faststart', str(tmp)])
+        if r.returncode != 0 or not tmp.exists():
+            tmp.unlink(missing_ok=True)
+            raise RuntimeError(f'loudnorm 적용 실패: {src}\n{r.stderr[-400:]}')
+        a = measure(tmp)
+        got = {'before': before, 'after': float(a['input_i']), 'tp': float(a['input_tp']), 'skipped': False, 'limiter_db': lim_db}
+        if best is None or got['tp'] < best['tp']:
+            best = got
+            os.replace(tmp, dst.with_name(dst.stem + '.loudnorm_best' + dst.suffix))
         tmp.unlink(missing_ok=True)
-        raise RuntimeError(f'loudnorm 적용 실패: {src}\n{r.stderr[-400:]}')
-    os.replace(tmp, dst)
-    a = measure(dst)
-    return {'before': before, 'after': float(a['input_i']), 'tp': float(a['input_tp']), 'skipped': False}
+        if got['tp'] <= -1.0:
+            break
+    os.replace(dst.with_name(dst.stem + '.loudnorm_best' + dst.suffix), dst)
+    return best
 
 
 def main(argv=None):
