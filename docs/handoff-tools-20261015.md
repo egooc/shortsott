@@ -86,3 +86,14 @@
 - 소재 A(2018 콜로라도 프레데릭 일가족 사건). **업로드 후보에서 제외 — 로컬 시험 전용**(발굴 6칸: 넷플릭스 동일 화면 Content ID 위험·ko 중복 큼). 목적은 레퍼런스 틀 재현과 «원음 ≤50%» 구조 시험.
 - 각도: 진술이 바뀌는 순서만(첫 안부 확인 → 인터뷰 → 거짓말 탐지 → 자백). 바디캠은 기관 공개 원본에서만 자르고 재가공·방송 클립 0.
 - 실제 레인 1편 후보는 C(2024 영국 그레이트야머스, ko 0편) — 발굴이 항소·물량 확인 중, 공개 자료는 틈틈이 모은다.
+
+## 9. 10-19 마감 · 10-20 07:00 재부팅 인계
+
+- 소유 이동: 연금 제작 → 연금JA 세션(ac), 기업 흥망 제작 → 기업 흥망 세션(e0). 도구개발은 공용 도구·가이드.
+- 오늘 만든 공용 도구: lufs_table.py(음량 표) · loudnorm_final.py(렌더 끝 -14 정규화, 레인들이 import) · gap_check.py(문장 사이 무음 상한) · publish_hours.py(경쟁 업로드 시각, RSS 404라 영상 페이지 publishDate) · packages_gate 태그-내용 경고(△) · guide_words.json 2026-10-19.2(동물 학대 오해 범주) · uploadLoudnessService 허용 폭 10-21부터 ±1.
+- 돌고 있는 것: 없음(수집·루프 0). jidaigeki 감시 cron 은 세션 cron 이라 재부팅으로 사라진다 — 관리자 지시 없으면 다시 걸지 않는다.
+- **다음 일: 기업 흥망 가이드 2차**(docs/plans/2026-10-19-ko-corp-planning-guide.md §5) — 10-20 09시 자막 창(세션 복귀가 늦으면 10시로). 몰랐던 경제 11편 우선, 대본 구조 3질문 포함, 완성되면 e0 세션·관리자에.
+- 재개 명령: 자막 창에서 D:/midform/server/data/ref_corp 에서 `yt-dlp --skip-download --write-auto-subs --sub-langs ko --sub-format json3 -o "subs/%(id)s.%(ext)s" <id>` 를 몰랐던 경제 11편 순서로(요청 사이 3~5초, 429면 그날 중지). 자동 자막이 없으면 Speechmatics ko 로 앞 3분·끝 2분.
+- 재부팅 뒤: 관리자에게 첫 메시지(새 주소) → §4-3 nvenc 시험 지원: `nvidia-smi` + `ffmpeg -f lavfi -i testsrc2=s=1920x1080:d=10 -c:v h264_nvenc -f null -`.
+- ★10-19 16:40 미리 돌린 nvenc 시험 실패: PATH 의 ffmpeg 9.0(gyan) 은 nvenc API 13.1(드라이버 610+)이 필요한데 드라이버는 12.2. 재부팅으로는 안 고쳐진다. 드라이버 560.94(RTX 2060), .env FFMPEG_PATH 도 같은 9.0. 다만 레인 렌더러(scripts·politics-hour·ja-nenkin·ls_tools·fantube) 중 nvenc 를 쓰는 곳은 0 — 지금 영향 없음, 쓰려면 드라이버 610+ 갱신.
+- 멈추면 안 되는 시각대: 없음. 렌더 창 규칙(ko 18:30~00:30·ja 03~06 회피, 빈 메모리 8GB)은 그대로.
