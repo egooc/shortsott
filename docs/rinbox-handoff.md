@@ -158,3 +158,22 @@ node scripts/rinbox-publish.js <완성본.mp4> [--dry-run]
 | `D:/midform/scripts/_channel-trend.js` | 채널 조회수 추이(매칭 여부 포함) |
 | `D:/midform/scripts/rinbox-publish.js` | 발행 |
 | `D:/midform/scripts/rinbox-fanout.js` | Blotato 팬아웃 (★2026-09-29 현재 **구독 만료**) |
+
+---
+
+## 6. ★10-20 07:00 재부팅 인계 (10-19 작성) — 위 §4 상태표는 낡았다, 여기부터
+
+**레인:** ja(沼落ちシネマ, 일본 65세+ 남성) 하루 3편 08/12/18시. ko 린박스는 10-14 중단(롱투숏으로).
+**재고:** 10-25 18:00까지 예약 끝(유튜브 서버 예약 — 재부팅 영향 없음). 다음 빈 칸 10-26 08:00(23Z 10-25).
+
+**자동화는 전부 윈도우 예약 작업(재부팅 뒤 자동 복귀):** `midform-rinbox-social`·`midform-rinbox-web`·`midform-rinbox-coverage`·`midform-low-views-private`(저조회 비공개)·`rinbox-feed-watch`.
+태그 삽입·확인(tagGate)·가이드 관문은 `rinbox-publish.js` 발행 명령 안에서 돈다(별도 루프 없음). 세션 루프·cron 없음.
+
+**진행 중 — 해설 2줄 시험편 rinbox133ja (style nar2, 10-19 소유주 «해설 한 줄 섞어서»):**
+- 편집표 `D:/volcano-runs/rinbox133ja/plan_local.json`(地獄の辰 1화 902~955초, 컷마다 카메라 네 칸 `shot`), 업로드 정보 `_render/rinbox133ja-local.mp4.rinbox.json`(가이드 통과).
+- 렌더는 RENDERING.lock 해제·빈 메모리 8GB 대기 루프로 걸어 둠(10-20 06:00 이후 시작 금지). 재부팅 전 못 했으면 **재개 명령 한 줄:**
+  `cd /d/midform && PYTHONIOENCODING=utf-8 .venv-vision/Scripts/python.exe scripts/rinbox_render.py /d/volcano-runs/rinbox133ja/plan_local.json --out /d/volcano-runs/rinbox133ja/rinbox133ja-local.mp4`
+- 렌더 뒤: `_render/` 로 옮기기 → 해설 역전사 대조 → `lufs_table.py`(−14 확인, 렌더러 목표 10-19에 −16→−14) → `rinbox-publish.js --approve` → `--publish-at 2026-10-25T23:00:00.000Z` → `rinbox-social.js --only rinbox133ja-local.mp4` → 관리자에 30MB 이하 샘플.
+
+**소유주 결정 대기:** 118(DwttmzAhyYY, 10-21 03Z) 화면에 박힌 「弓も鉄砲も」 재렌더 교체 여부 · SAMURAI VS NINJA(일본만 차단) 소재 사용 여부.
+**보류:** 必殺仕事人Ⅴ·激闘編(원본 `_sources/hissatsu5g03` 보관, 쓰지 않음). 10-19 이 PC 유튜브 자막 요청 429 — 다음 날 09시 창부터.
