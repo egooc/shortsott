@@ -1,0 +1,25 @@
+{
+  "product": {
+    "name": "cream puff snack balls",
+    "desc": "a small pile of round bite-sized golden puff snack balls (choux-like, baseball-sized look but small), some in a plain white bowl, one broken open showing cream; plain unbranded, no wrapper, no text"
+  },
+  "chip": "기업 흥망",
+  "variants": [
+    {
+      "symbol": "collapse",
+      "top": "해태그룹 몰락",
+      "bottom": "196억에 무너졌다"
+    },
+    {
+      "symbol": "fork",
+      "top": "홈런볼 그 회사",
+      "bottom": "왜 사라졌나"
+    },
+    {
+      "symbol": "crack",
+      "top": "과자는 팔렸는데",
+      "bottom": "회사는 부도났다",
+      "quote": true
+    }
+  ]
+}
