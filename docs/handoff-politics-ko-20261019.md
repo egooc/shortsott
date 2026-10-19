@@ -8,7 +8,7 @@
 |---|---|
 | 10/19 롱폼 | **IDFYC2j0dE0** 19:00 공개. 태그 23개 확인, 고정 댓글 달림(고정 표시는 스튜디오 수동). 해설 TTS 숫자 오독 3곳(27.1%·19.0%·1,001명)을 고친 판이다. 옛 판 4nCS41bCGso는 비공개로 두었고 삭제 금지, packages.json `retracted`에 기록. |
 | 10/19 쇼츠 | s1 브런슨 **IZLgs_ZmACg** 21:00 예약(태그 14개, +6h 점검, 21:03 댓글 작업). s2 박용진(`shorts/20261019/s2_bigyo.upload.json`, 렌더 완료)은 **10-20에 업로드**. 하루 업로드 한도 때문이다. |
-| 10/20 롱폼 | 19:15 밤 렌더 시작, 54조각, 예상 21.6분. `episodes/20261020/render.log` 참고. L컷·TTS 한글 읽기·-14 LUFS·tts_audit 첫 적용 편. 업로드는 10-20 18:00 예약. |
+| 10/20 롱폼 | **렌더 끝(21:43)** — `episodes/20261020/work/episode.mp4` 20:05, L컷 23곳, tts_audit OK, -14.05 LUFS, upload_gate PASS. 첫 70초: 질문 14.6초·첫 본문 발췌 35.2초. **아직 업로드 안 함**(10-19 업로드 3건 → 한도 우려) — 10-20 09:00 상승 키워드 재확인 뒤 make_meta→upload.json→업로드(18:00 예약). 포장 3묶음은 자동완성 구문 머리+전문용어 풀이. |
 | 10/20 쇼츠 | `shorts/ls/make_plans_20261020.py`(s1_sabeop 김종배·s2_hamkke 정춘생). 계획만 있고 렌더는 아직이다. 렌더하려면 `thumb/thumb_k_<name>.json`도 필요하다. |
 
 ## 재부팅 뒤 재개(순서대로)
@@ -37,6 +37,8 @@
 - c0558ef: render_episode 끝에 loudnorm_final -14 LUFS.
 - 7e1e206·37243e9: `overlay/lcut.py`(L컷), `tts.speak(say=)`+`tts_say`/`tts_keep`, `overlay/tts_audit.py`(역전사 숫자·고유명사 대조, 소수는 한 덩어리로 비교), upload_gate가 audit/result.json을 요구. 공용 이름 표는 `names_ko.json`.
 - 659b497: `yt_comment.js`.
+- 8ab0324: 렌더 후처리까지 락 유지. 01174a3: tts_audit 조각 재받아쓰기·verified.json·이름 겹쳐 세기 방지.
+- 10/19편 포장 6묶음(자동완성 구문 머리·전문용어 풀이), 21:00경 소유주 즉시 교체로 2번(조계원) 적용 중. 노출 2(소유주 스튜디오) — 노출이 없으면 포장 교체 효과 없음.
 - b831596: 10/20 쇼츠 계획.
 - 주제 선정은 «오르는 검색어»(rising_keywords)로 한다. 첫 70초 규칙: 인사·날짜·목차 낭독 없이 15초 안에 질문, 40초 안에 첫 발췌.
 
