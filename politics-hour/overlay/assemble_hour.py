@@ -54,6 +54,17 @@ def narration(seg, folder, provider, chrome):
         if seg.get('tts_say'):   # episode.json "tts_say": true — TTS 입력만 숫자를 한글 읽기로(10/20편부터), 자막은 숫자 그대로
             sys.path.insert(0, 'D:/midform/ko-corp/render')
             from ko_say import say
+            keep = seg.get('tts_keep') or []   # 한글 읽기로 오히려 틀리는 표기는 원문대로 둔다(10/19 «십삼 점 삼»이 «133»으로 들림)
+            if keep:
+                raw_say = say
+                def say(s, _k=keep):
+                    marks = {f'§{chr(65 + n)}§': w for n, w in enumerate(_k)}   # 숫자 없는 표시(say 가 안 건드린다)
+                    for m, w in marks.items():
+                        s = s.replace(w, m)
+                    s = raw_say(s)
+                    for m, w in marks.items():
+                        s = s.replace(m, w)
+                    return s
         _, cues = tts.speak(provider, seg['text'], str(wav), say=say)
     dur = round(tts.wav_seconds(wav) + PAD, 3)
     spec = dict(chrome, **seg['visual'], duration=dur, captions=cues, issue_tag=seg.get('issue_tag', ''), followup=seg.get('followup', False))

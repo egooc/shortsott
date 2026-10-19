@@ -67,7 +67,7 @@ def run(ep, retranscribe=False):
     words = json.loads(tr.read_text(encoding='utf-8'))
     table = name_table(ep)
     total = bad = ntotal = nbad = 0
-    lines = []
+    lines, notes = [], []
     for k, (i, s, _) in enumerate(nars):
         sents = sentences(s['text'])
         heard = ' '.join(w for a, b, w in words if offs[k] - .05 <= (a + b) / 2 < offs[k + 1] + .05)
@@ -76,6 +76,13 @@ def run(ep, retranscribe=False):
         # 소수(18.2%·27.1%)는 한 덩어리로 맞춘다 — 쪼개 세면 «27.1→27.2» 가 다른 곳의 1 에 묻힌다(10/19편 실측)
         dec_want = Counter(d for x in sents for d in DEC.findall(x))
         dmiss = dec_want - Counter(DEC.findall(heard))
+        # Speechmatics ko 는 «십삼 점 삼»을 «133» 으로 붙여 적는다(10/19 실측: 입력·쉼표·띄어쓰기를 바꿔도 같음, «십팔 점 이»는 18.2).
+        # 점만 빠진 같은 숫자가 들리면 맞음으로 치고 보고서에 따로 남긴다
+        squash = []
+        for d in list(dmiss):
+            if re.search(r'(?<![\d.])' + d.replace('.', '') + r'(?![\d.])', heard):
+                squash.append(d); dmiss[d] -= 1
+        dmiss = +dmiss
         rest = DEC.sub(' ', heard)
         heard_vals = A.script_values(rest) + A.values(re.sub(r'\d[\d,.]*', ' ', rest))
         want = Counter(v for x in sents for v in A.script_values(DEC.sub(' ', x))) + Counter(dec_want)
@@ -90,12 +97,14 @@ def run(ep, retranscribe=False):
                 if got < n:
                     nmiss[w] = n - got
         nbad += sum(nmiss.values())
+        if squash:
+            notes.append(f'- [{i}] 점 빠짐(받아쓰기 형식으로 봄) {squash}')
         if miss or nmiss:
             lines.append(f'- [{i}] 숫자 원고 {dict(want)} · 빠짐 {dict(miss)} · 고유명사 빠짐 {nmiss}\n  원고: {s["text"][:120]}\n  들림: {heard[:200]}')
-    res = {'ok': not bad and not nbad, 'numbers': [total - bad, total], 'names': [ntotal - nbad, ntotal], 'bad': lines,
+    res = {'ok': not bad and not nbad, 'numbers': [total - bad, total], 'names': [ntotal - nbad, ntotal], 'bad': lines, 'notes': notes,
            'nar_segments': len(nars), 'tts_say': bool(E.get('tts_say'))}
     head = f'역전사 대조: 숫자 {total - bad}/{total} · 고유명사 {ntotal - nbad}/{ntotal}'
-    (au / 'report.md').write_text(head + '\n\n' + '\n'.join(lines) + '\n', encoding='utf-8')
+    (au / 'report.md').write_text(head + '\n\n' + '\n'.join(lines + notes) + '\n', encoding='utf-8')
     (au / 'result.json').write_text(json.dumps(res, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     return res
 
