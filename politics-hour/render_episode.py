@@ -16,6 +16,14 @@ try:
 finally:
     LOCK.unlink(missing_ok=True)
 # 관리자 성과 보고용 제작 장부(D:/midform/docs/production-ledger.md) — 렌더가 끝나면 한 줄. 업로드 뒤 youtube_id 를 같은 id 로 한 줄 더 쓴다.
+if rc == 0 and json.loads((ep / 'episode.json').read_text(encoding='utf-8')).get('lcut'):   # L컷 꼬리(episode.json "lcut": 0.3~0.5, 10/20편부터) — 음량 정규화 전에
+    sys.path.insert(0, str(ROOT / 'overlay'))
+    import lcut
+    with open(ep / 'render.log', 'a', encoding='utf-8') as log:
+        log.write('[lcut] %s\n' % lcut.apply(ep, json.loads((ep / 'episode.json').read_text(encoding='utf-8'))['lcut']))
+if rc == 0 and json.loads((ep / 'episode.json').read_text(encoding='utf-8')).get('tts_say'):   # 해설 역전사 숫자·고유명사 대조 → audit/result.json(upload_gate 가 읽는다)
+    with open(ep / 'render.log', 'a', encoding='utf-8') as log:
+        subprocess.run([sys.executable, '-X', 'utf8', str(ROOT / 'overlay' / 'tts_audit.py'), str(ep)], stdout=log, stderr=subprocess.STDOUT)
 if rc == 0:   # 마지막 음량 정규화 -14 LUFS(카이안 K12, 10-19 — 조각별 loudnorm -16 만으로는 완성본이 -16.3이었다)
     sys.path.insert(0, 'D:/midform/scripts')
     import loudnorm_final

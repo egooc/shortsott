@@ -50,7 +50,11 @@ def narration(seg, folder, provider, chrome):
         import shutil
         shutil.copy2(Path(path_base) / seg['audio'], wav); cues = seg['captions']
     else:
-        _, cues = tts.speak(provider, seg['text'], str(wav))
+        say = None
+        if seg.get('tts_say'):   # episode.json "tts_say": true — TTS 입력만 숫자를 한글 읽기로(10/20편부터), 자막은 숫자 그대로
+            sys.path.insert(0, 'D:/midform/ko-corp/render')
+            from ko_say import say
+        _, cues = tts.speak(provider, seg['text'], str(wav), say=say)
     dur = round(tts.wav_seconds(wav) + PAD, 3)
     spec = dict(chrome, **seg['visual'], duration=dur, captions=cues, issue_tag=seg.get('issue_tag', ''), followup=seg.get('followup', False))
     if seg.get('source'):
@@ -101,6 +105,8 @@ def main(path, provider):
     parts, clock = [], 0.0
     for i, seg in enumerate(ep['segments']):
         voice = tts.voice_id(provider) if seg['type'] == 'nar' and not seg.get('audio') else None  # 목소리를 바꾸면 해설만 다시 만든다
+        if seg['type'] == 'nar' and ep.get('tts_say'):
+            seg = dict(seg, tts_say=True)   # 키에도 들어가 켜고 끄면 해설만 다시 만든다(끈 편의 저장본은 그대로)
         folder = work / 'seg' / f'{i:03d}-{seg["type"]}-{key([seg, provider, ep.get("chrome", {}), CODE] + ([voice] if voice else []))}'
         final = folder / 'normalized.mp4'
         if not final.exists():

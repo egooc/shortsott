@@ -6,6 +6,7 @@
 한 곳 이상에 들어 있어야 하고, 태그는 15~25개.
 쇼츠 upload.json(경로에 '/shorts/')은 한 쟁점만 다루므로 키워드 2개 이상만 보고 태그 개수는 안 본다.
 썸네일 큰 낱말(thumb/thumb_k*.json 의 big → keywords.json thumb → keywords 1~2위)은 롱폼 첫 30초(콜드오픈+첫 해설)·쇼츠 첫 5초에 다 나와야 한다(10-17).
+episode.json 에 "tts_say": true 인 편(10/20~)은 overlay/tts_audit.py 역전사 대조 결과(audit/result.json)가 ok 여야 한다.
 하나라도 어긋나면 exit 3 — 업로드하지 말고 관리자에게 보고."""
 import json, sys
 from pathlib import Path
@@ -96,6 +97,8 @@ for up in sys.argv[2:]:
     first = [c.split('|')[-1] for c in (seq[0]['captions'][:3] if seq else [])]
     hay = ' '.join([*pj.get('title', []), *[c for n in pj.get('narration', []) for c in n.get('cards', [])], *first])
     need(big_words(ep / 'thumb' / f'thumb_k_{name}.json'), hay, f'{name} 첫 5초(제목·해설 카드·첫 자막)')
+sys.path.insert(0, str(Path(__file__).resolve().parent / 'overlay')); import tts_audit   # 해설 TTS 역전사 숫자·고유명사 대조(10/20편부터, tts_say 편만 요구)
+bad += tts_audit.gate_lines(ep)
 bad += guide_words.gate_lines([*sys.argv[2:], *[p for p in [ep / 'packages.json'] if p.exists()]], lang='ko', lane='politics')   # 제목·설명·태그·썸네일 낱말, 우회 GUIDE_OK=1 은 소유주 말 있을 때만
 for b in bad:
     print('[gate] FAIL', b)

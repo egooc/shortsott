@@ -87,12 +87,13 @@ def typecast_cached(text, out, workdir='D:/volcano-runs/politics-20261012-grave'
     return out, cues
 
 
-def supertonic(text, out):
-    """문장마다 합성하고 문장 안 자막 덩어리는 글자 수 비율로 시각을 나눈다(supertonic_worker.py)."""
+def supertonic(text, out, say=None):
+    """문장마다 합성하고 문장 안 자막 덩어리는 글자 수 비율로 시각을 나눈다(supertonic_worker.py).
+    say: 소리로 낼 문장만 바꾸는 함수(숫자 → 한글 읽기, ko-corp/render/ko_say.say). 자막 덩어리는 원고 표기 그대로(10-19 «3시 8분→4시 8분» 대책)."""
     import tempfile
     sentences = [s for s in re.split(r'(?<=[.!?])\s+', text.strip()) if s]
     job = dict(SUPERTONIC, out=str(Path(out).resolve()),
-               sentences=[[s, [p.rstrip('.') for p in chunks(s)]] for s in sentences])
+               sentences=[[say(s) if say else s, [p.rstrip('.') for p in chunks(s)]] for s in sentences])
     with tempfile.NamedTemporaryFile('w', suffix='.json', delete=False, encoding='utf-8') as f:
         json.dump(job, f, ensure_ascii=False)
     try:
@@ -114,5 +115,7 @@ def voice_id(provider):
     return {'google': GOOGLE_VOICE, 'rate': GOOGLE_RATE} if provider == 'google' else provider
 
 
-def speak(provider, text, out):
-    return PROVIDERS[provider](text, out)
+def speak(provider, text, out, say=None):
+    if say and provider != 'supertonic':
+        raise ValueError('숫자 한글 읽기(say)는 supertonic 에서만 — 다른 공급자는 자막 시각이 소리 글자에 묶여 있다')
+    return PROVIDERS[provider](text, out, say=say) if say else PROVIDERS[provider](text, out)
