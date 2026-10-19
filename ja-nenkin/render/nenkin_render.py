@@ -276,8 +276,8 @@ def money(s):
     return v, m.group(4), m.group(1) or ''
 
 
-def stage(spec, d, img_dir, doc_dir, cues):
-    """가운데 판 — (css, body, js). 요소는 해설이 그 낱말을 말하는 순간 나타난다(소유주 10-17 «문장·장면 흐름 따라 모션그래프»).
+def stage(spec, d, img_dir, doc_dir, cues, cont=0):
+    """가운데 판 — (css, body, js). cont = 앞 장면과 같은 표의 이어 그리기면 이미 보인 행 수(그 행은 처음부터 떠 있다). 요소는 해설이 그 낱말을 말하는 순간 나타난다(소유주 10-17 «문장·장면 흐름 따라 모션그래프»).
     움직임은 짧은 사건형 트윈만(정지 구간은 하이퍼프레임이 프레임을 재사용 — 상시 트윈은 15배 느려진다, politics motion.py)."""
     t = spec['type']
     ck = Clock(cues, d)
@@ -401,11 +401,17 @@ def stage(spec, d, img_dir, doc_dir, cues):
                        for i, r in enumerate(spec['rows']))
         body = (f'<div id="tt">{esc(spec.get("title", ""))}</div>' if spec.get('title') else '') + \
             f'<table id="tb"><tr>{"".join(f"<th>{esc(h)}</th>" for h in spec["head"])}</tr>{rows}</table>'
-        js = ['tl.from("#tt",{opacity:0,y:-16,duration:.4},.05);', 'tl.from("#tb",{opacity:0,y:24,duration:.45,ease:"power2.out"},.15);']
+        # 같은 표가 이어지는 장면은 틀·앞 행을 다시 그리지 않는다 — 행이 줄었다 다시 느는 재시작(10-19 발굴 재채점)
+        js = [] if cont else ['tl.from("#tt",{opacity:0,y:-16,duration:.4},.05);', 'tl.from("#tb",{opacity:0,y:24,duration:.45,ease:"power2.out"},.15);']
+        if cont:
+            js.append(f'tl.set("#r{cont - 1} .mk",{{scaleY:1}},0);')
         prev, times = .5, []
         for i, r in enumerate(spec['rows']):
+            if i < cont:
+                times.append(0)
+                continue
             kw = (spec.get('at') or [None] * 12)[i] if spec.get('at') else None
-            a = .4 if i == 0 else max(prev, ck.at(kw, ' '.join(map(str, r)), prev + .6))   # 첫 행은 장면과 같이 — 빈 표 화면 12%(10-18 발굴)
+            a = .4 if i == cont else max(prev, ck.at(kw, ' '.join(map(str, r)), prev + .6))   # 첫 행은 장면과 같이 — 빈 표 화면 12%(10-18 발굴)
             times.append(a)
             js.append(f'tl.from("#r{i}",{{opacity:0,x:-30,duration:.4,ease:"power2.out"}},{a:.2f});')
             js.append(f'tl.to("#r{i} .mk",{{scaleY:1,duration:.25}},{a + .1:.2f});')
@@ -529,10 +535,32 @@ def stage(spec, d, img_dir, doc_dir, cues):
     raise SystemExit('모르는 화면 종류: ' + t)
 
 
-def transitions(d):
-    """장면 넘김 — 들어올 때 판이 왼쪽에서 열리고, 나갈 때 살짝 사라진다(편 사이 끊김 대신 흐름)."""
-    return ['tl.fromTo("#stage",{clipPath:"inset(0 100% 0 0)"},{clipPath:"inset(0 0% 0 0)",duration:.45,ease:"power2.out"},0);',
-            f'tl.to("#stage",{{opacity:0,duration:.28,ease:"power1.in"}},{max(.6, d - .3):.2f});']
+def transitions(d, cont=False):
+    """장면 넘김 — 판이 살짝 밀려 들어온다. 나갈 때 사라지지 않는다: 끝 0.28초 페이드+들어올 때 빈 판이 겹쳐 장면 경계마다
+    본문이 빈 순간이 생겼다(10-19 발굴 «14초 본문 빈 순간»). 첫 프레임부터 본문이 보이게 불투명도 0.4에서 시작. 같은 표 이어 그리기는 넘김 없음."""
+    return [] if cont else ['tl.fromTo("#stage",{opacity:.4,x:-28},{opacity:1,x:0,duration:.3,ease:"power2.out"},0);']
+
+
+FROM0 = re.compile(r'tl\.from\(("[^"]+"),\{opacity:0,([^}]*)\},([0-9.]+)\);')
+
+
+def no_blank(js):
+    """장면 첫 0.45초 안에 들어오는 요소는 0초에 불투명도 0.4에서 시작 — 첫 요소가 투명도 0으로 0.15~0.4초 기다리면
+    장면 경계마다 본문이 빈 화면이 찍혔다(10-19 발굴 «14초 본문 빈 순간», 재렌더 뒤 13.9·24.6초에 남아 있던 것)."""
+    def fix(m):
+        return f'tl.from({m.group(1)},{{opacity:.4,{m.group(2)}}},0);' if float(m.group(3)) <= .45 else m.group(0)
+    return [FROM0.sub(fix, x) for x in js]
+
+
+def continues(prev, spec):
+    """앞 장면과 같은 표(제목·머리줄 같고 앞 장면 행이 이번 행의 앞부분)면 이어 그릴 행 수, 아니면 0."""
+    if not prev or prev.get('type') != 'table' or spec.get('type') != 'table':
+        return 0
+    if prev.get('title') != spec.get('title') or prev.get('head') != spec.get('head'):
+        return 0
+    n = len(prev['rows'])
+    same = [[plain(str(c)) for c in r] for r in spec['rows'][:n]] == [[plain(str(c)) for c in r] for r in prev['rows']]   # 朱 표시만 옮겨 간 행은 같은 행
+    return n if n < len(spec['rows']) and same else 0
 
 
 NOBREAK = re.compile(r'(?:年約|年|月|約|毎月)?(?<![\d#x])\d[\d,.]*(?:[万億]\d[\d,]*)*[万億]?(?:円|歳|回|人|か月|年|月|日|パーセント|%)?')
@@ -623,10 +651,11 @@ def main(argv=None):
                     cues.append([round(t, 2), round(t + d0, 2), c]); t += d0
                 t += .45
             d = round(t + .45, 3)
-            sc, sb, sj = stage(spec, d, ep / 'img', ep / 'docs', cues)
+            k = continues(vis[blocks[i - 1]['vid']] if i else None, spec)
+            sc, sb, sj = stage(spec, d, ep / 'img', ep / 'docs', cues, k)
             cb, cj = captions(cues, d, emph)
             f = out / f'{i:03d}'
-            page(f, f's{i}', d, sc, chrome(blk, spec) + f'<div id="stage">{sb}</div>' + cb, transitions(d) + sj + cj, ep)
+            page(f, f's{i}', d, sc, chrome(blk, spec) + f'<div id="stage">{sb}</div>' + cb, transitions(d, bool(k)) + no_blank(sj) + cj, ep)
             last = max((a for a, b, x in cues if b - a > 1.5), default=d * .8)
             subprocess.run([npx, '--yes', f'hyperframes@{HYPERFRAMES}', 'snapshot', '.', '--at', f'{min(d - .1, last + .8):.2f}', '--no-end',
                             '--describe', 'false', '-o', str(f / 'snap')], cwd=f, capture_output=True)
@@ -657,9 +686,10 @@ def main(argv=None):
                 print(f'[{i}] tts {wav_seconds(wav):.1f}s', flush=True)
                 continue
             d = round(wav_seconds(wav) + .45, 3)
-            sc, sb, sj = stage(spec, d, ep / 'img', ep / 'docs', cues)
+            k = continues(vis[blocks[i - 1]['vid']] if i else None, spec)
+            sc, sb, sj = stage(spec, d, ep / 'img', ep / 'docs', cues, k)
             cb, cj = captions(cues, d, emph)
-            page(folder / 'hf', f's{i}', d, sc, chrome(blk, spec) + f'<div id="stage">{sb}</div>' + cb, transitions(d) + sj + cj, ep)
+            page(folder / 'hf', f's{i}', d, sc, chrome(blk, spec) + f'<div id="stage">{sb}</div>' + cb, transitions(d, bool(k)) + no_blank(sj) + cj, ep)
             hf_render(folder / 'hf', folder / 'screen.mp4')
             mux(folder / 'screen.mp4', wav, final, d)
             (folder / 'screen.mp4').unlink(missing_ok=True)
