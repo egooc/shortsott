@@ -1,5 +1,20 @@
 # 롱투숏 A(지구관측소) 인계 (2026-10-19)
 
+## 10-20 07:00 재부팅 대비 (10-19 마감)
+
+- **재정비안:** `docs/longshort-reset-20261019.md`. 소유주 결정은 «예약 유지, 새 영상 퀄 승인 날 때까지 예약 유지»다.
+  - 해설형은 소유주 승인 뒤에만 예약 편을 대체한다. 대체할 때는 예약 편을 내리고 retracted를 기록한다.
+- **해설형 첫 편 lx02(크랜베리 40초판):** 편집표는 `D:/volcano-runs/lx02/plan.json`. 아직 렌더 전이다.
+  - 재개: `bash D:/volcano-runs/lx02/render.sh > D:/volcano-runs/lx02/render.log 2>&1` (백그라운드).
+  - 정치 lock 없음, 빈 메모리 8GB+, 08:30~18:00일 때만 시작한다. 06:50~08:30에는 스스로 나간다.
+  - 끝나면 frame_dup 첫 3컷을 보고, 30MB 이하 `lx02_preview.mp4`를 관리자에게 보내 소유주 승인을 받는다.
+- **음량:** `ls_tools/ship.py`가 `loudnorm_final`로 -14 LUFS를 맞춘다(10-19). 해설형은 `ff_render` 안에 -14가 들어 있다.
+- **자동 작업**
+  - schtasks(재부팅 뒤 자동): 저조회 비공개(`midform-low-views-private` 매시 :50, `low-views-cleanup` 07:40), 페북·네이버 발행(`midform-facebook_profile-lsNN`, `midform-naverclip-lsNN`).
+  - 세션 손 점검(루프 없음): 태그 삽입·확인은 `publish_ko.sh` 업로드 관문 안에서 하고, 6h-0 점검은 `yt_zero6h_ko.js`로 한다.
+  - 포장 교체: 롱투숏은 아직 없다(재정비안 제안 단계).
+- **수익 현황:** `node D:/volcano-runs/ls_tools/yt_monetize_ko.js`.
+
 ## 정리 상태 — 취소(10-19, 관리자 오독)
 
 10-19 오전 «숏폼 정리·롱투숏 중단» 지시는 관리자가 소유주 말을 잘못 읽은 것이라 같은 날 취소됐다.
