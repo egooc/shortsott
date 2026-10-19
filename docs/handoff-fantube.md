@@ -1,6 +1,7 @@
 # 팬튜브(최애모먼트, idol_fantube_ko) 인계 (2026-10-19)
 
 ## 10-20 07:00 재부팅 대비 (10-19 밤 기록)
+- **★10-20 07:00 재부팅도 보류(릴스 먼저). ep18 렌더는 관리자 «릴스 끝» 알림 뒤(lock 없음·8GB) → 18:00 교체. 릴스가 오후까지 가면 교체를 10/21로 미루고 보고.**
 - **★10-19 23:1x 소유주 «보류»: 00:37 렌더 취소(릴스 밤샘 렌더), 크론 ae0f16f4 삭제. 재부팅 뒤 오전 릴스 종료·lock 없음·8GB 확인 → 아래 재개 명령으로 렌더·발행, 10/20 18:00 교체 그대로.** (옛 계획) **00:37 ep18 렌더·발행:** lock 없음·빈 메모리 8GB+ 확인 → `python fantube/tpl_b.py D:/volcano-runs/fantube/ep18/spec.json` → 0.25초 장면 검사·눈 검사 → `node fantube/publish.js ep18 D:/volcano-runs/fantube/_upload/ep18_jypbook.json 2026-10-20T18:00:00+09:00` → 태그 통과 시 `node fantube/yt_tags.js HbFqC4IS1ro <meta> --unschedule`(ep11) · `node fantube/ledger.js ep11 --youtube-id HbFqC4IS1ro --retracted "..."`. lock 이면 15분마다 재확인, **06:30 넘으면 시작 안 함**(재부팅 뒤 같은 명령 그대로, 공개 시각만 18:00 전이면 유지).
 - **재개 명령 한 줄(재부팅 뒤 ep18 미완일 때):** `python fantube/tpl_b.py D:/volcano-runs/fantube/ep18/spec.json && node fantube/publish.js ep18 D:/volcano-runs/fantube/_upload/ep18_jypbook.json 2026-10-20T18:00:00+09:00`
 - **자동화 구분:** 저조회 비공개 = schtasks `midform-low-views-private`(매시 :50, 자동 복귀). 태그 삽입·게이트·장부 = publish.js 안에서 업로드와 같이(세션 손 작업, 루프 없음). 예약 교체(ep11→ep18) = 세션 크론(00:37 일회성, 재부팅 전 끝남). 포장 교체 = 팬튜브엔 루프 없음(쇼츠, 수동). «공개 6h 조회 0 → 비공개» = 세션 수동 점검(루프 없음). 재부팅 뒤 다시 걸 세션 크론: 없음.
