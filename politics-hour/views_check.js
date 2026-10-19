@@ -44,6 +44,21 @@ function packagesPath(videoId) {
 }
 const findPackages = (videoId) => { const f = packagesPath(videoId); return f ? JSON.parse(fs.readFileSync(f, 'utf8')) : null; };
 
+// 점검 때 그 편 키워드가 아직 오르는지(관리자 10-19 «공개 시점 상승 지속 여부») — 같은 폴더 keywords.json 낱말별 rising_keywords 최신 점수
+const RISING_LANE = { politics: 'politics_ko', politics_ja: 'politics_ja' };
+function risingNow(videoId, purpose) {
+  try {
+    const f = packagesPath(videoId), lane = RISING_LANE[purpose];
+    const kf = f && path.join(path.dirname(f), 'keywords.json');
+    if (!lane || !kf || !fs.existsSync(kf)) return null;
+    const { keywordScore } = require(path.join(__dirname, '..', 'scripts', 'rising_keywords.js'));
+    const k = JSON.parse(fs.readFileSync(kf, 'utf8'));
+    return Object.fromEntries((k.keywords || []).map((w) => [w, keywordScore(lane, w)]));
+  } catch (e) {
+    return { error: String(e.message || e) };
+  }
+}
+
 // 포장의 설명 첫 두 줄(desc_head: [줄1, 줄2])·해시태그(hashtags: ['#…'])를 설명에 갈아 끼운다(관리자 10-18 «제목·키워드·해시태그도 함께»)
 function swapDesc(description, pkg) {
   let lines = description.split('\n');
@@ -144,7 +159,7 @@ async function repack(videoId, h, views, H) {
   const rows = fs.existsSync(LOG) ? fs.readFileSync(LOG, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)) : [];
   const purpose = purposeOf(videoId) || 'politics';   // 직전 편 비교는 같은 채널끼리
   const prev = rows.filter((r) => r.h === h && r.long === long && r.id !== videoId && (r.purpose || 'politics') === purpose).pop();
-  const row = { at: new Date().toISOString(), id: videoId, purpose, h, long, views, title: v.snippet.title, prev: prev ? { id: prev.id, views: prev.views } : null };
+  const row = { at: new Date().toISOString(), id: videoId, purpose, h, long, views, title: v.snippet.title, prev: prev ? { id: prev.id, views: prev.views } : null, rising: risingNow(videoId, purpose) };
   append(LOG, row);
   // 쇼츠 공개 6시간 조회 0 = 피드를 못 받는 것 → 커뮤니티 가이드 위반으로 보고 즉시 비공개(소유주 10-18, 제재 표시 없어도)
   if (!long && h >= 6 && views === 0 && v.status?.privacyStatus === 'public') {
