@@ -30,7 +30,7 @@
 
 ### frame_dup 실측(ls_tools/frame_dup.py, 경고선 ≤10/64)
 - ep16 한복(검색어 «엔믹스 해원»·«엔믹스 한복 해원»): 16편 대조·경고 0, 최소 13/64, 166초. 기록 _upload/frame_dup.jsonl, ep16/out.frame_dup.json.
-- **양성 미검출:** ep16 이 실제로 쓴 원본 직캠 AoZm-6kLOb4 도 14/64 로 통과 — 크롭(760 창)·위 제목 띠가 붙으면 선에 안 걸린다. 롱투숏에 보정 요청됨(관리자). 보정 전엔 «경고 0 = 중복 없음» 아님.
+- **양성 미검출:** ep16 이 실제로 쓴 원본 직캠 AoZm-6kLOb4 도 14/64 로 통과 — 크롭(760 창)·위 제목 띠가 붙으면 선에 안 걸린다. 롱투숏이 보정함(10/19): 보정판으로 다시 돌리니 AoZm-6kLOb4 7.3/64 → 경고(맞는 판정). ep16/out.frame_dup.json 은 보정판 결과로 덮어써짐. frame_dup.py 소유는 10/19부터 도구개발 세션.
 
 ### 자료 위치
 - 기획 가이드: D:/volcano-runs/fantube/ref/top2/GUIDE.md (상위 2채널 쮸뀨미연구실·설유니버스 × 인기 12편, 원본 v/, 시트 sheet_0~5.jpg, GPT 분석 analysis.md)
