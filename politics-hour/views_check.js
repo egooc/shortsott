@@ -53,6 +53,11 @@ function swapDesc(description, pkg) {
 }
 
 // 다음 포장으로 교체 — 성공하면 {idx, title, style}, 쓸 포장이 없으면 null
+// --purpose <값>: packages.json 없이 채널을 고른다(쇼츠 점검 — 정치JA 10-19). 없으면 packages.json 의 purpose
+const PURPOSE_ARG = process.argv.includes('--purpose') ? process.argv[process.argv.indexOf('--purpose') + 1] : null;
+const purposeOf = (videoId) => PURPOSE_ARG || findPackages(videoId)?.purpose;
+const PURPOSE_FLAG = PURPOSE_ARG ? ` --purpose ${PURPOSE_ARG}` : '';
+
 async function repack(videoId, h, views, H) {
   const pf = packagesPath(videoId);
   if (!pf) return null;
@@ -94,9 +99,9 @@ async function repack(videoId, h, views, H) {
 
 (async () => {
   const [videoId, a2, a3] = process.argv.slice(2);
-  if (!videoId || !a2) throw new Error('usage: node politics-hour/views_check.js <videoId> <3|6|24> [--no-repack] | --schedule <publishAt>');
+  if (!videoId || !a2) throw new Error('usage: node politics-hour/views_check.js <videoId> <3|6|24> [--no-repack] [--purpose <p>] | --schedule <publishAt> [--short] [--purpose <p>]');
   if (a2 === '--repack') {   // 지금 바로 다음 포장으로(소유주 지시 때) — 조회 기록은 남기지 않는다
-    const sw = await repack(videoId, 'now', null, await auth(findPackages(videoId)?.purpose));
+    const sw = await repack(videoId, 'now', null, await auth(purposeOf(videoId)));
     console.log(sw ? `[views] ${videoId} 포장 ${sw.idx}번(${sw.style || ''})으로 교체 «${sw.title}»` : `[views] ${videoId} packages.json 없음`);
     append(ALERT, { at: new Date().toISOString(), id: videoId, alert: `소유주 지시 즉시 교체 — ${sw ? `포장 ${sw.idx}번 «${sw.title}»` : '포장 없음'}`, repack: sw });
     return;
@@ -104,7 +109,7 @@ async function repack(videoId, h, views, H) {
   if (a2 === '--schedule') {
     const pub = new Date(a3);
     if (isNaN(pub)) throw new Error('publishAt 이 날짜가 아니다');
-    const done = await require('./yt_processed')(videoId, await auth(findPackages(videoId)?.purpose));   // 처리 거절된 영상엔 점검을 등록하지 않는다(관리자 §7 10-18)
+    const done = await require('./yt_processed')(videoId, await auth(purposeOf(videoId)));   // 처리 거절된 영상엔 점검을 등록하지 않는다(관리자 §7 10-18)
     if (done !== true) {
       console.log(`[views] ${videoId} 처리 완료 아님 — ${done} · 점검 등록 안 함`);
       append(ALERT, { at: new Date().toISOString(), id: videoId, alert: `업로드 처리 완료 아님(${done}) — 점검 등록 안 함, 관리자 보고` });
@@ -116,13 +121,13 @@ async function repack(videoId, h, views, H) {
       const pad = (n) => String(n).padStart(2, '0');
       const day = `${t.getFullYear()}/${pad(t.getMonth() + 1)}/${pad(t.getDate())}`;   // 로컬 시각(KST)
       const hm = `${pad(t.getHours())}:${pad(t.getMinutes())}`;
-      const cmd = `cmd /c cd /d ${path.join(__dirname, '..')} && node politics-hour\\views_check.js ${videoId} ${h} >> server\\data\\politics_views_task_${videoId}.log 2>&1`;
+      const cmd = `cmd /c cd /d ${path.join(__dirname, '..')} && node politics-hour\\views_check.js ${videoId} ${h}${PURPOSE_FLAG} >> server\\data\\politics_views_task_${videoId}.log 2>&1`;
       execFileSync('schtasks', ['/Create', '/F', '/SC', 'ONCE', '/TN', `politics_views_${videoId}_${h}h`, '/SD', day, '/ST', hm, '/TR', cmd], { stdio: 'inherit' });
       console.log(`[views] 등록 ${videoId} +${h}h → ${day} ${hm}`);
     }
     if (!process.argv.includes('--short')) {   // 1주 뒤에도 끝내지 않는다: 매일 07:00 점검(교체는 주 1회) — 소유주 10-18
       const t = new Date(pub.getTime() + 192 * 3600e3), pad = (n) => String(n).padStart(2, '0');
-      const cmd = `cmd /c cd /d ${path.join(__dirname, '..')} && node politics-hour\\views_check.js ${videoId} auto >> server\\data\\politics_views_task_${videoId}.log 2>&1`;
+      const cmd = `cmd /c cd /d ${path.join(__dirname, '..')} && node politics-hour\\views_check.js ${videoId} auto${PURPOSE_FLAG} >> server\\data\\politics_views_task_${videoId}.log 2>&1`;
       execFileSync('schtasks', ['/Create', '/F', '/SC', 'DAILY', '/TN', `politics_views_${videoId}_daily`, '/SD', `${t.getFullYear()}/${pad(t.getMonth() + 1)}/${pad(t.getDate())}`, '/ST', '07:00', '/TR', cmd], { stdio: 'inherit' });
       console.log(`[views] 등록 ${videoId} 매일 07:00 (+192h부터, 교체는 주 1회)`);
     }
@@ -130,14 +135,14 @@ async function repack(videoId, h, views, H) {
     execFileSync('powershell', ['-NoProfile', '-Command', `Get-ScheduledTask -TaskName 'politics_views_${videoId}_*' | ForEach-Object { $s = $_.Settings; $s.StartWhenAvailable = $true; Set-ScheduledTask -TaskName $_.TaskName -Settings $s | Out-Null }`], { stdio: 'inherit' });
     return;
   }
-  const H = await auth(findPackages(videoId)?.purpose);
+  const H = await auth(purposeOf(videoId));
   const v = (await (await fetch(`https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet,contentDetails,status&id=${videoId}`, { headers: H })).json()).items?.[0];
   if (!v) throw new Error(`영상 없음 ${videoId}`);
   const h = a2 === 'auto' ? Math.round((Date.now() - new Date(v.snippet.publishedAt)) / 86400e3) * 24 : Number(a2);   // 매일 점검은 공개 뒤 날수×24
   const views = Number(v.statistics.viewCount || 0);
   const long = !/^PT(\d+S|[0-2]M)/.test(v.contentDetails.duration);   // 3분 미만은 쇼츠 — 롱폼끼리만 비교
   const rows = fs.existsSync(LOG) ? fs.readFileSync(LOG, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)) : [];
-  const purpose = findPackages(videoId)?.purpose || 'politics';   // 직전 편 비교는 같은 채널끼리
+  const purpose = purposeOf(videoId) || 'politics';   // 직전 편 비교는 같은 채널끼리
   const prev = rows.filter((r) => r.h === h && r.long === long && r.id !== videoId && (r.purpose || 'politics') === purpose).pop();
   const row = { at: new Date().toISOString(), id: videoId, purpose, h, long, views, title: v.snippet.title, prev: prev ? { id: prev.id, views: prev.views } : null };
   append(LOG, row);
