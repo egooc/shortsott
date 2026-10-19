@@ -542,7 +542,8 @@ async function cmdPublish(mp4Arg, args) {
     const full = loadJob(job.jobId);
     const up = (full.items || [])[0] || {};
     let ok = up.status === 'completed' || Boolean(up.youtubeUrl);
-    const vidNow = (String(up.youtubeUrl || '').match(/v=([w-]{6,})/) || [])[1];
+    const vidNow = (String(up.youtubeUrl || '').match(/v=([\w-]{6,})/) || [])[1];
+    if (ok && !vidNow) lines.push(`- ⚠ 태그 게이트 건너뜀: 영상 ID를 못 읽었다(${up.youtubeUrl || ''}) — 손으로 확인`);
     if (ok && vidNow) {
       try {
         const g = await tagGate(profile, vidNow, meta.tags || []);
