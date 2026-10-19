@@ -37,4 +37,7 @@ assert '총기' in cats('鉄砲を構え', 'ja') and cats('銃後の守り', 'ja
 assert cats('子どもの頃から助け合って', 'ja') == [] and '어린아이 대상' in cats('子どもたちが', 'ja')   # 어린 시절 회상은 아동 대상 아님(.4)
 assert cats('원작 @shitonthebeach https://youtu.be/shit_x') == [] and cats('shit happens') == ['욕설']   # 핸들·URL 은 안 본다(.5)
 assert cats('고등학생 때 PC방에서 많이 먹었는데') == [] and '어린아이 대상' in cats('고등학생이 다쳤다')   # 화자 회상은 아동 대상 아님(.6)
+assert cats('강아지를 억지로 잡아 목욕시킨다') == ['동물 학대 오해'] and '동물 학대 오해' not in cats('친구를 괴롭히던 아이')   # 동물+행위 같은 문장(10-19.1)
+assert cats('猫を無理やり押さえつけて', 'ja') == ['동물 학대 오해'] and cats('娘がいじめをしていました', 'ja') == []
+assert cats('馬に乗って逃げた。縛られた男', 'ja', 'jp_highlight') == []   # 다른 문장이면 안 걸림(時代劇 捕縛)
 print('OK')

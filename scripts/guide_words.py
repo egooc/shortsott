@@ -40,6 +40,16 @@ def hits(text, lang='ko', lane=None, W=None):
         act = [w for w in risky['actions'] if w in t]
         if obj and act:
             out.append(('위험 행위', obj + act))
+    animal = L.get('animal')
+    if animal:   # 동물 학대 오해 — 동물+행위가 같은 문장에 있을 때만(10-19, N100 목록)
+        found = []
+        for s in re.split(r'[.!?。！？\n]+', t):
+            obj = [w for w in animal['objects'] if w in s]
+            act = [w for w in animal['actions'] if w in s]
+            if obj and act:
+                found += [w for w in obj + act if w not in found]
+        if found:
+            out.append(('동물 학대 오해', found))
     tl = t.lower()   # 영문 욕설(fuck·shit)은 대소문자 무시
     for cat, words in L['categories'].items():
         f = [w for w in words if w in t or (w.isascii() and w in tl)]
