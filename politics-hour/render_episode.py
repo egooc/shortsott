@@ -13,36 +13,37 @@ try:
     with open(ep / 'render.log', 'w', encoding='utf-8') as log:
         rc = subprocess.run([sys.executable, str(ROOT / 'overlay' / 'assemble_hour.py'), 'episode.json', '--tts', 'supertonic'],
                             cwd=ep, stdout=log, stderr=subprocess.STDOUT, env={**os.environ, 'PYTHONIOENCODING': 'utf-8'}).returncode
+    # ★후처리(L컷·역전사·음량·무음 검사)도 무거운 작업이라 락을 끝까지 둔다(10-19 실측: 락이 먼저 풀려 다른 세션이 끼어들 수 있었다)
+    # 관리자 성과 보고용 제작 장부(D:/midform/docs/production-ledger.md) — 렌더가 끝나면 한 줄. 업로드 뒤 youtube_id 를 같은 id 로 한 줄 더 쓴다.
+    if rc == 0 and json.loads((ep / 'episode.json').read_text(encoding='utf-8')).get('lcut'):   # L컷 꼬리(episode.json "lcut": 0.3~0.5, 10/20편부터) — 음량 정규화 전에
+        sys.path.insert(0, str(ROOT / 'overlay'))
+        import lcut
+        with open(ep / 'render.log', 'a', encoding='utf-8') as log:
+            log.write('[lcut] %s\n' % lcut.apply(ep, json.loads((ep / 'episode.json').read_text(encoding='utf-8'))['lcut']))
+    if rc == 0 and json.loads((ep / 'episode.json').read_text(encoding='utf-8')).get('tts_say'):   # 해설 역전사 숫자·고유명사 대조 → audit/result.json(upload_gate 가 읽는다)
+        with open(ep / 'render.log', 'a', encoding='utf-8') as log:
+            subprocess.run([sys.executable, '-X', 'utf8', str(ROOT / 'overlay' / 'tts_audit.py'), str(ep)], stdout=log, stderr=subprocess.STDOUT)
+    if rc == 0:   # 마지막 음량 정규화 -14 LUFS(카이안 K12, 10-19 — 조각별 loudnorm -16 만으로는 완성본이 -16.3이었다)
+        sys.path.insert(0, 'D:/midform/scripts')
+        import loudnorm_final
+        with open(ep / 'render.log', 'a', encoding='utf-8') as log:
+            log.write('[loudnorm] %s\n' % loudnorm_final.normalize(ep / 'work' / 'episode.mp4'))
+    if rc == 0:   # 무음 갭 검사(gap_check.py) — 결과만 render.log 에 남기고 렌더 성공은 그대로 둔다(10/17부터)
+        with open(ep / 'render.log', 'a', encoding='utf-8') as log:
+            subprocess.run([sys.executable, str(ROOT / 'gap_check.py'), str(ep)], stdout=log, stderr=subprocess.STDOUT,
+                           env={**os.environ, 'PYTHONIOENCODING': 'utf-8'})
+    if rc == 0:
+        kst = datetime.timezone(datetime.timedelta(hours=9))
+        iso = lambda s: datetime.datetime.fromtimestamp(s, kst).isoformat(timespec='seconds')
+        brief = ep / 'BRIEF.md'
+        gpt = ep / 'factcheck'
+        rec = {'at': iso(time.time()), 'session': '정치', 'lane': 'politics_long', 'id': ep.name,
+               'title': (ep / 'meta.txt').read_text(encoding='utf-8').splitlines()[0] if (ep / 'meta.txt').exists() else '',
+               'started_at': iso(brief.stat().st_mtime if brief.exists() else T0), 'finished_at': iso(time.time()),
+               'render_secs': round(time.time() - T0), 'gpt_calls': len(list(gpt.glob('*.md'))) if gpt.exists() else 0,
+               'rejected': 0, 'note': 'started_at = BRIEF.md 시각(조사 시작 추정)'}
+        with open('D:/midform/server/data/production_ledger.jsonl', 'a', encoding='utf-8') as f:
+            f.write(json.dumps(rec, ensure_ascii=False) + '\n')
 finally:
     LOCK.unlink(missing_ok=True)
-# 관리자 성과 보고용 제작 장부(D:/midform/docs/production-ledger.md) — 렌더가 끝나면 한 줄. 업로드 뒤 youtube_id 를 같은 id 로 한 줄 더 쓴다.
-if rc == 0 and json.loads((ep / 'episode.json').read_text(encoding='utf-8')).get('lcut'):   # L컷 꼬리(episode.json "lcut": 0.3~0.5, 10/20편부터) — 음량 정규화 전에
-    sys.path.insert(0, str(ROOT / 'overlay'))
-    import lcut
-    with open(ep / 'render.log', 'a', encoding='utf-8') as log:
-        log.write('[lcut] %s\n' % lcut.apply(ep, json.loads((ep / 'episode.json').read_text(encoding='utf-8'))['lcut']))
-if rc == 0 and json.loads((ep / 'episode.json').read_text(encoding='utf-8')).get('tts_say'):   # 해설 역전사 숫자·고유명사 대조 → audit/result.json(upload_gate 가 읽는다)
-    with open(ep / 'render.log', 'a', encoding='utf-8') as log:
-        subprocess.run([sys.executable, '-X', 'utf8', str(ROOT / 'overlay' / 'tts_audit.py'), str(ep)], stdout=log, stderr=subprocess.STDOUT)
-if rc == 0:   # 마지막 음량 정규화 -14 LUFS(카이안 K12, 10-19 — 조각별 loudnorm -16 만으로는 완성본이 -16.3이었다)
-    sys.path.insert(0, 'D:/midform/scripts')
-    import loudnorm_final
-    with open(ep / 'render.log', 'a', encoding='utf-8') as log:
-        log.write('[loudnorm] %s\n' % loudnorm_final.normalize(ep / 'work' / 'episode.mp4'))
-if rc == 0:   # 무음 갭 검사(gap_check.py) — 결과만 render.log 에 남기고 렌더 성공은 그대로 둔다(10/17부터)
-    with open(ep / 'render.log', 'a', encoding='utf-8') as log:
-        subprocess.run([sys.executable, str(ROOT / 'gap_check.py'), str(ep)], stdout=log, stderr=subprocess.STDOUT,
-                       env={**os.environ, 'PYTHONIOENCODING': 'utf-8'})
-if rc == 0:
-    kst = datetime.timezone(datetime.timedelta(hours=9))
-    iso = lambda s: datetime.datetime.fromtimestamp(s, kst).isoformat(timespec='seconds')
-    brief = ep / 'BRIEF.md'
-    gpt = ep / 'factcheck'
-    rec = {'at': iso(time.time()), 'session': '정치', 'lane': 'politics_long', 'id': ep.name,
-           'title': (ep / 'meta.txt').read_text(encoding='utf-8').splitlines()[0] if (ep / 'meta.txt').exists() else '',
-           'started_at': iso(brief.stat().st_mtime if brief.exists() else T0), 'finished_at': iso(time.time()),
-           'render_secs': round(time.time() - T0), 'gpt_calls': len(list(gpt.glob('*.md'))) if gpt.exists() else 0,
-           'rejected': 0, 'note': 'started_at = BRIEF.md 시각(조사 시작 추정)'}
-    with open('D:/midform/server/data/production_ledger.jsonl', 'a', encoding='utf-8') as f:
-        f.write(json.dumps(rec, ensure_ascii=False) + '\n')
 sys.exit(rc)
