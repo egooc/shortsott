@@ -16,6 +16,11 @@ try:
 finally:
     LOCK.unlink(missing_ok=True)
 # 관리자 성과 보고용 제작 장부(D:/midform/docs/production-ledger.md) — 렌더가 끝나면 한 줄. 업로드 뒤 youtube_id 를 같은 id 로 한 줄 더 쓴다.
+if rc == 0:   # 마지막 음량 정규화 -14 LUFS(카이안 K12, 10-19 — 조각별 loudnorm -16 만으로는 완성본이 -16.3이었다)
+    sys.path.insert(0, 'D:/midform/scripts')
+    import loudnorm_final
+    with open(ep / 'render.log', 'a', encoding='utf-8') as log:
+        log.write('[loudnorm] %s\n' % loudnorm_final.normalize(ep / 'work' / 'episode.mp4'))
 if rc == 0:   # 무음 갭 검사(gap_check.py) — 결과만 render.log 에 남기고 렌더 성공은 그대로 둔다(10/17부터)
     with open(ep / 'render.log', 'a', encoding='utf-8') as log:
         subprocess.run([sys.executable, str(ROOT / 'gap_check.py'), str(ep)], stdout=log, stderr=subprocess.STDOUT,
