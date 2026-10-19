@@ -189,6 +189,28 @@ async function tagsSection() {
   return [zeroTotal ? `**⚠ 태그 0개 채널 ${zeroTotal}곳 — 해당 세션에 즉시 삽입·확인 지시.**` : '태그 0개 편 없음(최근 2일 공개·예약분).', '', ...rows].join('\n');
 }
 
+// 8. 포장 경고 — 정치 ko politics-hour/views_check.js(3bc1009)가 공개 +3h·+6h 조회를 server/data/politics_views.jsonl 에 남기고,
+//    직전 편 같은 시점의 절반 미만이면 politics_alerts.jsonl 에 한 줄 쓴다(스케줄 작업이라 세션에 말을 못 걸어 여기서 읽는다).
+//    소유주 10-17 «항상 문제는 거기»: 미달이면 영상이 아니라 제목·태그·썸네일부터 다시 쓴다(재업로드 금지). 보고일과 그 전날 기록을 보인다.
+async function packagingSection() {
+  const readJsonl = (f) => fs.existsSync(f) ? fs.readFileSync(f, 'utf8').split('\n').filter(Boolean).map((l) => { try { return JSON.parse(l); } catch (_) { return null; } }).filter(Boolean) : [];
+  const views = readJsonl(path.join(ROOT, 'server/data/politics_views.jsonl'));
+  const alerts = readJsonl(path.join(ROOT, 'server/data/politics_alerts.jsonl'));
+  const today = kstDate(Date.now());
+  const inWindow = (r) => { const d = kstDate(Date.parse(r.at)); return d === DATE || d === today; };
+  const vs = views.filter(inWindow); const as = alerts.filter(inWindow);
+  if (!vs.length && !as.length) return `기록 없음(${DATE}·${today}). 사후 점검은 정치 ko 10/18편부터 비교가 시작된다.`;
+  const out = [as.length ? `**⚠ 포장 경고·교체 ${as.length}건 — 자동 교체는 결과만 확인, 미달 경고는 해당 세션에 제목·태그·썸네일 재작성 지시(재업로드 금지).**` : '포장 경고 없음.', ''];
+  // 10-19: alerts 는 두 꼴 — 자동 포장 교체·소진 기록(alert 문구 있음)과 옛 절반 미달 경고(h·views·prev). 문구가 있으면 그대로 보인다.
+  for (const a of as) out.push(a.alert
+    ? `- ⚠ ${a.id} ${String(a.alert).slice(0, 120)} (${a.at.slice(11, 16)}Z)`
+    : `- ⚠ ${a.id} «${(a.title || '').slice(0, 40)}» +${a.h}h 조회 ${a.views} < 직전 편 ${a.prev?.views ?? '?'}의 절반 (${a.at.slice(11, 16)}Z)`);
+  if (as.length) out.push('');
+  out.push('| 편 | 제목 | +h | 조회 | 직전 편 같은 시점 | 판정 |', '|---|---|---|---|---|---|');
+  for (const r of vs) out.push(`| ${r.id} | ${(r.title || '').slice(0, 40)} | +${r.h}h | ${r.views.toLocaleString()} | ${r.prev ? `${r.prev.views.toLocaleString()} (${r.prev.id})` : '기록 없음(첫 기준)'} | ${r.prev && r.views < r.prev.views / 2 ? '⚠ 미달' : '통과'} |`);
+  return out.join('\n');
+}
+
 (async () => {
   const sec = async (title, fn) => { try { return `## ${title}\n\n${await fn()}`; } catch (e) { return `## ${title}\n\n_실패: ${e.message}_`; } };
   const parts = [`# 성과 보고 ${DATE} (KST, 다음 날 07:40 기준)`, '',
@@ -196,7 +218,8 @@ async function tagsSection() {
     await sec('3. Claude 토큰 (세션별, 그날 00~24시)', claudeSection), '', await sec('4. GPT (gpt-ask)', gptSection), '',
     await sec('5. 병목 — 시간대별 자원', resourceSection), '',
     await sec('6. 결 탐지 (레인 중앙값 3배 넘은 편의 공통 속성, 공개 72시간 경과분)', threadsSection), '',
-    await sec('7. 태그 점검 (최근 2일 공개·예약분, 0개면 ⚠)', tagsSection), ''];
+    await sec('7. 태그 점검 (최근 2일 공개·예약분, 0개면 ⚠)', tagsSection), '',
+    await sec('8. 포장 경고·자동 교체 (롱폼 공개 +4h·+8h·+12h·+24h·매일 조회, 바닥 미달이면 다음 포장)', packagingSection), ''];
   fs.mkdirSync(OUT_DIR, { recursive: true });
   const out = path.join(OUT_DIR, `${DATE}-perf.md`);
   fs.writeFileSync(out, parts.join('\n') + '\n', 'utf8');
