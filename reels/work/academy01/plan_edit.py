@@ -73,8 +73,52 @@ def to_edit(t):
 
 EDIT_DUR = to_edit(DUR)
 
-# 자막 덩어리: 문장마다 낱말을 모아 19자 안팎으로, 끝 꼬리(짧은 마지막 덩어리)는 앞에 붙인다
-MAXC = 19
+# 자막 덩어리: 발화 단위로 끊는다(소유주 10-19 «자막 분절은 발화 따라가는거야?»).
+# 글자 수만 보고 끊으면 «그럴 / 땐» 처럼 말 덩어리 가운데가 갈렸다. 끊을 자리 점수 = 쉼(낱말 사이 공백) + 이음 어미·쉼표,
+# 한 줄 8~21자 안에서 가장 좋은 자리를 고르고(동적 계획), 끝 꼬리 4자 이하는 만들지 않는다.
+MINC, MAXC = 8, 21
+JOINS = ('고', '는데', '은데', '데', '서', '면', '면은', '니까', '지만', '거나', '며', '도', '요', '죠', '든요')
+
+
+def brk_score(w, nxt):
+    g = nxt[0] - w[1]
+    sc = min(g, 0.6) * 10                      # 0.3초 쉼 = 3점
+    t = w[2]
+    if len(t) == 1:                            # «한 / 손», «이 / 아이들» — 한 글자 관형어 뒤는 끊지 않는다
+        return -6
+    if t.endswith(','):
+        sc += 4
+    elif any(t.rstrip('?.').endswith(j) for j in JOINS):
+        sc += 2
+    return sc
+
+
+def split_by_speech(s):
+    n = len(s)
+    L = lambda i, j: len(' '.join(x[2] for x in s[i:j]))
+    if L(0, n) <= MAXC:
+        return [s]
+    best = {n: (0.0, None)}
+    for i in range(n - 1, -1, -1):
+        cand = []
+        for j in range(i + 1, n + 1):
+            ln = L(i, j)
+            if ln > MAXC and j > i + 1:
+                break
+            if j < n and ln < MINC:
+                continue
+            if j == n and ln <= 4 and i > 0:
+                continue
+            if j not in best:
+                continue
+            sc = best[j][0] + (brk_score(s[j - 1], s[j]) if j < n else 0) - abs(ln - 15) * 0.15
+            cand.append((sc, j))
+        best[i] = max(cand) if cand else (best.get(i + 1, (0, None))[0] - 5, i + 1)
+    out, i = [], 0
+    while i < n:
+        j = best[i][1] or n
+        out.append(s[i:j]); i = j
+    return out
 subs = []
 for s in sents:
     s = [w for w in s if not in_drop(w[0], w[1])]
@@ -86,16 +130,7 @@ for s in sents:
     if ov:
         toks = ov.split(); t0, t1 = s[0][0], s[-1][1]
         s = [[t0 + (t1 - t0) * i / len(toks), t0 + (t1 - t0) * (i + 1) / len(toks), tk] for i, tk in enumerate(toks)]
-    chunks, cur = [], []
-    for w in s:
-        if cur and len(' '.join(x[2] for x in cur + [w])) > MAXC:
-            chunks.append(cur); cur = []
-        cur.append(w)
-    if cur:
-        if chunks and len(' '.join(x[2] for x in cur)) <= 5 and len(' '.join(x[2] for x in chunks[-1] + cur)) <= 23:
-            chunks[-1] += cur
-        else:
-            chunks.append(cur)
+    chunks = split_by_speech(s)
     for ch in chunks:
         txt = ' '.join(w[2] for w in ch)
         for a_, b_ in FIX:

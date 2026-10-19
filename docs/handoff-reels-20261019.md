@@ -38,9 +38,20 @@
 
   본 렌더는 RENDERING.lock 이 없고 빈 메모리가 8GB 이상일 때 한다.
 
+## academy01 하이퍼프레임판 (17:xx)
+- 그래픽은 hf_build.py(HTML+GSAP → hyperframes 투명 mov → 편집본과 합성)로 짓는다. 옛 build_render.py h|v(PIL 판)는 쓰지 않는다.
+- 0~4초 «보강» 스티커와 2:47~3:00 상자는 하단 타이틀 카드(CARDS)로 덮는다. 당겨 잡기는 폐기했다.
+- 도식 장면 8개(SCENES): 칩·줄긋기 도장·막대·진도 카운트·토요일 달력·ESL 대 내신·한 주 시간표·기한 없음.
+- 자막은 발화 단위로 끊는다(plan_edit.split_by_speech: 쉼·이음 어미 점수, 8~21자, 한 글자 낱말 뒤는 끊지 않음).
+- 시험본: 0:48~1:50 demo_*. 본 렌더는 소유주 «대기».
+  - 재개 명령: python -I build_render.py edit 다음 python -I hf_build.py h, python -I hf_build.py v
+  - 예상 1시간
+- 하이퍼프레임 렌더는 크롬을 띄워 메모리를 많이 먹는다(17:0x 메모리 부족으로 강제 종료됨). 정치 렌더와 겹치지 않게 한다.
+
 ## 오늘 있었던 일
 - 소유주 지시로 정치 ko 렌더를 15:0x~16:28 일시정지했다(NtSuspendProcess, 끄지 않음).
 - 재개는 reels/resume_politics.ps1 로 했고, PAUSED_BY_REELS.json 은 재개 때 삭제해 처리를 끝냈다.
+- 17:07~17:35 소유주 지시로 2차 일시정지, 17:35 재개.
 - 약속한 16:20보다 8분 늦었다. 교훈: paddle 모델 연결 점검 때문에 짧은 지우기도 수십 분이 걸린다. 약속 시각 전에 끝날 일만 돌린다.
 
 ## 도구 (reels/tools/)
