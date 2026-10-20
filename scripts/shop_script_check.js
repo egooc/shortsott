@@ -1,4 +1,4 @@
-// 쇼핑 원고 검사 — 결충전·썰형 6단·리듬·열린 결말·반박 선제·사회적 증거·첫 문장·첫 질문 3초를 기계로 본다. FAIL 이면 종료 코드 4.
+// 쇼핑 원고 검사 — 결충전·썰형 6단·리듬·열린 결말·반박 선제·사회적 증거·첫 문장·첫 질문 3초·끝 질문(답 없이 맨 끝)을 기계로 본다. FAIL 이면 종료 코드 4.
 // 10/20 관리자 실측(docs/materials-audit-20261020.md #3): 이 규칙들이 프롬프트에만 있고 검사 코드가 0 — 밤 보고의 «결충전 통과»는 자기 평가였다.
 // 원고 쪽이 메타에 표시를 박고(script_map), 여기서는 그 문장이 plan.json 원고에 실제로 있는지·순서·위치·모양을 본다.
 //   meta.script_map = {
@@ -105,11 +105,16 @@ function check(metaPath) {
   add(cv >= MIN_CV && shortest <= MAX_SHORTEST, '③ 문장 길이',
     `변동계수 ${cv.toFixed(2)}(하한 ${MIN_CV}) · 최단 ${shortest}자(≤${MAX_SHORTEST}) · 최장 ${longest}자`);
 
-  // ④ 열린 결말 — 마지막 «저장해 두고…» 저장 권유 문장 앞의 끝 문장
+  // ④ 열린 결말 · ⑨ 끝 질문 — 10/20 관리자(공용 판정 변경): 바로 다음 문장에서 스스로 답하는 자문자답은 댓글 장치가 아니다.
+  //   끝 3문장 중 마지막 질문은 답 없이 원고 맨 끝(링크 안내 줄만 뒤에 허용), 저장 권유는 그 앞으로.
   let e = n - 1;
-  while (e > 0 && /^(저장해|이 .*프로필 링크|.*링크에 있어요|.*댓글에 링크)/.test(segs[e])) e--;
+  while (e > 0 && /^(이 .*프로필 링크|.*링크에 있어요|.*댓글에 링크)/.test(segs[e])) e--;
   const endLine = segs[e] || '';
-  add(OPEN_END.test(endLine) && !CLOSED_END.test(endLine), '④ 열린 결말', `«${endLine}»`);
+  add((OPEN_END.test(endLine) || QUESTION.test(endLine)) && !CLOSED_END.test(endLine), '④ 열린 결말', `«${endLine}»`);
+  const tail = segs.slice(Math.max(0, e - 2), e + 1);
+  const lastQ = tail.map((x) => QUESTION.test(x)).lastIndexOf(true);
+  add(lastQ === tail.length - 1, '⑨ 끝 질문',
+    `${lastQ < 0 ? '끝 3문장에 질문 없음' : lastQ < tail.length - 1 ? `질문 뒤에 문장이 이어짐(자문자답·저장 권유는 질문 앞으로)` : '마지막 문장이 답 없는 질문'} — 끝 3문장: ${tail.map((x) => `«${x}»`).join(' / ')}`);
 
   // ⑤ 반박 선제 — 의심을 묻는 질문 + 다음 문장에서 답
   const iR = find(M.rebut);
