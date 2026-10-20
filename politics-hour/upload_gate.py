@@ -225,6 +225,25 @@ if epj.exists() and EP_DATE >= '20261021':
         pc = sq(json.loads(Path(up).read_text(encoding='utf-8')).get('pinned_comment', ''))
         if asks and not any(sq(a) in pc for a in asks):
             bad.append(f'{Path(up).name}: 고정 댓글에 원고 끝 질문 «{asks[0]}» 이 같은 문장으로 없음')
+# 쇼츠 원고 검수표(도구개발 d77326a — plan.json 을 그냥 넘기면 롱폼 기준이라 kind='shorts' 로 부른다): 첫 질문 3초·끝 질문/열린 결말·
+# V1~V4. «첫 원음 40초»는 롱폼 항목이라 뺀다. 10/21편부터 △ 0.
+if EP_DATE >= '20261021':
+    import script_audit   # noqa: E402,F811
+    for up in sys.argv[2:]:
+        if 'shorts' not in Path(up).resolve().parts:
+            continue
+        name = Path(up).name.split('.')[0]
+        plan = Path(up).parent.parent / 'ls' / Path(up).parent.name / name / 'plan.json'
+        if not plan.exists():
+            continue
+        sa = script_audit.audit(str(plan), lane='politics_ja' if 'ja' in str(json.loads(Path(up).read_text(encoding='utf-8')).get('defaultLanguage', '')) else 'politics_ko', kind='shorts')
+        (ep / 'audit').mkdir(exist_ok=True)
+        (ep / 'audit' / f'script_audit_{name}.json').write_text(json.dumps(sa, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+        if sa.get('error'):
+            bad.append(f'{name} 쇼츠 검수표 검사 불가: {sa["error"]}')
+        for w in sa.get('warnings', []):
+            if w['code'] != '원음':
+                bad.append(f'{name} 쇼츠 검수표 △ [{w["code"]}] {w["msg"]}')
 sys.path.insert(0, str(Path(__file__).resolve().parent / 'overlay')); import tts_audit   # 해설 TTS 역전사 숫자·고유명사 대조(10/20편부터, tts_say 편만 요구)
 bad += tts_audit.gate_lines(ep)
 bad += guide_words.gate_lines([*sys.argv[2:], *[p for p in [ep / 'packages.json'] if p.exists()]], lang='ko', lane='politics')   # 제목·설명·태그·썸네일 낱말, 우회 GUIDE_OK=1 은 소유주 말 있을 때만
