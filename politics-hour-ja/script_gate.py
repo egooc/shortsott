@@ -66,6 +66,14 @@ def audit_lines(ep):
             bad.append(f'원고 검수표 {name} 검사 불가: {res["error"]}')
             continue
         probs = [(w['code'], w['msg']) for w in res.get('fails', []) + res.get('warnings', [])]
+        if kind == 'shorts':   # 도구 수정 전 임시 면제(관리자 10-20): 주고받기 통과 + 0초 attack 이 의문문이면 «첫 질문» △ 1건 면제
+            sh = next(s for s in json.loads(plan.read_text(encoding='utf-8'))['shorts'] if path.endswith(':' + s['id']))
+            b0 = (sh.get('beats') or [{}])[0]
+            if b0.get('role') == 'attack' and re.search(r'[?？]\s*$', b0.get('text') or '') and not shorts_struct_errors(ep, only=sh['id']):
+                kept = [x for x in probs if x[0] != '질문']
+                if len(kept) < len(probs):
+                    lines.append(f'원고 검수표 {name} [질문] 면제 — 0초 공격 대사가 의문문 «{b0["text"][:20]}» (도구 수정 전 임시, 관리자 10-20)')
+                probs = kept
         for code, msg in probs:
             bad.append(f'원고 검수표 {name} △ [{code}] {msg}')
         for w in res.get('notices', []):
@@ -82,6 +90,7 @@ def audit_lines(ep):
 
 
 ROLES = ('attack', 'reaction', 'counter', 'narration', 'question')
+RAW_MAX = .80                         # 쇼츠 원음 ≤ 길이의 80%(관리자 10-20, 10-16 해설 85% 규칙 대체)
 RANGE = {'attack': (3, 8), 'reaction': (1, 3), 'counter': (3, 10)}
 
 
@@ -89,13 +98,15 @@ def beat_sec(b):
     return float(b['out']) - float(b['in']) if b.get('out') is not None else len(re.sub(r'\s', '', b.get('nar') or '')) / 7.5
 
 
-def shorts_struct_errors(ep):
+def shorts_struct_errors(ep, only=None, quiet=False):
     """쇼츠 = 주고받기 1~2개(소유주 10-20 «토론·국감장에서 주고받는 멘트와 반응·대응을»): plan.json beats 의 role·speaker 로
     attack≥1·reaction≥1·counter≥1, 발언자 2명 이상·공격자≠대응자, 한 사람 연속 12초 이하, 칸 길이(공격 3~8·반응 1~3·대응 3~10초), 해설은 한 줄(30자) 이하."""
     plan = ep / 'shorts' / 'plan.json'
     bad = []
     for sh in (json.loads(plan.read_text(encoding='utf-8')).get('shorts', []) if plan.exists() else []):
         sid, beats = sh['id'], sh.get('beats', [])
+        if only and sid != only:
+            continue
         sys.path.insert(0, str(ROOT / 'scripts'))
         import exchange_check   # 도구개발 fba0506 — 쇼츠마다 판정(①②③ FAIL·④ 해설 30% WARN), 유예 없음(--enforce-now 와 같음)
         try:
@@ -104,7 +115,11 @@ def shorts_struct_errors(ep):
             bad.append(f'쇼츠 {sid}: 주고받기 검사 불가 — {e}')
             continue
         bad += [f'쇼츠 {sid}: {e}' for e in r['errors'] + r['warnings']]
-        print(f'[exchange] 쇼츠 {sid} 종료 {r["code"]} · 화자 {r.get("speakers")} · 최장 연속 {r.get("longest_run")} · 길이 {r.get("total_sec")}초')
+        quiet or only or print(f'[exchange] 쇼츠 {sid} 종료 {r["code"]} · 화자 {r.get("speakers")} · 최장 연속 {r.get("longest_run")} · 길이 {r.get("total_sec")}초')
+        raw_s = sum(beat_sec(b) for b in beats if b.get('role') in ('attack', 'reaction', 'counter'))
+        all_s = sum(beat_sec(b) for b in beats) or 1
+        if raw_s / all_s > RAW_MAX:   # 10-16 «해설 ≥85%»를 대체(관리자 10-20)
+            bad.append(f'쇼츠 {sid}: 원음 {raw_s:.1f}초 = {raw_s / all_s:.0%} > {RAW_MAX:.0%}')
         for b in beats:   # 정치JA 추가 기준(관리자 10-20): 칸 길이·해설 한 줄
             lo_hi = RANGE.get(b.get('role'))
             if lo_hi and not lo_hi[0] - .05 <= beat_sec(b) <= lo_hi[1] + .05:
