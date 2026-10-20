@@ -82,7 +82,7 @@ function thumbsToday(purpose) {
   if (!fs.existsSync(THUMB_LOG)) return 0;
   const today = kstDay(Date.now());
   return fs.readFileSync(THUMB_LOG, 'utf8').split('\n').filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return {}; } })
-    .filter((r) => r.purpose === purpose && kstDay(r.at) === today).length;
+    .filter((r) => r.purpose === purpose && r.ok !== false && kstDay(r.at) === today).length;   // 실패(429)는 안 셈
 }
 
 async function repack(videoId, h, views, H) {
@@ -130,6 +130,95 @@ async function repack(videoId, h, views, H) {
   return { idx, title: next.title || title, style: next.style, exhausted: idx === n, wrapped: last === n };
 }
 
+// 피드 회복 루프(소유주 10-20 «저거 계속 수정해, 피드 받을 때까지», 관리자 전달) — packages.json "loop" 묶음만 쓴다(옛 포장은 군사·전복 낱말이 있어 안 씀).
+//   node politics-hour/views_check.js <id> --loop      schtasks politics_views_<id>_loop 매시간
+// 매시간: 걸어 둔 포장의 썸네일이 아직 안 올라갔으면(429·하루 한도) 다시 올린다.
+// 마지막 교체 뒤 LOOP_EVERY 시간이 지났으면 판정: 교체 뒤 조회 증가 ≥ LOOP_FEED 면 피드 신호(연속 2회면 그 포장 고정·보고),
+// 아니면 아직 안 쓴 다음 묶음으로 교체(같은 포장 재사용 금지). 남은 묶음이 없으면 «소진» 경보 → 세션이 새 후보 3개를 붙인다.
+// 썸네일이 다른 묶음은 썸네일이 먼저 올라가야 글자를 바꾼다(제목 머리·썸네일 큰 낱말 불일치 방지).
+const LOOP_EVERY = 4, LOOP_FEED = 50;
+async function loop(videoId) {
+  const pf = packagesPath(videoId);
+  const pk = JSON.parse(fs.readFileSync(pf, 'utf8'));
+  const L = pk.loop;
+  if (!L || !L.packages?.length) throw new Error('packages.json 에 loop 묶음 없음');
+  L.applied = L.applied || [];
+  const purpose = pk.purpose || 'politics';
+  const H = await auth(purpose);
+  const save = () => fs.writeFileSync(pf, JSON.stringify(pk, null, 2) + '\n', 'utf8');
+  const v = (await (await fetch(`https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet&id=${videoId}`, { headers: H })).json()).items[0];
+  const views = Number(v.statistics.viewCount || 0);
+  const putThumb = async (pkg) => {
+    if (thumbsToday(purpose) >= THUMB_CAP) return `하루 한도 ${THUMB_CAP}회`;
+    const tr = await fetch(`https://www.googleapis.com/upload/youtube/v3/thumbnails/set?videoId=${videoId}`, {
+      method: 'POST', headers: { ...H, 'Content-Type': pkg.thumbnail.endsWith('.png') ? 'image/png' : 'image/jpeg' }, body: fs.readFileSync(path.join(__dirname, '..', pkg.thumbnail)),
+    });
+    fs.appendFileSync(THUMB_LOG, JSON.stringify({ at: new Date().toISOString(), purpose, videoId, idx: `loop${pkg._i}`, ok: tr.ok, status: tr.status }) + '\n', 'utf8');
+    if (tr.ok) { L.thumb_now = pkg.thumbnail; return null; }
+    return `썸네일 ${tr.status}`;
+  };
+  const putText = async (pkg) => {
+    const s = v.snippet;
+    const r = await fetch('https://www.googleapis.com/youtube/v3/videos?part=snippet', {
+      method: 'PUT', headers: { ...H, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: videoId, snippet: { title: pkg.title, description: swapDesc(s.description, pkg), tags: pkg.tags, categoryId: s.categoryId, defaultLanguage: s.defaultLanguage } }),
+    });
+    if (!r.ok) throw new Error(`제목 교체 실패 ${r.status}: ${(await r.text()).slice(0, 200)}`);
+    if (L.comment_id && pkg.comment) {
+      const cr = await fetch('https://www.googleapis.com/youtube/v3/comments?part=snippet', { method: 'PUT', headers: { ...H, 'Content-Type': 'application/json' }, body: JSON.stringify({ id: L.comment_id, snippet: { textOriginal: pkg.comment } }) });
+      if (!cr.ok) console.log(`[loop] 고정 댓글 수정 실패 ${cr.status}`);
+    }
+  };
+  L.packages.forEach((p, i) => { p._i = i; });
+  const last = L.applied[L.applied.length - 1];
+  const cur = last && L.packages[last.idx];
+  const row = { at: new Date().toISOString(), id: videoId, purpose, h: 'loop', long: true, views, title: v.snippet.title, loop: last ? { idx: last.idx, since: last.views } : null };
+  // 1) 걸어 둔 포장의 썸네일이 아직이면 다시
+  if (cur && cur.thumbnail && L.thumb_now !== cur.thumbnail) {
+    const err = await putThumb(cur);
+    console.log(`[loop] ${videoId} 포장 ${last.idx}번 썸네일 ${err ? `보류(${err})` : '올림'}`);
+    if (!err) append(ALERT, { ...row, alert: `루프 포장 ${last.idx}번 썸네일 올림(밀린 것), 관리자 보고` });
+  }
+  if (L.fixed != null) { append(LOG, { ...row, fixed: L.fixed }); save(); return; }
+  const hrs = last ? (Date.now() - new Date(last.at)) / 3600e3 : Infinity;
+  if (last && hrs < LOOP_EVERY - 0.25) { append(LOG, row); save(); console.log(`[loop] ${videoId} 조회 ${views} · 포장 ${last.idx}번 ${hrs.toFixed(1)}h째 — 판정 전`); return; }
+  const gain = last ? views - last.views : 0;
+  if (last && gain >= LOOP_FEED) {
+    L.streak = (L.streak || 0) + 1;
+    last.checks = [...(last.checks || []), { at: row.at, views }];
+    if (L.streak >= 2) L.fixed = last.idx;
+    const msg = L.fixed != null ? `피드 회복 — 포장 ${last.idx}번 고정 «${cur.title}» (교체 뒤 +${gain})` : `피드 신호 1회 — 포장 ${last.idx}번 유지(교체 뒤 +${gain}), 다음 점검도 오르면 고정`;
+    if (L.fixed == null) last.views = views;   // 다음 판정은 이 시점부터 다시 잰다
+    console.log(`[loop] ${videoId} ${msg}`);
+    append(LOG, { ...row, kept: { idx: last.idx, gain } });
+    append(ALERT, { ...row, alert: `${msg}, 관리자 보고` });
+    save(); return;
+  }
+  L.streak = 0;
+  const used = new Set(L.applied.map((a) => a.idx));
+  const next = L.packages.find((p, i) => !used.has(i));
+  if (!next) {
+    console.log(`[loop] ${videoId} 묶음 소진 — 새 후보 3개 필요`);
+    append(ALERT, { ...row, alert: `루프 묶음 소진(조회 ${views}, 직전 포장 뒤 +${gain}) — 새 후보 3개(인물 이름+«말맛 한마디»+상대 인물) 필요, 관리자 보고` });
+    save(); process.exit(4);
+  }
+  if (next.thumbnail && L.thumb_now !== next.thumbnail) {
+    const err = await putThumb(next);
+    if (err) {
+      console.log(`[loop] ${videoId} 포장 ${next._i}번 썸네일 보류(${err}) — 글자도 안 바꿈, 다음 회차`);
+      append(LOG, { ...row, wait_thumb: next._i, err });
+      save(); return;
+    }
+  }
+  await putText(next);
+  L.applied.push({ idx: next._i, at: new Date().toISOString(), views, from: v.snippet.title });
+  const msg = `루프 교체 → 포장 ${next._i}번 «${next.title}» · 썸네일 ${next.big?.join('·') || ''} · 직전 포장 뒤 +${gain}(${last ? `${hrs.toFixed(1)}h` : '첫 회'})`;
+  console.log(`[loop] ${videoId} ${msg}`);
+  append(LOG, { ...row, repack: next._i });
+  append(ALERT, { ...row, alert: `${msg}, 관리자 보고` });
+  save();
+}
+
 (async () => {
   const [videoId, a2, a3] = process.argv.slice(2);
   if (!videoId || !a2) throw new Error('usage: node politics-hour/views_check.js <videoId> <3|6|24> [--no-repack] [--purpose <p>] | --schedule <publishAt> [--short] [--purpose <p>]');
@@ -139,6 +228,7 @@ async function repack(videoId, h, views, H) {
     append(ALERT, { at: new Date().toISOString(), id: videoId, alert: `소유주 지시 즉시 교체 — ${sw ? `포장 ${sw.idx}번 «${sw.title}»` : '포장 없음'}`, repack: sw });
     return;
   }
+  if (a2 === '--loop') { await loop(videoId); return; }
   if (a2 === '--schedule') {
     const pub = new Date(a3);
     if (isNaN(pub)) throw new Error('publishAt 이 날짜가 아니다');
