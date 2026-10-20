@@ -64,6 +64,25 @@ const M = JSON.parse(fs.readFileSync(meta, 'utf8'));
   if (last && /결국|정리하면|요약하면|한마디로|역시\s|레전드였|최고였|완벽했/.test(last.text)) bad.push(`⑤ V3 끝 문장 «${last.text}» 평가·요약 — 댓글 장치 질문 또는 감정 한 문장`);
   const top = `${(S.top || {}).l1 || ''} ${(S.top || {}).l2 || ''}`;
   if (!/\d|[한두세네다섯]\s?(번|명|개|시간|초|분|살|년)|번째|첫\s|째/.test(top)) bad.push(`⑤ V5 상단 문구 «${top.trim()}» 에 숫자·시간 없음(«8시간째» 식 1개)`);
+  // 꽉갈이 누락분 G22(10/21 관리자, RULES_PDF 25~29항) — 10/23 부터 막고 그 전엔 경고만.
+  const g22 = [];
+  const gc = S.group_check || {};
+  if (!(gc.share_1m >= 0.5)) g22.push(`⑥ group_check.share_1m ${gc.share_1m ?? '없음'} — #그룹 쇼츠탭 100만+ 절반 이상`);
+  if (!(gc.latest_days <= 30)) g22.push(`⑥ group_check.latest_days ${gc.latest_days ?? '없음'} — 100만+ 최신이 1달 이내`);
+  if (!Array.isArray(gc.cross) || gc.cross.length < 2) g22.push('⑥ group_check.cross — 유튜브 차트·브랜드평판·구글트렌드 중 2개+');
+  if (!gc.ja_fandom) g22.push('⑥ group_check.ja_fandom — 일본 팬덤 근거 한 줄');
+  const rs = Array.isArray(S.reason) ? S.reason : [];
+  if (rs.length < 3 || !/년|개월|달/.test(rs[0] || '') || !/렌즈|유사/.test(rs[1] || '') || !/댓글|베댓/.test(rs[2] || '')) g22.push('⑥ reason 3줄 [원본 시기, 구글렌즈 유사 적음, 댓글 포인트]');
+  const so = S.source_check || {};
+  if (!(so.views >= 10000)) g22.push(`⑥ source_check.views ${so.views ?? '없음'} — 원본 조회 1만+`);
+  if (!/렌즈|AI|키워드|공식/.test(so.found_by || '')) g22.push('⑥ source_check.found_by — 원본 찾은 방법(구글렌즈·AI 시간대·영어 키워드), AI 답은 직접 확인');
+  if (!['조금', '+@'].includes(S.twist)) g22.push(`⑥ twist «${S.twist || ''}» — «조금»(180도 금지) 또는 «+@»`);
+  if (!['B', '랭킹형', '인스타형', '음악형', '미녀형'].includes(S.template)) g22.push(`⑥ template «${S.template || ''}» — 주제×템플릿 짝 A/B 기록`);
+  if (g22.length) {
+    if (new Date() >= new Date('2026-10-23T00:00:00+09:00')) bad.push(...g22);
+    else console.warn(`[publish] △ 꽉갈이 G22(10/23부터 FAIL) — ${g22.join(' / ')}`);
+  }
+  if (!(S.caps || []).some(x => x.style === 'en')) console.warn('[publish] △ 영어 자막 1줄 없음(G22 ⑥, 템플릿 지원 뒤 FAIL)');
   if (bad.length) {
     console.error(`\x07[publish] ★FAIL 기획 게이트 — ${bad.join(' / ')}. 업로드 안 함.`);
     process.exit(5);

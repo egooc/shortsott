@@ -7,7 +7,7 @@ spec:
   sources: {"A": {"path": ".../h8_2930.mp4", "base": 1770}}   base = 그 파일 0초의 원본 시각
   segs:    [{"src": "A", "a": 1807.7, "b": 1810.1, "cw": 860, "x": 520, "y": 20}]  a·b 원본 시각, 창 cw x (cw/0.939) — 방송 자막·로고 밖으로
   top:     {"tag": "HOT · 엔믹스", "l1": "...", "l2": "...", "credit": "영상: ..."}
-  caps:    [{"t0": 0, "t1": 2.4, "text": "...", "style": "say|pop"}]    출력 시각
+  caps:    [{"t0": 0, "t1": 2.4, "text": "...", "style": "say|pop|en"}]    출력 시각 (en = 영어 한 줄, 한국어 자막 아래)
   comments:[{"t0": 0, "t1": 7.4, "likes": 870, "text": "..."}]          출력 시각, 줄바꿈은 \\n
 """
 import json
@@ -77,6 +77,10 @@ def cap_png(c, out):
         d.rounded_rectangle((W / 2 - tw / 2 - 34, VY + 50, W / 2 + tw / 2 + 34, VY + 50 + 40 + 66 * len(lines)), 24, fill=(20, 20, 20, 235))
         for i, ln in enumerate(lines):
             d.text((W // 2, VY + 50 + 20 + 33 + 66 * i), ln, font=ft, fill=(255, 225, 60), anchor='mm')
+        im.save(out)
+        return
+    if c.get('style') == 'en':                       # 영어 자막 한 줄(G22 ⑥ 교육적 가치) — 한국어 자막 아래 작게
+        d.text((W // 2, VY + VH - 34), c['text'], font=f(BOLD, 44), fill=(210, 230, 255), stroke_width=6, stroke_fill='black', anchor='mm')
         im.save(out)
         return
     size, col = (74, (255, 225, 60)) if c.get('style') == 'pop' else (62, 'white')
