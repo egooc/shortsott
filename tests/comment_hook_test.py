@@ -100,6 +100,16 @@ with tempfile.TemporaryDirectory() as t:
                          'expected_comment': {'type': '경험담', 'line': '주스로 마시던 그 크랜베리가 수면을', 'at_sec': 6.5, 'pinned': '즐겨 드시나요?'}})
     r = ch.check(lx, lane='longshort')
     assert r['ok'] and r['line_in'] == 'body', r
+    # hook.text 만 질문인 plan — 화면 문구는 본문이 아니다(lx02 v4 거짓 통과, 10-20), 렌더 자막(cap.ass)이 있어도 넘긴 spec 의 segments 가 본문
+    hk = t / 'hk'
+    hk.mkdir()
+    (hk / '_ff').mkdir()
+    (hk / '_ff' / 'cap.ass').write_text('Dialogue: 0,0:00:00.00,0:00:02.00,Default,,0,0,0,,다른 판 끝 질문 있나요?\n', encoding='utf-8')
+    w(hk / 'plan_v4.json', {'segments': [{'text': '밭에 물을 붓습니다.'}, {'text': '열매가 떠오릅니다.'}, {'text': '빨간 카펫 같아요.'}],
+                            'hook': {'visual': '…', 'audio': '…', 'text': '이 빨간 밭은 왜 물에 잠글까요?'},
+                            'expected_comment': {'type': '경험담', 'line': '열매가 떠오릅니다', 'at_sec': 3}})
+    r = ch.check(hk / 'plan_v4.json', lane='longshort')
+    assert not r['ok'] and any(e.startswith('③') for e in r['errors']), r
     # 검사 불가: 없는 경로 → 5 + 장부
     assert ch.main([str(t / 'nope')]) == 5
     assert len(ch.LEDGER.read_text(encoding='utf-8').splitlines()) == 2

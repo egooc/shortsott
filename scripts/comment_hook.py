@@ -122,7 +122,12 @@ def _read_json(p):
     return json.loads(Path(p).read_text(encoding='utf-8'))
 
 
-def _strings(node, key=None, skip=('expected_comment', 'comment_device', *PINNED_KEYS)):
+# 본문이 아닌 화면 문구 키 — 그 아래 text 는 본문(끝 3문장)에 넣지 않는다(10-20 롱투숏 lx02 v4: hook.text 가 끝 줄로 읽혀 ③ 거짓 통과).
+# 팬튜브 spec.top 은 원래 «② 위치로만». 고정 댓글은 ② 위치 판정에만 쓴다.
+NON_BODY_KEYS = ('hook', 'title', 'top', 'meta', 'title_spec', 'thumbnail', 'thumb', 'thumb_words', 'packages', 'desc_head', 'description', 'tags')
+
+
+def _strings(node, key=None, skip=('expected_comment', 'comment_device', *PINNED_KEYS, *NON_BODY_KEYS)):
     """json 안 TEXT_KEYS 아래 문자열을 순서대로(«a|b» 자막은 뒤쪽)."""
     out = []
     if isinstance(node, dict):
@@ -235,8 +240,11 @@ def load(path, lane=None, spec=None, scripts=None):
     if not body:
         base = p if p.is_dir() else p.parent
         # spec 자체(plan.json segments)가 옛 판 plan_v1.json 보다 먼저 — 10-20 롱투숏 lx02 가 옛 판을 읽어 못 찾던 일
-        for c in [base / 'script.txt', base / 'cap.ass', base / '_ff' / 'cap.ass', *sorted(base.glob('*.srt')), spec_p,
-                  base / 'plan.json']:
+        # 넘겨받은 spec 이 원고 칸(segments·voice·narration)을 가지고 있으면 그게 본문 — 다른 판의 렌더 자막(cap.ass)보다 먼저(lx02 v4 회귀, 10-20)
+        own = isinstance(d, dict) and any(d.get(k) for k in ('segments', 'voice', 'narration', 'lines', 'cues'))
+        order = [spec_p] if own else []
+        for c in order + [base / 'script.txt', base / 'cap.ass', base / '_ff' / 'cap.ass', *sorted(base.glob('*.srt')), spec_p,
+                          base / 'plan.json']:
             if c.exists():
                 body = _strings(d) if c == spec_p else body_from(c)
                 if body:
