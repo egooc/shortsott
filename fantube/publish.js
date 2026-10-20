@@ -13,23 +13,25 @@ const ROOT = path.join(__dirname, '..');
 const LOG = 'D:/volcano-runs/fantube/_upload/upload_log.jsonl';
 
 // 댓글 장치 게이트(10/20 소유주 질책 «댓글 반응을 노리는 원고가 반영 안 됐다», RULES_PDF 20항):
-// spec.expected_comment = {type: 정정|경험담|훈수|공감|논쟁, line: 원고에 그대로 들어간 문장, at_sec: 그 문장이 나오는 출력 초}.
-// 없거나, line 이 자막·TTS·위 제목 어디에도 없거나, at_sec 이 그 문장 표시 구간 밖이면 FAIL — 업로드 금지(exit 5).
+// ①②③ 은 공용 scripts/comment_hook.py(도구개발 a4856bc) — expected_comment·장치 문장이 본문에·끝 3문장 장치. 0 말고는 전부 업로드 금지(4 FAIL·5 검사 불가).
+// 팬튜브만 더 본다: at_sec 이 그 문장(자막·TTS) 표시 구간 안인지.
 {
   const specPath = path.join('D:/volcano-runs/fantube', ep, 'spec.json');
-  const S = fs.existsSync(specPath) ? JSON.parse(fs.readFileSync(specPath, 'utf8')) : {};
-  const ec = S.expected_comment || {};
-  const norm = (x) => String(x || '').replace(/\s+/g, '');
-  const spans = [...(S.caps || []).map((c) => [c.text, c.t0, c.t1]), ...(S.voice || []).map((v) => [v.show || v.text, v.t0, v.t0 + 6]),
-    ...(S.voice || []).map((v) => [v.text, v.t0, v.t0 + 6]), [`${S.top?.l1 || ''}${S.top?.l2 || ''}`, 0, 1e9]];
-  const hit = ec.line && spans.find(([tx, a, b]) => norm(tx).includes(norm(ec.line)) && ec.at_sec >= a - 0.05 && ec.at_sec <= b);
-  const why = !['정정', '경험담', '훈수', '공감', '논쟁'].includes(ec.type) ? `type «${ec.type || '없음'}»`
-    : !ec.line ? 'line 없음' : typeof ec.at_sec !== 'number' ? 'at_sec 없음' : !hit ? `«${ec.line}» 이 ${ec.at_sec}초 원고(자막·TTS·제목)에 없음` : '';
+  const ch = spawnSync('python', [path.join(ROOT, 'scripts', 'comment_hook.py'), specPath, '--lane', 'fantube'], { encoding: 'utf8', env: { ...process.env, PYTHONIOENCODING: 'utf-8' } });
+  process.stdout.write(ch.stdout || ''); process.stderr.write(ch.stderr || '');
+  let why = ch.status !== 0 ? `comment_hook exit ${ch.status}${ch.status === 5 ? '(검사 불가)' : ''}` : '';
+  if (!why) {
+    const S = JSON.parse(fs.readFileSync(specPath, 'utf8'));
+    const ec = S.expected_comment;
+    const norm = (x) => String(x || '').replace(/\s+/g, '');
+    const spans = [...(S.caps || []).map((c) => [c.text, c.t0, c.t1]), ...(S.voice || []).flatMap((v) => [[v.text, v.t0, v.t0 + 6], [v.show || '', v.t0, v.t0 + 6]])];
+    if (!spans.some(([tx, a, b]) => norm(tx).includes(norm(ec.line)) && ec.at_sec >= a - 0.05 && ec.at_sec <= b)) why = `«${ec.line}» 이 ${ec.at_sec}초 자막·TTS 구간에 없음`;
+  }
   if (why) {
-    console.error(`[publish] ★FAIL 댓글 장치 없음 — ${why}. spec.expected_comment={type,line,at_sec} 를 원고 본문에 넣은 뒤 다시. 업로드 안 함.`);
+    console.error(`[publish] ★FAIL 댓글 장치 — ${why}. spec.expected_comment={type,line,at_sec} 를 원고 본문에 넣은 뒤 다시. 업로드 안 함.`);
     process.exit(5);
   }
-  console.log(`✓ 댓글 장치 ${ec.type} @${ec.at_sec}s «${ec.line}»`);
+  console.log('✓ 댓글 장치 통과(comment_hook + at_sec)');
 }
 // 가이드라인 사전 점검(10/18 소유주: 피드를 못 받으면 위반으로 본다) — 롱투숏 guide_check.py 를 그대로 쓰고, 걸리면 업로드 전에 멈춘다.
 // 팬튜브 특유: 멤버 미성년 시기·«어린» 강조는 «어린아이 대상» 범주로 본다.
