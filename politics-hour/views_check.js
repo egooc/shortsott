@@ -73,6 +73,18 @@ const PURPOSE_ARG = process.argv.includes('--purpose') ? process.argv[process.ar
 const purposeOf = (videoId) => PURPOSE_ARG || findPackages(videoId)?.purpose;
 const PURPOSE_FLAG = PURPOSE_ARG ? ` --purpose ${PURPOSE_ARG}` : '';
 
+// 썸네일 업로드 하루 한도(관리자 10-20: 10/20 11:00 교체가 429 «too many thumbnails» 로 썸네일만 실패 → 제목·썸네일 불일치).
+// 채널(purpose)별 KST 하루 THUMB_CAP 회까지만 자동 교체한다. 장부 server/data/thumb_uploads.jsonl — 이 도구가 올린 것만 센다(yt-upload.js 업로드 썸네일은 안 셈).
+const THUMB_CAP = 3;
+const THUMB_LOG = path.join(__dirname, '..', 'server', 'data', 'thumb_uploads.jsonl');
+const kstDay = (t) => new Date(new Date(t).getTime() + 9 * 3600e3).toISOString().slice(0, 10);
+function thumbsToday(purpose) {
+  if (!fs.existsSync(THUMB_LOG)) return 0;
+  const today = kstDay(Date.now());
+  return fs.readFileSync(THUMB_LOG, 'utf8').split('\n').filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return {}; } })
+    .filter((r) => r.purpose === purpose && kstDay(r.at) === today).length;
+}
+
 async function repack(videoId, h, views, H) {
   const pf = packagesPath(videoId);
   if (!pf) return null;
@@ -91,21 +103,27 @@ async function repack(videoId, h, views, H) {
   const last = lastA ? lastA.idx : 0;
   const idx = (last % n) + 1;
   const next = pk.packages[idx];
+  const purpose = purposeOf(videoId) || 'politics';
+  if (next.thumbnail && thumbsToday(purpose) >= THUMB_CAP) {
+    return { idx: last, title: pk.packages[last]?.title, style: `썸네일 하루 한도 ${THUMB_CAP}회 — 오늘 교체 안 함`, kept: true, capped: true };
+  }
   const v = (await (await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&id=${videoId}`, { headers: H })).json()).items[0];
   const { title, description, tags, categoryId, defaultLanguage } = v.snippet;
   views = views ?? Number(v.statistics.viewCount || 0);   // 교체 순간 조회 — 다음 점검이 «새 포장이 받는 중인가»를 이 값에서 잰다
-  const up = await fetch('https://www.googleapis.com/youtube/v3/videos?part=snippet', {
-    method: 'PUT', headers: { ...H, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id: videoId, snippet: { title: next.title || title, description: swapDesc(description, next), tags: next.tags || tags, categoryId, defaultLanguage } }),
-  });
-  if (!up.ok) throw new Error(`제목 교체 실패 ${up.status}: ${(await up.text()).slice(0, 200)}`);
+  // 썸네일을 먼저 올린다 — 실패하면 제목도 안 바꿔서 제목 머리·썸네일 큰 낱말이 어긋나지 않게(10/20 11:00 사고)
   if (next.thumbnail) {
     const img = fs.readFileSync(path.join(__dirname, '..', next.thumbnail));
     const tr = await fetch(`https://www.googleapis.com/upload/youtube/v3/thumbnails/set?videoId=${videoId}`, {
       method: 'POST', headers: { ...H, 'Content-Type': next.thumbnail.endsWith('.png') ? 'image/png' : 'image/jpeg' }, body: img,
     });
-    if (!tr.ok) throw new Error(`썸네일 교체 실패 ${tr.status}: ${(await tr.text()).slice(0, 200)}`);
+    fs.appendFileSync(THUMB_LOG, JSON.stringify({ at: new Date().toISOString(), purpose, videoId, idx, ok: tr.ok, status: tr.status }) + '\n', 'utf8');
+    if (!tr.ok) throw new Error(`썸네일 교체 실패 ${tr.status} — 제목은 안 바꿨다: ${(await tr.text()).slice(0, 200)}`);
   }
+  const up = await fetch('https://www.googleapis.com/youtube/v3/videos?part=snippet', {
+    method: 'PUT', headers: { ...H, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: videoId, snippet: { title: next.title || title, description: swapDesc(description, next), tags: next.tags || tags, categoryId, defaultLanguage } }),
+  });
+  if (!up.ok) throw new Error(`제목 교체 실패 ${up.status}: ${(await up.text()).slice(0, 200)}`);
   pk.applied.push({ idx, at: new Date().toISOString(), h, views, from: title });
   fs.writeFileSync(pf, JSON.stringify(pk, null, 2) + '\n', 'utf8');
   // 마지막 대체 포장을 걸었으면 «소진» 표시 — 다음 점검 전에 세션이 새 포장(롱폼 속 다른 발언·게이트 통과)을 붙인다(관리자 10-18). 없으면 순환은 최후 수단
