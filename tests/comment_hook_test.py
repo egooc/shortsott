@@ -103,4 +103,9 @@ with tempfile.TemporaryDirectory() as t:
     # 검사 불가: 없는 경로 → 5 + 장부
     assert ch.main([str(t / 'nope')]) == 5
     assert len(ch.LEDGER.read_text(encoding='utf-8').splitlines()) == 2
+# 질문 판정(10-20): «거품이 나요» 평서는 질문 아님, 묻는 어미는 마침표여도 질문, 평서로도 쓰는 어미는 의문사 있을 때만
+for s, want in [('거품이 나요.', False), ('거품이 나요', False), ('왜 거품이 나나요', True), ('써 보신 분 있나요?', True),
+                ('재판할 수 있을까요.', True), ('그렇죠.', False), ('이게 맞습니까', True)]:
+    assert ch.is_question(s, 'ko') == want, s
+assert ch.is_question('年金を受け取っていませんか。', 'ja') and not ch.is_question('受け取れます。', 'ja')
 print('OK')

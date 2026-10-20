@@ -38,7 +38,8 @@ JARGON = {'politics_ko': ROOT / 'politics-hour' / 'jargon.json', 'corp_ko': ROOT
 NAMES = {'politics_ko': ROOT / 'politics-hour' / 'names_ko.json'}
 GREETING = {'ko': r'^(안녕하세요|여러분 안녕|반갑습니다|오늘은 .{0,20}(에 대해|알아보|이야기)|이번 영상|구독)',
             'ja': r'^(こんにちは|皆さんこんにちは|こんばんは|今日は.{0,20}(について|紹介)|今回の動画|チャンネル登録)'}
-QUESTION = {'ko': r'[?？]\s*$|(까요?|나요|가요|습니까|죠)\s*[.。]?\s*$', 'ja': r'[?？]\s*$|(か|でしょうか|ますか)\s*[。.]?\s*$'}
+QUESTION = {  # 참고용(판정은 comment_hook.is_question — 10-20 «거품이 나요» 오판 수정)
+    'ko': r'[?？]\s*$|(까요?|나요|가요|습니까|죠)\s*[.。]?\s*$', 'ja': r'[?？]\s*$|(か|でしょうか|ますか)\s*[。.]?\s*$'}
 TRANSITION = {'ko': r'^(그런데|근데|문제는|하지만|그러나|그래서|그 결과|결국|반전은|여기서|그러자|그런데도|그렇다면|이때)',
               'ja': r'^(ところが|しかし|でも|問題は|そこで|その結果|結局|実は|では|すると)'}
 OPEN_END = {'ko': r'(일 듯|일지도|됐다고|했다고|아님\?|라던데|모를 일|두고 볼)', 'ja': r'(かも|らしい|だとか|どうなる)'}
@@ -165,7 +166,7 @@ def audit(path, lane=None, kind=None, lang=None, jargon=None, names=None):
     if len(lens) >= 5 and cv < 0.30:
         W.append(('리듬', f'문장 길이 CV {cv:.2f} < 0.30 — 길이가 고르다(기계 티), 짧은 문장·긴 문장을 섞어라'))
     # 첫 질문
-    q = next((at[i] for i, s in sents if re.search(QUESTION[lang], s)), None)
+    q = next((at[i] for i, s in sents if comment_hook.is_question(s, lang)), None)
     res['first_question_sec'] = None if q is None else round(q, 1)
     lim_q = 15 if kind == 'long' else 3
     if q is None or q > lim_q:
@@ -185,7 +186,7 @@ def audit(path, lane=None, kind=None, lang=None, jargon=None, names=None):
     tail = [s for _, s in sents[-3:]]
     kinds = []
     for s in tail:
-        kinds += (['질문'] if re.search(QUESTION[lang], s) else []) + (['열린 결말'] if re.search(OPEN_END[lang], s) else []) + \
+        kinds += (['질문'] if comment_hook.is_question(s, lang) else []) + (['열린 결말'] if re.search(OPEN_END[lang], s) else []) + \
                  (['안내'] if re.search(GUIDE_END[lang], s) else [])
     res['ending'] = {'tail': tail, 'kinds': sorted(set(kinds)) or ['단정']}
     if kind == 'shorts' and not {'질문', '열린 결말'} & set(kinds):

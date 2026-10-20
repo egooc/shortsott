@@ -39,8 +39,38 @@ PINNED_KEYS = ('pinned_comment', 'comment_question')
 
 _SQ = re.compile(r'[\s、。，,.「」『』“”‘’"\'？?！!・…~\-–—()（）\[\]<>《》«»:：;；/]')
 _SPLIT = re.compile(r'(?<=[。？！?!.])\s*|\n+')
-QUESTION = re.compile(r'([?？]|(까|죠|나요|가요|ㄹ까|을까|일까|습니까|ㅂ니까|니까|래요|겠어요|어때요|건가요|는데요)\s*[.。…]*$|'
-                      r'(か|かな|でしょう|ませんか|ですか)\s*[。.…]*$)')
+# 질문 판정(10-20 쇼핑 실측 «거품이 나요» 오판 수정): 물음표면 질문. ko 는 «습니까·까요·ㄹ까» 처럼 그 자체가 묻는 어미면 질문,
+# «나요·죠·가요·래요·는데요» 처럼 평서로도 쓰이는 어미는 의문사(왜·뭐·어떻게·언제·누가…)가 같이 있을 때만, 마침표로 끝나면 평서로 본다.
+_Q_MARK = re.compile(r'[?？]\s*[」』"”)]*\s*$')
+_KO_ASK = re.compile(r'(습니까|ㅂ니까|을까요?|ㄹ까요?|일까요?|까요|겠어요|어때요|건가요)\s*[…]*$')
+_KO_SOFT = re.compile(r'(나요|죠|가요|래요|는데요|니까)\s*[…]*$')
+_KO_WH = re.compile(r'(왜|뭐|무엇|무슨|어떻게|어떤|언제|누가|누구|어디|얼마|몇)')
+_JA_ASK = re.compile(r'(か|かな|でしょうか|ませんか|ですか)\s*[。.…]*\s*[」』]*\s*$')
+
+
+def is_question(s, lang=None):
+    s = str(s or '').strip()
+    if _Q_MARK.search(s):
+        return True
+    if lang != 'ko' and _JA_ASK.search(s):
+        return True
+    if lang == 'ja':
+        return False
+    s2 = re.sub(r'[.。]\s*$', '', s)
+    if _KO_ASK.search(s2):                   # «…있을까요.» 처럼 마침표를 찍어도 묻는 어미면 질문(정치 첫 문장)
+        return True
+    if s2 != s:                              # «거품이 나요.» — 평서로도 쓰이는 어미 + 마침표 = 평서
+        return False
+    return bool(_KO_SOFT.search(s) and _KO_WH.search(s))
+
+
+class _Q:   # 옛 QUESTION.search(s) 호출 호환
+    @staticmethod
+    def search(s):
+        return is_question(s)
+
+
+QUESTION = _Q()
 ASSERT = re.compile(r'(무조건|절대|100\s*%|백 퍼센트|정답|최고|최악|유일|단언|확실히|틀림없|뿐입니다|밖에 없|이게 맞|이 맞습니다|'
                     r'라고 봅니다|입니다\s*끝|絶対|間違いな|一番|だけです|しかない)')
 EXPERIENCE = re.compile(r'(이런 적|그런 적|겪어 보신|겪어보신|해 보신|해보신|경험 있|경험해 보|여러분은|여러분이라면|댓글로|댓글에|알려 주세요|알려주세요|'
