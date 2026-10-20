@@ -128,10 +128,16 @@ def load(path, lane=None, spec=None, scripts=None):
         raise FileNotFoundError(f'expected_comment 가 든 spec json 을 못 찾음: {p}')
     d = _read_json(spec_p)
     pinned = [s for k in PINNED_KEYS for s in sentences(d.get(k) or '', drop_links=True)]
+    ec = d.get('expected_comment')
+    if isinstance(ec, dict) and isinstance(ec.get('pinned'), str):   # 롱투숏은 고정 질문을 expected_comment.pinned 에 둔다
+        pinned += sentences(ec['pinned'], drop_links=True)
     if lane == 'politics_shorts':
         return lane, d, [], pinned, str(spec_p)
     if lane == 'fantube' and not scripts:   # volcano-runs/fantube/<ep>/spec.json — TTS voice[] 순서가 본문, caps[] 는 화면 자막
-        body = [v.get('text', '') for v in d.get('voice', [])] + [c.get('text', '') for c in d.get('caps', [])]
+        # voice·caps 를 t0 시간순으로 합친다 — 끝 3문장이 «caps 끝 3개»가 되던 일(팬튜브 10-20 실측). 같은 t0 면 voice 먼저.
+        timed = [(float(v.get('t0') or 0), 0, v.get('text', '')) for v in d.get('voice', [])] + \
+                [(float(c.get('t0') or 0), 1, c.get('text', '')) for c in d.get('caps', [])]
+        body = [tx for _, _, tx in sorted(timed, key=lambda x: (x[0], x[1]))]
         top = d.get('top') or {}
         return lane, d, body, pinned + [f"{top.get('l1', '')} {top.get('l2', '')}".strip()], str(spec_p)
     body = []
@@ -146,13 +152,13 @@ def load(path, lane=None, spec=None, scripts=None):
             body = [s.get('text', '') for s in _read_json(plan).get('segments', [])]
     if not body:
         base = p if p.is_dir() else p.parent
-        for c in [base / 'script.txt', base / 'cap.ass', *sorted(base.glob('*.srt')), *sorted(base.glob('plan*.json'))]:
-            if c.exists() and c != spec_p:
-                body = body_from(c)
+        # spec 자체(plan.json segments)가 옛 판 plan_v1.json 보다 먼저 — 10-20 롱투숏 lx02 가 옛 판을 읽어 못 찾던 일
+        for c in [base / 'script.txt', base / 'cap.ass', base / '_ff' / 'cap.ass', *sorted(base.glob('*.srt')), spec_p,
+                  base / 'plan.json']:
+            if c.exists():
+                body = _strings(d) if c == spec_p else body_from(c)
                 if body:
                     break
-        if not body and spec_p.suffix == '.json':
-            body = _strings(d)
     return lane, d, body, pinned, str(spec_p)
 
 

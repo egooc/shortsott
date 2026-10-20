@@ -65,6 +65,19 @@ with tempfile.TemporaryDirectory() as t:
                                      'top': {'l1': '사장님 한마디에', 'l2': '바로 시정'},
                                      'expected_comment': {'type': '공감', 'line': '여러분은 바로 대답함', 'at_sec': 21}})
     assert ch.check(fs_, lane='fantube')['ok']
+    # 팬튜브: 마지막 TTS(t0 26)가 질문이면 caps 가 앞에 있어도 통과 — 시간순
+    w(fs_, {'voice': [{'text': '시작합니다.', 't0': 1}, {'text': '여러분이라면 바로 대답할까요?', 't0': 26}],
+            'caps': [{'text': f'자막 {i}입니다', 't0': 5 + i, 't1': 6 + i} for i in range(5)],
+            'expected_comment': {'type': '공감', 'line': '여러분이라면 바로 대답할까요', 'at_sec': 26}})
+    r = ch.check(fs_, lane='fantube')
+    assert r['ok'] and r['ending']['tail'][-1].startswith('여러분이라면'), r
+    # 롱투숏: plan.json 이 spec 이면 옛 판 plan_v1.json 보다 먼저 읽는다, ' / ' 카드 구분자는 무시
+    lx = t / 'lx'
+    w(lx / 'plan_v1.json', {'segments': [{'text': '옛 판 문장입니다.'}]})
+    w(lx / 'plan.json', {'segments': [{'text': '주스로 마시던 그 크랜베리가 / 수면을 가득 덮습니다.'}, {'text': '드셔 보셨나요?'}],
+                         'expected_comment': {'type': '경험담', 'line': '주스로 마시던 그 크랜베리가 수면을', 'at_sec': 6.5, 'pinned': '즐겨 드시나요?'}})
+    r = ch.check(lx, lane='longshort')
+    assert r['ok'] and r['line_in'] == 'body', r
     # 검사 불가: 없는 경로 → 5 + 장부
     assert ch.main([str(t / 'nope')]) == 5
     assert len(ch.LEDGER.read_text(encoding='utf-8').splitlines()) == 2
