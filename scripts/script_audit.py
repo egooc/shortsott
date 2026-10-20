@@ -16,6 +16,7 @@
 종료 코드: 0(경고만) · 4 = FAIL(쇼츠 모드 V1 첫 문장 설명형) · 5 = 검사 불가(원고를 못 읽음, server/data/gate_errors.jsonl).
 쇼츠 모드(--shorts 또는 쇼츠 레인 자동, devo 칼럼 10-20): V1 첫 문장 설명형 FAIL · V2 긴장 단계 감정 평가 어휘 · V3 엔딩 평가·요약 · V4 문장 평균 25자 초과(WARN).
 공통: V14 끝 어미 상위 1종 > 60% · 롱폼 V12 질문 간격 > 120초(WARN). 낱말표·임계는 config/script_audit.json.
+enforce_from(V12·V14 = 2026-10-21 00:00 KST) 전이거나 --ignore V12,V14 면 그 항목은 notices(ℹ, 막지 않음)로만 — warnings 에 안 들어간다.
 어댑터: txt(«## 장»·«@화면»·«#» 주석 건너뜀 — 기업·연금) · 정치 ko episode.json(nar text + quote/cold in~out) 또는 script_N.py ·
         린박스 plan_local.json(sequence 순서, 클립 = 원음) · 그 밖의 쇼츠는 comment_hook 어댑터(spec·plan·자막).
 import: from script_audit import audit  →  audit(path, lane=None, ...) → dict
@@ -143,7 +144,7 @@ def _names(sent, names, lang):
     return list(dict.fromkeys(found))
 
 
-def audit(path, lane=None, kind=None, lang=None, jargon=None, names=None):
+def audit(path, lane=None, kind=None, lang=None, jargon=None, names=None, ignore=None):
     kind = kind or ('long' if lane in LONG_LANES else 'shorts')
     lang = lang or ('ja' if lane in JA_LANES else 'ko')
     res = {'path': str(path), 'lane': lane, 'kind': kind, 'lang': lang, 'warnings': [], 'error': None}
@@ -264,6 +265,12 @@ def audit(path, lane=None, kind=None, lang=None, jargon=None, names=None):
             if noq:
                 W.append(('V12 장 끝 질문', f'장 끝 문장이 질문이 아닌 장 {len(noq)}/{len(chaps)}개({", ".join(noq[:6])}) — 장마다 다음 궁금증으로 끝내라'))
     res['duration_sec'] = round(total, 1)
+    # enforce_from(날짜 전) · ignore(호출자 지정) 코드는 막는 경고가 아니라 알림(notices)으로
+    now = _dt.datetime.now().astimezone()
+    late = {k for k, v in CF.get('enforce_from', {}).items() if now < _dt.datetime.fromisoformat(v)}
+    soft = late | set(ignore or ())
+    res['notices'] = [{'code': c, 'msg': m + (' (적용 전 — 알림만)' if c.split()[0] in late else ' (무시 지정)')} for c, m in W if c.split()[0] in soft]
+    W = [(c, m) for c, m in W if c.split()[0] not in soft]
     res['warnings'] = [{'code': c, 'msg': m} for c, m in W]
     res['fails'] = [{'code': c, 'msg': m} for c, m in F]
     return res
@@ -295,8 +302,9 @@ def main(argv=None):
     opt = lambda k: argv[argv.index(k) + 1] if k in argv else None
     lane = opt('--lane')
     kind = 'shorts' if '--shorts' in argv else opt('--kind')
+    ignore = [x.strip() for x in (opt('--ignore') or '').split(',') if x.strip()]
     res = audit(argv[0], lane, kind, opt('--lang'),
-                _load_json(opt('--jargon')) if opt('--jargon') else None, _load_json(opt('--names')) if opt('--names') else None)
+                _load_json(opt('--jargon')) if opt('--jargon') else None, _load_json(opt('--names')) if opt('--names') else None, ignore)
     if opt('--json'):
         Path(opt('--json')).write_text(json.dumps(res, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     if res['error']:
@@ -327,6 +335,8 @@ def main(argv=None):
         print(f'  ✗ [{f["code"]}] {f["msg"]}')
     for w in res['warnings']:
         print(f'  △ [{w["code"]}] {w["msg"]}')
+    for w in res.get('notices', []):
+        print(f'  ℹ [{w["code"]}] {w["msg"]}')
     if res.get('fails'):
         print(f'FAIL {len(res["fails"])}건 · 경고 {len(res["warnings"])}건 — 종료 4')
         return 4

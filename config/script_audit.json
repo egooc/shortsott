@@ -81,5 +81,10 @@
   },
   "shorts_mean_max": 25,
   "ending_top_max": 0.6,
-  "long_question_gap_max": 120
+  "long_question_gap_max": 120,
+  "enforce_from": {
+    "V12": "2026-10-21T00:00:00+09:00",
+    "V14": "2026-10-21T00:00:00+09:00"
+  },
+  "_doc_enforce": "enforce_from 전에는 그 코드(V12·V14)가 warnings 가 아니라 notices(ℹ, 막지 않음)로 간다 — 10-20 관리자: 오늘 13시 롱폼 합성이 새 항목에 막히지 않게. --ignore V12,V14 로도 같은 처리."
 }

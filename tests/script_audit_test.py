@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 import script_audit as sa  # noqa: E402
 
 codes = lambda r: [w['code'] for w in r['warnings']]
+allc = lambda r: codes(r) + [w['code'] for w in r.get('notices', [])]   # enforce_from 전엔 V12·V14 가 notices
 
 with tempfile.TemporaryDirectory() as t:
     t = Path(t)
@@ -63,11 +64,13 @@ with tempfile.TemporaryDirectory() as t:
     # V14 끝 어미 단조(모두 ~습니다) — 롱폼에도
     f.write_text('\n'.join(f'{i}번째 사실을 알려 드립니다.' if i % 2 else f'그 회사는 {i}년에 무너졌습니다.' for i in range(1, 12)) + '\n', encoding='utf-8')
     r = sa.audit(f, 'corp_ko')
-    assert 'V14 끝 어미' in codes(r) and r['ending_top']['ending'] == '니다', r.get('ending_top')   # ~습니다·~립니다 한 계열
+    assert 'V14 끝 어미' in allc(r) and r['ending_top']['ending'] == '니다', r.get('ending_top')
+    r2 = sa.audit(f, 'corp_ko', ignore=['V14'])
+    assert 'V14 끝 어미' not in codes(r2) and 'V14 끝 어미' in allc(r2)   # --ignore 는 막지 않고 알림만   # ~습니다·~립니다 한 계열
     # V12 롱폼 질문 간격 120초 초과
     f.write_text('과자는 팔렸는데 회사는 왜 무너졌을까요?\n' + '\n'.join(['그 뒤로 긴 설명이 이어지고 숫자와 연도가 계속 나옵니다.'] * 40) + '\n', encoding='utf-8')
     r = sa.audit(f, 'corp_ko')
-    assert 'V12 질문 간격' in codes(r), codes(r)
+    assert 'V12 질문 간격' in allc(r), allc(r)
     # 검사 불가 → 5 + 장부
     assert sa.main([str(t / 'nope.txt')]) == 5 and sa.LEDGER.exists()
 print('OK')
