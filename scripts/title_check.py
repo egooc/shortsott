@@ -34,7 +34,7 @@ LOG = ROOT / 'server' / 'data' / 'title_check_log.jsonl'
 LEDGER = ROOT / 'server' / 'data' / 'gate_errors.jsonl'
 LONG_LANES = {'politics_ko', 'politics_ja', 'nenkin_ja', 'corp_ko'}
 JA_LANES = {'politics_ja', 'nenkin_ja', 'rinbox_ja'}
-JARGON = {'politics_ko': ROOT / 'politics-hour' / 'jargon.json'}
+JARGON = {'politics_ko': ROOT / 'politics-hour' / 'jargon.json', 'corp_ko': ROOT / 'ko-corp' / 'jargon.json'}
 
 PATTERNS = {
     'ko': [

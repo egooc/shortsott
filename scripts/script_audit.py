@@ -34,7 +34,7 @@ LEDGER = ROOT / 'server' / 'data' / 'gate_errors.jsonl'
 LONG_LANES = {'corp_ko', 'nenkin_ja', 'politics_ko', 'politics_ja'}
 JA_LANES = {'nenkin_ja', 'politics_ja', 'rinbox'}
 CPS = {'ko': 7.0, 'ja': 7.5}
-JARGON = {'politics_ko': ROOT / 'politics-hour' / 'jargon.json'}
+JARGON = {'politics_ko': ROOT / 'politics-hour' / 'jargon.json', 'corp_ko': ROOT / 'ko-corp' / 'jargon.json'}
 NAMES = {'politics_ko': ROOT / 'politics-hour' / 'names_ko.json'}
 GREETING = {'ko': r'^(안녕하세요|여러분 안녕|반갑습니다|오늘은 .{0,20}(에 대해|알아보|이야기)|이번 영상|구독)',
             'ja': r'^(こんにちは|皆さんこんにちは|こんばんは|今日は.{0,20}(について|紹介)|今回の動画|チャンネル登録)'}
