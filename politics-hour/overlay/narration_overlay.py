@@ -48,8 +48,12 @@ def scene(spec):
 #title{{position:absolute;left:520px;top:340px;width:1260px;font-family:Paper;font-size:96px;line-height:1.15}}
 #sub{{position:absolute;left:526px;top:600px;width:1200px;font-family:Body;font-size:40px;color:#e6e9f2}}
 #rule{{position:absolute;left:520px;top:575px;width:1240px;height:6px;background:{YELLOW};transform-origin:left}}'''
-        body = (f'<div id="lbl">ISSUE</div><div id="no">{int(spec["no"]):02d}</div><div id="title">{esc(spec["title"])}</div>'
-                f'<div id="rule"></div><div id="sub">{esc(spec.get("sub", ""))}</div>')
+        if spec.get('no') is None:   # 10/21편부터 번호 호명 금지(목차·«ISSUE 01» 낭독에서 이탈) — 번호 없이 제목 카드만, 왼쪽으로 당긴다
+            css += '#title{left:140px;top:300px} #sub{left:146px} #rule{left:140px}'
+            body = f'<div id="title">{esc(spec["title"])}</div><div id="rule"></div><div id="sub">{esc(spec.get("sub", ""))}</div>'
+        else:
+            body = (f'<div id="lbl">ISSUE</div><div id="no">{int(spec["no"]):02d}</div><div id="title">{esc(spec["title"])}</div>'
+                    f'<div id="rule"></div><div id="sub">{esc(spec.get("sub", ""))}</div>')
         js = ['tl.from("#no",{x:-80,opacity:0,duration:.6,ease:"power3.out"},0);',
               'tl.from("#lbl",{opacity:0,duration:.4},.2);',
               'tl.from("#title",{y:40,opacity:0,duration:.6,ease:"power3.out"},.35);',
