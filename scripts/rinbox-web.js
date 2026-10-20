@@ -27,6 +27,12 @@ const RUNS_ROOT = 'D:/volcano-runs';
 // 네이버 클립은 ko 전용이다(일본어 미지원). 페이스북 개인 프로필도 ko 자산이다.
 const SITES_BY_LOCALE = { ko: ['naverclip', 'facebook_profile'], ja: [] };
 
+// 실패는 07:40 관리자 보고가 읽는 장부에도 한 줄(10-20 — 보고서에만 남은 실패를 하루 놓쳤다).
+const GATE_ERRORS = path.join(ROOT, 'server', 'data', 'gate_errors.jsonl');
+function ledgerFail(file, platform, error) {
+  try { fs.appendFileSync(GATE_ERRORS, JSON.stringify({ at: new Date().toISOString(), gate: 'rinbox-web', file, platform, error: String(error).slice(0, 300) }) + '\n', 'utf8'); }
+  catch (e) { console.log(`(gate_errors 기록 실패: ${e.message})`); }
+}
 const readJson = (p, d) => { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return d; } };
 
 function findMp4(filename) {
@@ -113,6 +119,7 @@ function main() {
       const tail = r.out.split('\n').filter((l) => /\[ok\]|\[예약\]|\[fail\]|\[skip\]|Error/.test(l));
       console.log('   ' + (tail.join('\n   ') || '(출력 없음)'));
       if (r.ok) shipped += 1;
+      else ledgerFail(e.file, site, (tail.filter((l) => /\[fail\]|Error/.test(l)).join(' / ') || r.out.slice(-300) || 'web-publish 실패'));
     }
   }
   console.log(`\n보낸 건수 ${shipped}`);

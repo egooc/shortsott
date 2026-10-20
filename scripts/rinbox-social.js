@@ -27,6 +27,12 @@ const ACCOUNTS_PATH = path.join(ROOT, 'midform', 'config', 'blotato_accounts.jso
 const SPECS_PATH = path.join(ROOT, 'midform', 'config', 'platform_post_specs.json');
 const CATALOG_PATH = path.join(ROOT, 'midform', 'config', 'rinbox_catalog.json');
 const REPORTS_DIR = path.join(ROOT, 'server', 'output', 'rinbox-social-reports');
+// 실패는 보고서 md 에만 남으면 아무도 못 본다(10-20 ko 인스타 18편 422 를 하루 놓침) → 07:40 관리자 보고가 읽는 장부에도 한 줄.
+const GATE_ERRORS = path.join(ROOT, 'server', 'data', 'gate_errors.jsonl');
+function ledgerFail(file, platform, error) {
+  try { fs.appendFileSync(GATE_ERRORS, JSON.stringify({ at: new Date().toISOString(), gate: 'rinbox-social', file, platform, error: String(error).slice(0, 300) }) + '\n', 'utf8'); }
+  catch (e) { console.log(`(gate_errors 기록 실패: ${e.message})`); }
+}
 const RUNS_ROOT = 'D:/volcano-runs';
 
 // 유튜브는 여기 없다 — 린박스 유튜브 발행은 rinbox-publish.js(OAuth, 네이티브 publishAt)가 맡는다.
@@ -118,13 +124,16 @@ function composeCaption(meta, platform, spec) {
   const d = splitDescription(meta.description);
   const capMax = Number(spec?.caption_max || 2200);
   const tagMax = Number(spec?.hashtags?.max ?? 3);
-  const tags = (meta.tags || []).slice(0, Math.max(0, tagMax)).map((t) => `#${String(t).replace(/\s+/g, '')}`);
+  const blocksRaw = capMax <= 600 ? [meta.title, d.pitch] : [meta.title, d.summary, d.pitch, d.source];
+  // 제목·본문 안의 «#…» 도 플랫폼 한도에 들어간다(10-20 ko 인스타: 제목 #2 + 태그 5 = 7 → Blotato 422).
+  const inText = new Set((blocksRaw.filter(Boolean).join(' ').match(/#[^\s#]+/g) || []));
+  if (inText.size > tagMax) throw new Error(`본문 해시태그 ${inText.size}개가 ${platform} 한도 ${tagMax}개를 넘는다 — 제목·설명의 #을 빼라`);
+  const tags = (meta.tags || []).map((t) => `#${String(t).replace(/\s+/g, '')}`).filter((t) => !inText.has(t))
+    .slice(0, Math.max(0, tagMax - inText.size));
   const tagLine = tags.join(' ');
 
   // 스레드는 500자다. 제목 + 원작 유도 + 태그 하나까지만 들어간다.
-  const blocks = capMax <= 600
-    ? [meta.title, d.pitch]
-    : [meta.title, d.summary, d.pitch, d.source];
+  const blocks = blocksRaw;
 
   let text = blocks.filter(Boolean).join('\n\n');
   // ★마지막 방어선: 어떤 경로로든 URL 이 섞여 들어오면 지운다. 한 번 나가면 되돌릴 수 없다.
@@ -132,6 +141,8 @@ function composeCaption(meta, platform, spec) {
   const room = capMax - (tagLine ? tagLine.length + 2 : 0);
   if (text.length > room) text = `${text.slice(0, Math.max(0, room - 1)).trimEnd()}…`;
   const out = tagLine ? `${text}\n\n${tagLine}` : text;
+  const total = new Set(out.match(/#[^\s#]+/g) || []).size;
+  if (total > tagMax) throw new Error(`최종 캡션 해시태그 ${total}개 > ${platform} 한도 ${tagMax}개`);
   if (/https?:\/\//.test(out)) throw new Error('캡션에 URL 이 남았다 — 발행을 멈춘다');
   return out;
 }
@@ -197,10 +208,13 @@ function main() {
       const spec = specs.platforms?.[platform] || {};
       let target;
       try { target = buildTarget(platform, mapping, {}); }
-      catch (e) { lines.push(`- FAIL ${platform} [${meta.locale}]: ${entry.file} — ${e.message}`); continue; }
+      catch (e) { lines.push(`- FAIL ${platform} [${meta.locale}]: ${entry.file} — ${e.message}`); ledgerFail(entry.file, platform, e.message); continue; }
+      let text;
+      try { text = composeCaption(meta, platform, spec); }
+      catch (e) { lines.push(`- FAIL ${platform} [${meta.locale}]: ${entry.file} — ${e.message}`); ledgerFail(entry.file, platform, e.message); continue; }
       jobs.push({
         entry, meta, mp4, platform, mapping, target,
-        text: composeCaption(meta, platform, spec),
+        text,
         scheduledTime: scheduleFor(entry.publishAt || new Date().toISOString(), platform, false)
       });
     }
@@ -259,6 +273,7 @@ async function run() {
     } catch (error) {
       console.log(`[fail] ${tag}: ${error.message}`);
       lines.push(`- FAIL ${job.platform} [${job.meta.locale}]: ${job.entry.file} — ${error.message}`);
+      ledgerFail(job.entry.file, job.platform, error.message);
     }
   }
 
