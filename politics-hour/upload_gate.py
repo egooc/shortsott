@@ -8,7 +8,7 @@
 썸네일 큰 낱말(thumb/thumb_k*.json 의 big → keywords.json thumb → keywords 1~2위)은 롱폼 첫 30초(콜드오픈+첫 해설)·쇼츠 첫 5초에 다 나와야 한다(10-17).
 episode.json 에 "tts_say": true 인 편(10/20~)은 overlay/tts_audit.py 역전사 대조 결과(audit/result.json)가 ok 여야 한다.
 하나라도 어긋나면 exit 3 — 업로드하지 말고 관리자에게 보고."""
-import json, sys
+import json, re, sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts')); import guide_words   # 가이드 낱말 공용 판정(소유주 10-18 «조회 0 = 가이드 위반»)
 
@@ -131,6 +131,27 @@ if epj.exists() and EP_DATE >= '20261021':
         if f.lstrip().startswith(('안녕하세요', '오늘은')):
             bad.append(f'첫 문장이 «{f[:12]}…» — 인사·«오늘은» 시작 금지, 질문이나 원음으로 연다')
 bad += candidate_gate.gate_lines(ep, sys.argv[2:])
+# 목차·번호 호명 금지(소유주 10-20 «'쟁점 브리핑입니다' 하고 쟁점 하나 둘 셋 나열하는 순간 루즈해진다»): 10/21편부터
+# 해설 TTS·화면 카드(nar 의 text·visual) + 고정 댓글 + 설명란 전체에서 FAIL. 인용 원음(quote·cold)은 실제 발언이라 안 본다.
+# 챕터는 설명란에만, 번호(«01»)·«오늘의 쟁점»·«정리» 같은 제목 없이 내용 낱말로.
+NO_TOC = re.compile(r'쟁점 ?브리핑입니다|쟁점 ?(하나|둘|셋|넷|[1-4])|(첫|두|세|네) ?번째 ?(쟁점|이슈)|두 번째로|세 번째로|오늘(의)? ?쟁점')
+CHAPTER = re.compile(r'^\s*\d{1,2}:\d{2}(:\d{2})?\s+(.*)$')
+if EP_DATE >= '20261021':
+    if epj.exists():
+        for i, s in enumerate(json.loads(epj.read_text(encoding='utf-8'))['segments']):
+            if s['type'] != 'nar':
+                continue
+            for m in NO_TOC.finditer(json.dumps({'text': s.get('text', ''), 'visual': s.get('visual', {})}, ensure_ascii=False)):
+                bad.append(f'해설 [{i}] 목차·번호 호명 «{m.group(0)}» — 번호 없이 내용 전환 문구로(«그런데 같은 날 대법원에서는…»)')
+    for up in sys.argv[2:]:
+        u = json.loads(Path(up).read_text(encoding='utf-8'))
+        for where, txt in (('고정 댓글', u.get('pinned_comment', '')), ('설명란', u.get('description', ''))):
+            for m in NO_TOC.finditer(txt or ''):
+                bad.append(f'{Path(up).name}: {where} 목차·번호 호명 «{m.group(0)}»')
+        for line in (u.get('description') or '').splitlines():
+            c = CHAPTER.match(line)
+            if c and re.match(r'(\d{1,2}\b|오늘|정리|마무리|목차)', c.group(2)):
+                bad.append(f'{Path(up).name}: 챕터 «{line.strip()}» — 번호·제목 말고 내용 낱말로')
 # 원고 검수표(관리자 10-20, 공용 scripts/script_audit.py — 원고 확정 때 한 번 돌리고 결과 줄을 원고 보고에): 10/21편부터 롱폼은
 # △ 0(전환 문구 120초 안·첫 질문 15초·첫 원음 40초…), 끝 3문장에 TTS 로 읽는 질문 한 줄이 있고 안내형(구독·좋아요) 없음,
 # 그 질문이 롱폼 고정 댓글에도 같은 문장으로 들어 있어야 한다. 구독 안내는 설명란으로.
