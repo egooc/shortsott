@@ -355,6 +355,29 @@ def voice_dir(ep, blk):
     return Path(ep) / 'voice' / f'{blk["vid"]}-{key([blk["sentences"], SUPERTONIC, [say(s) for s in blk["sentences"]]])}'
 
 
+def script_gates(ep):
+    """TTS 전 원고 관문(관리자 10-20 «게이트 없는 원칙은 미적용»): 레퍼런스 문장 일치 0건 · 원고 검수 △ 0 · 댓글 장치 통과. 하나라도 걸리면 중단."""
+    py, sc = [sys.executable, '-X', 'utf8'], ROOT / 'scripts'
+    script = ep / 'script.txt'
+    r = subprocess.run(py + [str(sc / 'ref_overlap.py'), str(script), '--lane', 'corp_ko'], capture_output=True, text=True, encoding='utf-8')
+    print(r.stdout.strip().splitlines()[-1] if r.stdout.strip() else r.stderr.strip(), flush=True)
+    if r.returncode:
+        raise SystemExit(f'ref_overlap 종료 {r.returncode} — TTS 중단\n{r.stdout}')
+    with tempfile.TemporaryDirectory() as td:
+        out = Path(td) / 'audit.json'
+        r = subprocess.run(py + [str(sc / 'script_audit.py'), str(script), '--lane', 'corp_ko', '--jargon', str(ROOT / 'ko-corp' / 'jargon.json'),
+                                 '--names', str(ep / 'names.json'), '--json', str(out)], capture_output=True, text=True, encoding='utf-8')
+        warn = json.loads(out.read_text(encoding='utf-8')).get('warnings') if out.exists() else None
+    print(f'script_audit 경고 {len(warn) if warn is not None else "?"}건', flush=True)
+    if r.returncode or warn is None or warn:
+        raise SystemExit(f'script_audit 종료 {r.returncode}·경고 {warn} — TTS 중단\n{r.stdout}')
+    r = subprocess.run(py + [str(sc / 'comment_hook.py'), str(ep), '--lane', 'generic', '--spec', str(ep / 'packages.json'), '--script', str(script)],
+                       capture_output=True, text=True, encoding='utf-8')
+    print(r.stdout.strip().splitlines()[0] if r.stdout.strip() else r.stderr.strip(), flush=True)
+    if r.returncode:
+        raise SystemExit(f'comment_hook 종료 {r.returncode} — TTS 중단\n{r.stdout}')
+
+
 def main(argv=None):
     if hasattr(sys.stdout, 'reconfigure'):
         sys.stdout.reconfigure(encoding='utf-8')
@@ -400,6 +423,7 @@ def main(argv=None):
         return 0
     if nopic and '--tts-only' not in argv:
         raise SystemExit('그림 없음: ' + ', '.join(nopic))
+    script_gates(ep)
     if '--no-gate' not in argv:
         R.wait_gate()
     work = ep / 'seg'
