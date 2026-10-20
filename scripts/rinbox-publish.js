@@ -301,6 +301,23 @@ function vicariousGate(mp4) {
   return bad;
 }
 
+// 제목 관문(2026-10-20 관리자 지시 · 공용 title_check.py 055f18a, 하늘구름땅바람 10패턴) — nar4(rinbox134ja)부터.
+// plan.title_pattern(10패턴 이름) 필수, 사이드카 제목을 --fail-on-warn 으로 검사. 4(경고)·5(검사 불가) 모두 승인·발행 ✗.
+function titleGate(mp4, meta) {
+  const planPath = [path.join(path.dirname(mp4), '..', 'plan_local.json'), path.join(path.dirname(mp4), 'plan_local.json')].find((p) => fs.existsSync(p));
+  if (!planPath) return ['plan_local.json 이 없다 — 제목 패턴을 확인할 수 없다'];
+  if (!String(readJson(planPath, {}).title_pattern || '').trim()) return ['plan.title_pattern(10패턴 이름)이 없다'];
+  try {
+    execFileSync('python', ['-I', '-X', 'utf8', path.join(__dirname, 'title_check.py'), `${mp4}.rinbox.json`, '--lane', 'rinbox',
+      '--lang', meta.locale === 'ja' ? 'ja' : 'ko', '--fail-on-warn'], { encoding: 'utf8', env: { ...process.env, PYTHONIOENCODING: 'utf-8' } });
+    return [];
+  } catch (e) {
+    const out = String(e.stdout || '').split(/\r?\n/).filter((l) => /^\s+△/.test(l)).map((l) => l.trim());
+    if (e.status === 4 && out.length) return out;
+    return [`제목 검사 불가(종료 ${e.status}) — 통과 아님: ${out[0] || String(e.stderr || e.stdout || e.message).trim().split(/\r?\n/).pop()}`];
+  }
+}
+
 function cmdApprove(mp4Arg, revoke) {
   const { mp4, meta } = loadTarget(mp4Arg);
   const hash = sha256File(mp4);
@@ -334,6 +351,9 @@ function cmdApprove(mp4Arg, revoke) {
   const vw = vicariousGate(mp4);
   if (vw.length) { console.log(vw.map((l) => `  ✗ 대리만족: ${l}`).join('\n')); throw new Error('대리만족 관문에서 막혔다 — plan.vicarious={ja,ko,from} 를 적고 해설 첫 줄 인사를 빼라'); }
   console.log('대리만족 관문 · 통과');
+  const tw = titleGate(mp4, meta);
+  if (tw.length) { console.log(tw.map((l) => `  ✗ 제목: ${l}`).join('\n')); throw new Error('제목 관문에서 막혔다 — 10패턴 중 하나로 고치고 plan.title_pattern 을 적어라'); }
+  console.log('제목 관문 · 통과');
   // 화면 검사(2026-10-09) — 렌더러가 남긴 screen.txt 가 FAIL 이면 승인하지 않는다(덧칠 글자·깜빡이는 샷 조각).
   const screen = path.join(path.dirname(mp4), 'screen.txt');
   if (plan && fs.existsSync(screen)) {
@@ -366,10 +386,10 @@ function frameDup(mp4, meta) {
   const name = cat.works?.[meta.work]?.title_ja || meta.work;
   const queries = meta.locale === 'ja' ? [name, `${name} 名場面`] : [name, `${name} 명장면`];
   // ★완성본 그대로 넣으면 위아래 검은 판·제목 글자가 dHash(9x8)를 지배해 무관한 영상과 10/64가 나온다(131ja 실측 —
-  //   다큐 상처 컷과 일치). 그래서 첫 5초의 그림 창(rinbox_render PIC_Y0~Y1 = 450~1470)만 잘라 넘긴다.
+  //   다큐 상처 컷과 일치). 그래서 첫 15초의 그림 창(rinbox_render PIC_Y0~Y1 = 450~1470)만 잘라 넘긴다.
   const pic = mp4.replace(/\.mp4$/i, '.dup_pic.mp4');
   try {
-    execFileSync('ffmpeg', ['-v', 'error', '-y', '-i', mp4, '-t', '5', '-vf', 'crop=1080:1020:0:450', '-an', pic]);
+    execFileSync('ffmpeg', ['-v', 'error', '-y', '-i', mp4, '-t', '15', '-vf', 'crop=1080:1020:0:450', '-an', pic]);
   } catch (e) { console.log('  [frame_dup] 그림 창 자르기 실패 — 건너뜀'); return; }
   const args = ['-I', '-X', 'utf8', FRAME_DUP_PY, pic, ...queries.flatMap((q) => ['--query', q]),
     '--work', 'D:/volcano-runs/_frame_dup_vids'];
@@ -550,6 +570,9 @@ async function cmdPublish(mp4Arg, args) {
   const vwp = vicariousGate(mp4);
   if (vwp.length) throw new Error(`대리만족 관문: ${vwp.join(' / ')} — 발행 중단`);
   lines.push('- 대리만족 관문 통과');
+  const twp = titleGate(mp4, meta);
+  if (twp.length) throw new Error(`제목 관문: ${twp.join(' / ')} — 발행 중단`);
+  lines.push('- 제목 관문 통과');
   if (!(meta.tags || []).length) throw new Error('사이드카에 tags 가 없다 — 태그 0개로는 올리지 않는다');
   const profile = profileByPurpose(PURPOSE[locale]);
   if (!profile) throw new Error(`${locale} 업로드 프로필(${PURPOSE[locale]})이 연결돼 있지 않다`);
