@@ -19,6 +19,8 @@
   제목 머리(politics_ko·politics_ja, 10-20): 앞 10자에 제도·절차 명사(config/title_head.json)가 있고 인물 이름이 없으면 △.
           인물 = keywords(json 또는 옆 keywords.json)·names_ko.json 의 사람 이름 + «이름 의원·대표…» 호칭 꼴.
           «조희대 탄핵소추안» 처럼 이름 바로 뒤에 제도 명사가 붙으면 그 이름은 명사의 대상이라 인물로 안 친다.
+  군사 인물 머리(같은 레인): 앞 10자 인물의 role 이 military(config/person_roles.json ← names_ko.json «_roles» 가 먼저)이거나
+          «○○ 사령관·장군·제독·참모총장»·주한미군 꼴이면 △ (10/19 옛 제목 «브런슨 "…"» 조회 4~10).
 종료 코드: 0 (경고가 있어도 0 — 경고형) · 4 = --fail-on-warn 이고 경고 있음 · 5 = 검사 불가(파일을 못 읽음·제목 없음, gate_errors.jsonl).
 기록: 매 실행의 경고 종류를 server/data/title_check_log.jsonl 에 남긴다(조합 종류 포함).
 import: from title_check import check_title  →  check_title(title, kind='shorts', lang='ko', keywords=(), jargon=None, desc='') → [(코드, 메시지)]
@@ -39,6 +41,9 @@ LONG_LANES = {'politics_ko', 'politics_ja', 'nenkin_ja', 'corp_ko'}
 JA_LANES = {'politics_ja', 'nenkin_ja', 'rinbox_ja'}
 HEAD_CFG = ROOT / 'config' / 'title_head.json'
 HEAD_LANES = {'politics_ko', 'politics_ja'}
+ROLES_CFG = ROOT / 'config' / 'person_roles.json'
+MILITARY_RX = {'ko': r'[가-힣]{2,4}\s?(?:사령관|장군|제독|참모총장|합참의장|사단장|군단장)|주한미군|미군 사령',
+               'ja': r'[一-龥々ァ-ヶー]{2,6}(?:司令官|将軍|提督|幕僚長|統合幕僚長)|在日米軍'}
 NAMES = {'politics_ko': ROOT / 'politics-hour' / 'names_ko.json'}
 JARGON = {'politics_ko': ROOT / 'politics-hour' / 'jargon.json', 'corp_ko': ROOT / 'ko-corp' / 'jargon.json'}
 
@@ -151,7 +156,30 @@ def institution_head(title, lang='ko', persons=()):
     return hit, head
 
 
-def check_title(title, kind='shorts', lang='ko', keywords=(), jargon=None, desc='', persons=None):
+def person_roles(lang='ko', lane=None):
+    """{이름: role} — config/person_roles.json 위에 레인 이름표의 «_roles» 를 덮는다."""
+    roles = {}
+    for f in [ROLES_CFG] + ([NAMES[lane]] if lane in NAMES else []):
+        try:
+            d = json.loads(f.read_text(encoding='utf-8'))
+        except (OSError, ValueError):
+            continue
+        r = d.get(lang) if f == ROLES_CFG else d.get('_roles')
+        roles.update({k: v for k, v in (r or {}).items() if not k.startswith('_')})
+    return roles
+
+
+def military_head(title, lang='ko', roles=None):
+    """앞 10자 머리가 군사 인물이면 그 이름(또는 호칭 꼴), 아니면 None."""
+    head = title[:10]
+    for name, role in (roles or {}).items():
+        if role == 'military' and name in head:
+            return name
+    m = re.search(MILITARY_RX[lang], head)
+    return m.group(0) if m else None
+
+
+def check_title(title, kind='shorts', lang='ko', keywords=(), jargon=None, desc='', persons=None, roles=None):
     t = _strip_tags(title or '')
     warns = []
     if kind == 'shorts':
@@ -190,6 +218,9 @@ def check_title(title, kind='shorts', lang='ko', keywords=(), jargon=None, desc=
         if ih:
             warns.append(('제목 머리', f'앞 10자 «{ih[1]}» 가 제도·절차 명사(«{ih[0]}»)로 시작하고 인물 이름이 없음 — «인물 이름 + 본인 짧은 한마디» 머리로'
                                      ' (정치 ko 실측: 받은 편 439·115·3,143 vs 꺾인 편 11·2)'))
+        mh = military_head(t, lang, roles) if persons is not None else None
+        if mh:
+            warns.append(('군사 인물 머리', f'앞 10자 «{t[:10]}» 머리가 군사 인물(«{mh}») — 정치인·논객 발언 머리로 (10/19 옛 «브런슨 "…"» 조회 4~10)'))
     return warns
 
 
@@ -235,7 +266,7 @@ def _persons(src, lane, lang, kws):
         if isinstance(k, dict):
             k = list(k.keys()) if f.name != 'keywords.json' else (k.get('keywords') or [])
         words += [x if isinstance(x, str) else str(x.get('keyword', '')) for x in k]
-    return person_words(words, lang)
+    return person_words(words + list(person_roles(lang, lane)), lang)
 
 
 def _append(path, rec):
@@ -270,7 +301,8 @@ def main(argv=None):
     extra_kw = [k.strip() for k in (opt('--keywords') or '').split(',') if k.strip()]
     results, nwarn = [], 0
     for name, title, desc, kws, has_pat, src in items:
-        ws = check_title(title, kind, lang, extra_kw or kws, jargon, desc, persons=_persons(src, lane, lang, extra_kw or kws) if (lane in HEAD_LANES and kind == 'long') else None)
+        ws = check_title(title, kind, lang, extra_kw or kws, jargon, desc, persons=_persons(src, lane, lang, extra_kw or kws) if (lane in HEAD_LANES and kind == 'long') else None,
+                         roles=person_roles(lang, lane) if (lane in HEAD_LANES and kind == 'long') else None)
         if has_pat is False and kind == 'shorts':
             ws.append(('title_pattern', 'spec/upload json 에 title_pattern 필드 없음'))
         nwarn += len(ws)

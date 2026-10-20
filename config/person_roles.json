@@ -1,0 +1,11 @@
+{
+  "_note": "인물 role(10-20 관리자) — military(군·외국군·정보기관)·judiciary·politician·commentator. title_check 롱폼 머리 인물이 military 면 △ «군사 인물 머리». 레인 이름표(politics-hour/names_ko.json 의 «_roles» 키)가 있으면 그것이 먼저.",
+  "ko": {
+    "브런슨": "military",
+    "조희대": "judiciary",
+    "이재명": "politician",
+    "한동훈": "politician",
+    "봉지욱": "commentator"
+  },
+  "ja": {}
+}

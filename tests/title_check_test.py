@@ -61,4 +61,10 @@ assert not tc.institution_head('한동훈 "그 친구는 좀 깐족댑니다"', 
 assert tc.person_words(['조희대', '조희대 탄핵', '조국혁신당', '이재명 국무회의', '모스 탄']) == ['조희대', '모스 탄']
 assert '제목 머리' in codes('탄핵소추안 발의 절차 정리', 'long', persons=P) and '제목 머리' not in codes('탄핵소추안 발의 절차 정리', 'long')
 assert tc.institution_head('補正予算 審議入り', 'ja', []) and not tc.institution_head('高市首相 補正予算「年内に」', 'ja', [])
+# 군사 인물 머리(10-20 관리자): role military 또는 «○○ 사령관» 꼴
+R = {'브런슨': 'military', '한동훈': 'politician'}
+assert tc.military_head('브런슨 "그것도 다 우리 땅이 아닙니까"… 조희대 탄핵', 'ko', R) == '브런슨'
+assert tc.military_head('제이비어 사령관 «철책선»', 'ko', {})
+assert not tc.military_head('한동훈 "그 친구는 좀 깐족댑니다"', 'ko', R)
+assert '군사 인물 머리' in codes('브런슨 "우리 땅"… 한동훈', 'long', persons=[], roles=R)
 print('OK')
