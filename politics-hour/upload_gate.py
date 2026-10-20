@@ -131,6 +131,31 @@ if epj.exists() and EP_DATE >= '20261021':
         if f.lstrip().startswith(('안녕하세요', '오늘은')):
             bad.append(f'첫 문장이 «{f[:12]}…» — 인사·«오늘은» 시작 금지, 질문이나 원음으로 연다')
 bad += candidate_gate.gate_lines(ep, sys.argv[2:])
+# 원고 검수표(관리자 10-20, 공용 scripts/script_audit.py — 원고 확정 때 한 번 돌리고 결과 줄을 원고 보고에): 10/21편부터 롱폼은
+# △ 0(전환 문구 120초 안·첫 질문 15초·첫 원음 40초…), 끝 3문장에 TTS 로 읽는 질문 한 줄이 있고 안내형(구독·좋아요) 없음,
+# 그 질문이 롱폼 고정 댓글에도 같은 문장으로 들어 있어야 한다. 구독 안내는 설명란으로.
+if epj.exists() and EP_DATE >= '20261021':
+    import script_audit   # noqa: E402
+    sa = script_audit.audit(str(ep), lane='politics_ko')
+    (ep / 'audit').mkdir(exist_ok=True)
+    (ep / 'audit' / 'script_audit.json').write_text(json.dumps(sa, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+    if sa.get('error'):
+        bad.append(f'원고 검수표(script_audit) 검사 불가: {sa["error"]}')
+    for w in sa.get('warnings', []):
+        bad.append(f'원고 검수표 △ [{w["code"]}] {w["msg"]}')
+    end = sa.get('ending') or {}
+    if '안내' in end.get('kinds', []):
+        bad.append(f'끝 3문장이 안내형 {end.get("tail")} — 양자택일 질문 한 줄 + 짧은 닫음으로, 구독 안내는 설명란')
+    asks = [s for s in end.get('tail', []) if s.rstrip().endswith(('?', '？', '까요.', '까요'))]
+    if not asks:
+        bad.append('끝 3문장에 질문 한 줄 없음(TTS 로 읽는 양자택일 질문)')
+    sq = lambda x: comment_hook.squash(x)
+    for up in sys.argv[2:]:
+        if 'shorts' in Path(up).resolve().parts:
+            continue
+        pc = sq(json.loads(Path(up).read_text(encoding='utf-8')).get('pinned_comment', ''))
+        if asks and not any(sq(a) in pc for a in asks):
+            bad.append(f'{Path(up).name}: 고정 댓글에 원고 끝 질문 «{asks[0]}» 이 같은 문장으로 없음')
 sys.path.insert(0, str(Path(__file__).resolve().parent / 'overlay')); import tts_audit   # 해설 TTS 역전사 숫자·고유명사 대조(10/20편부터, tts_say 편만 요구)
 bad += tts_audit.gate_lines(ep)
 bad += guide_words.gate_lines([*sys.argv[2:], *[p for p in [ep / 'packages.json'] if p.exists()]], lang='ko', lane='politics')   # 제목·설명·태그·썸네일 낱말, 우회 GUIDE_OK=1 은 소유주 말 있을 때만
