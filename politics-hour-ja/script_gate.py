@@ -37,7 +37,7 @@ def main():
     if '--before-script' not in sys.argv:
         segs = spoken(ep)
         first = next((s['text'] for s in segs if s.get('type') in ('cold', 'nar')), '')
-        if ep.name < FROM:
+        if candidate_gate.ep_date(ep) < FROM:
             pass
         elif GREETING.match(first.strip()):
             bad.append(f'첫 말이 인사·채널명·날짜: «{first[:30]}»')

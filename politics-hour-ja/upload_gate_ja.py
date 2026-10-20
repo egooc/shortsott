@@ -12,23 +12,12 @@ GATE = Path(__file__).resolve().parents[1] / 'politics-hour' / 'upload_gate.py'
 # 원본의 첫 30초 검사는 ko episode.json(segments·words) 구조를 읽는다 → keywords.json 만 든 임시 폴더로 부르고,
 # ja 첫 30초 검사는 아래에서 ja 구조로 따로 한다.
 import shutil, tempfile
-# 임시 폴더 안에 편 이름 폴더를 만든다 — ko 관문의 «10/21편부터» 판정(폴더 이름 비교)이 맞게. 쇼츠 upload.json 은 넘기지 않는다
-# (ko 쇼츠 검사는 ko ls/ 구조 plan.json·thumb_k 를 읽는다 — ja 쇼츠는 아래 comment_hook·풀이 검사가 본다).
+# 쇼츠 upload.json 은 넘기지 않는다(ko 쇼츠 검사는 ko ls/ 구조 plan.json·thumb_k 를 읽는다 — ja 쇼츠는 아래 comment_hook·풀이 검사가 본다).
+# 편 날짜·전각 «？»는 ko 관문이 직접 읽는다(21e9750).
 with tempfile.TemporaryDirectory() as tmp:
-    sub = Path(tmp) / Path(sys.argv[1]).resolve().name
-    sub.mkdir()
-    shutil.copy2(Path(sys.argv[1]) / 'keywords.json', sub / 'keywords.json')
-    longs = []
-    for u in sys.argv[2:]:
-        if '/shorts/' in u.replace(chr(92), '/'):
-            continue
-        # ko 관문의 고정 댓글 검사는 반각 «?» 만 본다 — 일본어 전각 «？» 를 반각으로 바꾼 사본을 넘긴다(질문 여부 판정은 아래 ja 검사가 둘 다 본다)
-        d = json.loads(Path(u).read_text(encoding='utf-8'))
-        d['pinned_comment'] = (d.get('pinned_comment') or '').replace('？', '?')
-        cp = sub / Path(u).name
-        cp.write_text(json.dumps(d, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
-        longs.append(str(cp))
-    rc = subprocess.run([sys.executable, str(GATE), str(sub), *longs]).returncode if longs else 0
+    shutil.copy2(Path(sys.argv[1]) / 'keywords.json', Path(tmp) / 'keywords.json')
+    longs = [u for u in sys.argv[2:] if '/shorts/' not in u.replace(chr(92), '/')]
+    rc = subprocess.run([sys.executable, str(GATE), tmp, *longs]).returncode if longs else 0
 bad = []
 for up in sys.argv[2:]:
     t = json.loads(Path(up).read_text(encoding='utf-8')).get('title', '')
@@ -131,7 +120,7 @@ for up in sys.argv[2:]:
 import importlib.util
 _sp = importlib.util.spec_from_file_location('script_gate', Path(__file__).parent / 'script_gate.py')
 script_gate = importlib.util.module_from_spec(_sp); _sp.loader.exec_module(script_gate)
-if ep.resolve().name >= script_gate.FROM:   # 10/21편부터(후보표 열은 ko 관문이 이미 봤다)
+if script_gate.candidate_gate.ep_date(ep, sys.argv[2:]) >= script_gate.FROM:   # 10/21편부터(후보표 열은 ko 관문이 이미 봤다)
     _first = next((s['text'] for s in script_gate.spoken(ep) if s.get('type') in ('cold', 'nar')), '')
     if script_gate.GREETING.match(_first.strip()):
         bad.append(f'첫 말이 인사·채널명·날짜: «{_first[:30]}»')
