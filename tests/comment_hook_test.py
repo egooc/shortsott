@@ -105,7 +105,11 @@ with tempfile.TemporaryDirectory() as t:
     assert len(ch.LEDGER.read_text(encoding='utf-8').splitlines()) == 2
 # 질문 판정(10-20): «거품이 나요» 평서는 질문 아님, 묻는 어미는 마침표여도 질문, 평서로도 쓰는 어미는 의문사 있을 때만
 for s, want in [('거품이 나요.', False), ('거품이 나요', False), ('왜 거품이 나나요', True), ('써 보신 분 있나요?', True),
-                ('재판할 수 있을까요.', True), ('그렇죠.', False), ('이게 맞습니까', True)]:
+                ('재판할 수 있을까요.', True), ('그렇죠.', False), ('이게 맞습니까', True),
+                ('키친타올 몇 장 뽑던 손이 이제 행주 한 장으로 끝나요', False)]:
     assert ch.is_question(s, 'ko') == want, s
 assert ch.is_question('年金を受け取っていませんか。', 'ja') and not ch.is_question('受け取れます。', 'ja')
+# 자문자답은 끝맺음 질문이 아니다(10-20 관리자), 맨 마지막 질문은 그대로
+S = ['진짜 닦였냐고요?', '행주에 기름이 옮겨 왔어요.', '여러분 집은 어떤가요?']
+assert ch.self_answered(S, 0) and not ch.self_answered(S, 2)
 print('OK')

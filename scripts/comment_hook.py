@@ -44,7 +44,7 @@ _SPLIT = re.compile(r'(?<=[。？！?!.])\s*|\n+')
 _Q_MARK = re.compile(r'[?？]\s*[」』"”)]*\s*$')
 _KO_ASK = re.compile(r'(습니까|ㅂ니까|을까요?|ㄹ까요?|일까요?|까요|겠어요|어때요|건가요)\s*[…]*$')
 _KO_SOFT = re.compile(r'(나요|죠|가요|래요|는데요|니까)\s*[…]*$')
-_KO_WH = re.compile(r'(왜|뭐|무엇|무슨|어떻게|어떤|언제|누가|누구|어디|얼마|몇)')
+_KO_WH = re.compile(r'(왜|뭐|무엇|무슨|어떻게|언제|누가|누구|어디)')   # «몇 장·얼마나·어떤» 은 평서에 흔해 뺀다(«몇 장 뽑던 손이 … 끝나요» 오판)
 _JA_ASK = re.compile(r'(か|かな|でしょうか|ませんか|ですか)\s*[。.…]*\s*[」』]*\s*$')
 
 
@@ -62,6 +62,19 @@ def is_question(s, lang=None):
     if s2 != s:                              # «거품이 나요.» — 평서로도 쓰이는 어미 + 마침표 = 평서
         return False
     return bool(_KO_SOFT.search(s) and _KO_WH.search(s))
+
+
+# 자문자답(10-20 관리자 결정): 질문 바로 다음 문장이 그 답이면 댓글 장치가 아니다 — 끝맺음(③)에서 뺀다.
+# 질문이 «~냐고요? ~는요? ~라고요?» 같은 되묻기 꼴이거나, 다음 문장이 «네·아니요·바로·답은·비밀은…» 같은 답 표지로 시작하면 자문자답.
+# 끝 3문장 중 맨 마지막 질문은 뒤 문장이 없으니 그대로 질문.
+_SELF_ECHO = re.compile(r'(냐고요|냐구요|는요|라고요|냐면요|이냐고|ですって|かというと|かって)\s*[?？]')
+_ANSWER = re.compile(r'^\s*(네|예|아니요|아뇨|아니에요|맞아요|바로|정답은|답은|이유는|비밀은|사실은|결론은|그건|그 답은|はい|いいえ|実は|答えは|理由は|正解は)')
+
+
+def self_answered(sents, i):
+    if i + 1 >= len(sents) or not is_question(sents[i]):
+        return False
+    return bool(_SELF_ECHO.search(sents[i]) or _ANSWER.search(sents[i + 1]))
 
 
 class _Q:   # 옛 QUESTION.search(s) 호출 호환
@@ -269,15 +282,18 @@ def check(path, lane=None, spec=None, scripts=None):
     if lane == 'rinbox' and rinbox_tail(d):
         tail_src, tail_from = rinbox_tail(d), 'last_narration'
     tail = tail_src[-3:]
-    kinds = []
-    for s in tail:
-        if QUESTION.search(s.rstrip()):
-            kinds.append('질문')
+    kinds, self_q = [], []
+    for j, s in enumerate(tail):
+        if is_question(s.rstrip()):
+            if self_answered(tail_src, len(tail_src) - len(tail) + j):
+                self_q.append(s)
+            else:
+                kinds.append('질문')
         if EXPERIENCE.search(s):
             kinds.append('경험담 요청')
         if ASSERT.search(s) or (line and line in squash(s) and (str(ec.get('type', '')).split('/')[0] in ('정정', '논쟁', '단정') or ec.get('form') == '단정')):
             kinds.append('반박 가능한 단정')
-    res['ending'] = {'from': tail_from, 'tail': tail, 'kinds': sorted(set(kinds))}
+    res['ending'] = {'from': tail_from, 'tail': tail, 'kinds': sorted(set(kinds)), 'self_answered': self_q}
     if not kinds:
         errs.append('③ 끝 3문장에 질문·반박 가능한 단정·경험담 요청이 없음: ' + ' / '.join(tail))
     res['errors'] = errs

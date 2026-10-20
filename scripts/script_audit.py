@@ -87,6 +87,11 @@ def segments(path, lane=None):
             elif s.get('source_out') is not None:
                 out.append(('audio', '', float(s['source_out']) - float(s['source_in'])))
         return out
+    seg_plan = (p if p.is_dir() else p.parent) / 'plan.json'
+    if lane == 'shopping' and seg_plan.exists():   # 쇼핑 원고(script.txt)는 마침표가 없다 → plan.json segments 가 문장 경계(10-20 관리자)
+        for seg in _load_json(seg_plan).get('segments', []):
+            nar(str(seg.get('text', '')))
+        return out
     if p.suffix == '.txt' or (p.is_dir() and (p / 'script.txt').exists()):   # 기업·연금
         f = p / 'script.txt' if p.is_dir() else p
         lines = [l.strip() for l in f.read_text(encoding='utf-8').splitlines()]
@@ -183,10 +188,12 @@ def audit(path, lane=None, kind=None, lang=None, jargon=None, names=None):
     if kind == 'long' and gaps and max(gaps) > 120:
         W.append(('전환', f'전환 문구 없이 {max(gaps):.0f}초 — 120초 안에 «그런데·문제는» 류로 다시 붙잡아라'))
     # 끝맺음
-    tail = [s for _, s in sents[-3:]]
+    all_s = [s for _, s in sents]
+    tail = all_s[-3:]
     kinds = []
-    for s in tail:
-        kinds += (['질문'] if comment_hook.is_question(s, lang) else []) + (['열린 결말'] if re.search(OPEN_END[lang], s) else []) + \
+    for j, s in enumerate(tail):
+        k = len(all_s) - len(tail) + j
+        kinds += (['질문'] if comment_hook.is_question(s, lang) and not comment_hook.self_answered(all_s, k) else []) + (['열린 결말'] if re.search(OPEN_END[lang], s) else []) + \
                  (['안내'] if re.search(GUIDE_END[lang], s) else [])
     res['ending'] = {'tail': tail, 'kinds': sorted(set(kinds)) or ['단정']}
     if kind == 'shorts' and not {'질문', '열린 결말'} & set(kinds):
