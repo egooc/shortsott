@@ -163,6 +163,7 @@ if EP_DATE >= '20261021':
 # 해설 TTS·화면 카드(nar 의 text·visual) + 고정 댓글 + 설명란 전체에서 FAIL. 인용 원음(quote·cold)은 실제 발언이라 안 본다.
 # 챕터는 설명란에만, 번호(«01»)·«오늘의 쟁점»·«정리» 같은 제목 없이 내용 낱말로.
 NO_TOC = re.compile(r'쟁점 ?브리핑입니다|쟁점 ?(하나|둘|셋|넷|[1-4])|(첫|두|세|네) ?번째 ?(쟁점|이슈)|두 번째로|세 번째로|오늘(의)? ?쟁점')
+CAMP = re.compile(r'좌파|우파|극우|극좌|종북|빨갱이|수꼴|좌빨|토착왜구|대깨|개딸|태극기 ?부대')
 CHAPTER = re.compile(r'^\s*\d{1,2}:\d{2}(:\d{2})?\s+(.*)$')
 if EP_DATE >= '20261021':
     if epj.exists():
@@ -171,6 +172,9 @@ if EP_DATE >= '20261021':
                 continue
             for m in NO_TOC.finditer(json.dumps({'text': s.get('text', ''), 'visual': s.get('visual', {})}, ensure_ascii=False)):
                 bad.append(f'해설 [{i}] 목차·번호 호명 «{m.group(0)}» — 번호 없이 내용 전환 문구로(«그런데 같은 날 대법원에서는…»)')
+            # 진영 딱지 낱말 금지(관리자 10-20 기획 가이드 24편) — 해설·화면 카드만, 인용 원음은 발언 그대로라 안 본다
+            for m in CAMP.finditer(json.dumps({'text': s.get('text', ''), 'visual': s.get('visual', {})}, ensure_ascii=False)):
+                bad.append(f'해설 [{i}] 진영 딱지 낱말 «{m.group(0)}» — 인물·기관 이름으로')
     for up in sys.argv[2:]:
         u = json.loads(Path(up).read_text(encoding='utf-8'))
         for where, txt in (('고정 댓글', u.get('pinned_comment', '')), ('설명란', u.get('description', ''))):
