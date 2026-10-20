@@ -277,6 +277,8 @@ async function retentionSection() {
       } catch (e) { md += `\n\n_최장 클립 집계 실패: ${e.message.split('\n')[0]}_`; }
       // 발굴 키 쿼터(도구개발 api_quota, 10-20 429 사고 뒤) — 도구별 사용·중지 여부 한 줄
       try { const q = require('./api_quota'); const line = typeof q.summary === 'function' ? q.summary() : null; if (line) md += `\n\n**발굴 키 쿼터** — ${line}`; } catch (e) { md += `\n\n_쿼터 요약 실패: ${e.message.split('\n')[0]}_`; }
+      // 디스크(도구개발 disk_summary, 10-20 C: 97% 사고 뒤) — C:·D: 빈 공간, Temp/claude 세션별 상위, hf-render 잔재
+      try { const d = require('./disk_summary'); const r = typeof d.diskSummary === 'function' ? d.diskSummary() : null; if (r && r.line) md += `\n\n**${r.line}**`; } catch (e) { md += `\n\n_디스크 요약 실패: ${e.message.split('\n')[0]}_`; }
       return md;
     }), ''];
   fs.mkdirSync(OUT_DIR, { recursive: true });
