@@ -64,8 +64,33 @@ async function get(src, url) {
   return r.text();
 }
 
+// 네이버 «댓글 많은 뉴스»(언론사별 상위 5, 약 370건) — 공개 페이지, EUC-KR. 댓글 수는 페이지에 없어 순위로 점수를 낸다(Z12, 10-20).
+async function popularMemo() {
+  const src = 'naver_memo';
+  if (blocked.has(src)) return [];
+  await sleep(1000);
+  const r = await fetch('https://news.naver.com/main/ranking/popularMemo.naver', { headers: UA });
+  if (r.status === 429 || r.status === 403) { blocked.add(src); console.log(`  [${src}] ${r.status} — 이 소스는 오늘 멈춤`); return []; }
+  if (!r.ok) return [];
+  const html = new TextDecoder('euc-kr').decode(await r.arrayBuffer());
+  const out = [];
+  for (const box of html.split('class="rankingnews_box"').slice(1)) {
+    const press = (box.match(/rankingnews_name">([^<]+)/) || [])[1] || '';
+    for (const m of box.matchAll(/&#034;rank&#034;:(\d+)[^>]*>([^<]+)<\/a>/g)) out.push({ press, rank: Number(m[1]), title: decode(m[2]).trim() });
+  }
+  return out;
+}
+
+// 후보 낱말이 «댓글 많은 뉴스» 제목에 몇 번·몇 위로 나오나 → 점수(1위 5점 … 5위 1점, 합 최대 10)
+function memoScore(q, memo) {
+  const parts = q.split(/\s+/).filter(Boolean);
+  const hits = memo.filter((m) => parts.every((w) => m.title.includes(w)));
+  return { hits: hits.length, best: hits.length ? Math.min(...hits.map((h) => h.rank)) : null,
+    pts: Math.min(10, hits.reduce((s, h) => s + (6 - h.rank), 0)), titles: hits.slice(0, 3).map((h) => `${h.press} ${h.rank}위 ${h.title}`) };
+}
+
 function decode(s) {
-  return s.replace(/&apos;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+  return s.replace(/&#034;/g, '"').replace(/&#039;/g, "'").replace(/&apos;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
 }
 
 async function trends(geo) {
@@ -135,7 +160,8 @@ async function runLane(name, L, opts) {
   const cands = [...new Set([...(L.seeds || []), ...(L.auto_from ? autoSeeds(L.auto_from) : []), ...trendCands.map((t) => t.title)])];
   const ac = {};
   for (const q of cands) ac[q] = await suggest(q, L.lang);
-  const snap = { at: now.toISOString(), lane: name, trends: tr, ac };
+  const memo = L.lang === 'ko' && L.memo !== false ? await popularMemo() : [];
+  const snap = { at: now.toISOString(), lane: name, trends: tr, ac, memo };
   fs.writeFileSync(path.join(dir, `${stamp(now)}.json`), JSON.stringify(snap, null, 2) + '\n', 'utf8');
 
   const dl = L.lang === 'ko' ? await datalab(cands) : { ratio: {}, calls: 0, status: 'skipped: ja 레인(네이버는 ko 전용)' };
@@ -150,27 +176,29 @@ async function runLane(name, L, opts) {
     const width = w.size;
     const dr = dl.ratio[q] ?? null;
     const dlPts = dr === null ? 0 : Math.max(-5, Math.min(10, 5 * (dr - 1)));   // 1.0 = 평소, 2.0 = +5, 3.0 이상 = +10
+    const ms = memoScore(q, memo);
     const score = (L.mode === 'rising'
       ? 2 * (dNew ? dNew.length : 0) + 0.5 * (wNew ? wNew.length : 0) + trendPts + 0.2 * width
-      : width + (wNew ? wNew.length : 0)) + dlPts;
+      : width + (wNew ? wNew.length : 0)) + dlPts + ms.pts;
     return {
       keyword: q, rising_score: Math.round(score * 10) / 10,
       day_new: dNew ? dNew.length : null, week_new: wNew ? wNew.length : null, ac_width: width, datalab_ratio: dr,
+      memo_hits: memo.length ? ms.hits : null, memo_best_rank: ms.best, memo_pts: ms.pts,
       evidence: {
         trend: t ? { title: t.title, traffic: t.traffic, at: t.at, news: t.news.slice(0, 2) } : null,
-        new_today: (dNew || []).slice(0, 6), new_week: (wNew || []).slice(0, 6),
+        new_today: (dNew || []).slice(0, 6), new_week: (wNew || []).slice(0, 6), memo: ms.titles,
         ac: Object.fromEntries(Object.entries(ac[q]).map(([k, v]) => [k, v ? v.length : 'blocked'])),
       },
     };
   }).sort((a, b) => b.rising_score - a.rising_score);
   const datalabInfo = `${dl.status} · 호출 ${dl.calls}건(일 1,000건 한도)`;
-  const res = { at: now.toISOString(), lane: name, mode: L.mode, baseline: { day: day ? day.at : null, week: week ? week.at : null }, datalab: datalabInfo, datalab_calls: dl.calls, blocked: [...blocked], rows };
+  const res = { at: now.toISOString(), lane: name, mode: L.mode, memo_articles: memo.length, baseline: { day: day ? day.at : null, week: week ? week.at : null }, datalab: datalabInfo, datalab_calls: dl.calls, blocked: [...blocked], rows };
   fs.writeFileSync(path.join(OUT, `${name}_latest.json`), JSON.stringify(res, null, 2) + '\n', 'utf8');
 
   console.log(`\n== ${name} (${L.mode}) · 후보 ${rows.length} · 기준 전일 ${day ? stamp(new Date(day.at)) : '없음'} · 7일 ${week ? stamp(new Date(week.at)) : '없음'} · 데이터랩 ${datalabInfo}`);
-  console.log('순위 | 낱말 | 점수 | 전일 새 보조어 | 7일 새 | 자동완성 폭 | 데이터랩 3일/7일 | 급상승');
+  console.log(`순위 | 낱말 | 점수 | 전일 새 보조어 | 7일 새 | 자동완성 폭 | 데이터랩 3일/7일 | 댓글 뉴스(건·최고 순위, 총 ${memo.length}건) | 급상승`);
   rows.slice(0, opts.top).forEach((r, i) => console.log(
-    `${i + 1} | ${r.keyword} | ${r.rising_score} | ${r.day_new ?? '-'} | ${r.week_new ?? '-'} | ${r.ac_width} | ${r.datalab_ratio ?? '-'} | ${r.evidence.trend ? r.evidence.trend.traffic + '+' : ''}`));
+    `${i + 1} | ${r.keyword} | ${r.rising_score} | ${r.day_new ?? '-'} | ${r.week_new ?? '-'} | ${r.ac_width} | ${r.datalab_ratio ?? '-'} | ${r.memo_hits ? `${r.memo_hits}·${r.memo_best_rank}위` : '-'} | ${r.evidence.trend ? r.evidence.trend.traffic + '+' : ''}`));
   return res;
 }
 
@@ -199,6 +227,7 @@ function keywordScore(lane, keyword) {
   if (j < 0) return null;
   const r = d.rows[j];
   return { at: d.at, rising_score: r.rising_score, day_new: r.day_new, week_new: r.week_new, ac_width: r.ac_width, datalab_ratio: r.datalab_ratio ?? null,
+    memo_hits: r.memo_hits ?? null, memo_best_rank: r.memo_best_rank ?? null,
     rank: j + 1, of: d.rows.length, trend_traffic: r.evidence.trend ? r.evidence.trend.traffic : 0 };
 }
 
