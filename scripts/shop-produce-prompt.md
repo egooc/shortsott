@@ -14,7 +14,9 @@
 - 최신 `D:/volcano-runs/_cand/refs/remake_*.md` 표에서 고른다. 이미 쓴 것은 뺀다:
   `D:/volcano-runs/_upload/*.json` 의 `remake_of.url` 과 `product` 를 모두 읽어 겹치는 레퍼런스·같은 상품군은 제외.
 - 살림(주방·욕실·수납·청소·세탁)만. 아기용품·완구·문구·패션은 받지 않는다(2절).
-- 바로 앞 두 편과 다른 공간(주방/욕실/세탁/수납)을 고른다 — 같은 틀 반복은 재사용 콘텐츠로 걸린다(8절).
+- ★고르는 순서(10/20 소유주 «나»): 표에서 **«🔥지금»(14일 안에 계정 평균 2배+) 먼저, 그다음 조회 높은 순**으로 위에서부터 본다. 아래 조건에 걸리는 것만 건너뛰고, 처음 통과하는 것을 고른다(공간 돌리기 때문에 큰 소재를 건너뛰지 않는다).
+- 공간: 바로 앞 편과 **같은 공간이면** 다음 후보 한 칸만 내려가 본다(그 후보도 같은 공간이면 원래 것을 쓴다). 같은 틀 반복은 재사용 콘텐츠로 걸린다(8절) — 막는 건 «같은 상품군», 공간은 보조 기준.
+- ★가격대(10/20 소유주 «라» — 수수료 큰 상품 섞기): 최근 7편 메타의 `price_krw` 중 **2만 원 이상이 2편 미만이면, 이번 편은 쿠팡가 2만~5만 원대(그 이상도 가능) 상품**을 고른다(표의 «쿠팡 상위» 가격 칸으로 먼저 거르고, 3절에서 다시 확인). 살림 범위 안에서 수납가구·생활가전·욕실/주방 비품 세트 같은 것. 조건에 맞는 후보가 없으면 보고서에 «2만 원대 후보 없음»을 적고 평소대로.
 - 표가 비었거나 다 썼으면 `node D:/midform/scripts/shop_ref_discover.js` 를 한 번 돌리고 다시 본다. 그래도 없으면 «멈춤».
 
 ## 2. 소스 찾기 (10절 — 상품명 말고 장면 묘사로)
@@ -38,6 +40,7 @@
 - 검색: `node -e "const c=require('D:/midform/scripts/coupang_api');c.call('GET','/products/search',{query:'keyword='+encodeURIComponent('<검색어>')+'&limit=10'}).then(r=>(r.data.productData||[]).forEach(x=>console.log(x.productId,x.productPrice,x.isRocket?'R':'',x.productName,x.productImage)))"`
 - 상품 사진을 `curl -s -L -A "Mozilla/5.0" -o <wd>/cand/cp_<id>.jpg <url>` 로 받아 **눈으로 모양을 대조**한다. 같은 모양이 없으면 그 소재는 «멈춤»(비슷한 다른 제품에 링크 금지).
 - 같은 모양이 여럿이면 검색 순위가 높은 로켓배송.
+- 링크를 건 상품의 그날 쿠팡가(`productPrice`)를 메타 `price_krw`(숫자)에 적는다 — 위 가격대 규칙이 이 값을 본다. 영상·설명에는 가격을 넣지 않는다(5절 규칙 그대로).
 - 링크: `node D:/midform/scripts/coupang_api.js deeplink https://www.coupang.com/vp/products/<id>` → shortenUrl. `curl -s -o /dev/null -w "%{http_code}" -A "Mozilla/5.0" <short>` 가 302 인지 확인.
 - 상품 사진은 `<wd>/cp_img.jpg` 로 복사(인포크용).
 
@@ -134,7 +137,7 @@
 ## 7. 등록
 1. 인포크 번호: 메타를 먼저 쓴 뒤(3번) 인포크용 링크를 만든다 `cd D:/midform && node scripts/shop_fanout.js sublink D:/volcano-runs/_upload/<이름>.json inpock` → 나온 링크로 `node scripts/inpock_add.js --key <이름> --url <그 링크> --title "<짧은 상품명>" --image <wd>/cp_img.jpg` (10/17 소유주 «링크 구조 분할»: 인포크 경로는 subId inpock, 메타 affiliate_link 는 기본 링크 그대로)
 2. 다른 판: `cd <wd> && python D:/midform/scripts/shop_social_plan.py <wd> && python D:/midform/scripts/ff_render.py plan_social.json --out <이름>_social.mp4 > render_social.log 2>&1 && python D:/midform/scripts/ff_render.py plan_ig.json --out <이름>_ig.mp4 > render_ig.log 2>&1` — 두 판 끝 3초를 시트로 확인.
-3. 메타 `D:/volcano-runs/_upload/<이름>.json` — `ffref03.json` 과 같은 키(file=_ff.mp4, title "<키워드 앞 10자 + 훅 패턴> #키워드", description, pinned_comment, affiliate_link, product, categoryId 26, defaultLanguage ko, content_type growth, remake_of, **expected_comment `{"type":"<정정|경험담|훈수|공감|논쟁>","line":"<원고 문장 그대로>","at_sec":<최종 _ff.mp4 에서 그 문장이 시작하는 초 — ff 렌더 직후·다른 판 렌더 전에 <wd>/_ff/cap.ass 의 Dialogue 시각을 적어 둔다(다른 판 렌더가 덮어쓴다)>}`, comment_question, script_map(렌더 전 초안의 것 그대로)**). 메타를 쓴 직후 `node scripts/shop_script_check.js <메타>` 를 다시 돌리고, 이어서 `cd D:/midform && node scripts/shop_comment_check.js D:/volcano-runs/_upload/<이름>.json` — 종료 코드 4(«댓글 장치 FAIL») 면 원고·메타를 고쳐 통과할 때까지. 통과 못 하면 재고에 넣지 않는다(fill 도 같은 검사로 업로드를 막는다). JSON 은 node `JSON.stringify(x,null,2)` + `fs.writeFileSync(..., 'utf8')` 로만 쓴다.
+3. 메타 `D:/volcano-runs/_upload/<이름>.json` — `ffref03.json` 과 같은 키(file=_ff.mp4, title "<키워드 앞 10자 + 훅 패턴> #키워드", description, pinned_comment, affiliate_link, product, categoryId 26, defaultLanguage ko, content_type growth, remake_of, **expected_comment `{"type":"<정정|경험담|훈수|공감|논쟁>","line":"<원고 문장 그대로>","at_sec":<최종 _ff.mp4 에서 그 문장이 시작하는 초 — ff 렌더 직후·다른 판 렌더 전에 <wd>/_ff/cap.ass 의 Dialogue 시각을 적어 둔다(다른 판 렌더가 덮어쓴다)>}`, comment_question, script_map(렌더 전 초안의 것 그대로), price_krw(3절 쿠팡가 숫자)**). 메타를 쓴 직후 `node scripts/shop_script_check.js <메타>` 를 다시 돌리고, 이어서 `cd D:/midform && node scripts/shop_comment_check.js D:/volcano-runs/_upload/<이름>.json` — 종료 코드 4(«댓글 장치 FAIL») 면 원고·메타를 고쳐 통과할 때까지. 통과 못 하면 재고에 넣지 않는다(fill 도 같은 검사로 업로드를 막는다). JSON 은 node `JSON.stringify(x,null,2)` + `fs.writeFileSync(..., 'utf8')` 로만 쓴다.
    - 설명란 끝 출처: 일본·영미권 소스만 `@핸들` 한 줄씩. **중국 소스(더우인·샤오홍슈·콰이쇼우·중국 계정)는 적지 않는다.**
 4. 재고 등록: `stock_new_channel.json` 의 `ready` 끝에 `"<이름>.json"` 추가(node 로 읽고 써라). 예약은 07:20 fill 이 한다 — 여기서 `shop_schedule add` 를 부르지 마라.
 5. 제작 장부(관리자 07:40 성과 보고용, 규격 `D:/midform/docs/production-ledger.md`): 편마다 한 줄을 node `fs.appendFileSync('D:/midform/server/data/production_ledger.jsonl', JSON.stringify(rec)+'\n','utf8')` 로만 덧붙인다.
