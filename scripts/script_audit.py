@@ -64,7 +64,7 @@ def _est(text, lang):
 
 
 def segments(path, lane=None):
-    """→ [('nar'|'audio', 문장 또는 '', 초)] 화면 순서. 해설은 문장 단위로 쪼갠다."""
+    """→ [('nar'|'audio', 문장 또는 원음 text(없으면 ''), 초)] 화면 순서. 해설은 문장 단위로 쪼갠다."""
     p = Path(path)
     lang = 'ja' if lane in JA_LANES else 'ko'
     out = []
@@ -88,7 +88,7 @@ def segments(path, lane=None):
                 if b.get('nar'):
                     nar(b['nar'])
                 elif b.get('t') == 'raw' and b.get('out') is not None:
-                    out.append(('audio', '', max(0.0, float(b['out']) - float(b['in']))))
+                    out.append(('audio', b.get('text') or '', max(0.0, float(b['out']) - float(b['in']))))   # 원음 text 는 쇼츠 첫 질문 판정용(10-20)
             return out
         epj = p / 'episode.json' if p.is_dir() else p
         if epj.name == 'episode.json' and epj.exists() and 'segments' not in _load_json(epj):
@@ -213,7 +213,9 @@ def audit(path, lane=None, kind=None, lang=None, jargon=None, names=None, ignore
     if len(lens) >= 5 and cv < 0.30:
         W.append(('리듬', f'문장 길이 CV {cv:.2f} < 0.30 — 길이가 고르다(기계 티), 짧은 문장·긴 문장을 섞어라'))
     # 첫 질문
-    q = next((at[i] for i, s in sents if comment_hook.is_question(s, lang)), None)
+    # 쇼츠는 원음 text 도 본다 — 0초 공격 대사 «何それ？» 가 첫 질문(10-20 정치JA). 원음 text 는 질문 판정에만 쓴다
+    qpool = [(i, s) for i, (k, s, _) in enumerate(segs) if s and (k == 'nar' or kind == 'shorts')]
+    q = next((at[i] for i, s in qpool for x in ref_overlap.split_sentences(s) if comment_hook.is_question(x, lang)), None)
     res['first_question_sec'] = None if q is None else round(q, 1)
     lim_q = 15 if kind == 'long' else 3
     if q is None or q > lim_q:

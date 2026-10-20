@@ -60,6 +60,12 @@ with tempfile.TemporaryDirectory() as t:
     assert bs[1]['speaker'] == 'narration' and bs[1]['sec'] == 2.0 and bs[3]['speaker'] == 'a', bs
     r = ex.check(sq, enforce=True)
     assert any('a 혼자 15.0초' in e for e in r['errors']) and any('reaction' in e for e in r['errors']), r
+    # 쇼츠 묶음 plan.json:<id>
+    bun = w(t / 'b' / 'plan.json', {'shorts': [{'id': 's1', 'beats': [b('attack', '갑', 0, 3), b('reaction', '을', 3, 5), b('counter', '을', 5, 9)]},
+                                               {'id': 's2', 'beats': [b('attack', '갑', 0, 20)]}]})
+    assert ex.check(f'{bun}:s1', enforce=True)['code'] == 0
+    assert ex.check(f'{bun}:s2', enforce=True)['code'] == 4
+    assert ex.check(f'{bun}:s9', enforce=True)['code'] == 5
     # 없는 경로 → 5
     assert ex.check(t / 'nope', enforce=True)['code'] == 5
 print('OK')

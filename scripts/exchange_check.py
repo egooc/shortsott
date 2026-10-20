@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """쇼츠 주고받기 검사(10-20 소유주 «쇼츠는 주고받는 멘트·반응·대응, 주장 나열 금지») — API 0.
 
-    python scripts/exchange_check.py <plan.json|폴더> [--lane politics_shorts|fantube|longshort] [--enforce-now] [--json]
+    python scripts/exchange_check.py <plan.json|plan.json:<id>|폴더> [--lane politics_shorts|fantube|longshort] [--enforce-now] [--json]
 
 입력: plan.json 의 beats — [{role, speaker, in, out}], role ∈ attack·reaction·counter·narration·question.
       beats 가 없으면 sequence(정치 쇼츠·린박스 꼴)를 읽는다: 항목의 role, who(없으면 앞 항목 화자를 잇는다),
@@ -147,8 +147,16 @@ def check(path, lane='politics_shorts', now=None, enforce=None):
     now = now or _dt.datetime.now(_dt.timezone.utc)
     enforce = (now >= ENFORCE_FROM) if enforce is None else enforce
     try:
-        pp = _plan_path(path)
+        sp, sid = str(path), None
+        if '.json:' in sp:                                   # 쇼츠 묶음 plan.json:<id>(정치JA, script_audit 와 같은 꼴)
+            sp, sid = sp.rsplit('.json:', 1)
+            sp += '.json'
+        pp = _plan_path(sp)
         plan = json.loads(pp.read_text(encoding='utf-8'))
+        if sid is not None:
+            plan = next((x for x in plan.get('shorts', []) if str(x.get('id')) == sid), None)
+            if plan is None:
+                raise Unreadable(f'쇼츠 {sid} 없음')
         r = judge(beats_of(plan, pp.parent), lane)
     except (Unreadable, json.JSONDecodeError, OSError, ValueError, TypeError) as e:
         r = {'code': 5, 'skipped': False, 'errors': [f'검사 불가: {e}'], 'warnings': [], 'runs': []}
