@@ -192,36 +192,53 @@ def close_crop(src, a, dur, cut=.17, ow=W, oh=BAND_H, face=.28):
 
 
 def render_close(sh, parts, caps, total, work, out):
-    """겹침 ≤3: 화면 제목 두 줄 · 말 자막 한 줄(화자별 색) · 첫 3초 이름 꼬리표. 로고·띠·날짜·출처 줄·롱폼 카드 없음(출처·롱폼 안내는 설명란·고정 댓글).
-    칸에 split {left:{src,start}, right:{src,start}} 가 있으면 좌우 분할(질문 왼쪽·답변 오른쪽, 소리는 칸 소리)."""
+    """요소 3 + 끝 마크(관리자 10-20 소유주 «채널색 안 묻혀도 돼? 모션 너무 걷어낸 것 아니야?»):
+    화면 제목 두 줄(윗줄 남색 상자·흰 글씨, 아랫줄 금색 · 0.3초 떠오름) · 말 자막 한 줄(팝) · 첫 3초 이름 꼬리표(남색·금 띠),
+    끝 질문 옆 작은 채널 마크 0.8초(sh 의 mark 경로, null 이면 생략 — 새 채널에도 쓰도록). 띠·배너·출처 줄 없음.
+    칸에 split {left:{src,start}, right:{src,start}} 가 있으면 좌우 분할(질문 왼쪽·답변 오른쪽). 5초 넘는 단독 칸은 가운데서 한 번 당겨 잡는다(컷 줌)."""
     hook = next((p for p in parts if p['t'] == 'hook'), None)
     lines = (sh.get('screen_lines') or (hook or {}).get('screen', sh['title']).split('\n'))[:2]
 
     def title_draw(d):
-        f = font('NotoSansJP.ttf', 128)
+        f = font('NotoSansJP.ttf', 116)
         for k, (y, ln) in enumerate(zip(T_LINES, lines)):
             tw = d.textlength(ln, font=f)
-            ff_ = f if tw <= W - 70 else font('NotoSansJP.ttf', int(128 * (W - 70) / tw))
-            d.text((W / 2, y), ln, font=ff_, fill=GOLD if k else PAPER, anchor='mm', stroke_width=7, stroke_fill=NAVY)
-    layers = [(0, total, png(work / 'title.png', title_draw))]
-
-    def sub_draw(s, kind):
-        def dr(d):
-            f = font('NotoSansJP.ttf', 56, 800)
-            tw = d.textlength(s, font=f)
-            d.rounded_rectangle([W / 2 - tw / 2 - 24, SUB_Y - 46, W / 2 + tw / 2 + 24, SUB_Y + 46], 12, fill=(0, 0, 0, 170))
-            d.text((W / 2, SUB_Y), s, font=f, fill=GOLD if kind == 'raw' else (255, 255, 255), anchor='mm')
-        return dr
-    layers += [(a, e, png(work / f'cap_{k:03d}.png', sub_draw(s, kind))) for k, (a, e, s, kind) in enumerate(caps)]
+            ff_ = f if tw <= W - 120 else font('NotoSansJP.ttf', int(116 * (W - 120) / tw))
+            tw = d.textlength(ln, font=ff_)
+            if k == 0:   # 윗줄 = 채널색 상자(1편 남색·금 테)
+                d.rounded_rectangle([W / 2 - tw / 2 - 36, y - 78, W / 2 + tw / 2 + 36, y + 78], 16, fill=(*NAVY, 235), outline=GOLD, width=4)
+                d.text((W / 2, y), ln, font=ff_, fill=PAPER, anchor='mm')
+            else:
+                d.text((W / 2, y), ln, font=ff_, fill=GOLD, anchor='mm', stroke_width=8, stroke_fill=NAVY)
+    title_png = png(work / 'title.png', title_draw)
     sp = sh['speaker']   # 첫 3초 꼬리표 = 첫 발언자 {name, role}
 
     def tag_draw(d):
-        f = font('NotoSansJP.ttf', 40, 800); s = f"{sp['name']}  {sp['role']}"
-        tw = d.textlength(s, font=f)
-        d.rectangle([40, BAND_Y + 30, 40 + tw + 40, BAND_Y + 96], fill=(*ACC, 235))
-        d.text((60, BAND_Y + 63), s, font=f, fill=(255, 255, 255), anchor='lm')
-    layers.append((0, min(TAG_SEC, total), png(work / 'tag.png', tag_draw)))
-    vids, vf, n = [], [], 0
+        fn, fr = font('NotoSansJP.ttf', 44, 900), font('NotoSansJP.ttf', 34, 700)
+        wn, wr = d.textlength(sp['name'], font=fn), d.textlength(sp['role'], font=fr)
+        d.rectangle([40, BAND_Y + 30, 40 + 14 + 24 + wn + 22 + wr + 28, BAND_Y + 104], fill=(*NAVY, 240))
+        d.rectangle([40, BAND_Y + 30, 54, BAND_Y + 104], fill=GOLD)
+        d.text((78, BAND_Y + 67), sp['name'], font=fn, fill=PAPER, anchor='lm')
+        d.text((78 + wn + 22, BAND_Y + 69), sp['role'], font=fr, fill=GOLD, anchor='lm')
+    tag_png = png(work / 'tag.png', tag_draw)
+
+    def sub_png(k, s, kind):   # 자막은 상자 크기 그림 — 팝(0.86→1, 0.12초)
+        f = font('NotoSansJP.ttf', 56, 800)
+        tw = int(ImageDraw.Draw(Image.new('RGBA', (1, 1))).textlength(s, font=f))
+        im = Image.new('RGBA', (tw + 48, 92), (0, 0, 0, 0)); d = ImageDraw.Draw(im)
+        d.rounded_rectangle([0, 0, tw + 47, 91], 12, fill=(0, 0, 0, 170))
+        d.text(((tw + 48) / 2, 46), s, font=f, fill=GOLD if kind == 'raw' else (255, 255, 255), anchor='mm')
+        p_ = work / f'cap_{k:03d}.png'; im.save(p_); return p_
+    caps = caps[:-1] + [(caps[-1][0], total, *caps[-1][2:])] if caps else caps   # 끝 질문 자막은 마지막 프레임까지(그 옆에 마크)
+    subs = [(a, e, sub_png(k, s, kind)) for k, (a, e, s, kind) in enumerate(caps)]
+    mark = sh.get('mark', 'politics-hour-ja/assets/channel/logo.png')
+    MARK_SEC, MS = .8, 120
+    if mark:   # 둥근 채널 마크(금 테)
+        lg = Image.open(ROOT / mark).convert('RGBA').resize((MS, MS), Image.LANCZOS)
+        m = Image.new('L', (MS, MS), 0); ImageDraw.Draw(m).ellipse([0, 0, MS - 1, MS - 1], fill=255); lg.putalpha(m)
+        ImageDraw.Draw(lg).ellipse([1, 1, MS - 2, MS - 2], outline=GOLD, width=5)
+        mark_png = work / 'mark.png'; lg.save(mark_png)
+    vids, vf, n, jumps = [], [], 0, 0
     br = sh['broll']; bt = br['start']
     for i, p in enumerate(parts):
         if p['t'] == 'raw':
@@ -230,7 +247,6 @@ def render_close(sh, parts, caps, total, work, out):
             if p.get('broll'):
                 br, bt = p['broll'], p['broll']['start']
             src, a, cut = br['src'], bt, br.get('crop_bottom', .17); bt += p['dur']
-        z = f"1+0.03*t/{p['dur']:.3f}"
         if p.get('split'):
             halves = []
             for side in ('left', 'right'):
@@ -241,19 +257,41 @@ def render_close(sh, parts, caps, total, work, out):
                 halves.append(f'[h{n}]'); n += 1
             vf.append(''.join(halves) + f'hstack=inputs=2,eq=contrast=1.05,setsar=1[c{i}]')
         else:
+            jump = p['dur'] >= 5.0   # 긴 칸은 가운데서 1.12배로 당겨 잡아 컷 하나를 더 만든다
+            jumps += jump
+            z = f"(1+0.03*t/{p['dur']:.3f})" + (f"*if(gte(t,{p['dur'] / 2:.3f}),1.12,1)" if jump else '')
             vids += ['-ss', f'{a:.3f}', '-t', f"{p['dur']:.3f}", '-i', str(ROOT / src)]
             vf.append(f'[{n}:v]fps=30,{close_crop(src, a, p["dur"], cut)},scale={W}:{BAND_H}:flags=lanczos,'
-                      f"scale=w='trunc({W}*({z})/2)*2':h='trunc({BAND_H}*({z})/2)*2':eval=frame,crop={W}:{BAND_H},"
+                      f"scale=w='trunc({W}*{z}/2)*2':h='trunc({BAND_H}*{z}/2)*2':eval=frame,crop={W}:{BAND_H}:(iw-{W})/2:(ih-{BAND_H})*0.3,"
                       f'eq=contrast=1.05,setsar=1,trim=duration={p["dur"]:.3f},setpts=PTS-STARTPTS[c{i}]')
             n += 1
     vf.append(''.join(f'[c{i}]' for i in range(len(parts))) + f'concat=n={len(parts)}:v=1:a=0[mid]')
     vids += ['-f', 'lavfi', '-t', f'{total:.3f}', '-i', f'color=c=black:s={W}x{H}:r=30']
     base = n
     chain = [f'[{base}:v][mid]overlay=0:{BAND_Y}[v0]']
-    last = 'v0'
-    for k, (a, e, img) in enumerate(layers):
-        vids += ['-loop', '1', '-t', f'{total:.3f}', '-i', str(img)]
-        chain.append(f"[{last}][{base + 1 + k}:v]overlay=0:0:enable='between(t,{a:.3f},{e:.3f})'[k{k}]"); last = f'k{k}'
+    k_in = base + 1
+    # 제목: 0.3초 동안 40px 아래에서 떠오름
+    vids += ['-loop', '1', '-t', f'{total:.3f}', '-i', str(title_png)]   # 첫 프레임부터 다 보인다(피드 첫 화면) — 움직임은 떠오름만
+    chain += [f'[{k_in}:v]format=rgba[ti]', "[v0][ti]overlay=0:'40*max(0,1-t/0.3)'[v1]"]; k_in += 1
+    # 이름 꼬리표: 첫 프레임부터, 0.3초 나감
+    tag_end = min(TAG_SEC, total)
+    vids += ['-loop', '1', '-t', f'{tag_end:.3f}', '-i', str(tag_png)]
+    chain += [f'[{k_in}:v]format=rgba,fade=t=out:st={tag_end - .3:.3f}:d=0.3:alpha=1[tg]',
+              '[v1][tg]overlay=0:0:eof_action=pass[v2]']; k_in += 1
+    last = 'v2'
+    for k, (a, e, img) in enumerate(subs):
+        vids += ['-loop', '1', '-t', f'{e - a:.3f}', '-i', str(img)]
+        chain += [f"[{k_in}:v]format=rgba,scale=w='trunc(iw*(0.86+0.14*min(1,t/0.12))/2)*2':h=-2:eval=frame,setpts=PTS+{a:.3f}/TB[s{k}]",
+                  f"[{last}][s{k}]overlay=x='(W-w)/2':y='{SUB_Y}-h/2':eof_action=pass[k{k}]"]; last = f'k{k}'; k_in += 1
+    if mark:   # 끝 질문 옆(아래 오른쪽) 마크, 마지막 0.8초 팝
+        m0 = max(0.0, total - MARK_SEC)
+        cw_ = Image.open(subs[-1][2]).width if subs else 0
+        mx, my = W / 2 + cw_ / 2 + 24 + MS / 2, SUB_Y            # 끝 자막 상자 바로 오른쪽
+        if mx + MS / 2 > W - 16:
+            mx, my = W / 2 + cw_ / 2 - MS / 2, SUB_Y + 46 + 16 + MS / 2   # 자리가 없으면 상자 오른쪽 아래
+        vids += ['-loop', '1', '-t', f'{MARK_SEC + .5:.3f}', '-i', str(mark_png)]   # 끝 프레임까지 남게 넉넉히(-t total 이 자른다)
+        chain += [f"[{k_in}:v]format=rgba,scale=w='trunc(iw*(0.7+0.3*min(1,t/0.15))/2)*2':h=-2:eval=frame,setpts=PTS+{m0:.3f}/TB[mk]",
+                  f"[{last}][mk]overlay=x='{mx:.0f}-w/2':y='{my:.0f}-h/2':eof_action=pass[km]"]; last = 'km'; k_in += 1
     chain.append(f'[{last}]format=yuv420p[v]')
     alist = work / 'audio.txt'
     alist.write_text(''.join(f"file '{p['wav'].as_posix()}'\n" for p in parts), encoding='utf-8')
@@ -262,13 +300,15 @@ def render_close(sh, parts, caps, total, work, out):
     with tempfile.NamedTemporaryFile('w', suffix='.txt', delete=False, encoding='utf-8') as fc:
         fc.write(';\n'.join(vf + chain))
     subprocess.run(['ffmpeg', '-nostdin', '-v', 'error', '-y', *vids, '-i', str(aud), '-/filter_complex', fc.name,
-                    '-map', '[v]', '-map', f'{base + 1 + len(layers)}:a', '-t', f'{total:.3f}', '-r', '30',
+                    '-map', '[v]', '-map', f'{k_in}:a', '-t', f'{total:.3f}', '-r', '30',
                     '-c:v', 'libx264', '-crf', '19', '-preset', 'medium', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '192k', str(out)], check=True)
+    Path(fc.name).unlink(missing_ok=True)   # C: Temp 에 필터 파일을 남기지 않는다
     loud = loudnorm_final.normalize(str(out))
     raw_s = sum(p['dur'] for p in parts if p['t'] == 'raw')
-    cuts = sum(2 if p.get('split') else 1 for p in parts) - 1
+    cuts = sum(2 if p.get('split') else 1 for p in parts) - 1 + jumps
     print(json.dumps({'out': str(out), 'layout': 'close', 'seconds': total, 'raw_seconds': round(raw_s, 2), 'narration_share': round(1 - raw_s / total, 3),
-                      'overlays': ['화면 제목', '말 자막', f'이름 꼬리표(0~{TAG_SEC:.0f}초)'], 'cuts': cuts, 'loudnorm': loud}, ensure_ascii=False))
+                      'overlays': ['화면 제목(0.3초 떠오름)', '말 자막(팝)', f'이름 꼬리표(0~{TAG_SEC:.0f}초)'] + ([f'끝 채널 마크({MARK_SEC}초)'] if mark else []),
+                      'cuts': cuts, 'cuts_per_56s': round(cuts * 56 / total, 1), 'loudnorm': loud}, ensure_ascii=False))
 
 
 if __name__ == '__main__':
