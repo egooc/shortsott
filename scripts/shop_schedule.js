@@ -96,6 +96,9 @@ async function add(files) {
     if (PURPOSE === 'shopping') {
       const errs = require('./shop_comment_check').check(meta);
       if (errs.length) { console.log(`  ✗✗✗ 업로드 금지(댓글 장치 FAIL) ${path.basename(meta)}: ${errs.join(' / ')}`); continue; }
+      // 원고 검사(10/20 관리자 — 결충전·6단·리듬·열린 결말·반박 선제·사회적 증거·첫 문장, 10/20 12:00 전 시작 편은 면제)
+      const sc = require('./shop_script_check').check(meta);
+      if (sc.code) { console.log(`  ✗✗✗ 업로드 금지(원고 검사 FAIL) ${path.basename(meta)}: ${sc.out.filter((x) => !x.ok).map((x) => `${x.item} ${x.msg}`).join(' / ')}`); continue; }
     }
     // channel.json 의 startAt 이전 슬롯은 쓰지 않는다(2026-10-06 소유주: 새 채널은 «내일부터» — 첫 실행이 당일 18:00 을 잡았다)
     const startAt = Date.parse((fs.existsSync(CHANNEL_FILE) && JSON.parse(fs.readFileSync(CHANNEL_FILE, 'utf8')).startAt) || 0) || 0;

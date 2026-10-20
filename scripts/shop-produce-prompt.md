@@ -113,6 +113,11 @@
   - 보고서 한 줄: «댓글 장치: <유형> · "<문장>" · <몇 초> · 고정 댓글 질문: "<질문>" · 시뮬레이션 댓글 3개 요약».
 - 첫 3초·첫 줄(10/19 관리자 전달, 전 레인 공통): 첫 3초는 How(방법)가 아니라 Why·결과 먼저 — «이렇게 하세요»가 아니라 «이게 왜 이렇게 됐을까»·«이렇게 돼 버려요». 첫 줄 인사(«안녕하세요»·«여러분») 금지.
 
+- ★원고 검사 코드(10/20 관리자 — 위 결충전·6단·리듬·열린 결말·반박 선제·사회적 증거·첫 문장은 자기 평가가 아니라 이 검사 출력으로만 «통과»라고 적는다): plan.json 을 다 쓴 뒤 **렌더 전에** 메타 초안 `D:/volcano-runs/_upload/<이름>.json`(file=<wd>/<이름>_ff.mp4, title, script_map)을 쓰고 `cd D:/midform && node scripts/shop_script_check.js D:/volcano-runs/_upload/<이름>.json`.
+  - script_map = `{"six":[①~⑥ 원고 문장 6개(순서대로, ① = 첫 문장 = 제목 앞부분 읊기)],"gyeol":"결 문장(앞 40% 안)","chung":"충 문장(뒤 서사 표지 — ~대요·처음·만든·이유·발상 등)","jeon":"전 문장(뒤 40% 안)","rebut":"반박 선제 질문(바로 다음 문장에서 답)","social_proof":{"line":"숫자·리뷰·평점이 든 문장","source":"직접 열어 확인한 URL"}}`. 문장은 plan.json segments 의 문장 그대로.
+  - 검사 항목: ⑦ 첫 문장 인사·«오늘은» 금지 · ② 6단 순서 · ① 결충전 위치·서사 표지 · ③ 문장 길이 변동계수 0.30 이상 + 10자 이하 짧은 문장 1개 이상 · ④ 저장 권유 앞 끝 문장이 열린 어미(~일지도 몰라요·~대요·~아닐까요·~것 같아요) · ⑤ 반박 선제 · ⑥ 사회적 증거(쿠팡 리뷰 수·평점 등 확인한 숫자 + URL — 못 찾으면 그 편은 «멈춤»).
+  - 종료 코드 4 면 원고를 고쳐 통과할 때까지(검사 우회·script_map 만 바꿔 맞추기 금지 — 원고 문장이 실제로 그 역할을 해야 한다). 보고서에는 검사 출력의 ✓/✗ 줄을 그대로 붙인다. 업로드(fill)도 같은 검사로 막는다.
+
 ## 6. 렌더 + 눈 검사
 - `cd <wd> && python D:/midform/scripts/ff_render.py plan.json --out <이름>_ff.mp4 > render.log 2>&1`
 - 정지 화면 검사: 1초 간격 시트(`fps=1,scale=270:480,tile=8x5`)를 Read 로 보고 확인 — 자막 문장과 그 순간 화면이 맞는지도 본다("이렇게 돼요"에 문제 장면이 아니라 다른 장면이 걸리면 고친다). 렌더러는 소스 구간이 말보다 짧으면 느리게 늘리므로 0.6배보다 느려지면 문장을 줄인다. — 남의 자막·워터마크·다른 제품·얼룩·자막이 화면 밖으로 넘침·검은 화면. 걸리면 plan 을 고쳐 다시 렌더(최대 3번, 넘으면 «멈춤»).
@@ -121,7 +126,7 @@
 ## 7. 등록
 1. 인포크 번호: 메타를 먼저 쓴 뒤(3번) 인포크용 링크를 만든다 `cd D:/midform && node scripts/shop_fanout.js sublink D:/volcano-runs/_upload/<이름>.json inpock` → 나온 링크로 `node scripts/inpock_add.js --key <이름> --url <그 링크> --title "<짧은 상품명>" --image <wd>/cp_img.jpg` (10/17 소유주 «링크 구조 분할»: 인포크 경로는 subId inpock, 메타 affiliate_link 는 기본 링크 그대로)
 2. 다른 판: `cd <wd> && python D:/midform/scripts/shop_social_plan.py <wd> && python D:/midform/scripts/ff_render.py plan_social.json --out <이름>_social.mp4 > render_social.log 2>&1 && python D:/midform/scripts/ff_render.py plan_ig.json --out <이름>_ig.mp4 > render_ig.log 2>&1` — 두 판 끝 3초를 시트로 확인.
-3. 메타 `D:/volcano-runs/_upload/<이름>.json` — `ffref03.json` 과 같은 키(file=_ff.mp4, title "<결과/의문> #상품군 #살림팁류", description, pinned_comment, affiliate_link, product, categoryId 26, defaultLanguage ko, content_type growth, remake_of, **expected_comment `{"type":"<정정|경험담|훈수|공감|논쟁>","line":"<원고 문장 그대로>","at_sec":<최종 _ff.mp4 에서 그 문장이 시작하는 초 — ff 렌더 직후·다른 판 렌더 전에 <wd>/_ff/cap.ass 의 Dialogue 시각을 적어 둔다(다른 판 렌더가 덮어쓴다)>}`, comment_question**). 메타를 쓴 직후 `cd D:/midform && node scripts/shop_comment_check.js D:/volcano-runs/_upload/<이름>.json` — 종료 코드 4(«댓글 장치 FAIL») 면 원고·메타를 고쳐 통과할 때까지. 통과 못 하면 재고에 넣지 않는다(fill 도 같은 검사로 업로드를 막는다). JSON 은 node `JSON.stringify(x,null,2)` + `fs.writeFileSync(..., 'utf8')` 로만 쓴다.
+3. 메타 `D:/volcano-runs/_upload/<이름>.json` — `ffref03.json` 과 같은 키(file=_ff.mp4, title "<결과/의문> #상품군 #살림팁류", description, pinned_comment, affiliate_link, product, categoryId 26, defaultLanguage ko, content_type growth, remake_of, **expected_comment `{"type":"<정정|경험담|훈수|공감|논쟁>","line":"<원고 문장 그대로>","at_sec":<최종 _ff.mp4 에서 그 문장이 시작하는 초 — ff 렌더 직후·다른 판 렌더 전에 <wd>/_ff/cap.ass 의 Dialogue 시각을 적어 둔다(다른 판 렌더가 덮어쓴다)>}`, comment_question, script_map(렌더 전 초안의 것 그대로)**). 메타를 쓴 직후 `node scripts/shop_script_check.js <메타>` 를 다시 돌리고, 이어서 `cd D:/midform && node scripts/shop_comment_check.js D:/volcano-runs/_upload/<이름>.json` — 종료 코드 4(«댓글 장치 FAIL») 면 원고·메타를 고쳐 통과할 때까지. 통과 못 하면 재고에 넣지 않는다(fill 도 같은 검사로 업로드를 막는다). JSON 은 node `JSON.stringify(x,null,2)` + `fs.writeFileSync(..., 'utf8')` 로만 쓴다.
    - 설명란 끝 출처: 일본·영미권 소스만 `@핸들` 한 줄씩. **중국 소스(더우인·샤오홍슈·콰이쇼우·중국 계정)는 적지 않는다.**
 4. 재고 등록: `stock_new_channel.json` 의 `ready` 끝에 `"<이름>.json"` 추가(node 로 읽고 써라). 예약은 07:20 fill 이 한다 — 여기서 `shop_schedule add` 를 부르지 마라.
 5. 제작 장부(관리자 07:40 성과 보고용, 규격 `D:/midform/docs/production-ledger.md`): 편마다 한 줄을 node `fs.appendFileSync('D:/midform/server/data/production_ledger.jsonl', JSON.stringify(rec)+'\n','utf8')` 로만 덧붙인다.
