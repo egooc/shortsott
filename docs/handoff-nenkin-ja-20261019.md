@@ -112,3 +112,5 @@ ja 年金·給付金·相続 해설 롱폼(20~30분, 65세 이상 일본 시청�
 - 10-20 2편: 원고 254문장(약 19.3분)·장면 76·포장 3묶음(packages_gate 통과)·음성 합성 끝·역전사 숫자 163/163·고유명사 127/127·레퍼런스 일치 0. 남은 것: 화면 렌더(13~17시) → gap_check·LUFS → description.txt·고정 댓글. 재개: `python ja-nenkin/render/nenkin_render.py ja-nenkin/ep02` (음성 재사용).
 - 원고 관문(10-20~): `python ja-nenkin/render/ref_overlap.py <script>` 종료 코드 4면 렌더 금지 · num_audit 종료 코드 3은 «점 빠짐» 청취 확인.
 - 소유주 10-20 01:10: 채널 생성·인증되면 바로 연결 / 업로드는 생성 3일 뒤(웜업, 폰 10분/일) / 공개 15~16시 KST / 숫자 사람 확인 생략.
+
+- 10-20 10:50 관리자 #6·#10·#11 반영(f7b563f): 용어 사전 ja-nenkin/jargon.json(25) · 원고 관문에 `python scripts/script_audit.py <script> --lane nenkin_ja --jargon ja-nenkin/jargon.json`(전환 최대 간격 120초 이하) · 업로드 관문에 `python scripts/title_check.py <ep>/packages.json --lane nenkin_ja --jargon ja-nenkin/jargon.json --fail-on-warn`(종료 0). 2편 전환 8곳 추가로 8장면 재합성 필요 — 13시 창에서 `nenkin_render.py ja-nenkin/ep02 --tts-only` → num_audit --only → 렌더. 원본 log_script_pre_transition_20261020.txt.
