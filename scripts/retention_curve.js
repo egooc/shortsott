@@ -74,13 +74,13 @@ async function shortsStay(ids, { purpose, tokenPath, token, start = '2020-01-01'
   const out = [];
   for (let i = 0; i < ids.length; i += 200) {
     const q = new URLSearchParams({ ids: 'channel==MINE', startDate: start, endDate: new Date().toISOString().slice(0, 10),
-      metrics: 'views,engagedViews,averageViewPercentage,averageViewDuration', dimensions: 'video', filters: `video==${ids.slice(i, i + 200).join(',')}` });
+      metrics: 'views,engagedViews,averageViewPercentage,averageViewDuration,likes,comments,shares', dimensions: 'video', filters: `video==${ids.slice(i, i + 200).join(',')}` });
     const r = await fetch(`https://youtubeanalytics.googleapis.com/v2/reports?${q}`, { headers: { Authorization: `Bearer ${auth.token}` } });
     const j = await r.json().catch(() => ({}));
     if (r.status === 403 || r.status === 429) { const e = new Error(`Analytics ${r.status}`); e.stop = true; throw e; }
     if (!r.ok) throw new Error(`Analytics ${r.status} ${(j.error && j.error.message || '').slice(0, 120)}`);
-    for (const [id, views, engaged, avp, avd] of j.rows || []) {
-      out.push({ id, views, engaged_views: engaged, stay_ratio: views ? Math.round((engaged / views) * 1000) / 10 : null, avp: Math.round(avp * 10) / 10, avd_sec: avd });
+    for (const [id, views, engaged, avp, avd, likes, comments, shares] of j.rows || []) {
+      out.push({ id, views, engaged_views: engaged, stay_ratio: views ? Math.round((engaged / views) * 1000) / 10 : null, avp: Math.round(avp * 10) / 10, avd_sec: avd, likes, comments, shares });
     }
   }
   return out;

@@ -107,7 +107,7 @@ function gpt(prompt, tag) {
   } finally { fs.rmSync(f, { force: true }); }
 }
 
-const list = (cs, k = 100) => cs.slice(0, k).map((c, i) => `${i + 1}. [좋아요 ${c.likes}${c.order === 'time' ? ' · 최신' : ''}] ${c.text.slice(0, 300)}`).join('\n');
+const list = (cs, k = 100) => cs.slice(0, k).map((c, i) => `${i + 1}. [좋아요 ${c.likes} · 답글 ${c.replies || 0}${c.order === 'time' ? ' · 최신' : ''}] ${c.text.slice(0, 300)}`).join('\n');
 
 function repeatedWords(cs, n = 10) {
   const stop = new Set(['진짜', '너무', '그냥', '정말', '이거', '저거', '그거', '근데', '하는', '있는', '없는', '같은', '이런', '그런', '영상', 'ㅋㅋ', 'ㅋㅋㅋ', 'ㅠㅠ']);
@@ -145,10 +145,13 @@ async function mineVideo(key, meta, lane, noGpt) {
   if (!noGpt && cs.length >= 3) {
     res.analysis = gpt(`유튜브 영상 «${meta.title}»(${meta.channel}, 조회 ${meta.views.toLocaleString()}) 댓글 ${cs.length}개(인기순 50 + «최신» 표시 최신순).
 댓글만 근거로 JSON 하나만 답하라(설명 금지).
-{"counts": {"정정": 0, "경험담": 0, "훈수": 0, "공감": 0, "논쟁": 0, "기타": 0},
- "examples": {"정정": [{"comment": "원문 일부", "likes": 0}], "경험담": [...], "훈수": [...], "공감": [...], "논쟁": [...]},   // 유형별 좋아요 많은 순 최대 2
+{"counts": {"정정": 0, "경험담": 0, "훈수": 0, "공감": 0, "논쟁": 0, "위험성 경고": 0, "기타": 0},
+ "examples": {"정정": [{"comment": "원문 일부", "likes": 0}], "경험담": [...], "훈수": [...], "공감": [...], "논쟁": [...], "위험성 경고": [...]},   // 유형별 좋아요 많은 순 최대 2
+ "emotion": {"dominant": "웃음|감동|분노|궁금|불안|부러움 중 하나", "line": "댓글 전체를 지배하는 감정 한 줄(근거 댓글 요지 포함)"},
+ "combo": [{"elements": ["요소 A", "요소 B"], "why": "댓글이 두 요소를 같이 원한다는 근거", "evidence": [{"comment": "...", "likes": 0}]}],   // 결합 요소 후보 1~3: 다음 편에서 붙이면 터질 두 요소(인물×상황·소재×형식)
  "next_topics": [{"topic": "...", "why": "...", "evidence": [{"comment": "...", "likes": 0}]}]}                      // 3개, 근거 없으면 빼라
-유형: 정정=틀렸다·사실은 / 경험담=내 경우는 / 훈수=이렇게 해야지 / 공감=맞다·웃기다·감동 / 논쟁=편 가르기·찬반 / 기타=인사·도배·광고.
+유형: 정정=틀렸다·사실은 / 경험담=내 경우는 / 훈수=이렇게 해야지 / 공감=맞다·웃기다·감동 / 논쟁=편 가르기·찬반 / 위험성 경고=따라 하면 큰일·위험하다 / 기타=인사·도배·광고.
+좋아요·답글 수가 큰 댓글일수록 무게를 둬라.
 
 ${list(cs)}`, meta.id);
     const c = res.analysis.counts || {};
@@ -156,6 +159,9 @@ ${list(cs)}`, meta.id);
     if (res.expected) res.expected_match = res.expected.split(/[/·]/).map((s) => s.trim()).includes(res.top_type);
   }
   res.comments_sample = cs.slice(0, 20);
+  // G6(10-21): 좋아요·답글 상위(로컬 집계, GPT 없이도 남는다)
+  res.top_liked = cs.slice().sort((a, b) => b.likes - a.likes).slice(0, 3).map((c) => ({ text: c.text.slice(0, 80), likes: c.likes, replies: c.replies }));
+  res.top_replied = cs.slice().sort((a, b) => (b.replies || 0) - (a.replies || 0)).slice(0, 3).filter((c) => c.replies).map((c) => ({ text: c.text.slice(0, 80), likes: c.likes, replies: c.replies }));
   return res;
 }
 
@@ -182,10 +188,16 @@ function summaryMd(lane, vids) {
     .sort((a, b) => b.likes - a.likes).slice(0, 3);
   const L = [`# 댓글 광산 요약 — ${lane} (${stampDay()})`, '',
     `- 편 ${vids.length} · 모은 댓글 ${vids.reduce((s, v) => s + v.mined, 0)} · 가장 많이 달린 유형: ${top.slice(0, 3).map((t) => `${t} ${tot[t]}`).join(' · ')} (기타 ${tot['기타']})`,
-    `- 반복 낱말: ${words.join(' · ') || '-'}`, '', '## 다음 소재 후보 3',
+    `- 반복 낱말: ${words.join(' · ') || '-'}`,
+    `- 지배 감정: ${Object.entries(vids.reduce((m, v) => { const d = v.analysis?.emotion?.dominant; if (d) m[d] = (m[d] || 0) + 1; return m; }, {})).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${n}편`).join(' · ') || '-'}`,
+    '', '## 결합 요소 후보',
+    ...vids.flatMap((v) => (v.analysis?.combo || []).map((c) => ({ ...c, from: v.title, likes: Math.max(0, ...(c.evidence || []).map((e) => +e.likes || 0)) })))
+      .sort((a, b) => b.likes - a.likes).slice(0, 3)
+      .map((c, i) => `${i + 1}. ${(c.elements || []).join(' × ')} — ${c.why || ''} (근거 ${(c.evidence || []).map((e) => `«${String(e.comment).slice(0, 40)}» ♥${e.likes}`).join(' · ')}, 출처 «${c.from.slice(0, 30)}»)`),
+    '', '## 다음 소재 후보 3',
     ...topics.map((t, i) => `${i + 1}. ${t.topic} — ${t.why || ''} (근거 ${(t.evidence || []).map((e) => `«${String(e.comment).slice(0, 40)}» ♥${e.likes}`).join(' · ')}, 출처 «${t.from.slice(0, 30)}»)`),
-    '', '## 편별', '| 편 | 조회 | 댓글 | 최다 유형 | 예상(expected_comment) | 일치 | 반복 낱말 |', '|---|---|---|---|---|---|---|',
-    ...vids.map((v) => `| ${v.title.slice(0, 28)} | ${v.views.toLocaleString()} | ${v.mined}/${v.comments} | ${v.top_type || '-'} | ${v.expected || '-'} | ${v.expected_match == null ? '-' : v.expected_match ? 'O' : 'X'} | ${v.repeated.slice(0, 4).join(' ')} |`), ''];
+    '', '## 편별', '| 편 | 조회 | 좋아요 | 댓글 | 최다 유형 | 지배 감정 | 예상(expected_comment) | 일치 | 좋아요 1위 댓글 | 답글 1위 댓글 | 반복 낱말 |', '|---|---|---|---|---|---|---|---|---|---|---|',
+    ...vids.map((v) => `| ${v.title.slice(0, 28)} | ${v.views.toLocaleString()} | ${(v.likes || 0).toLocaleString()} | ${v.mined}/${v.comments} | ${v.top_type || '-'} | ${v.analysis?.emotion?.dominant || '-'} | ${v.expected || '-'} | ${v.expected_match == null ? '-' : v.expected_match ? 'O' : 'X'} | ${v.top_liked?.[0] ? `«${v.top_liked[0].text.slice(0, 24).replace(/\|/g, '/')}» ♥${v.top_liked[0].likes}` : '-'} | ${v.top_replied?.[0] ? `«${v.top_replied[0].text.slice(0, 24).replace(/\|/g, '/')}» 답${v.top_replied[0].replies}` : '-'} | ${v.repeated.slice(0, 4).join(' ')} |`), ''];
   return L.join('\n');
 }
 
@@ -231,7 +243,7 @@ ${list(cb, 60) || '(댓글 0)'}`, `vs_${a}_${b}`);
   return res;
 }
 
-module.exports = { fetchComments, mineVideo, repeatedWords, expectedFor, TYPES };
+module.exports = { fetchComments, mineVideo, repeatedWords, expectedFor, summaryMd, TYPES };
 
 if (require.main === module) {
   (async () => {

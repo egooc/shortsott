@@ -107,8 +107,8 @@ function split(rows, at = STAY_SPLIT) {
 
 function md(rows, { api }) {
   const L = [`# 쇼츠 후킹 비교표 (${stamp()}) — 본 비율 ${STAY_SPLIT}% 기준`, ''];
-  const row = (r) => `| ${r.lane} | ${r.id} | ${r.videoId} | ${r.stay_ratio ?? '—'} | ${r.avp ?? '—'} | ${(r.first_sentence || '—').replace(/\|/g, '/')} | ${(r.first_scene || '—').replace(/\|/g, '/')} |`;
-  const head = ['| 레인 | 편 | 영상 | 본 비율% | AVP% | 첫 문장 | 첫 장면(1초) |', '|---|---|---|---|---|---|---|'];
+  const row = (r) => `| ${r.lane} | ${r.id} | ${r.videoId} | ${r.stay_ratio ?? '—'} | ${r.avp ?? '—'} | ${r.likes ?? '—'} | ${r.comments ?? '—'} | ${r.shares ?? '—'} | ${(r.first_sentence || '—').replace(/\|/g, '/')} | ${(r.first_scene || '—').replace(/\|/g, '/')} |`;
+  const head = ['| 레인 | 편 | 영상 | 본 비율% | AVP% | 좋아요 | 댓글 | 공유 | 첫 문장 | 첫 장면(1초) |', '|---|---|---|---|---|---|---|---|---|---|'];
   if (!api) { L.push('_수치 없음(--api 안 줌) — 로컬 칸만 점검_', '', ...head, ...rows.map(row)); return L.join('\n') + '\n'; }
   const g = split(rows);
   for (const [k, t] of [['high', `${STAY_SPLIT}% 이상`], ['low', `${STAY_SPLIT}% 미만`], ['none', '집계 없음']]) {
@@ -130,7 +130,7 @@ async function build({ lanes, days = 30, api = false, gpt = true, limit = Infini
     for (const lane of [...new Set(rows.map((r) => r.lane))]) {
       const mine = rows.filter((r) => r.lane === lane);
       try {
-        for (const s of await shortsStay(mine.map((r) => r.videoId), { purpose: LANES[lane].purpose })) Object.assign(mine.find((r) => r.videoId === s.id) || {}, { stay_ratio: s.stay_ratio, avp: s.avp, views: s.views });
+        for (const s of await shortsStay(mine.map((r) => r.videoId), { purpose: LANES[lane].purpose })) Object.assign(mine.find((r) => r.videoId === s.id) || {}, { stay_ratio: s.stay_ratio, avp: s.avp, views: s.views, likes: s.likes, comments: s.comments, shares: s.shares });
       } catch (e) {
         if (e.stop) throw e;   // 403·429 는 그 자리에서 멈춘다(우회 금지)
         mine.forEach((r) => { r.api_error = e.message.slice(0, 120); });
