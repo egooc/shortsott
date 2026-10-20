@@ -45,5 +45,13 @@ try:
         with open('D:/midform/server/data/production_ledger.jsonl', 'a', encoding='utf-8') as f:
             f.write(json.dumps(rec, ensure_ascii=False) + '\n')
 finally:
+    # 하이퍼프레임 임시 폴더(%TEMP%/hf-render-*)는 렌더가 끝나도 남아 C: 를 채웠다(10-20 0.7GB 사고) — 이 렌더 동안 만들어진 것만 지운다
+    import shutil, tempfile
+    for d in Path(tempfile.gettempdir()).glob('hf-render-*'):
+        try:
+            if d.is_dir() and d.stat().st_ctime >= T0 - 5:
+                shutil.rmtree(d, ignore_errors=True)
+        except OSError:
+            pass
     LOCK.unlink(missing_ok=True)
 sys.exit(rc)
