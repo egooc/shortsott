@@ -89,6 +89,16 @@ const M = JSON.parse(fs.readFileSync(meta, 'utf8'));
   }
   console.log(`✓ 기획 게이트 통과 — 대리만족 «${S.vicarious}» · 훅 ${h.visual} / ${h.audio} / ${h.text} · 제목 ${tp.pattern}·«${tp.key}» ${len}자`);
 }
+// 원고 점검(10/21 관리자 검수 «팬튜브 script_audit 미연결»): 공용 scripts/script_audit.py --kind shorts 를 spec 그대로.
+// 경고형은 통과, 0이 아니면(검사 불가 5 포함) 업로드 금지. 옛 A틀 spec(ep03~15, segments/captions)은 못 읽는다 — B틀(voice·caps)만 대상.
+{
+  const sa = spawnSync('python', [path.join(ROOT, 'scripts', 'script_audit.py'), path.join('D:/volcano-runs/fantube', ep, 'spec.json'), '--lane', 'fantube', '--kind', 'shorts'], { encoding: 'utf8', env: { ...process.env, PYTHONIOENCODING: 'utf-8' } });
+  process.stdout.write(sa.stdout || ''); process.stderr.write(sa.stderr || '');
+  if (sa.status !== 0) {
+    console.error(`[publish] ★FAIL 원고 점검 — script_audit exit ${sa.status}${sa.status === 5 ? '(검사 불가)' : ''}. 업로드 안 함.`);
+    process.exit(5);
+  }
+}
 // 제목 점검(10/20 관리자, 공용 scripts/title_check.py 055f18a) — 경고도 FAIL(--fail-on-warn), 4·5 업로드 금지.
 {
   const tc = spawnSync('python', [path.join(ROOT, 'scripts', 'title_check.py'), meta, '--lane', 'fantube', '--fail-on-warn'], { encoding: 'utf8', env: { ...process.env, PYTHONIOENCODING: 'utf-8' } });
