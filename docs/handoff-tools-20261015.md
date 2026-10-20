@@ -110,3 +110,4 @@
 - ★10-20 ref_overlap.py 공용화(915c830): scripts/ref_overlap.py + config/ref_overlap.json. 연금 폴더만 있음 — 기업은 가이드 2차 자막으로 reference/ko_corp/corp_refs/transcripts 채움, 정치 ko·JA는 각 세션이 경쟁 해설 전사를 채울 때까지 종료 5(검사 불가). 렌더러 연결은 각 레인(호출 한 줄).
 - ★10-20 에보링크 5초 시험 보류: 릴스 Kling 3.0 모션 컨트롤 시험이 HTTP 402(잔액 부족) → 소유주 충전 확인 전엔 건너뛰고 다음 항목. 할 때는 reels/tools/evolink_motion.py import(업로드→kling-v3-motion-control→결과, 파일 서버는 파이썬 기본 UA를 403 → UA 헤더 필수). 다른 키·계정 금지.
 - ★10-20 title_check 요구 추가(③ 안에서): 위험 행위(끓는 물·불·칼로 …) + 신체 대상(손·얼굴·아이 …) 2항 조합, «~했더니» 결과 유도와 겹치면 WARN(BLOCK 아님), 로그에 조합 종류 기록. 근거: 롱투숏 ls11 «펄펄 끓는 물에 손 넣었더니»(10-18 08시) 화면·출처 경고 없이 조회 1·피드 0 — 실측 1건. 대상: 롱투숏·팬튜브·N100 쇼츠 제목. 판정 낱말은 guide_words.json 에 넣어 한 곳에서(동물 범주처럼 objects×actions).
+- ★10-20 comment_hook.py 공용 댓글 장치 관문(a4856bc) — 쇼핑·린박스·팬튜브·정치 ko·롱투숏에 import 전환 안내 보냄. 미결: 린박스 type(질문·단정) 통일 여부 관리자 답 대기.
