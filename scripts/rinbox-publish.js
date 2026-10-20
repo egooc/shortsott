@@ -261,6 +261,31 @@ function guideGate(mp4, meta) {
   }
 }
 
+// 댓글 장치 관문(2026-10-20 소유주 질책 «댓글 반응을 노리는 원고를 쓰기로 했는데 반영이 안 됐다»).
+// 10-19 에 plan.expected_comment 를 «예상 댓글 유형» 메모로만 적고 원고엔 장치 문장이 없었다(133ja).
+// 이제 plan.expected_comment = {type, line, at_sec} 가 있어야 하고, line 이 실제 화면 자막(cap.ass)에 박혀 있어야 한다.
+// type: 질문(끝 한 줄 질문) · 단정(반박 가능한 단정) · 훈수(훈수 유도) · 경험담(경험담 요청).
+const COMMENT_TYPES = ['질문', '단정', '훈수', '경험담'];
+function commentGate(mp4) {
+  const plan = [path.join(path.dirname(mp4), '..', 'plan_local.json'), path.join(path.dirname(mp4), 'plan_local.json')].find((p) => fs.existsSync(p));
+  if (!plan) return ['plan_local.json 이 없다 — 댓글 장치를 확인할 수 없다'];
+  const ec = readJson(plan, {}).expected_comment;
+  if (!ec || typeof ec !== 'object' || Array.isArray(ec)) return ['plan.expected_comment 가 {type, line, at_sec} 객체가 아니다(메모 문자열은 안 된다)'];
+  const bad = [];
+  if (!COMMENT_TYPES.includes(ec.type)) bad.push(`expected_comment.type «${ec.type}» — ${COMMENT_TYPES.join('·')} 중 하나`);
+  if (!String(ec.line || '').trim()) bad.push('expected_comment.line 이 비었다 — 원고에 넣은 장치 문장을 그대로 적어라');
+  if (!Number.isFinite(Number(ec.at_sec))) bad.push('expected_comment.at_sec 가 숫자가 아니다');
+  // ★해설은 음성으로만 나간다(cap.ass 엔 대사 자막뿐) — 장치 문장은 plan 해설 칸(TTS 원문) 또는 대사 자막에서 찾는다.
+  const p = readJson(plan, {});
+  const squash = (s) => String(s).replace(/\|.*$/, '').replace(/[\s、。・…!?！？「」]/g, '');
+  const said = (p.narration || []).map((n) => (n.cards || []).map(squash).join(''))
+    .concat((p.sequence || []).map((s) => (s.captions || []).map((c) => squash(String(c).split('|').pop())).join('')));
+  if (ec.line && !said.some((t) => t.includes(squash(ec.line)))) {
+    bad.push(`장치 문장 «${ec.line}» 이 원고(해설 칸·대사 자막)에 없다 — 원고에 넣고 다시 렌더`);
+  }
+  return bad;
+}
+
 function cmdApprove(mp4Arg, revoke) {
   const { mp4, meta } = loadTarget(mp4Arg);
   const hash = sha256File(mp4);
@@ -288,6 +313,9 @@ function cmdApprove(mp4Arg, revoke) {
   }
   const gw = guideGate(mp4, meta);
   if (gw.length) { console.log(gw.map((l) => `  ✗ ${l}`).join('\n')); throw new Error('가이드라인 관문에서 막혔다 — 행위 낱말을 빼고 «정체·반전» 틀로 다시 쓴 뒤 승인'); }
+  const cw = commentGate(mp4);
+  if (cw.length) { console.log(cw.map((l) => `  ✗ 댓글 장치: ${l}`).join('\n')); throw new Error('댓글 장치 관문에서 막혔다 — 원고 끝 한 줄에 장치 문장을 넣고 plan.expected_comment={type,line,at_sec}'); }
+  console.log('댓글 장치 관문 · 통과');
   // 화면 검사(2026-10-09) — 렌더러가 남긴 screen.txt 가 FAIL 이면 승인하지 않는다(덧칠 글자·깜빡이는 샷 조각).
   const screen = path.join(path.dirname(mp4), 'screen.txt');
   if (plan && fs.existsSync(screen)) {
@@ -498,6 +526,9 @@ async function cmdPublish(mp4Arg, args) {
   const gwp = guideGate(mp4, meta);
   if (gwp.length) throw new Error(`가이드라인 관문: ${gwp.join(' / ')} — 발행 중단`);
   lines.push('- 가이드라인 관문 통과');
+  const cwp = commentGate(mp4);
+  if (cwp.length) throw new Error(`댓글 장치 관문: ${cwp.join(' / ')} — 발행 중단`);
+  lines.push('- 댓글 장치 관문 통과');
   if (!(meta.tags || []).length) throw new Error('사이드카에 tags 가 없다 — 태그 0개로는 올리지 않는다');
   const profile = profileByPurpose(PURPOSE[locale]);
   if (!profile) throw new Error(`${locale} 업로드 프로필(${PURPOSE[locale]})이 연결돼 있지 않다`);
