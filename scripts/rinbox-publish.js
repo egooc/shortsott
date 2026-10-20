@@ -318,6 +318,26 @@ function titleGate(mp4, meta) {
   }
 }
 
+// 태그 관문(2026-10-20 관리자 adoption_check · 공용 tag_gate.py 35d6266, 카이안 K6) — 제목·설명 두 줄·태그 공통 낱말 ≥2,
+// 태그의 원고 일치 ≥50%. --fail-on-warn 이라 4·5 모두 승인·발행 ✗.
+// 첫 3초 훅(같은 날 지시) — plan.hook={visual(0~3초 센 컷), audio(첫 소리: 원음 한마디·효과음), text(상단 문구)} 셋 다 있어야 한다.
+function tagHookGate(mp4) {
+  const bad = [];
+  const planPath = [path.join(path.dirname(mp4), '..', 'plan_local.json'), path.join(path.dirname(mp4), 'plan_local.json')].find((p) => fs.existsSync(p));
+  const hook = planPath ? readJson(planPath, {}).hook : null;
+  if (!hook || typeof hook !== 'object') bad.push('plan.hook={visual, audio, text} 가 없다');
+  else for (const k of ['visual', 'audio', 'text']) if (!String(hook[k] || '').trim()) bad.push(`plan.hook.${k} 가 비었다`);
+  try {
+    execFileSync('python', ['-I', '-X', 'utf8', path.join(__dirname, 'tag_gate.py'), `${mp4}.rinbox.json`, '--fail-on-warn'],
+      { encoding: 'utf8', env: { ...process.env, PYTHONIOENCODING: 'utf-8' } });
+  } catch (e) {
+    const out = String(e.stdout || '').split(/\r?\n/).filter((l) => /^\s+△/.test(l)).map((l) => `태그: ${l.trim()}`);
+    if (e.status === 4 && out.length) bad.push(...out);
+    else bad.push(`태그 검사 불가(종료 ${e.status}) — 통과 아님: ${out[0] || String(e.stderr || e.stdout || e.message).trim().split(/\r?\n/).pop()}`);
+  }
+  return bad;
+}
+
 function cmdApprove(mp4Arg, revoke) {
   const { mp4, meta } = loadTarget(mp4Arg);
   const hash = sha256File(mp4);
@@ -354,6 +374,9 @@ function cmdApprove(mp4Arg, revoke) {
   const tw = titleGate(mp4, meta);
   if (tw.length) { console.log(tw.map((l) => `  ✗ 제목: ${l}`).join('\n')); throw new Error('제목 관문에서 막혔다 — 10패턴 중 하나로 고치고 plan.title_pattern 을 적어라'); }
   console.log('제목 관문 · 통과');
+  const hw = tagHookGate(mp4);
+  if (hw.length) { console.log(hw.map((l) => `  ✗ ${l}`).join('\n')); throw new Error('태그·훅 관문에서 막혔다 — 제목·설명·태그 공통 낱말 2개·plan.hook 세 칸'); }
+  console.log('태그·훅 관문 · 통과');
   // 화면 검사(2026-10-09) — 렌더러가 남긴 screen.txt 가 FAIL 이면 승인하지 않는다(덧칠 글자·깜빡이는 샷 조각).
   const screen = path.join(path.dirname(mp4), 'screen.txt');
   if (plan && fs.existsSync(screen)) {
@@ -577,6 +600,9 @@ async function cmdPublish(mp4Arg, args) {
   const twp = titleGate(mp4, meta);
   if (twp.length) throw new Error(`제목 관문: ${twp.join(' / ')} — 발행 중단`);
   lines.push('- 제목 관문 통과');
+  const hwp = tagHookGate(mp4);
+  if (hwp.length) throw new Error(`태그·훅 관문: ${hwp.join(' / ')} — 발행 중단`);
+  lines.push('- 태그·훅 관문 통과');
   if (!(meta.tags || []).length) throw new Error('사이드카에 tags 가 없다 — 태그 0개로는 올리지 않는다');
   const profile = profileByPurpose(PURPOSE[locale]);
   if (!profile) throw new Error(`${locale} 업로드 프로필(${PURPOSE[locale]})이 연결돼 있지 않다`);
