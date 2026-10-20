@@ -251,6 +251,19 @@ async function retentionSection() {
     await sec('7. 태그 점검 (최근 2일 공개·예약분, 0개면 ⚠)', tagsSection), '',
     await sec('8. 포장 경고·자동 교체 (롱폼 공개 +4h·+8h·+12h·+24h·매일 조회, 바닥 미달이면 다음 포장)', packagingSection), '',
     await sec('9. 롱폼 지속 곡선 (최근 7일 점검 편, Analytics 읽기 전용)', retentionSection), '',
+    await sec('11. 게이트 실패·검사 불가 장부 (gate_errors.jsonl, 보고일·당일)', async () => {
+      // «게이트는 실패하면 소리 낸다»(10-20): 종료 5(검사 불가)·팬아웃 실패·쿼터 중지 등 장부를 게이트별로 센다. 조용한 실패가 여기 드러나야 한다.
+      const f = path.join(ROOT, 'server/data/gate_errors.jsonl');
+      const rows = fs.existsSync(f) ? fs.readFileSync(f, 'utf8').split('\n').filter(Boolean).map((l) => { try { return JSON.parse(l); } catch (_) { return null; } }).filter(Boolean) : [];
+      const today = kstDate(Date.now());
+      const win = rows.filter((r) => { const d = kstDate(Date.parse(r.at)); return d === DATE || d === today; });
+      if (!win.length) return `기록 없음(${DATE}·${today}).`;
+      const by = {};
+      for (const r of win) { const k = `${r.gate || '?'}|${r.lane || '-'}`; (by[k] = by[k] || { n: 0, last: r }).n++; if (Date.parse(r.at) > Date.parse(by[k].last.at)) by[k].last = r; }
+      const out = [`**${win.length}건** — 게이트별`, '', '| 게이트 | 레인 | 건수 | 마지막 | 마지막 사유 |', '|---|---|---|---|---|'];
+      for (const [k, v] of Object.entries(by).sort((a, b) => b[1].n - a[1].n)) { const [g, l] = k.split('|'); out.push(`| ${g} | ${l} | ${v.n} | ${String(v.last.at).slice(5, 16)} | ${String(v.last.error || v.last.reason || v.last.msg || '').slice(0, 70)} |`); }
+      return out.join('\n');
+    }), '',
     await sec('10. 자료 반영 실측 (레인 게이트의 공용 도구 호출·최신 제작물 필수 필드 — 도구개발 adoption_check)', async () => {
       const a = require('./adoption_check'); let md = a.md(a.check()).replace(/^## [^\n]*\n\n?/, '');
       // 최장 클립(도구개발 clip_len, devo V6 — 임계·범위는 §5 60 소유주 결정 전까지 측정만)
