@@ -92,6 +92,11 @@ async function add(files) {
   for (const f of files) {
     const meta = path.resolve(f);
     if (q.items.some((i) => i.meta === meta)) { console.log(`  건너뜀(이미 대기열) ${path.basename(meta)}`); continue; }
+    // 댓글 장치 관문(10/20 소유주 질책) — expected_comment·comment_question 이 없으면 쇼핑 채널엔 올리지 않는다
+    if (PURPOSE === 'shopping') {
+      const errs = require('./shop_comment_check').check(meta);
+      if (errs.length) { console.log(`  ✗✗✗ 업로드 금지(댓글 장치 FAIL) ${path.basename(meta)}: ${errs.join(' / ')}`); continue; }
+    }
     // channel.json 의 startAt 이전 슬롯은 쓰지 않는다(2026-10-06 소유주: 새 채널은 «내일부터» — 첫 실행이 당일 18:00 을 잡았다)
     const startAt = Date.parse((fs.existsSync(CHANNEL_FILE) && JSON.parse(fs.readFileSync(CHANNEL_FILE, 'utf8')).startAt) || 0) || 0;
     const slot = slotsFrom(new Date()).find((t) => !taken.has(t.toISOString()) && t.getTime() >= startAt);
@@ -160,6 +165,10 @@ async function comments() {
     const meta = JSON.parse(fs.readFileSync(i.meta, 'utf8'));
     // 플랫폼별 링크 분리(10/17 소유주 «링크 구조 분할 진행»): 고정 댓글의 쿠팡 링크는 subId yt 판으로 — 리포트에서 유튜브 댓글 경로를 따로 본다
     let text = meta.pinned_comment;
+    // 댓글 장치 질문을 첫 줄에(10/20) — 링크·고지보다 먼저 보이게
+    if (meta.comment_question) text = `${meta.comment_question}
+
+${text}`;
     if (meta.affiliate_link && text.includes(meta.affiliate_link)) {
       const yt = await require('./shop_fanout').subLink(meta, 'yt').catch(() => '');
       if (yt) text = text.split(meta.affiliate_link).join(yt);

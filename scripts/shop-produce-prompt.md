@@ -105,6 +105,12 @@
   - 제목(메타 title): 10패턴 중 하나(~했더니 / 벌어진 일 / 최후 / 이유 / 저격 / 숫자 / 금지(«~하지 마세요») / ㅋㅋ …), 앞 10자에 핵심, 해시태그 뺀 본문 15자 안팎, 결과는 숨긴다.
   - 도구개발이 `title_check`·문장 길이 검사 함수를 만들어 공유 목록에 올리면 그걸 import 해서 돌린다(없으면 눈으로).
   - 보고서 한 줄: «6단 ①~⑥ ○/× · 반박 선제: <질문> · 사회적 증거 출처: <URL 또는 없음> · 문장 길이 편차: <최단~최장 글자> · 결말 어미: <…>».
+- ★댓글 장치(10/20 소유주 질책 «시청자 댓글 반응을 노리는 원고를 쓰기로 했는데 반영이 안 됐다» — 10/19 하늘구름땅바람·큰제로 칼럼의 댓글 시뮬레이션·열린 결말): 원고 구조에 «댓글 장치» 칸을 둔다. CTA 바로 앞(또는 마지막 두 문장 안)에 시청자가 댓글로 받아칠 문장을 **한 개 이상** 넣고, **다음 문장에서 답하지 않는다**(ffref17·19·20 의 «~냐고요?»는 바로 답해 버려 댓글이 할 말이 없었다 — 그건 반박 선제지 댓글 장치가 아니다).
+  - 유형 다섯 중 하나: 정정(살짝 틀릴 수 있는 단정 «~가 제일 낫대요» — 단 사실 범위 안, 거짓 금지) / 경험담(«여러분은 몇 번 써 보셨어요» 류 질문) / 훈수(«더 좋은 방법 아는 분» 류 질문) / 공감(«솔 통 씻기 싫은 거 나만 그래요» 류 질문) / 논쟁(«키친타올파 vs 행주파»).
+  - 어미는 열린 결말(«~일 듯»·«~아님?»은 반말이라 해요체로 «~일 것 같아요»·«~ 아닐까요?»).
+  - 다 쓴 뒤 댓글 시뮬레이션: 그 문장에 달릴 댓글 3개를 머릿속으로 써 본다. 셋 다 «ㅇㅇ»·«링크요» 수준이면 문장을 다시 쓴다.
+  - 고정 댓글 첫 줄 질문 `comment_question` 도 같은 유형으로 한 줄(물음표 필수). 링크 줄은 그 아래에 자동으로 붙는다.
+  - 보고서 한 줄: «댓글 장치: <유형> · "<문장>" · <몇 초> · 고정 댓글 질문: "<질문>" · 시뮬레이션 댓글 3개 요약».
 - 첫 3초·첫 줄(10/19 관리자 전달, 전 레인 공통): 첫 3초는 How(방법)가 아니라 Why·결과 먼저 — «이렇게 하세요»가 아니라 «이게 왜 이렇게 됐을까»·«이렇게 돼 버려요». 첫 줄 인사(«안녕하세요»·«여러분») 금지.
 
 ## 6. 렌더 + 눈 검사
@@ -115,7 +121,7 @@
 ## 7. 등록
 1. 인포크 번호: 메타를 먼저 쓴 뒤(3번) 인포크용 링크를 만든다 `cd D:/midform && node scripts/shop_fanout.js sublink D:/volcano-runs/_upload/<이름>.json inpock` → 나온 링크로 `node scripts/inpock_add.js --key <이름> --url <그 링크> --title "<짧은 상품명>" --image <wd>/cp_img.jpg` (10/17 소유주 «링크 구조 분할»: 인포크 경로는 subId inpock, 메타 affiliate_link 는 기본 링크 그대로)
 2. 다른 판: `cd <wd> && python D:/midform/scripts/shop_social_plan.py <wd> && python D:/midform/scripts/ff_render.py plan_social.json --out <이름>_social.mp4 > render_social.log 2>&1 && python D:/midform/scripts/ff_render.py plan_ig.json --out <이름>_ig.mp4 > render_ig.log 2>&1` — 두 판 끝 3초를 시트로 확인.
-3. 메타 `D:/volcano-runs/_upload/<이름>.json` — `ffref03.json` 과 같은 키(file=_ff.mp4, title "<결과/의문> #상품군 #살림팁류", description, pinned_comment, affiliate_link, product, categoryId 26, defaultLanguage ko, content_type growth, remake_of). JSON 은 node `JSON.stringify(x,null,2)` + `fs.writeFileSync(..., 'utf8')` 로만 쓴다.
+3. 메타 `D:/volcano-runs/_upload/<이름>.json` — `ffref03.json` 과 같은 키(file=_ff.mp4, title "<결과/의문> #상품군 #살림팁류", description, pinned_comment, affiliate_link, product, categoryId 26, defaultLanguage ko, content_type growth, remake_of, **expected_comment `{"type":"<정정|경험담|훈수|공감|논쟁>","line":"<원고 문장 그대로>","at_sec":<최종 _ff.mp4 에서 그 문장이 시작하는 초 — ff 렌더 직후·다른 판 렌더 전에 <wd>/_ff/cap.ass 의 Dialogue 시각을 적어 둔다(다른 판 렌더가 덮어쓴다)>}`, comment_question**). 메타를 쓴 직후 `cd D:/midform && node scripts/shop_comment_check.js D:/volcano-runs/_upload/<이름>.json` — 종료 코드 4(«댓글 장치 FAIL») 면 원고·메타를 고쳐 통과할 때까지. 통과 못 하면 재고에 넣지 않는다(fill 도 같은 검사로 업로드를 막는다). JSON 은 node `JSON.stringify(x,null,2)` + `fs.writeFileSync(..., 'utf8')` 로만 쓴다.
    - 설명란 끝 출처: 일본·영미권 소스만 `@핸들` 한 줄씩. **중국 소스(더우인·샤오홍슈·콰이쇼우·중국 계정)는 적지 않는다.**
 4. 재고 등록: `stock_new_channel.json` 의 `ready` 끝에 `"<이름>.json"` 추가(node 로 읽고 써라). 예약은 07:20 fill 이 한다 — 여기서 `shop_schedule add` 를 부르지 마라.
 5. 제작 장부(관리자 07:40 성과 보고용, 규격 `D:/midform/docs/production-ledger.md`): 편마다 한 줄을 node `fs.appendFileSync('D:/midform/server/data/production_ledger.jsonl', JSON.stringify(rec)+'\n','utf8')` 로만 덧붙인다.
