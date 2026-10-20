@@ -17,6 +17,8 @@ assert len(W['ko']['categories']) == 9 and len(W['ja']['categories']) == 9   # 7
 assert any(c == '정치·군사·전복' for c, _ in G.hits('청해부대 파병, 사령관이 말했다', 'ko', W=W))
 assert not any(c == '정치·군사·전복' for c, _ in G.hits('핵심만 정리한 전복 요리', 'ko', W=W))   # 핵·전복 단독은 안 잡는다
 assert any(c == '政治・軍事・転覆' for c, _ in G.hits('クーデター未遂', 'ja', W=W)) and not G.hits('核心をつく', 'ja', W=W)
+assert not G.hits('부피가 큰 상자', 'ko', W=W) and not G.hits('총으로 뭘 하겠다는 거야', 'ko', W=W)   # N100 오탐 2건(10-20.2)
+assert any(c == '총기' for c, _ in G.hits('총으로 쏘았다', 'ko', W=W))
 cats = lambda t, lang='ko', lane=None: [c for c, _ in G.hits(t, lang, lane, W)]
 assert cats('펄펄 끓는 물에 손 넣었더니') == ['위험 행위']
 assert cats('끓는 물의 정체') == []                       # 대상만 있으면 안 걸림
