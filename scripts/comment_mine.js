@@ -20,7 +20,7 @@ const OUT = path.join(ROOT, 'server', 'data', 'comment_mine');
 const LEDGER = path.join(ROOT, 'server', 'data', 'gate_errors.jsonl');
 const PROD = path.join(ROOT, 'server', 'data', 'production_ledger.jsonl');
 const RUNS = 'D:/volcano-runs';
-const TYPES = ['정정', '경험담', '훈수', '공감', '논쟁'];
+const TYPES = ['정정', '경험담', '훈수', '공감', '논쟁', '위험성 경고'];   // comment_hook TYPES 와 같게(10-21 G19)
 const DAY_CAP = 300;
 // 우리 채널(youtube_upload_profiles 의 channelId) — purpose → 레인 이름. 쓸모연구소(shopping) 제외.
 const OURS = [

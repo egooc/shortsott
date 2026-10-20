@@ -110,7 +110,7 @@ def api_feed(c, shorts=False, n=30, key=None, units=None):
             if (sec <= 60) != shorts:
                 continue
             at = datetime.fromisoformat(v['snippet']['publishedAt'].replace('Z', '+00:00')).astimezone(KST)
-            out.append({'id': v['id'], 'at': at.isoformat(), 'hour': at.hour, 'wd': '월화수목금토일'[at.weekday()],
+            out.append({'id': v['id'], 'at_utc': v['snippet']['publishedAt'], 'at': at.isoformat(), 'hour': at.hour, 'wd': '월화수목금토일'[at.weekday()],
                         'views': int(v['statistics'].get('viewCount', 0)), 'sec': sec})
     out.sort(key=lambda r: r['at'], reverse=True)
     return name, out[:n]
@@ -167,9 +167,9 @@ def main(argv=None):
         for r in rows:
             hw[r['hour']] += r.get('views', 0)
         sg = suggest(hw) if use_api else None
-        res[lane] = {'channels': names, 'n': len(rows), 'hours': dict(sorted(h.items())), 'top': top, 'videos': rows,
+        res[lane] = {'tz': 'KST(UTC+9) — publishedAt(UTC)에 +9시간 변환(G9)', 'channels': names, 'n': len(rows), 'hours': dict(sorted(h.items())), 'top': top, 'videos': rows,
                      'views_by_hour': dict(sorted(hw.items())) if use_api else None, 'suggest': sg, 'ours': slots.get(lane)}
-        print(f'{lane} · {" + ".join(names)} · {len(rows)}편 · 최빈 시각 ' + ', '.join(f'{k:02d}시 {n}편' for k, n in top))
+        print(f'{lane} · {" + ".join(names)} · {len(rows)}편 · 최빈 시각(KST=UTC+9) ' + ', '.join(f'{k:02d}시 {n}편' for k, n in top))
         print('   편수   ' + ' '.join(f'{k:02d}:{h[k]}' for k in range(24) if h[k]))
         if use_api:
             tot = sum(hw.values()) or 1
