@@ -43,6 +43,12 @@ with tempfile.TemporaryDirectory() as t:
     assert tc.main([str(s), '--lane', 'longshort', '--fail-on-warn']) == 4
     rec = json.loads(tc.LOG.read_text(encoding='utf-8').splitlines()[0])
     assert 'title_pattern' in rec['codes'] and rec['combo'].startswith('위험 행위×신체 대상'), rec
+    pk = t / 'packages.json'   # packages.json 은 desc_head(설명 첫 두 줄)로 풀이를 본다
+    pk.write_text(json.dumps({'packages': [{'title': '전작권 넘겨받으면 뭐가 달라지나', 'desc_head': ['전시작전권을 돌려받는다는 뜻입니다.', '둘째 줄']}]},
+                             ensure_ascii=False), encoding='utf-8')
+    jf = t / 'j.json'
+    jf.write_text(json.dumps(J, ensure_ascii=False), encoding='utf-8')
+    assert tc.main([str(pk), '--kind', 'long', '--jargon', str(jf), '--fail-on-warn']) == 0
     assert tc.main([str(t / 'nope.json')]) == 5
     assert tc.LEDGER.exists()
 print('OK')

@@ -163,7 +163,9 @@ def titles_from(arg):
     out = []
     if 'packages' in d:
         for i, k in enumerate(d['packages']):
-            out.append((f'{p.name} {i}번', k.get('title', ''), k.get('description', ''), kws, None))
+            # 포장 표준(packages_gate FIELDS)은 desc_head(설명 첫 두 줄 목록) — description 이 없으면 그것을 쓴다(기업 10-20)
+            desc = k.get('description') or '\n'.join(map(str, k.get('desc_head') or []))
+            out.append((f'{p.name} {i}번', k.get('title', ''), desc, kws, None))
     top = d.get('top') if isinstance(d.get('top'), dict) else None
     title = d.get('title') or (f"{top.get('l1', '')} {top.get('l2', '')}".strip() if top else '')
     if isinstance(title, list) and all(isinstance(x, str) for x in title):   # 화면 제목 두 줄(롱투숏 plan.title) → 한 제목
