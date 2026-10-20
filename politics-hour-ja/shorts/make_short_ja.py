@@ -164,66 +164,89 @@ def main(plan_path, sid, out=None):
                       'hook_seconds': hook['dur'], 'loudnorm': loud}, ensure_ascii=False))
 
 
-WIN_Y, WIN_H = 190, 1440            # 클로즈업 창 3:4(1080x1440) — 레퍼런스 @baroboja
-CAP_Y = 1745                         # 큰 자막 한 줄(창 아래 검은 띠)
+# 3단 클로즈업(발굴 카드 docs/category-cards/2026-10-20-politics-shorts-style-baroboja.md): 위 27% 두 줄 화면 제목 · 가운데 45% 얼굴 확대 · 아래 28% 비움
+BAND_Y, BAND_H = 518, 864            # 1920 의 27%~72%
+T_LINES = (300, 440)                 # 화면 제목 두 줄(높이 12~26%, 글자 높이 ≈ 6%)
+SUB_Y = 1250                         # 말 자막 한 줄(높이 약 65%, 영상 띠 아래쪽)
+TAG_SEC = 3.0                        # 첫 3초 이름 꼬리표
 
 
-def close_crop(src, a, dur, cut=0.0):
-    """인물 상자(ko person_side) → 3:4 클로즈업 crop 식. 얼굴 폭 ≈ 화면 60%, 눈높이 = 창 위 1/3, 아래 방송 자막 띠(cut)는 안 들어오게."""
+def close_crop(src, a, dur, cut=.17, ow=W, oh=BAND_H, face=.28):
+    """인물 상자(ko person_side) → crop 식. 얼굴 폭 = 출력 폭의 face 비율(단독 .28·분할 반쪽은 .40 ≈ 화면 폭 20%),
+    눈높이 = 띠 위 1/5, 방송 자막 띠(아래 cut 비율)는 안 들어오게."""
     x0, y0, x1, y1 = R.person_side(ROOT / src, a, a + dur)['person']
-    cw = min(.42, max(.18, (x1 - x0) * .75))          # 원본 폭 비율
-    ch = cw * (16 / 9) * (WIN_H / W)                   # 같은 비율의 높이(원본 높이 비율)
-    eye = y0 + cw * (16 / 9) * .30                     # 머리 위 + 얼굴 높이 절반쯤
-    top = min(max(0.0, eye - ch / 3), max(0.0, 1 - cut - ch))
+    fw = (x1 - x0) * .38                                # 원본 폭 비율의 얼굴 폭(어깨 위 상자 기준 근사)
+    cw = min(.9, max(.12, fw / (face * W / ow)))       # 출력에서 얼굴이 face 비율이 되도록
+    ch = cw * (16 / 9) * (oh / ow)
+    if ch > 1 - cut:
+        ch = 1 - cut; cw = ch / ((16 / 9) * (oh / ow))
+    eye = y0 + fw * (16 / 9) * .6
+    top = min(max(0.0, eye - ch * .22), max(0.0, 1 - cut - ch))
     left = min(max(0.0, (x0 + x1) / 2 - cw / 2), 1 - cw)
-    return f'crop=iw*{cw:.4f}:ih*{min(ch, 1 - cut):.4f}:iw*{left:.4f}:ih*{top:.4f}'
+    return f'crop=iw*{cw:.4f}:ih*{ch:.4f}:iw*{left:.4f}:ih*{top:.4f}'
 
 
 def render_close(sh, parts, caps, total, work, out):
-    """화면 겹침 2개만: 큰 자막 1줄(고대비 한 색) + 이름표 1. 채널 띠·티커·출처 줄 없음(출처는 설명란). 배경 검정 + 비네팅."""
-    def cap_draw(s, size=None):
-        def dr(d):
-            f = font('NotoSansJP.ttf', size or min(92, int((W - 90) / max(1, len(s)))))
-            d.text((W / 2, CAP_Y), s, font=f, fill=GOLD, anchor='mm', stroke_width=9, stroke_fill=(0, 0, 0))
-        return dr
-    hook = next(p for p in parts if p['t'] == 'hook')
-    layers = [(0, hook['dur'], png(work / 'hook.png', cap_draw(hook['screen'].replace('\n', ''))))]   # 첫 프레임 = 질문 낱말
-    layers += [(a, e, png(work / f'cap_{k:03d}.png', cap_draw(s))) for k, (a, e, s, kind) in enumerate(caps) if a >= hook['dur'] - .01]
-    raw = [p for p in parts if p['t'] == 'raw']
+    """겹침 ≤3: 화면 제목 두 줄 · 말 자막 한 줄(화자별 색) · 첫 3초 이름 꼬리표. 로고·띠·날짜·출처 줄·롱폼 카드 없음(출처·롱폼 안내는 설명란·고정 댓글).
+    칸에 split {left:{src,start}, right:{src,start}} 가 있으면 좌우 분할(질문 왼쪽·답변 오른쪽, 소리는 칸 소리)."""
+    hook = next((p for p in parts if p['t'] == 'hook'), None)
+    lines = (sh.get('screen_lines') or (hook or {}).get('screen', sh['title']).split('\n'))[:2]
 
-    def name_draw(p):
+    def title_draw(d):
+        f = font('NotoSansJP.ttf', 128)
+        for k, (y, ln) in enumerate(zip(T_LINES, lines)):
+            tw = d.textlength(ln, font=f)
+            ff_ = f if tw <= W - 70 else font('NotoSansJP.ttf', int(128 * (W - 70) / tw))
+            d.text((W / 2, y), ln, font=ff_, fill=GOLD if k else PAPER, anchor='mm', stroke_width=7, stroke_fill=NAVY)
+    layers = [(0, total, png(work / 'title.png', title_draw))]
+
+    def sub_draw(s, kind):
         def dr(d):
-            sp = p.get('speaker') or sh['speaker']
-            f = font('NotoSansJP.ttf', 44, 800); s = f"{sp['name']}  {sp['role']}"
+            f = font('NotoSansJP.ttf', 56, 800)
             tw = d.textlength(s, font=f)
-            d.rectangle([48, WIN_Y + 40, 48 + tw + 44, WIN_Y + 112], fill=(0, 0, 0, 200))
-            d.text((70, WIN_Y + 76), s, font=f, fill=(255, 255, 255), anchor='lm')
+            d.rounded_rectangle([W / 2 - tw / 2 - 24, SUB_Y - 46, W / 2 + tw / 2 + 24, SUB_Y + 46], 12, fill=(0, 0, 0, 170))
+            d.text((W / 2, SUB_Y), s, font=f, fill=GOLD if kind == 'raw' else (255, 255, 255), anchor='mm')
         return dr
-    close = next(p for p in parts if p['t'] == 'close')
-    names = [(p['start'], p['start'] + p['dur'], png(work / f'name_{k}.png', name_draw(p))) for k, p in enumerate([hook, *raw])]
-    names.append((close['start'], total, png(work / 'end.png', lambda d: d.text((W / 2, WIN_Y + WIN_H + 34), '▶ 本編は関連動画から', font=font('NotoSansJP.ttf', 40, 800),
-                                                                               fill=(255, 255, 255), anchor='mm'))))
+    layers += [(a, e, png(work / f'cap_{k:03d}.png', sub_draw(s, kind))) for k, (a, e, s, kind) in enumerate(caps)]
+    sp = next((p.get('speaker') for p in parts if p.get('speaker')), None) or sh['speaker']
+
+    def tag_draw(d):
+        f = font('NotoSansJP.ttf', 40, 800); s = f"{sp['name']}  {sp['role']}"
+        tw = d.textlength(s, font=f)
+        d.rectangle([40, BAND_Y + 30, 40 + tw + 40, BAND_Y + 96], fill=(*ACC, 235))
+        d.text((60, BAND_Y + 63), s, font=f, fill=(255, 255, 255), anchor='lm')
+    layers.append((0, min(TAG_SEC, total), png(work / 'tag.png', tag_draw)))
     vids, vf, n = [], [], 0
     br = sh['broll']; bt = br['start']
-    for p in parts:
+    for i, p in enumerate(parts):
         if p['t'] == 'raw':
             src, a, cut = p['src'], p['in'], p.get('crop_bottom', .17)
         else:
             if p.get('broll'):
                 br, bt = p['broll'], p['broll']['start']
             src, a, cut = br['src'], bt, br.get('crop_bottom', .17); bt += p['dur']
-        vids += ['-ss', f'{a:.3f}', '-t', f"{p['dur']:.3f}", '-i', str(ROOT / src)]
-        z = f"1+0.04*t/{p['dur']:.3f}"   # 칸마다 아주 느린 밀어 넣기
-        vf.append(f'[{n}:v]fps=30,{close_crop(src, a, p["dur"], cut)},scale={W}:{WIN_H}:flags=lanczos,'
-                  f"scale=w='trunc({W}*({z})/2)*2':h='trunc({WIN_H}*({z})/2)*2':eval=frame,crop={W}:{WIN_H},"
-                  f'eq=contrast=1.06:saturation=1.08,vignette=PI/4.5,setsar=1,trim=duration={p["dur"]:.3f},setpts=PTS-STARTPTS[c{n}]')
-        n += 1
-    vf.append(''.join(f'[c{i}]' for i in range(n)) + f'concat=n={n}:v=1:a=0[mid]')
+        z = f"1+0.03*t/{p['dur']:.3f}"
+        if p.get('split'):
+            halves = []
+            for side in ('left', 'right'):
+                s_ = p['split'][side]
+                vids += ['-ss', f"{s_['start']:.3f}", '-t', f"{p['dur']:.3f}", '-i', str(ROOT / s_['src'])]
+                vf.append(f'[{n}:v]fps=30,{close_crop(s_["src"], s_["start"], p["dur"], s_.get("crop_bottom", .17), W // 2, BAND_H, .40)},'
+                          f'scale={W // 2}:{BAND_H}:flags=lanczos,setsar=1,trim=duration={p["dur"]:.3f},setpts=PTS-STARTPTS[h{n}]')
+                halves.append(f'[h{n}]'); n += 1
+            vf.append(''.join(halves) + f'hstack=inputs=2,eq=contrast=1.05,setsar=1[c{i}]')
+        else:
+            vids += ['-ss', f'{a:.3f}', '-t', f"{p['dur']:.3f}", '-i', str(ROOT / src)]
+            vf.append(f'[{n}:v]fps=30,{close_crop(src, a, p["dur"], cut)},scale={W}:{BAND_H}:flags=lanczos,'
+                      f"scale=w='trunc({W}*({z})/2)*2':h='trunc({BAND_H}*({z})/2)*2':eval=frame,crop={W}:{BAND_H},"
+                      f'eq=contrast=1.05,setsar=1,trim=duration={p["dur"]:.3f},setpts=PTS-STARTPTS[c{i}]')
+            n += 1
+    vf.append(''.join(f'[c{i}]' for i in range(len(parts))) + f'concat=n={len(parts)}:v=1:a=0[mid]')
     vids += ['-f', 'lavfi', '-t', f'{total:.3f}', '-i', f'color=c=black:s={W}x{H}:r=30']
     base = n
-    chain = [f'[{base}:v][mid]overlay=0:{WIN_Y}[v0]']
+    chain = [f'[{base}:v][mid]overlay=0:{BAND_Y}[v0]']
     last = 'v0'
-    for k, (a, e, img) in enumerate(layers + names):
+    for k, (a, e, img) in enumerate(layers):
         vids += ['-loop', '1', '-t', f'{total:.3f}', '-i', str(img)]
         chain.append(f"[{last}][{base + 1 + k}:v]overlay=0:0:enable='between(t,{a:.3f},{e:.3f})'[k{k}]"); last = f'k{k}'
     chain.append(f'[{last}]format=yuv420p[v]')
@@ -234,12 +257,13 @@ def render_close(sh, parts, caps, total, work, out):
     with tempfile.NamedTemporaryFile('w', suffix='.txt', delete=False, encoding='utf-8') as fc:
         fc.write(';\n'.join(vf + chain))
     subprocess.run(['ffmpeg', '-nostdin', '-v', 'error', '-y', *vids, '-i', str(aud), '-/filter_complex', fc.name,
-                    '-map', '[v]', '-map', f'{base + 1 + len(layers) + len(names)}:a', '-t', f'{total:.3f}', '-r', '30',
+                    '-map', '[v]', '-map', f'{base + 1 + len(layers)}:a', '-t', f'{total:.3f}', '-r', '30',
                     '-c:v', 'libx264', '-crf', '19', '-preset', 'medium', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '192k', str(out)], check=True)
     loud = loudnorm_final.normalize(str(out))
-    raw_s = sum(p['dur'] for p in raw)
+    raw_s = sum(p['dur'] for p in parts if p['t'] == 'raw')
+    cuts = sum(2 if p.get('split') else 1 for p in parts) - 1
     print(json.dumps({'out': str(out), 'layout': 'close', 'seconds': total, 'raw_seconds': round(raw_s, 2), 'narration_share': round(1 - raw_s / total, 3),
-                      'overlay_max': 2, 'loudnorm': loud}, ensure_ascii=False))
+                      'overlays': ['화면 제목', '말 자막', f'이름 꼬리표(0~{TAG_SEC:.0f}초)'], 'cuts': cuts, 'loudnorm': loud}, ensure_ascii=False))
 
 
 if __name__ == '__main__':
