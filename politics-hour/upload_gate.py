@@ -131,6 +131,34 @@ if epj.exists() and EP_DATE >= '20261021':
         if f.lstrip().startswith(('안녕하세요', '오늘은')):
             bad.append(f'첫 문장이 «{f[:12]}…» — 인사·«오늘은» 시작 금지, 질문이나 원음으로 연다')
 bad += candidate_gate.gate_lines(ep, sys.argv[2:])
+# 레퍼런스 겹침·태그 관문(관리자 10-20 adoption_check: 손 실행만이던 것을 관문으로) — 10/21편부터.
+# ① scripts/ref_overlap.py: 원고 문장이 레퍼런스 채널 전사와 ≥0.7 겹치면 4, 검사 불가 5 — 둘 다 FAIL.
+# ② scripts/tag_gate.py --fail-on-warn: 제목·설명 첫 두 줄·태그 공통 낱말. 롱폼은 원고(해설+인용 원음) 일치 비율도, 쇼츠는 원음이라 비율 제외(--ratio 0).
+if EP_DATE >= '20261021':
+    LANG_JA = any(str(json.loads(Path(u).read_text(encoding='utf-8')).get('defaultLanguage', '')).startswith('ja') for u in sys.argv[2:])
+    SCRIPTS_DIR = Path(__file__).resolve().parents[1] / 'scripts'
+    if epj.exists():
+        r = subprocess.run([sys.executable, '-X', 'utf8', str(SCRIPTS_DIR / 'ref_overlap.py'), str(ep), '--lane', 'politics_ja' if LANG_JA else 'politics_ko'],
+                           capture_output=True, text=True, encoding='utf-8')
+        if r.returncode:
+            bad.append(f'레퍼런스 겹침(ref_overlap) 종료 {r.returncode} — {(r.stdout.strip().splitlines() or [r.stderr.strip()[-200:]])[-1]}')
+    (ep / 'audit').mkdir(exist_ok=True)
+    for up in sys.argv[2:]:
+        if 'shorts' in Path(up).resolve().parts:
+            plan = Path(up).parent.parent / 'ls' / Path(up).parent.name / Path(up).name.split('.')[0] / 'plan.json'
+            body = '\n'.join(c.split('|')[-1] for s in (json.loads(plan.read_text(encoding='utf-8'))['sequence'] if plan.exists() else []) for c in s.get('captions', []))
+            extra = ['--ratio', '0']
+        else:
+            segs = json.loads(epj.read_text(encoding='utf-8'))['segments'] if epj.exists() else []
+            body = '\n'.join(s.get('text') or ' '.join(w[1] for w in s.get('words', [])) for s in segs)
+            extra = []
+        sf = ep / 'audit' / f'tag_body_{Path(up).name.split(".")[0]}.txt'
+        sf.write_text(body + '\n', encoding='utf-8')
+        r = subprocess.run([sys.executable, '-X', 'utf8', str(SCRIPTS_DIR / 'tag_gate.py'), up, '--script', str(sf), *extra, '--fail-on-warn'],
+                           capture_output=True, text=True, encoding='utf-8')
+        if r.returncode:
+            why = ' / '.join(l.strip() for l in r.stdout.splitlines() if l.strip().startswith('△') and '경고' not in l[:12])
+            bad.append(f'{Path(up).name}: 태그 관문(tag_gate) 종료 {r.returncode} — {why or r.stdout.strip()[-200:]}')
 # 목차·번호 호명 금지(소유주 10-20 «'쟁점 브리핑입니다' 하고 쟁점 하나 둘 셋 나열하는 순간 루즈해진다»): 10/21편부터
 # 해설 TTS·화면 카드(nar 의 text·visual) + 고정 댓글 + 설명란 전체에서 FAIL. 인용 원음(quote·cold)은 실제 발언이라 안 본다.
 # 챕터는 설명란에만, 번호(«01»)·«오늘의 쟁점»·«정리» 같은 제목 없이 내용 낱말로.
