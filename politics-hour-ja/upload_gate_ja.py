@@ -3,7 +3,7 @@
     python politics-hour-ja/upload_gate_ja.py <편 폴더> <upload.json ...>
 
 원본 판정은 일본어에도 그대로 맞는다(키워드 부분 문자열 대조·태그 개수). 어긋나면 exit 3 — 업로드하지 말고 관리자에게 보고."""
-import json, subprocess, sys
+import json, re, subprocess, sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts')); import guide_words
 from pathlib import Path
@@ -12,9 +12,23 @@ GATE = Path(__file__).resolve().parents[1] / 'politics-hour' / 'upload_gate.py'
 # 원본의 첫 30초 검사는 ko episode.json(segments·words) 구조를 읽는다 → keywords.json 만 든 임시 폴더로 부르고,
 # ja 첫 30초 검사는 아래에서 ja 구조로 따로 한다.
 import shutil, tempfile
+# 임시 폴더 안에 편 이름 폴더를 만든다 — ko 관문의 «10/21편부터» 판정(폴더 이름 비교)이 맞게. 쇼츠 upload.json 은 넘기지 않는다
+# (ko 쇼츠 검사는 ko ls/ 구조 plan.json·thumb_k 를 읽는다 — ja 쇼츠는 아래 comment_hook·풀이 검사가 본다).
 with tempfile.TemporaryDirectory() as tmp:
-    shutil.copy2(Path(sys.argv[1]) / 'keywords.json', Path(tmp) / 'keywords.json')
-    rc = subprocess.run([sys.executable, str(GATE), tmp, *sys.argv[2:]]).returncode
+    sub = Path(tmp) / Path(sys.argv[1]).resolve().name
+    sub.mkdir()
+    shutil.copy2(Path(sys.argv[1]) / 'keywords.json', sub / 'keywords.json')
+    longs = []
+    for u in sys.argv[2:]:
+        if '/shorts/' in u.replace(chr(92), '/'):
+            continue
+        # ko 관문의 고정 댓글 검사는 반각 «?» 만 본다 — 일본어 전각 «？» 를 반각으로 바꾼 사본을 넘긴다(질문 여부 판정은 아래 ja 검사가 둘 다 본다)
+        d = json.loads(Path(u).read_text(encoding='utf-8'))
+        d['pinned_comment'] = (d.get('pinned_comment') or '').replace('？', '?')
+        cp = sub / Path(u).name
+        cp.write_text(json.dumps(d, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+        longs.append(str(cp))
+    rc = subprocess.run([sys.executable, str(GATE), str(sub), *longs]).returncode if longs else 0
 bad = []
 for up in sys.argv[2:]:
     t = json.loads(Path(up).read_text(encoding='utf-8')).get('title', '')
@@ -88,6 +102,41 @@ if pkp.exists():
             bad.append(f'packages.json {i}번 묶음: 설명 첫 줄 {len(pkg["desc_head"])}줄(2여야) · 태그 {tag_len}자(500 이하) · 해시태그 # 확인')
         else:
             print(f'[gate-ja] PASS {i}번 묶음 6칸(태그 {len(pkg["tags"])}개 {tag_len}자)')
+norm = lambda s: re.sub(r'<[^>]+>|[\s“”"「」『』？?！!、。・]', '', s)
+# 제목 전문용어엔 쉬운 풀이(관리자 10-20 S5, materials-audit 6번): 제목에 jargon.json 낱말이 있으면 제목 또는 설명 첫 줄(포장은 desc_head[0])에 plain 하나
+jargon = json.loads((Path(__file__).parent / 'jargon.json').read_text(encoding='utf-8'))['words']
+def _explained(where, title, first):
+    for w, j in jargon.items():
+        if w in title:
+            hit = [p for p in j['plain'] if norm(p) in norm(title + first)]
+            if hit:
+                print(f'[gate-ja] PASS 풀이 {where}: «{w}»({j["ko"]}) ← «{hit[0]}»')
+            else:
+                bad.append(f'{where}: 제목 낱말 «{w}»({j["ko"]}) 풀이 없음 — 제목·설명 첫 줄에 {" / ".join(j["plain"])} 중 하나')
+for up in sys.argv[2:]:
+    u = json.loads(Path(up).read_text(encoding='utf-8'))
+    _explained(Path(up).parent.name + '/' + Path(up).name, u.get('title', ''), (u.get('description') or '').split('\n')[0])
+for i, pkg in enumerate(json.loads(pkp.read_text(encoding='utf-8'))['packages'] if pkp.exists() else []):
+    _explained(f'packages.json {i}번', pkg.get('title', ''), (pkg.get('desc_head') or [''])[0])
+# 고정 댓글 = 양자택일 질문 한 줄(관리자 10-20 ③): 공용 comment_hook --lane politics_shorts(expected_comment 객체·pinned_comment «?»)
+for up in sys.argv[2:]:
+    r = subprocess.run([sys.executable, str(GATE.parents[1] / 'scripts' / 'comment_hook.py'), up, '--lane', 'politics_shorts'],
+                       capture_output=True, text=True, encoding='utf-8')
+    pin = json.loads(Path(up).read_text(encoding='utf-8')).get('pinned_comment', '')
+    if r.returncode or not re.search(r'[?？]', pin):
+        bad.append(f'{Path(up).parent.name}/{Path(up).name}: 고정 댓글 관문 종료 {r.returncode} «{pin}» — {(r.stdout + r.stderr).strip()[-200:]}')
+    else:
+        print(f'[gate-ja] PASS 고정 댓글 «{pin}»')
+# 첫 말 인사 금지·후보표 대리만족 열(관리자 10-20 ②④) — 원고 관문과 같은 판정
+import importlib.util
+_sp = importlib.util.spec_from_file_location('script_gate', Path(__file__).parent / 'script_gate.py')
+script_gate = importlib.util.module_from_spec(_sp); _sp.loader.exec_module(script_gate)
+if ep.resolve().name >= script_gate.FROM:   # 10/21편부터(후보표 열은 ko 관문이 이미 봤다)
+    _first = next((s['text'] for s in script_gate.spoken(ep) if s.get('type') in ('cold', 'nar')), '')
+    if script_gate.GREETING.match(_first.strip()):
+        bad.append(f'첫 말이 인사·채널명·날짜: «{_first[:30]}»')
+    else:
+        print(f'[gate-ja] PASS 첫 말 인사 아님 «{_first[:30]}»')
 # 커뮤니티 가이드 낱말(10-18 소유주 «제재 없이 조회 0 = 가이드 위반», 정본 config/guide_words.json · 도구개발 공용 판정) — 걸리면 종료 4
 guide = guide_words.gate_lines([*sys.argv[2:], *[x for x in [ep / 'packages.json', ep / 'keywords.json'] if x.exists()]], lang='ja', lane='politics_ja')
 bad += guide
