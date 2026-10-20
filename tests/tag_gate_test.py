@@ -23,6 +23,18 @@ with tempfile.TemporaryDirectory() as t:
     assert any('공통 낱말 1개' in w for w in r['warnings'])
     assert tg.main([str(up)]) == 0 and tg.main([str(up), '--fail-on-warn']) == 4
     assert tg.main([str(up), '--min', '1', '--fail-on-warn']) == 0
+    # 린박스 사이드카: 고정 두 줄 건너뛴 첫 문단이 설명 머리, 장르·shorts 는 분모 제외, 배우명은 출연 줄로 일치
+    rb = t / 'rb'
+    (rb / '_render').mkdir(parents=True)
+    (rb / 'plan_local.json').write_text(json.dumps({'narration': [{'id': 'n1', 'cards': ['辰が金を突き返した']}], 'sequence': [{'narration': 'n1'}]}, ensure_ascii=False), encoding='utf-8')
+    sc = rb / '_render' / 'x.mp4.rinbox.json'
+    sc.write_text(json.dumps({'title': '辰が金を突き返した理由', 'tags': ['地獄の辰捕物控', '北大路欣也', '時代劇', 'shorts', '辰'],
+                              'description': '「地獄の辰捕物控」はぜひフルバージョンでご覧になることをおすすめします。\n\n時代劇作品の場面と歴史背景を解説する動画です。\n\n'
+                                             '辰が金を突き返します。北大路欣也さんほかが出演しています。\n\n制作：東映「地獄の辰捕物控」'},
+                             ensure_ascii=False), encoding='utf-8')
+    r = tg.check(sc)
+    assert r['lane'] == 'rinbox' and r['ratio'] == 1.0, r
+    assert r['common'] == ['辰'], r      # 제목·첫 문단·태그 셋 다에 있는 낱말만 (고정 줄의 작품명은 머리가 아님)
     bad = t / 'bad.json'
     bad.write_text(json.dumps({'title': '제목만'}, ensure_ascii=False), encoding='utf-8')
     assert tg.main([str(bad)]) == 5 and tg.LEDGER.exists()
