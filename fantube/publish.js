@@ -60,6 +60,15 @@ const M = JSON.parse(fs.readFileSync(meta, 'utf8'));
   }
   console.log(`✓ 기획 게이트 통과 — 대리만족 «${S.vicarious}» · 훅 ${h.visual} / ${h.audio} / ${h.text} · 제목 ${tp.pattern}·«${tp.key}» ${len}자`);
 }
+// 제목 점검(10/20 관리자, 공용 scripts/title_check.py 055f18a) — 경고도 FAIL(--fail-on-warn), 4·5 업로드 금지.
+{
+  const tc = spawnSync('python', [path.join(ROOT, 'scripts', 'title_check.py'), meta, '--lane', 'fantube', '--fail-on-warn'], { encoding: 'utf8', env: { ...process.env, PYTHONIOENCODING: 'utf-8' } });
+  process.stdout.write(tc.stdout || ''); process.stderr.write(tc.stderr || '');
+  if (tc.status !== 0) {
+    console.error(`[publish] ★FAIL 제목 점검 — title_check exit ${tc.status}${tc.status === 5 ? '(검사 불가)' : ''}. 업로드 안 함.`);
+    process.exit(5);
+  }
+}
 // 가이드라인 사전 점검(10/18 소유주: 피드를 못 받으면 위반으로 본다) — 롱투숏 guide_check.py 를 그대로 쓰고, 걸리면 업로드 전에 멈춘다.
 // 팬튜브 특유: 멤버 미성년 시기·«어린» 강조는 «어린아이 대상» 범주로 본다.
 const tagLine = (M.tags || []).join(' ');

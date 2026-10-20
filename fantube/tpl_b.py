@@ -60,6 +60,8 @@ def comment_png(c, out):
     d.text((80, y0 + 28), f"BEST  ♥ {c['likes']:,}", font=f(BODY, 30), fill=PINK)
     for i, ln in enumerate(lines):
         check(ln, FULL)
+        if d.textlength(ln, font=f(FULL, 40)) > W - 160:          # 카드 밖으로 넘치면 멈춘다(ep19 «ㅋㅋㅋ» 넘침)
+            raise SystemExit(f'댓글 줄이 카드보다 길다 — \n 으로 나눠라: «{ln}»')
         d.text((80, y0 + 82 + 58 * i), ln, font=f(FULL, 40), fill='black')
     im.save(out)
 
