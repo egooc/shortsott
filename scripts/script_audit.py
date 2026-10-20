@@ -42,7 +42,8 @@ QUESTION = {  # 참고용(판정은 comment_hook.is_question — 10-20 «거품�
     'ko': r'[?？]\s*$|(까요?|나요|가요|습니까|죠)\s*[.。]?\s*$', 'ja': r'[?？]\s*$|(か|でしょうか|ますか)\s*[。.]?\s*$'}
 TRANSITION = {'ko': r'^(그런데|근데|문제는|하지만|그러나|그래서|그 결과|결국|반전은|여기서|그러자|그런데도|그렇다면|이때)',
               'ja': r'^(ところが|しかし|でも|問題は|そこで|その結果|結局|実は|では|すると)'}
-OPEN_END = {'ko': r'(일 듯|일지도|됐다고|했다고|아님\?|라던데|모를 일|두고 볼)', 'ja': r'(かも|らしい|だとか|どうなる)'}
+OPEN_END = {  # 참고용 — 쇼츠 끝맺음 판정은 comment_hook.open_ask(동의·반박 청하는 꼴만, 10-20)
+    'ko': r'(일 듯|일지도|됐다고|했다고|아님\?|라던데|모를 일|두고 볼)', 'ja': r'(かも|らしい|だとか|どうなる)'}
 GUIDE_END = {'ko': r'(구독|좋아요|댓글|알림|다음 영상|링크)', 'ja': r'(チャンネル登録|高評価|コメント|次の動画)'}
 TITLE_SUFFIX = r'(씨|대표|의원|장관|총리|대통령|회장|사장|위원장|교수|기자|변호사|검사|판사|후보)'
 
@@ -193,7 +194,7 @@ def audit(path, lane=None, kind=None, lang=None, jargon=None, names=None):
     kinds = []
     for j, s in enumerate(tail):
         k = len(all_s) - len(tail) + j
-        kinds += (['질문'] if comment_hook.is_question(s, lang) and not comment_hook.self_answered(all_s, k) else []) + (['열린 결말'] if re.search(OPEN_END[lang], s) else []) + \
+        kinds += (['질문'] if comment_hook.is_question(s, lang) and not comment_hook.self_answered(all_s, k) else []) + (['열린 결말'] if comment_hook.open_ask(s) else []) + \
                  (['안내'] if re.search(GUIDE_END[lang], s) else [])
     res['ending'] = {'tail': tail, 'kinds': sorted(set(kinds)) or ['단정']}
     if kind == 'shorts' and not {'질문', '열린 결말'} & set(kinds):

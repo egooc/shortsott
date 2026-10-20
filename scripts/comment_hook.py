@@ -77,6 +77,17 @@ def self_answered(sents, i):
     return bool(_SELF_ECHO.search(sents[i]) or _ANSWER.search(sents[i + 1]))
 
 
+# 열린 결말(10-20 관리자 결정): 시청자에게 동의·반박을 청하는 어미만 장치로 인정(칼럼 S3 «~일 듯·~아님?» 꼴).
+# «~일지도 몰라요·~수도 있어요·~듯해요.» 같은 단순 추측(마침표)은 인정하지 않는다. script_audit 쇼츠 끝맺음도 이 판정을 쓴다.
+OPEN_ASK = re.compile(r'(아님\s*[?？]?|아닌가요|아닐까요|맞죠\s*[?？]?|맞지\s*[?？]?|일\s?듯\s*[?？]?|인\s?듯\s*[?？]|같은데\s*어떠세요|어떠세요|않나요|'
+                      r'じゃない\s*[？?]|ですよね\s*[？?]?|でしょ\s*[？?]|よね\s*[？?])\s*[」』"”)]*\s*$')
+
+
+def open_ask(s):
+    s = str(s or '').strip()
+    return bool(OPEN_ASK.search(s)) and not re.search(r'(일지도|수도\s?있|듯해요|듯합니다)\s*[.。]?\s*$', s)
+
+
 class _Q:   # 옛 QUESTION.search(s) 호출 호환
     @staticmethod
     def search(s):
@@ -289,13 +300,15 @@ def check(path, lane=None, spec=None, scripts=None):
                 self_q.append(s)
             else:
                 kinds.append('질문')
+        if open_ask(s):
+            kinds.append('열린 결말(동의·반박)')
         if EXPERIENCE.search(s):
             kinds.append('경험담 요청')
         if ASSERT.search(s) or (line and line in squash(s) and (str(ec.get('type', '')).split('/')[0] in ('정정', '논쟁', '단정') or ec.get('form') == '단정')):
             kinds.append('반박 가능한 단정')
     res['ending'] = {'from': tail_from, 'tail': tail, 'kinds': sorted(set(kinds)), 'self_answered': self_q}
     if not kinds:
-        errs.append('③ 끝 3문장에 질문·반박 가능한 단정·경험담 요청이 없음: ' + ' / '.join(tail))
+        errs.append('③ 끝 3문장에 질문·동의/반박 청하는 열린 결말·반박 가능한 단정·경험담 요청이 없음: ' + ' / '.join(tail))
     res['errors'] = errs
     res['warnings'] = warns
     res['ok'] = not errs
