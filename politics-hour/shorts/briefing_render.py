@@ -225,12 +225,14 @@ html,body{{margin:0;background:transparent}}
 #root{{position:relative;width:1080px;height:1920px;overflow:hidden;word-break:keep-all;font-family:Paper;color:#fff}}
 #title{{position:absolute;left:60px;right:60px;top:200px;height:{CLOSE_Y0 - 220}px;display:flex;flex-direction:column;justify-content:center;align-items:center}}
 #title div{{white-space:nowrap;line-height:1.08;letter-spacing:-2px}} #title .l0{{color:{YEL}}} #title .l1{{color:#fff}}
-.tag{{position:absolute;left:40px;top:{CLOSE_Y0 + 24}px;opacity:0;font-family:Body;font-size:32px;line-height:1;padding:10px 16px;border-radius:6px;color:#fff}}
+.tag{{position:absolute;left:40px;top:{CLOSE_Y0 + 24}px;opacity:0;font-family:Body;font-size:32px;line-height:1;padding:8px 14px;border-radius:6px;color:#fff;border:3px solid {YEL}}}
+#mark{{position:absolute;right:140px;top:{CLOSE_Y0 + 24}px;opacity:0;display:flex;align-items:stretch;font-family:Paper}}
+#mark .b{{background:#1a2036;color:#fff;font-size:30px;padding:8px 16px;border-left:6px solid {YEL}}} #mark .l{{background:{RED};color:#fff;font-size:20px;padding:0 10px;display:flex;align-items:center}}
 .cap{{position:absolute;left:60px;width:890px;top:{CLOSE_CAP_Y}px;transform:translateY(-50%);text-align:center;white-space:nowrap;opacity:0}}
 .cap span{{display:inline-block;line-height:1.15;padding:6px 20px 10px;border-radius:8px}}
 .cap b{{font-weight:normal;color:{YEL}}} .cap .y b{{color:#fff}} .cap .w b{{color:{RED}}}
 """
-    body = '<div id="title">%s</div>' % ''.join(
+    body = '<div id="mark"><div class="b">쟁점 브리핑</div></div><div id="title">%s</div>' % ''.join(
         '<div class="l%d" style="font-size:%dpx">%s</div>' % (i, fit_size(ln, 960, 112, 76), e(ln)) for i, ln in enumerate(t0[:2]))
     for k, v in spk.items():
         if v.get('name'):
@@ -245,16 +247,20 @@ html,body{{margin:0;background:transparent}}
                  f'{cap_html(c[2], hot)}</span></div>')
     js = ['const tl=gsap.timeline({paused:true});']
     for i, c in enumerate(_caps):
-        js.append(f'tl.set("#c{i}",{{opacity:1}},{c[0]:.3f});tl.set("#c{i}",{{opacity:0}},{c[1]:.3f});')
+        js.append(f'tl.set("#c{i}",{{opacity:1}},{c[0]:.3f});tl.fromTo("#c{i} span",{{scale:1.14}},{{scale:1,duration:.15,ease:"back.out(3)"}},{c[0]:.3f});'
+                  f'tl.set("#c{i}",{{opacity:0}},{c[1]:.3f});')
     seen = set()
     for (a, b), s in zip(seg_times(plan, total), plan['sequence']):
         w = s.get('who')
         if w and w not in seen and spk.get(w, {}).get('name'):
             seen.add(w)
             js.append(f'tl.set("#tag_{w}",{{opacity:1}},{a:.3f});tl.to("#tag_{w}",{{opacity:0,duration:.2}},{min(a + TAG_S, total):.3f});')
+    # 10-20 저녁 소유주 «채널색 안 묻혀도 돼? 모션 다 걷어낸 거 아니야?» — 제목 0.3초 등장·자막 팝·끝 1초 채널 마크(요소 4는 끝 1초만)
+    js.append('tl.from("#title div",{y:24,scale:1.06,duration:.3,stagger:.08,ease:"power3.out"},0);')
+    js.append(f'tl.fromTo("#mark",{{opacity:0,x:30}},{{opacity:1,x:0,duration:.25,ease:"power3.out"}},{max(0.0, total - 1.0):.3f});')
     js.append('window.__timelines=window.__timelines||{};window.__timelines["longshort"]=tl;')
     return ('<!doctype html><html lang="ko"><head><meta charset="utf-8"><style>' + css + '</style></head><body>'
-            f'<div id="root" data-composition-id="longshort" data-width="1080" data-height="1920" data-duration="{T}" data-elements="3">'
+            f'<div id="root" data-composition-id="longshort" data-width="1080" data-height="1920" data-duration="{T}" data-elements="3+끝1초 마크">'
             f'<section class="clip" data-start="0" data-duration="{T}" style="position:absolute;inset:0">{body}</section></div>'
             '<script src="assets/gsap.min.js"></script><script>' + ''.join(js) + '</script></body></html>')
 
