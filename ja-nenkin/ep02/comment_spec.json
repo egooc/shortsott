@@ -1,10 +1,10 @@
 {
-  "_note": "연금JA 댓글 장치(관리자 10-20 adoption). line = 원고 마지막 줄, pinned_comment = 고정 댓글. at_sec 는 렌더 전 추정 — 렌더 뒤 실측으로 고친다.",
+  "_note": "연금JA 댓글 장치(관리자 10-20 adoption). line = 원고 마지막 줄, pinned_comment = 고정 댓글. at_sec 는 episode.mp4 실측(10-20).",
   "expected_comment": {
     "type": "경험담",
     "form": "경험담 요청",
     "line": "去年、医療費が少ないからと、申告をあきらめた方はいませんか。コメントで教えてください。",
-    "at_sec": 1165
+    "at_sec": 1165.7
   },
   "pinned_comment": "【質問】医療費が10万円に届かず、申告をあきらめたことはありますか？ ご自身やご家族の経験を、コメントで教えてください。"
 }
