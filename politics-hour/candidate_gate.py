@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """후보표 관문 — 원고 착수 전(10/21편부터, 관리자 10-20 Z12·Z7).
 
-    python politics-hour/candidate_gate.py <에피소드 폴더>
+    python politics-hour/candidate_gate.py <에피소드 폴더> [--fill]   --fill: 공용 news_outliers 결과로 빈 news_outlier 칸 채운 뒤 검사
 
 <편>/keywords.json 의 "candidates" 목록이 있어야 하고, 행마다 아래 칸이 비어 있지 않아야 한다:
   keyword        후보 낱말
@@ -69,7 +69,9 @@ def gate_lines(ep, uploads=()):
         no = r.get('news_outlier')
         if 'news_outlier' not in lost and not (isinstance(no, dict) and str(no.get('none', '')).strip()):
             rows_o = no if isinstance(no, list) else [no]
-            if not rows_o or any(not isinstance(o, dict) or [k for k in OUT_KEYS if o.get(k) in (None, '', [])] for o in rows_o):
+            # thumb_words 는 빈 목록도 받는다(썸네일 판독은 GPT 하루 10장 한도 — yt_news_outliers --thumbs 를 꼭 필요한 편만)
+            if not rows_o or any(not isinstance(o, dict) or [k for k in OUT_KEYS if o.get(k) in ((None, '') if k == 'thumb_words' else (None, '', []))]
+                                 for o in rows_o):
                 lost.append('news_outlier(' + '·'.join(OUT_KEYS) + ' 또는 {"none": 사유})')
             elif any(not isinstance(o.get('ratio'), (int, float)) or o['ratio'] < 3 for o in rows_o):
                 lost.append('news_outlier ratio ≥3 아님')
@@ -78,8 +80,36 @@ def gate_lines(ep, uploads=()):
     return bad
 
 
+NEWS = Path(__file__).resolve().parents[1] / 'server' / 'data' / 'news_outliers' / 'politics_ko_latest.json'
+
+
+def fill(ep):
+    """공용 yt_news_outliers.js 결과(관리자 10-20, e274987)를 후보행 news_outlier 로 옮긴다 — 이미 적힌 칸은 안 건드린다.
+    후보 낱말(공백 무시)이 아웃라이어 keyword·title_words 와 겹치면 그 편들(video_id 중복 제거, 배수 큰 순 3편), 없으면 {none}."""
+    kp = Path(ep) / 'keywords.json'
+    k = json.loads(kp.read_text(encoding='utf-8'))
+    d = json.loads(NEWS.read_text(encoding='utf-8'))
+    sq = lambda x: re.sub(r'\s', '', str(x))
+    n = 0
+    for r in k.get('candidates', []):
+        if r.get('news_outlier'):
+            continue
+        kw = sq(r.get('keyword', ''))
+        hits = {}
+        for c in d.get('candidates', []):
+            o = c['news_outlier']
+            if kw and (kw in sq(c['keyword']) or sq(c['keyword']) in kw or any(kw in sq(w) for w in o.get('title_words', []))):
+                hits.setdefault(o['video_id'], o)
+        r['news_outlier'] = sorted(hits.values(), key=lambda o: -o['ratio'])[:3] or {'none': f'yt_news_outliers {d.get("at")} {len(d.get("channels", []))}채널 해당 없음'}
+        n += 1
+    kp.write_text(json.dumps(k, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+    return n
+
+
 if __name__ == '__main__':
     sys.stdout.reconfigure(encoding='utf-8')
+    if '--fill' in sys.argv:
+        print(f'[candidate] news_outlier 채움 {fill(sys.argv[1])}행 ← {NEWS}')
     b = gate_lines(sys.argv[1])
     for x in b:
         print('[candidate] FAIL', x)
