@@ -120,5 +120,10 @@
         "所得200万円未満の方は、医療費が10万円を超えなくても、所得の5%を超えれば医療費控除が使えます。"
       ]
     }
-  ]
+  ],
+  "variant": {
+    "logo": "left_band_channel_name",
+    "desc_style": "gloss_first",
+    "anim": "gensen_zoom+table_seq"
+  }
 }

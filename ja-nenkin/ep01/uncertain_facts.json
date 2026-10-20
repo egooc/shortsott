@@ -1,0 +1,123 @@
+{
+  "_note": "G4(10-21 관리자, 10-23부터 막음): 원고 속 제도·숫자 중 원문 직접 대조 안 된 것. gpt-ask 교차 1회 → status confirmed/fixed 만 남아야 TTS. status: open|confirmed|wrong",
+  "checked_by": "gpt-ask 교차 1회 2026-10-21 00:55 (연금JA)",
+  "facts": [
+    {
+      "id": 1,
+      "claim": "65歳以上で公的年金等の受給額が148万円以上(単身・住民税の目安)の方に、令和9年分の扶養親族等申告書が送付される。前年(令和8年分)は205万円以上だった。",
+      "source": "日本年金機構 令和9年分 大切なお知らせ",
+      "status": "confirmed",
+      "note": "送付基準は記述どおり。ただし、148万円は全国共通の住民税非課税限度額ではなく、65歳以上の単身者の限度額は地域により148万～155万円。",
+      "gpt": "confirmed",
+      "url": "https://www.nenkin.go.jp/service/jukyu/tetsuduki/rourei/jukyu/fuyo/2027fuyoukami.html"
+    },
+    {
+      "id": 2,
+      "claim": "令和9年分から、扶養親族の合計所得要件は58万円以下から62万円以下に引き上げられた。",
+      "source": "日本年金機構 令和8年度税制改正 主な改正事項",
+      "status": "fixed",
+      "note": "GPT wrong = 내 요약이 «令和9年分から»라 틀림. 원고는 «今年(令和8年分)から62万円» — 원문과 일치, 원고 수정 불요 | GPT: 所得税の扶養親族の所得要件は令和8年分から58万円以下から62万円以下に引き上げられる。公的年金の通常の源泉徴収への反映は令和9年から。令和8年分で新たに対象となる場合は原則として確定申告が必要。",
+      "gpt": "wrong",
+      "url": "https://www.nenkin.go.jp/oshirase/taisetu/kojin/2026/202606/0617.html"
+    },
+    {
+      "id": 3,
+      "claim": "19歳以上23歳未満の親族(特定親族)は、所得85万円以下で扶養親族等申告書に記載できる(特定親族特別控除の区分)。",
+      "source": "日本年金機構 大切なお知らせ",
+      "status": "confirmed",
+      "note": "記載できる所得上限は85万円。ただし、令和9年分の特定親族特別控除の源泉徴収対象区分は62万円超85万円以下。62万円以下は特定扶養親族として扶養控除の対象となる。生計を一にする配偶者以外の親族であることなどが必要。",
+      "gpt": "confirmed",
+      "url": "https://www.nenkin.go.jp/service/jukyu/tetsuduki/rourei/jukyu/fuyo/2027fuyoukami.files/2027oshirase.pdf"
+    },
+    {
+      "id": 4,
+      "claim": "控除対象配偶者の判定で、配偶者の年間所得の見積額95万円以下が区分の線になる。",
+      "source": "日本年金機構 作成と提出の手引き",
+      "status": "fixed",
+      "note": "GPT wrong = 요약이 «控除対象配偶者»라 틀림. 원고(125행)는 申告書 판정도의 源泉控除対象配偶者 95万円 — 일치 | GPT: 95万円以下は、本人所得900万円以下の場合の源泉徴収における配偶者控除・配偶者特別控除の対象範囲の上限。令和9年分の配偶者控除における控除対象配偶者の所得要件は62万円以下で、62万円超95万円以下は配偶者特別控除の区分。",
+      "gpt": "wrong",
+      "url": "https://www.nenkin.go.jp/denshibenri_kojin/denshibenri_rorei/denshi_fuyo/fuyokoumoku.html"
+    },
+    {
+      "id": 5,
+      "claim": "65歳以上で年金収入のみの場合、年金172万円以下なら所得62万円以下(公的年金等控除110万円)。",
+      "source": "国税庁 No.1600",
+      "status": "confirmed",
+      "note": "",
+      "gpt": "confirmed",
+      "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/1600.htm"
+    },
+    {
+      "id": 6,
+      "claim": "扶養親族等申告書を提出しない場合、所得税は年金から5.105%の税率で源泉徴収される(基礎控除は受けられる)。",
+      "source": "日本年金機構 FAQ",
+      "status": "confirmed",
+      "note": "5.105％を掛ける対象は年金総額ではなく、年金支給額から対象となる社会保険料と基礎控除を差し引いた額。提出の有無による税率の違いはない。 / 원고 140행 «5.105%で計算» — 提出 여부로 세율이 달라지지 않음(GPT 보충). 오해 소지 작음, 3편부터 «控除後の額に» 명시",
+      "gpt": "confirmed",
+      "url": "https://www.nenkin.go.jp/section/faq/jukyu/jukyushatodoke/rourei/fuyoushinkoku/teishutsu/20141022-08.html"
+    },
+    {
+      "id": 7,
+      "claim": "令和9年分の扶養親族等申告書の送付は2026年9月7日から順次始まっている。",
+      "source": "日本年金機構 送付案内",
+      "status": "confirmed",
+      "note": "",
+      "gpt": "confirmed",
+      "url": "https://www.nenkin.go.jp/service/jukyu/tetsuduki/rourei/jukyu/fuyo/2027fuyoukami.html"
+    },
+    {
+      "id": 8,
+      "claim": "返信用封筒の郵送は切手が必要で、普通郵便は110円。",
+      "source": "日本郵便 料金",
+      "status": "confirmed",
+      "note": "同封の返信用封筒には切手が必要。110円は50g以内の定形郵便物の料金。",
+      "gpt": "confirmed",
+      "url": "https://www.post.japanpost.jp/send/domestic/charge/list/one_two.html"
+    },
+    {
+      "id": 9,
+      "claim": "扶養親族等申告書はマイナポータルから電子申請でき、その場合は紙の提出は不要。",
+      "source": "日本年金機構 電子申請",
+      "status": "confirmed",
+      "note": "",
+      "gpt": "confirmed",
+      "url": "https://www.nenkin.go.jp/service/jukyu/tetsuduki/rourei/jukyu/fuyo/2027fuyoukami.html"
+    },
+    {
+      "id": 10,
+      "claim": "所得税の還付申告は5年前の年分まで提出できる。",
+      "source": "国税庁 No.2030",
+      "status": "confirmed",
+      "note": "正確には対象年の翌年1月1日から5年間。2026年中は2021年分まで還付申告できる。",
+      "gpt": "confirmed",
+      "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/2030.htm"
+    },
+    {
+      "id": 11,
+      "claim": "さいたま市の住民税非課税の目安: 単身は所得45万円以下、配偶者を扶養する夫婦は101万円以下。",
+      "source": "さいたま市 非課税基準",
+      "status": "confirmed",
+      "note": "101万円は同一生計配偶者1人を扶養し、他に扶養親族がいない本人の前年合計所得金額の基準。夫婦の所得合計の基準ではない。",
+      "gpt": "confirmed",
+      "url": "https://www.city.saitama.lg.jp/001/153/004/002/001/001/p001672.html"
+    },
+    {
+      "id": 12,
+      "claim": "さいたま市の介護保険料(令和6〜8年度): 第1段階 年2万1900円、第3段階 年5万2600円、第4段階 年6万9100円、第6段階 年8万4500円。",
+      "source": "さいたま市 介護保険料の決め方と納め方",
+      "status": "confirmed",
+      "note": "",
+      "gpt": "confirmed",
+      "url": "https://www.city.saitama.lg.jp/002/003/003/001/001/p002553.html"
+    },
+    {
+      "id": 13,
+      "claim": "令和9年分の扶養親族等申告書は、令和10年度の住民税に使われる。",
+      "source": "日本年金機構 改正事項",
+      "status": "confirmed",
+      "note": "公式説明の「翌年度の個人住民税計算に反映」という扱いから、令和9年分の所得・扶養情報は令和10年度の住民税に使われると確認できる。",
+      "gpt": "confirmed",
+      "url": "https://www.nenkin.go.jp/denshibenri_kojin/denshibenri_rorei/denshi_fuyo/fuyokoumoku.html"
+    }
+  ]
+}

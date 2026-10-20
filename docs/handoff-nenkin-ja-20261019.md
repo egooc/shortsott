@@ -117,3 +117,11 @@ ja 年金·給付金·相続 해설 롱폼(20~30분, 65세 이상 일본 시청�
 - 10-20 11:20 관문을 코드에 박음: TTS 전 = nenkin_render.py script_gate()(ref_overlap 4·5·script_audit △·comment_hook 실패면 SystemExit, 우회 플래그 없음) · 업로드 전 = `python ja-nenkin/render/upload_gate.py <편>`(title_check·tag_gate·packages_gate, 실패 종료 4 → 업로드 금지). 편마다 comment_spec.json(expected_comment·pinned_comment) 필수 — at_sec 는 렌더 뒤 실측으로 고칠 것. 1편 A7① 진행(script_v2 채택 + 끝 댓글 줄), 13:00 자동 TTS 잡(스크래치 tts1300.sh).
 - 10-20 14:48 ★1편 v4 완성 = 업로드 후보 ep01/episode_v4_lufs14.mp4(1553.8초·-14.01 LUFS·TP -1.4·upload_gate 통과·comment at_sec 1548.8). 2편 화면 렌더는 14:4x 메모리 부족으로 강제 정지(20/78 장면 완료, 기업 ep01 렌더와 동시). 재개는 소유주 말로만 — 관리자 경유 답 대기, 권고는 기업 ep01 뒤 또는 10-21 13시 창. 재개 명령 `python ja-nenkin/render/nenkin_render.py ja-nenkin/ep02`(끝난 장면 재사용) → gap_check·-14 확인·눈검사·comment_spec at_sec 실측.
 - 10-20 16:47 ★2편 완성 = ep02/episode_lufs14.mp4(1172.1초·-14.01 LUFS·TP -1.39·무음 경고 0·upload_gate 통과·comment at_sec 1165.7·description.txt 작성). 1·2편 둘 다 채널 연결 대기.
+
+## 9. 새 채널 첫 10편 감시·포장 루프 (관리자 10-21 materials-gap G10·G24, 10-23부터 막음)
+- G4 사실 관문: 편마다 `uncertain_facts.json`(원문 직접 대조 안 된 제도·숫자) → gpt-ask 교차 1회 → status confirmed/fixed 만 남으면 통과. `nenkin_render.py facts_gate()` 가 script_gate 맨 앞에서 검사(10-23부터 SystemExit, 그 전 알림). 1편 13건·2편 11건 10-21 00:55 확인 끝 — GPT «wrong» 6건은 전부 요약 문구 문제이고 원고와는 맞음(note 칸에 근거). 3편 반영할 것: 5.105%는 «控除後の額に»·확정신고 불요는 «外国の年金などは別» 한 줄.
+- G10 포장 루프: 업로드 뒤 `politics-hour/views_check.js` 를 import(purpose nenkin_ja). ★진 묶음은 버리지 않고 7일 뒤 재시험, A/B 선택은 7일 안, 재부상한 옛 편도 교체 대상, 기록에 CTR 열. 10-21 현재 views_check 에 7일 재시험·CTR 열이 없음 → 정치 ko/도구개발 쪽 판이 나오면 그 판을 import(직접 고치지 말 것). 그 전까지는 packages.json applied 에 {idx, at, views, ctr} 를 손으로 남기고 7일 뒤 재시험 날짜를 retest_at 으로 적는다.
+- G24 첫 10편 반응 지표: 편마다 +24h·+48h·+7d 에 ja-nenkin/first10_watch.jsonl 한 줄 = {ep, video_id, h, views, impressions, ctr, avg_view_pct(시지율), avg_view_sec(계속 시청), likes, comments, subs_gained, variant}. Analytics API(yt-analytics) 권한은 채널 연결 때 같이 받는다.
+- 편마다 달라지는 요소(P6 변형) — packages.json `variant` 칸에 기록: logo(띠 왼쪽 세로 채널명 / 없음), desc_style(풀이 먼저 / 금액 먼저), anim(문서 확대 / 표 순차), thumb_style(A 금액 / B 서류명 / C 서류 실물). 1편: logo=왼쪽 띠·desc=풀이 먼저·anim=문서 확대+표 순차. 2편: 같은 logo·desc=확정신고 불요 풀이 먼저·anim=원천징수표 확대.
+- 결 확장(다른 서류·다른 연령층)은 48h 500만 뒤에만 — 첫 10편은 年金書類 한 결.
+- 10-21 00:56 G4·G10·G24 반영(위 §9).

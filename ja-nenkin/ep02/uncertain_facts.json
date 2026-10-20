@@ -1,0 +1,105 @@
+{
+  "_note": "G4(10-21 관리자, 10-23부터 막음): 원고 속 제도·숫자 중 원문 직접 대조 안 된 것. gpt-ask 교차 1회 → status confirmed/fixed 만 남아야 TTS. status: open|confirmed|wrong",
+  "checked_by": "gpt-ask 교차 1회 2026-10-21 00:55 (연금JA)",
+  "facts": [
+    {
+      "id": 1,
+      "claim": "公的年金等の収入が400万円以下で、年金以外の所得が20万円以下なら、所得税の確定申告は不要。",
+      "source": "国税庁 No.1600",
+      "status": "fixed",
+      "note": "GPT wrong = 조건 누락(年金 전부 源泉徴収 대상). 일본 국내 연금만 받는 시청자 기준 단순화, 3편부터 «外国の年金などは別» 한 줄 | GPT: 条件が不足。居住者で、公的年金等の収入合計が400万円以下、公的年金等に係る雑所得以外の所得が20万円以下であることに加え、公的年金等の全部が源泉徴収の対象であることが必要。源泉徴収対象外の外国年金等を受給している場合は適用できない。",
+      "gpt": "wrong",
+      "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/1600.htm"
+    },
+    {
+      "id": 2,
+      "claim": "確定申告不要でも、住民税の申告が必要な場合がある。",
+      "source": "国税庁 No.1600",
+      "status": "confirmed",
+      "note": "",
+      "gpt": "confirmed",
+      "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/1600.htm"
+    },
+    {
+      "id": 3,
+      "claim": "医療費控除 = 支払った医療費 − 保険金などの補てん − 10万円(総所得金額等が200万円未満なら所得の5%)、上限200万円。",
+      "source": "国税庁 No.1120",
+      "status": "confirmed",
+      "note": "補足：補てん金は、その給付対象となった医療費を限度に差し引く。余剰分を他の医療費から差し引かない。",
+      "gpt": "confirmed",
+      "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/1120.htm"
+    },
+    {
+      "id": 4,
+      "claim": "令和8年分の所得税の基礎控除は、合計所得金額132万円以下なら104万円。",
+      "source": "国税庁 No.1199",
+      "status": "confirmed",
+      "note": "居住者について確認。令和8年分の改正規定は2026年12月1日施行。11月30日以前に提出する死亡・出国に伴う準確定申告では改正前の額を適用し、施行後に更正の請求が可能。",
+      "gpt": "confirmed",
+      "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/1199.htm"
+    },
+    {
+      "id": 5,
+      "claim": "住民税の基礎控除は43万円、老人控除対象配偶者は38万円、障害者控除26万円、特別障害者控除30万円。",
+      "source": "さいたま市 所得控除",
+      "status": "fixed",
+      "note": "GPT wrong = 고소득(2400만·900만 초과) 감액 누락. 예시 소득 80만·140만이라 원고 계산 영향 없음 | GPT: 一律ではない。基礎控除43万円は本人の合計所得金額2,400万円以下の場合で、所得に応じ29万円、15万円、0円となる。老人控除対象配偶者の38万円は本人の合計所得金額900万円以下の場合で、900万円超950万円以下は26万円、950万円超1,000万円以下は13万円、1,000万円超は対象外。障害者26万円、特別障害者30万円は正しい。同居特別障害者は53万円。",
+      "gpt": "wrong",
+      "url": "https://www.city.saitama.lg.jp/001/153/004/002/001/004/p001704.html"
+    },
+    {
+      "id": 6,
+      "claim": "所得税の障害者控除27万円、特別障害者控除40万円。65歳以上で市区町村長の認定を受けた人も対象。",
+      "source": "国税庁 No.1160",
+      "status": "confirmed",
+      "note": "補足：65歳以上の認定は、精神・身体の障害の程度が税法上の障害者に準ずるという認定を指す。同居特別障害者の控除額は75万円。",
+      "gpt": "confirmed",
+      "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/1160.htm"
+    },
+    {
+      "id": 7,
+      "claim": "さいたま市の非課税基準: 均等割 35万円×(人数+1)+31万円(単身45万円・夫婦101万円)、所得割 35万円×(人数+1)+42万円(夫婦112万円)。",
+      "source": "さいたま市 納税義務者",
+      "status": "confirmed",
+      "note": "人数は同一生計配偶者と扶養親族の合計人数。夫婦の金額は配偶者が同一生計配偶者に該当する場合。均等割は前年の合計所得金額、所得割は前年の総所得金額等で判定し、扶養等がいない場合は両方とも45万円以下。",
+      "gpt": "confirmed",
+      "url": "https://www.city.saitama.lg.jp/001/153/004/002/001/001/p001672.html"
+    },
+    {
+      "id": 8,
+      "claim": "住民税の申告期限は原則3月15日。",
+      "source": "さいたま市 FAQ",
+      "status": "confirmed",
+      "note": "",
+      "gpt": "confirmed",
+      "url": "https://www.city.saitama.lg.jp/faq/001/001/003/p110445.html"
+    },
+    {
+      "id": 9,
+      "claim": "所得税の還付申告は5年前の年分まで提出できる。",
+      "source": "国税庁 No.2030",
+      "status": "confirmed",
+      "note": "正確には対象年の翌年1月1日から5年間。2021年分は2026年12月31日まで提出可能。期限内申告が要件の特例には別途注意が必要。",
+      "gpt": "confirmed",
+      "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/2030.htm"
+    },
+    {
+      "id": 10,
+      "claim": "公的年金等の源泉徴収票は毎年1月に日本年金機構から送られる。",
+      "source": "日本年金機構",
+      "status": "confirmed",
+      "note": "日本年金機構が支払う老齢・退職年金について確認。電子送付もある。非課税の障害年金・遺族年金には源泉徴収票は交付されない。",
+      "gpt": "confirmed",
+      "url": "https://www.nenkin.go.jp/denshibenri_kojin/denshisofu_kojin/list.html"
+    },
+    {
+      "id": 11,
+      "claim": "通院の電車代・バス代は医療費控除の対象、タクシー代は原則対象外(公共交通機関が使えない場合のみ)、おむつ代は医師のおむつ使用証明書があれば対象。",
+      "source": "国税庁 No.1122",
+      "status": "fixed",
+      "note": "GPT wrong = 요약 누락. 원고 213~216행은 6개월 寝たきり 빼고 GPT 정답과 일치(寝たきり·医師·証明書·要介護 확인서) | GPT: 通院交通費とタクシー代の説明は正しい。おむつ代は、傷病でおおむね6か月以上寝たきりで医師の治療を受け、おむつの使用が必要と認められる場合が対象。原則として医師のおむつ使用証明書が必要だが、一定の要介護認定者は市町村長等の確認書等で代替できる。",
+      "gpt": "wrong",
+      "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/1122.htm"
+    }
+  ]
+}

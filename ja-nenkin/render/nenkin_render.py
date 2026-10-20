@@ -627,9 +627,30 @@ def key(obj):
     return hashlib.sha1(json.dumps(obj, ensure_ascii=False, sort_keys=True).encode()).hexdigest()[:10]
 
 
+def facts_gate(ep, enforce=True):
+    """G4(관리자 10-21): uncertain_facts.json — 원문 대조 안 된 제도·숫자 목록, gpt-ask 교차 1회 뒤 open·wrong·unclear 0건이어야 TTS. 10-23 부터 막음."""
+    p = ep / 'uncertain_facts.json'
+    if not p.exists():
+        left, why = None, 'uncertain_facts.json 없음'
+    else:
+        d = json.loads(p.read_text(encoding='utf-8'))
+        left = [f for f in d.get('facts', []) if f.get('status') not in ('confirmed', 'fixed')]
+        why = (f'미확인 {len(left)}건: ' + ', '.join(f'#{f["id"]}({f.get("status")})' for f in left)) if left else ''
+        if not left and not d.get('checked_by'):
+            left, why = [None], 'checked_by(교차 확인 기록) 없음'
+    if not why:
+        print(f'[관문] uncertain_facts: {len(d["facts"])}건 전부 확인 · {d["checked_by"]}', flush=True)
+        return
+    print(f'[관문] uncertain_facts: {why}' + ('' if enforce else ' — 10-23 전 알림만'), flush=True)
+    if enforce:
+        raise SystemExit('원고 관문: ' + why + ' — gpt-ask 교차 확인 뒤 status 갱신, TTS 안 함')
+
+
 def script_gate(ep):
     """TTS 전 원고 관문(관리자 10-20 adoption): ref_overlap 종료 4·5 · script_audit --jargon △ · comment_hook 실패면 중단."""
     py, sc = sys.executable, ROOT / 'scripts'
+    import datetime
+    facts_gate(ep, enforce=datetime.date.today() >= datetime.date(2026, 10, 23))
     stamp = ep / 'audit' / 'script_gate_pass.json'
     sig = {n: key((ep / n).read_text(encoding='utf-8')) for n in ('script.txt', 'comment_spec.json')}
     old = json.loads(stamp.read_text(encoding='utf-8')) if stamp.exists() else {}

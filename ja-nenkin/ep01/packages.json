@@ -117,5 +117,10 @@
   ],
   "applied": [],
   "note": "10-19 포장 3묶음(관리자 10-18 규칙): 0번=업로드 포장(제목③ 훅 금액+썸네일 B), 1번=A 서류명 書き方, 2번=今年はじめて. 썸네일은 묶음마다 A·B·C 따로(10-19 C 추가 — 서류 실물+今年はじめて). purpose=nenkin 은 채널 연결 전 임시 이름 — 연결 때 youtube_upload_profiles 의 purpose 와 맞출 것. 교체는 politics-hour/views_check.js.",
-  "purpose": "nenkin"
+  "purpose": "nenkin",
+  "variant": {
+    "logo": "left_band_channel_name",
+    "desc_style": "gloss_first",
+    "anim": "doc_zoom+table_seq"
+  }
 }
