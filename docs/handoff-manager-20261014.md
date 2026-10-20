@@ -278,6 +278,8 @@
 
 - **프로세스 이름 일괄 종료 금지 — 에이전트 포함(10-20 16:04 사고):** 정치 ko 조사 에이전트가 `taskkill /IM ffmpeg.exe` 로 PC 의 ffmpeg 전부 종료 → 롱투숏 lx03 LaMa 3시간 작업 손실. 세션·에이전트·스크립트는 자기가 띄운 PID 만 끝낸다(다운로드 중단도 그 PID). 긴 방송 통째 받기 금지(필요 구간 소리만). 에이전트 지시문에 명문화.
 
+- **관리자는 검수만(10-20 17:22 소유주):** 세션 보고를 관리자가 옮겨 적지 않는다. 각 세션이 docs/handoff-manager-20261014.md §10 끝에 자기 줄(`- <세션>(HH:MM): …`)을 직접 append 한다(UTF-8, Node/Python 로만). 관리자는 ① 검수(adoption_check·게이트 출력·샘플 눈검사·규칙 위반) ② 소유주 결정·사고·완성물 보고 ③ 규칙·결정 기록만 한다. 같은 내용을 두 곳에 쓰지 않는다.
+
 ## 8. 자주 쓰는 경로
 
 - 발행: `node D:/midform/scripts/rinbox-publish.js --approve <mp4>` → `node … <mp4> --publish-at <ISO>` → `node D:/midform/scripts/rinbox-social.js`
@@ -1141,3 +1143,9 @@
 - 정치 ko(17:15 접수): c380ae47 은 발굴 폴더로 보임(baro/top12.json·scout.json·anim/build.py·pol/a/*.m4a, 14:34~14:48 활동). 관리자: 발굴에 정리 지시(전사 끝난 m4a 삭제·카드 원자료 D: 이동·레퍼런스 소리는 D:/reference/<lane>/_audio 규칙).
 - 정치JA(17:15 접수): c380ae47·fa55f897 아님(fa55f897 은 지금 49MB — 누군가 정리). 자기 scratchpad 8e35e3b3 170→12MB. C: 빈 5.7GB(96%).
 - 도구개발(17:16 접수, 7c93349): ① 자기 scratchpad fa55f897 632→49MB(anim·gen_a mov·ja TTS wav 등 삭제). ef81016a 는 린박스 C 것. ② scripts/disk_summary.js diskSummary().line «C: 빈 5.7GB(95%)·D: 37.9GB(89%)·Temp/claude 상위 린박스 830MB·발굴 808MB·정치 ko 181MB…·hf-render 0» → manager-report §10 끝에 연결(관리자). ③ uuid 대조표(customTitle): ef81016a 린박스·c380ae47 발굴·a445273d 정치 ko·0d3a094e HEAD·fa55f897 도구개발·481eca24 쇼핑·d4f1a185 롱투숏·8e35e3b3 정치JA·9d62e0da 팬튜브·636b749d 릴스·272c45b0 연금·ebdd98ae 기업.
+- 발굴(17:18 접수, c697e7c): scratchpad c380ae47 811→46MB(프레임 이미지만), C: 빈 6.4GB. 레퍼런스 소리·영상 234개 791MB 삭제, 전사 json 은 reference/{ko_politics,ko_shopping,ko_fantube,ko_haejja}/_stt_samples 로 복사(정치 95·쇼핑 96 수 대조, 팬튜브·해짜는 복사만). 카드 원자료 8.4MB → docs/category-cards/_data/discovery-scratch-1015-1020/(미커밋). 규칙: 레퍼런스 소리는 reference/<레인>/_audio 에 받고 전사 뒤 삭제.
+- 린박스(17:19 접수): scratchpad ef81016a 831→43MB, 회귀 세트 7개(789MB) → D:/volcano-runs/_regr/screen/(diff 확인 뒤 삭제, README). 정정: frame_dup 아니라 10-15 화면 검사(rinbox_screen 박힌 자막·깜빡임) 회귀 세트, 호출 경로 없음. frame_dup 은 D:/volcano-runs/_frame_dup_vids. 규칙 기억: 시험 영상 C: Temp 금지. C: 정리 완료(세션 전부 ≤200MB).
+- 도구개발(17:20 접수, b5db749): disk_summary D: 상위 폴더·일 변화량(.line 두 줄, 1h 캐시, disk_daily.jsonl) — volcano-runs rinbox* 40.3GB·ls* 26.4·ffref* 15.5·ls_src 14.7·korim* 7.1 / midform politics-hour 38.3·reels 15.7·ja-nenkin 13.3·server 12.8·politics-hour-ja 5.0. C: 빈 7.1GB·D: 37.2GB. 다음 hook_table. (관리자 토큰 절감: 이후 접수성 보고는 한 줄만, 소유주 브리핑은 20:00 묶음)
+- 소유주(17:22): «줄여. 중요한 데다 써야지. 같은 작업을 두 번씩 하지 말고» → «검수만 하라고». §7 규칙 추가, 전 세션 공지.
+- 정치JA(17:22): scratchpad 8e35e3b3 170→12MB(지난 시험 소리·영상 147MB·frames 삭제, 스크립트·closeproto/f0.png 만 남김). c380ae47·fa55f897 정치JA 것 아님. 이후 보고는 이 절에 직접.
+- B 팬튜브(17:22): 오늘 b993f64 devo V1·V2·V3·V5 기획 게이트(publish.js ⑤, RULES_PDF 21~24항, ep19 시험 V5만 FAIL→상단 숫자 넣으면 통과) · 6decc08 발굴 소재 큐 10편 인계 기록 · ep17 6h 조회 1·좋아요 0·댓글 0(비공개 안 함, 24h 점검에 맡김) · 15:46 ffmpeg 종료 영향 없음 · scratchpad 9d62e0da 7.4MB · 남은 일 18:03 ep18 질문 댓글 게시(고정은 소유주 수동) → ep20 HgOGFsEUbxU 우선. GPT 0건.
