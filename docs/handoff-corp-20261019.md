@@ -59,7 +59,8 @@ python -X utf8 ko-corp/render/corp_render.py ko-corp/ep01                    # �
 
 ## 6. 업로드 관문 (연금과 동일)
 
-포장 3묶음(제목·썸네일·키워드·태그·해시태그·설명 첫 두 줄·purpose) → `scripts/packages_gate.py`, 제목 첫 낱말 = 썸네일 큰 글씨 → 비공개 예약 → processingStatus 확인 → 태그 삽입 + yt_tags --gate → 공개 뒤 views_check(politics-hour import) 첫날 4h·매일.
+포장 3묶음(제목·썸네일·키워드·태그·해시태그·설명 첫 두 줄·purpose) → `scripts/packages_gate.py` + `scripts/title_check.py ko-corp/ep01/packages.json --lane corp_ko --jargon ko-corp/jargon.json --fail-on-warn`(종료 0, 관리자 10-20),
+원고는 TTS 전 `scripts/ref_overlap.py --lane corp_ko`(종료 0) + `scripts/script_audit.py --lane corp_ko --jargon ko-corp/jargon.json`(경고 0 목표, 전환 120초 이내), 제목 첫 낱말 = 썸네일 큰 글씨 → 비공개 예약 → processingStatus 확인 → 태그 삽입 + yt_tags --gate → 공개 뒤 views_check(politics-hour import) 첫날 4h·매일.
 
 ## 6-1. 재부팅 인계 (10-20 07:00 메인 PC 재부팅)
 
