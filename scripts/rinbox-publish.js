@@ -327,13 +327,18 @@ function tagHookGate(mp4) {
   const hook = planPath ? readJson(planPath, {}).hook : null;
   if (!hook || typeof hook !== 'object') bad.push('plan.hook={visual, audio, text} 가 없다');
   else for (const k of ['visual', 'audio', 'text']) if (!String(hook[k] || '').trim()) bad.push(`plan.hook.${k} 가 비었다`);
+  // ★10-20 관리자 판단: 린박스 설명 머리 두 줄이 고정 문구라 공통 낱말이 구조상 0 — 도구개발 rinbox 어댑터가 나올 때까지
+  //   태그는 경고형(승인을 막지 않되 크게 찍는다). 어댑터 반영되면 TAG_STRICT=true 로 되돌린다. hook 세 칸은 계속 FAIL.
+  const TAG_STRICT = false;
   try {
     execFileSync('python', ['-I', '-X', 'utf8', path.join(__dirname, 'tag_gate.py'), `${mp4}.rinbox.json`, '--fail-on-warn'],
       { encoding: 'utf8', env: { ...process.env, PYTHONIOENCODING: 'utf-8' } });
   } catch (e) {
     const out = String(e.stdout || '').split(/\r?\n/).filter((l) => /^\s+△/.test(l)).map((l) => `태그: ${l.trim()}`);
-    if (e.status === 4 && out.length) bad.push(...out);
-    else bad.push(`태그 검사 불가(종료 ${e.status}) — 통과 아님: ${out[0] || String(e.stderr || e.stdout || e.message).trim().split(/\r?\n/).pop()}`);
+    const lines = e.status === 4 && out.length ? out
+      : [`태그 검사 불가(종료 ${e.status}): ${out[0] || String(e.stderr || e.stdout || e.message).trim().split(/\r?\n/).pop()}`];
+    if (TAG_STRICT) bad.push(...lines);
+    else console.log(lines.map((l) => `  ⚠ (경고형·어댑터 대기) ${l}`).join('\n'));
   }
   return bad;
 }
