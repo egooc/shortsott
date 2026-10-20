@@ -99,10 +99,14 @@ for up in sys.argv[2:]:
     need(big_words(ep / 'thumb' / f'thumb_k_{name}.json'), hay, f'{name} 첫 5초(제목·해설 카드·첫 자막)')
 # 댓글 장치(관리자 10-20 소유주 질책 «댓글 반응을 노리는 원고 반영이 안 됐다»): 쇼츠는 expected_comment 가 있어야 하고,
 # 롱폼·쇼츠 모두 고정 댓글에 질문 한 줄(«?»)이 있어야 한다 — 발췌 원음이라 본문에 못 넣으면 고정 댓글 질문이 그 장치다.
+# 쇼츠 expected_comment({type, line, at_sec})·장치 문장·끝 3문장은 공용 scripts/comment_hook.py(도구개발) 로 본다 — 종료 4·5 둘 다 FAIL.
+import comment_hook   # noqa: E402  scripts/ 는 위에서 sys.path 에 넣었다
 for up in sys.argv[2:]:
     u = json.loads(Path(up).read_text(encoding='utf-8'))
-    if 'shorts' in Path(up).resolve().parts and not (u.get('expected_comment') or '').strip():
-        bad.append(f'{Path(up).name}: expected_comment 없음(정정/경험담/훈수/공감/논쟁 + 유도 대사)')
+    if 'shorts' in Path(up).resolve().parts:
+        r = comment_hook.check(up, lane='politics_shorts')
+        if not r['ok']:
+            bad.append(f'{Path(up).name}: 댓글 장치 관문(comment_hook) 종료 {r["code"]} — {"; ".join(map(str, r.get("errors", [])))}')
     if '?' not in (u.get('pinned_comment') or ''):
         bad.append(f'{Path(up).name}: 고정 댓글에 질문 한 줄(«?») 없음 — 논쟁·훈수를 부르는 질문으로')
 sys.path.insert(0, str(Path(__file__).resolve().parent / 'overlay')); import tts_audit   # 해설 TTS 역전사 숫자·고유명사 대조(10/20편부터, tts_say 편만 요구)
