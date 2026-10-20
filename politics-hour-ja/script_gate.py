@@ -6,15 +6,47 @@
    keyword·rising_score·excerpt(官邸·国会 영상 출처·ID)·emotion_now(Z7 인물의 지금 대리만족 한 문장)·comment_count(Z12 댓글 수, JA 는 Yahoo!ニュース
    기사 댓글 수)·reason. 10/21편(폴더 이름 20261021)부터. 없으면 원고 착수 금지.
 ② (--before-script 가 아니면) 첫 말 인사 금지: 첫 해설·콜드오픈 문장이 인사·채널명·날짜 낭독이면 FAIL(관리자 §7 70초 규칙).
+   + 쟁점 번호 호명(一つ目·論点①·今日の論点は三つ…)·목차·챕터 카드 FAIL(소유주 10-20, 10/21편부터).
 ③ (--before-script 가 아니면) scripts/ref_overlap.py --lane politics_ja — 해설만(인용 quote·공문 원문 card 제외).
 종료: 0 통과 · 3 FAIL · ref_overlap 이 4·5 면 그 코드."""
 import json, re, subprocess, sys, tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-GREETING = re.compile(r'^(こんにちは|こんばんは|おはよう|皆さん|みなさん|どうも|ようこそ|今週も|本日も|本日は|今日も|今週の国会[、。です]|国会ノート[、。です]'
+GREETING = re.compile(r'^(こんにちは|今週の国会、|今日は|本日の|今週は[^。]*お伝え|こんばんは|おはよう|皆さん|みなさん|どうも|ようこそ|今週も|本日も|本日は|今日も|今週の国会[、。です]|国会ノート[、。です]'
                       r'|\d+月\d+日|令和\d+年\d+月)')
 FROM = '20261021'
+# 쟁점 번호 호명·목차 금지(관리자 전달 소유주 10-20 «채널명 인사하고 쟁점 하나 둘 셋 나열하는 순간 루즈해진다. 첫 쟁점부터 바로»):
+# TTS·자막·카드·고정 댓글·설명 첫 두 줄 어디에도 — 쟁점 사이는 내용 전환 문구만. 챕터는 설명란 타임스탬프에만(화면 목차·챕터 카드 금지).
+NUMBERING = re.compile(r'(一|二|三|四|五|ひと|ふた|みっ|よっ|[1-5１-５])つ目|論点\s*[①-⑤1-5１-５一二三四五]|[①②③④⑤]|'
+                       r'(今日|今週|本日|今回)の(論点|テーマ|ポイント|話題)は|(論点|ポイント|テーマ|話題)は\s*[一二三四五1-5１-５]つ|[一二三四五1-5１-５]つの(論点|テーマ|ポイント|話題)|目次|'
+                       r'まずは?一つ|最後に?[、]?[三四五3-5]つ目|第[一二三四五1-5]の(論点|テーマ)')
+
+
+def numbering_errors(ep, uploads=()):
+    """원고(해설·콜드오픈·카드)·고정 댓글·설명 첫 두 줄의 쟁점 번호 호명·목차 + 챕터 카드 → FAIL 문구 목록."""
+    bad = []
+    segs = spoken(ep)
+    import ja_render   # spoken() 이 render 경로를 넣었다
+    for s in ja_render.segments(json.loads((ep / 'episode.json').read_text(encoding='utf-8'))):
+        if s.get('type') == 'chapter':
+            bad.append(f'챕터 카드 «{(s.get("title") or s.get("text") or "")[:20]}» — 챕터는 설명란 타임스탬프에만')
+    for s in segs:
+        m = NUMBERING.search(s['text'])
+        if m:
+            bad.append(f'원고 {s.get("type")} 번호 호명·목차 «{m.group(0)}»: «{s["text"][:30]}»')
+    for up in uploads:
+        u = json.loads(Path(up).read_text(encoding='utf-8'))
+        for where, txt in (('고정 댓글', u.get('pinned_comment') or ''), ('설명 첫 두 줄', '\n'.join((u.get('description') or '').split('\n')[:2]))):
+            m = NUMBERING.search(txt)
+            if m:
+                bad.append(f'{Path(up).parent.name}/{Path(up).name} {where} 번호 호명·목차 «{m.group(0)}»')
+    pk = ep / 'packages.json'
+    for i, pkg in enumerate(json.loads(pk.read_text(encoding='utf-8'))['packages'] if pk.exists() else []):
+        m = NUMBERING.search('\n'.join(pkg.get('desc_head') or []))
+        if m:
+            bad.append(f'packages.json {i}번 설명 첫 두 줄 번호 호명·목차 «{m.group(0)}»')
+    return bad
 sys.path.insert(0, str(ROOT / 'politics-hour'))
 import candidate_gate   # noqa: E402  ko 후보표 관문(28ca994) 그대로
 
@@ -43,6 +75,11 @@ def main():
             bad.append(f'첫 말이 인사·채널명·날짜: «{first[:30]}»')
         else:
             print(f'[script-ja] PASS 첫 말 인사 아님: «{first[:30]}»')
+        if candidate_gate.ep_date(ep) >= FROM:
+            nb = numbering_errors(ep)
+            bad += nb
+            if not nb:
+                print('[script-ja] PASS 쟁점 번호 호명·목차·챕터 카드 없음')
         with tempfile.TemporaryDirectory() as tmp:
             nar = Path(tmp) / 'nar.json'
             nar.write_text(json.dumps([s['text'] for s in segs if s.get('type') != 'card'], ensure_ascii=False), encoding='utf-8')

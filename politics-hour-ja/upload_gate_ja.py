@@ -137,6 +137,10 @@ if script_gate.candidate_gate.ep_date(ep, sys.argv[2:]) >= script_gate.FROM:   #
         bad.append(f'첫 말이 인사·채널명·날짜: «{_first[:30]}»')
     else:
         print(f'[gate-ja] PASS 첫 말 인사 아님 «{_first[:30]}»')
+    _nb = script_gate.numbering_errors(ep, sys.argv[2:])   # 쟁점 번호 호명·목차·챕터 카드(소유주 10-20)
+    bad += _nb
+    if not _nb:
+        print('[gate-ja] PASS 쟁점 번호 호명·목차·챕터 카드 없음(원고·고정 댓글·설명 첫 두 줄)')
 # 커뮤니티 가이드 낱말(10-18 소유주 «제재 없이 조회 0 = 가이드 위반», 정본 config/guide_words.json · 도구개발 공용 판정) — 걸리면 종료 4
 guide = guide_words.gate_lines([*sys.argv[2:], *[x for x in [ep / 'packages.json', ep / 'keywords.json'] if x.exists()]], lang='ja', lane='politics_ja')
 bad += guide
