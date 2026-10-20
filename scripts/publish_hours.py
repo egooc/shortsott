@@ -72,6 +72,11 @@ def _env_key():
 def api_feed(c, shorts=False, n=30, key=None, units=None):
     """→ (채널 이름, [{id, at, hour, wd, views, sec}]) — 쇼츠 레인은 60초 이하만, 아니면 61초 이상만."""
     def call(ep, **q):
+        import api_quota   # 발굴 키 공용 쿼터 장부(10-20)
+        try:
+            api_quota.spend('publish_hours', ep)
+        except api_quota.QuotaStop as e:
+            raise Blocked(str(e))
         units[0] += 1
         url = f'https://www.googleapis.com/youtube/v3/{ep}?' + urllib.parse.urlencode({**q, 'key': key})
         try:
@@ -79,6 +84,7 @@ def api_feed(c, shorts=False, n=30, key=None, units=None):
                 return json.loads(r.read().decode('utf-8'))
         except urllib.error.HTTPError as e:
             if e.code in (403, 429):
+                api_quota.mark_blocked('publish_hours', f'{ep} {e.code}')
                 raise Blocked(f'{ep} {e.code}')
             raise
     if c.startswith('@'):

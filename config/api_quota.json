@@ -1,0 +1,17 @@
+{
+  "_doc": "발굴용 키(YOUTUBE_API_KEY_SEARCH) 도구별 하루 상한(단위). 10-20 12:55 키 429(일 한도 1만) 뒤 관리자 지시. 모든 도구는 scripts/api_quota.js|.py 로 호출마다 기록하고, 상한을 넘으면 스스로 멈춘다(gate_errors.jsonl). search.list=100, 그 밖 list=1. 날짜는 KST.",
+  "day_total": 9000,
+  "tools": {
+    "yt_news_outliers": 400,
+    "comment_mine": 300,
+    "publish_hours": 100,
+    "hook_table": 100,
+    "discovery_search": 3000,
+    "thread_report": 100,
+    "other": 500
+  },
+  "units": {
+    "search": 100,
+    "default": 1
+  }
+}

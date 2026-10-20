@@ -30,11 +30,14 @@ function apiKey() {
 
 class Stop extends Error {}
 
+const quota = require('./api_quota');   // 발굴 키 쿼터 장부(10-20) — 호출마다 기록, 상한·중지면 호출 전에 멈춤
+
 async function yt(key, endpoint, params) {
   const q = new URLSearchParams({ ...params, key }).toString();
+  try { quota.spend('yt_news_outliers', endpoint); } catch (e) { if (e instanceof quota.QuotaStop) throw new Stop(e.message); throw e; }
   units += 1;
   const r = await fetch(`https://www.googleapis.com/youtube/v3/${endpoint}?${q}`);
-  if (r.status === 403 || r.status === 429) throw new Stop(`${endpoint} ${r.status} — 발굴용 키 한도·권한, 오늘은 멈춤`);
+  if (r.status === 403 || r.status === 429) { quota.markBlocked('yt_news_outliers', `${endpoint} ${r.status}`); throw new Stop(`${endpoint} ${r.status} — 발굴용 키 한도·권한, 오늘은 멈춤`); }
   if (!r.ok) throw new Error(`${endpoint} ${r.status}`);
   return r.json();
 }

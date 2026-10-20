@@ -56,12 +56,15 @@ function quota(add = 0) {
 
 const vid = (s) => (String(s).match(/(?:v=|youtu\.be\/|shorts\/)([\w-]{11})/) || [null, s])[1];
 
+const apiQuota = require('./api_quota');   // 발굴 키 공용 쿼터 장부(10-20) — 도구 자체 300 상한과 함께
+
 async function yt(key, endpoint, params) {
+  try { apiQuota.spend('comment_mine', endpoint); } catch (e) { if (e instanceof apiQuota.QuotaStop) throw new Stop(e.message); throw e; }
   quota(1);
   const r = await fetch(`https://www.googleapis.com/youtube/v3/${endpoint}?${new URLSearchParams({ ...params, key })}`);
   const j = await r.json().catch(() => ({}));
   if (r.status === 403 && /commentsDisabled/.test(JSON.stringify(j))) { const e = new Error('댓글 꺼진 영상'); e.soft = true; throw e; }
-  if (r.status === 403 || r.status === 429) throw new Stop(`${endpoint} ${r.status} — 발굴용 키 한도·권한, 오늘은 멈춤`);
+  if (r.status === 403 || r.status === 429) { apiQuota.markBlocked('comment_mine', `${endpoint} ${r.status}`); throw new Stop(`${endpoint} ${r.status} — 발굴용 키 한도·권한, 오늘은 멈춤`); }
   if (!r.ok) throw new Error(`${endpoint} ${r.status}`);
   return j;
 }
