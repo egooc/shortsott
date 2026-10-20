@@ -36,7 +36,7 @@ const M = JSON.parse(fs.readFileSync(meta, 'utf8'));
 }
 // 기획 게이트(10/20 관리자 실측 «17~19항이 ack 만 있고 코드가 없었다») — 넷 중 하나라도 없으면 업로드 금지(exit 5).
 // ① spec.vicarious: 지금의 대리만족 한 문장(20자+) ② spec.hook {visual,audio,text} 3칸(0~3초 안에 있는 것) ③ spec.title_pattern {pattern: 10패턴 이름, key: 멤버/상황 낱말}
-//    + 업로드 제목: 해시태그 없이 15자±3, key 가 앞 10자 안 ④ 첫 TTS 문장에 «안녕하세요·오늘은» 금지.
+//    + 업로드 제목: 해시태그 없이 15자±3, key 가 앞 10자 안 ④ 첫 TTS 문장에 «안녕하세요·오늘은» 금지 ⑤ devo V1·V2·V3·V5(21~24항).
 {
   const S = JSON.parse(fs.readFileSync(path.join('D:/volcano-runs/fantube', ep, 'spec.json'), 'utf8'));
   const PAT = ['결과 숨김', '이유·비밀', '팬 저격', '숫자', '금지·주의', '말하다 만다', '실화·썰', 'ㅋㅋ·ㄷㄷ', '대사 그대로', '최상급·한정'];
@@ -54,6 +54,16 @@ const M = JSON.parse(fs.readFileSync(meta, 'utf8'));
   if (/#/.test(title)) bad.push('③ 제목에 해시태그(제목 늘리기 금지 — 설명란으로)');
   if (len < 12 || len > 18) bad.push(`③ 제목 ${len}자(공백 빼고) — 15자±3`);
   if (v0 && /안녕|오늘은/.test(v0.text)) bad.push(`④ 첫 TTS «${v0.text}» 인사·«오늘은» 금지`);
+  // devo 칼럼 V1·V2·V3·V5(21~24항, 10/20 관리자 — 도구개발 script_audit --shorts 나오면 그쪽 import 로 교체).
+  // 원음 인용(caps style 'say')·베댓 카드는 실제 말이라 V2·V3 검사에서 뺀다.
+  if (v0 && /오늘은|이유는|왜냐하면|때문입니다|때문이에요|때문이죠/.test(v0.text)) bad.push(`⑤ V1 첫 TTS «${v0.text}» 설명형 — 행동 묘사·의외성·궁금증으로`);
+  const ours = [...(S.voice || []).map(x => ({ ...x, src: 'TTS' })), ...(S.caps || []).filter(x => x.style !== 'say').map(x => ({ ...x, src: '자막' }))].sort((a, b) => a.t0 - b.t0);
+  const EVAL = /너무\s?감동|감동적|감동이|놀라웠|놀랍|대단했|대단하|대단한|소름/;
+  for (const x of ours.slice(v0 ? 1 : 0)) if (EVAL.test(x.text)) bad.push(`⑤ V2 ${x.src} @${x.t0}s «${x.text}» 감정 평가 어휘 — 행동·사실로`);
+  const last = ours[ours.length - 1];
+  if (last && /결국|정리하면|요약하면|한마디로|역시\s|레전드였|최고였|완벽했/.test(last.text)) bad.push(`⑤ V3 끝 문장 «${last.text}» 평가·요약 — 댓글 장치 질문 또는 감정 한 문장`);
+  const top = `${(S.top || {}).l1 || ''} ${(S.top || {}).l2 || ''}`;
+  if (!/\d|[한두세네다섯]\s?(번|명|개|시간|초|분|살|년)|번째|첫\s|째/.test(top)) bad.push(`⑤ V5 상단 문구 «${top.trim()}» 에 숫자·시간 없음(«8시간째» 식 1개)`);
   if (bad.length) {
     console.error(`\x07[publish] ★FAIL 기획 게이트 — ${bad.join(' / ')}. 업로드 안 함.`);
     process.exit(5);
