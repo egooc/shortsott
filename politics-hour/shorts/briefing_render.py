@@ -197,6 +197,77 @@ html,body{{margin:0;background:transparent}}
             '<script src="assets/gsap.min.js"></script><script>' + ''.join(js) + '</script></body></html>')
 
 
+# 10-20 소유주 «숏폼은 인물만 확대·대비» → 발굴 카드(docs/category-cards/2026-10-20-politics-shorts-style-baroboja.md) 수치:
+#   위 27% 검정 + 두 줄 제목(줄 높이 화면 6%, 윗줄 노랑·아랫줄 흰) / 가운데 45% 얼굴 띠(얼굴 폭 ≈ 화면 28%, close_zoom.py) / 아래 28% 비움.
+#   겹침 요소 ≤3 = 화면 제목 · 말 자막 한 줄(화자마다 색) · 첫 3초 경력 꼬리표. 로고·출처·채널 띠·티커·고지·끝 카드·와이프 0(출처는 설명란).
+CLOSE_Y0, CLOSE_Y1 = 528, 1392       # 얼굴 띠(높이 27.5~72.5%)
+CLOSE_CAP_Y = 1240                   # 말 자막 가운데(높이 ≈ 64.5%, 얼굴 띠 아래쪽)
+TAG_S = 3.0                          # 경력 꼬리표는 그 사람이 처음 나온 뒤 3초만
+CAP_STYLES = [('#fff', 'rgba(8,10,18,.72)'), (YEL, 'rgba(8,10,18,.72)'), ('#fff', '#1E5BD8'), ('#111', '#fff')]
+
+
+def fit_size(text, maxw, big, small):
+    """늘 한 줄 — 글자 수로 크기를 고른다(페이퍼로지 한글 ≈ 1em, 띄어쓰기 ≈ .3em)."""
+    n = sum(.3 if ch == ' ' else 1.0 for ch in text) or 1
+    return max(small, min(big, int(maxw / n)))
+
+
+def frame_html_close(plan, total):
+    e = html.escape
+    T = '%.3f' % total
+    spk = plan.get('speakers', {})
+    order = {k: i for i, k in enumerate(spk)}
+    t0 = plan['title'] if isinstance(plan['title'], list) else [plan['title']]
+    css = f"""
+@font-face{{font-family:Paper;src:url(assets/Paperlogy-8ExtraBold.ttf)}}
+@font-face{{font-family:Body;src:url(assets/ROKAFSansMedium.ttf)}}
+html,body{{margin:0;background:transparent}}
+#root{{position:relative;width:1080px;height:1920px;overflow:hidden;word-break:keep-all;font-family:Paper;color:#fff}}
+#title{{position:absolute;left:60px;right:60px;top:200px;height:{CLOSE_Y0 - 220}px;display:flex;flex-direction:column;justify-content:center;align-items:center}}
+#title div{{white-space:nowrap;line-height:1.08;letter-spacing:-2px}} #title .l0{{color:{YEL}}} #title .l1{{color:#fff}}
+.tag{{position:absolute;left:40px;top:{CLOSE_Y0 + 24}px;opacity:0;font-family:Body;font-size:32px;line-height:1;padding:10px 16px;border-radius:6px;color:#fff}}
+.cap{{position:absolute;left:60px;width:890px;top:{CLOSE_CAP_Y}px;transform:translateY(-50%);text-align:center;white-space:nowrap;opacity:0}}
+.cap span{{display:inline-block;line-height:1.15;padding:6px 20px 10px;border-radius:8px}}
+.cap b{{font-weight:normal;color:{YEL}}} .cap .y b{{color:#fff}} .cap .w b{{color:{RED}}}
+"""
+    body = '<div id="title">%s</div>' % ''.join(
+        '<div class="l%d" style="font-size:%dpx">%s</div>' % (i, fit_size(ln, 960, 112, 76), e(ln)) for i, ln in enumerate(t0[:2]))
+    for k, v in spk.items():
+        if v.get('name'):
+            lab = ' · '.join(x for x in (v['name'], v.get('role', '')) if x)
+            body += f'<div class="tag" id="tag_{k}" style="background:{v.get("color", "#1a2036")}">{e(lab)}</div>'
+    nar, hot = set(_nar), plan.get('hot', [])
+    for i, c in enumerate(_caps):
+        who = 'nar' if c in nar else voice_at(plan, total, (c[0] + c[1]) / 2)[0]
+        fg, bg = CAP_STYLES[1] if who == 'nar' else CAP_STYLES[order.get(who, 0) % len(CAP_STYLES)]
+        cl = 'y' if fg == YEL else ('w' if bg == '#fff' else '')
+        body += (f'<div class="cap" id="c{i}"><span class="{cl}" style="font-size:{fit_size(c[2], 860, 58, 44)}px;color:{fg};background:{bg}">'
+                 f'{cap_html(c[2], hot)}</span></div>')
+    js = ['const tl=gsap.timeline({paused:true});']
+    for i, c in enumerate(_caps):
+        js.append(f'tl.set("#c{i}",{{opacity:1}},{c[0]:.3f});tl.set("#c{i}",{{opacity:0}},{c[1]:.3f});')
+    seen = set()
+    for (a, b), s in zip(seg_times(plan, total), plan['sequence']):
+        w = s.get('who')
+        if w and w not in seen and spk.get(w, {}).get('name'):
+            seen.add(w)
+            js.append(f'tl.set("#tag_{w}",{{opacity:1}},{a:.3f});tl.to("#tag_{w}",{{opacity:0,duration:.2}},{min(a + TAG_S, total):.3f});')
+    js.append('window.__timelines=window.__timelines||{};window.__timelines["longshort"]=tl;')
+    return ('<!doctype html><html lang="ko"><head><meta charset="utf-8"><style>' + css + '</style></head><body>'
+            f'<div id="root" data-composition-id="longshort" data-width="1080" data-height="1920" data-duration="{T}" data-elements="3">'
+            f'<section class="clip" data-start="0" data-duration="{T}" style="position:absolute;inset:0">{body}</section></div>'
+            '<script src="assets/gsap.min.js"></script><script>' + ''.join(js) + '</script></body></html>')
+
+
+def use_close():
+    """"layout": "close" — 그림 창을 가운데 얼굴 띠로, 자막은 한 줄로. 렌더러 파일은 그대로 두고 상수만 갈아 끼운다."""
+    R = L.R
+    R.PIC_Y0, R.PIC_Y1, R.PIC_H = CLOSE_Y0, CLOSE_Y1, CLOSE_Y1 - CLOSE_Y0
+    L.PIC_Y0, L.PIC_Y1, L.CAP_Y = CLOSE_Y0, CLOSE_Y1, CLOSE_CAP_Y
+    R.CAP_MAX['ko'] = 16
+    L.frame_html = frame_html_close
+
+
 _orig_render_frame = L.render_frame
 _orig_nar_events = L.narration_events
 
@@ -228,4 +299,7 @@ L.render_frame = render_frame
 L.narration_events = narration_events
 L._write_ass = write_ass
 if __name__ == '__main__':
+    import json
+    if len(sys.argv) > 1 and json.loads(Path(sys.argv[1]).read_text(encoding='utf-8')).get('layout') == 'close':
+        use_close()
     L.main()

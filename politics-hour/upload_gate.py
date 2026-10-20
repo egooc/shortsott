@@ -114,6 +114,21 @@ for up in sys.argv[2:]:
 import subprocess   # noqa: E402
 import candidate_gate   # noqa: E402  편 날짜(ep_date)·후보표(상승 점수·발췌·지금의 감정·댓글 수) — 10/21편부터
 EP_DATE = candidate_gate.ep_date(ep, sys.argv[2:])
+# 쇼츠 주고받기(10-20 15:00 소유주 «주고받는 중요 멘트랑 반응이나 대응») + 3단 얼굴 띠 틀 — 10/21편부터. shorts/exchange_gate.py
+import subprocess   # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parent / 'shorts')); import exchange_gate   # noqa: E402
+for up in sys.argv[2:]:
+    if 'shorts' not in Path(up).resolve().parts or EP_DATE < '20261021':
+        continue
+    name = Path(up).name.split('.')[0]
+    plan = Path(up).parent.parent / 'ls' / Path(up).parent.name / name / 'plan.json'
+    if not plan.exists():
+        continue
+    bad += exchange_gate.check(json.loads(plan.read_text(encoding='utf-8')), name)[0]
+    r = subprocess.run([sys.executable, '-X', 'utf8', str(Path(__file__).resolve().parents[1] / 'scripts' / 'exchange_check.py'), str(plan),
+                        '--lane', 'politics_shorts', '--enforce-now'], capture_output=True, text=True, encoding='utf-8')
+    if r.returncode:
+        bad.append(f'{name} exchange_check 종료 {r.returncode}: ' + ' / '.join(x for x in r.stdout.splitlines() if 'FAIL' in x or '불가' in x)[:400])
 TITLE_CHECK = Path(__file__).resolve().parents[1] / 'scripts' / 'title_check.py'
 for up in (sys.argv[2:] if EP_DATE >= '20261021' else []):
     u = json.loads(Path(up).read_text(encoding='utf-8'))
