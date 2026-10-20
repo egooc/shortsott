@@ -627,6 +627,26 @@ def key(obj):
     return hashlib.sha1(json.dumps(obj, ensure_ascii=False, sort_keys=True).encode()).hexdigest()[:10]
 
 
+def script_gate(ep):
+    """TTS 전 원고 관문(관리자 10-20 adoption): ref_overlap 종료 4·5 · script_audit --jargon △ · comment_hook 실패면 중단."""
+    py, sc = sys.executable, ROOT / 'scripts'
+    r = subprocess.run([py, str(Path(__file__).parent / 'ref_overlap.py'), str(ep / 'script.txt')], capture_output=True, text=True, encoding='utf-8')
+    print('[관문] ref_overlap:', (r.stdout.strip().splitlines() or ['?'])[-1], f'(종료 {r.returncode})', flush=True)
+    if r.returncode in (4, 5):
+        raise SystemExit(f'원고 관문: 레퍼런스 겹침(종료 {r.returncode}) — {ep / "audit"} 확인, TTS 안 함')
+    sys.path.insert(0, str(sc))
+    import script_audit
+    a = script_audit.audit(ep / 'script.txt', lane='nenkin_ja', jargon=script_audit._load_json(ROOT / 'ja-nenkin' / 'jargon.json'))
+    print('[관문] script_audit:', a.get('error') or f'경고 {len(a["warnings"])}건', flush=True)
+    if a.get('error') or a['warnings']:
+        raise SystemExit('원고 관문: script_audit ' + (a.get('error') or ' / '.join(f'[{c}] {m}' for c, m in a['warnings'])))
+    r = subprocess.run([py, str(sc / 'comment_hook.py'), str(ep), '--lane', 'generic', '--spec', str(ep / 'comment_spec.json'),
+                        '--script', str(ep / 'script.txt')], capture_output=True, text=True, encoding='utf-8')
+    print('[관문] comment_hook:', (r.stdout.strip().splitlines() or ['?'])[0], f'(종료 {r.returncode})', flush=True)
+    if r.returncode:
+        raise SystemExit('원고 관문: comment_hook 실패 — ' + r.stdout)
+
+
 def main(argv=None):
     if hasattr(sys.stdout, 'reconfigure'):
         sys.stdout.reconfigure(encoding='utf-8')
@@ -667,6 +687,7 @@ def main(argv=None):
                 shutil.copy2(p, out / 'png' / f'v{i:03d}_{blk["vid"]}.png')
             print(i, blk['vid'], flush=True)
         return 0
+    script_gate(ep)
     if '--no-gate' not in argv:
         wait_gate()
     work = ep / 'seg'
