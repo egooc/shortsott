@@ -20,6 +20,8 @@ assert tc.risky_combo('불고기 손질법') is None
 assert tc.risky_combo('불에 손', 'ko') is not None
 # 쇼츠 체크
 assert codes('남자들만 모르는 지퍼 올리는 법') == []
+for s in ('기름때 키친타올로 닦지 마세요', '변기솔 젖은 채 꽂아 두지 마세요', '논슬립 옷걸이 없이 얇은 옷 걸지 마세요'):
+    assert '패턴' not in codes(s), s   # 쇼핑 «~지 마세요» = 금지·경고
 assert {'결과노출', '설명형'} <= set(codes('결국 회사는 망했다: 해태의 몰락 · 원인 · 교훈'))
 assert {'해시태그', '최상급', '앞10자'} <= set(codes('오늘은 역대급 소름 레전드 #쇼츠 #꿀팁'))
 assert '길이' in codes('이 제목은 쇼츠에 쓰기에는 너무나도 길어서 한눈에 들어오지 않습니다 그렇죠')
