@@ -16,7 +16,17 @@ function check(metaPath) {
   if (meta.file) args.push('--script', path.join(path.dirname(meta.file), 'plan.json'));
   const r = spawnSync('python', args, { encoding: 'utf8', env: { ...process.env, PYTHONIOENCODING: 'utf-8' } });
   const lines = `${r.stdout || ''}${r.stderr || ''}`.split('\n').map((l) => l.trimEnd()).filter(Boolean);
-  return { code: r.status == null ? 5 : r.status, lines };
+  let code = r.status == null ? 5 : r.status;
+  // G23(10-21 관리자): 숨은 태그·쇼핑 태그 칸 — shop_hidden_tags.js 를 돌린 기록. 10-23 00:00 KST 부터 시작한 편은 없으면 FAIL, 그 전엔 △
+  const miss = [!meta.ref_tags && 'ref_tags(숨은 태그)', !meta.shopping_tag && 'shopping_tag(쇼핑 태그)'].filter(Boolean);
+  const sf = meta.file && path.join(path.dirname(meta.file), 'started_at.txt');
+  const t0 = sf && fs.existsSync(sf) ? Date.parse(fs.readFileSync(sf, 'utf8').trim()) : Date.now();
+  const enforced = (Number.isFinite(t0) ? t0 : Date.now()) >= Date.parse('2026-10-23T00:00:00+09:00');
+  if (miss.length) {
+    lines.push(`${enforced ? '✗' : '△'} G23 ${miss.join('·')} 없음 — node scripts/shop_hidden_tags.js <메타>${enforced ? '' : ' (10-23부터 FAIL)'}`);
+    if (enforced && !code) code = 4;
+  } else lines.push(`✓ G23 숨은 태그 ${meta.ref_tags.tags.length}개(«${meta.ref_tags.kw}» 상위 ${meta.ref_tags.videos}편) · 쇼핑 태그 ${meta.shopping_tag.status}`);
+  return { code, lines };
 }
 
 module.exports = { check };

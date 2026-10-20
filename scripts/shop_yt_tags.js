@@ -28,6 +28,8 @@ function buildTags(meta) {
   const add = (t) => { t = String(t).replace(/^#/, '').trim(); if (t.length >= 2 && !out.includes(t)) out.push(t); };
   // 검색 키워드 3개가 태그 맨 앞(10/20 소유주 «쇼핑 제목에는 검색 키워드» — shop_keyword_check 가 앞 3개를 본다)
   for (const k of Array.isArray(meta.keywords) ? meta.keywords : []) if (k && k.kw) add(k.kw);
+  // 경쟁 영상 숨은 태그(shop_hidden_tags.js, 10-21 G23) — 키워드 바로 뒤, 아래에서 원고에 없는 낱말은 걸러진다
+  for (const r of (meta.ref_tags && Array.isArray(meta.ref_tags.tags) ? meta.ref_tags.tags : [])) add(r.tag);
   const custom = Array.isArray(meta.tags) && meta.tags.length;
   if (custom) for (const t of meta.tags) add(t);
   else {
@@ -101,7 +103,7 @@ async function holdPrivate(videoId) {
   return r.ok;
 }
 
-module.exports = { ensureTags, buildTags, holdPrivate };
+module.exports = { ensureTags, buildTags, holdPrivate, headers };
 
 if (require.main === module) {
   (async () => {

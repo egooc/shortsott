@@ -4,8 +4,12 @@
 //   meta.script_map = {
 //     six: ["①제목 읊기 문장", "②배경", "③문제", "④해결 사건", "⑤반박 선제", "⑥사회적 증거+손맛"],   // 원고 문장 그대로(앞부분만 적어도 됨)
 //     gyeol: "결 문장", chung: "충 문장", jeon: "전 문장",
-//     rebut: "반박 선제 질문 문장", social_proof: { line: "사회적 증거 문장", source: "https://… (쿠팡 페이지 등 확인한 곳)" }
+//     rebut: "반박 선제 질문 문장", social_proof: { line: "사회적 증거 문장", source: "https://… (쿠팡 페이지 등 확인한 곳)" },
+//     narrative_fact: { line: "충에 쓴 서사 팩트 문장", source: "https://… (그 사실을 확인한 곳)" },          // ⑬ G16
+//     person4: { problem: "문제 발견", reaction: "반응", struggle: "삽질(실패·반복)", result: "결과" }   // ⑪ G20 인물형 4박자
 //   }
+//   meta.human_touch = { before: "AI 초안 문장", after: "사람이 고친 문장(원고에 그대로)", by: "고친 사람", at: "ISO 시각" }   // ⑫ G20 기록(△)
+// 10-21 관리자(docs/materials-gap-20261021.md G16·G20): ⑩ 대사·⑪ 4박자·⑬ 서사 팩트는 10-23 00:00 KST 부터 시작한 편에 FAIL, 그 전엔 △.
 // 쓰임: node scripts/shop_script_check.js <메타.json>   — 항목별 ✓/✗ 줄을 찍는다(밤 보고서에 그대로 붙인다)
 // 10/20 12:00 KST 전에 시작한 편(<작업폴더>/started_at.txt)은 «구 원고 면제»로 통과시킨다(이미 만든 재고를 막지 않는다).
 const fs = require('fs');
@@ -27,6 +31,13 @@ const V1_EXPLAIN = /^(이유는|왜냐하면|그 이유는|왜 그러냐면)|때
 const V2_EMOTION = /(너무 좋|대박|놀라워|놀라웠|놀랍|감동|충격적|대단해|대단했|슬펐|최고예요|최고에요|짱이에요|짱이죠)/;
 const V3_SUMMARY = /^(그래서|결국|이처럼|역시)|꼭 사세요|꼭 써 보세요|(정말|참|역시).*(였|이었)(습니다|어요)/;
 const V14_COMPARE = /(배|보다|대신|만에|에서|전|후|하루|매일|한 번|%|→|vs)/;
+const ENFORCE_1023 = Date.parse('2026-10-23T00:00:00+09:00');
+// ⑩ 대사 — 따옴표로 묶은 사람 말(설명 대신 대사로 장면을 넘긴다, 하늘 8)
+const DIALOGUE = /["“”「」『』]/;
+const MIN_DIALOGUE = 0.15;
+// ⑪ 삽질 표지(실패·반복)와 고난 크기(횟수·시간·숫자)
+const STRUGGLE = /(안 (돼|됐|되|빠|지워|떨어)|실패|소용(이)? ?없|그대로|또 |다시|몇 번|매번|포기|버렸|헛수고|못 (했|하|버))/;
+const HARDSHIP = /([0-9]|몇 번|매번|며칠|몇 시간|한 시간|내내|매일|수십|수백|평생|한참)/;
 const CPS = 7.0;   // 자막 시각이 없을 때 추정(script_audit 과 같은 ko 7자/초)
 
 // 문장(segment) 시작 시각 — <작업폴더>/_ff/cap.ass 의 Cap 줄(plan 문장을 « / » 로 나눈 조각)에서 찾는다. 못 찾으면 글자 수로 추정.
@@ -67,6 +78,9 @@ function check(metaPath) {
   const started = fs.existsSync(startedFile) ? Date.parse(fs.readFileSync(startedFile, 'utf8').trim()) : NaN;
   if (started < SINCE) return { code: 0, exempt: true, out: [{ ok: true, item: '면제', msg: `구 원고(시작 ${fs.readFileSync(startedFile, 'utf8').trim()} < 10/20 12:00)` }] };
 
+  const enforced = (Number.isFinite(started) ? started : Date.now()) >= ENFORCE_1023;
+  const gate = (bad, item, msg) => (enforced ? add(!bad, item, msg) : warn(bad, item, `${msg}${bad ? ' (10-23부터 FAIL)' : ''}`));
+
   const rawSegs = JSON.parse(fs.readFileSync(planPath, 'utf8')).segments.map((s) => String(s.text || ''));
   const segs = rawSegs.map((t) => t.replace(/\s*\/\s*/g, ' ').trim());
   const sq = segs.map(squash);
@@ -100,7 +114,16 @@ function check(metaPath) {
   const gErr = iG < 0 ? '결 문장이 원고에 없음' : iG > Math.floor(n * 0.4) ? `결이 앞 40% 밖(${iG + 1}/${n})` : '';
   const cErr = iC < 0 ? '충 문장이 원고에 없음' : !NARRATIVE.test(segs[iC]) ? `충이 서사 문장이 아님(«${segs[iC]}» — 일화·발상·이유 표지 없음)` : iC <= iG ? '충이 결보다 앞' : '';
   const jErr = iJ < 0 ? '전 문장이 원고에 없음' : iJ < Math.floor(n * 0.6) ? `전이 뒤 40% 밖(${iJ + 1}/${n})` : iJ <= iC ? '전이 충보다 앞' : '';
-  add(!gErr && !cErr && !jErr, '① 결충전', [gErr, cErr, jErr].filter(Boolean).join(' · ') || `결 ${iG + 1} · 충 ${iC + 1} · 전 ${iJ + 1} / ${n}문장`);
+  // G16 반려 유형: ① 충이 서사가 아닌 단순 호평 → 조회 0 · ② 결/전이 없이 역사·원리 나열만 → 조회는 나도 구매 0(큰제로 06-25·07-11)
+  const reject = cErr ? '반려 유형 ① 단순 호평(→ 조회 0)' : (gErr || jErr) ? '반려 유형 ② 역사·원리 나열만(→ 구매 0)' : '';
+  add(!gErr && !cErr && !jErr, '① 결충전', [gErr, cErr, jErr, reject].filter(Boolean).join(' · ') || `결 ${iG + 1} · 충 ${iC + 1} · 전 ${iJ + 1} / ${n}문장`);
+  if (reject) out[out.length - 1].reject = reject;
+
+  // ⑬ 서사 팩트 1개(출처 있음, G16) — 충이 지어낸 일화가 아니라 확인한 사실이어야 한다
+  const nf = M.narrative_fact || {};
+  const iN = find(nf.line);
+  const nErr = !nf.line ? 'script_map.narrative_fact 없음' : iN < 0 ? '서사 팩트 문장이 원고에 없음' : !/^https?:\/\//.test(String(nf.source || '')) ? 'source URL 없음(그 사실을 확인한 곳)' : '';
+  gate(!!nErr, '⑬ 서사 팩트', nErr || `«${segs[iN]}» · ${nf.source}`);
 
   // ③ 문장 길이 편차
   const L = sq.map((s) => s.length);
@@ -131,6 +154,29 @@ function check(metaPath) {
   const iS = find(sp.line);
   const sErr = iS < 0 ? '사회적 증거 문장이 원고에 없음' : !PROOF.test(segs[iS]) ? `숫자·리뷰·평점 표지 없음(«${segs[iS]}»)` : !/^https?:\/\//.test(String(sp.source || '')) ? 'source URL 없음(확인한 페이지)' : '';
   add(!sErr, '⑥ 사회적 증거', sErr || `«${segs[iS]}» · ${sp.source}`);
+
+  // ⑩ 대사 비율(G20) — 따옴표 대사 1줄 이상(0이면 FAIL), 15% 미만 △
+  const dl = segs.filter((x) => DIALOGUE.test(x));
+  const dr = n ? dl.length / n : 0;
+  if (!dl.length) gate(true, '⑩ 대사', `대사 0/${n}문장 — 설명 대신 «"…"» 사람 말로 장면을 넘긴다`);
+  else warn(dr < MIN_DIALOGUE, '⑩ 대사', `${dl.length}/${n}문장 ${Math.round(dr * 100)}%(권장 ≥${MIN_DIALOGUE * 100}%) — ${dl.map((x) => `«${x}»`).join(' ')}`);
+
+  // ⑪ 인물형 4박자(G20) — 문제 발견→반응→삽질→결과, 삽질에 실패 표지 필수·고난 크기(횟수·시간) △
+  const p4 = M.person4 || {};
+  const keys4 = ['problem', 'reaction', 'struggle', 'result'];
+  const i4 = keys4.map((k) => find(p4[k]));
+  const miss4 = keys4.filter((k, i) => i4[i] < 0);
+  const p4Err = !M.person4 ? 'script_map.person4 없음' : miss4.length ? `원고에 없는 박자: ${miss4.join(',')}`
+    : !i4.every((x, i) => i === 0 || x > i4[i - 1]) ? `순서 어긋남(${i4.map((x) => x + 1).join('→')})`
+      : !STRUGGLE.test(segs[i4[2]]) ? `삽질이 실패·반복이 아님(«${segs[i4[2]]}»)` : '';
+  gate(!!p4Err, '⑪ 4박자', p4Err || `문장 ${i4.map((x) => x + 1).join('→')} · 삽질 «${segs[i4[2]]}»`);
+  if (!p4Err) warn(!HARDSHIP.test(segs[i4[2]]), '⑪ 고난 크기', HARDSHIP.test(segs[i4[2]]) ? '횟수·시간 있음' : '삽질에 횟수·시간(몇 번·며칠·숫자)이 없다 — 고난을 키운다');
+
+  // ⑫ AI 원고 사람 손질 1회 기록(G20) — 기록만(△)
+  const ht = meta.human_touch || {};
+  const iH = find(ht.after);
+  const hErr = !meta.human_touch ? 'human_touch 기록 없음' : !ht.by ? 'by(고친 사람) 없음' : iH < 0 ? '고친 문장이 원고에 없음' : squash(ht.before) === squash(ht.after) ? '전·후가 같다' : '';
+  warn(!!hErr, '⑫ 사람 손질', hErr || `${ht.by}: «${ht.before}» → «${ht.after}»`);
 
   // ⑧ 첫 질문 3초
   const T = segStarts(wd, rawSegs);
@@ -170,6 +216,9 @@ if (require.main === module) {
   if (!f) { console.error('쓰임: node scripts/shop_script_check.js <메타.json>'); process.exit(2); }
   const r = check(f);
   for (const x of r.out) console.log(`${!x.ok ? '✗' : x.warn ? '△' : '✓'} ${x.item}: ${x.msg}`);
+  // G16 반려 유형은 _gate_log 에 쌓는다(나중에 자체 게이트·부검 재료)
+  const rj = r.out.find((x) => x.reject);
+  if (rj) fs.appendFileSync('D:/volcano-runs/_gate_log.jsonl', JSON.stringify({ at: new Date().toISOString(), wd: path.basename(f, '.json'), source: 'shop_script_check', kind: 'gyeol_reject', message: rj.reject, detail: rj.msg }) + '\n', 'utf8');
   if (r.code) console.error(`\x07✗✗✗ 원고 검사 ${r.code === 5 ? '검사 불가' : 'FAIL'} — ${path.basename(f)} 재고·업로드 금지`);
   else console.log(`✓ 원고 검사 통과 — ${path.basename(f)}${r.exempt ? '(구 원고 면제)' : ''}`);
   process.exit(r.code);
