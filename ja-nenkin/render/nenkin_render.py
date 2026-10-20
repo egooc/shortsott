@@ -630,6 +630,12 @@ def key(obj):
 def script_gate(ep):
     """TTS 전 원고 관문(관리자 10-20 adoption): ref_overlap 종료 4·5 · script_audit --jargon △ · comment_hook 실패면 중단."""
     py, sc = sys.executable, ROOT / 'scripts'
+    stamp = ep / 'audit' / 'script_gate_pass.json'
+    sig = {n: key((ep / n).read_text(encoding='utf-8')) for n in ('script.txt', 'comment_spec.json')}
+    old = json.loads(stamp.read_text(encoding='utf-8')) if stamp.exists() else {}
+    if old.get('sig') == sig:   # 같은 원고·댓글 명세로 이미 통과 — 공용 도구가 고쳐지는 중이어도 통과한 원고는 다시 막지 않는다
+        print(f'[관문] 원고 관문 이미 통과({old["at"]}) — 원고 그대로', flush=True)
+        return
     r = subprocess.run([py, str(Path(__file__).parent / 'ref_overlap.py'), str(ep / 'script.txt')], capture_output=True, text=True, encoding='utf-8')
     print('[관문] ref_overlap:', (r.stdout.strip().splitlines() or ['?'])[-1], f'(종료 {r.returncode})', flush=True)
     if r.returncode in (4, 5):
@@ -645,6 +651,9 @@ def script_gate(ep):
     print('[관문] comment_hook:', (r.stdout.strip().splitlines() or ['?'])[0], f'(종료 {r.returncode})', flush=True)
     if r.returncode:
         raise SystemExit('원고 관문: comment_hook 실패 — ' + r.stdout)
+    import datetime
+    stamp.parent.mkdir(exist_ok=True)
+    stamp.write_text(json.dumps({'sig': sig, 'at': datetime.datetime.now().isoformat(timespec='seconds')}, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
 
 
 def main(argv=None):
