@@ -321,6 +321,28 @@ function narrationGate(mp4) {
   return bad;
 }
 
+// 롱투숏(work longshort-*) — 위 관문들은 린박스 plan_local.json 형식이라 롱투숏 plan.json 에선 구조상 못 돈다.
+// 롱투숏 관문은 publish_ko.sh(plan_gate·title_check·tag_gate·comment_hook·comment_gate·guide·P1)가 먼저 돌린다.
+// 건너뛰기가 아니라 «그쪽 관문 통과 증거 확인»(10-20 관리자): mp4 옆 gates_ok.json(publish_ko.sh 가 쓴다)
+//   {at, gates:{plan,title,tag,comment,guide,p1: 'ok'}, exit:0, mp4:<전체 경로>, sha256, override:{GUIDE_OK,P1_OK}}
+// 6칸 전부 'ok' · exit 0 · sha256 이 지금 mp4 와 같아야 통과(다시 렌더하면 무효). override 는 소유주 말로 켠 것이라 막지 않고 알린다.
+const LONGSHORT_GATES = ['plan', 'title', 'tag', 'comment', 'guide', 'p1'];
+function longshortEvidence(mp4) {
+  const f = path.join(path.dirname(mp4), 'gates_ok.json');
+  if (!fs.existsSync(f)) return [`롱투숏 관문 통과 기록 ${f} 이 없다 — publish_ko.sh 관문을 먼저 돌려라`];
+  const g = readJson(f, {});
+  const bad = [];
+  if (path.resolve(String(g.mp4 || '')) !== path.resolve(mp4)) bad.push(`gates_ok.json 의 mp4 «${g.mp4}» ≠ ${mp4}`);
+  if (g.sha256 !== sha256File(mp4)) bad.push('gates_ok.json 의 sha256 이 지금 mp4 와 다르다 — 다시 렌더했으면 관문을 다시 돌려라');
+  if (g.exit !== 0) bad.push(`gates_ok.json exit ${g.exit}`);
+  const gates = g.gates && typeof g.gates === 'object' ? g.gates : {};
+  for (const k of LONGSHORT_GATES) if (gates[k] !== 'ok') bad.push(`롱투숏 관문 ${k} = ${gates[k] === undefined ? '기록 없음' : gates[k]}`);
+  const ov = Object.entries(g.override || {}).filter(([, v]) => v);
+  if (!bad.length && ov.length) console.log(`  ! 롱투숏 관문 소유주 예외 켜짐: ${ov.map(([k]) => k).join(', ')}`);
+  return bad;
+}
+const isLongshort = (meta) => /^longshort-/.test(String((meta || {}).work || ''));
+
 // 제목 관문(2026-10-20 관리자 지시 · 공용 title_check.py 055f18a, 하늘구름땅바람 10패턴) — nar4(rinbox134ja)부터.
 // plan.title_pattern(10패턴 이름) 필수, 사이드카 제목을 --fail-on-warn 으로 검사. 4(경고)·5(검사 불가) 모두 승인·발행 ✗.
 function titleGate(mp4, meta) {
@@ -390,6 +412,11 @@ function cmdApprove(mp4Arg, revoke) {
   }
   const gw = guideGate(mp4, meta);
   if (gw.length) { console.log(gw.map((l) => `  ✗ ${l}`).join('\n')); throw new Error('가이드라인 관문에서 막혔다 — 행위 낱말을 빼고 «정체·반전» 틀로 다시 쓴 뒤 승인'); }
+  if (isLongshort(meta)) {
+    const lw = longshortEvidence(mp4);
+    if (lw.length) { console.log(lw.map((l) => `  ✗ ${l}`).join('\n')); throw new Error('롱투숏 관문 통과 기록이 없다 — publish_ko.sh 관문부터'); }
+    console.log('롱투숏 관문 기록(gates_ok.json) · 통과 — 린박스 plan 관문 5개는 롱투숏에 해당 없음');
+  } else {
   const cw = commentGate(mp4);
   if (cw.length) { console.log(cw.map((l) => `  ✗ 댓글 장치: ${l}`).join('\n')); throw new Error('댓글 장치 관문에서 막혔다 — 원고 끝 한 줄에 장치 문장을 넣고 plan.expected_comment={type,line,at_sec}'); }
   console.log('댓글 장치 관문 · 통과');
@@ -405,6 +432,7 @@ function cmdApprove(mp4Arg, revoke) {
   const hw = tagHookGate(mp4);
   if (hw.length) { console.log(hw.map((l) => `  ✗ ${l}`).join('\n')); throw new Error('태그·훅 관문에서 막혔다 — 제목·설명·태그 공통 낱말 2개·plan.hook 세 칸'); }
   console.log('태그·훅 관문 · 통과');
+  }
   // 화면 검사(2026-10-09) — 렌더러가 남긴 screen.txt 가 FAIL 이면 승인하지 않는다(덧칠 글자·깜빡이는 샷 조각).
   const screen = path.join(path.dirname(mp4), 'screen.txt');
   if (plan && fs.existsSync(screen)) {
@@ -619,6 +647,11 @@ async function cmdPublish(mp4Arg, args) {
   const gwp = guideGate(mp4, meta);
   if (gwp.length) throw new Error(`가이드라인 관문: ${gwp.join(' / ')} — 발행 중단`);
   lines.push('- 가이드라인 관문 통과');
+  if (isLongshort(meta)) {
+    const lwp = longshortEvidence(mp4);
+    if (lwp.length) throw new Error(`롱투숏 관문 기록: ${lwp.join(' / ')} — 발행 중단`);
+    lines.push('- 롱투숏 관문 기록(gates_ok.json) 통과');
+  } else {
   const cwp = commentGate(mp4);
   if (cwp.length) throw new Error(`댓글 장치 관문: ${cwp.join(' / ')} — 발행 중단`);
   lines.push('- 댓글 장치 관문 통과');
@@ -634,6 +667,7 @@ async function cmdPublish(mp4Arg, args) {
   const hwp = tagHookGate(mp4);
   if (hwp.length) throw new Error(`태그·훅 관문: ${hwp.join(' / ')} — 발행 중단`);
   lines.push('- 태그·훅 관문 통과');
+  }
   if (!(meta.tags || []).length) throw new Error('사이드카에 tags 가 없다 — 태그 0개로는 올리지 않는다');
   const profile = profileByPurpose(PURPOSE[locale]);
   if (!profile) throw new Error(`${locale} 업로드 프로필(${PURPOSE[locale]})이 연결돼 있지 않다`);
