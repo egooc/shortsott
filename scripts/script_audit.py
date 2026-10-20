@@ -13,7 +13,9 @@
   원음      첫 원음(인용·클립·대사) 시각 — 정치 롱폼 40초 넘으면 △(정치 첫 70초 규칙), 원음 없는 레인은 «-»
   전환      전환 문구(그런데·문제는·하지만·그래서·그 결과…) 위치·최대 간격 — 롱폼 120초 넘게 비면 △
   끝맺음    마지막 3문장 유형(질문·열린 결말 «~일 듯·~됐다고·~아님?»·단정·안내) — 쇼츠는 열린 결말/질문 없으면 △
-종료 코드: 0(경고가 있어도 — 경고형) · 5 = 검사 불가(원고를 못 읽음, server/data/gate_errors.jsonl).
+종료 코드: 0(경고만) · 4 = FAIL(쇼츠 모드 V1 첫 문장 설명형) · 5 = 검사 불가(원고를 못 읽음, server/data/gate_errors.jsonl).
+쇼츠 모드(--shorts 또는 쇼츠 레인 자동, devo 칼럼 10-20): V1 첫 문장 설명형 FAIL · V2 긴장 단계 감정 평가 어휘 · V3 엔딩 평가·요약 · V4 문장 평균 25자 초과(WARN).
+공통: V14 끝 어미 상위 1종 > 60% · 롱폼 V12 질문 간격 > 120초(WARN). 낱말표·임계는 config/script_audit.json.
 어댑터: txt(«## 장»·«@화면»·«#» 주석 건너뜀 — 기업·연금) · 정치 ko episode.json(nar text + quote/cold in~out) 또는 script_N.py ·
         린박스 plan_local.json(sequence 순서, 클립 = 원음) · 그 밖의 쇼츠는 comment_hook 어댑터(spec·plan·자막).
 import: from script_audit import audit  →  audit(path, lane=None, ...) → dict
@@ -31,6 +33,7 @@ import comment_hook  # noqa: E402
 import ref_overlap  # noqa: E402
 
 LEDGER = ROOT / 'server' / 'data' / 'gate_errors.jsonl'
+CONFIG = ROOT / 'config' / 'script_audit.json'   # devo 칼럼 V1~V4·V12·V14 낱말표·임계
 LONG_LANES = {'corp_ko', 'nenkin_ja', 'politics_ko', 'politics_ja'}
 JA_LANES = {'nenkin_ja', 'politics_ja', 'rinbox'}
 CPS = {'ko': 7.0, 'ja': 7.5}
@@ -96,7 +99,16 @@ def segments(path, lane=None):
     if p.suffix == '.txt' or (p.is_dir() and (p / 'script.txt').exists()):   # 기업·연금
         f = p / 'script.txt' if p.is_dir() else p
         lines = [l.strip() for l in f.read_text(encoding='utf-8').splitlines()]
-        for s in join_cards([l for l in lines if l and not l.startswith(('#', '@'))]):
+        block = []   # «## 장» 이름표는 장 경계 표시('chap')로 남긴다 — V12 장 끝 질문 검사용(기업 10-20)
+        for l in lines:
+            if l.startswith('## '):
+                for s in join_cards(block):
+                    nar(s)
+                block = []
+                out.append(('chap', l[3:].strip(), 0.0))
+            elif l and not l.startswith(('#', '@')):
+                block.append(l)
+        for s in join_cards(block):
             nar(s)
         return out
     if p.suffix == '.py' or (p.is_dir() and list(p.glob('script_*.py'))):   # 정치 ko 원고(빌드 전) — 인용 길이는 모름
@@ -199,9 +211,82 @@ def audit(path, lane=None, kind=None, lang=None, jargon=None, names=None):
     res['ending'] = {'tail': tail, 'kinds': sorted(set(kinds)) or ['단정']}
     if kind == 'shorts' and not {'질문', '열린 결말'} & set(kinds):
         W.append(('끝맺음', '쇼츠 끝 3문장에 질문·열린 결말(~일 듯·~됐다고·~아님?)이 없음'))
+    # ── devo 칼럼(10-20) ──────────────────────────────────────────
+    C = _load_json(CONFIG).get(lang, {})
+    CF = _load_json(CONFIG)
+    F = []   # FAIL(종료 4) — 쇼츠 첫 문장 설명형만
+    if kind == 'shorts':
+        # V1 첫 문장 설명형 금지
+        hit = [w for w in C.get('v1_starts', []) if first.startswith(w) or (w.startswith('에 ') and w in first[:30])] + \
+              [w for w in C.get('v1_ends', []) if re.search(re.escape(w) + r'\s*[.。!?？]?$', first)]
+        if hit:
+            F.append(('V1 첫 문장', f'설명형 «{first[:30]}» ({"·".join(hit)}) — 행동 묘사·의외성·궁금증 중 하나로'))
+        # V2 긴장 단계(첫 문장·끝 2문장 뺀 가운데) 감정 평가 어휘
+        mid = [s for _, s in sents[1:-2]] if len(sents) > 3 else []
+        emo = sorted({w for s in mid for w in C.get('v2_emotion', []) if w in s})
+        if emo:
+            W.append(('V2 감정 평가', f'긴장 단계에 감정 평가 «{"·".join(emo)}» — 행동·사실로(«그 자리에서 움직이지 않았습니다»)'))
+        # V3 엔딩 나레이터 평가·요약
+        last = sents[-1][1]
+        if any(re.search(rx, last) for rx in C.get('v3_evaluate', [])):
+            W.append(('V3 엔딩 평가', f'끝 문장이 평가·요약 «{last[:30]}» — 감정 한 문장 또는 «하지만» 여운으로'))
+        # V4 쇼츠 문장 평균 길이
+        if mean > CF.get('shorts_mean_max', 25):
+            W.append(('V4 문장 길이', f'쇼츠 문장 평균 {mean:.1f}자 > {CF.get("shorts_mean_max", 25)}자 — 한 문장 한 사건'))
+    # V14 끝 어미 다양성(롱폼·쇼츠)
+    ends = [_ending(s, lang) for _, s in sents]
+    ends = [e for e in ends if e]
+    if len(ends) >= 5:
+        top, n = max(((e, ends.count(e)) for e in set(ends)), key=lambda x: x[1])
+        res['ending_top'] = {'ending': top, 'share': round(n / len(ends), 2)}
+        if n / len(ends) > CF.get('ending_top_max', 0.6):
+            W.append(('V14 끝 어미', f'«~{top}» 이 {n / len(ends):.0%} — 어미를 섞어라(~요/~다/~죠/질문)'))
+    # V12 롱폼 질문 간격
+    if kind == 'long':
+        qs = [at[i] for i, s in sents if comment_hook.is_question(s, lang)]
+        qgaps = [b - a for a, b in zip([0.0] + qs, qs + [total])]
+        res['question_gap_max_sec'] = round(max(qgaps), 1) if qgaps else None
+        lim = CF.get('long_question_gap_max', 120)
+        if qgaps and max(qgaps) > lim:
+            W.append(('V12 질문 간격', f'질문 없이 {max(qgaps):.0f}초 — {lim}초 안에 다음 궁금증을(장마다 다음 질문)'))
+        # 장(##)마다 끝 문장이 질문인지(마지막 장 제외) — 기업 10-20 요청
+        chaps, cur, last_nar = [], None, None
+        for k, s, _ in segs:
+            if k == 'chap':
+                if cur is not None:
+                    chaps.append((cur, last_nar))
+                cur, last_nar = s, None
+            elif k == 'nar':
+                last_nar = s
+        if len(chaps) >= 1:
+            noq = [c for c, ln in chaps if ln and not comment_hook.is_question(ln, lang)]
+            res['chapter_end_questions'] = {'chapters': len(chaps) + 1, 'not_question': noq}
+            if noq:
+                W.append(('V12 장 끝 질문', f'장 끝 문장이 질문이 아닌 장 {len(noq)}/{len(chaps)}개({", ".join(noq[:6])}) — 장마다 다음 궁금증으로 끝내라'))
     res['duration_sec'] = round(total, 1)
     res['warnings'] = [{'code': c, 'msg': m} for c, m in W]
+    res['fails'] = [{'code': c, 'msg': m} for c, m in F]
     return res
+
+
+def _ending(s, lang):
+    """문장 끝 어미 묶음 — ko: 습니다/어요·아요/죠/다/까 …, ja: です/ます/でした/た/ね …"""
+    s = re.sub(r'[\s.。!！?？…"”」』)]+$', '', s)
+    if not s:
+        return None
+    if lang == 'ja':
+        for e in ('ました', 'でした', 'ません', 'です', 'ます', 'だった', 'ない', 'ね', 'よ', 'か', 'た', 'る'):
+            if s.endswith(e):
+                return e
+        return s[-1]
+    for e in ('습니까', '니까', '습니다', '니다', '세요', '까요', '죠', '거든요', '어요', '아요', '여요', '에요', '예요', '요', '다', '까', '네', '지'):
+        if s.endswith(e):
+            if e in ('습니다', '니다'):
+                return '니다'          # ~습니다·~입니다·~ㅂ니다 는 한 계열(기업 실측 «~니다 계열 92%»)
+            if e in ('습니까', '니까'):
+                return '니까'
+            return '요' if e in ('어요', '아요', '여요', '에요', '예요') else e
+    return s[-1]
 
 
 def main(argv=None):
@@ -209,7 +294,8 @@ def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
     opt = lambda k: argv[argv.index(k) + 1] if k in argv else None
     lane = opt('--lane')
-    res = audit(argv[0], lane, opt('--kind'), opt('--lang'),
+    kind = 'shorts' if '--shorts' in argv else opt('--kind')
+    res = audit(argv[0], lane, kind, opt('--lang'),
                 _load_json(opt('--jargon')) if opt('--jargon') else None, _load_json(opt('--names')) if opt('--names') else None)
     if opt('--json'):
         Path(opt('--json')).write_text(json.dumps(res, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
@@ -234,8 +320,16 @@ def main(argv=None):
     print(f'  질문/원음 첫 질문 {fq} · 첫 원음 {fa}')
     print(f'  전환      {tr["count"]}회({tr["per_min"]}/분) · 최대 간격 {tr["max_gap_sec"]}초')
     print(f'  끝맺음    {"·".join(res["ending"]["kinds"])} — {" / ".join(s[:24] for s in res["ending"]["tail"])}')
+    if res.get('ending_top'):
+        print(f'  끝 어미   최다 «~{res["ending_top"]["ending"]}» {res["ending_top"]["share"]:.0%}' +
+              (f' · 질문 최대 간격 {res["question_gap_max_sec"]}초' if res.get('question_gap_max_sec') is not None else ''))
+    for f in res.get('fails', []):
+        print(f'  ✗ [{f["code"]}] {f["msg"]}')
     for w in res['warnings']:
         print(f'  △ [{w["code"]}] {w["msg"]}')
+    if res.get('fails'):
+        print(f'FAIL {len(res["fails"])}건 · 경고 {len(res["warnings"])}건 — 종료 4')
+        return 4
     print(f'경고 {len(res["warnings"])}건 — 경고형, 막지 않음' if res['warnings'] else '경고 0건')
     return 0
 
