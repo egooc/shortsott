@@ -16,9 +16,11 @@ const COMMON = ['살림템', '살림꿀팁', '생활꿀팁', '꿀템', '살림',
 const STOP = new Set(['세트', '개입', '대형', '소형', '중형', '1개', '2개', '3개', '4개', '5개', '다용도', '길이조절', '일반형', '기본형', '포함', '대용량', '단품', '본품', '리필']);
 
 function buildTags(meta) {
-  if (Array.isArray(meta.tags) && meta.tags.length) return meta.tags;
   const out = [];
   const add = (t) => { t = String(t).replace(/^#/, '').trim(); if (t.length >= 2 && !out.includes(t)) out.push(t); };
+  // 검색 키워드 3개가 태그 맨 앞(10/20 소유주 «쇼핑 제목에는 검색 키워드» — shop_keyword_check 가 앞 3개를 본다)
+  for (const k of Array.isArray(meta.keywords) ? meta.keywords : []) if (k && k.kw) add(k.kw);
+  if (Array.isArray(meta.tags) && meta.tags.length) { for (const t of meta.tags) add(t); return out; }
   for (const h of String(meta.title || '').match(/#[^\s#]+/g) || []) add(h);
   // 괄호 안은 옵션(«스펀지 일체형»·«수납 바구니 포함»)이라 상품 이름 끝 명사구를 가린다 — 빼고 본다
   const words = String(meta.product || '').replace(/\([^)]*\)|\[[^\]]*\]/g, ' ').replace(/[()[\]\-·,/+]/g, ' ').split(/\s+/)
