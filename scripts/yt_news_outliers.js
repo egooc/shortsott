@@ -136,7 +136,7 @@ async function runLane(lane, opts, key) {
   const flt = (CF.filters || {})[lane] || { foreign: [], domestic: [] };
   const S = JSON.parse(fs.readFileSync(SEEDS, 'utf8')).lanes[lane] || {};
   const lang = S.lang || (lane.endsWith('_ja') ? 'ja' : 'ko');
-  const polWords = [...(S.trend_filter || []), ...(S.seeds || [])];
+  const polWords = [...(S.trend_filter || []), ...(S.seeds || []), ...(((JSON.parse(fs.readFileSync(CFG, 'utf8')).filters || {})[lane] || {}).political_extra || [])];
   const now = Date.now();
   const since = now - opts.hours * 36e5;
   const chans = await resolve(key, lane, cfg);
