@@ -55,6 +55,11 @@ def background(path):
 def main(plan_path, sid, out=None):
     plan = json.loads(Path(plan_path).read_text(encoding='utf-8'))
     sh = next(s for s in plan['shorts'] if s['id'] == sid)
+    for b in sh['beats']:   # 주고받기 구조(소유주 10-20): role → 칸 종류. 반응 컷은 장내 소리 그대로, 그 위 해설은 line 한 줄 자막만
+        if b.get('role') and not b.get('t'):
+            b['t'] = {'attack': 'raw', 'reaction': 'raw', 'counter': 'raw', 'question': 'close', 'narration': 'nar'}[b['role']]
+        if b.get('role') == 'reaction':
+            b['text'] = b.get('line', '')
     work = Path(plan_path).resolve().parent / sid; work.mkdir(exist_ok=True)
     out = Path(out or work / f'{sid}.mp4')
     # 1) 칸마다 소리와 길이
@@ -65,7 +70,7 @@ def main(plan_path, sid, out=None):
             wav = work / f'{i:02d}_raw.wav'
             subprocess.run(['ffmpeg', '-nostdin', '-v', 'error', '-y', '-ss', f"{b['in']:.3f}", '-t', f'{d:.3f}', '-i', str(ROOT / b['src']),
                             '-vn', '-ac', '2', '-ar', '48000', '-af', 'afade=t=in:d=0.06,afade=t=out:st=%.3f:d=0.2' % max(0, d - .2), str(wav)], check=True)
-            chunks = R.ja_chunks(b['text'], 12)
+            chunks = R.ja_chunks(b['text'], 12) if b.get('text') else []   # 해설 없는 반응 컷은 자막 없음
             w = [len(c) for c in chunks]; acc = 0
             for c, n in zip(chunks, w):
                 caps.append((t + d * acc / sum(w), t + d * (acc + n) / sum(w), c, 'raw')); acc += n
@@ -208,7 +213,7 @@ def render_close(sh, parts, caps, total, work, out):
             d.text((W / 2, SUB_Y), s, font=f, fill=GOLD if kind == 'raw' else (255, 255, 255), anchor='mm')
         return dr
     layers += [(a, e, png(work / f'cap_{k:03d}.png', sub_draw(s, kind))) for k, (a, e, s, kind) in enumerate(caps)]
-    sp = next((p.get('speaker') for p in parts if p.get('speaker')), None) or sh['speaker']
+    sp = sh['speaker']   # 첫 3초 꼬리표 = 첫 발언자 {name, role}
 
     def tag_draw(d):
         f = font('NotoSansJP.ttf', 40, 800); s = f"{sp['name']}  {sp['role']}"

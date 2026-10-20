@@ -141,6 +141,10 @@ if script_gate.candidate_gate.ep_date(ep, sys.argv[2:]) >= script_gate.FROM:   #
     bad += _nb
     if not _nb:
         print('[gate-ja] PASS 쟁점 번호 호명·목차·챕터 카드 없음(원고·고정 댓글·설명 첫 두 줄)')
+    _sb = script_gate.shorts_struct_errors(ep)   # 쇼츠 주고받기 구조(소유주 10-20)
+    bad += _sb
+    if not _sb:
+        print('[gate-ja] PASS 쇼츠 주고받기 구조(공격·반응·대응, 연속 ≤12초)')
     _ab, _al = script_gate.audit_lines(ep)   # 공용 원고 검수표 devo V1·V3·V12·V14(관리자 10-20) — ko 관문 경로는 임시 폴더라 안 돈다
     bad += _ab
     for _l in _al:

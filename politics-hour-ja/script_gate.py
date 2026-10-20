@@ -8,6 +8,7 @@
 ② (--before-script 가 아니면) 첫 말 인사 금지: 첫 해설·콜드오픈 문장이 인사·채널명·날짜 낭독이면 FAIL(관리자 §7 70초 규칙).
    + 쟁점 번호 호명(一つ目·論点①·今日の論点は三つ…)·목차·챕터 카드 FAIL(소유주 10-20, 10/21편부터).
 ③ (--before-script 가 아니면) scripts/ref_overlap.py --lane politics_ja — 해설만(인용 quote·공문 원문 card 제외).
+⑤ (--before-script 가 아니면, 10/21편부터) 쇼츠 주고받기 구조 — shorts_struct_errors(소유주 10-20).
 ④ (--before-script 가 아니면, 10/21편부터) 공용 scripts/script_audit.py(devo V1·V3·V12·V14 등, 관리자 10-20) — JA episode.json·shorts/plan.json 은
    롱폼 audit(<편>) · 쇼츠 audit(<편>/shorts/plan.json:<id>) (도구개발 2a4b577 어댑터). △ 하나라도 FAIL(ko 관문과 같은 기준).
    쇼츠 고정 댓글이 설명형(「今日は·理由は…」)으로 시작해도 FAIL.
@@ -80,6 +81,41 @@ def audit_lines(ep):
     return bad, lines
 
 
+ROLES = ('attack', 'reaction', 'counter', 'narration', 'question')
+RANGE = {'attack': (3, 8), 'reaction': (1, 3), 'counter': (3, 10)}
+
+
+def beat_sec(b):
+    return float(b['out']) - float(b['in']) if b.get('out') is not None else len(re.sub(r'\s', '', b.get('nar') or '')) / 7.5
+
+
+def shorts_struct_errors(ep):
+    """쇼츠 = 주고받기 1~2개(소유주 10-20 «토론·국감장에서 주고받는 멘트와 반응·대응을»): plan.json beats 의 role·speaker 로
+    attack≥1·reaction≥1·counter≥1, 발언자 2명 이상·공격자≠대응자, 한 사람 연속 12초 이하, 칸 길이(공격 3~8·반응 1~3·대응 3~10초), 해설은 한 줄(30자) 이하."""
+    plan = ep / 'shorts' / 'plan.json'
+    bad = []
+    for sh in (json.loads(plan.read_text(encoding='utf-8')).get('shorts', []) if plan.exists() else []):
+        sid, beats = sh['id'], sh.get('beats', [])
+        sys.path.insert(0, str(ROOT / 'scripts'))
+        import exchange_check   # 도구개발 fba0506 — 쇼츠마다 판정(①②③ FAIL·④ 해설 30% WARN), 유예 없음(--enforce-now 와 같음)
+        try:
+            r = exchange_check.judge(exchange_check.beats_of({'beats': beats}, plan.parent))
+        except exchange_check.Unreadable as e:
+            bad.append(f'쇼츠 {sid}: 주고받기 검사 불가 — {e}')
+            continue
+        bad += [f'쇼츠 {sid}: {e}' for e in r['errors'] + r['warnings']]
+        print(f'[exchange] 쇼츠 {sid} 종료 {r["code"]} · 화자 {r.get("speakers")} · 최장 연속 {r.get("longest_run")} · 길이 {r.get("total_sec")}초')
+        for b in beats:   # 정치JA 추가 기준(관리자 10-20): 칸 길이·해설 한 줄
+            lo_hi = RANGE.get(b.get('role'))
+            if lo_hi and not lo_hi[0] - .05 <= beat_sec(b) <= lo_hi[1] + .05:
+                bad.append(f'쇼츠 {sid}: {b["role"]} {b.get("speaker")} {beat_sec(b):.1f}초 — {lo_hi[0]}~{lo_hi[1]}초')
+            if b.get('role') in ('narration', 'question') and len(b.get('nar') or '') > 30:
+                bad.append(f'쇼츠 {sid}: 해설 한 줄(30자) 초과 «{b["nar"][:20]}…»')
+            if b.get('role') == 'reaction' and len(b.get('line') or '') > 30:
+                bad.append(f'쇼츠 {sid}: 반응 컷 위 해설 한 줄(30자) 초과')
+    return bad
+
+
 sys.path.insert(0, str(ROOT / 'politics-hour'))
 import candidate_gate   # noqa: E402  ko 후보표 관문(28ca994) 그대로
 
@@ -114,6 +150,11 @@ def main():
             bad += nb
             if not nb:
                 print('[script-ja] PASS 쟁점 번호 호명·목차·챕터 카드 없음')
+        if candidate_gate.ep_date(ep) >= FROM:
+            sb = shorts_struct_errors(ep)
+            bad += sb
+            if not sb and (ep / 'shorts' / 'plan.json').exists():
+                print('[script-ja] PASS 쇼츠 주고받기 구조(공격·반응·대응, 연속 ≤12초)')
         if candidate_gate.ep_date(ep) >= FROM or '--audit' in sys.argv:
             ab, al = audit_lines(ep)
             bad += ab
