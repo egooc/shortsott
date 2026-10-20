@@ -13,9 +13,16 @@
 //   꺾임   = 공개 24시간 넘은 편의 하루당 조회가 기준선의 25% 미만.
 //   경보   = 시간순으로 꺾임이 3편 이상 연속 → 그 연속의 첫 편이 용의자.
 //   차단(regionRestriction)된 편은 «꺾임»이 아니라 저작권 문제라 따로 적는다(check-claims 몫).
-require('dotenv').config({ path: 'D:/midform/.env' });
 const fs = require('fs');
-const KEY = process.env.YOUTUBE_API_KEY_SEARCH || process.env.YOUTUBE_API_KEY || process.env.YT_API_KEY;
+// 조회는 채널 OAuth 토큰(업로드 프로필)으로 — 발굴 키가 429 로 멈춘 날에도 감시는 돈다(10-20 관리자 지시).
+const PROFILES = 'D:/midform/server/data/youtube_upload_profiles.json';
+const PURPOSE = { ja: 'jp_highlight', ko: 'ko_highlight' };
+async function token(p) {
+  const body = new URLSearchParams({ client_id: p.oauthClientId, client_secret: p.oauthClientSecret, refresh_token: p.refreshToken, grant_type: 'refresh_token' });
+  const j = await (await fetch('https://oauth2.googleapis.com/token', { method: 'POST', body, headers: { 'content-type': 'application/x-www-form-urlencoded' } })).json();
+  if (!j.access_token) throw new Error(`${p.purpose} 토큰 갱신 실패`);
+  return j.access_token;
+}
 const args = process.argv.slice(2);
 const WANT = (args.find((a) => !a.startsWith('--')) || '').trim();
 const JSON_OUT = args.includes('--json');
@@ -36,7 +43,9 @@ function riskOf(title, desc) {
 }
 
 (async () => {
-  if (!KEY) throw new Error('YOUTUBE_API_KEY 가 .env 에 없다');
+  const store = JSON.parse(fs.readFileSync(PROFILES, 'utf8'));
+  const profiles = Array.isArray(store) ? store : (store.profiles || []);
+  const tokens = {};
   const hist = (JSON.parse(fs.readFileSync(STATE, 'utf8')).history || [])
     .filter((e) => e.url && !e.retracted).filter((e) => !WANT || e.locale === WANT);
   const byId = new Map();
@@ -44,11 +53,15 @@ function riskOf(title, desc) {
     const m = /[?&]v=([\w-]{11})/.exec(e.url) || /shorts\/([\w-]{11})/.exec(e.url);
     if (m) byId.set(m[1], e);
   }
-  const ids = [...byId.keys()];
   const vids = [];
-  for (let i = 0; i < ids.length; i += 50) {
+  for (const loc of [...new Set([...byId.values()].map((e) => e.locale))]) {
+   const prof = profiles.find((x) => x.purpose === PURPOSE[loc] && x.refreshToken);
+   if (!prof) { console.log(`[${loc}] 채널 토큰 없음 — 건너뜀`); continue; }
+   tokens[loc] = tokens[loc] || await token(prof);
+   const ids = [...byId.keys()].filter((id) => byId.get(id).locale === loc);
+   for (let i = 0; i < ids.length; i += 50) {
     const r = await (await fetch('https://www.googleapis.com/youtube/v3/videos'
-      + `?part=snippet,statistics,status,contentDetails&id=${ids.slice(i, i + 50).join(',')}&key=${KEY}`)).json();
+      + `?part=snippet,statistics,status,contentDetails&id=${ids.slice(i, i + 50).join(',')}`, { headers: { authorization: 'Bearer ' + tokens[loc] } })).json();
     if (r.error) throw new Error(r.error.message);
     for (const v of r.items || []) {
       if (v.status.privacyStatus !== 'public') continue;
@@ -63,6 +76,7 @@ function riskOf(title, desc) {
         title: v.snippet.title, desc: v.snippet.description || '',
       });
     }
+   }
   }
 
   const report = {};

@@ -17,6 +17,7 @@ const path = require('path');
 const ROOT = path.join(__dirname, '..');
 require('dotenv').config({ path: path.join(ROOT, '.env') });
 
+const keyFetch = require('./lib/ytKeyFetch'); // 발굴 키 쿼터 장부(10-20)
 const KEY = process.env.YOUTUBE_API_KEY_SEARCH || process.env.YOUTUBE_API_KEY || process.env.YT_API_KEY || '';
 const OUT_DIR = path.join(ROOT, 'server', 'output', 'rinbox-scout');
 
@@ -57,8 +58,7 @@ async function searchLong(query, lang, pages) {
 
 async function api(endpoint, params) {
   const qs = new URLSearchParams({ ...params, key: KEY });
-  const r = await fetch(`https://www.googleapis.com/youtube/v3/${endpoint}?${qs}`);
-  const j = await r.json();
+  const j = await keyFetch('rinbox-scout', endpoint, `https://www.googleapis.com/youtube/v3/${endpoint}?${qs}`);
   if (j.error) throw new Error(`${endpoint}: ${JSON.stringify(j.error.errors || j.error).slice(0, 200)}`);
   return j;
 }

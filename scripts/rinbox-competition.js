@@ -15,6 +15,7 @@
 //   · 판정은 두 가지를 같이 본다 — 수요(그 작품 쇼츠가 역대 얼마나 나왔나) · 공급(최근 N일에 몇 채널이 올리나).
 // 비용: search.list 1회 100 단위 × 작품당 2회. 하루 기본 한도 10,000 이면 50작품까지.
 require('dotenv').config({ path: 'D:/midform/.env' });
+const keyFetch = require('./lib/ytKeyFetch'); // 발굴 키 쿼터 장부(10-20)
 const KEY = process.env.YOUTUBE_API_KEY_SEARCH || process.env.YOUTUBE_API_KEY || process.env.YT_API_KEY;
 
 
@@ -24,15 +25,15 @@ const OFFICIAL = /(netflix|넷플릭스|disney|디즈니|tving|티빙|wavve|웨�
 async function search(q, extra, lang) {
   const u = 'https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=50'
     + `&videoDuration=short&relevanceLanguage=${lang}&q=${encodeURIComponent(q)}${extra}&key=${KEY}`;
-  const r = await (await fetch(u)).json();
+  const r = await keyFetch('rinbox-competition', 'search', u);
   if (r.error) throw new Error(r.error.message);
   return r.items || [];
 }
 
 async function stats(ids) {
   if (!ids.length) return new Map();
-  const r = await (await fetch('https://www.googleapis.com/youtube/v3/videos?part=statistics&id='
-    + ids.slice(0, 50).join(',') + `&key=${KEY}`)).json();
+  const r = await keyFetch('rinbox-competition', 'videos', 'https://www.googleapis.com/youtube/v3/videos?part=statistics&id='
+    + ids.slice(0, 50).join(',') + `&key=${KEY}`);
   return new Map((r.items || []).map((v) => [v.id, Number(v.statistics.viewCount || 0)]));
 }
 

@@ -7,6 +7,7 @@
 // Content ID 매칭이 걸리면 이렇게 조용히 죽는다 — 조회수만 보면 「반응이 없네」로 오해한다.
 require('dotenv').config({ path: 'D:/midform/.env' });
 const fs = require('fs');
+const keyFetch = require('./lib/ytKeyFetch'); // 발굴 키 쿼터 장부(10-20)
 const KEY = process.env.YOUTUBE_API_KEY_SEARCH || process.env.YOUTUBE_API_KEY || process.env.YT_API_KEY;
 const WANT = (process.argv[2] || '').trim();
 
@@ -24,8 +25,8 @@ const STATE = 'D:/midform/server/data/rinbox_publish_state.json';
   const ids = [...byId.keys()];
   let blocked = 0, partial = 0, ok = 0, missing = 0;
   for (let i = 0; i < ids.length; i += 50) {
-    const r = await (await fetch('https://www.googleapis.com/youtube/v3/videos'
-      + `?part=snippet,status,statistics,contentDetails&id=${ids.slice(i, i + 50).join(',')}&key=${KEY}`)).json();
+    const r = await keyFetch('rinbox-blocked', 'videos', 'https://www.googleapis.com/youtube/v3/videos'
+      + `?part=snippet,status,statistics,contentDetails&id=${ids.slice(i, i + 50).join(',')}&key=${KEY}`);
     const seen = new Set();
     for (const v of r.items || []) {
       seen.add(v.id);

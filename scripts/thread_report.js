@@ -11,6 +11,7 @@
 // 공정성: 공개 뒤 min-age-h(기본 72시간) 지난 편만 센다(막 올린 편은 아직 자라는 중). 비공개(저조회 자동 비공개)도 조회수는 센다.
 const fs = require('fs');
 const path = require('path');
+const quota = require('./api_quota');
 
 const ROOT = path.resolve(__dirname, '..');
 const DATA = path.join(ROOT, 'server/data');
@@ -154,8 +155,9 @@ async function publicStats(ids) {
   if (!line || !ids.length) return stats;
   const key = line.split('=').slice(1).join('=').trim().replace(/^['"]|['"]$/g, '');
   for (let i = 0; i < ids.length; i += 50) {
+    quota.spend('thread_report', 'videos'); // 발굴 키 쿼터 장부(10-20) — 상한·오늘 중지면 QuotaStop
     const r = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,status&id=${ids.slice(i, i + 50).join(',')}&key=${key}`);
-    if (r.status === 429 || r.status === 403) { const e = new Error('공개 통계 ' + r.status); e.code = r.status; throw e; }
+    if (r.status === 429 || r.status === 403) { quota.markBlocked('thread_report', 'videos ' + r.status); const e = new Error('공개 통계 ' + r.status); e.code = r.status; throw e; }
     for (const v of (await r.json()).items || []) {
       stats.set(v.id, { views: +v.statistics.viewCount || 0, title: v.snippet.title, pub: Date.parse(v.snippet.publishedAt), privacy: v.status.privacyStatus });
     }

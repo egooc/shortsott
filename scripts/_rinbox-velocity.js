@@ -3,6 +3,7 @@
 //   node scripts/_rinbox-velocity.js [ja|ko]
 require('dotenv').config({ path: 'D:/midform/.env' });
 const fs = require('fs');
+const keyFetch = require('./lib/ytKeyFetch'); // 발굴 키 쿼터 장부(10-20)
 const KEY = process.env.YOUTUBE_API_KEY_SEARCH || process.env.YOUTUBE_API_KEY || process.env.YT_API_KEY;
 const WANT = (process.argv[2] || '').trim();
 const STATE = 'D:/midform/server/data/rinbox_publish_state.json';
@@ -18,8 +19,8 @@ const STATE = 'D:/midform/server/data/rinbox_publish_state.json';
   const ids = [...byId.keys()];
   const rows = [];
   for (let i = 0; i < ids.length; i += 50) {
-    const r = await (await fetch('https://www.googleapis.com/youtube/v3/videos'
-      + `?part=snippet,statistics,contentDetails&id=${ids.slice(i, i + 50).join(',')}&key=${KEY}`)).json();
+    const r = await keyFetch('rinbox-velocity', 'videos', 'https://www.googleapis.com/youtube/v3/videos'
+      + `?part=snippet,statistics,contentDetails&id=${ids.slice(i, i + 50).join(',')}&key=${KEY}`);
     for (const v of r.items || []) {
       const e = byId.get(v.id);
       const rr = (v.contentDetails || {}).regionRestriction || {};
