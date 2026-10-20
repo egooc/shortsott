@@ -109,23 +109,22 @@ for up in sys.argv[2:]:
             bad.append(f'{Path(up).name}: 댓글 장치 관문(comment_hook) 종료 {r["code"]} — {"; ".join(map(str, r.get("errors", [])))}')
     if not any(q in (u.get('pinned_comment') or '') for q in '?？'):   # 전각 «？»(정치JA)도 질문
         bad.append(f'{Path(up).name}: 고정 댓글에 질문 한 줄(«?») 없음 — 논쟁·훈수를 부르는 질문으로')
-# 제목 전문용어엔 쉬운 풀이(S5, 관리자 10-20): jargon.json 낱말이 제목에 있으면 풀이 문구가 제목·설명 첫 줄에 있거나,
-# 제목에서 낱말 바로 뒤에 «(…)» 또는 « — …» 가 붙어야 한다. 쇼츠 제목은 짧아 설명 첫 줄 풀이도 받는다.
-JARGON = {k: v for k, v in json.loads((Path(__file__).resolve().parent / 'jargon.json').read_text(encoding='utf-8')).items() if not k.startswith('_')}
-for up in sys.argv[2:]:
-    u = json.loads(Path(up).read_text(encoding='utf-8'))
-    t = u.get('title', '')
-    near = t + ' ' + (u.get('description', '').split('\n') or [''])[0]
-    for w, alts in JARGON.items():
-        at = t.find(w)
-        if at < 0 or any(a in near for a in alts) or any(w in k and k != w and k in t for k in JARGON):   # 긴 낱말(탄핵소추안)이 있으면 짧은 낱말은 안 센다
-            continue
-        after = t[at + len(w):at + len(w) + 3]
-        if not ('(' in after or '—' in after):
-            bad.append(f'{Path(up).name}: 제목 전문용어 «{w}» 에 쉬운 풀이 없음(예: {alts[0] if alts else "괄호 풀이"}) — 제목 «(…)»·« — …» 또는 설명 첫 줄')
-# 첫 문장 «안녕하세요·오늘은» 금지(10-20 콜드오픈 규칙): 콜드오픈 첫 낱말과 첫 해설 첫 문장
+# 제목 점검은 공용 scripts/title_check.py(관리자 10-20, 055f18a)로 통일 — 쇼츠 10패턴·15자·앞 10자·title_pattern 필드·위험 조합,
+# 롱폼 전문용어 풀이(politics_ko 는 politics-hour/jargon.json, S5). --fail-on-warn 이라 경고(4)·검사 불가(5) 모두 업로드 금지. 10/21편부터.
+import subprocess   # noqa: E402
 import candidate_gate   # noqa: E402  편 날짜(ep_date)·후보표(상승 점수·발췌·지금의 감정·댓글 수) — 10/21편부터
 EP_DATE = candidate_gate.ep_date(ep, sys.argv[2:])
+TITLE_CHECK = Path(__file__).resolve().parents[1] / 'scripts' / 'title_check.py'
+for up in (sys.argv[2:] if EP_DATE >= '20261021' else []):
+    u = json.loads(Path(up).read_text(encoding='utf-8'))
+    ja = str(u.get('defaultLanguage', '')).startswith('ja')
+    opt = (['--lane', 'politics_shorts', '--kind', 'shorts', '--lang', 'ja' if ja else 'ko'] if 'shorts' in Path(up).resolve().parts
+           else ['--lane', 'politics_ja' if ja else 'politics_ko'])
+    r = subprocess.run([sys.executable, '-X', 'utf8', str(TITLE_CHECK), up, *opt, '--fail-on-warn'], capture_output=True, text=True, encoding='utf-8')
+    if r.returncode:
+        why = ' / '.join(l.strip() for l in r.stdout.splitlines() if l.strip().startswith('△ [') or '불가' in l)
+        bad.append(f'{Path(up).name}: 제목 점검(title_check) 종료 {r.returncode} — {why or r.stderr.strip()[-200:]}')
+# 첫 문장 «안녕하세요·오늘은» 금지(10-20 콜드오픈 규칙): 콜드오픈 첫 낱말과 첫 해설 첫 문장
 if epj.exists() and EP_DATE >= '20261021':
     first = [' '.join(w[1] for w in cold.get('words', [])[:3]), (nar.get('text') or '').strip()[:12]]
     for f in first:
