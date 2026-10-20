@@ -1,5 +1,12 @@
 # 팬튜브(최애모먼트, idol_fantube_ko) 인계 (2026-10-19)
 
+## 10-20 현황
+- 예약: ep18 UKJjPoORoeY 10/20 18:00(18:03 질문 댓글 세션 크론 → 스튜디오 고정은 손으로) · ep19 u3mo3ug8EeE 10/21 08:00(워크맨 그림자 응원, 17~20항 게이트 첫 통과). 내림(비공개·예약 없음·retracted): ep11 HbFqC4IS1ro, ep09 -FZp2Z-6wWc. ep17 YB4yIhiUIf0 10/20 08:00 공개 → 14:07 6h 점검(세션 크론).
+- publish.js 게이트(전부 exit 5 = 업로드 금지): 댓글 장치(scripts/comment_hook.py + at_sec) · 기획(vicarious·hook·title_pattern·제목 15자±3·앞 10자 key·해시태그·첫 TTS 인사) · 제목 점검(scripts/title_check.py --fail-on-warn) · 가이드·미성년 낱말(exit 4). upload.json 에 title_pattern·keywords 필요.
+- tpl_b.py: 댓글 줄이 카드보다 길면 멈춤. 크롭은 원본 안내 띠·로고·박힌 자막 밖으로(워크맨: 자막 y≥880·로고 x1710~1830 y60~165·안내 띠 y36~120).
+- 장부 style = len_short/len_mid/len_long(실제 길이), 2주 길이 A/B.
+- 다음: 08·18시 슬롯 채우기(재고 ep18·ep19 뒤 비어 있음) — 같은 원본 isiKzW6LxG8 의 다른 구간(8:43 엄태구 사인 리액션 베댓 1100, 2:40 «너 예능인 아니라고» 658)도 후보.
+
 ## 10-20 07:00 재부팅 대비 (10-19 밤 기록)
 - **★10-20 07:00 재부팅도 보류(릴스 먼저). ep18 렌더는 관리자 «릴스 끝» 알림 뒤(lock 없음·8GB) → 18:00 교체. 릴스가 오후까지 가면 교체를 10/21로 미루고 보고.**
 - **★10-19 23:1x 소유주 «보류»: 00:37 렌더 취소(릴스 밤샘 렌더), 크론 ae0f16f4 삭제. 재부팅 뒤 오전 릴스 종료·lock 없음·8GB 확인 → 아래 재개 명령으로 렌더·발행, 10/20 18:00 교체 그대로.** (옛 계획) **00:37 ep18 렌더·발행:** lock 없음·빈 메모리 8GB+ 확인 → `python fantube/tpl_b.py D:/volcano-runs/fantube/ep18/spec.json` → 0.25초 장면 검사·눈 검사 → `node fantube/publish.js ep18 D:/volcano-runs/fantube/_upload/ep18_jypbook.json 2026-10-20T18:00:00+09:00` → 태그 통과 시 `node fantube/yt_tags.js HbFqC4IS1ro <meta> --unschedule`(ep11) · `node fantube/ledger.js ep11 --youtube-id HbFqC4IS1ro --retracted "..."`. lock 이면 15분마다 재확인, **06:30 넘으면 시작 안 함**(재부팅 뒤 같은 명령 그대로, 공개 시각만 18:00 전이면 유지).
