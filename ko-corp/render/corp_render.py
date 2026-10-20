@@ -368,6 +368,13 @@ def script_gates(ep):
         r = subprocess.run(py + [str(sc / 'script_audit.py'), str(script), '--lane', 'corp_ko', '--jargon', str(ROOT / 'ko-corp' / 'jargon.json'),
                                  '--names', str(ep / 'names.json'), '--json', str(out)], capture_output=True, text=True, encoding='utf-8')
         warn = json.loads(out.read_text(encoding='utf-8')).get('warnings') if out.exists() else None
+    wf = ep / 'gate_waive.json'  # 관리자가 그 편만 면제한 경고 코드(예: ep01 은 V12·V14 이전 원고 — 관리자 10-20 «ep01 은 13시 합성 그대로»)
+    waive = json.loads(wf.read_text(encoding='utf-8')) if wf.exists() else {}
+    if warn:
+        skip = [w for w in warn if w.get('code') in waive.get('codes', [])]
+        warn = [w for w in warn if w not in skip]
+        for w in skip:
+            print(f'script_audit 면제 [{w["code"]}] {w["msg"]} — {waive.get("why", "")}', flush=True)
     print(f'script_audit 경고 {len(warn) if warn is not None else "?"}건', flush=True)
     if r.returncode or warn is None or warn:
         raise SystemExit(f'script_audit 종료 {r.returncode}·경고 {warn} — TTS 중단\n{r.stdout}')
