@@ -8,7 +8,8 @@
     "hook_table": 100,
     "discovery_search": 3000,
     "thread_report": 100,
-    "other": 500
+    "other": 500,
+    "title_words": 303
   },
   "units": {
     "search": 100,
