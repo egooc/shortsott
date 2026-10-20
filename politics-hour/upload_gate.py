@@ -98,7 +98,7 @@ for up in sys.argv[2:]:
     hay = ' '.join([*pj.get('title', []), *[c for n in pj.get('narration', []) for c in n.get('cards', [])], *first])
     need(big_words(ep / 'thumb' / f'thumb_k_{name}.json'), hay, f'{name} 첫 5초(제목·해설 카드·첫 자막)')
 # 댓글 장치(관리자 10-20 소유주 질책 «댓글 반응을 노리는 원고 반영이 안 됐다»): 쇼츠는 expected_comment 가 있어야 하고,
-# 롱폼·쇼츠 모두 고정 댓글에 질문 한 줄(«?»)이 있어야 한다 — 발췌 원음이라 본문에 못 넣으면 고정 댓글 질문이 그 장치다.
+# 롱폼·쇼츠 모두 고정 댓글에 질문 한 줄(«?»·전각 «？»)이 있어야 한다 — 발췌 원음이라 본문에 못 넣으면 고정 댓글 질문이 그 장치다.
 # 쇼츠 expected_comment({type, line, at_sec})·장치 문장·끝 3문장은 공용 scripts/comment_hook.py(도구개발) 로 본다 — 종료 4·5 둘 다 FAIL.
 import comment_hook   # noqa: E402  scripts/ 는 위에서 sys.path 에 넣었다
 for up in sys.argv[2:]:
@@ -107,7 +107,7 @@ for up in sys.argv[2:]:
         r = comment_hook.check(up, lane='politics_shorts')
         if not r['ok']:
             bad.append(f'{Path(up).name}: 댓글 장치 관문(comment_hook) 종료 {r["code"]} — {"; ".join(map(str, r.get("errors", [])))}')
-    if '?' not in (u.get('pinned_comment') or ''):
+    if not any(q in (u.get('pinned_comment') or '') for q in '?？'):   # 전각 «？»(정치JA)도 질문
         bad.append(f'{Path(up).name}: 고정 댓글에 질문 한 줄(«?») 없음 — 논쟁·훈수를 부르는 질문으로')
 # 제목 전문용어엔 쉬운 풀이(S5, 관리자 10-20): jargon.json 낱말이 제목에 있으면 풀이 문구가 제목·설명 첫 줄에 있거나,
 # 제목에서 낱말 바로 뒤에 «(…)» 또는 « — …» 가 붙어야 한다. 쇼츠 제목은 짧아 설명 첫 줄 풀이도 받는다.
@@ -124,13 +124,14 @@ for up in sys.argv[2:]:
         if not ('(' in after or '—' in after):
             bad.append(f'{Path(up).name}: 제목 전문용어 «{w}» 에 쉬운 풀이 없음(예: {alts[0] if alts else "괄호 풀이"}) — 제목 «(…)»·« — …» 또는 설명 첫 줄')
 # 첫 문장 «안녕하세요·오늘은» 금지(10-20 콜드오픈 규칙): 콜드오픈 첫 낱말과 첫 해설 첫 문장
-if epj.exists() and ep.name >= '20261021':
+import candidate_gate   # noqa: E402  편 날짜(ep_date)·후보표(상승 점수·발췌·지금의 감정·댓글 수) — 10/21편부터
+EP_DATE = candidate_gate.ep_date(ep, sys.argv[2:])
+if epj.exists() and EP_DATE >= '20261021':
     first = [' '.join(w[1] for w in cold.get('words', [])[:3]), (nar.get('text') or '').strip()[:12]]
     for f in first:
         if f.lstrip().startswith(('안녕하세요', '오늘은')):
             bad.append(f'첫 문장이 «{f[:12]}…» — 인사·«오늘은» 시작 금지, 질문이나 원음으로 연다')
-import candidate_gate   # noqa: E402  후보표(상승 점수·발췌·지금의 감정·댓글 수) — 10/21편부터
-bad += candidate_gate.gate_lines(ep)
+bad += candidate_gate.gate_lines(ep, sys.argv[2:])
 sys.path.insert(0, str(Path(__file__).resolve().parent / 'overlay')); import tts_audit   # 해설 TTS 역전사 숫자·고유명사 대조(10/20편부터, tts_say 편만 요구)
 bad += tts_audit.gate_lines(ep)
 bad += guide_words.gate_lines([*sys.argv[2:], *[p for p in [ep / 'packages.json'] if p.exists()]], lang='ko', lane='politics')   # 제목·설명·태그·썸네일 낱말, 우회 GUIDE_OK=1 은 소유주 말 있을 때만

@@ -13,6 +13,7 @@
 하나라도 빠지면 exit 3 — 원고(script_*.py)를 쓰지 않는다. upload_gate 도 이 검사를 다시 돈다.
 """
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -21,9 +22,33 @@ NUM = ('rising_score', 'comment_count')
 FROM = '20261021'   # 이 날짜 편부터 요구한다
 
 
-def gate_lines(ep):
+def ep_date(ep, uploads=()):
+    """편 날짜 YYYYMMDD — upload.json 의 date·publish_at·publishAt·status.publishAt → 폴더 이름(8자리) → keywords.json at.
+    못 읽으면 '99999999'(새 편으로 보고 규칙을 다 건다 — 임시 폴더에서 규칙이 빠지지 않게, 관리자 10-20 정치JA)."""
     ep = Path(ep)
-    if ep.name < FROM:
+    for up in [*uploads, ep / 'upload.json']:
+        try:
+            u = json.loads(Path(up).read_text(encoding='utf-8'))
+        except Exception:
+            continue
+        for v in (u.get('date'), u.get('publish_at'), u.get('publishAt'), (u.get('status') or {}).get('publishAt')):
+            m = re.match(r'(\d{4})-?(\d{2})-?(\d{2})', str(v or ''))
+            if m:
+                return ''.join(m.groups())
+    if re.fullmatch(r'\d{8}', ep.name):
+        return ep.name
+    try:
+        m = re.match(r'(\d{4})-?(\d{2})-?(\d{2})', json.loads((ep / 'keywords.json').read_text(encoding='utf-8')).get('at', ''))
+        if m:
+            return ''.join(m.groups())
+    except Exception:
+        pass
+    return '99999999'
+
+
+def gate_lines(ep, uploads=()):
+    ep = Path(ep)
+    if ep_date(ep, uploads) < FROM:
         return []
     kp = ep / 'keywords.json'
     if not kp.exists():
