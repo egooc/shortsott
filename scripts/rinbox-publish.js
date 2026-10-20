@@ -329,7 +329,7 @@ function tagHookGate(mp4) {
   else for (const k of ['visual', 'audio', 'text']) if (!String(hook[k] || '').trim()) bad.push(`plan.hook.${k} 가 비었다`);
   // ★10-20 관리자 판단: 린박스 설명 머리 두 줄이 고정 문구라 공통 낱말이 구조상 0 — 도구개발 rinbox 어댑터가 나올 때까지
   //   태그는 경고형(승인을 막지 않되 크게 찍는다). 어댑터 반영되면 TAG_STRICT=true 로 되돌린다. hook 세 칸은 계속 FAIL.
-  const TAG_STRICT = false;
+  const TAG_STRICT = true;   // 10-20 도구개발 어댑터 734c534 + 134ja 포장 보강으로 공통 ≥2 확인 → 다시 FAIL
   try {
     execFileSync('python', ['-I', '-X', 'utf8', path.join(__dirname, 'tag_gate.py'), `${mp4}.rinbox.json`, '--fail-on-warn'],
       { encoding: 'utf8', env: { ...process.env, PYTHONIOENCODING: 'utf-8' } });
