@@ -74,6 +74,34 @@ def segments(path, lane=None):
         for s in ref_overlap.split_sentences(text):
             out.append(('nar', s, _est(s, lang)))
 
+    # 정치JA(10-20 관리자): 롱폼 = episodes/<날짜>/episode.json 을 JA 렌더러(ja_render.segments, 읽기만)로 펼친다 —
+    # nar 해설 · cold/quote 인용 원음(q.in~out) · card 공문 낭독(인용, 7.5자/초). 쇼츠 = shorts/plan.json:<id>(beats: nar / t=raw in~out).
+    sp = str(path).replace('\\', '/')
+    if lane == 'politics_ja' or 'politics-hour-ja/' in sp:
+        if '.json:' in sp:                                            # shorts/plan.json:s1
+            f, sid = sp.rsplit('.json:', 1)
+            shorts = _load_json(f + '.json').get('shorts', [])
+            sh = next((x for x in shorts if str(x.get('id')) == sid), None)
+            if sh is None:
+                raise KeyError(f'쇼츠 {sid} 없음')
+            for b in sh.get('beats', []):
+                if b.get('nar'):
+                    nar(b['nar'])
+                elif b.get('t') == 'raw' and b.get('out') is not None:
+                    out.append(('audio', '', max(0.0, float(b['out']) - float(b['in']))))
+            return out
+        epj = p / 'episode.json' if p.is_dir() else p
+        if epj.name == 'episode.json' and epj.exists() and 'segments' not in _load_json(epj):
+            sys.path.insert(0, str(ROOT / 'politics-hour-ja' / 'render'))
+            import ja_render   # noqa: E402 — 정치JA 렌더러의 펼치기(그쪽 정본, 수정 안 함)
+            for s in ja_render.segments(_load_json(epj)):
+                if s.get('type') == 'nar' and s.get('text'):
+                    nar(s['text'])
+                elif s.get('type') in ('cold', 'quote') and (s.get('q') or {}).get('out') is not None:
+                    out.append(('audio', '', max(0.0, float(s['q']['out']) - float(s['q']['in']))))
+                elif s.get('type') == 'card' and s.get('text'):
+                    out.append(('audio', '', len(re.sub(r'\s', '', s.get('read') or s['text'])) / CPS['ja']))
+            return out
     ep = p / 'episode.json' if p.is_dir() else p
     if ep.name == 'episode.json' and ep.exists():                     # 정치 ko 빌드 결과
         for s in _load_json(ep).get('segments', []):
@@ -145,7 +173,7 @@ def _names(sent, names, lang):
 
 
 def audit(path, lane=None, kind=None, lang=None, jargon=None, names=None, ignore=None):
-    kind = kind or ('long' if lane in LONG_LANES else 'shorts')
+    kind = kind or ('shorts' if '.json:' in str(path) else 'long' if lane in LONG_LANES else 'shorts')   # plan.json:<id> = 쇼츠
     lang = lang or ('ja' if lane in JA_LANES else 'ko')
     res = {'path': str(path), 'lane': lane, 'kind': kind, 'lang': lang, 'warnings': [], 'error': None}
     try:
