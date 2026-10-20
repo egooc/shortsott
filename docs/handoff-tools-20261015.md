@@ -111,3 +111,11 @@
 - ★10-20 에보링크 5초 시험 보류: 릴스 Kling 3.0 모션 컨트롤 시험이 HTTP 402(잔액 부족) → 소유주 충전 확인 전엔 건너뛰고 다음 항목. 할 때는 reels/tools/evolink_motion.py import(업로드→kling-v3-motion-control→결과, 파일 서버는 파이썬 기본 UA를 403 → UA 헤더 필수). 다른 키·계정 금지.
 - ★10-20 title_check 요구 추가(③ 안에서): 위험 행위(끓는 물·불·칼로 …) + 신체 대상(손·얼굴·아이 …) 2항 조합, «~했더니» 결과 유도와 겹치면 WARN(BLOCK 아님), 로그에 조합 종류 기록. 근거: 롱투숏 ls11 «펄펄 끓는 물에 손 넣었더니»(10-18 08시) 화면·출처 경고 없이 조회 1·피드 0 — 실측 1건. 대상: 롱투숏·팬튜브·N100 쇼츠 제목. 판정 낱말은 guide_words.json 에 넣어 한 곳에서(동물 범주처럼 objects×actions).
 - ★10-20 comment_hook.py 공용 댓글 장치 관문(a4856bc) — 쇼핑·린박스·팬튜브·정치 ko·롱투숏에 import 전환 안내 보냄. 미결: 린박스 type(질문·단정) 통일 여부 관리자 답 대기.
+
+## 10. 10-20 마감
+
+- 만든 공용 도구(전부 경고형·검사 불가=종료 5+server/data/gate_errors.jsonl): ref_overlap.py(ko/ja 문장 나누기, config/ref_overlap.json) · comment_hook.py(댓글 장치 관문, 5레인 import) · title_check.py(쇼츠 10패턴·위험×신체·롱폼 전문용어) · script_audit.py(K7·K3·리듬·첫 질문·원음·전환·끝맺음) · tag_gate.py(K6) · view_diag.js(M1·Z9·S5) · comment_mine.js(Z4·Z5, 발굴용 키 하루 300단위) · retention_curve.js(K9) · yt_news_outliers.js(뉴스 채널 48h 아웃라이어, config/news_channels.json) · json3_to_md.py · publish_hours --api(K16).
+- rising_keywords: 네이버 «댓글 많은 뉴스» 칸 + 뉴스 배수 가산. frame_dup.py(ls_tools, git 밖): --budget 420·짧은 것부터·긴 영상 가벼운 격자.
+- 기업 가이드 2차 §6 전달(8장·325자/분 등), 기업 레퍼런스 전사 24편 reference/ko_corp/corp_refs/transcripts(로컬, 커밋 안 함).
+- 에보링크 5초 시험: 2회 unknown_error 실패(task-unified-1792462598-yzyczbk3 · 1792462663-tw72na8q), 지시 대기. 입력 server/data/evolink_test/.
+- 남은 것: 야후·구글 JP 실시간(보류), rising evergreen 확장(ㄱ~ㅎ·あ~わ), title_words.js 월 1회, comment_mine 예상 vs 실제 열은 10-20 제작분 공개 뒤부터 찬다.
