@@ -116,6 +116,17 @@ for up in sys.argv[2:]:
         bad.append(f'{Path(up).parent.name}/{Path(up).name}: 고정 댓글 관문 종료 {r.returncode} «{pin}» — {(r.stdout + r.stderr).strip()[-200:]}')
     else:
         print(f'[gate-ja] PASS 고정 댓글 «{pin}»')
+# 쇼츠 제목 점검(관리자 10-20 via 정치 ko 06906c4): 롱폼은 ko 관문이 title_check 를 부른다(defaultLanguage ja → politics_ja),
+# ja 쇼츠는 ko 관문에 안 넘기므로 여기서 같은 옵션으로 — 10패턴·길이·앞 10자·title_pattern 필드, --fail-on-warn(4·5 업로드 금지)
+for up in [u for u in sys.argv[2:] if '/shorts/' in u.replace(chr(92), '/')]:
+    r = subprocess.run([sys.executable, '-X', 'utf8', str(GATE.parents[1] / 'scripts' / 'title_check.py'), up,
+                        '--lane', 'politics_shorts', '--kind', 'shorts', '--lang', 'ja', '--fail-on-warn'],
+                       capture_output=True, text=True, encoding='utf-8')
+    if r.returncode:
+        why = ' / '.join(l.strip() for l in r.stdout.splitlines() if l.strip().startswith('△ [') or '불가' in l)
+        bad.append(f'{Path(up).parent.name}/{Path(up).name}: 제목 점검(title_check) 종료 {r.returncode} — {why or r.stderr.strip()[-200:]}')
+    else:
+        print(f'[gate-ja] PASS 쇼츠 제목 점검 {Path(up).parent.name}')
 # 첫 말 인사 금지·후보표 대리만족 열(관리자 10-20 ②④) — 원고 관문과 같은 판정
 import importlib.util
 _sp = importlib.util.spec_from_file_location('script_gate', Path(__file__).parent / 'script_gate.py')
