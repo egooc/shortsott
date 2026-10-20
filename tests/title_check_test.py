@@ -31,8 +31,8 @@ assert '앞10자' not in codes('크랜베리 밭을 일부러 물에 잠그는 �
 J = {'탄핵소추안': ['국회가 먼저 묻는 절차'], '탄핵소추': ['국회가 먼저 묻는 절차'], '전작권': ['전시작전권']}
 w = tc.check_title('조희대 탄핵소추안 발의', 'long', jargon=J)
 assert [c for c, _ in w] == ['전문용어'], w
-assert codes('전작권(전시작전권) 넘겨받으면 뭐가 달라지나', 'long', jargon=J) == []
-assert codes('전작권 넘겨받으면', 'long', jargon=J, desc='전시작전권을 돌려받는다는 뜻\n둘째 줄') == []
+assert codes('전작권(전시작전권) 넘겨받으면 뭐가 달라지나', 'long', jargon=J) == ['가이드']   # 풀이는 됐고, 전작권은 10-20.1 정치·군사 범주
+assert '전문용어' not in codes('전작권 넘겨받으면', 'long', jargon=J, desc='전시작전권을 돌려받는다는 뜻\n둘째 줄')
 # CLI: json 입력·title_pattern 없음·검사 불가 5·--fail-on-warn 4
 with tempfile.TemporaryDirectory() as t:
     t = Path(t)
@@ -44,7 +44,7 @@ with tempfile.TemporaryDirectory() as t:
     rec = json.loads(tc.LOG.read_text(encoding='utf-8').splitlines()[0])
     assert 'title_pattern' in rec['codes'] and rec['combo'].startswith('위험 행위×신체 대상'), rec
     pk = t / 'packages.json'   # packages.json 은 desc_head(설명 첫 두 줄)로 풀이를 본다
-    pk.write_text(json.dumps({'packages': [{'title': '전작권 넘겨받으면 뭐가 달라지나', 'desc_head': ['전시작전권을 돌려받는다는 뜻입니다.', '둘째 줄']}]},
+    pk.write_text(json.dumps({'packages': [{'title': '탄핵소추안 발의되면 뭐가 달라지나', 'desc_head': ['국회가 먼저 묻는 절차를 시작했다는 뜻입니다.', '둘째 줄']}]},
                              ensure_ascii=False), encoding='utf-8')
     jf = t / 'j.json'
     jf.write_text(json.dumps(J, ensure_ascii=False), encoding='utf-8')
