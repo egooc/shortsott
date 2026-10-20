@@ -212,7 +212,7 @@ def check_title(title, kind='shorts', lang='ko', keywords=(), jargon=None, desc=
         warns.append(('위험×신체', f'{combo[0]} — 피드 0 사례(롱투숏 ls11) 조합'))
     for cat, ws in guide_words.hits(t, lang):
         if not (combo and cat == '위험 행위'):
-            warns.append(('가이드', f'{cat}: {ws}'))
+            warns.append(('가이드', f'{cat}: {ws}{guide_words.hint(cat, ws, lang)}'))
     if kind == 'long':
         for word, gl in jargon_missing(t, desc, jargon):
             warns.append(('전문용어', f'«{word}» 풀이 없음 — 제목 «{word}(…)»·«{word} — …» 또는 설명 첫 줄에 «{gl[0]}» 류'))

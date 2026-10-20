@@ -58,6 +58,16 @@ def hits(text, lang='ko', lane=None, W=None):
     return out
 
 
+def hint(cat, words, lang='ko', W=None):
+    """관문 줄 뒤에 붙일 말 — block 범주(마약·총기)는 «차단 — 바꿔 쓰지 말고 빼라», replace 낱말은 «대체: 사망→«세상을 떠났습니다»» (10-21 G5·V16)."""
+    W = W or load()
+    if cat in (W.get('block') or {}).get(lang, []):
+        return ' — 차단: 바꿔 쓰지 말고 빼라(제목·썸네일·원고 공통)'
+    rep = (W.get('replace') or {}).get(lang, {})
+    alts = [f'{w}→«{rep[w][0]}»' for w in words if w in rep]
+    return f' — 대체: {" · ".join(alts)}' if alts else ''
+
+
 def fields(path):
     """파일 하나 → [(이름, 문구)] — upload.json(title·description·tags) · packages.json(포장마다 제목·큰 낱말) · compose.json(썸네일 두 줄)."""
     p = Path(path)
@@ -95,7 +105,7 @@ def gate_lines(paths, lang='ko', lane=None):
     for path in paths:
         for name, text in fields(path):
             for cat, ws in hits(text, lang, lane, W):
-                bad.append(f'{name} · 가이드 {cat}: {ws}')
+                bad.append(f'{name} · 가이드 {cat}: {ws}{hint(cat, ws, lang, W)}')
     return bad
 
 
