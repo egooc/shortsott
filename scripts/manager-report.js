@@ -75,10 +75,17 @@ async function youtubeSection() {
       const d1 = live.filter((x) => inDay(x.pub, DAY0, DAY1)); // 어제 발행 = 이른 신호
       const stat = (xs) => xs.length ? `${xs.length}편 · 중앙 ${fmt(median(xs.map((x) => x.views)))} · 최고 ${fmt(Math.max(...xs.map((x) => x.views)))} · 100 미만 ${xs.filter((x) => x.views < 100).length} · 비공개 ${xs.filter((x) => x.privacy !== 'public').length}` : '—';
       const best = d2.sort((a, b) => b.views - a.views)[0];
-      rows.push(`| ${p.channelTitle || p.purpose} | ${p.purpose} | ${fmt(c.statistics.subscriberCount)} | ${stat(d2)} | ${stat(d1)} | ${pending} | ${best ? `${best.title.slice(0, 28)} (${fmt(best.views)})` : '—'} |`);
+      // 저조회 진단(도구개발 view_diag, 10-20): 그제 발행 중앙값 기준 — 쇼츠 레인은 벽 이름·처방, 롱폼은 구간만. 노출·지속 수치는 API 에 없어 첫 분기는 보류로 나온다.
+      let diag = '—';
+      try {
+        const { diagnose } = require('./view_diag');
+        const kind = /politics|nenkin|corp|longform/.test(p.purpose) ? 'long' : 'shorts';
+        if (d2.length) diag = diagnose({ views: median(d2.map((x) => x.views)), kind }).line;
+      } catch (e) { diag = `_진단 실패: ${e.message.split('\n')[0]}_`; }
+      rows.push(`| ${p.channelTitle || p.purpose} | ${p.purpose} | ${fmt(c.statistics.subscriberCount)} | ${stat(d2)} | ${stat(d1)} | ${pending} | ${best ? `${best.title.slice(0, 28)} (${fmt(best.views)})` : '—'} | ${diag} |`);
     } catch (e) { notes.push(`- ${p.channelTitle || p.purpose}: 조회 실패 — ${e.message}`); }
   }
-  return [`| 채널 | purpose | 구독 | 그제(${PREV}) 발행 · 37~55h | 어제(${DATE}) 발행 · 이른 신호 | 예약 대기 | 그제 최고 편 |`, '|---|---|---|---|---|---|---|', ...rows, ...notes].join('\n');
+  return [`| 채널 | purpose | 구독 | 그제(${PREV}) 발행 · 37~55h | 어제(${DATE}) 발행 · 이른 신호 | 예약 대기 | 그제 최고 편 | 진단(그제 중앙) |`, '|---|---|---|---|---|---|---|---|', ...rows, ...notes].join('\n');
 }
 
 // ── Claude 토큰 ────────────────────────────────────────────────────────────────
@@ -211,6 +218,29 @@ async function packagingSection() {
   return out.join('\n');
 }
 
+// 9. 롱폼 지속 곡선 — 도구개발 retention_curve.js(10-20, 카이안 K9). views_check 장부(politics_views.jsonl)에 있는 롱폼(long=true) 중
+//    최근 7일 안 기록된 편을 Analytics audienceRetention 으로 읽는다(읽기 전용). 공개 2~3일 안은 «집계 전». 403/429 면 그 자리에서 멈춘다.
+async function retentionSection() {
+  const { retention } = require('./retention_curve');
+  const f = path.join(ROOT, 'server/data/politics_views.jsonl');
+  const rows = fs.existsSync(f) ? fs.readFileSync(f, 'utf8').split('\n').filter(Boolean).map((l) => { try { return JSON.parse(l); } catch (_) { return null; } }).filter(Boolean) : [];
+  const since = Date.now() - 7 * 86400000;
+  const seen = new Map();
+  for (const r of rows) if (r.long && r.id && Date.parse(r.at) >= since && !seen.has(r.id)) seen.set(r.id, { id: r.id, purpose: r.purpose || 'politics', title: r.title || '' });
+  if (!seen.size) return '최근 7일 롱폼 점검 기록 없음.';
+  const out = ['| 편 | 제목 | 1% | 5% | 10% | 25% | 50% | 첫 2% 이탈 | 최대 낙폭(위치) | 되감기 | 상대 지속 |', '|---|---|---|---|---|---|---|---|---|---|---|'];
+  for (const v of seen.values()) {
+    try {
+      const r = await retention(v.id, { purpose: v.purpose });
+      const s = r.summary;
+      if (!s) { out.push(`| ${v.id} | ${v.title.slice(0, 30)} | ${r.status} | | | | | | | | |`); continue; }
+      out.push(`| ${v.id} | ${v.title.slice(0, 30)} | ${s.at_pct[1]} | ${s.at_pct[5]} | ${s.at_pct[10]} | ${s.at_pct[25]} | ${s.at_pct[50]} | ${s.first2_drop}p | ${s.largest_1pct_drop.drop}p(${s.largest_1pct_drop.at}%) | ${s.rewind_segments.join('·') || '—'} | ${s.relative_median ?? '—'} |`);
+    } catch (e) { out.push(`| ${v.id} | ${v.title.slice(0, 30)} | _실패: ${e.message.split('\n')[0].slice(0, 60)}_ | | | | | | | | |`); if (e.stop) break; }
+  }
+  out.push('', '_첫 2% ≈ 첫 30초(25분 기준). 상대 지속은 비슷한 길이 영상 대비 0~1, 0.5 미만이면 하위권. 되감기 지점은 해당 세션이 장면 유형과 대조한다._');
+  return out.join('\n');
+}
+
 (async () => {
   const sec = async (title, fn) => { try { return `## ${title}\n\n${await fn()}`; } catch (e) { return `## ${title}\n\n_실패: ${e.message}_`; } };
   const parts = [`# 성과 보고 ${DATE} (KST, 다음 날 07:40 기준)`, '',
@@ -219,7 +249,9 @@ async function packagingSection() {
     await sec('5. 병목 — 시간대별 자원', resourceSection), '',
     await sec('6. 결 탐지 (레인 중앙값 3배 넘은 편의 공통 속성, 공개 72시간 경과분)', threadsSection), '',
     await sec('7. 태그 점검 (최근 2일 공개·예약분, 0개면 ⚠)', tagsSection), '',
-    await sec('8. 포장 경고·자동 교체 (롱폼 공개 +4h·+8h·+12h·+24h·매일 조회, 바닥 미달이면 다음 포장)', packagingSection), ''];
+    await sec('8. 포장 경고·자동 교체 (롱폼 공개 +4h·+8h·+12h·+24h·매일 조회, 바닥 미달이면 다음 포장)', packagingSection), '',
+    await sec('9. 롱폼 지속 곡선 (최근 7일 점검 편, Analytics 읽기 전용)', retentionSection), '',
+    await sec('10. 자료 반영 실측 (레인 게이트의 공용 도구 호출·최신 제작물 필수 필드 — 도구개발 adoption_check)', async () => { const a = require('./adoption_check'); return a.md(a.check()).replace(/^## [^\n]*\n\n?/, ''); }), ''];
   fs.mkdirSync(OUT_DIR, { recursive: true });
   const out = path.join(OUT_DIR, `${DATE}-perf.md`);
   fs.writeFileSync(out, parts.join('\n') + '\n', 'utf8');
