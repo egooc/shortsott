@@ -1,4 +1,4 @@
-// 쇼핑 원고 검사 — 결충전·썰형 6단·리듬·열린 결말·반박 선제·사회적 증거·첫 문장·첫 질문 3초·끝 질문(답 없이 맨 끝)을 기계로 본다. FAIL 이면 종료 코드 4.
+// 쇼핑 원고 검사 — 결충전·썰형 6단·리듬·열린 결말·반박 선제·사회적 증거·첫 문장·첫 질문 3초·끝 질문(답 없이 맨 끝)·devo V1·V2(FAIL)·V3·V14(△)를 기계로 본다. FAIL 이면 종료 코드 4.
 // 10/20 관리자 실측(docs/materials-audit-20261020.md #3): 이 규칙들이 프롬프트에만 있고 검사 코드가 0 — 밤 보고의 «결충전 통과»는 자기 평가였다.
 // 원고 쪽이 메타에 표시를 박고(script_map), 여기서는 그 문장이 plan.json 원고에 실제로 있는지·순서·위치·모양을 본다.
 //   meta.script_map = {
@@ -23,6 +23,10 @@ const MAX_SHORTEST = 10; // 짧게 «툭» 끊는 문장이 하나는 있어야 
 // ⑧ 첫 질문 3초 — 공용 script_audit.py 쇼츠 «질문» 항목과 같은 규칙·같은 정규식(10/20 관리자: script_audit 은 이 검사로 동등 인정, 이 항목만 빠져 있었다)
 const QUESTION = /[?？]\s*$|(까요?|나요|가요|습니까|죠)\s*[.。]?\s*$/;
 const FIRST_Q_SEC = 3;
+const V1_EXPLAIN = /^(이유는|왜냐하면|그 이유는|왜 그러냐면)|때문(이에요|입니다|이죠|이래요|이다)|에 대해/;
+const V2_EMOTION = /(너무 좋|대박|놀라워|놀라웠|놀랍|감동|충격적|대단해|대단했|슬펐|최고예요|최고에요|짱이에요|짱이죠)/;
+const V3_SUMMARY = /^(그래서|결국|이처럼|역시)|꼭 사세요|꼭 써 보세요|(정말|참|역시).*(였|이었)(습니다|어요)/;
+const V14_COMPARE = /(배|보다|대신|만에|에서|전|후|하루|매일|한 번|%|→|vs)/;
 const CPS = 7.0;   // 자막 시각이 없을 때 추정(script_audit 과 같은 ko 7자/초)
 
 // 문장(segment) 시작 시각 — <작업폴더>/_ff/cap.ass 의 Cap 줄(plan 문장을 « / » 로 나눈 조각)에서 찾는다. 못 찾으면 글자 수로 추정.
@@ -53,6 +57,7 @@ function segStarts(wd, rawSegs) {
 function check(metaPath) {
   const out = [];   // {ok, item, msg}
   const add = (ok, item, msg) => out.push({ ok, item, msg });
+  const warn = (bad, item, msg) => out.push({ ok: true, warn: !!bad, item, msg });   // △ — 종료 코드에 안 들어간다
   let meta;
   try { meta = JSON.parse(fs.readFileSync(metaPath, 'utf8')); } catch (e) { return { code: 5, out: [{ ok: false, item: '입력', msg: `메타를 못 읽음: ${e.message}` }] }; }
   const wd = meta.file && path.dirname(meta.file);
@@ -134,6 +139,27 @@ function check(metaPath) {
   add(iQ >= 0 && tQ <= FIRST_Q_SEC, '⑧ 첫 질문',
     iQ < 0 ? `질문 문장 없음 — ${FIRST_Q_SEC}초 안에 묻는 문장 하나` : `«${segs[iQ]}» ${tQ.toFixed(1)}초(≤${FIRST_Q_SEC}, ${T.how[iQ]})`);
 
+  // devo 칼럼(docs/devo-column-rules-20261020.md, 10/20 관리자) — 공용 script_audit --shorts 가 나오면 겹치는 항목은 그쪽으로 옮긴다
+  // V1 ① 제목 읊기 뒤 둘째 문장 설명형 금지(FAIL) — 궁금증·의외성으로
+  const s2 = segs[1] || '';
+  add(!V1_EXPLAIN.test(s2), 'V1 둘째 문장', `«${s2}»${V1_EXPLAIN.test(s2) ? ' — 설명형(이유는·왜냐하면·~때문) 금지, 궁금증·의외성으로' : ''}`);
+  // V2 감정 평가 어휘 금지(FAIL) — 행동·사실·숫자로
+  const emo = segs.map((x) => (x.match(V2_EMOTION) || [])[0]).map((w, i) => (w ? `«${w}»(${i + 1}번 «${segs[i]}»)` : null)).filter(Boolean);
+  add(!emo.length, 'V2 감정 평가 어휘', emo.length ? emo.join(' · ') : '없음');
+  // V3 끝 질문 앞 문장이 요약·평가형이면 WARN
+  let pe = e - 1;
+  while (pe > 0 && /^저장해/.test(segs[pe])) pe--;   // 끝 질문 앞 «저장해 두고…» 권유는 건너뛰고 그 앞 문장을 본다
+  const preEnd = segs[pe] || '';
+  warn(V3_SUMMARY.test(preEnd), 'V3 끝 앞 문장', `«${preEnd}»${V3_SUMMARY.test(preEnd) ? ' — 요약·평가형(그래서·결국·꼭 사세요)' : ''}`);
+  // V14 끝 어미 한 종류 60% 초과 WARN · 숫자에 비교 대상
+  const ends = segs.map((x) => squash(x).slice(-1)).filter(Boolean);
+  const freq = ends.reduce((m, c) => ({ ...m, [c]: (m[c] || 0) + 1 }), {});
+  const [topEnd, topN] = Object.entries(freq).sort((a, b) => b[1] - a[1])[0] || ['', 0];
+  const share = ends.length ? topN / ends.length : 0;
+  const bareNum = segs.filter((x) => /[0-9]/.test(x) && !V14_COMPARE.test(x));
+  warn(share > 0.6 || bareNum.length, 'V14 어미·숫자',
+    `끝 글자 «~${topEnd}» ${Math.round(share * 100)}%(≤60%) · 어미 ${Object.entries(freq).map(([k, v]) => `${k}${v}`).join(' ')}${bareNum.length ? ` · 비교 없는 숫자 ${bareNum.map((x) => `«${x}»`).join(' ')}` : ''}`);
+
   return { code: out.every((x) => x.ok) ? 0 : 4, out };
 }
 
@@ -143,7 +169,7 @@ if (require.main === module) {
   const f = process.argv[2];
   if (!f) { console.error('쓰임: node scripts/shop_script_check.js <메타.json>'); process.exit(2); }
   const r = check(f);
-  for (const x of r.out) console.log(`${x.ok ? '✓' : '✗'} ${x.item}: ${x.msg}`);
+  for (const x of r.out) console.log(`${!x.ok ? '✗' : x.warn ? '△' : '✓'} ${x.item}: ${x.msg}`);
   if (r.code) console.error(`\x07✗✗✗ 원고 검사 ${r.code === 5 ? '검사 불가' : 'FAIL'} — ${path.basename(f)} 재고·업로드 금지`);
   else console.log(`✓ 원고 검사 통과 — ${path.basename(f)}${r.exempt ? '(구 원고 면제)' : ''}`);
   process.exit(r.code);
