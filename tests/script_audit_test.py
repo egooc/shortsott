@@ -19,7 +19,7 @@ with tempfile.TemporaryDirectory() as t:
     f = t / 'script.txt'
     f.write_text('# 주석\n## 0\n@hook\n' + '\n'.join(lines) + '\n', encoding='utf-8')
     r = sa.audit(f, 'corp_ko')
-    assert {'K3 첫 문장', '리듬', '질문', '전환'} <= set(codes(r)), r
+    assert {'K3 첫 문장', '질문', '전환'} <= set(codes(r)) and 'G11 리듬' in allc(r), r   # 롱폼 리듬은 G11 창 기준(10-21)
     assert r['first_question_sec'] is None and r['rhythm']['cv'] < 0.3
     # 좋은 원고: 첫 문장이 질문, 길이 섞임, 전환 자주
     good = ['과자는 팔렸는데 회사는 왜 무너졌을까요?', '196억 원.', '그런데 이 돈은 그룹 빚에 비하면 아주 작은 돈이었고, 그래서 더 이상했습니다.',
@@ -71,6 +71,25 @@ with tempfile.TemporaryDirectory() as t:
     f.write_text('과자는 팔렸는데 회사는 왜 무너졌을까요?\n' + '\n'.join(['그 뒤로 긴 설명이 이어지고 숫자와 연도가 계속 나옵니다.'] * 40) + '\n', encoding='utf-8')
     r = sa.audit(f, 'corp_ko')
     assert 'V12 질문 간격' in allc(r), allc(r)
+    # 10-21 자료 점검 G1·G3·G5(기획 json 쇼츠) — 날짜 유예를 지난 설정으로 돌린다
+    cfg = json.loads(sa.CONFIG.read_text(encoding='utf-8'))
+    for k in ('G1', 'G3', 'G5', 'G11'):
+        cfg['enforce_from'][k] = '2026-01-01T00:00:00+09:00'
+    (t / 'cfg.json').write_text(json.dumps(cfg, ensure_ascii=False), encoding='utf-8')
+    real_cfg, sa.CONFIG = sa.CONFIG, t / 'cfg.json'
+    pl = t / 'g1' / 'plan.json'
+    pl.parent.mkdir()
+    seg = ['농부가 밭에 물을 붓는다.', '빨간 열매가 떠오른다.', '열매는 계속 늘어난다.', '그런데 하나도 가라앉지 않는다.', '여러분이라면 먹어 볼까요?']
+    pl.write_text(json.dumps({'segments': [{'text': x} for x in seg]}, ensure_ascii=False), encoding='utf-8')
+    assert [x['code'] for x in sa.audit(pl, 'longshort', 'shorts')['fails']] == ['G1 목표 감정']
+    pl.write_text(json.dumps({'segments': [{'text': x} for x in seg], 'target_emotion': '궁금', 'turn_line': '그런데 하나도 가라앉지 않는다'}, ensure_ascii=False), encoding='utf-8')
+    r = sa.audit(pl, 'longshort', 'shorts')
+    assert r['fails'] == [] and not [c for c in codes(r) if c.startswith('G')], r
+    assert sa.tone_miss('감동', '정말 최고였어요!') and sa.tone_miss('유쾌', '그렇게 끝났습니다.') and not sa.tone_miss('궁금', '왜일까요?')
+    seg[3] = '그런데 펜타닐이 나온다.'
+    pl.write_text(json.dumps({'segments': [{'text': x} for x in seg], 'target_emotion': '궁금', 'turn_line': '그런데 펜타닐이 나온다'}, ensure_ascii=False), encoding='utf-8')
+    assert 'G5 차단 낱말' in [x['code'] for x in sa.audit(pl, 'longshort', 'shorts')['fails']]
+    sa.CONFIG = real_cfg
     # 검사 불가 → 5 + 장부
     assert sa.main([str(t / 'nope.txt')]) == 5 and sa.LEDGER.exists()
 print('OK')

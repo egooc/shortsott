@@ -31,6 +31,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import comment_hook  # noqa: E402
+import guide_words  # noqa: E402
 import ref_overlap  # noqa: E402
 
 LEDGER = ROOT / 'server' / 'data' / 'gate_errors.jsonl'
@@ -172,6 +173,37 @@ def _names(sent, names, lang):
     return list(dict.fromkeys(found))
 
 
+EMOTIONS = ('감동', '유쾌', '분노', '궁금')   # G1 plan.target_emotion(10-21 자료 점검)
+
+
+def plan_fields(path):
+    """원고 경로 → 기획 json(dict) 또는 None. plan.json:<id> 면 그 쇼츠 항목, 폴더면 plan.json·plan_local.json·spec.json 순."""
+    sp = str(path)
+    if '.json:' in sp:
+        f, sid = sp.rsplit('.json:', 1)
+        d = _load_json(f + '.json')
+        return next((x for x in d.get('shorts', []) if str(x.get('id')) == sid), None) if isinstance(d, dict) else None
+    p = Path(path)
+    if p.is_dir():
+        p = next((p / n for n in ('plan.json', 'plan_local.json', 'spec.json') if (p / n).exists()), None)
+    if p is None or p.suffix != '.json' or not p.exists():
+        return None
+    d = _load_json(p)
+    return d if isinstance(d, dict) else None
+
+
+def tone_miss(emotion, last, lang='ko'):
+    """G1 끝 문장 톤 — 감동→여운 · 유쾌→위트 · 분노/궁금(어그로)→한 방. 어긋나면 이유 문자열, 맞으면 None(어림 규칙)."""
+    bare = re.sub(r'\s', '', last)
+    if emotion == '감동' and re.search(r'[!！]|ㅋ|ㅎㅎ|笑|ｗ', last):
+        return '감동인데 끝이 들뜸(!·ㅋ) — 여운(«하지만»·«지금도»·말줄임)으로'
+    if emotion == '유쾌' and re.search(r'(습니다|니다|ました|です)[.。]?$', last) and not re.search(r'[!！?？~…ㅋ]', last):
+        return '유쾌인데 끝이 딱딱한 평서 — 위트 한마디(반전·말장난·«~함»)로'
+    if emotion in ('분노', '궁금') and len(bare) > 20:
+        return f'{emotion}(어그로)인데 끝 문장 {len(bare)}자 — 20자 안 한 방으로'
+    return None
+
+
 def audit(path, lane=None, kind=None, lang=None, jargon=None, names=None, ignore=None):
     kind = kind or ('shorts' if '.json:' in str(path) else 'long' if lane in LONG_LANES else 'shorts')   # plan.json:<id> = 쇼츠
     lang = lang or ('ja' if lane in JA_LANES else 'ko')
@@ -210,8 +242,18 @@ def audit(path, lane=None, kind=None, lang=None, jargon=None, names=None, ignore
     sd = st.pstdev(lens) if len(lens) > 1 else 0.0
     cv = sd / mean if mean else 0.0
     res['rhythm'] = {'sentences': len(lens), 'mean': round(mean, 1), 'sd': round(sd, 1), 'cv': round(cv, 2)}
-    if len(lens) >= 5 and cv < 0.30:
-        W.append(('리듬', f'문장 길이 CV {cv:.2f} < 0.30 — 길이가 고르다(기계 티), 짧은 문장·긴 문장을 섞어라'))
+    RC = _load_json(CONFIG).get('rhythm', {})
+    if kind == 'long':
+        # G11(10-21): 롱폼 호흡 = 감정선 — 전체 CV 가 아니라 창(기본 15문장)마다 평평한 구간이 얼마나 되나
+        lr = RC.get('long', {})
+        win, cmin, share = lr.get('window', 15), lr.get('cv_min', 0.25), lr.get('flat_share_max', 0.3)
+        wins = [lens[i:i + win] for i in range(0, len(lens) - win + 1, win)]
+        flat = [i for i, w in enumerate(wins) if st.mean(w) and st.pstdev(w) / st.mean(w) < cmin]
+        res['rhythm'].update(mode='long', windows=len(wins), flat_windows=len(flat))
+        if wins and len(flat) / len(wins) > share:
+            W.append(('G11 리듬', f'{win}문장 창 {len(wins)}곳 중 {len(flat)}곳이 평평(CV<{cmin}) — 장마다 긴 설명 뒤 짧은 한 줄로 호흡을 바꿔라'))
+    elif len(lens) >= 5 and cv < RC.get('shorts', {}).get('cv_min', 0.30):
+        W.append(('리듬', f'문장 길이 CV {cv:.2f} < {RC.get("shorts", {}).get("cv_min", 0.30)} — 길이가 고르다(기계 티), 짧은 문장·긴 문장을 섞어라'))
     # 첫 질문
     # 쇼츠는 원음 text 도 본다 — 0초 공격 대사 «何それ？» 가 첫 질문(10-20 정치JA). 원음 text 는 질문 판정에만 쓴다
     qpool = [(i, s) for i, (k, s, _) in enumerate(segs) if s and (k == 'nar' or kind == 'shorts')]
@@ -261,9 +303,38 @@ def audit(path, lane=None, kind=None, lang=None, jargon=None, names=None, ignore
         last = sents[-1][1]
         if any(re.search(rx, last) for rx in C.get('v3_evaluate', [])):
             W.append(('V3 엔딩 평가', f'끝 문장이 평가·요약 «{last[:30]}» — 감정 한 문장 또는 «하지만» 여운으로'))
+        # G1·G3(10-21 자료 점검): 기획 json 이 있을 때만 — txt 원고는 기획 필드가 없다
+        pf = plan_fields(path)
+        if pf is not None:
+            emo = pf.get('target_emotion')
+            res['target_emotion'] = emo
+            if emo not in EMOTIONS:
+                F.append(('G1 목표 감정', f'plan.target_emotion «{emo}» — {"·".join(EMOTIONS)} 중 하나(기획 때 정한다)'))
+            elif tone_miss(emo, last, lang):
+                W.append(('G1 끝 톤', f'«{last[:30]}» — {tone_miss(emo, last, lang)}'))
+            tl = pf.get('turn_line')
+            norm = lambda x: re.sub(r'[\s/]', '', x or '')
+            idx = next((j for j, (_, s_) in enumerate(sents) if tl and (norm(tl) in norm(s_) or norm(s_) in norm(tl))), None) if tl else None
+            if tl and idx is None:
+                W.append(('G3 전환점', f'turn_line «{str(tl)[:24]}» 이 원고 문장에 없음'))
+            elif tl:
+                ts = sents[idx][1]
+                ev = [w for w in C.get('v2_emotion', []) if w in ts] + [rx for rx in C.get('v3_evaluate', []) if re.search(rx, ts)][:1]
+                if ev:
+                    W.append(('G3 전환점', f'전환 문장에 평가 어휘 «{ts[:30]}» — 행동·사실로'))
+                if idx - 1 < 2:
+                    W.append(('G3 전환점', f'전환 전 빌드업 {max(idx - 1, 0)}문장 — 2문장 이상 쌓고 뒤집어라'))
+            elif len(sents) - 2 < 2:
+                W.append(('G3 전환점', f'turn_line 없음·빌드업 {max(len(sents) - 2, 0)}문장 — 반전이 없으면 빌드업 2문장 이상'))
         # V4 쇼츠 문장 평균 길이
         if mean > CF.get('shorts_mean_max', 25):
             W.append(('V4 문장 길이', f'쇼츠 문장 평균 {mean:.1f}자 > {CF.get("shorts_mean_max", 25)}자 — 한 문장 한 사건'))
+    # G5(10-21): 가이드 block 범주(마약·총기)는 원고에도 — 바꿔 쓰지 말고 뺀다
+    GW = guide_words.load()
+    blk = (GW.get('block') or {}).get(lang, [])
+    bh = sorted({w for _, s_ in sents for c, ws in guide_words.hits(s_, lang, None, GW) if c in blk for w in ws})
+    if bh:
+        F.append(('G5 차단 낱말', f'원고에 {"·".join(bh)} — 마약·총기 범주는 바꿔 쓰지 말고 빼라'))
     # V14 끝 어미 다양성(롱폼·쇼츠)
     ends = [_ending(s, lang) for _, s in sents]
     ends = [e for e in ends if e]
@@ -298,8 +369,9 @@ def audit(path, lane=None, kind=None, lang=None, jargon=None, names=None, ignore
     now = _dt.datetime.now().astimezone()
     late = {k for k, v in CF.get('enforce_from', {}).items() if now < _dt.datetime.fromisoformat(v)}
     soft = late | set(ignore or ())
-    res['notices'] = [{'code': c, 'msg': m + (' (적용 전 — 알림만)' if c.split()[0] in late else ' (무시 지정)')} for c, m in W if c.split()[0] in soft]
+    res['notices'] = [{'code': c, 'msg': m + (' (적용 전 — 알림만)' if c.split()[0] in late else ' (무시 지정)')} for c, m in W + F if c.split()[0] in soft]
     W = [(c, m) for c, m in W if c.split()[0] not in soft]
+    F = [(c, m) for c, m in F if c.split()[0] not in soft]   # 새 FAIL(G1·G5)도 enforce_from 전에는 알림
     res['warnings'] = [{'code': c, 'msg': m} for c, m in W]
     res['fails'] = [{'code': c, 'msg': m} for c, m in F]
     return res
