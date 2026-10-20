@@ -8,6 +8,9 @@
 ② (--before-script 가 아니면) 첫 말 인사 금지: 첫 해설·콜드오픈 문장이 인사·채널명·날짜 낭독이면 FAIL(관리자 §7 70초 규칙).
    + 쟁점 번호 호명(一つ目·論点①·今日の論点は三つ…)·목차·챕터 카드 FAIL(소유주 10-20, 10/21편부터).
 ③ (--before-script 가 아니면) scripts/ref_overlap.py --lane politics_ja — 해설만(인용 quote·공문 원문 card 제외).
+④ (--before-script 가 아니면, 10/21편부터) 공용 scripts/script_audit.py(devo V1·V3·V12·V14 등, 관리자 10-20) — JA episode.json·shorts/plan.json 은
+   그 도구가 못 읽어서(종료 5) ko episode.json 꼴(nar·quote in/out)로 바꿔 넘긴다. △ 하나라도 FAIL(ko 관문과 같은 기준).
+   쇼츠 고정 댓글이 설명형(「今日は·理由は…」)으로 시작해도 FAIL.
 종료: 0 통과 · 3 FAIL · ref_overlap 이 4·5 면 그 코드."""
 import json, re, subprocess, sys, tempfile
 from pathlib import Path
@@ -47,6 +50,57 @@ def numbering_errors(ep, uploads=()):
         if m:
             bad.append(f'packages.json {i}번 설명 첫 두 줄 번호 호명·목차 «{m.group(0)}»')
     return bad
+def _as_ko_episode(segs, tmp):
+    """[(종류, 글, 초)] → script_audit 이 읽는 ko episode.json 폴더."""
+    out, t0 = [], 0.0
+    for kind, text, dur in segs:
+        if kind == 'nar':
+            out.append({'type': 'nar', 'text': text})
+        else:
+            out.append({'type': 'quote', 'in': t0, 'out': t0 + dur})
+    Path(tmp).mkdir(parents=True, exist_ok=True)
+    (Path(tmp) / 'episode.json').write_text(json.dumps({'segments': out}, ensure_ascii=False), encoding='utf-8')
+    return tmp
+
+
+def audit_lines(ep):
+    """공용 원고 검수표(script_audit) — 롱폼 + shorts/plan.json 쇼츠마다. → (FAIL 목록, 출력 줄 목록)"""
+    sys.path.insert(0, str(ROOT / 'scripts'))
+    import script_audit
+    bad, lines, jobs = [], [], []
+    long_segs = []
+    for s in spoken(ep, all_types=True):
+        if s['type'] in ('nar',) and s.get('text'):
+            long_segs.append(('nar', s['text'], 0))
+        elif s['type'] in ('cold', 'quote') and (s.get('q') or {}).get('out') is not None:
+            long_segs.append(('audio', '', float(s['q']['out']) - float(s['q']['in'])))
+        elif s['type'] == 'card' and s.get('text'):   # 공문 원문 낭독 = 인용(해설 아님)
+            long_segs.append(('audio', '', len(re.sub(r'\s', '', s.get('read') or s['text'])) / 7.5))
+    jobs.append(('롱폼', 'long', long_segs))
+    plan = ep / 'shorts' / 'plan.json'
+    for sh in (json.loads(plan.read_text(encoding='utf-8')).get('shorts', []) if plan.exists() else []):
+        jobs.append((f'쇼츠 {sh["id"]}', 'shorts', [('nar', b['nar'], 0) if b.get('nar') else ('audio', '', float(b['out']) - float(b['in']))
+                                                    for b in sh.get('beats', []) if b.get('nar') or b.get('t') == 'raw']))
+    cfg = json.loads((ROOT / 'config' / 'script_audit.json').read_text(encoding='utf-8')).get('ja', {})
+    with tempfile.TemporaryDirectory() as tmp:
+        for i, (name, kind, segs) in enumerate(jobs):
+            res = script_audit.audit(_as_ko_episode(segs, Path(tmp) / str(i)), lane='politics_ja', kind=kind, lang='ja')
+            if res.get('error'):
+                bad.append(f'원고 검수표 {name} 검사 불가: {res["error"]}')
+                continue
+            probs = [(w['code'], w['msg']) for w in res.get('fails', [])] + [(w['code'], w['msg']) for w in res.get('warnings', [])]
+            for code, msg in probs:
+                bad.append(f'원고 검수표 {name} △ [{code}] {msg}')
+            if not probs:
+                lines.append(f'원고 검수표 {name} △ 0')
+    for up in sorted((ep / 'shorts').glob('*/upload.json')):   # V1 — 쇼츠 고정 댓글도 설명형 시작 금지
+        pc = (json.loads(up.read_text(encoding='utf-8')).get('pinned_comment') or '').strip()
+        hit = [w for w in cfg.get('v1_starts', []) if pc.startswith(w)]
+        if hit:
+            bad.append(f'쇼츠 {up.parent.name} 고정 댓글 설명형 시작 «{pc[:20]}» (V1)')
+    return bad, lines
+
+
 sys.path.insert(0, str(ROOT / 'politics-hour'))
 import candidate_gate   # noqa: E402  ko 후보표 관문(28ca994) 그대로
 
@@ -55,11 +109,12 @@ def candidates_errors(ep):
     return candidate_gate.gate_lines(ep)
 
 
-def spoken(ep):
+def spoken(ep, all_types=False):
     sys.path.insert(0, str(Path(__file__).parent / 'render'))
     import ja_render
     epj = json.loads((ep / 'episode.json').read_text(encoding='utf-8'))
-    return [s for s in ja_render.segments(epj) if s.get('type') in ('cold', 'nar', 'card', 'chapter') and s.get('text')]
+    segs = ja_render.segments(epj)
+    return segs if all_types else [s for s in segs if s.get('type') in ('cold', 'nar', 'card', 'chapter') and s.get('text')]
 
 
 def main():
@@ -80,6 +135,11 @@ def main():
             bad += nb
             if not nb:
                 print('[script-ja] PASS 쟁점 번호 호명·목차·챕터 카드 없음')
+        if candidate_gate.ep_date(ep) >= FROM or '--audit' in sys.argv:
+            ab, al = audit_lines(ep)
+            bad += ab
+            for l in al:
+                print('[script-ja] PASS', l)
         with tempfile.TemporaryDirectory() as tmp:
             nar = Path(tmp) / 'nar.json'
             nar.write_text(json.dumps([s['text'] for s in segs if s.get('type') != 'card'], ensure_ascii=False), encoding='utf-8')
