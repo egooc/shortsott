@@ -18,7 +18,8 @@ const LANES = [
   { lane: '팬튜브', gates: ['fantube/publish.js'], spec: [`${RUNS}/fantube/ep*/spec.json`], fields: SHORTS_FIELDS, tools: ['comment_hook', 'title_check', 'tag_gate'] },
   { lane: '롱투숏', gates: [`${RUNS}/ls_tools/publish_ko.sh`, `${RUNS}/ls_tools/plan_gate.py`, `${RUNS}/ls_tools/comment_gate.py`], spec: [`${RUNS}/l[sx]*/plan.json`], fields: SHORTS_FIELDS, tools: ['comment_hook', 'title_check', 'tag_gate'] },
   { lane: '린박스', gates: ['scripts/rinbox-publish.js'], spec: [`${RUNS}/rinbox*/plan_local.json`], fields: SHORTS_FIELDS, tools: ['comment_hook', 'title_check', 'tag_gate'] },
-  { lane: '쇼핑', gates: ['scripts/shop_schedule.js', 'scripts/shop_comment_check.js', 'scripts/shop_keyword_check.js', 'scripts/shop_script_check.js'], spec: [`${RUNS}/_upload/ffref*.json`], fields: ['expected_comment', 'keywords', 'title_pattern'], tools: ['comment_hook', 'title_check', 'tag_gate', 'script_audit'] },
+  { lane: '쇼핑', gates: ['scripts/shop_schedule.js', 'scripts/shop_comment_check.js', 'scripts/shop_keyword_check.js', 'scripts/shop_script_check.js'], spec: [`${RUNS}/_upload/ffref*.json`], fields: ['expected_comment', 'keywords', 'title_pattern'], tools: ['comment_hook', 'title_check', 'tag_gate', 'script_audit'],
+    equiv: { script_audit: ['shop_script_check'] }, extra: ['shop_keyword_check'] },   // 관리자 10-20: 쇼핑 원고 검사는 shop_script_check 로 인정, 키워드 관문은 따로 필요
   { lane: '정치 ko 쇼츠', gates: ['politics-hour/upload_gate.py'], spec: ['politics-hour/shorts/*/*.upload.json'], fields: ['expected_comment', 'title_pattern'], tools: ['comment_hook', 'title_check', 'tag_gate'] },
   { lane: '정치 ko 롱폼', gates: ['politics-hour/upload_gate.py', 'politics-hour/candidate_gate.py'], spec: ['politics-hour/episodes/*/keywords.json'], fields: ['keywords', 'news_outlier', 'vicarious|emotion_now'], tools: ['title_check', 'script_audit', 'tag_gate', 'ref_overlap'] },
   { lane: '정치JA', gates: ['politics-hour-ja/upload_gate_ja.py', 'politics-hour-ja/script_gate.py'], spec: ['politics-hour-ja/episodes/*/keywords.json'], fields: ['keywords', 'news_outlier', 'vicarious|emotion_now'], tools: ['title_check', 'script_audit', 'tag_gate', 'ref_overlap', 'comment_hook'] },
@@ -115,8 +116,14 @@ function check() {
     for (const t of TOOLS) {
       if (!L.tools.includes(t)) { tools[t] = { mark: '—' }; continue; }
       const h = toolUse(files, t);
-      tools[t] = { mark: h.length ? '✅' : missing.length === L.gates.length ? '⚠ 파일 없음' : '❌', at: h[0] || null };
+      const eq = h.length ? [] : (L.equiv?.[t] || []).flatMap((e) => toolUse(new Map([...files].filter(([f]) => !path.basename(f).startsWith(e))), e));
+      tools[t] = { mark: h.length ? '✅' : eq.length ? `✅(${L.equiv[t][0]})` : missing.length === L.gates.length ? '⚠ 파일 없음' : '❌', at: h[0] || eq[0] || null };
     }
+    // 레인 전용 관문(부르는 쪽 파일에서만 찾는다 — 자기 파일 안 이름은 세지 않음)
+    const extra = Object.fromEntries((L.extra || []).map((e) => {
+      const h = toolUse(new Map([...files].filter(([f]) => !path.basename(f).startsWith(e))), e);
+      return [e, { mark: h.length ? '✅' : '❌', at: h[0] || null }];
+    }));
     const spec = newest(L.spec);
     const fields = {};
     let data = null;
@@ -128,7 +135,7 @@ function check() {
       fields[label(fk)] = { mark: v === undefined ? '❌' : (keys[0] === 'expected_comment' && typeof v !== 'object') ? '⚠ 메모' : '✅' };
     }
     rows.push({ lane: L.lane, gate_files: [...files.keys()].map(rel), gate_missing: missing,
-      spec: spec ? rel(spec) : null, spec_mtime: spec ? new Date(fs.statSync(spec).mtimeMs).toISOString() : null, tools, fields });
+      spec: spec ? rel(spec) : null, spec_mtime: spec ? new Date(fs.statSync(spec).mtimeMs).toISOString() : null, tools, extra, fields });
   }
   return { at: new Date().toISOString(), rows };
 }
@@ -137,9 +144,9 @@ function md(res) {
   const allFields = [...new Set(LANES.flatMap((l) => l.fields.map(label)))];
   const L = [`## 자료 반영 실측 (자동, ${res.at.slice(0, 16).replace('T', ' ')}Z · scripts/adoption_check.js)`, '',
     '게이트 = 레인 업로드 게이트와 그 게이트가 부르는 스크립트(한 단계)의 코드 줄(주석 제외)에서 공용 도구 이름을 찾음. 필드 = 레인 최신 제작물 json.', '',
-    `| 레인 | ${TOOLS.join(' | ')} | ${allFields.join(' | ')} | 최신 제작물 |`, `|---|${TOOLS.map(() => '---').join('|')}|${allFields.map(() => '---').join('|')}|---|`];
+    `| 레인 | ${TOOLS.join(' | ')} | 레인 전용 관문 | ${allFields.join(' | ')} | 최신 제작물 |`, `|---|${TOOLS.map(() => '---').join('|')}|---|${allFields.map(() => '---').join('|')}|---|`];
   for (const r of res.rows) {
-    L.push(`| ${r.lane} | ${TOOLS.map((t) => r.tools[t].mark).join(' | ')} | ${allFields.map((f) => (r.fields[f] ? r.fields[f].mark : '—')).join(' | ')} | ${r.spec ? `${r.spec} (${r.spec_mtime.slice(5, 16).replace('T', ' ')})` : '없음'} |`);
+    L.push(`| ${r.lane} | ${TOOLS.map((t) => r.tools[t].mark).join(' | ')} | ${Object.entries(r.extra).map(([e, v]) => `${e} ${v.mark}`).join(', ') || '—'} | ${allFields.map((f) => (r.fields[f] ? r.fields[f].mark : '—')).join(' | ')} | ${r.spec ? `${r.spec} (${r.spec_mtime.slice(5, 16).replace('T', ' ')})` : '없음'} |`);
   }
   const miss = res.rows.filter((r) => r.gate_missing.length);
   if (miss.length) L.push('', ...miss.map((r) => `- ⚠ ${r.lane}: 게이트 파일 없음 ${r.gate_missing.join(', ')}`));
