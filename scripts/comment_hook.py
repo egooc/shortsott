@@ -162,11 +162,13 @@ def check(path, lane=None, spec=None, scripts=None):
         lane, d, body, pinned, src = load(path, lane, spec, scripts)
     except (OSError, ValueError, KeyError) as e:
         res['error'] = f'입력을 못 읽음: {e}'
+        res['errors'] = [f"검사 불가: {res['error']}"]   # 부르는 쪽 게이트 메시지에 이유가 나오게(정치 ko 10-20)
         return res
     res.update(lane=lane, source=src)
     body_s = [s for b in body for s in sentences(b)]
     if not body_s and not pinned:
         res['error'] = '본문·고정 댓글이 둘 다 비었음(형식을 못 읽음)'
+        res['errors'] = [f"검사 불가: {res['error']}"]
         return res
     errs = []
     ec = d.get('expected_comment')

@@ -59,6 +59,7 @@ with tempfile.TemporaryDirectory() as t:
     assert r['lane'] == 'politics_shorts' and r['ok'] and r['line_in'] == 'pinned' and r['ending']['from'] == 'pinned', r
     w(up, {'pinned_comment': '전체 맥락은 롱폼 → https://youtu.be/abc', 'expected_comment': {'type': '논쟁', 'line': '왜', 'at_sec': 0}})
     assert ch.main([str(up)]) == 5   # 안내 줄뿐이면 검사할 문장이 없다 → 불가
+    assert ch.check(up)['errors'][0].startswith('검사 불가:')   # errors 에도 이유
     # 팬튜브 spec: voice·caps
     fs_ = w(t / 'f' / 'spec.json', {'voice': [{'text': '해원이 바로 대답합니다.', 't0': 3}], 'caps': [{'text': '여러분은 바로 대답함?', 't0': 20, 't1': 23}],
                                      'top': {'l1': '사장님 한마디에', 'l2': '바로 시정'},
