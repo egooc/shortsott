@@ -91,7 +91,22 @@
         "name": "ABEMA Prime",
         "handle": "@prime_abema",
         "id": "UCB1dgsqLiEp57oDAyNV_vww",
-        "note": "ABEMAニュース 본채널 handle 을 못 찾아 정치 토론 채널 ABEMA Prime(212만)으로 — 관리자 확인"
+        "note": "토론 프로그램 — 정치 신호로 맞음(정치JA 10-20). ABEMA 뉴스 본채널은 빈 채널이라 넣지 않음"
+      },
+      {
+        "name": "読売テレビニュース",
+        "handle": "@ytv_news",
+        "id": "UCv7_krlrre3GQi79d4guxHQ"
+      },
+      {
+        "name": "ReHacQ−リハック−",
+        "handle": "@ReHacQ",
+        "id": "UCG_oqDSlIYEspNpd2H4zWhw"
+      },
+      {
+        "name": "共同通信",
+        "handle": "@kyodonews",
+        "id": "UCwJXtk_1CKlCrh7YJDP2uPw"
       }
     ]
   },
