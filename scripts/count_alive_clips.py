@@ -44,6 +44,8 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+import api_quota  # 발굴 키 쿼터 장부(10-20)
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WHITELIST = os.path.join(ROOT, 'server', 'data', 'whitelist_works.json')
 CATALOG = os.path.join(ROOT, 'midform', 'config', 'movie_catalog.json')
@@ -71,13 +73,15 @@ def read_json(p, fb):
 
 
 def api(endpoint, **params):
-    params['key'] = os.environ['YOUTUBE_API_KEY']
+    params['key'] = (os.environ.get('YOUTUBE_API_KEY_SEARCH') or os.environ['YOUTUBE_API_KEY'])
     url = 'https://www.googleapis.com/youtube/v3/' + endpoint + '?' + urllib.parse.urlencode(params)
+    api_quota.spend('discovery_search', endpoint)
     try:
         with urllib.request.urlopen(url, timeout=60) as resp:
             return json.load(resp)
     except urllib.error.HTTPError as exc:
         if exc.code in (403, 429):
+            api_quota.mark_blocked('count_alive_clips', f'{endpoint} {exc.code}')
             raise SystemExit(f'★유튜브 API 할당량 소진(HTTP {exc.code}). 여기서 멈춘다 — '
                              '이어 돌리면 «0편»으로 잘못 기록된다.')
         raise

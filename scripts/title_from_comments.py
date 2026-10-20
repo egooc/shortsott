@@ -25,8 +25,11 @@ import json
 import os
 import re
 import sys
+import urllib.error
 import urllib.parse
 import urllib.request
+
+import api_quota  # 발굴 키 쿼터 장부(10-20)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STORE = os.path.join(ROOT, 'server', 'data', 'narration_probe.json')
@@ -63,10 +66,16 @@ def read_json(p, fb):
 
 
 def api(endpoint, **params):
-    params['key'] = os.environ['YOUTUBE_API_KEY']
+    params['key'] = (os.environ.get('YOUTUBE_API_KEY_SEARCH') or os.environ['YOUTUBE_API_KEY'])
     url = 'https://www.googleapis.com/youtube/v3/' + endpoint + '?' + urllib.parse.urlencode(params)
-    with urllib.request.urlopen(url, timeout=60) as resp:
-        return json.load(resp)
+    api_quota.spend('discovery_search', endpoint)
+    try:
+        with urllib.request.urlopen(url, timeout=60) as resp:
+            return json.load(resp)
+    except urllib.error.HTTPError as exc:
+        if exc.code in (403, 429):
+            api_quota.mark_blocked('title_from_comments', f'{endpoint} {exc.code}')
+        raise
 
 
 def texts_for(video_id):

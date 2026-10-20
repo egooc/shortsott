@@ -22,8 +22,11 @@ import json
 import os
 import re
 import sys
+import urllib.error
 import urllib.parse
 import urllib.request
+
+import api_quota  # 발굴 키 쿼터 장부(10-20)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HINTS = os.path.join(ROOT, 'server', 'data', 'title_hints.json')
@@ -57,10 +60,16 @@ def search_hits(name):
     """이 이름이 «작품»으로 통하는가. 검색 결과 제목에 그대로 들어 있는 건수."""
     q = urllib.parse.urlencode({'part': 'snippet', 'q': f'{name} movie trailer',
                                 'type': 'video', 'maxResults': 8,
-                                'key': os.environ['YOUTUBE_API_KEY']})
+                                'key': (os.environ.get('YOUTUBE_API_KEY_SEARCH') or os.environ['YOUTUBE_API_KEY'])})
+    api_quota.spend('discovery_search', 'search')
     try:
         with urllib.request.urlopen('https://www.googleapis.com/youtube/v3/search?' + q, timeout=45) as r:
             data = json.load(r)
+    except urllib.error.HTTPError as exc:
+        if exc.code in (403, 429):
+            api_quota.mark_blocked('verify_title_hints', f'search {exc.code}')
+            raise
+        return -1
     except Exception:
         return -1
     n = norm(name)

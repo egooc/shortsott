@@ -23,6 +23,8 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
+
+import api_quota  # 발굴 키 쿼터 장부(10-20)
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -42,10 +44,13 @@ def env_key():
 
 def api(path, **q):
     url = API + path + '?' + urllib.parse.urlencode(q)
+    api_quota.spend('discovery_search', path)
     try:
         with urllib.request.urlopen(url, timeout=30) as r:
             return json.loads(r.read())
     except urllib.error.HTTPError as e:
+        if e.code in (403, 429):
+            api_quota.mark_blocked('jidaigeki_watch', '%s %s' % (path, e.code))
         raise SystemExit('API 오류 %s %s — 멈춘다(우회 안 함)' % (e.code, path)) from None
 
 

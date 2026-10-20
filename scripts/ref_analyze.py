@@ -28,8 +28,11 @@ import statistics as st
 import subprocess
 import sys
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
+
+import api_quota  # 발굴 키 쿼터 장부(10-20)
 from collections import Counter
 from pathlib import Path
 
@@ -49,8 +52,14 @@ def api_key():
 
 def yt(path, **q):
     q['key'] = api_key()
-    with urllib.request.urlopen('https://www.googleapis.com/youtube/v3/%s?%s' % (path, urllib.parse.urlencode(q)), timeout=30) as r:
-        return json.loads(r.read().decode('utf-8'))
+    api_quota.spend('discovery_search', path)
+    try:
+        with urllib.request.urlopen('https://www.googleapis.com/youtube/v3/%s?%s' % (path, urllib.parse.urlencode(q)), timeout=30) as r:
+            return json.loads(r.read().decode('utf-8'))
+    except urllib.error.HTTPError as exc:
+        if exc.code in (403, 429):
+            api_quota.mark_blocked('ref_analyze', f'{path} {exc.code}')
+        raise
 
 
 def iso_sec(d):

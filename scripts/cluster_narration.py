@@ -41,6 +41,8 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
+
+import api_quota  # 발굴 키 쿼터 장부(10-20)
 from collections import Counter, defaultdict
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -76,13 +78,15 @@ def load_env():
 
 
 def api(endpoint, **params):
-    params['key'] = os.environ['YOUTUBE_API_KEY']
+    params['key'] = (os.environ.get('YOUTUBE_API_KEY_SEARCH') or os.environ['YOUTUBE_API_KEY'])
     url = 'https://www.googleapis.com/youtube/v3/' + endpoint + '?' + urllib.parse.urlencode(params)
+    api_quota.spend('discovery_search', endpoint)
     try:
         with urllib.request.urlopen(url, timeout=60) as resp:
             return json.load(resp)
     except urllib.error.HTTPError as exc:
         if exc.code in (403, 429):
+            api_quota.mark_blocked('cluster_narration', f'{endpoint} {exc.code}')
             raise SystemExit('★유튜브 API 할당량 소진(HTTP {}). 멈춘다.'.format(exc.code))
         raise
 
