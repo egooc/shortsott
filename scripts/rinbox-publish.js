@@ -263,27 +263,20 @@ function guideGate(mp4, meta) {
 
 // 댓글 장치 관문(2026-10-20 소유주 질책 «댓글 반응을 노리는 원고를 쓰기로 했는데 반영이 안 됐다»).
 // 10-19 에 plan.expected_comment 를 «예상 댓글 유형» 메모로만 적고 원고엔 장치 문장이 없었다(133ja).
-// 이제 plan.expected_comment = {type, line, at_sec} 가 있어야 하고, line 이 실제 화면 자막(cap.ass)에 박혀 있어야 한다.
-// type: 질문(끝 한 줄 질문) · 단정(반박 가능한 단정) · 훈수(훈수 유도) · 경험담(경험담 요청).
-const COMMENT_TYPES = ['질문', '단정', '훈수', '경험담'];
+// 공용 관문 scripts/comment_hook.py(도구개발 a4856bc)를 부른다 — 복사 금지. 0 통과 · 4 FAIL · 5 검사 불가(통과 아님).
+// expected_comment = {type, line, at_sec}, line 이 해설 칸·대사 자막에 실재, 끝 3문장 장치. 해설은 음성 전용(cap.ass 엔 대사뿐).
 function commentGate(mp4) {
   const plan = [path.join(path.dirname(mp4), '..', 'plan_local.json'), path.join(path.dirname(mp4), 'plan_local.json')].find((p) => fs.existsSync(p));
   if (!plan) return ['plan_local.json 이 없다 — 댓글 장치를 확인할 수 없다'];
-  const ec = readJson(plan, {}).expected_comment;
-  if (!ec || typeof ec !== 'object' || Array.isArray(ec)) return ['plan.expected_comment 가 {type, line, at_sec} 객체가 아니다(메모 문자열은 안 된다)'];
-  const bad = [];
-  if (!COMMENT_TYPES.includes(ec.type)) bad.push(`expected_comment.type «${ec.type}» — ${COMMENT_TYPES.join('·')} 중 하나`);
-  if (!String(ec.line || '').trim()) bad.push('expected_comment.line 이 비었다 — 원고에 넣은 장치 문장을 그대로 적어라');
-  if (!Number.isFinite(Number(ec.at_sec))) bad.push('expected_comment.at_sec 가 숫자가 아니다');
-  // ★해설은 음성으로만 나간다(cap.ass 엔 대사 자막뿐) — 장치 문장은 plan 해설 칸(TTS 원문) 또는 대사 자막에서 찾는다.
-  const p = readJson(plan, {});
-  const squash = (s) => String(s).replace(/\|.*$/, '').replace(/[\s、。・…!?！？「」]/g, '');
-  const said = (p.narration || []).map((n) => (n.cards || []).map(squash).join(''))
-    .concat((p.sequence || []).map((s) => (s.captions || []).map((c) => squash(String(c).split('|').pop())).join('')));
-  if (ec.line && !said.some((t) => t.includes(squash(ec.line)))) {
-    bad.push(`장치 문장 «${ec.line}» 이 원고(해설 칸·대사 자막)에 없다 — 원고에 넣고 다시 렌더`);
+  try {
+    execFileSync('python', ['-I', '-X', 'utf8', path.join(__dirname, 'comment_hook.py'), plan, '--lane', 'rinbox'],
+      { encoding: 'utf8', env: { ...process.env, PYTHONIOENCODING: 'utf-8' } });
+    return [];
+  } catch (e) {
+    const out = String(e.stdout || '').split(/\r?\n/).filter((l) => /^\s+-\s/.test(l)).map((l) => l.trim().replace(/^-\s*/, ''));
+    if (e.status === 4 && out.length) return out;
+    return [`댓글 장치 검사 불가(종료 ${e.status}) — 통과 아님: ${out[0] || String(e.stderr || e.stdout || e.message).trim().split(/\r?\n/).pop()}`];
   }
-  return bad;
 }
 
 function cmdApprove(mp4Arg, revoke) {
