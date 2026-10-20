@@ -1,6 +1,7 @@
 // 최애모먼트 발행 한 번에 — 업로드(예약) → 태그 게이트 → 업로드 기록 → 제작 장부.
 //   node fantube/publish.js <epNN> <upload.json> <publishAt ISO>
 // --check-only: 가이드 점검만 하고 올리지 않는다.
+// 댓글 장치 게이트: spec.expected_comment 없으면 exit 5(업로드 금지).
 // 태그 게이트(10/16 관리자): 태그를 넣고 다시 읽어 0개면 예약을 풀어 비공개로 두고 멈춘다(exit 2, 관리자 보고).
 const fs = require('fs');
 const path = require('path');
@@ -11,6 +12,25 @@ if (!ep || !meta || !at) throw new Error('usage: node fantube/publish.js <epNN> 
 const ROOT = path.join(__dirname, '..');
 const LOG = 'D:/volcano-runs/fantube/_upload/upload_log.jsonl';
 
+// 댓글 장치 게이트(10/20 소유주 질책 «댓글 반응을 노리는 원고가 반영 안 됐다», RULES_PDF 20항):
+// spec.expected_comment = {type: 정정|경험담|훈수|공감|논쟁, line: 원고에 그대로 들어간 문장, at_sec: 그 문장이 나오는 출력 초}.
+// 없거나, line 이 자막·TTS·위 제목 어디에도 없거나, at_sec 이 그 문장 표시 구간 밖이면 FAIL — 업로드 금지(exit 5).
+{
+  const specPath = path.join('D:/volcano-runs/fantube', ep, 'spec.json');
+  const S = fs.existsSync(specPath) ? JSON.parse(fs.readFileSync(specPath, 'utf8')) : {};
+  const ec = S.expected_comment || {};
+  const norm = (x) => String(x || '').replace(/\s+/g, '');
+  const spans = [...(S.caps || []).map((c) => [c.text, c.t0, c.t1]), ...(S.voice || []).map((v) => [v.show || v.text, v.t0, v.t0 + 6]),
+    ...(S.voice || []).map((v) => [v.text, v.t0, v.t0 + 6]), [`${S.top?.l1 || ''}${S.top?.l2 || ''}`, 0, 1e9]];
+  const hit = ec.line && spans.find(([tx, a, b]) => norm(tx).includes(norm(ec.line)) && ec.at_sec >= a - 0.05 && ec.at_sec <= b);
+  const why = !['정정', '경험담', '훈수', '공감', '논쟁'].includes(ec.type) ? `type «${ec.type || '없음'}»`
+    : !ec.line ? 'line 없음' : typeof ec.at_sec !== 'number' ? 'at_sec 없음' : !hit ? `«${ec.line}» 이 ${ec.at_sec}초 원고(자막·TTS·제목)에 없음` : '';
+  if (why) {
+    console.error(`[publish] ★FAIL 댓글 장치 없음 — ${why}. spec.expected_comment={type,line,at_sec} 를 원고 본문에 넣은 뒤 다시. 업로드 안 함.`);
+    process.exit(5);
+  }
+  console.log(`✓ 댓글 장치 ${ec.type} @${ec.at_sec}s «${ec.line}»`);
+}
 // 가이드라인 사전 점검(10/18 소유주: 피드를 못 받으면 위반으로 본다) — 롱투숏 guide_check.py 를 그대로 쓰고, 걸리면 업로드 전에 멈춘다.
 // 팬튜브 특유: 멤버 미성년 시기·«어린» 강조는 «어린아이 대상» 범주로 본다.
 const M = JSON.parse(fs.readFileSync(meta, 'utf8'));
