@@ -12,7 +12,7 @@ const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
 const RUNS = 'D:/volcano-runs';
-const TOOLS = ['comment_hook', 'title_check', 'script_audit', 'tag_gate', 'ref_overlap', 'view_diag'];
+const TOOLS = ['comment_hook', 'title_check', 'script_audit', 'tag_gate', 'ref_overlap', 'view_diag', 'exchange_check'];
 const SHORTS_FIELDS = ['expected_comment', 'vicarious', 'title_pattern', 'hook'];
 const LANES = [
   { lane: '팬튜브', gates: ['fantube/publish.js'], spec: [`${RUNS}/fantube/ep*/spec.json`], fields: SHORTS_FIELDS, tools: ['comment_hook', 'title_check', 'tag_gate'] },
@@ -20,9 +20,9 @@ const LANES = [
   { lane: '린박스', gates: ['scripts/rinbox-publish.js'], spec: [`${RUNS}/rinbox*/plan_local.json`], fields: SHORTS_FIELDS, tools: ['comment_hook', 'title_check', 'tag_gate'] },
   { lane: '쇼핑', gates: ['scripts/shop_schedule.js', 'scripts/shop_comment_check.js', 'scripts/shop_keyword_check.js', 'scripts/shop_script_check.js'], spec: [`${RUNS}/_upload/ffref*.json`], fields: ['expected_comment', 'keywords', 'title_pattern'], tools: ['comment_hook', 'title_check', 'tag_gate', 'script_audit'],
     equiv: { script_audit: ['shop_script_check'] }, extra: ['shop_keyword_check'] },   // 관리자 10-20: 쇼핑 원고 검사는 shop_script_check 로 인정, 키워드 관문은 따로 필요
-  { lane: '정치 ko 쇼츠', gates: ['politics-hour/upload_gate.py'], spec: ['politics-hour/shorts/*/*.upload.json'], fields: ['expected_comment', 'title_pattern'], tools: ['comment_hook', 'title_check', 'tag_gate'] },
+  { lane: '정치 ko 쇼츠', gates: ['politics-hour/upload_gate.py'], spec: ['politics-hour/shorts/*/*.upload.json'], fields: ['expected_comment', 'title_pattern'], tools: ['comment_hook', 'title_check', 'tag_gate', 'exchange_check'] },
   { lane: '정치 ko 롱폼', gates: ['politics-hour/upload_gate.py', 'politics-hour/candidate_gate.py'], spec: ['politics-hour/episodes/*/keywords.json'], fields: ['keywords', 'news_outlier', 'vicarious|emotion_now'], tools: ['title_check', 'script_audit', 'tag_gate', 'ref_overlap'] },
-  { lane: '정치JA', gates: ['politics-hour-ja/upload_gate_ja.py', 'politics-hour-ja/script_gate.py'], spec: ['politics-hour-ja/episodes/*/keywords.json'], fields: ['keywords', 'news_outlier', 'vicarious|emotion_now'], tools: ['title_check', 'script_audit', 'tag_gate', 'ref_overlap', 'comment_hook'] },
+  { lane: '정치JA', gates: ['politics-hour-ja/upload_gate_ja.py', 'politics-hour-ja/script_gate.py'], spec: ['politics-hour-ja/episodes/*/keywords.json'], fields: ['keywords', 'news_outlier', 'vicarious|emotion_now'], tools: ['title_check', 'script_audit', 'tag_gate', 'ref_overlap', 'comment_hook', 'exchange_check'] },
   { lane: '기업', gates: ['ko-corp/render/corp_render.py', 'ko-corp/render/audit.py'], spec: ['ko-corp/ep*/packages.json'], fields: ['keywords|tags', 'desc_head'], tools: ['title_check', 'script_audit', 'tag_gate', 'ref_overlap'] },
   { lane: '연금', gates: ['ja-nenkin/render/nenkin_render.py', 'ja-nenkin/render/num_audit.py'], spec: ['ja-nenkin/ep*/packages.json'], fields: ['keywords|tags', 'desc_head'], tools: ['title_check', 'script_audit', 'tag_gate', 'ref_overlap'] },
 ];
