@@ -112,4 +112,8 @@ assert ch.is_question('年金を受け取っていませんか。', 'ja') and no
 # 자문자답은 끝맺음 질문이 아니다(10-20 관리자), 맨 마지막 질문은 그대로
 S = ['진짜 닦였냐고요?', '행주에 기름이 옮겨 왔어요.', '여러분 집은 어떤가요?']
 assert ch.self_answered(S, 0) and not ch.self_answered(S, 2)
+# 열린 결말은 동의·반박을 청하는 꼴만(10-20 관리자)
+for s, want in [('화장실이 한결 넓어 보일지도 몰라요', False), ('이거 완전 사기템 아님?', True), ('이게 맞죠?', True),
+                ('다음엔 품절일 듯', True), ('이런 거 써 보셨을 듯?', True), ('넓어 보일 듯해요.', False), ('그럴 수도 있어요', False)]:
+    assert ch.open_ask(s) == want, s
 print('OK')
