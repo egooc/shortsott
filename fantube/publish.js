@@ -1,7 +1,7 @@
 // 최애모먼트 발행 한 번에 — 업로드(예약) → 태그 게이트 → 업로드 기록 → 제작 장부.
 //   node fantube/publish.js <epNN> <upload.json> <publishAt ISO>
 // --check-only: 가이드 점검만 하고 올리지 않는다.
-// 댓글 장치 게이트: spec.expected_comment 없으면 exit 5(업로드 금지).
+// 댓글 장치·기획 게이트(17~20항): expected_comment·vicarious·hook·title_pattern·첫 TTS 인사 — 하나라도 없으면 exit 5(업로드 금지).
 // 태그 게이트(10/16 관리자): 태그를 넣고 다시 읽어 0개면 예약을 풀어 비공개로 두고 멈춘다(exit 2, 관리자 보고).
 const fs = require('fs');
 const path = require('path');
@@ -12,6 +12,7 @@ if (!ep || !meta || !at) throw new Error('usage: node fantube/publish.js <epNN> 
 const ROOT = path.join(__dirname, '..');
 const LOG = 'D:/volcano-runs/fantube/_upload/upload_log.jsonl';
 
+const M = JSON.parse(fs.readFileSync(meta, 'utf8'));
 // 댓글 장치 게이트(10/20 소유주 질책 «댓글 반응을 노리는 원고가 반영 안 됐다», RULES_PDF 20항):
 // ①②③ 은 공용 scripts/comment_hook.py(도구개발 a4856bc) — expected_comment·장치 문장이 본문에·끝 3문장 장치. 0 말고는 전부 업로드 금지(4 FAIL·5 검사 불가).
 // 팬튜브만 더 본다: at_sec 이 그 문장(자막·TTS) 표시 구간 안인지.
@@ -33,9 +34,34 @@ const LOG = 'D:/volcano-runs/fantube/_upload/upload_log.jsonl';
   }
   console.log('✓ 댓글 장치 통과(comment_hook + at_sec)');
 }
+// 기획 게이트(10/20 관리자 실측 «17~19항이 ack 만 있고 코드가 없었다») — 넷 중 하나라도 없으면 업로드 금지(exit 5).
+// ① spec.vicarious: 지금의 대리만족 한 문장(20자+) ② spec.hook {visual,audio,text} 3칸(0~3초 안에 있는 것) ③ spec.title_pattern {pattern: 10패턴 이름, key: 멤버/상황 낱말}
+//    + 업로드 제목: 해시태그 없이 15자±3, key 가 앞 10자 안 ④ 첫 TTS 문장에 «안녕하세요·오늘은» 금지.
+{
+  const S = JSON.parse(fs.readFileSync(path.join('D:/volcano-runs/fantube', ep, 'spec.json'), 'utf8'));
+  const PAT = ['결과 숨김', '이유·비밀', '팬 저격', '숫자', '금지·주의', '말하다 만다', '실화·썰', 'ㅋㅋ·ㄷㄷ', '대사 그대로', '최상급·한정'];
+  const bad = [];
+  if (String(S.vicarious || '').replace(/\s/g, '').length < 20) bad.push(`① vicarious «${S.vicarious || ''}» 20자 미만`);
+  const h = S.hook || {};
+  for (const k of ['visual', 'audio', 'text']) if (String(h[k] || '').trim().length < 4) bad.push(`② hook.${k} 비었음`);
+  const v0 = [...(S.voice || [])].sort((a, b) => a.t0 - b.t0)[0];
+  if (!/효과음/.test(h.audio || '') && !(v0 && v0.t0 < 3)) bad.push('② 청각 훅: 첫 TTS 가 3초 안에 없음(효과음이면 hook.audio 에 «효과음»)');
+  const tp = S.title_pattern || {};
+  const title = String(M.title || '');
+  const len = [...title.replace(/\s/g, '')].length;
+  if (!PAT.includes(tp.pattern)) bad.push(`③ title_pattern.pattern «${tp.pattern || ''}» — ${PAT.join('/')} 중 하나`);
+  if (!tp.key || !title.slice(0, 10).includes(tp.key)) bad.push(`③ 핵심 낱말 «${tp.key || ''}» 이 제목 앞 10자에 없음`);
+  if (/#/.test(title)) bad.push('③ 제목에 해시태그(제목 늘리기 금지 — 설명란으로)');
+  if (len < 12 || len > 18) bad.push(`③ 제목 ${len}자(공백 빼고) — 15자±3`);
+  if (v0 && /안녕|오늘은/.test(v0.text)) bad.push(`④ 첫 TTS «${v0.text}» 인사·«오늘은» 금지`);
+  if (bad.length) {
+    console.error(`\x07[publish] ★FAIL 기획 게이트 — ${bad.join(' / ')}. 업로드 안 함.`);
+    process.exit(5);
+  }
+  console.log(`✓ 기획 게이트 통과 — 대리만족 «${S.vicarious}» · 훅 ${h.visual} / ${h.audio} / ${h.text} · 제목 ${tp.pattern}·«${tp.key}» ${len}자`);
+}
 // 가이드라인 사전 점검(10/18 소유주: 피드를 못 받으면 위반으로 본다) — 롱투숏 guide_check.py 를 그대로 쓰고, 걸리면 업로드 전에 멈춘다.
 // 팬튜브 특유: 멤버 미성년 시기·«어린» 강조는 «어린아이 대상» 범주로 본다.
-const M = JSON.parse(fs.readFileSync(meta, 'utf8'));
 const tagLine = (M.tags || []).join(' ');
 const gc = spawnSync('python', ['D:/volcano-runs/ls_tools/guide_check.py', meta, tagLine], { encoding: 'utf8', env: { ...process.env, PYTHONIOENCODING: 'utf-8' } });
 process.stdout.write(gc.stdout); process.stderr.write(gc.stderr);
