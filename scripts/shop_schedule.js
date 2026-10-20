@@ -106,6 +106,9 @@ async function add(files) {
       const tc = require('child_process').spawnSync('python', [path.join(__dirname, 'title_check.py'), meta, '--lane', 'shopping', '--fail-on-warn'],
         { encoding: 'utf8', env: { ...process.env, PYTHONIOENCODING: 'utf-8' } });
       if (tc.status !== 0) { console.log(`  ✗✗✗ 업로드 금지(제목 점검 ${tc.status}) ${path.basename(meta)}: ${String(tc.stdout || tc.stderr || '').split('\n').filter((l) => l.includes('△') || l.includes('⚠')).map((l) => l.trim()).join(' / ')}`); continue; }
+      // 공용 태그 관문(10/20 관리자 — tag_gate.py 35d6266, 공통 낱말 ≥2·원고 일치 ≥50%, 경고도 FAIL)
+      const tg = require('./shop_tag_gate').check(meta);
+      if (tg.code) { console.log(`  ✗✗✗ 업로드 금지(태그 관문 ${tg.code}) ${path.basename(meta)}: ${tg.lines.filter((l) => l.includes('△') || l.includes('⚠')).map((l) => l.trim()).join(' / ')}`); continue; }
     }
     // channel.json 의 startAt 이전 슬롯은 쓰지 않는다(2026-10-06 소유주: 새 채널은 «내일부터» — 첫 실행이 당일 18:00 을 잡았다)
     const startAt = Date.parse((fs.existsSync(CHANNEL_FILE) && JSON.parse(fs.readFileSync(CHANNEL_FILE, 'utf8')).startAt) || 0) || 0;

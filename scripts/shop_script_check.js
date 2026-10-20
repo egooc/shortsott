@@ -1,4 +1,4 @@
-// 쇼핑 원고 검사 — 결충전·썰형 6단·리듬·열린 결말·반박 선제·사회적 증거·첫 문장을 기계로 본다. FAIL 이면 종료 코드 4.
+// 쇼핑 원고 검사 — 결충전·썰형 6단·리듬·열린 결말·반박 선제·사회적 증거·첫 문장·첫 질문 3초를 기계로 본다. FAIL 이면 종료 코드 4.
 // 10/20 관리자 실측(docs/materials-audit-20261020.md #3): 이 규칙들이 프롬프트에만 있고 검사 코드가 0 — 밤 보고의 «결충전 통과»는 자기 평가였다.
 // 원고 쪽이 메타에 표시를 박고(script_map), 여기서는 그 문장이 plan.json 원고에 실제로 있는지·순서·위치·모양을 본다.
 //   meta.script_map = {
@@ -20,6 +20,35 @@ const NARRATIVE = /(대요|래요|었대|했대|처음|원래|만든|만들|개�
 const PROOF = /([0-9]|리뷰|평점|후기|판매|품절|만 개|만개|명이|누적|별점|재구매)/;
 const MIN_CV = 0.30;     // 문장 길이 변동계수 하한 — 10/20 실측 ffref15 0.22·16 0.24(고른 편)·17 0.31·19 0.27·20 0.27
 const MAX_SHORTEST = 10; // 짧게 «툭» 끊는 문장이 하나는 있어야 한다(글자 수, 공백 제외)
+// ⑧ 첫 질문 3초 — 공용 script_audit.py 쇼츠 «질문» 항목과 같은 규칙·같은 정규식(10/20 관리자: script_audit 은 이 검사로 동등 인정, 이 항목만 빠져 있었다)
+const QUESTION = /[?？]\s*$|(까요?|나요|가요|습니까|죠)\s*[.。]?\s*$/;
+const FIRST_Q_SEC = 3;
+const CPS = 7.0;   // 자막 시각이 없을 때 추정(script_audit 과 같은 ko 7자/초)
+
+// 문장(segment) 시작 시각 — <작업폴더>/_ff/cap.ass 의 Cap 줄(plan 문장을 « / » 로 나눈 조각)에서 찾는다. 못 찾으면 글자 수로 추정.
+function segStarts(wd, rawSegs) {
+  const ass = path.join(wd, '_ff', 'cap.ass');
+  let acc = 0;
+  const est = rawSegs.map((t) => { const x = acc; acc += squash(t).length / CPS; return x; });
+  if (fs.existsSync(ass)) {
+    // 조각 수가 꼭 맞지는 않는다(ffref20: 조각 45·자막 44) — 문장마다 첫 조각 글자로 앞에서부터 찾는다
+    const caps = fs.readFileSync(ass, 'utf8').split('\n').filter((l) => /^Dialogue:.*,Cap,/.test(l)).map((l) => {
+      const m = l.match(/^Dialogue:\s*\d+,(\d+):(\d+):([\d.]+),/);
+      return { t: m ? +m[1] * 3600 + +m[2] * 60 + +m[3] : NaN, x: squash(l.split('}').pop().split(',').slice(l.includes('}') ? 0 : 9).join(',')) };
+    });
+    let k = 0;
+    const at = rawSegs.map((t) => {
+      const head = squash(String(t).split(/\s*\/\s*/)[0]);
+      const j = caps.findIndex((c, i) => i >= k && c.x && (head.startsWith(c.x) || c.x.startsWith(head)));
+      if (j < 0) return NaN;
+      k = j + 1;
+      return caps[j].t;
+    });
+    // 자막에서 못 찾은 문장(끝 CTA 등)만 글자 수 추정으로 채운다
+    return { at: at.map((x, i) => (Number.isFinite(x) ? x : est[i])), how: at.map((x) => (Number.isFinite(x) ? '자막 시각' : '글자 수 추정')) };
+  }
+  return { at: est, how: est.map(() => '글자 수 추정') };
+}
 
 function check(metaPath) {
   const out = [];   // {ok, item, msg}
@@ -33,7 +62,8 @@ function check(metaPath) {
   const started = fs.existsSync(startedFile) ? Date.parse(fs.readFileSync(startedFile, 'utf8').trim()) : NaN;
   if (started < SINCE) return { code: 0, exempt: true, out: [{ ok: true, item: '면제', msg: `구 원고(시작 ${fs.readFileSync(startedFile, 'utf8').trim()} < 10/20 12:00)` }] };
 
-  const segs = JSON.parse(fs.readFileSync(planPath, 'utf8')).segments.map((s) => String(s.text || '').replace(/\s*\/\s*/g, ' ').trim());
+  const rawSegs = JSON.parse(fs.readFileSync(planPath, 'utf8')).segments.map((s) => String(s.text || ''));
+  const segs = rawSegs.map((t) => t.replace(/\s*\/\s*/g, ' ').trim());
   const sq = segs.map(squash);
   const find = (line) => { const l = squash(line); if (!l) return -1; return sq.findIndex((s) => s.includes(l) || (l.length >= 6 && l.includes(s) && s.length >= 6)); };
   const m = meta.script_map;
@@ -91,6 +121,13 @@ function check(metaPath) {
   const iS = find(sp.line);
   const sErr = iS < 0 ? '사회적 증거 문장이 원고에 없음' : !PROOF.test(segs[iS]) ? `숫자·리뷰·평점 표지 없음(«${segs[iS]}»)` : !/^https?:\/\//.test(String(sp.source || '')) ? 'source URL 없음(확인한 페이지)' : '';
   add(!sErr, '⑥ 사회적 증거', sErr || `«${segs[iS]}» · ${sp.source}`);
+
+  // ⑧ 첫 질문 3초
+  const T = segStarts(wd, rawSegs);
+  const iQ = segs.findIndex((x) => QUESTION.test(x));
+  const tQ = iQ < 0 ? null : T.at[iQ];
+  add(iQ >= 0 && tQ <= FIRST_Q_SEC, '⑧ 첫 질문',
+    iQ < 0 ? `질문 문장 없음 — ${FIRST_Q_SEC}초 안에 묻는 문장 하나` : `«${segs[iQ]}» ${tQ.toFixed(1)}초(≤${FIRST_Q_SEC}, ${T.how[iQ]})`);
 
   return { code: out.every((x) => x.ok) ? 0 : 4, out };
 }

@@ -15,22 +15,39 @@ const QUEUE = 'D:/volcano-runs/_upload/schedule_shopping.json';
 const COMMON = ['살림템', '살림꿀팁', '생활꿀팁', '꿀템', '살림', '생활용품', '쿠팡추천템'];
 const STOP = new Set(['세트', '개입', '대형', '소형', '중형', '1개', '2개', '3개', '4개', '5개', '다용도', '길이조절', '일반형', '기본형', '포함', '대용량', '단품', '본품', '리필']);
 
+// 원고 본문(plan.json segments) — 태그는 원고에 나오는 낱말만(공용 tag_gate.py 내용 일치 ≥50%, 10/20 관리자 «tag_gate ❌»)
+function scriptBody(meta) {
+  try {
+    const plan = JSON.parse(fs.readFileSync(path.join(path.dirname(meta.file), 'plan.json'), 'utf8'));
+    return plan.segments.map((x) => String(x.text || '')).join(' ').replace(/\s+/g, '');
+  } catch { return ''; }
+}
+
 function buildTags(meta) {
   const out = [];
   const add = (t) => { t = String(t).replace(/^#/, '').trim(); if (t.length >= 2 && !out.includes(t)) out.push(t); };
   // 검색 키워드 3개가 태그 맨 앞(10/20 소유주 «쇼핑 제목에는 검색 키워드» — shop_keyword_check 가 앞 3개를 본다)
   for (const k of Array.isArray(meta.keywords) ? meta.keywords : []) if (k && k.kw) add(k.kw);
-  if (Array.isArray(meta.tags) && meta.tags.length) { for (const t of meta.tags) add(t); return out; }
-  for (const h of String(meta.title || '').match(/#[^\s#]+/g) || []) add(h);
-  // 괄호 안은 옵션(«스펀지 일체형»·«수납 바구니 포함»)이라 상품 이름 끝 명사구를 가린다 — 빼고 본다
-  const words = String(meta.product || '').replace(/\([^)]*\)|\[[^\]]*\]/g, ' ').replace(/[()[\]\-·,/+]/g, ' ').split(/\s+/)
-    .filter((w) => /[가-힣]/.test(w) && w.length >= 2 && !STOP.has(w) && !/^\d/.test(w));
-  // 상품명 낱말을 하나씩 넣으면 «소변»·«있는»·«핑크» 같은 쓰레기 태그가 생긴다 — 끝 명사구만(마지막 1·2·3 낱말)
-  const nouns = words.filter((w) => !STOP.has(w) && !/(할|는|은|한|된|포함|그레이|화이트|블랙|핑크)$/.test(w));
-  if (nouns.length) add(nouns[nouns.length - 1]);
-  if (nouns.length >= 2) add(nouns.slice(-2).join(' '));
-  if (nouns.length >= 3) add(nouns.slice(-3).join(' '));
-  for (const c of COMMON) add(c);
+  const custom = Array.isArray(meta.tags) && meta.tags.length;
+  if (custom) for (const t of meta.tags) add(t);
+  else {
+    for (const h of String(meta.title || '').match(/#[^\s#]+/g) || []) add(h);
+    // 괄호 안은 옵션(«스펀지 일체형»·«수납 바구니 포함»)이라 상품 이름 끝 명사구를 가린다 — 빼고 본다
+    const words = String(meta.product || '').replace(/\([^)]*\)|\[[^\]]*\]/g, ' ').replace(/[()[\]\-·,/+]/g, ' ').split(/\s+/)
+      .filter((w) => /[가-힣]/.test(w) && w.length >= 2 && !STOP.has(w) && !/^\d/.test(w));
+    // 상품명 낱말을 하나씩 넣으면 «소변»·«있는»·«핑크» 같은 쓰레기 태그가 생긴다 — 끝 명사구만(마지막 1·2·3 낱말)
+    const nouns = words.filter((w) => !STOP.has(w) && !/(할|는|은|한|된|포함|그레이|화이트|블랙|핑크)$/.test(w));
+    if (nouns.length) add(nouns[nouns.length - 1]);
+    if (nouns.length >= 2) add(nouns.slice(-2).join(' '));
+    if (nouns.length >= 3) add(nouns.slice(-3).join(' '));
+    for (const c of COMMON) add(c);
+  }
+  // 검색 키워드(앞 3개)는 그대로 두고, 나머지는 낱말마다 원고에 있어야 남긴다 — 원고를 못 읽으면 거르지 않는다
+  const body = scriptBody(meta);
+  const nk = (Array.isArray(meta.keywords) ? meta.keywords : []).filter((k) => k && k.kw).length;
+  const inScript = (t) => t.split(/\s+/).every((w) => body.includes(w));
+  const filtered = body ? out.filter((t, i) => i < nk || inScript(t)) : out;
+  out.length = 0; out.push(...filtered);
   // 유튜브 태그 한도 500자(쉼표 포함) — 여유 있게 400자 안으로
   const kept = [];
   for (const t of out) { if ([...kept, t].join(',').length > 400) break; kept.push(t); }
