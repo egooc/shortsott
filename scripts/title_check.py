@@ -16,6 +16,9 @@
           (근거: 롱투숏 ls11 «펄펄 끓는 물에 손 넣었더니» 10-18 08시 조회 1·피드 0 — 실측 1건이라 경고만)
   title_pattern  spec/upload json 에 title_pattern 필드가 없음
 롱폼 검사: 앞10자 키워드 · 가이드 · 전문용어 풀이(사전 낱말이 제목에 있으면 제목 «(…)»·«— …» 또는 설명 첫 줄에 풀이 문구, S7)
+  제목 머리(politics_ko·politics_ja, 10-20): 앞 10자에 제도·절차 명사(config/title_head.json)가 있고 인물 이름이 없으면 △.
+          인물 = keywords(json 또는 옆 keywords.json)·names_ko.json 의 사람 이름 + «이름 의원·대표…» 호칭 꼴.
+          «조희대 탄핵소추안» 처럼 이름 바로 뒤에 제도 명사가 붙으면 그 이름은 명사의 대상이라 인물로 안 친다.
 종료 코드: 0 (경고가 있어도 0 — 경고형) · 4 = --fail-on-warn 이고 경고 있음 · 5 = 검사 불가(파일을 못 읽음·제목 없음, gate_errors.jsonl).
 기록: 매 실행의 경고 종류를 server/data/title_check_log.jsonl 에 남긴다(조합 종류 포함).
 import: from title_check import check_title  →  check_title(title, kind='shorts', lang='ko', keywords=(), jargon=None, desc='') → [(코드, 메시지)]
@@ -34,6 +37,9 @@ LOG = ROOT / 'server' / 'data' / 'title_check_log.jsonl'
 LEDGER = ROOT / 'server' / 'data' / 'gate_errors.jsonl'
 LONG_LANES = {'politics_ko', 'politics_ja', 'nenkin_ja', 'corp_ko'}
 JA_LANES = {'politics_ja', 'nenkin_ja', 'rinbox_ja'}
+HEAD_CFG = ROOT / 'config' / 'title_head.json'
+HEAD_LANES = {'politics_ko', 'politics_ja'}
+NAMES = {'politics_ko': ROOT / 'politics-hour' / 'names_ko.json'}
 JARGON = {'politics_ko': ROOT / 'politics-hour' / 'jargon.json', 'corp_ko': ROOT / 'ko-corp' / 'jargon.json'}
 
 PATTERNS = {
@@ -110,7 +116,42 @@ def jargon_missing(title, desc, jargon):
     return out
 
 
-def check_title(title, kind='shorts', lang='ko', keywords=(), jargon=None, desc=''):
+def _head_cfg():
+    try:
+        return json.loads(HEAD_CFG.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return {}
+
+
+def person_words(words, lang='ko'):
+    """keywords·이름표 → 사람 이름만(제도 명사·정당·«조희대 탄핵» 같은 묶음은 뺀다)."""
+    cfg = _head_cfg()
+    bad = cfg.get('institution', {}).get(lang, []) + cfg.get('not_person', {}).get(lang, [])
+    rx = r'^[가-힣]{2,4}( [가-힣]{1,3})?$' if lang == 'ko' else r'^[一-龥々]{2,5}$|^[ァ-ヶー]{2,8}$'
+    return [w for w in dict.fromkeys(w.strip() for w in words if isinstance(w, str))
+            if re.match(rx, w) and not any(b in w for b in bad) and not (lang == 'ko' and w.endswith('당'))]
+
+
+def institution_head(title, lang='ko', persons=()):
+    """앞 10자에 제도·절차 명사가 있고 인물 이름이 없으면 (명사, 앞 10자), 아니면 None."""
+    cfg = _head_cfg()
+    inst = sorted(cfg.get('institution', {}).get(lang, []), key=len, reverse=True)
+    head = title[:10]
+    hit = next((w for w in inst if w in head), None)
+    if not hit:
+        return None
+    alt = '|'.join(map(re.escape, inst))
+    for name in persons:
+        for m in re.finditer(re.escape(name), head):
+            if not re.match(rf'\s?(?:{alt})', title[m.end():]):   # «조희대 탄핵소추안» 의 조희대는 명사의 대상
+                return None
+    hon = '|'.join(map(re.escape, cfg.get('honorific', {}).get(lang, [])))
+    if hon and re.search((r'[가-힣]{2,4}\s?(?:' if lang == 'ko' else r'[一-龥々ァ-ヶー]{2,6}(?:') + hon + ')', head):
+        return None
+    return hit, head
+
+
+def check_title(title, kind='shorts', lang='ko', keywords=(), jargon=None, desc='', persons=None):
     t = _strip_tags(title or '')
     warns = []
     if kind == 'shorts':
@@ -145,6 +186,10 @@ def check_title(title, kind='shorts', lang='ko', keywords=(), jargon=None, desc=
     if kind == 'long':
         for word, gl in jargon_missing(t, desc, jargon):
             warns.append(('전문용어', f'«{word}» 풀이 없음 — 제목 «{word}(…)»·«{word} — …» 또는 설명 첫 줄에 «{gl[0]}» 류'))
+        ih = institution_head(t, lang, persons) if persons is not None else None
+        if ih:
+            warns.append(('제목 머리', f'앞 10자 «{ih[1]}» 가 제도·절차 명사(«{ih[0]}»)로 시작하고 인물 이름이 없음 — «인물 이름 + 본인 짧은 한마디» 머리로'
+                                     ' (정치 ko 실측: 받은 편 439·115·3,143 vs 꺾인 편 11·2)'))
     return warns
 
 
@@ -177,6 +222,22 @@ def titles_from(arg):
     return out
 
 
+def _persons(src, lane, lang, kws):
+    """제목 머리 검사용 인물 — keywords + 옆 keywords.json + 레인 이름표."""
+    words = list(kws)
+    p = Path(src)
+    for f in ([p.parent / 'keywords.json'] if p.suffix == '.json' else []) + ([NAMES[lane]] if lane in NAMES else []):
+        try:
+            d = json.loads(f.read_text(encoding='utf-8'))
+        except (OSError, ValueError):
+            continue
+        k = d.get('keywords', d) if f.name == 'keywords.json' else d
+        if isinstance(k, dict):
+            k = list(k.keys()) if f.name != 'keywords.json' else (k.get('keywords') or [])
+        words += [x if isinstance(x, str) else str(x.get('keyword', '')) for x in k]
+    return person_words(words, lang)
+
+
 def _append(path, rec):
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -199,7 +260,7 @@ def main(argv=None):
     now = _dt.datetime.now().astimezone().isoformat(timespec='seconds')
     try:
         jargon = json.loads(Path(jpath).read_text(encoding='utf-8')) if jpath else None
-        items = [it for a in args for it in titles_from(a)]
+        items = [it + (a,) for a in args for it in titles_from(a)]
         if not items or not any(it[1].strip() for it in items):
             raise ValueError('제목 없음')
     except (OSError, ValueError) as e:
@@ -208,8 +269,8 @@ def main(argv=None):
         return 5
     extra_kw = [k.strip() for k in (opt('--keywords') or '').split(',') if k.strip()]
     results, nwarn = [], 0
-    for name, title, desc, kws, has_pat in items:
-        ws = check_title(title, kind, lang, extra_kw or kws, jargon, desc)
+    for name, title, desc, kws, has_pat, src in items:
+        ws = check_title(title, kind, lang, extra_kw or kws, jargon, desc, persons=_persons(src, lane, lang, extra_kw or kws) if (lane in HEAD_LANES and kind == 'long') else None)
         if has_pat is False and kind == 'shorts':
             ws.append(('title_pattern', 'spec/upload json 에 title_pattern 필드 없음'))
         nwarn += len(ws)

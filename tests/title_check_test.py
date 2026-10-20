@@ -51,4 +51,14 @@ with tempfile.TemporaryDirectory() as t:
     assert tc.main([str(pk), '--kind', 'long', '--jargon', str(jf), '--fail-on-warn']) == 0
     assert tc.main([str(t / 'nope.json')]) == 5
     assert tc.LEDGER.exists()
+# 제목 머리(10-20 관리자): 제도·절차 명사 머리 + 인물 없음 → △, 이름이 명사의 대상이면 인물로 안 친다
+P = ['조희대', '신장식', '모스 탄']
+assert tc.institution_head('조희대 탄핵소추안 — 국회가 묻는 절차', 'ko', P)
+assert tc.institution_head('탄핵소추안 발의 절차 정리', 'ko', P)
+assert not tc.institution_head('신장식 «탄핵소추안 끝내야»', 'ko', P)
+assert not tc.institution_head('장동혁 의원 탄핵안 «의회 쿠데타»', 'ko', [])
+assert not tc.institution_head('한동훈 "그 친구는 좀 깐족댑니다"', 'ko', P)
+assert tc.person_words(['조희대', '조희대 탄핵', '조국혁신당', '이재명 국무회의', '모스 탄']) == ['조희대', '모스 탄']
+assert '제목 머리' in codes('탄핵소추안 발의 절차 정리', 'long', persons=P) and '제목 머리' not in codes('탄핵소추안 발의 절차 정리', 'long')
+assert tc.institution_head('補正予算 審議入り', 'ja', []) and not tc.institution_head('高市首相 補正予算「年内に」', 'ja', [])
 print('OK')
