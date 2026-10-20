@@ -81,6 +81,8 @@ BODY = {'ko': ['손', '발', '얼굴', '눈', '입', '혀', '몸', '팔', '다�
         'ja': ['手', '足', '顔', '目', '口', '舌', '体', '腕', '肌', '子ども', '子供', '赤ちゃん', '素手', '素足']}
 RESULT_LURE = {'ko': r'했더니|봤더니|넣었더니|더니|해 봤|해봤', 'ja': r'したら|てみたら|た結果'}
 LEN_RANGE = {'ko': (8, 22), 'ja': (8, 25)}
+# 패턴이 왜 먹히나(10-21 자료 점검 G18, 하늘구름땅바람 S1) — 경고 문구에 같이 보여 준다
+WHY = '저격=공유(«나 얘기네» 하고 보낸다) · 숫자·랭킹=지속(몇 위까지 보게 된다) · vs=댓글(편을 든다) · 금지·경고=도전(하지 말라면 본다) · 결과 숨김=궁금증(끝까지 본다)'
 COMBO_EXCLUDE = ['칼국수', '칼제비', '칼칼', '칼퇴', '불고기', '불닭', '불맛', '불판', '불꽃놀이', '가스레인지']   # 위험 낱말을 품은 음식·일상 낱말
 
 
@@ -185,7 +187,7 @@ def check_title(title, kind='shorts', lang='ko', keywords=(), jargon=None, desc=
     if kind == 'shorts':
         pats = [name for name, rx in PATTERNS[lang] if re.search(rx, t)]
         if not pats:
-            warns.append(('패턴', '10패턴(결과 숨김·이유·저격·숫자·금지·말하다 만다·실화·친근 말투·대사·최상급) 중 하나도 없음'))
+            warns.append(('패턴', '10패턴(결과 숨김·이유·저격·숫자·금지·말하다 만다·실화·친근 말투·대사·최상급) 중 하나도 없음 — 왜 먹히나: ' + WHY))
         lo, hi = LEN_RANGE[lang]
         n = len(re.sub(r'\s', '', t))
         if not lo <= n <= hi:
@@ -193,12 +195,12 @@ def check_title(title, kind='shorts', lang='ko', keywords=(), jargon=None, desc=
         if re.search(RESULT_SHOWN[lang], t):
             warns.append(('결과노출', '제목이 답을 말함 — 가장 궁금한 순간 직전까지만'))
         if re.search(r'\S\s*[:：]\s*\S|\s[-–—]\s', t) or t.count('·') >= 2:
-            warns.append(('설명형', '«A: B»·«A - B»·나열 요약형 제목'))
+            warns.append(('설명형', '«A: B»·«A - B»·나열 요약형 제목 — 「2번 봐야 이해」되는 제목은 넘긴다(예: «조희대 탄핵: 절차·쟁점·전망» → «조희대 탄핵, 민주당은 왜 망설이나»)'))
         if len(re.findall(r'#\S+', title or '')) >= 2:
             warns.append(('해시태그', '제목 안 해시태그 2개 이상'))
         sup = re.findall(SUPERLATIVE[lang], t)
         if len(sup) >= 2:
-            warns.append(('최상급', f'최상급 {len(sup)}개({"·".join(sup)}) — 하나만'))
+            warns.append(('최상급', f'최상급 {len(sup)}개({"·".join(sup)}) — 하나만. 과장 제목이 쌓이면 영상이 아니라 채널 단위로 노출이 깎인다(낚시 판정 → 채널 전체 추천 감소)'))
     kws = [k for k in keywords if k]
     if kws:
         if not any(k in t[:10] for k in kws):
