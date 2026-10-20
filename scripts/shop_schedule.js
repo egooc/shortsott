@@ -102,6 +102,10 @@ async function add(files) {
       // 검색 키워드 관문(10/20 소유주 «쇼핑 제목에는 검색 키워드») — 제목 앞 10자·설명 첫 줄·태그 앞 3개
       const kc = require('./shop_keyword_check').check(meta);
       if (kc.code) { console.log(`  ✗✗✗ 업로드 금지(키워드 관문 FAIL) ${path.basename(meta)}: ${kc.out.filter((x) => !x.ok).map((x) => `${x.item} ${x.msg}`).join(' / ')}`); continue; }
+      // 공용 제목 점검(10/20 관리자 — title_check.py 055f18a, 경고도 FAIL) — 종료 4·5 면 업로드 금지
+      const tc = require('child_process').spawnSync('python', [path.join(__dirname, 'title_check.py'), meta, '--lane', 'shopping', '--fail-on-warn'],
+        { encoding: 'utf8', env: { ...process.env, PYTHONIOENCODING: 'utf-8' } });
+      if (tc.status !== 0) { console.log(`  ✗✗✗ 업로드 금지(제목 점검 ${tc.status}) ${path.basename(meta)}: ${String(tc.stdout || tc.stderr || '').split('\n').filter((l) => l.includes('△') || l.includes('⚠')).map((l) => l.trim()).join(' / ')}`); continue; }
     }
     // channel.json 의 startAt 이전 슬롯은 쓰지 않는다(2026-10-06 소유주: 새 채널은 «내일부터» — 첫 실행이 당일 18:00 을 잡았다)
     const startAt = Date.parse((fs.existsSync(CHANNEL_FILE) && JSON.parse(fs.readFileSync(CHANNEL_FILE, 'utf8')).startAt) || 0) || 0;
