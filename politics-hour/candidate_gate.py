@@ -31,7 +31,9 @@ def ep_date(ep, uploads=()):
             u = json.loads(Path(up).read_text(encoding='utf-8'))
         except Exception:
             continue
-        for v in (u.get('date'), u.get('publish_at'), u.get('publishAt'), (u.get('status') or {}).get('publishAt')):
+        if not isinstance(u, dict):
+            continue
+        for v in (u.get('date'), u.get('publish_at'), u.get('publishAt'), (u['status'] if isinstance(u.get('status'), dict) else {}).get('publishAt')):
             m = re.match(r'(\d{4})-?(\d{2})-?(\d{2})', str(v or ''))
             if m:
                 return ''.join(m.groups())
