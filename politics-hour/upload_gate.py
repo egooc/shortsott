@@ -244,6 +244,10 @@ if EP_DATE >= '20261021':
         for w in sa.get('warnings', []):
             if w['code'] != '원음':
                 bad.append(f'{name} 쇼츠 검수표 △ [{w["code"]}] {w["msg"]}')
+for up in sys.argv[2:]:   # 쇼츠 설명·고정 댓글의 롱폼 주소 자리표({LONGFORM})는 롱폼 업로드 뒤 채운다 — 남아 있으면 FAIL
+    _u = json.loads(Path(up).read_text(encoding='utf-8'))
+    if re.search(r'\{[A-Z_]+\}', (_u.get('description') or '') + (_u.get('pinned_comment') or '')):
+        bad.append(f'{Path(up).name}: 채우지 않은 자리표 {sorted(set(re.findall(r"[{][A-Z_]+[}]", (_u.get("description") or "") + (_u.get("pinned_comment") or ""))))}')
 sys.path.insert(0, str(Path(__file__).resolve().parent / 'overlay')); import tts_audit   # 해설 TTS 역전사 숫자·고유명사 대조(10/20편부터, tts_say 편만 요구)
 bad += tts_audit.gate_lines(ep)
 bad += guide_words.gate_lines([*sys.argv[2:], *[p for p in [ep / 'packages.json'] if p.exists()]], lang='ko', lane='politics')   # 제목·설명·태그·썸네일 낱말, 우회 GUIDE_OK=1 은 소유주 말 있을 때만
