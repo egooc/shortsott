@@ -136,7 +136,8 @@ bad += candidate_gate.gate_lines(ep, sys.argv[2:])
 # 그 질문이 롱폼 고정 댓글에도 같은 문장으로 들어 있어야 한다. 구독 안내는 설명란으로.
 if epj.exists() and EP_DATE >= '20261021':
     import script_audit   # noqa: E402
-    sa = script_audit.audit(str(ep), lane='politics_ko')
+    SA_JA = any(str(json.loads(Path(u).read_text(encoding='utf-8')).get('defaultLanguage', '')).startswith('ja') for u in sys.argv[2:])   # 정치JA 가 이 관문을 import 한다
+    sa = script_audit.audit(str(ep), lane='politics_ja' if SA_JA else 'politics_ko')
     (ep / 'audit').mkdir(exist_ok=True)
     (ep / 'audit' / 'script_audit.json').write_text(json.dumps(sa, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     if sa.get('error'):
