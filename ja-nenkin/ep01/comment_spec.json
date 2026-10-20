@@ -1,10 +1,10 @@
 {
-  "_note": "연금JA 댓글 장치(관리자 10-20 adoption). line = 원고 마지막 줄, pinned_comment = 고정 댓글. at_sec 는 렌더 전 추정 — 렌더 뒤 실측으로 고친다.",
+  "_note": "연금JA 댓글 장치(관리자 10-20 adoption). line = 원고 마지막 줄, pinned_comment = 고정 댓글. at_sec 는 episode_v4_lufs14.mp4 실측(10-20).",
   "expected_comment": {
     "type": "경험담",
     "form": "경험담 요청",
     "line": "今年はじめて届いた方は、もう出しましたか。コメントで教えてください。",
-    "at_sec": 1515
+    "at_sec": 1548.8
   },
   "pinned_comment": "【質問】今年はじめて扶養親族等申告書が届いた方、もう出しましたか？ わからなかった欄があれば、コメントで教えてください。"
 }
