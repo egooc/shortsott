@@ -22,6 +22,7 @@ const OUT = path.join(ROOT, 'server', 'data', 'rising_keywords');
 const UA = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' };
 const DAY = 864e5;
 const blocked = new Set();
+const { newsOutlierScore } = require('./yt_news_outliers');   // 뉴스 채널 아웃라이어 배수(10-20 소유주 지시) — 파일만 읽는다
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const KEYS = path.join(require('os').homedir(), '.volcano', 'keys');
 
@@ -177,16 +178,18 @@ async function runLane(name, L, opts) {
     const dr = dl.ratio[q] ?? null;
     const dlPts = dr === null ? 0 : Math.max(-5, Math.min(10, 5 * (dr - 1)));   // 1.0 = 평소, 2.0 = +5, 3.0 이상 = +10
     const ms = memoScore(q, memo);
+    const no = newsOutlierScore(name, q);   // 최근 48h 뉴스 롱폼이 채널 평소의 몇 배인가 → 3× = +4.8 … 최대 10
     const score = (L.mode === 'rising'
       ? 2 * (dNew ? dNew.length : 0) + 0.5 * (wNew ? wNew.length : 0) + trendPts + 0.2 * width
-      : width + (wNew ? wNew.length : 0)) + dlPts + ms.pts;
+      : width + (wNew ? wNew.length : 0)) + dlPts + ms.pts + (no ? no.pts : 0);
     return {
       keyword: q, rising_score: Math.round(score * 10) / 10,
       day_new: dNew ? dNew.length : null, week_new: wNew ? wNew.length : null, ac_width: width, datalab_ratio: dr,
       memo_hits: memo.length ? ms.hits : null, memo_best_rank: ms.best, memo_pts: ms.pts,
+      news_ratio: no ? no.ratio : null, news_pts: no ? no.pts : 0,
       evidence: {
         trend: t ? { title: t.title, traffic: t.traffic, at: t.at, news: t.news.slice(0, 2) } : null,
-        new_today: (dNew || []).slice(0, 6), new_week: (wNew || []).slice(0, 6), memo: ms.titles,
+        new_today: (dNew || []).slice(0, 6), new_week: (wNew || []).slice(0, 6), memo: ms.titles, news_outlier: no,
         ac: Object.fromEntries(Object.entries(ac[q]).map(([k, v]) => [k, v ? v.length : 'blocked'])),
       },
     };
@@ -196,9 +199,9 @@ async function runLane(name, L, opts) {
   fs.writeFileSync(path.join(OUT, `${name}_latest.json`), JSON.stringify(res, null, 2) + '\n', 'utf8');
 
   console.log(`\n== ${name} (${L.mode}) · 후보 ${rows.length} · 기준 전일 ${day ? stamp(new Date(day.at)) : '없음'} · 7일 ${week ? stamp(new Date(week.at)) : '없음'} · 데이터랩 ${datalabInfo}`);
-  console.log(`순위 | 낱말 | 점수 | 전일 새 보조어 | 7일 새 | 자동완성 폭 | 데이터랩 3일/7일 | 댓글 뉴스(건·최고 순위, 총 ${memo.length}건) | 급상승`);
+  console.log(`순위 | 낱말 | 점수 | 전일 새 보조어 | 7일 새 | 자동완성 폭 | 데이터랩 3일/7일 | 댓글 뉴스(건·최고 순위, 총 ${memo.length}건) | 뉴스 배수 | 급상승`);
   rows.slice(0, opts.top).forEach((r, i) => console.log(
-    `${i + 1} | ${r.keyword} | ${r.rising_score} | ${r.day_new ?? '-'} | ${r.week_new ?? '-'} | ${r.ac_width} | ${r.datalab_ratio ?? '-'} | ${r.memo_hits ? `${r.memo_hits}·${r.memo_best_rank}위` : '-'} | ${r.evidence.trend ? r.evidence.trend.traffic + '+' : ''}`));
+    `${i + 1} | ${r.keyword} | ${r.rising_score} | ${r.day_new ?? '-'} | ${r.week_new ?? '-'} | ${r.ac_width} | ${r.datalab_ratio ?? '-'} | ${r.memo_hits ? `${r.memo_hits}·${r.memo_best_rank}위` : '-'} | ${r.news_ratio ? r.news_ratio + '×' : '-'} | ${r.evidence.trend ? r.evidence.trend.traffic + '+' : ''}`));
   return res;
 }
 
@@ -227,7 +230,7 @@ function keywordScore(lane, keyword) {
   if (j < 0) return null;
   const r = d.rows[j];
   return { at: d.at, rising_score: r.rising_score, day_new: r.day_new, week_new: r.week_new, ac_width: r.ac_width, datalab_ratio: r.datalab_ratio ?? null,
-    memo_hits: r.memo_hits ?? null, memo_best_rank: r.memo_best_rank ?? null,
+    memo_hits: r.memo_hits ?? null, memo_best_rank: r.memo_best_rank ?? null, news_ratio: r.news_ratio ?? null,
     rank: j + 1, of: d.rows.length, trend_traffic: r.evidence.trend ? r.evidence.trend.traffic : 0 };
 }
 

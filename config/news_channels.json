@@ -1,0 +1,166 @@
+{
+  "_doc": "yt_news_outliers.js 레인별 뉴스 채널(10-20 소유주 지시, 관리자 목록). handle 은 channels.list forHandle 로 풀어 server/data/news_outliers/channels_resolved.json 에 캐시(1단위/채널, 검색 0). 틀린 handle 은 id 를 직접 적는다.",
+  "lanes": {
+    "politics_ko": [
+      {
+        "name": "KBS News",
+        "handle": "@newskbs",
+        "id": "UCcQTRi69dsVYHN3exePtZ1A"
+      },
+      {
+        "name": "MBCNEWS",
+        "handle": "@MBCNEWS11"
+      },
+      {
+        "name": "SBS 뉴스",
+        "handle": "@sbsnews8",
+        "id": "UCkinYTS9IHqOEwR1Sze2JTw"
+      },
+      {
+        "name": "JTBC News",
+        "handle": "@jtbc_news"
+      },
+      {
+        "name": "YTN",
+        "handle": "@ytnnews24"
+      },
+      {
+        "name": "연합뉴스TV",
+        "handle": "@yonhapnewstv23"
+      },
+      {
+        "name": "채널A 뉴스",
+        "handle": "@channelA-news"
+      },
+      {
+        "name": "TV조선",
+        "handle": "@tvchosunnews"
+      },
+      {
+        "name": "MBN News",
+        "handle": "@mbn",
+        "id": "UCG9aFJTZ-lMCHAiO1KJsirg"
+      },
+      {
+        "name": "오마이TV",
+        "handle": "@OhmynewsTV",
+        "id": "UClAfLVQYZSLrMAQQ_SXPVZw"
+      },
+      {
+        "name": "겸손은힘들다 뉴스공장",
+        "handle": "@gyeomsonisnothing"
+      },
+      {
+        "name": "고양이뉴스",
+        "handle": "@고양이뉴스",
+        "id": "UCuU65KInHrp9fUC4mS4ad5g"
+      }
+    ],
+    "politics_ja": [
+      {
+        "name": "ANNnewsCH",
+        "handle": "@ANNnewsCH"
+      },
+      {
+        "name": "TBS NEWS DIG",
+        "handle": "@tbsnewsdig"
+      },
+      {
+        "name": "日テレNEWS",
+        "handle": "@ntv_news"
+      },
+      {
+        "name": "FNNプライムオンライン",
+        "handle": "@FNNnewsCH"
+      },
+      {
+        "name": "読売新聞オンライン",
+        "handle": "@yomiurishimbun",
+        "id": "UCdcEhhmXDVrKTukbKqnC5bw"
+      },
+      {
+        "name": "テレ東BIZ",
+        "handle": "@tvtokyobiz",
+        "id": "UCkKVQ_GNjd8FbAuT6xDcWgg"
+      },
+      {
+        "name": "産経ニュース",
+        "handle": "@SankeiNews"
+      },
+      {
+        "name": "ABEMA Prime",
+        "handle": "@prime_abema",
+        "id": "UCB1dgsqLiEp57oDAyNV_vww",
+        "note": "ABEMAニュース 본채널 handle 을 못 찾아 정치 토론 채널 ABEMA Prime(212만)으로 — 관리자 확인"
+      }
+    ]
+  },
+  "filters": {
+    "_doc": "정치 낱말이 있어도 foreign 낱말이 있고 domestic 낱말(+rising_seeds seeds)이 없으면 해외 정치로 보고 뺀다(트럼프 탄핵 26×가 «탄핵» 점수를 올린 일, 10-20).",
+    "politics_ko": {
+      "foreign": [
+        "트럼프",
+        "프랑스",
+        "러시아",
+        "우크라이나",
+        "이스라엘",
+        "중국",
+        "일본",
+        "미국",
+        "공화당",
+        "푸틴",
+        "시진핑",
+        "EU",
+        "영국"
+      ],
+      "domestic": [
+        "국회",
+        "국감",
+        "국정감사",
+        "민주당",
+        "국민의힘",
+        "법사위",
+        "이 대통령",
+        "李",
+        "여당",
+        "야당",
+        "이재명",
+        "김민석",
+        "정청래",
+        "장동혁",
+        "한동훈",
+        "조국",
+        "김건희",
+        "윤석열",
+        "추미애",
+        "조희대",
+        "전작권",
+        "주한미군"
+      ]
+    },
+    "politics_ja": {
+      "foreign": [
+        "トランプ",
+        "アメリカ",
+        "米国",
+        "中国",
+        "韓国",
+        "ロシア",
+        "ウクライナ",
+        "フランス",
+        "全米"
+      ],
+      "domestic": [
+        "国会",
+        "自民",
+        "立憲",
+        "維新",
+        "首相",
+        "総理",
+        "内閣",
+        "高市",
+        "石破"
+      ]
+    }
+  }
+}
