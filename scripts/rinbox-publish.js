@@ -279,6 +279,28 @@ function commentGate(mp4) {
   }
 }
 
+// 대리만족 관문(2026-10-20 관리자 실측 — 10-19 큰제로 Z3 «터진 편 대리만족 문장 → 같은 감정의 다른 장면» 이 plan 에 없었다).
+// plan.vicarious = {ja, ko, from} — from 은 문장을 뽑은 터진 편(rinboxNNja, 폴더가 있어야 한다). 해설 첫 줄 인사(皆さん·今日は…) 금지.
+// 해부 정본: docs/rinbox-ja-vicarious-20261019.md.
+const GREETING = /^(皆さん|みなさん|今日は|こんにちは|こんばんは|どうも|はい[、 ]|さて)/;
+function vicariousGate(mp4) {
+  const planPath = [path.join(path.dirname(mp4), '..', 'plan_local.json'), path.join(path.dirname(mp4), 'plan_local.json')].find((p) => fs.existsSync(p));
+  if (!planPath) return ['plan_local.json 이 없다 — 대리만족 문장을 확인할 수 없다'];
+  const p = readJson(planPath, {});
+  const v = p.vicarious;
+  const bad = [];
+  if (!v || typeof v !== 'object' || Array.isArray(v)) bad.push('plan.vicarious 가 {ja, ko, from} 객체가 아니다(문자열 메모는 안 된다)');
+  else {
+    if (!/[\u3040-\u30ff\u4e00-\u9fff]/.test(String(v.ja || ''))) bad.push('vicarious.ja 가 비었거나 일본어가 아니다');
+    if (!/[\uac00-\ud7a3]/.test(String(v.ko || ''))) bad.push('vicarious.ko(한국어 뜻)가 비었다');
+    if (!/^rinbox\d+ja$/.test(String(v.from || ''))) bad.push(`vicarious.from «${v.from}» — 문장을 뽑은 터진 편 id(rinboxNNja)`);
+    else if (!fs.existsSync(path.join('D:/volcano-runs', v.from))) bad.push(`vicarious.from «${v.from}» 폴더가 없다`);
+  }
+  const first = String((((p.narration || [])[0] || {}).cards || [])[0] || '').trim();
+  if (GREETING.test(first)) bad.push(`해설 첫 줄이 인사로 시작한다 «${first}» — 첫 줄은 장면으로`);
+  return bad;
+}
+
 function cmdApprove(mp4Arg, revoke) {
   const { mp4, meta } = loadTarget(mp4Arg);
   const hash = sha256File(mp4);
@@ -309,6 +331,9 @@ function cmdApprove(mp4Arg, revoke) {
   const cw = commentGate(mp4);
   if (cw.length) { console.log(cw.map((l) => `  ✗ 댓글 장치: ${l}`).join('\n')); throw new Error('댓글 장치 관문에서 막혔다 — 원고 끝 한 줄에 장치 문장을 넣고 plan.expected_comment={type,line,at_sec}'); }
   console.log('댓글 장치 관문 · 통과');
+  const vw = vicariousGate(mp4);
+  if (vw.length) { console.log(vw.map((l) => `  ✗ 대리만족: ${l}`).join('\n')); throw new Error('대리만족 관문에서 막혔다 — plan.vicarious={ja,ko,from} 를 적고 해설 첫 줄 인사를 빼라'); }
+  console.log('대리만족 관문 · 통과');
   // 화면 검사(2026-10-09) — 렌더러가 남긴 screen.txt 가 FAIL 이면 승인하지 않는다(덧칠 글자·깜빡이는 샷 조각).
   const screen = path.join(path.dirname(mp4), 'screen.txt');
   if (plan && fs.existsSync(screen)) {
@@ -522,6 +547,9 @@ async function cmdPublish(mp4Arg, args) {
   const cwp = commentGate(mp4);
   if (cwp.length) throw new Error(`댓글 장치 관문: ${cwp.join(' / ')} — 발행 중단`);
   lines.push('- 댓글 장치 관문 통과');
+  const vwp = vicariousGate(mp4);
+  if (vwp.length) throw new Error(`대리만족 관문: ${vwp.join(' / ')} — 발행 중단`);
+  lines.push('- 대리만족 관문 통과');
   if (!(meta.tags || []).length) throw new Error('사이드카에 tags 가 없다 — 태그 0개로는 올리지 않는다');
   const profile = profileByPurpose(PURPOSE[locale]);
   if (!profile) throw new Error(`${locale} 업로드 프로필(${PURPOSE[locale]})이 연결돼 있지 않다`);
