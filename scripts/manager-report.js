@@ -251,7 +251,21 @@ async function retentionSection() {
     await sec('7. 태그 점검 (최근 2일 공개·예약분, 0개면 ⚠)', tagsSection), '',
     await sec('8. 포장 경고·자동 교체 (롱폼 공개 +4h·+8h·+12h·+24h·매일 조회, 바닥 미달이면 다음 포장)', packagingSection), '',
     await sec('9. 롱폼 지속 곡선 (최근 7일 점검 편, Analytics 읽기 전용)', retentionSection), '',
-    await sec('10. 자료 반영 실측 (레인 게이트의 공용 도구 호출·최신 제작물 필수 필드 — 도구개발 adoption_check)', async () => { const a = require('./adoption_check'); return a.md(a.check()).replace(/^## [^\n]*\n\n?/, ''); }), ''];
+    await sec('10. 자료 반영 실측 (레인 게이트의 공용 도구 호출·최신 제작물 필수 필드 — 도구개발 adoption_check)', async () => {
+      const a = require('./adoption_check'); let md = a.md(a.check()).replace(/^## [^\n]*\n\n?/, '');
+      // 최장 클립(도구개발 clip_len, devo V6 — 임계·범위는 §5 60 소유주 결정 전까지 측정만)
+      try {
+        const dir = path.join(ROOT, 'server/data/adoption');
+        const rows = fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => /^clip_len_.*\.json$/.test(f)).map((f) => JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'))) : [];
+        if (rows.length) {
+          const lines = rows.map((d) => { const rs = d.rows || []; if (!rs.length) return null; const top = rs.reduce((x, y) => (y.longest_sec > x.longest_sec ? y : x)); const over = rs.reduce((s, r) => s + (r.over_long || 0), 0) / rs.length; return `- ${d.lane}: 최장 ${top.longest_sec}초(${path.basename(top.file, '.mp4')}) · 3초 초과 평균 ${over.toFixed(1)}개/편 · ${rs.length}편 (${String(d.at).slice(0, 16)})`; }).filter(Boolean);
+          md += `\n\n**최장 원본 클립 (clip_len, 3초 컷 규칙 범위는 §5 60 대기)**\n\n${lines.join('\n')}`;
+        }
+      } catch (e) { md += `\n\n_최장 클립 집계 실패: ${e.message.split('\n')[0]}_`; }
+      // 발굴 키 쿼터(도구개발 api_quota, 10-20 429 사고 뒤) — 도구별 사용·중지 여부 한 줄
+      try { const q = require('./api_quota'); const line = typeof q.summary === 'function' ? q.summary() : null; if (line) md += `\n\n**발굴 키 쿼터** — ${line}`; } catch (e) { md += `\n\n_쿼터 요약 실패: ${e.message.split('\n')[0]}_`; }
+      return md;
+    }), ''];
   fs.mkdirSync(OUT_DIR, { recursive: true });
   const out = path.join(OUT_DIR, `${DATE}-perf.md`);
   fs.writeFileSync(out, parts.join('\n') + '\n', 'utf8');

@@ -26,7 +26,7 @@
 | 18 | H1 5기준·H14 첫 문장 4형·H16 체크리스트 5 (김호) | N100 own_check | N100 PC | ✅ N100 증명(yt_checklist.py source_checks 61행 MIN_CRITERIA=2·script_kind.py OPENERS 25행·upload_checks 163행·title_check.py 57행, own_check 266~310행 호출, volcano-upload.js 393·399행 재실행, _gate_log 실측 ott220~222) + Z3 vicarious 반려·인사 금지(こんにちは 포함) 있음 | — |
 | 19 | ref_overlap 원고 겹침 관문 | 롱폼 4레인 | scripts/ref_overlap.py | ✅ 4레인 전부(기업 10-20 전사 24편 뒤 0건) | — |
 | 20 | 팬튜브 RULES_PDF 17·18·19·20항 | 팬튜브 | spec 필드 | ❌→✅ ep19 publish.js 기획 게이트(vicarious·hook 3칸·title_pattern·15±3·인사 금지)+title_check+comment_hook, ep18 FAIL 실측 | ep19부터 4필드 없으면 FAIL(#2·4·5·1) |
-| 21 | 대본 교배 Z13·대본 세 질문 K8 → 기획 가이드 표준 | 발굴 | 기획 가이드 | ⚠ 표준 문서(planning-guide-standard.md)엔 6항목 있음, 실제 가이드 적용은 정치 ko 1회(머리 두 줄·Q4), 10패턴 열·7항목 시트 0회, Z8 채굴 0회 | ⚠→✅ 기업 가이드 2차(4b4cfdd) 24편 실측·7지시·K8 3 채움. Z8 채굴 10개씩은 아직 |
+| 21 | 대본 교배 Z13·대본 세 질문 K8 → 기획 가이드 표준 | 발굴 | 기획 가이드 | ⚠ 표준 문서(planning-guide-standard.md)엔 6항목 있음, 실제 가이드 적용은 정치 ko 1회(머리 두 줄·Q4), 10패턴 열·7항목 시트 0회, Z8 채굴 0회 | ✅ 기업 가이드 2차(4b4cfdd)+발굴 §7(78097a0) 머리 두 줄·7항목 시트·10패턴 열·Q4 교배 전부 채움. Z8 채굴 첫 회 완료(62d3c5b, 레인별 10개 직접 전달) |
 
 | 22 | **쇼핑 제목에 검색 키워드**(소유주 10-20 10:13 «왜 반영 안 하나») | 쇼핑 | meta.keywords + 제목 앞 10자 + 설명 첫 줄 + 태그 + 게이트 | ❌→✅ shop_keyword_check.js(dbeabc6) 관문 + 17·19·20 포장 교체(논슬립 옷걸이·변기솔·기름때 앞 10자) | 오늘: keywords 3(쿠팡·자동완성 근거)·제목 앞 10자에 1개·설명·태그 일치·게이트, 17·19·20 포장 수정. 증명 = 바뀐 제목 3개 |
 
