@@ -109,6 +109,28 @@ for up in sys.argv[2:]:
             bad.append(f'{Path(up).name}: 댓글 장치 관문(comment_hook) 종료 {r["code"]} — {"; ".join(map(str, r.get("errors", [])))}')
     if '?' not in (u.get('pinned_comment') or ''):
         bad.append(f'{Path(up).name}: 고정 댓글에 질문 한 줄(«?») 없음 — 논쟁·훈수를 부르는 질문으로')
+# 제목 전문용어엔 쉬운 풀이(S5, 관리자 10-20): jargon.json 낱말이 제목에 있으면 풀이 문구가 제목·설명 첫 줄에 있거나,
+# 제목에서 낱말 바로 뒤에 «(…)» 또는 « — …» 가 붙어야 한다. 쇼츠 제목은 짧아 설명 첫 줄 풀이도 받는다.
+JARGON = {k: v for k, v in json.loads((Path(__file__).resolve().parent / 'jargon.json').read_text(encoding='utf-8')).items() if not k.startswith('_')}
+for up in sys.argv[2:]:
+    u = json.loads(Path(up).read_text(encoding='utf-8'))
+    t = u.get('title', '')
+    near = t + ' ' + (u.get('description', '').split('\n') or [''])[0]
+    for w, alts in JARGON.items():
+        at = t.find(w)
+        if at < 0 or any(a in near for a in alts) or any(w in k and k != w and k in t for k in JARGON):   # 긴 낱말(탄핵소추안)이 있으면 짧은 낱말은 안 센다
+            continue
+        after = t[at + len(w):at + len(w) + 3]
+        if not ('(' in after or '—' in after):
+            bad.append(f'{Path(up).name}: 제목 전문용어 «{w}» 에 쉬운 풀이 없음(예: {alts[0] if alts else "괄호 풀이"}) — 제목 «(…)»·« — …» 또는 설명 첫 줄')
+# 첫 문장 «안녕하세요·오늘은» 금지(10-20 콜드오픈 규칙): 콜드오픈 첫 낱말과 첫 해설 첫 문장
+if epj.exists() and ep.name >= '20261021':
+    first = [' '.join(w[1] for w in cold.get('words', [])[:3]), (nar.get('text') or '').strip()[:12]]
+    for f in first:
+        if f.lstrip().startswith(('안녕하세요', '오늘은')):
+            bad.append(f'첫 문장이 «{f[:12]}…» — 인사·«오늘은» 시작 금지, 질문이나 원음으로 연다')
+import candidate_gate   # noqa: E402  후보표(상승 점수·발췌·지금의 감정·댓글 수) — 10/21편부터
+bad += candidate_gate.gate_lines(ep)
 sys.path.insert(0, str(Path(__file__).resolve().parent / 'overlay')); import tts_audit   # 해설 TTS 역전사 숫자·고유명사 대조(10/20편부터, tts_say 편만 요구)
 bad += tts_audit.gate_lines(ep)
 bad += guide_words.gate_lines([*sys.argv[2:], *[p for p in [ep / 'packages.json'] if p.exists()]], lang='ko', lane='politics')   # 제목·설명·태그·썸네일 낱말, 우회 GUIDE_OK=1 은 소유주 말 있을 때만
