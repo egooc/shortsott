@@ -47,11 +47,26 @@ with tempfile.TemporaryDirectory() as t:
     assert r['ok'] and '경험담 요청' in r['ending']['kinds'], r
     # 린박스 plan_local: 해설 카드 + «a|b» 대사 자막
     rb = t / 'rb'
-    w(rb / 'plan_local.json', {'expected_comment': {'type': '질문', 'line': '당신이라면 참았을까', 'at_sec': 44},
+    w(rb / 'plan_local.json', {'expected_comment': {'type': '공감', 'form': '질문', 'line': '당신이라면 참았을까', 'at_sec': 44},
                                'narration': [{'cards': ['그는 결국 문을 열었다.']}],
                                'sequence': [{'captions': ['원문|그만해', '원문|당신이라면 참았을까?']}]})
     r = ch.check(rb)
     assert r['lane'] == 'rinbox' and r['ok'], r
+    # 옛 type «질문» — 전환 기한 전엔 경고만, 기한 뒤엔 FAIL. 잘못된 form 은 FAIL
+    import datetime as dt
+    plan = json.loads((rb / 'plan_local.json').read_text(encoding='utf-8'))
+    plan['expected_comment'] = {**plan['expected_comment'], 'type': '질문'}
+    plan['expected_comment'].pop('form')
+    w(rb / 'plan_local.json', plan)
+    ch.LEGACY_UNTIL = dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=1)
+    r = ch.check(rb)
+    assert r['ok'] and r['warnings'], r
+    ch.LEGACY_UNTIL = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=1)
+    r = ch.check(rb)
+    assert not r['ok'] and 'form 필드로' in r['errors'][0], r
+    plan['expected_comment'] = {**plan['expected_comment'], 'type': '공감', 'form': '감탄'}
+    w(rb / 'plan_local.json', plan)
+    assert any('form' in e for e in ch.check(rb)['errors'])
     # 린박스: 원음 대사로 끝나도 ③ 은 마지막 해설 블록 카드로 본다(sequence 순서, 카드 두 줄은 이어서)
     w(rb / 'plan_local.json', {'expected_comment': {'type': '공감', 'line': '皆さんはどう思いますか', 'at_sec': 40},
                                'narration': [{'id': 'n0', 'cards': ['最初の説明です。']}, {'id': 'n1', 'cards': ['この同心のやり方', '皆さんはどう思いますか？']}],

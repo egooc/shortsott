@@ -5,7 +5,8 @@
                                     [--spec 메타.json] [--script 본문 파일 ...] [--json out]
 
 검사(전부 통과해야 0):
-  ① expected_comment = {type, line, at_sec} 객체 필수. type ∈ 정정·경험담·훈수·공감·논쟁(린박스는 질문·단정도 받음 — 기존 관문 호환).
+  ① expected_comment = {type, line, at_sec} 객체 필수. type ∈ 정정·경험담·훈수·공감·논쟁(전 레인 통일, 10-20). 선택 필드 form ∈ 질문·단정·훈수 유도·경험담 요청.
+     린박스 옛 type «질문·단정» 은 10-21 00:00 KST 까지 경고(△)로만 받고 그 뒤 FAIL.
      «논쟁/훈수» 처럼 둘을 적으면 앞의 것으로 보되 둘 다 목록 안이어야 한다. 문자열 메모만 있으면 FAIL.
   ② line 이 원고 본문(해설·자막) 또는 고정 댓글 문구(pinned_comment·comment_question)에 실제로 있어야 한다(공백·부호 무시).
   ③ 끝 3문장에 아래 중 하나: 질문(?·까·죠·나요…) · 반박 가능한 단정(무조건·절대·정답·최고… 또는 line 이 끝 3문장 안 + type 정정/논쟁)
@@ -30,7 +31,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 LEDGER = ROOT / 'server' / 'data' / 'gate_errors.jsonl'
 TYPES = ['정정', '경험담', '훈수', '공감', '논쟁']
-LANE_TYPES = {'rinbox': TYPES + ['질문', '단정']}
+FORMS = ['질문', '단정', '훈수 유도', '경험담 요청']   # 선택 필드 expected_comment.form — 장치 문장의 모양(관리자 10-20 결정)
+LEGACY_FORM_TYPES = {'질문': '질문', '단정': '단정'}      # 린박스 옛 type → form. 10-21 00:00 KST 까지만 경고로 받는다
+LEGACY_UNTIL = _dt.datetime(2026, 10, 21, 0, 0, tzinfo=_dt.timezone(_dt.timedelta(hours=9)))
 TEXT_KEYS = {'text', 'cards', 'captions', 'narration', 'segments', 'sequence', 'lines', 'cues', 'script'}
 PINNED_KEYS = ('pinned_comment', 'comment_question')
 
@@ -203,14 +206,21 @@ def check(path, lane=None, spec=None, scripts=None):
         return res
     errs = []
     ec = d.get('expected_comment')
-    types = LANE_TYPES.get(lane, TYPES)
+    warns = []
     if not isinstance(ec, dict):
         errs.append('① expected_comment 가 {type, line, at_sec} 객체가 아님' + (f'(메모 문자열 «{ec}»)' if isinstance(ec, str) else '(없음)'))
         ec = {}
     else:
         parts = [t.strip() for t in re.split(r'[/·,]', str(ec.get('type', ''))) if t.strip()]
-        if not parts or any(t not in types for t in parts):
-            errs.append(f'① expected_comment.type «{ec.get("type")}» — {"·".join(types)} 중 하나')
+        legacy = [x for x in parts if x in LEGACY_FORM_TYPES]
+        if legacy and _dt.datetime.now(LEGACY_UNTIL.tzinfo) < LEGACY_UNTIL:
+            warns.append(f'type «{"·".join(legacy)}» 는 이제 form 값 — type 은 {"·".join(TYPES)} 중 하나로, «{legacy[0]}» 은 form 에(10-21 00:00 부터 FAIL)')
+            parts = [x for x in parts if x not in LEGACY_FORM_TYPES] or ['공감']
+        if not parts or any(x not in TYPES for x in parts):
+            errs.append(f'① expected_comment.type «{ec.get("type")}» — {"·".join(TYPES)} 중 하나' +
+                        (' (질문·단정은 form 필드로)' if legacy else ''))
+        if ec.get('form') is not None and ec.get('form') not in FORMS:
+            errs.append(f'① expected_comment.form «{ec.get("form")}» — {"·".join(FORMS)} 중 하나(선택 필드)')
         if not squash(ec.get('line')):
             errs.append('① expected_comment.line 비었음 — 원고에 넣은 장치 문장을 그대로')
         try:
@@ -235,12 +245,13 @@ def check(path, lane=None, spec=None, scripts=None):
             kinds.append('질문')
         if EXPERIENCE.search(s):
             kinds.append('경험담 요청')
-        if ASSERT.search(s) or (line and line in squash(s) and str(ec.get('type', '')).split('/')[0] in ('정정', '논쟁', '단정')):
+        if ASSERT.search(s) or (line and line in squash(s) and (str(ec.get('type', '')).split('/')[0] in ('정정', '논쟁', '단정') or ec.get('form') == '단정')):
             kinds.append('반박 가능한 단정')
     res['ending'] = {'from': tail_from, 'tail': tail, 'kinds': sorted(set(kinds))}
     if not kinds:
         errs.append('③ 끝 3문장에 질문·반박 가능한 단정·경험담 요청이 없음: ' + ' / '.join(tail))
     res['errors'] = errs
+    res['warnings'] = warns
     res['ok'] = not errs
     res['code'] = 0 if not errs else 4
     return res
@@ -271,6 +282,8 @@ def main(argv=None):
         print(f'⚠ 댓글 장치 검사 불가: {res["error"]} — 통과로 치지 않음(종료 5) · {name}')
         ledger('comment_hook', res['lane'], argv[0], res['error'])
         return 5
+    for wmsg in res.get('warnings') or []:
+        print(f'△ {wmsg}')
     if res['errors']:
         print(f'✗ 댓글 장치 FAIL — {name} ({res["lane"]})')
         for e in res['errors']:
