@@ -97,6 +97,14 @@ for up in sys.argv[2:]:
     first = [c.split('|')[-1] for c in (seq[0]['captions'][:3] if seq else [])]
     hay = ' '.join([*pj.get('title', []), *[c for n in pj.get('narration', []) for c in n.get('cards', [])], *first])
     need(big_words(ep / 'thumb' / f'thumb_k_{name}.json'), hay, f'{name} 첫 5초(제목·해설 카드·첫 자막)')
+# 댓글 장치(관리자 10-20 소유주 질책 «댓글 반응을 노리는 원고 반영이 안 됐다»): 쇼츠는 expected_comment 가 있어야 하고,
+# 롱폼·쇼츠 모두 고정 댓글에 질문 한 줄(«?»)이 있어야 한다 — 발췌 원음이라 본문에 못 넣으면 고정 댓글 질문이 그 장치다.
+for up in sys.argv[2:]:
+    u = json.loads(Path(up).read_text(encoding='utf-8'))
+    if 'shorts' in Path(up).resolve().parts and not (u.get('expected_comment') or '').strip():
+        bad.append(f'{Path(up).name}: expected_comment 없음(정정/경험담/훈수/공감/논쟁 + 유도 대사)')
+    if '?' not in (u.get('pinned_comment') or ''):
+        bad.append(f'{Path(up).name}: 고정 댓글에 질문 한 줄(«?») 없음 — 논쟁·훈수를 부르는 질문으로')
 sys.path.insert(0, str(Path(__file__).resolve().parent / 'overlay')); import tts_audit   # 해설 TTS 역전사 숫자·고유명사 대조(10/20편부터, tts_say 편만 요구)
 bad += tts_audit.gate_lines(ep)
 bad += guide_words.gate_lines([*sys.argv[2:], *[p for p in [ep / 'packages.json'] if p.exists()]], lang='ko', lane='politics')   # 제목·설명·태그·썸네일 낱말, 우회 GUIDE_OK=1 은 소유주 말 있을 때만
