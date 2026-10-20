@@ -73,7 +73,7 @@ async function youtubeSection() {
       const pending = vids.filter((x) => x.pub > now).length;
       const d2 = live.filter((x) => inDay(x.pub, PREV0, DAY0)); // 그제 발행 = 37~55시간
       const d1 = live.filter((x) => inDay(x.pub, DAY0, DAY1)); // 어제 발행 = 이른 신호
-      const stat = (xs) => xs.length ? `${xs.length}편 · 중앙 ${fmt(median(xs.map((x) => x.views)))} · 최고 ${fmt(Math.max(...xs.map((x) => x.views)))} · 100 미만 ${xs.filter((x) => x.views < 100).length} · 비공개 ${xs.filter((x) => x.privacy !== 'public').length}` : '—';
+      const stat = (xs) => xs.length ? `${xs.length}편 · 중앙 ${fmt(median(xs.map((x) => x.views)))} · 최고 ${fmt(Math.max(...xs.map((x) => x.views)))} · 바닥 ${fmt(Math.min(...xs.map((x) => x.views)))} · 100 미만 ${xs.filter((x) => x.views < 100).length} · 비공개 ${xs.filter((x) => x.privacy !== 'public').length}` : '—';
       const best = d2.sort((a, b) => b.views - a.views)[0];
       // 저조회 진단(도구개발 view_diag, 10-20): 그제 발행 중앙값 기준 — 쇼츠 레인은 벽 이름·처방, 롱폼은 구간만. 노출·지속 수치는 API 에 없어 첫 분기는 보류로 나온다.
       let diag = '—';
@@ -85,7 +85,10 @@ async function youtubeSection() {
       rows.push(`| ${p.channelTitle || p.purpose} | ${p.purpose} | ${fmt(c.statistics.subscriberCount)} | ${stat(d2)} | ${stat(d1)} | ${pending} | ${best ? `${best.title.slice(0, 28)} (${fmt(best.views)})` : '—'} | ${diag} |`);
     } catch (e) { notes.push(`- ${p.channelTitle || p.purpose}: 조회 실패 — ${e.message}`); }
   }
-  return [`| 채널 | purpose | 구독 | 그제(${PREV}) 발행 · 37~55h | 어제(${DATE}) 발행 · 이른 신호 | 예약 대기 | 그제 최고 편 | 진단(그제 중앙) |`, '|---|---|---|---|---|---|---|---|', ...rows, ...notes].join('\n');
+  // 수익 조건 현황(도구개발 ypp_status, 10-21 G8/G25): 구독·롱폼 365일 h·쇼츠 90일 조회. 바닥 = 그제 발행 최저 조회(채널력, 전자책 01 p26).
+  let ypp = '';
+  try { ypp = await require('./ypp_status').yppLine(); } catch (e) { ypp = `_수익 조건 조회 실패: ${e.message.split('\n')[0]}_`; }
+  return [`| 채널 | purpose | 구독 | 그제(${PREV}) 발행 · 37~55h | 어제(${DATE}) 발행 · 이른 신호 | 예약 대기 | 그제 최고 편 | 진단(그제 중앙) |`, '|---|---|---|---|---|---|---|---|', ...rows, ...notes, '', ypp, '_RPM 시즌성: 연말 상승·연초 하락(하늘 칼럼 2) — 수익 숫자는 이 주기를 빼고 읽는다._'].join('\n');
 }
 
 // ── Claude 토큰 ────────────────────────────────────────────────────────────────
