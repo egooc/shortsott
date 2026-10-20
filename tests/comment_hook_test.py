@@ -52,6 +52,13 @@ with tempfile.TemporaryDirectory() as t:
                                'sequence': [{'captions': ['원문|그만해', '원문|당신이라면 참았을까?']}]})
     r = ch.check(rb)
     assert r['lane'] == 'rinbox' and r['ok'], r
+    # 린박스: 원음 대사로 끝나도 ③ 은 마지막 해설 블록 카드로 본다(sequence 순서, 카드 두 줄은 이어서)
+    w(rb / 'plan_local.json', {'expected_comment': {'type': '공감', 'line': '皆さんはどう思いますか', 'at_sec': 40},
+                               'narration': [{'id': 'n0', 'cards': ['最初の説明です。']}, {'id': 'n1', 'cards': ['この同心のやり方', '皆さんはどう思いますか？']}],
+                               'sequence': [{'narration': 'n0'}, {'captions': ['よし']}, {'narration': 'n1'},
+                                            {'captions': ['無謀な振る舞いは', '慎むんだ', 'いいな']}]})
+    r = ch.check(rb)
+    assert r['ok'] and r['ending']['from'] == 'last_narration', r
     # 정치 쇼츠: 본문 없음 → 고정 댓글에서 ②·③, 안내 줄·URL 은 끝 3문장에서 뺀다
     up = w(t / 'p' / 's2_x.upload.json', {'pinned_comment': '지금 함께 나서야 할까요, 국감 뒤가 맞을까요? 댓글로 의견 남겨 주세요.\n전체 맥락은 롱폼 → https://youtu.be/abc',
                                           'expected_comment': {'type': '논쟁/훈수', 'line': '지금 함께 나서야 할까요', 'at_sec': 0}})

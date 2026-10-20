@@ -101,6 +101,31 @@ def body_from(p):
     return [l.strip() for l in p.read_text(encoding='utf-8').splitlines() if l.strip() and not l.lstrip().startswith(('#', '@'))]
 
 
+def rinbox_blocks(d):
+    """plan_local 을 sequence(화면) 순서로 펼친다 → [('nar'|'cap', 문장)]. {'narration': id} 칸은 그 해설 카드, 나머지는 대사 자막(«a|b» 면 뒤쪽)."""
+    nar = {n.get('id'): n.get('cards', []) for n in d.get('narration', [])}
+    out = []
+    for s in d.get('sequence', []):
+        if 'narration' in s:
+            out += [('nar', c) for c in nar.get(s['narration'], [])]
+        else:
+            out += [('cap', str(c).split('|')[-1]) for c in s.get('captions', [])]
+    return out
+
+
+def rinbox_tail(d):
+    """린박스 ③ 은 «마지막 해설 블록의 카드» — 해설이 장치를 맡고 대사는 원음(끝 반응 컷)이라 끝 3문장이 대사일 수 있다(린박스 10-20).
+    카드는 한 문장이 두 줄로 나뉘어 있으므로 이어 붙여 본다."""
+    last = None
+    for s in d.get('sequence', []):
+        if 'narration' in s:
+            last = s['narration']
+    if last is None:
+        return None
+    cards =next((n.get('cards', []) for n in d.get('narration', []) if n.get('id') == last), [])
+    return sentences(' '.join(cards)) if cards else None
+
+
 def guess_lane(p):
     n = Path(p).name
     if n.endswith('.upload.json'):
@@ -119,8 +144,8 @@ def load(path, lane=None, spec=None, scripts=None):
         if not plan.exists():
             plan = next((c for c in (p.parent / 'plan_local.json', p.parent.parent / 'plan_local.json') if c.exists()), plan)
         d = _read_json(plan)
-        body = [c for n in d.get('narration', []) for c in n.get('cards', [])] + \
-               [str(c).split('|')[-1] for s in d.get('sequence', []) for c in s.get('captions', [])]
+        body = rinbox_blocks(d)
+        body = [tx for _, tx in body] or [c for n in d.get('narration', []) for c in n.get('cards', [])]
         return lane, d, body, [], str(plan)
     spec_p = Path(spec) if spec else (p if p.suffix == '.json' else next(
         (c for n in ('spec.json', 'meta.json', 'plan.json', 'upload.json') for c in [p / n] if c.exists()), None))
@@ -200,6 +225,9 @@ def check(path, lane=None, spec=None, scripts=None):
         if not where:
             errs.append(f'② 장치 문장 «{ec.get("line")}» 이 본문·자막·고정 댓글 어디에도 없음')
     tail_src = body_s if body_s else pinned
+    tail_from = 'body' if body_s else 'pinned'
+    if lane == 'rinbox' and rinbox_tail(d):
+        tail_src, tail_from = rinbox_tail(d), 'last_narration'
     tail = tail_src[-3:]
     kinds = []
     for s in tail:
@@ -209,7 +237,7 @@ def check(path, lane=None, spec=None, scripts=None):
             kinds.append('경험담 요청')
         if ASSERT.search(s) or (line and line in squash(s) and str(ec.get('type', '')).split('/')[0] in ('정정', '논쟁', '단정')):
             kinds.append('반박 가능한 단정')
-    res['ending'] = {'from': 'body' if body_s else 'pinned', 'tail': tail, 'kinds': sorted(set(kinds))}
+    res['ending'] = {'from': tail_from, 'tail': tail, 'kinds': sorted(set(kinds))}
     if not kinds:
         errs.append('③ 끝 3문장에 질문·반박 가능한 단정·경험담 요청이 없음: ' + ' / '.join(tail))
     res['errors'] = errs
