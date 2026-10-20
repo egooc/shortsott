@@ -8,7 +8,7 @@
 //     narrative_fact: { line: "충에 쓴 서사 팩트 문장", source: "https://… (그 사실을 확인한 곳)" },          // ⑬ G16
 //     person4: { problem: "문제 발견", reaction: "반응", struggle: "삽질(실패·반복)", result: "결과" }   // ⑪ G20 인물형 4박자
 //   }
-//   meta.human_touch = { before: "AI 초안 문장", after: "사람이 고친 문장(원고에 그대로)", by: "고친 사람", at: "ISO 시각" }   // ⑫ G20 기록(△)
+//   meta.human_touch = { before, after, by, at }   // ⑫ 사람이 실제로 고쳤을 때만(선택). 없으면 기계 손질 패스 결과만 △ 로 기록(10-21 관리자)
 // 10-21 관리자(docs/materials-gap-20261021.md G16·G20): ⑩ 대사·⑪ 4박자·⑬ 서사 팩트는 10-23 00:00 KST 부터 시작한 편에 FAIL, 그 전엔 △.
 // 쓰임: node scripts/shop_script_check.js <메타.json>   — 항목별 ✓/✗ 줄을 찍는다(밤 보고서에 그대로 붙인다)
 // 10/20 12:00 KST 전에 시작한 편(<작업폴더>/started_at.txt)은 «구 원고 면제»로 통과시킨다(이미 만든 재고를 막지 않는다).
@@ -38,6 +38,9 @@ const MIN_DIALOGUE = 0.15;
 // ⑪ 삽질 표지(실패·반복)와 고난 크기(횟수·시간·숫자)
 const STRUGGLE = /(안 (돼|됐|되|빠|지워|떨어)|실패|소용(이)? ?없|그대로|또 |다시|몇 번|매번|포기|버렸|헛수고|못 (했|하|버))/;
 const HARDSHIP = /([0-9]|몇 번|매번|며칠|몇 시간|한 시간|내내|매일|수십|수백|평생|한참)/;
+// ⑫ 손질 패스 — 번역투 표지·문장 길이 상한
+const TRANSLATIONESE = /(에 있어서|[을를] 통해|에 의해|에 의한|하는 것이 (가능|필요)|되어지|되어진|의 경우|함에 따라|하도록 하|것으로 보|를 가지고 있|을 가지고 있)/;
+const MAX_LEN = 30;
 const CPS = 7.0;   // 자막 시각이 없을 때 추정(script_audit 과 같은 ko 7자/초)
 
 // 문장(segment) 시작 시각 — <작업폴더>/_ff/cap.ass 의 Cap 줄(plan 문장을 « / » 로 나눈 조각)에서 찾는다. 못 찾으면 글자 수로 추정.
@@ -172,11 +175,18 @@ function check(metaPath) {
   gate(!!p4Err, '⑪ 4박자', p4Err || `문장 ${i4.map((x) => x + 1).join('→')} · 삽질 «${segs[i4[2]]}»`);
   if (!p4Err) warn(!HARDSHIP.test(segs[i4[2]]), '⑪ 고난 크기', HARDSHIP.test(segs[i4[2]]) ? '횟수·시간 있음' : '삽질에 횟수·시간(몇 번·며칠·숫자)이 없다 — 고난을 키운다');
 
-  // ⑫ AI 원고 사람 손질 1회 기록(G20) — 기록만(△)
-  const ht = meta.human_touch || {};
-  const iH = find(ht.after);
-  const hErr = !meta.human_touch ? 'human_touch 기록 없음' : !ht.by ? 'by(고친 사람) 없음' : iH < 0 ? '고친 문장이 원고에 없음' : squash(ht.before) === squash(ht.after) ? '전·후가 같다' : '';
-  warn(!!hErr, '⑫ 사람 손질', hErr || `${ht.by}: «${ht.before}» → «${ht.after}»`);
+  // ⑫ 손질 패스(G20, 10-21 관리자 답) — 밤 생산엔 사람이 없다: 사람 손질 대신 TTS 전 기계 두 번째 패스로 어색 문장을 본다. 결과만 기록(△)
+  //   번역투 · 같은 어미(끝 두 글자) 3연속 · 30자(공백 제외) 초과. 사람이 실제로 고친 경우에만 meta.human_touch 를 함께 찍는다(지어내지 않는다)
+  const awk = [];
+  segs.forEach((x, i) => { const w = (x.match(TRANSLATIONESE) || [])[0]; if (w) awk.push(`번역투 «${w}»(${i + 1})`); });
+  sq.forEach((x, i) => { if (i >= 2 && x.slice(-2) && x.slice(-2) === sq[i - 1].slice(-2) && x.slice(-2) === sq[i - 2].slice(-2)) awk.push(`어미 «~${x.slice(-2)}» 3연속(${i - 1}~${i + 1})`); });
+  sq.forEach((x, i) => { if (x.length > MAX_LEN) awk.push(`${x.length}자(${i + 1})`); });
+  warn(awk.length, '⑫ 손질 패스', awk.length ? awk.join(' · ') : `어색 문장 0(번역투·어미 3연속·${MAX_LEN}자 초과)`);
+  const ht = meta.human_touch;
+  if (ht && ht.by) {
+    const iH = find(ht.after);
+    warn(iH < 0 || squash(ht.before) === squash(ht.after), '⑫ 사람 손질', iH < 0 ? '고친 문장이 원고에 없음' : `${ht.by}: «${ht.before}» → «${ht.after}»`);
+  }
 
   // ⑧ 첫 질문 3초
   const T = segStarts(wd, rawSegs);
