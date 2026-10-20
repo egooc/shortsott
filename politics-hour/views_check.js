@@ -177,7 +177,12 @@ async function loop(videoId) {
   if (cur && cur.thumbnail && L.thumb_now !== cur.thumbnail) {
     const err = await putThumb(cur);
     console.log(`[loop] ${videoId} 포장 ${last.idx}번 썸네일 ${err ? `보류(${err})` : '올림'}`);
-    if (!err) append(ALERT, { ...row, alert: `루프 포장 ${last.idx}번 썸네일 올림(밀린 것), 관리자 보고` });
+    // 판정은 «포장이 다 걸린 뒤»부터 잰다 — 10-20 16:05 밀린 썸네일이 올라간 그 회차에 4h 판정으로 다음 포장에 넘어갔다(썸네일 0시간 노출)
+    if (!err) {
+      append(ALERT, { ...row, alert: `루프 포장 ${last.idx}번 썸네일 올림(밀린 것) — 판정 시계 지금부터 다시, 관리자 보고` });
+      last.text_at = last.text_at || last.at; last.at = row.at; last.views = views;
+    }
+    append(LOG, { ...row, wait_thumb: err ? last.idx : undefined, thumb_up: !err || undefined }); save(); return;   // 썸네일이 아직이면 판정도 미룬다
   }
   if (L.fixed != null) { append(LOG, { ...row, fixed: L.fixed }); save(); return; }
   const hrs = last ? (Date.now() - new Date(last.at)) / 3600e3 : Infinity;
