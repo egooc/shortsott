@@ -93,7 +93,9 @@ def check(path, scripts=None, min_common=2, min_ratio=0.5, lane=None):
     if isinstance(title, list):
         title = ' '.join(map(str, title))
     desc = d.get('description') or '\n'.join(map(str, d.get('desc_head') or []))
-    tags = list(d.get('tags') or []) + [h for h in (d.get('hashtags') or [])] + re.findall(r'#(\S+)', str(desc))
+    kw = [k if isinstance(k, str) else str(k.get('kw') or k.get('keyword') or '') for k in (d.get('keywords') or [])] if isinstance(d.get('keywords'), list) else []
+    base_tags = list(d.get('tags') or []) or kw   # 쇼핑 메타는 tags 대신 keywords(유튜브 태그로 쓰임)
+    tags = base_tags + [h for h in (d.get('hashtags') or [])] + re.findall(r'#(\S+)', str(desc))
     if not title or not tags:
         raise ValueError('제목 또는 태그 없음')
     com = common_words(title, desc, tags, L.get('fixed', ()), L.get('head_lines', 2))
@@ -101,7 +103,7 @@ def check(path, scripts=None, min_common=2, min_ratio=0.5, lane=None):
     if L.get('credit'):   # 작품명·배우명: 사이드카 work/cast + 설명란 출연·제작 줄
         body += '\n' + ' '.join(str(d.get(k) or '') for k in ('work', 'cast')) + '\n' + \
             '\n'.join(l for l in str(desc).splitlines() if re.search(L['credit'], l))
-    ratio, miss = tag_content(d.get('tags') or [], body, L.get('generic', ()))
+    ratio, miss = tag_content(base_tags, body, L.get('generic', ()))
     W = []
     if len(com) < min_common:
         W.append(f'제목·설명 두 줄·태그 공통 낱말 {len(com)}개 {com} (≥{min_common})')

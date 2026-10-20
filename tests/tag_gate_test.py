@@ -35,6 +35,14 @@ with tempfile.TemporaryDirectory() as t:
     r = tg.check(sc)
     assert r['lane'] == 'rinbox' and r['ratio'] == 1.0, r
     assert r['common'] == ['辰'], r      # 제목·첫 문단·태그 셋 다에 있는 낱말만 (고정 줄의 작품명은 머리가 아님)
+    # 쇼핑 메타: tags 없이 keywords[{kw}] 를 태그로
+    sh = t / 'sh'
+    sh.mkdir()
+    (sh / 'm.json').write_text(json.dumps({'title': '기름때 키친타올로 닦지 마세요', 'description': '주방 기름때 제거, 극세사 행주로\n둘째 줄',
+                                           'keywords': [{'kw': '기름때'}, {'kw': '극세사 행주'}]}, ensure_ascii=False), encoding='utf-8')
+    (sh / 's.txt').write_text('기름때는 극세사 행주로 닦아요.\n', encoding='utf-8')
+    r = tg.check(sh / 'm.json', [str(sh / 's.txt')])
+    assert r['ratio'] == 1.0 and r['common'] == ['기름때'], r
     bad = t / 'bad.json'
     bad.write_text(json.dumps({'title': '제목만'}, ensure_ascii=False), encoding='utf-8')
     assert tg.main([str(bad)]) == 5 and tg.LEDGER.exists()
