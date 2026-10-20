@@ -48,4 +48,4 @@
 6. **«전체 맥락은 롱폼에서»(쇼츠→롱폼 연계, 10/16 소유주)는 화면 대신** 고정 댓글과 설명란 첫 줄, 끝 1초 음성 한마디로 옮긴다.
 7. **JA는** 같은 3단 구조를 쓰되, 글씨와 색은 일본 레퍼런스(10/16 지시)에서 따로 정한다.
 
-원자료: 스크래치 `baro/top12.json`(제목·조회), `baro/f/*_row.jpg`(편당 4장), `baro/f/cmp1.jpg`·`cmp2.jpg`(대조), `baro/stats.txt`.
+원자료: `docs/category-cards/_data/discovery-scratch-1015-1020/baro/`(top12.json 제목·조회, stats.txt). 프레임 이미지(편당 4장·대조 cmp1/2)는 발굴 세션 스크래치에만 있다(재부팅 시 사라짐).
