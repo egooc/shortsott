@@ -52,14 +52,15 @@ def parse_run(s):
 def values(text):
     """들린 수: 숫자·한자어 수(단위 묶음은 공백을 지우고 하나로), 고유어 1~99, 시월·유월."""
     out = []
-    t = re.sub(r'(?<=[0-9조억만천백십])\s+(?=[0-9일이삼사오육칠팔구십백천])', '', text)
+    t = re.sub(r'(?<=\d)일', ' ', text)  # «23일» 의 날짜 «일» 은 숫자 1 이 아니다
+    t = re.sub(r'(?<=[0-9조억만천백십])\s+(?=[0-9일이삼사오육칠팔구십백천])', '', t)
     for w, v in MONTHS.items():
         out += [v] * t.count(w)
     for m in RUN.finditer(t):
         v = parse_run(m.group())
         if v is not None:
             out.append(v)
-    for m in re.finditer(r'(열|스물|서른|마흔|쉰)?(한|하나|두|둘|세|셋|네|넷|다섯|여섯|일곱|여덟|아홉)?\s*(?=개|번|명|곳|가지|살|시)', text):
+    for m in re.finditer(r'(열|스물|서른|마흔|쉰)?\s*(한|하나|두|둘|세|셋|네|넷|다섯|여섯|일곱|여덟|아홉)?\s*(?=개|번|명|곳|가지|살|시)', text):
         if m.group(0).strip():
             out.append(sum(NATIVE[g] for g in m.groups() if g))
     return out
