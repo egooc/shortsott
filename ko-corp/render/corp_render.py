@@ -383,6 +383,8 @@ def script_gates(ep):
     print(r.stdout.strip().splitlines()[0] if r.stdout.strip() else r.stderr.strip(), flush=True)
     if r.returncode:
         raise SystemExit(f'comment_hook 종료 {r.returncode} — TTS 중단\n{r.stdout}')
+    from fact_gate import gate  # 불확실 팩트 0건(관리자 10-21 G4, 10-23 부터 막음)
+    gate(ep)
 
 
 def main(argv=None):
