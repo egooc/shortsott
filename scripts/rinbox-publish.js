@@ -458,7 +458,11 @@ function cmdList() {
 
 // 태그 게이트(2026-10-16, 관리자 공지 — 쟁점브리핑 태그 0개 사고). 올린 직후 API 로 다시 읽어
 // 0개면 사이드카 태그를 넣고 또 읽는다. 그래도 0개면 예약을 풀어 비공개로 남긴다(공개 금지).
-async function tagGate(profile, videoId, tags) {
+async function tagGate(masked, videoId, tags) {
+  // ★profileByPurpose 는 가린 목록(비밀값 없음)을 준다 — 그대로 쓰면 토큰을 영영 못 받는다(10-20 118 v2·134 실측).
+  //   저장 파일에서 같은 id 의 원본을 읽는다(값은 찍지 않는다).
+  const all = readJson(path.join(ROOT, 'server', 'data', 'youtube_upload_profiles.json'), {});
+  const profile = (Array.isArray(all) ? all : (all.profiles || [])).find((p) => p.id === masked.id) || masked;
   const b = new URLSearchParams({ client_id: profile.oauthClientId, client_secret: profile.oauthClientSecret, refresh_token: profile.refreshToken, grant_type: 'refresh_token' });
   const tok = (await (await fetch('https://oauth2.googleapis.com/token', { method: 'POST', body: b })).json()).access_token;
   if (!tok) throw new Error('토큰을 못 받았다');
