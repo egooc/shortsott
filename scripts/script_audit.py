@@ -262,8 +262,7 @@ def audit(path, lane=None, kind=None, lang=None, jargon=None, names=None, ignore
         if len(chaps) >= 1:
             noq = [c for c, ln in chaps if ln and not comment_hook.is_question(ln, lang)]
             res['chapter_end_questions'] = {'chapters': len(chaps) + 1, 'not_question': noq}
-            if noq:
-                W.append(('V12 장 끝 질문', f'장 끝 문장이 질문이 아닌 장 {len(noq)}/{len(chaps)}개({", ".join(noq[:6])}) — 장마다 다음 궁금증으로 끝내라'))
+            # 정보 줄만(관리자 10-20: 막는 기준은 질문 간격 ≤120초 하나)
     res['duration_sec'] = round(total, 1)
     # enforce_from(날짜 전) · ignore(호출자 지정) 코드는 막는 경고가 아니라 알림(notices)으로
     now = _dt.datetime.now().astimezone()
@@ -328,6 +327,10 @@ def main(argv=None):
     print(f'  질문/원음 첫 질문 {fq} · 첫 원음 {fa}')
     print(f'  전환      {tr["count"]}회({tr["per_min"]}/분) · 최대 간격 {tr["max_gap_sec"]}초')
     print(f'  끝맺음    {"·".join(res["ending"]["kinds"])} — {" / ".join(s[:24] for s in res["ending"]["tail"])}')
+    ceq = res.get('chapter_end_questions')
+    if ceq:
+        print(f'  장 끝     질문으로 끝나지 않는 장 {len(ceq["not_question"])}/{ceq["chapters"] - 1}개(정보 — 막지 않음)' +
+              (f': {", ".join(ceq["not_question"][:6])}' if ceq['not_question'] else ''))
     if res.get('ending_top'):
         print(f'  끝 어미   최다 «~{res["ending_top"]["ending"]}» {res["ending_top"]["share"]:.0%}' +
               (f' · 질문 최대 간격 {res["question_gap_max_sec"]}초' if res.get('question_gap_max_sec') is not None else ''))
