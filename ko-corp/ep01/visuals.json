@@ -61,7 +61,7 @@
   "ch1_title": {
     "type": "chapter",
     "n": "1",
-    "title": "과자 회사의 시작",
+    "title": "과자에서 전자까지",
     "img": "candy_era.png"
   },
   "y1945": {
@@ -328,12 +328,6 @@
     "img": "tigers.png",
     "move": "right"
   },
-  "ch2_title": {
-    "type": "chapter",
-    "n": "2",
-    "title": "과자 밖으로",
-    "img": "electronics.png"
-  },
   "y1981": {
     "type": "year",
     "label": "2세 경영",
@@ -431,7 +425,7 @@
   },
   "ch3_title": {
     "type": "chapter",
-    "n": "3",
+    "n": "2",
     "title": "1997년",
     "img": "imf.png"
   },
@@ -516,7 +510,7 @@
   },
   "ch4_title": {
     "type": "chapter",
-    "n": "4",
+    "n": "3",
     "title": "196억 원",
     "img": "why_small.png"
   },
@@ -622,7 +616,7 @@
   },
   "ch5_title": {
     "type": "chapter",
-    "n": "5",
+    "n": "4",
     "title": "그룹의 해체",
     "img": "y1998_0618.png"
   },
@@ -702,7 +696,7 @@
   },
   "ch6_title": {
     "type": "chapter",
-    "n": "6",
+    "n": "5",
     "title": "흩어진 조각들",
     "img": "pieces_intro.png"
   },
@@ -815,8 +809,8 @@
   },
   "ch7_title": {
     "type": "chapter",
-    "n": "7",
-    "title": "1만 원에 팔린 회사",
+    "n": "6",
+    "title": "두 번째 갈림길",
     "img": "htb.png"
   },
   "lg_2011": {
@@ -882,12 +876,6 @@
     "type": "pic",
     "img": "electro_2006.png",
     "move": "in"
-  },
-  "ch8_title": {
-    "type": "chapter",
-    "n": "8",
-    "title": "두 번째 갈림길",
-    "img": "ice_2020.png"
   },
   "ice_2020": {
     "type": "pic",
@@ -970,8 +958,8 @@
   },
   "ch9_title": {
     "type": "chapter",
-    "n": "9",
-    "title": "사라진 것과 남은 것",
+    "n": "7",
+    "title": "해태가 남긴 것",
     "img": "what_remained.png"
   },
   "timeline_all": {
