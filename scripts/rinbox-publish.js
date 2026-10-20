@@ -301,6 +301,26 @@ function vicariousGate(mp4) {
   return bad;
 }
 
+// 해설 문장 관문(2026-10-20 관리자 · devo 칼럼 docs/devo-column-rules-20261020.md) — script_audit --shorts 나오기 전 plan 검사.
+// V1 첫 해설 설명형 시작 금지 · V3 마지막 해설 평가·요약 금지 · V5 해설에 숫자·시간 1개(nar4). V6 3~4초 컷은 §5 60 대기라 안 본다.
+const EXPLAIN_OPEN = /^(今日は|理由は|なぜなら|実は|というのも|この(作品|ドラマ|話)は)/;
+const VERDICT_END = /(やはり|やっぱり|結局|つまり|要するに)|でした[。！]?$/;
+const NUM_TIME = /[0-9０-９]|[一二三四五六七八九十百千万半]+\s*(人|間|里|両|日|年|時|刻|度|本|回|つ|文|貫|歩|枚|月|分|夜|晩)/;
+function narrationGate(mp4) {
+  const planPath = [path.join(path.dirname(mp4), '..', 'plan_local.json'), path.join(path.dirname(mp4), 'plan_local.json')].find((p) => fs.existsSync(p));
+  if (!planPath) return ['plan_local.json 이 없다 — 해설 문장을 확인할 수 없다'];
+  const p = readJson(planPath, {});
+  const blocks = (p.narration || []).map((n) => (n.cards || []).map((c) => String(c).trim()));
+  if (!blocks.length) return ['plan.narration 이 비었다'];
+  const bad = [];
+  const first = blocks[0].join('');
+  if (EXPLAIN_OPEN.test(first)) bad.push(`V1 첫 해설이 설명형으로 시작한다 «${first}» — 행동·의외성·궁금증으로`);
+  const last = blocks[blocks.length - 1];
+  for (const c of last) if (VERDICT_END.test(c)) bad.push(`V3 마지막 해설이 평가·요약형 «${c}» — 질문이나 행동으로 닫아라`);
+  if (p.style === 'nar4' && !blocks.some((b) => b.some((c) => NUM_TIME.test(c)))) bad.push('V5 해설 어디에도 숫자·시간이 없다 — «三十間先»·«八時間» 식 1개');
+  return bad;
+}
+
 // 제목 관문(2026-10-20 관리자 지시 · 공용 title_check.py 055f18a, 하늘구름땅바람 10패턴) — nar4(rinbox134ja)부터.
 // plan.title_pattern(10패턴 이름) 필수, 사이드카 제목을 --fail-on-warn 으로 검사. 4(경고)·5(검사 불가) 모두 승인·발행 ✗.
 function titleGate(mp4, meta) {
@@ -376,6 +396,9 @@ function cmdApprove(mp4Arg, revoke) {
   const vw = vicariousGate(mp4);
   if (vw.length) { console.log(vw.map((l) => `  ✗ 대리만족: ${l}`).join('\n')); throw new Error('대리만족 관문에서 막혔다 — plan.vicarious={ja,ko,from} 를 적고 해설 첫 줄 인사를 빼라'); }
   console.log('대리만족 관문 · 통과');
+  const nw = narrationGate(mp4);
+  if (nw.length) { console.log(nw.map((l) => `  ✗ 해설: ${l}`).join('\n')); throw new Error('해설 문장 관문에서 막혔다 — 첫 해설은 행동으로·끝 해설은 평가 없이·nar4 는 숫자 1개'); }
+  console.log('해설 문장 관문 · 통과');
   const tw = titleGate(mp4, meta);
   if (tw.length) { console.log(tw.map((l) => `  ✗ 제목: ${l}`).join('\n')); throw new Error('제목 관문에서 막혔다 — 10패턴 중 하나로 고치고 plan.title_pattern 을 적어라'); }
   console.log('제목 관문 · 통과');
@@ -602,6 +625,9 @@ async function cmdPublish(mp4Arg, args) {
   const vwp = vicariousGate(mp4);
   if (vwp.length) throw new Error(`대리만족 관문: ${vwp.join(' / ')} — 발행 중단`);
   lines.push('- 대리만족 관문 통과');
+  const nwp = narrationGate(mp4);
+  if (nwp.length) throw new Error(`해설 문장 관문: ${nwp.join(' / ')} — 발행 중단`);
+  lines.push('- 해설 문장 관문 통과');
   const twp = titleGate(mp4, meta);
   if (twp.length) throw new Error(`제목 관문: ${twp.join(' / ')} — 발행 중단`);
   lines.push('- 제목 관문 통과');
