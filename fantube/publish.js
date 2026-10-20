@@ -69,6 +69,20 @@ const M = JSON.parse(fs.readFileSync(meta, 'utf8'));
     process.exit(5);
   }
 }
+// 태그 관문(10/20 관리자, 공용 scripts/tag_gate.py — 14항 «안 나오는 인물 태그 금지» 자동판): 제목·설명 첫 두 줄·태그 공통 낱말 ≥2,
+// 태그의 원고 등장 ≥50%. 원고 = 화면에 나오는 글 전부(위 판·TTS·자막·베댓) → <ep>/script.txt 로 써서 넘긴다. 4·5 업로드 금지.
+{
+  const S = JSON.parse(fs.readFileSync(path.join('D:/volcano-runs/fantube', ep, 'spec.json'), 'utf8'));
+  const body = [S.top?.tag, S.top?.l1, S.top?.l2, S.top?.credit, ...(S.voice || []).map((v) => v.text), ...(S.caps || []).map((c) => c.text), ...(S.comments || []).map((c) => c.text)].filter(Boolean);
+  const scriptPath = path.join('D:/volcano-runs/fantube', ep, 'script.txt');
+  fs.writeFileSync(scriptPath, body.join('\n') + '\n', 'utf8');
+  const tg = spawnSync('python', [path.join(ROOT, 'scripts', 'tag_gate.py'), meta, '--script', scriptPath, '--lane', 'fantube', '--fail-on-warn'], { encoding: 'utf8', env: { ...process.env, PYTHONIOENCODING: 'utf-8' } });
+  process.stdout.write(tg.stdout || ''); process.stderr.write(tg.stderr || '');
+  if (tg.status !== 0) {
+    console.error(`[publish] ★FAIL 태그 관문 — tag_gate exit ${tg.status}${tg.status === 5 ? '(검사 불가)' : ''}. 업로드 안 함.`);
+    process.exit(5);
+  }
+}
 // 가이드라인 사전 점검(10/18 소유주: 피드를 못 받으면 위반으로 본다) — 롱투숏 guide_check.py 를 그대로 쓰고, 걸리면 업로드 전에 멈춘다.
 // 팬튜브 특유: 멤버 미성년 시기·«어린» 강조는 «어린아이 대상» 범주로 본다.
 const tagLine = (M.tags || []).join(' ');
