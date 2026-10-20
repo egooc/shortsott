@@ -696,7 +696,7 @@
   },
   "ch6_title": {
     "type": "chapter",
-    "n": "5",
+    "n": "6",
     "title": "흩어진 조각들",
     "img": "pieces_intro.png"
   },
@@ -704,6 +704,96 @@
     "type": "pic",
     "img": "pieces_intro.png",
     "move": "in"
+  },
+  "ch_tigers_title": {
+    "type": "chapter",
+    "n": "5",
+    "title": "부도난 해의 우승",
+    "img": "ks_1997.png"
+  },
+  "ks_1997": {
+    "type": "pic",
+    "img": "ks_1997.png",
+    "move": "in"
+  },
+  "week_1997": {
+    "type": "year",
+    "label": "일주일 사이",
+    "date": "1997년 10월 25일 → 11월 1일",
+    "lines": [
+      "한국시리즈 아홉 번째 우승",
+      "<em>일주일 뒤</em> 모그룹 최종 부도"
+    ],
+    "source": "동아일보 1997.10.25 · MBC 1997.11.1"
+  },
+  "airport_1997": {
+    "type": "pic",
+    "img": "airport_1997.png",
+    "move": "left"
+  },
+  "lee_fee": {
+    "type": "cards",
+    "label": "1997년 12월 · 일본 진출",
+    "items": [
+      {
+        "label": "구단이 받은 이적료",
+        "value": "4억 5,000만 엔"
+      }
+    ],
+    "size": 90,
+    "note": "사용처는 확인된 기록 없음",
+    "source": "동아일보 1997.12.10"
+  },
+  "lim_1998": {
+    "type": "split",
+    "label": "1998년 12월 14일 트레이드",
+    "root": "해태 ↔ 삼성",
+    "all_at_once": true,
+    "left": {
+      "title": "해태가 보낸 선수",
+      "items": [
+        "임창용"
+      ]
+    },
+    "right": {
+      "title": "해태가 받은 선수",
+      "items": [
+        "양준혁",
+        "곽채진",
+        "황두성"
+      ]
+    },
+    "source": "동아일보 1998.12.14"
+  },
+  "rank_9800": {
+    "type": "table",
+    "label": "부도 뒤 세 시즌",
+    "head": [
+      "시즌",
+      "순위"
+    ],
+    "rows": [
+      [
+        "1998년",
+        "8개 팀 중 5위"
+      ],
+      [
+        "1999년",
+        "전체 7위"
+      ],
+      [
+        "2000년",
+        "전체 6위"
+      ]
+    ],
+    "source": "KBO 역대 팀 성적",
+    "size": 75,
+    "w": 1750
+  },
+  "empty_dugout": {
+    "type": "pic",
+    "img": "empty_dugout.png",
+    "move": "right"
   },
   "drink_2000": {
     "type": "year",
@@ -731,8 +821,8 @@
       }
     ],
     "size": 90,
-    "note": "2001년 8월 1일부터 KIA 타이거즈",
-    "source": "연합뉴스 2001.7.30"
+    "note": "2001년 8월 1일 KIA 타이거즈 출범",
+    "source": "연합뉴스 2001.7.30·KBO"
   },
   "snack_2001": {
     "type": "pic",
@@ -809,7 +899,7 @@
   },
   "ch7_title": {
     "type": "chapter",
-    "n": "6",
+    "n": "7",
     "title": "두 번째 갈림길",
     "img": "htb.png"
   },
@@ -958,7 +1048,7 @@
   },
   "ch9_title": {
     "type": "chapter",
-    "n": "7",
+    "n": "8",
     "title": "해태가 남긴 것",
     "img": "what_remained.png"
   },
