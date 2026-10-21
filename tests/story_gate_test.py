@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """scripts/story_gate.py 자기 테스트 — API 0, 임시 폴더만.
-통과 예시 = 소유주 «롱투숏 정석» 레퍼런스(youtube.com/shorts/4B21vk16yeo, 문어 편)의 컷당 자막 1문장 13컷 구조
-(상황→위기→시도 실패→개입→전환→결말+감정 꼬리, 동물 시점 생각 풍선)를 본뜬 문장. FAIL 예시 = 어랍숏 화면 해설 3문장."""
+통과 예시 = 소유주 «롱투숏 정석» 레퍼런스(youtube.com/shorts/4B21vk16yeo, 문어 편)의 실제 컷당 자막 13문장
+(관리자가 컨택트 시트에서 읽음, 10-21) — 상황→위기→시도 실패→개입·전환→결말+감정 꼬리, 생각 풍선. FAIL 예시 = 어랍숏 화면 해설 3문장."""
 import datetime as dt
 import json
 import sys
@@ -12,25 +12,25 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 import story_gate as sg  # noqa: E402
 
 OCTO = [
-    '그물에 걸린 문어가 갑판 위로 끌려 올라왔다',
-    '바다로 돌아가고 싶었지만 다리가 그물코에 감겼다',
-    '«여기서 말라 죽을 순 없어»',
-    '문어는 먹물을 뿜고 미끄러져 보려 했다',
-    '그런데 그물은 더 단단히 조여 왔다',
-    '힘이 빠지자 다리 하나가 축 늘어졌다',
-    '그때 갑판 끝에서 어린 선원이 다가왔다',
-    '선원은 칼 대신 맨손으로 그물코를 하나씩 풀었다',
-    '문어는 처음으로 도망치지 않고 그 손을 감았다',
-    '마지막 매듭이 풀리는 순간 문어는 바다로 미끄러져 들어갔다',
-    '선원은 빈손을 한참 내려다봤다',
-    '다음 날 같은 자리에 조개 하나가 놓여 있었다',
-    '«고마웠어, 작은 손»',
+    '문어 로봇으로 탐사 중이었는데',
+    '진짜 문어 한 마리가 상어에게 쫓기고 있었음',
+    '주변에 숨을 만한 장소가 마땅치 않았고',
+    '상어는 문어를 잡기 위해 샅샅이 수색 중이었음',
+    '이때 근처에 보이는 파이프..!',
+    '살기 위해 전속력으로 달리는 문어',
+    '들어오는 건 성공했는데..',
+    '안이 막혀 있어서 깊게 들어갈 수 없었음',
+    '이 상황을 보던 문어 로봇이 좋은 생각 하나 떠올림',
+    '의도를 알아듣나 싶어서 코코넛 껍질을 씌워 보내봤는데..',
+    '진짜 바로 의도 파악해버림 ㄷㄷ',
+    '바로 뚜껑으로 사용해서 그대로 은신해버리는 문어',
+    '나와서 고맙다고 로봇 안아줌 ㅠㅠ',
 ]
 OCTO_STORY = {
-    'structure_id': '구출-보은',
-    'beats': {'situation': OCTO[0], 'stake': OCTO[1], 'attempt': OCTO[3], 'turn': OCTO[8], 'ending': OCTO[9], 'emotion_tail': OCTO[12]},
-    'map': ['situation', 'stake', 'stake', 'attempt', 'attempt', 'attempt', 'turn', 'turn', 'turn', 'ending', 'ending', 'emotion_tail', 'emotion_tail'],
-    'fiction': {'allowed': True, 'devices': ['생각 풍선', '의인화']},
+    'structure_id': '구출-보은(개입자 시점)',
+    'beats': {'situation': OCTO[0], 'stake': OCTO[1], 'attempt': OCTO[4], 'turn': OCTO[8], 'ending': OCTO[11], 'emotion_tail': OCTO[12]},
+    'map': ['situation', 'stake', 'stake', 'stake', 'attempt', 'attempt', 'attempt', 'attempt', 'turn', 'turn', 'turn', 'ending', 'emotion_tail'],
+    'fiction': {'allowed': True, 'devices': ['생각 풍선 «(로봇임)»·«(어디갔어..)»·«(큰일났다...)»·«(ㅠㅠㅠㅠ)»·«뚱땅뚱땅»·«난 아무 말 안했다.. 개입한거 아니다..»', '의인화']},
 }
 RUST = ['녹 범벅 프레임인데 빛만 쏘자 사라졌다', '레이저가 표면을 지나가고 있습니다', '금속 표면이 은색입니다']
 RUST_DESC = ['녹이 잔뜩 낀 자전거 프레임입니다', '레이저가 표면을 지나가고 있습니다', '금속 표면이 은색입니다']
@@ -38,7 +38,9 @@ RUST_DESC = ['녹이 잔뜩 낀 자전거 프레임입니다', '레이저가 표
 # 판정 단위
 r = sg.judge({'story': OCTO_STORY}, OCTO)
 assert r['verdict'] == 'PASS', r
-assert r['stats']['descriptive'] == 0 and r['stats']['turn_change']
+assert r['stats']['descriptive'] == 0 and (r['stats']['turn_change'] or r['stats']['turn_new_verbs'])
+assert sg.new_verbs('좋은 생각 하나 떠올림', '상어에게 쫓기고 있었음')    # (a) 새 동사만으로도 전환
+assert not sg.new_verbs('파이프 안에 있다', '파이프로 달리는 문어')
 assert sg.judge({}, RUST)['verdict'] == 'FAIL'                       # ① story 없음
 r = sg.judge({'story': dict(OCTO_STORY, map=['situation', 'turn', 'ending'])}, RUST_DESC)
 assert any(f.startswith('③') for f in r['fails']), r                 # ③ 화면 묘사형 100%
@@ -53,18 +55,18 @@ assert r['verdict'] == 'WARN' and r['warns'][0].startswith('②'), r
 r = sg.judge({'story': dict(OCTO_STORY, map=OCTO_STORY['map'][:8])}, OCTO)
 assert any(f.startswith('②') for f in r['fails']), r
 # ④ turn 이 앞과 같은 상태만 말함
-r = sg.judge({'story': dict(OCTO_STORY, beats=dict(OCTO_STORY['beats'], turn='선원이 서 있다'), map=[b if b != 'turn' else 'attempt' for b in OCTO_STORY['map']])}, OCTO)
+r = sg.judge({'story': dict(OCTO_STORY, beats=dict(OCTO_STORY['beats'], turn='문어가 파이프 안에 있다'), map=[b if b != 'turn' else 'attempt' for b in OCTO_STORY['map']])}, OCTO)
 assert any(f.startswith('④') for f in r['fails']), r
 # ⑤ 정치 레인 허구 금지 · 다른 레인 숫자 문장 출처
 r = sg.judge({'story': OCTO_STORY}, OCTO, lane='politics_short')
 assert any(f.startswith('⑤') for f in r['fails']), r
 r = sg.judge({'story': dict(OCTO_STORY, fiction={'allowed': False, 'devices': []})}, OCTO, lane='politics_short')
 assert r['verdict'] == 'PASS', r
-r = sg.judge({'story': OCTO_STORY}, OCTO[:-1] + ['문어는 3년 뒤에도 그 배를 따라왔다'])
+r = sg.judge({'story': OCTO_STORY}, OCTO[:-1] + ['문어는 3일 뒤에도 그 로봇을 찾아왔음'])
 assert any(w.startswith('⑤') for w in r['warns']), r
 
 # 롱투숏 lx03 꼴 — 한국어 beat 목록 «상황: …» · map 한국어 이름 · 훅
-KO = {'structure_id': 'S6-rescue', 'beats': ['상황: ' + OCTO[0], '위기·욕구: ' + OCTO[1], '시도·실패: ' + OCTO[3], '전환: ' + OCTO[8], '결말: ' + OCTO[9], '감정 꼬리: ' + OCTO[12]],
+KO = {'structure_id': 'S6-rescue', 'beats': ['상황: ' + OCTO[0], '위기·욕구: ' + OCTO[1], '시도·실패: ' + OCTO[3], '전환: ' + OCTO[8], '결말: ' + OCTO[11], '감정 꼬리: ' + OCTO[12]],
       'map': {str(i): {'situation': '상황', 'stake': '위기·욕구', 'attempt': '시도·실패', 'turn': '전환', 'ending': '결말', 'emotion_tail': '감정 꼬리'}[b] for i, b in enumerate(OCTO_STORY['map'])},
       'fiction': {'allowed': True, 'devices': ['의인화']}}
 KO['map']['0'] = '훅'

@@ -15,7 +15,8 @@
   ① story 필수 · structure_id(또는 plan.pattern) · beats 6개 각 1문장 이상 — 없거나 빈 beat FAIL
   ② 문장→beat 매핑 — 매핑 없는 문장 1개↑ WARN · 30%↑ FAIL (beat 이름이 아닌 값도 «없음»)
   ③ 화면 묘사형 — 인과·시간 연결어도, 의도·감정 낱말도 없이 현재 상태 어미(«~하고 있습니다» «~입니다» «~이다»)로 끝나는 문장 30%↑ WARN · 50%↑ FAIL
-  ④ turn — turn 문장(beats.turn + map 이 turn 인 문장)이 앞 beat(상황·위기·시도)와 낱말 1개↑ 겹치고 변화 낱말이 있어야 함, 없으면 FAIL
+  ④ turn — turn 문장(beats.turn + map 이 turn 인 문장)이 앞 beat(상황·위기·시도)와 낱말 1개↑ 겹치고,
+     변화 표지(낱말 «갑자기·바뀌…» 또는 어미 «~더니·~는데..·~해버림·바로») 또는 앞에 없던 새 동사(«떠올림·씌워»)가 있어야 함, 없으면 FAIL
   ⑤ fiction — 정치 레인(--lane politics* 또는 경로에 politics)은 allowed=false 고정, allowed=true·devices 있음 FAIL.
      다른 레인은 허구 허용, 다만 숫자 문장이 있는데 facts/sources 필드가 없으면 WARN(P8 — 수치·사실 주장은 출처 그대로). fiction 필드 없음 WARN.
 출력: «[관문] story: PASS/WARN/FAIL · 사유» 한 줄(--json 은 JSON 한 줄).
@@ -68,6 +69,27 @@ CHANGE = {
     'ko': ('갑자기', '그런데', '하지만', '그러자', '순간', '드디어', '마침내', '결국', '처음으로', '오히려', '반대로', '이제', '더 이상', '더는', '바뀌', '바꿨', '달라', '변했', '사라', '멈췄', '멈추', '풀렸', '열렸', '깨달', '알아챘', '돌아', '시작', '없었', '않았', '못했', '대신', '그제야', '비로소', '뒤집'),
     'ja': ('突然', 'でも', 'しかし', 'すると', 'ついに', 'やっと', '結局', '初めて', '逆に', 'もう', '変わ', '消え', '止ま', '気づ', '始ま', 'なかった'),
 }
+# 10-21 레퍼런스 실제 자막(문어 편)이 낱말 목록으로는 못 넘었다 → 어미 표지(b)와 «새 동사»(a)도 변화로 인정
+CHANGE_ENDS = {'ko': ('더니', '는데..', '는데…', '버림', '버렸', '버리', '바로'), 'ja': ('たら', 'ところ', 'しまっ', 'すぐ')}
+PRED_END = re.compile(r'(버림|버렸다|버려|더니|봤는데|았는데|었는데|했는데|는데|다|요|음|림|줌|함|짐|김|봄|움|워|줘|고|서)$')
+AUX = {'있', '없', '이', '하', '되', '않', '같', '보', '싶', '중', '했', '였', '있었', '없었'}
+
+
+def new_verbs(turn_t, prev_t):
+    """(a) turn 의 서술어 어간 중 앞(상황·위기·시도)에 없는 것 — «떠올림·씌워·파악해버림». 있다·하다 같은 보조어는 뺀다."""
+    prev = {w[:2] for w in re.findall(r'[가-힣]{2,}', prev_t)}
+    out = []
+    for tok in re.findall(r'[가-힣]{2,}', turn_t):
+        mm = PRED_END.search(tok)
+        if not mm:
+            continue
+        stem = tok[:mm.start()] or tok
+        if len(stem) < 2 or stem in AUX or stem[:2] in prev or stem[:1] in AUX and len(stem) < 3:
+            continue
+        out.append(tok)
+    return list(dict.fromkeys(out))
+
+
 NUM_RX = re.compile(r'\d|[일이삼사오육칠팔구십백천만억]+\s*(퍼센트|%|원|명|배|년|억|만)')
 FICTION_MARK = re.compile(r'생각\s*풍선|속마음|\(생각\)|【心の声】|心の声')
 
@@ -183,10 +205,11 @@ def judge(plan, sentences, lane='', lang='ko', story=None):
         prev_t = ' '.join([_beat_text(beats.get(b)) for b in ('situation', 'stake', 'attempt')] +
                           [sentences[i] for i in range(len(sentences)) if m[i] in ('situation', 'stake', 'attempt')])
         common = sorted(_words(turn_t, lang) & _words(prev_t, lang))
-        change = [w for w in CHANGE.get(lang, ()) if w in turn_t]
-        stats['turn_common'], stats['turn_change'] = common[:5], change[:3]
-        if turn_t.strip() and (not common or not change):
-            fails.append('④ turn 이 앞과 다른 상태를 말하지 않음 — ' + ('앞 beat 와 겹치는 낱말 0' if not common else '변화 낱말(갑자기·그런데·바뀌·사라·처음으로…) 0'))
+        change = [w for w in CHANGE.get(lang, ()) + CHANGE_ENDS.get(lang, ()) if w in turn_t]
+        nv = new_verbs(turn_t, prev_t) if lang != 'ja' else []
+        stats['turn_common'], stats['turn_change'], stats['turn_new_verbs'] = common[:5], change[:3], nv[:3]
+        if turn_t.strip() and (not common or not (change or nv)):
+            fails.append('④ turn 이 앞과 다른 상태를 말하지 않음 — ' + ('앞 beat 와 겹치는 낱말 0' if not common else '변화 표지(갑자기·바뀌·~더니·~해버림·바로) 0 · 앞에 없던 새 동사 0'))
     # ⑤ fiction
     fic = story.get('fiction') if isinstance(story.get('fiction'), dict) else plan.get('fiction') if isinstance(plan.get('fiction'), dict) else None
     marks = [s for s in sentences if FICTION_MARK.search(s)]
