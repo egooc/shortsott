@@ -54,7 +54,8 @@ function judge(x, now = Date.now(), o = {}) {
   const hrs = (now - Date.parse(x.snippet.publishedAt)) / 36e5;
   const views = Number(x.statistics.viewCount || 0);
   if (views === 0 && hrs >= zeroHours && seconds(x.contentDetails?.duration) <= SHORT_MAX_SEC) return 'guideline_zero_feed';
-  if (hrs >= hours && views < min) return 'low_views';
+  // 24h 저조회는 쇼츠만 — 롱폼은 24시간 조회로 판정하지 않는다(10-14 소유주). 10-22 수창 롱폼이 沼落ち(jp_highlight)에 들어와서 길이로 가른다.
+  if (hrs >= hours && views < min && seconds(x.contentDetails?.duration) <= SHORT_MAX_SEC) return 'low_views';
   return null;
 }
 const STATE = path.join(ROOT, 'server', 'data', 'rinbox_publish_state.json');
