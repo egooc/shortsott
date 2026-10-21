@@ -13,6 +13,8 @@
   news_outlier   뉴스 채널 아웃라이어(소유주 10-20 «뉴스 채널 롱폼에서 터진 것이 알고리즘 신호»): 최근 24~48h 정치 소재 편 중
                  채널 최근 30편 조회 중앙값 대비 ≥3배 — [{channel, video_id, views, ratio, title_words, thumb_words, kind(long|shorts)}]
                  찾아봤는데 없으면 {"none": "본 채널 묶음·시각"} 로 적는다(빈칸은 FAIL). 포장엔 낱말을 신호로만, 복제 금지.
+  vicarious      (10/23편부터, G15) {"type": 집단 공감|감정 대변|상식 회복|권력 역전, "comments": 본문+댓글에서 읽은 반응·농담,
+                 "essence": 대리만족 한 문장} — 원고는 이 본질에서 쓴다. 댓글 속 농담은 대변 장치로, 위치 역전은 결말에.
 하나라도 빠지면 exit 3 — 원고(script_*.py)를 쓰지 않는다. upload_gate 도 이 검사를 다시 돈다.
 """
 import json
@@ -24,6 +26,9 @@ NEED = ('keyword', 'rising_score', 'excerpt', 'emotion_now', 'comment_count', 'r
 OUT_KEYS = ('channel', 'video_id', 'views', 'ratio', 'title_words', 'thumb_words')
 NUM = ('rising_score', 'comment_count')
 FROM = '20261021'   # 이 날짜 편부터 요구한다
+# 대리만족 유형(큰제로 07-18, 관리자 G15 10-21): 소재 → 본문+댓글 파악 → 본질(대리만족 한 문장) → 대본. 10/23편부터.
+VICARIOUS = ('집단 공감', '감정 대변', '상식 회복', '권력 역전')
+VIC_FROM = '20261023'
 
 
 def ep_date(ep, uploads=()):
@@ -75,6 +80,10 @@ def gate_lines(ep, uploads=()):
                 lost.append('news_outlier(' + '·'.join(OUT_KEYS) + ' 또는 {"none": 사유})')
             elif any(not isinstance(o.get('ratio'), (int, float)) or o['ratio'] < 3 for o in rows_o):
                 lost.append('news_outlier ratio ≥3 아님')
+        if ep_date(ep, uploads) >= VIC_FROM:
+            v = r.get('vicarious')
+            if not isinstance(v, dict) or v.get('type') not in VICARIOUS or not str(v.get('essence', '')).strip() or not str(v.get('comments', '')).strip():
+                lost.append('vicarious({"type": ' + '|'.join(VICARIOUS) + ', "comments": 댓글에서 읽은 반응·농담, "essence": 대리만족 한 문장})')
         if lost:
             bad.append(f'후보표 {i}번 «{r.get("keyword", "?")}»: {", ".join(lost)} 비었거나 맞지 않음')
     return bad

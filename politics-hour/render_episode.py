@@ -7,6 +7,10 @@ ROOT = Path(__file__).resolve().parent
 LOCK = ROOT / 'RENDERING.lock'
 ep = (ROOT / sys.argv[1]).resolve()
 T0 = time.time()
+sys.path.insert(0, str(ROOT)); import uncertain_facts   # noqa: E402  불확실 팩트 0건이어야 TTS(G4, 10/23편부터) — 락을 쓰기 전에 막는다
+_fact = uncertain_facts.gate_lines(ep)
+if _fact:
+    print('\n'.join('[fact] FAIL ' + b for b in _fact)); sys.exit(3)
 LOCK.write_text(json.dumps({'pid': os.getpid(), 'episode': ep.name, 'started': time.strftime('%Y-%m-%d %H:%M'),
                             'expect_hours': 6}, ensure_ascii=False) + '\n', encoding='utf-8')
 try:

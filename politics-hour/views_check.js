@@ -136,7 +136,13 @@ async function repack(videoId, h, views, H) {
 // 마지막 교체 뒤 LOOP_EVERY 시간이 지났으면 판정: 교체 뒤 조회 증가 ≥ LOOP_FEED 면 피드 신호(연속 2회면 그 포장 고정·보고),
 // 아니면 아직 안 쓴 다음 묶음으로 교체(같은 포장 재사용 금지). 남은 묶음이 없으면 «소진» 경보 → 세션이 새 후보 3개를 붙인다.
 // 썸네일이 다른 묶음은 썸네일이 먼저 올라가야 글자를 바꾼다(제목 머리·썸네일 큰 낱말 불일치 방지).
-const LOOP_EVERY = 4, LOOP_FEED = 50;
+// ★G10(카이안 22, 관리자 10-21 — 10/23부터): 진 묶음은 버리지 않는다. 묶음이 떨어나가면 result{gain,hrs,rate,ended} 를 적고,
+//   7일(RETEST_DAYS) 지난 진 묶음은 다시 걸 수 있다(retest: true — 시청자층이 바뀐다). 남은 새 묶음이 없을 때만 재시험, 재시험할 것도 없으면 «소진».
+//   A/B 선택은 7일 안: 첫 교체(L.applied[0].at)+7일까지 고정이 안 나면 rate(교체 뒤 시간당 조회) 최고 묶음을 L.fixed 로(L.chosen{idx,at,by,rate}).
+//   고정 7일 뒤엔 진 묶음 하나를 재시험(L.retest_from{idx,at,rate}) — 고정 묶음보다 rate 가 높으면 새 고정, 아니면 고정 묶음으로 되돌림.
+//   행마다 ctr 칸(ctr.js — 소유주 스튜디오 입력, 없으면 null). 재부상 옛 편 = 고정 뒤 24h 증가 ≥ LOOP_FEED 면 «재부상» 경보(포장 교체 대상).
+const LOOP_EVERY = 4, LOOP_FEED = 50, RETEST_DAYS = 7, DAY = 86400e3;
+const { ctrFor } = require('./ctr');
 async function loop(videoId) {
   const pf = packagesPath(videoId);
   const pk = JSON.parse(fs.readFileSync(pf, 'utf8'));
@@ -172,7 +178,24 @@ async function loop(videoId) {
   L.packages.forEach((p, i) => { p._i = i; });
   const last = L.applied[L.applied.length - 1];
   const cur = last && L.packages[last.idx];
-  const row = { at: new Date().toISOString(), id: videoId, purpose, h: 'loop', long: true, views, title: v.snippet.title, loop: last ? { idx: last.idx, since: last.views } : null };
+  const row = { at: new Date().toISOString(), id: videoId, purpose, h: 'loop', long: true, views, title: v.snippet.title, loop: last ? { idx: last.idx, since: last.views } : null,
+    ctr: ctrFor(videoId, last?.at, last ? views - last.views : undefined) };
+  // 묶음이 걸려 있던 동안의 시간당 조회 — 내려간 묶음은 result, 옛 기록(result 없음)은 다음 교체 시점까지로 잰다
+  const endOf = (a) => { const nx = L.applied[L.applied.indexOf(a) + 1]; return a.result?.ended ? { t: new Date(a.result.ended).getTime() } : nx ? { t: new Date(nx.at).getTime(), v: nx.views } : null; };
+  const rateOf = (a) => { if (a.result) return a.result.rate; const e = endOf(a); return +(((e ? e.v : views) - a.views) / Math.max(((e ? e.t : Date.now()) - new Date(a.at)) / 3600e3, 0.25)).toFixed(1); };
+  // 묶음별 마지막으로 내려간 시각 — 7일 지난 진 묶음만 재시험 후보
+  const endedAt = (i) => Math.max(0, ...L.applied.filter((a) => a.idx === i && endOf(a)).map((a) => endOf(a).t));
+  const retestable = (i) => i !== last?.idx && L.applied.some((a) => a.idx === i) && Date.now() - endedAt(i) >= RETEST_DAYS * DAY;
+  const apply = async (pkg, extra = {}) => {   // 썸네일 먼저 → 글자. 썸네일 보류면 false
+    if (pkg.thumbnail && L.thumb_now !== pkg.thumbnail) {
+      const err = await putThumb(pkg);
+      if (err) { console.log(`[loop] ${videoId} 포장 ${pkg._i}번 썸네일 보류(${err}) — 글자도 안 바꿈, 다음 회차`); append(LOG, { ...row, wait_thumb: pkg._i, err }); return false; }
+    }
+    await putText(pkg);
+    if (last && !last.result) { const hrs = (Date.now() - new Date(last.at)) / 3600e3; last.result = { gain: views - last.views, hrs: +hrs.toFixed(1), rate: rateOf(last), ended: row.at }; }
+    L.applied.push({ idx: pkg._i, at: new Date().toISOString(), views, from: v.snippet.title, ...extra });
+    return true;
+  };
   // 1) 걸어 둔 포장의 썸네일이 아직이면 다시
   if (cur && cur.thumbnail && L.thumb_now !== cur.thumbnail) {
     const err = await putThumb(cur);
@@ -184,14 +207,36 @@ async function loop(videoId) {
     }
     append(LOG, { ...row, wait_thumb: err ? last.idx : undefined, thumb_up: !err || undefined }); save(); return;   // 썸네일이 아직이면 판정도 미룬다
   }
-  if (L.fixed != null) { append(LOG, { ...row, fixed: L.fixed }); save(); return; }
+  const G10 = Date.now() >= new Date('2026-10-23T00:00:00+09:00').getTime();   // 막는 항목 10-23부터(관리자) — 그 전엔 예전 루프 그대로
+  if (L.fixed != null) {
+    const fixedAt = L.fixed_at ? new Date(L.fixed_at).getTime() : null;
+    const day = last ? views - (last.checks?.slice(-1)[0]?.views ?? last.views) : 0;
+    if (G10 && fixedAt && Date.now() - (L.resurge_at ? new Date(L.resurge_at).getTime() : 0) >= DAY && Date.now() - new Date(last.checks?.slice(-1)[0]?.at || last.at) >= DAY) {
+      last.checks = [...(last.checks || []), { at: row.at, views }];
+      if (day >= LOOP_FEED) { L.resurge_at = row.at; append(ALERT, { ...row, alert: `재부상 — 고정 포장 ${L.fixed}번 24h +${day}, 포장 교체 대상(새 묶음 후보 검토), 관리자 보고` }); }
+    }
+    const loser = L.packages.find((p) => p._i !== L.fixed && retestable(p._i));
+    if (!(G10 && fixedAt && Date.now() - fixedAt >= RETEST_DAYS * DAY && loser)) { append(LOG, { ...row, fixed: L.fixed }); save(); return; }
+    // 고정 7일 뒤 진 묶음 재시험
+    // 비교 기준 = 고정 묶음의 최근 24h 시간당 조회(전체 평균은 첫날 몰림 때문에 부풀거나 줄어든다)
+    const logRows = fs.existsSync(LOG) ? fs.readFileSync(LOG, 'utf8').split('\n').filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return {}; } }).filter((r) => r.id === videoId && r.views != null) : [];
+    const ref = logRows.find((r) => Date.now() - new Date(r.at) <= DAY);
+    const recent = ref ? +((views - ref.views) / Math.max((Date.now() - new Date(ref.at)) / 3600e3, 1)).toFixed(2) : rateOf(last);
+    L.retest_from = { idx: L.fixed, at: row.at, rate: recent };
+    L.fixed = null; L.fixed_at = null; L.streak = 0;
+    if (await apply(loser, { retest: true })) {
+      const msg = `재시험 → 진 묶음 ${loser._i}번 «${loser.title}»(7일 경과) · 고정 ${L.retest_from.idx}번 rate ${L.retest_from.rate}/h 와 비교`;
+      console.log(`[loop] ${videoId} ${msg}`); append(LOG, { ...row, retest: loser._i }); append(ALERT, { ...row, alert: `${msg}, 관리자 보고` });
+    }
+    save(); return;
+  }
   const hrs = last ? (Date.now() - new Date(last.at)) / 3600e3 : Infinity;
   if (last && hrs < LOOP_EVERY - 0.25) { append(LOG, row); save(); console.log(`[loop] ${videoId} 조회 ${views} · 포장 ${last.idx}번 ${hrs.toFixed(1)}h째 — 판정 전`); return; }
   const gain = last ? views - last.views : 0;
   if (last && gain >= LOOP_FEED) {
     L.streak = (L.streak || 0) + 1;
     last.checks = [...(last.checks || []), { at: row.at, views }];
-    if (L.streak >= 2) L.fixed = last.idx;
+    if (L.streak >= 2) { L.fixed = last.idx; L.fixed_at = row.at; L.retest_from = undefined; }
     const msg = L.fixed != null ? `피드 회복 — 포장 ${last.idx}번 고정 «${cur.title}» (교체 뒤 +${gain})` : `피드 신호 1회 — 포장 ${last.idx}번 유지(교체 뒤 +${gain}), 다음 점검도 오르면 고정`;
     if (L.fixed == null) last.views = views;   // 다음 판정은 이 시점부터 다시 잰다
     console.log(`[loop] ${videoId} ${msg}`);
@@ -200,24 +245,47 @@ async function loop(videoId) {
     save(); return;
   }
   L.streak = 0;
+  // 재시험 판정: 재시험 묶음이 4h 안에 피드 신호를 못 냈으면 고정 묶음 rate 와 비교 — 높으면 새 고정, 아니면 원래 고정으로 되돌림
+  if (G10 && last?.retest && L.retest_from) {
+    const r = rateOf(last), back = L.packages[L.retest_from.idx];
+    if (r > L.retest_from.rate) {
+      L.fixed = last.idx; L.fixed_at = row.at; L.chosen = { idx: last.idx, at: row.at, by: '재시험 승', rate: r, vs: L.retest_from };
+      L.retest_from = undefined;
+      append(ALERT, { ...row, alert: `재시험 승 — 포장 ${last.idx}번 rate ${r}/h > 고정 ${L.chosen.vs.idx}번 ${L.chosen.vs.rate}/h, 새 고정, 관리자 보고` });
+      save(); return;
+    }
+    if (await apply(back, { restored: true })) {
+      L.fixed = back._i; L.fixed_at = row.at;
+      append(ALERT, { ...row, alert: `재시험 패 — 포장 ${last.idx}번 rate ${r}/h ≤ ${L.retest_from.rate}/h, 고정 ${back._i}번으로 되돌림(7일 뒤 다른 진 묶음), 관리자 보고` });
+      L.retest_from = undefined;
+    }
+    save(); return;
+  }
+  // A/B 선택은 7일 안: 첫 교체 +7일까지 고정이 안 났으면 rate 최고 묶음으로 고정
+  if (G10 && L.applied.length && Date.now() - new Date(L.applied[0].at) >= RETEST_DAYS * DAY && !L.chosen) {
+    const best = L.applied.map((a) => ({ idx: a.idx, rate: rateOf(a) })).sort((a, b) => b.rate - a.rate)[0];
+    if (best.idx === last.idx || await apply(L.packages[best.idx], { chosen: true })) {
+      L.fixed = best.idx; L.fixed_at = row.at; L.chosen = { idx: best.idx, at: row.at, by: '7일 선택', rate: best.rate };
+      append(ALERT, { ...row, alert: `A/B 7일 선택 — 포장 ${best.idx}번 고정(rate ${best.rate}/h), 진 묶음은 7일 뒤 재시험, 관리자 보고` });
+    }
+    save(); return;
+  }
   const used = new Set(L.applied.map((a) => a.idx));
-  const next = L.packages.find((p, i) => !used.has(i));
+  const next = L.packages.find((p, i) => !used.has(i)) || (G10 ? L.packages.filter((p) => retestable(p._i)).sort((a, b) => endedAt(a._i) - endedAt(b._i))[0] : null);
   if (!next) {
+    const soon = G10 ? Math.min(...L.packages.filter((p) => p._i !== last?.idx && L.applied.some((a) => a.idx === p._i)).map((p) => endedAt(p._i) + RETEST_DAYS * DAY)) : Infinity;
+    if (Number.isFinite(soon)) {   // 진 묶음 재시험이 곧 열린다 — 경보 대신 대기(새 후보는 그래도 붙여 두면 먼저 쓴다)
+      console.log(`[loop] ${videoId} 새 묶음 소진 — 진 묶음 재시험 ${new Date(soon).toISOString().slice(0, 13)}Z 부터(새 후보 붙이면 먼저 씀)`);
+      append(LOG, { ...row, retest_wait: new Date(soon).toISOString() }); save(); return;
+    }
     console.log(`[loop] ${videoId} 묶음 소진 — 새 후보 3개 필요`);
     append(ALERT, { ...row, alert: `루프 묶음 소진(조회 ${views}, 직전 포장 뒤 +${gain}) — 새 후보 3개(인물 이름+«말맛 한마디»+상대 인물) 필요, 관리자 보고` });
     save(); process.exit(4);
   }
-  if (next.thumbnail && L.thumb_now !== next.thumbnail) {
-    const err = await putThumb(next);
-    if (err) {
-      console.log(`[loop] ${videoId} 포장 ${next._i}번 썸네일 보류(${err}) — 글자도 안 바꿈, 다음 회차`);
-      append(LOG, { ...row, wait_thumb: next._i, err });
-      save(); return;
-    }
-  }
-  await putText(next);
-  L.applied.push({ idx: next._i, at: new Date().toISOString(), views, from: v.snippet.title });
-  const msg = `루프 교체 → 포장 ${next._i}번 «${next.title}» · 썸네일 ${next.big?.join('·') || ''} · 직전 포장 뒤 +${gain}(${last ? `${hrs.toFixed(1)}h` : '첫 회'})`;
+  const again = used.has(next._i);
+  if (!await apply(next, again ? { retest: true } : {})) { save(); return; }
+  if (again) L.retest_from = undefined;   // 새 묶음이 떨어져 진 묶음을 다시 거는 경우 — 고정 비교 없이 일반 판정(피드 2회 = 고정)
+  const msg = `루프 교체 → 포장 ${next._i}번${again ? '(7일 지난 진 묶음 재시험)' : ''} «${next.title}» · 썸네일 ${next.big?.join('·') || ''} · 직전 포장 뒤 +${gain}(${last ? `${hrs.toFixed(1)}h` : '첫 회'})`;
   console.log(`[loop] ${videoId} ${msg}`);
   append(LOG, { ...row, repack: next._i });
   append(ALERT, { ...row, alert: `${msg}, 관리자 보고` });

@@ -129,6 +129,12 @@ for up in sys.argv[2:]:
                         '--lane', 'politics_shorts', '--enforce-now'], capture_output=True, text=True, encoding='utf-8')
     if r.returncode:
         bad.append(f'{name} exchange_check 종료 {r.returncode}: ' + ' / '.join(x for x in r.stdout.splitlines() if 'FAIL' in x or '불가' in x)[:400])
+    # 이야기 구조(공용 story_gate 2e986a7, 소유주 10-21 «화면 해설 말고 스토리») — 정치는 허구 금지 고정. 원고 순서 문장 = upload.json story_lines. 10-23 전 FAIL 은 유예(0)
+    r = subprocess.run([sys.executable, '-X', 'utf8', str(Path(__file__).resolve().parents[1] / 'scripts' / 'story_gate.py'), str(up),
+                        '--lane', 'politics_short', '--field', 'story_lines'], capture_output=True, text=True, encoding='utf-8')
+    print(r.stdout.strip())
+    if r.returncode:
+        bad.append(f'{name} story_gate 종료 {r.returncode}: {r.stdout.strip()[:300]}')
 TITLE_CHECK = Path(__file__).resolve().parents[1] / 'scripts' / 'title_check.py'
 for up in (sys.argv[2:] if EP_DATE >= '20261021' else []):
     u = json.loads(Path(up).read_text(encoding='utf-8'))
@@ -250,6 +256,10 @@ for up in sys.argv[2:]:   # 쇼츠 설명·고정 댓글의 롱폼 주소 자리
         bad.append(f'{Path(up).name}: 채우지 않은 자리표 {sorted(set(re.findall(r"[{][A-Z_]+[}]", (_u.get("description") or "") + (_u.get("pinned_comment") or ""))))}')
 sys.path.insert(0, str(Path(__file__).resolve().parent / 'overlay')); import tts_audit   # 해설 TTS 역전사 숫자·고유명사 대조(10/20편부터, tts_say 편만 요구)
 bad += tts_audit.gate_lines(ep)
+import uncertain_facts   # noqa: E402  불확실 팩트 목록(uncertain_facts.json) 0건·원고 해시 일치(G4, 10/23편부터)
+bad += uncertain_facts.gate_lines(ep, sys.argv[2:])
+import jargon_gate   # noqa: E402  제목 전문 용어 풀이 두 출처 교차 확인 기록(G23, 10/23편부터)
+bad += jargon_gate.gate_lines(ep, sys.argv[2:])
 bad += guide_words.gate_lines([*sys.argv[2:], *[p for p in [ep / 'packages.json'] if p.exists()]], lang='ko', lane='politics')   # 제목·설명·태그·썸네일 낱말, 우회 GUIDE_OK=1 은 소유주 말 있을 때만
 for b in bad:
     print('[gate] FAIL', b)
