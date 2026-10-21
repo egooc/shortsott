@@ -11,6 +11,11 @@
 //      파일이 없으면 skipped. 일 1,000건 한도라 레인당 호출 수를 표에 적는다. 키 값은 찍지 않는다.
 // 출력: server/data/rising_keywords/<lane>/<YYYYMMDD-HHMM>.json(스냅샷) · <lane>_latest.json({후보: rising_score, 전일비, 7일비, 근거}) · 표
 // 후보 사전: config/rising_seeds.json(rising = 상승률 순, evergreen = 자동완성 폭 순)
+// 레인 키 하나만 바꾸기(10-21 덮어쓰기 사고 뒤 — 파일째 쓰지 말 것):
+//   node scripts/rising_keywords.js --set-lane corp_ko <lane.json> [--merge]   (--merge = 기존 키 위에 필드만 덮음, seeds 는 합침)
+//   const { setLane } = require('D:/midform/scripts/rising_keywords.js'); setLane('corp_ko', { seeds: [...] }, { merge: true })
+//   python: subprocess.run(['node', 'D:/midform/scripts/rising_keywords.js', '--set-lane', 'corp_ko', 'lane.json', '--merge'])
+//   쓰기 직전에 파일을 다시 읽고 그 키만 바꿔 임시 파일 → rename. 다른 레인 키는 건드리지 않는다. 바꾼 뒤엔 바로 커밋(§7).
 // 요청은 1초 간격, 429·403 이 나면 그 소스는 그날 멈춘다(우회 금지). 키·토큰 값은 찍지 않는다.
 'use strict';
 const fs = require('fs');
@@ -207,6 +212,11 @@ async function runLane(name, L, opts) {
 
 async function main() {
   const argv = process.argv.slice(2);
+  if (argv[0] === '--set-lane') {
+    const r = setLane(argv[1], JSON.parse(fs.readFileSync(argv[2], 'utf8')), { merge: argv.includes('--merge') });
+    console.log(`✓ rising_seeds ${r.lane} ${r.added ? '추가' : '갱신'} · seeds ${r.seeds} · 레인 ${r.lanes.length}개 — 바로 커밋하라`);
+    return;
+  }
   const S = JSON.parse(fs.readFileSync(SEEDS, 'utf8')).lanes;
   const lanes = argv.includes('--all') ? Object.keys(S) : argv.flatMap((a, i) => (argv[i - 1] === '--lane' ? [a] : []));
   if (!lanes.length || lanes.some((l) => !S[l])) {
@@ -216,6 +226,29 @@ async function main() {
   const ti = argv.indexOf('--top');
   const opts = { trends: !argv.includes('--no-trends'), top: ti > 0 ? Number(argv[ti + 1]) : 20 };
   for (const l of lanes) await runLane(l, S[l], opts);
+}
+
+function setLane(lane, value, { merge = false, file = SEEDS } = {}) {
+  if (!/^[a-z][a-z0-9_]*$/.test(lane)) throw new Error(`레인 이름 꼴 아님: ${lane}`);
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('레인 값은 객체');
+  const d = JSON.parse(fs.readFileSync(file, 'utf8'));
+  d.lanes = d.lanes || {};
+  const old = d.lanes[lane];
+  let next = value;
+  if (merge && old) {
+    next = { ...old, ...value };
+    if (Array.isArray(old.seeds) && Array.isArray(value.seeds)) next.seeds = [...new Set([...old.seeds, ...value.seeds])];
+  }
+  if (!['rising', 'evergreen'].includes(next.mode) || !next.lang || !Array.isArray(next.seeds)) throw new Error('mode(rising|evergreen)·lang·seeds 필요');
+  const before = Object.keys(d.lanes).filter((k) => k !== lane);
+  d.lanes[lane] = next;
+  const tmp = `${file}.${process.pid}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(d, null, 2) + '\n', 'utf8');
+  fs.renameSync(tmp, file);
+  const after = Object.keys(JSON.parse(fs.readFileSync(file, 'utf8')).lanes);
+  const lost = before.filter((k) => !after.includes(k));
+  if (lost.length) throw new Error(`다른 레인 키 사라짐: ${lost.join(',')}`);
+  return { lane, added: !old, seeds: next.seeds.length, lanes: after };
 }
 
 // views_check 등에서: 특정 키워드의 최신 점수(«공개 시점 상승 지속» 칸). 없으면 null.
@@ -235,4 +268,4 @@ function keywordScore(lane, keyword) {
 }
 
 if (require.main === module) main().catch((e) => { console.error(e.message); process.exit(1); });
-module.exports = { trends, suggest, runLane, keywordScore };
+module.exports = { trends, suggest, runLane, keywordScore, setLane };
