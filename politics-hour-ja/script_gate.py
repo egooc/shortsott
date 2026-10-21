@@ -223,6 +223,11 @@ def main():
             bad += stb
             for l in stl:
                 print(l)
+        import uncertain_facts_ja   # G4 불확실 팩트(ko uncertain_facts import, 10/23편부터) — TTS 전
+        fb = uncertain_facts_ja.gate_lines(ep)
+        bad += fb
+        if not fb and candidate_gate.ep_date(ep) >= uncertain_facts_ja.uf.FROM:
+            print('[script-ja] PASS 불확실 팩트 0건(gpt-ask 교차 확인·원고 해시 일치)')
         if candidate_gate.ep_date(ep) >= FROM or '--audit' in sys.argv:
             ab, al = audit_lines(ep)
             bad += ab

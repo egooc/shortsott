@@ -151,6 +151,12 @@ if script_gate.candidate_gate.ep_date(ep, sys.argv[2:]) >= script_gate.FROM:   #
         bad += _stb
         for _l in _stl:
             print('[gate-ja]', _l)
+    sys.path.insert(0, str(Path(__file__).parent))
+    import uncertain_facts_ja   # G4 불확실 팩트(10/23편부터)
+    _fb = uncertain_facts_ja.gate_lines(ep, sys.argv[2:])
+    bad += _fb
+    if not _fb:
+        print('[gate-ja] PASS 불확실 팩트(10/23편부터 0건·원고 해시 일치)')
     _ab, _al = script_gate.audit_lines(ep)   # 공용 원고 검수표 devo V1·V3·V12·V14(관리자 10-20) — ko 관문 경로는 임시 폴더라 안 돈다
     bad += _ab
     for _l in _al:
