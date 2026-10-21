@@ -19,6 +19,9 @@
      변화 표지(낱말 «갑자기·바뀌…» 또는 어미 «~더니·~는데..·~해버림·바로») 또는 앞에 없던 새 동사(«떠올림·씌워»)가 있어야 함, 없으면 FAIL
   ⑤ fiction — 정치 레인(--lane politics* 또는 경로에 politics)은 allowed=false 고정, allowed=true·devices 있음 FAIL.
      다른 레인은 허구 허용, 다만 숫자 문장이 있는데 facts/sources 필드가 없으면 WARN(P8 — 수치·사실 주장은 출처 그대로). fiction 필드 없음 WARN.
+  ⑥ 장치 — story.devices {문장 번호: 장치 이름} 에서 12종(docs/longshort-reset-20261019.md §9)만 센다. 서로 다른 장치 5개 미만 WARN(10-23부터 FAIL).
+     목록 밖 이름·없는 문장 번호는 WARN. 정치 레인은 허구형(캐릭터 설정·빌런·생각 풍선) FAIL, 사실형만 인정.
+     «구조는 뼈대, 장치가 재미»(10-21 소유주). 이름 뒤 괄호 설명(«반전+비장의 무기(W3④)»)은 그대로 둬도 된다.
 출력: «[관문] story: PASS/WARN/FAIL · 사유» 한 줄(--json 은 JSON 한 줄).
 종료 코드: 0 PASS·WARN · 4 FAIL · 5 검사 불가(파일·문장 없음 — server/data/gate_errors.jsonl).
 유예: ENFORCE_FROM(2026-10-23 00:00 KST) 전에는 FAIL 도 «[유예 ~10-23]» 을 붙여 찍고 0.
@@ -160,8 +163,27 @@ def _beat_text(b):
     return ' '.join(b) if isinstance(b, list) else str(b or '')
 
 
-def judge(plan, sentences, lane='', lang='ko', story=None):
+# ⑥ 장치 12종 — 이름: 알아보는 낱말(앞에서부터 찾는다)
+DEVICES = {
+    '훅 질문': ('훅 질문', '훅질문', '후킹 질문'), '캐릭터 설정': ('캐릭터',), '빌런': ('빌런', '반대자'),
+    '시도·실패': ('시도·실패', '시도 실패', '시도-실패', '시도실패'), '반전·비장의 무기': ('반전', '비장의 무기'),
+    '금지된 지식': ('금지된 지식',), '의성어·현장감': ('의성어', '현장감'), '궁금증 연쇄': ('궁금증 연쇄', '궁금증연쇄'),
+    '생각 풍선': ('생각 풍선', '생각풍선', '속말'), '클라이맥스 예고': ('클라이맥스 예고', '클라이맥스'), '감정 꼬리': ('감정 꼬리', '감정꼬리'),
+    '열린 결말 질문': ('열린 결말', '열린결말'),
+}
+FICTION_DEVICES = {'캐릭터 설정', '빌런', '생각 풍선'}   # 정치 레인 금지(실명 인물은 확인된 사건·발언만)
+MIN_DEVICES = 5
+
+
+def device_names(v):
+    """«반전+비장의 무기(W3④)» → ['반전·비장의 무기'] — 한 칸에 여러 장치를 + 로 적어도 센다."""
+    t = re.sub(r'\([^)]*\)', ' ', str(v or ''))
+    return list(dict.fromkeys(name for name, keys in DEVICES.items() if any(k in t for k in keys)))
+
+
+def judge(plan, sentences, lane='', lang='ko', story=None, enforce=None):
     fails, warns, stats = [], [], {'n': len(sentences)}
+    enforce = (_dt.datetime.now(_dt.timezone.utc) >= ENFORCE_FROM) if enforce is None else enforce
     story = story if story is not None else plan.get('story')
     politics = 'politic' in (lane or '')
     # ① story 객체 · 구조 ID · beats
@@ -209,7 +231,8 @@ def judge(plan, sentences, lane='', lang='ko', story=None):
         nv = new_verbs(turn_t, prev_t) if lang != 'ja' else []
         stats['turn_common'], stats['turn_change'], stats['turn_new_verbs'] = common[:5], change[:3], nv[:3]
         if turn_t.strip() and (not common or not (change or nv)):
-            fails.append('④ turn 이 앞과 다른 상태를 말하지 않음 — ' + ('앞 beat 와 겹치는 낱말 0' if not common else '변화 표지(갑자기·바뀌·~더니·~해버림·바로) 0 · 앞에 없던 새 동사 0'))
+            fails.append('④ turn 이 앞과 다른 상태를 말하지 않음 — ' + ('앞 beat 와 겹치는 낱말 0' if not common else '변화 표지(갑자기·바뀌·~더니·~해버림·바로) 0 · 앞에 없던 새 동사 0') +
+                         ' — beats.turn 문장에 앞 beat 낱말(대상·문제)을 담고 무엇이 바뀌었는지 써라')
     # ⑤ fiction
     fic = story.get('fiction') if isinstance(story.get('fiction'), dict) else plan.get('fiction') if isinstance(plan.get('fiction'), dict) else None
     marks = [s for s in sentences if FICTION_MARK.search(s)]
@@ -223,6 +246,27 @@ def judge(plan, sentences, lane='', lang='ko', story=None):
             nums = [s for s in sentences if NUM_RX.search(s)]
             if nums and not any(plan.get(k) or story.get(k) or fic.get(k) for k in ('facts', 'facts_from_source', 'sources', 'source_refs', '출처')):
                 warns.append(f'⑤ 허구 허용 편에 숫자 문장 {len(nums)}개인데 facts/sources 없음(P8 — 수치·사실은 출처 그대로) 예 «{nums[0][:20]}»')
+    # ⑥ 장치
+    dv = story.get('devices') if isinstance(story.get('devices'), dict) else plan.get('devices') if isinstance(plan.get('devices'), dict) else {}
+    used, unknown, badidx = [], [], []
+    for k, v in dv.items():
+        names = device_names(v)
+        if not names:
+            unknown.append(str(v)[:12])
+        if not (str(k).isdigit() and int(k) < len(sentences)):
+            badidx.append(str(k))
+        used += names
+    used = list(dict.fromkeys(used))
+    stats['devices'] = used
+    if politics and set(used) & FICTION_DEVICES:
+        fails.append(f'⑥ 정치 레인 허구형 장치 {"·".join(sorted(set(used) & FICTION_DEVICES))} — 사실형(훅 질문·궁금증 연쇄·감정 꼬리 등)만')
+    if len(used) < MIN_DEVICES:
+        msg = f'⑥ 장치 {len(used)}개(<{MIN_DEVICES}) — story.devices{{문장 번호: 장치}}에 12종 중 5개 이상(docs/longshort-reset-20261019.md §9)'
+        (fails if enforce else warns).append(msg)
+    if unknown:
+        warns.append(f'⑥ 목록 밖 장치 이름 {"·".join(unknown[:3])}')
+    if badidx:
+        warns.append(f'⑥ 없는 문장 번호 {"·".join(badidx[:3])}')
     verdict = 'FAIL' if fails else 'WARN' if warns else 'PASS'
     return {'verdict': verdict, 'fails': fails, 'warns': warns, 'stats': stats}
 
@@ -259,7 +303,7 @@ def check(arg, field=None, lane='', lang='ko', now=None, enforce=None):
         f, sents = sentences_of(plan, field)
         if not sents:
             raise ValueError(f'원고 문장 없음(--field {field or "/".join(FIELDS)})')
-        r = judge(plan, sents, lane=lane, lang=lang)
+        r = judge(plan, sents, lane=lane, lang=lang, enforce=enforce)
         r.update(field=f, lane=lane, code=4 if r['verdict'] == 'FAIL' else 0)
     except (OSError, ValueError, AttributeError, TypeError, json.JSONDecodeError) as e:
         r = {'verdict': 'ERROR', 'code': 5, 'error': f'검사 불가: {e}', 'fails': [], 'warns': []}

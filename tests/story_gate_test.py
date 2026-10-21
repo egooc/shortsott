@@ -30,6 +30,7 @@ OCTO_STORY = {
     'structure_id': '구출-보은(개입자 시점)',
     'beats': {'situation': OCTO[0], 'stake': OCTO[1], 'attempt': OCTO[4], 'turn': OCTO[8], 'ending': OCTO[11], 'emotion_tail': OCTO[12]},
     'map': ['situation', 'stake', 'stake', 'stake', 'attempt', 'attempt', 'attempt', 'attempt', 'turn', 'turn', 'turn', 'ending', 'emotion_tail'],
+    'devices': {'1': '빌런(상어)', '3': '생각 풍선((큰일났다...))', '7': '시도·실패(파이프 막힘)', '9': '반전+비장의 무기(코코넛 껍질)', '12': '감정 꼬리(안아줌)'},
     'fiction': {'allowed': True, 'devices': ['생각 풍선 «(로봇임)»·«(어디갔어..)»·«(큰일났다...)»·«(ㅠㅠㅠㅠ)»·«뚱땅뚱땅»·«난 아무 말 안했다.. 개입한거 아니다..»', '의인화']},
 }
 RUST = ['녹 범벅 프레임인데 빛만 쏘자 사라졌다', '레이저가 표면을 지나가고 있습니다', '금속 표면이 은색입니다']
@@ -60,15 +61,24 @@ assert any(f.startswith('④') for f in r['fails']), r
 # ⑤ 정치 레인 허구 금지 · 다른 레인 숫자 문장 출처
 r = sg.judge({'story': OCTO_STORY}, OCTO, lane='politics_short')
 assert any(f.startswith('⑤') for f in r['fails']), r
-r = sg.judge({'story': dict(OCTO_STORY, fiction={'allowed': False, 'devices': []})}, OCTO, lane='politics_short')
+FACT_DEV = {'0': '훅 질문', '4': '궁금증 연쇄', '7': '시도·실패', '9': '반전', '12': '감정 꼬리'}
+r = sg.judge({'story': dict(OCTO_STORY, fiction={'allowed': False, 'devices': []}, devices=FACT_DEV)}, OCTO, lane='politics_short')
 assert r['verdict'] == 'PASS', r
+# ⑥ 장치 — 정치 허구형 FAIL · 5개 미만 유예 전 WARN / 뒤 FAIL · 목록 밖 이름 WARN
+r = sg.judge({'story': dict(OCTO_STORY, fiction={'allowed': False, 'devices': []})}, OCTO, lane='politics_short')
+assert any(f.startswith('⑥ 정치') for f in r['fails']), r
+few = dict(OCTO_STORY, devices={'0': '훅 질문', '12': '감정 꼬리', '5': '짤 삽입'})
+r = sg.judge({'story': few}, OCTO, enforce=False)
+assert r['verdict'] == 'WARN' and any(w.startswith('⑥ 장치 2개') for w in r['warns']) and any('목록 밖' in w for w in r['warns']), r
+assert any(f.startswith('⑥ 장치 2개') for f in sg.judge({'story': few}, OCTO, enforce=True)['fails'])
+assert sg.device_names('반전+비장의 무기(일반 방법 vs 다른 방법, W3④)') == ['반전·비장의 무기']
 r = sg.judge({'story': OCTO_STORY}, OCTO[:-1] + ['문어는 3일 뒤에도 그 로봇을 찾아왔음'])
 assert any(w.startswith('⑤') for w in r['warns']), r
 
 # 롱투숏 lx03 꼴 — 한국어 beat 목록 «상황: …» · map 한국어 이름 · 훅
 KO = {'structure_id': 'S6-rescue', 'beats': ['상황: ' + OCTO[0], '위기·욕구: ' + OCTO[1], '시도·실패: ' + OCTO[3], '전환: ' + OCTO[8], '결말: ' + OCTO[11], '감정 꼬리: ' + OCTO[12]],
       'map': {str(i): {'situation': '상황', 'stake': '위기·욕구', 'attempt': '시도·실패', 'turn': '전환', 'ending': '결말', 'emotion_tail': '감정 꼬리'}[b] for i, b in enumerate(OCTO_STORY['map'])},
-      'fiction': {'allowed': True, 'devices': ['의인화']}}
+      'fiction': {'allowed': True, 'devices': ['의인화']}, 'devices': OCTO_STORY['devices']}
 KO['map']['0'] = '훅'
 assert sg.judge({'story': KO}, OCTO)['verdict'] == 'PASS', sg.judge({'story': KO}, OCTO)
 assert sg.split_sentences([{'text': '이 새 부리를 / 왜 사포로 갈아 줄까요'}]) == ['이 새 부리를 왜 사포로 갈아 줄까요']
