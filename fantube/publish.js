@@ -92,7 +92,11 @@ const M = JSON.parse(fs.readFileSync(meta, 'utf8'));
       ? nar.map(t => { const k = Object.keys(sy.map).find(k => t.replace(/\s/g, '').includes(k.replace(/\s/g, '')) || k.replace(/\s/g, '').includes(t.replace(/\s/g, ''))); return k ? sy.map[k] : null; })
       : sy.map;
     const inp = path.join('D:/volcano-runs/fantube', ep, '_story_input.json');
-    fs.writeFileSync(inp, JSON.stringify({ narration: nar, story: S.story ? { ...sy, map: smap } : undefined, fiction: sy.fiction }, null, 2) + '\n', 'utf8');
+    const idx = k => nar.findIndex(t => t.replace(/\s/g, '').includes(k.replace(/\s/g, '')) || k.replace(/\s/g, '').includes(t.replace(/\s/g, '')));
+    const sdev = sy.devices && Object.keys(sy.devices).some(k => isNaN(k))       // story.devices {문장: 장치} → story_gate 가 받는 {문장 번호: 장치}
+      ? Object.fromEntries(Object.entries(sy.devices).map(([k, v]) => [idx(k), v]).filter(([i]) => i >= 0))
+      : sy.devices;
+    fs.writeFileSync(inp, JSON.stringify({ narration: nar, story: S.story ? { ...sy, map: smap, devices: sdev } : undefined, fiction: sy.fiction }, null, 2) + '\n', 'utf8');
     const sg = spawnSync('python', [path.join(ROOT, 'scripts', 'story_gate.py'), inp, '--field', 'narration', '--lane', 'fantube'], { encoding: 'utf8', env: { ...process.env, PYTHONIOENCODING: 'utf-8' } });
     process.stdout.write(sg.stdout || ''); process.stderr.write(sg.stderr || '');
     if (sg.status !== 0) bad.push(`⑦ story_gate exit ${sg.status}${sg.status === 5 ? '(검사 불가)' : ''}`);
