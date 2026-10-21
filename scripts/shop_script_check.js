@@ -8,7 +8,8 @@
 //     narrative_fact: { line: "충에 쓴 서사 팩트 문장", source: "https://… (그 사실을 확인한 곳)" },          // ⑬ G16
 //     person4: { problem: "문제 발견", reaction: "반응", struggle: "삽질(실패·반복)", result: "결과" },   // ⑪ G20 인물형 4박자
 //     story: { structure_id: "가족 불만형 등", beats: { situation, stake, attempt, turn, ending, emotion_tail },   // ⑭ 10-21 소유주 «숏폼도 스토리» — 문장 그대로
-//              map: { "①": "stake", … "⑥": "ending" }, fiction: ["허구 장치 설명", …] }   // 6단 ①~⑥ 이 어느 beat 인지, 허구 장치(없으면 [])
+//              map: { "①": "stake", … "⑥": "ending" }, devices: { "문장 번호 또는 문장": "장치 이름(12종 중)", … 5개 이상 },   // ⑯ 10-21 소유주 «재밌게, 여러 장치» — 목록은 longshort-reset §9
+//              fiction: ["허구 장치 설명", …] }   // 6단 ①~⑥ 이 어느 beat 인지, 허구 장치(없으면 [])
 //   }
 //   meta.human_touch = { before, after, by, at }   // ⑫ 사람이 실제로 고쳤을 때만(선택). 없으면 기계 손질 패스 결과만 △ 로 기록(10-21 관리자)
 // 10-21 관리자(docs/materials-gap-20261021.md G16·G20): ⑩ 대사·⑪ 4박자·⑬ 서사 팩트는 10-23 00:00 KST 부터 시작한 편에 FAIL, 그 전엔 △.
@@ -48,6 +49,8 @@ const MAX_LEN = 30;
 // ⑭ 이야기(10-21 소유주 질책 «화면 해설이 아니라 허구라도 스토리를», 관리자 §7 규칙 5 · devo V1·V5 · 전자책 W10·W12)
 //   공용 story_gate(도구개발)가 나오면 그쪽으로 옮긴다. 그때까지 script_map.story 표시 + 사람 표지로 본다.
 // beat 이름은 공용 story_gate 와 같게(린박스 ac3ab2a plan.story_beats)
+const DEVICES = ['훅 질문','캐릭터 설정','빌런','시도·실패','반전·비장의 무기','금지된 지식','의성어·현장감','궁금증 연쇄','생각 풍선','클라이맥스 예고','감정 꼬리','열린 결말 질문'];   // docs/longshort-reset-20261019.md §9 (10-21 소유주 «원고에는 여러 장치들이 있어야 되고»)
+const MIN_DEVICES = 5;
 const BEATS = ['situation', 'stake', 'attempt', 'turn', 'ending', 'emotion_tail'];
 const PERSON = /(엄마|아빠|남편|아내|언니|오빠|누나|형|동생|딸|아들|시어머니|할머니|할아버지|친구|룸메|이웃|사장님|저는|제가|저도|내가|나는|우리|다들|여러분|그 집|손님|아이|애들)/;
 const MIN_PERSON = 0.4;
@@ -217,6 +220,19 @@ function check(metaPath) {
   if (M.story) gate(noHuman.length > 0, '⑮ 사람 beat', noHuman.length ? `사람 없는 beat: ${noHuman.join(' ')} — 화자·가족·대사로` : '상황·위기·시도 beat 에 사람·대사 있음');
   const pr = n ? segs.filter((x) => PERSON.test(x) || DIALOGUE.test(x)).length / n : 0;
   warn(pr < MIN_PERSON, '⑮ 사람 문장', `${Math.round(pr * 100)}%(권장 ≥${MIN_PERSON * 100}%) — 제품 화면만 말하는 문장 대신 화자·가족·대사`);
+
+  // ⑯ 장치 5개 이상(10-21 소유주 «원고 스토리가 재밌어야 돼, 여러 장치들») — 구조(⑭)는 뼈대, 장치가 재미. 문장은 서로 달라야 하고 장치 이름은 12종 안
+  if (M.story) {
+    const dv = st.devices && typeof st.devices === 'object' && !Array.isArray(st.devices) ? st.devices : {};
+    const used = new Map(), bad = [];
+    for (const [k, v] of Object.entries(dv)) {
+      const dn = DEVICES.find((d) => d === String(v).trim());
+      const idx = /^[0-9]+$/.test(k) ? Number(k) - 1 : find(k);
+      if (!dn) bad.push(`장치 이름 «${v}» 목록 밖`); else if (!(idx >= 0 && idx < n)) bad.push(`«${String(k).slice(0, 20)}» 원고에 없음`); else if (!used.has(idx)) used.set(idx, dn);
+    }
+    const kinds = new Set(used.values()).size;
+    gate(used.size < MIN_DEVICES || kinds < MIN_DEVICES, '⑯ 장치', `${used.size}문장·${kinds}종(≥${MIN_DEVICES})${bad.length ? ' · ' + bad.join(' / ') : ''}${used.size >= MIN_DEVICES && kinds >= MIN_DEVICES ? ' · ' + [...used].map(([i2, d2]) => `${i2 + 1}번 ${d2}`).join(', ') : ''}`);
+  }
 
   // ⑧ 첫 질문 3초
   const T = segStarts(wd, rawSegs);
