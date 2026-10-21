@@ -71,6 +71,10 @@ few = dict(OCTO_STORY, devices={'0': '훅 질문', '12': '감정 꼬리', '5': '
 r = sg.judge({'story': few}, OCTO, enforce=False)
 assert r['verdict'] == 'WARN' and any(w.startswith('⑥ 장치 2개') for w in r['warns']) and any('목록 밖' in w for w in r['warns']), r
 assert any(f.startswith('⑥ 장치 2개') for f in sg.judge({'story': few}, OCTO, enforce=True)['fails'])
+r = sg.judge({'story': dict(OCTO_STORY, devices={'0': ['훅 질문', '궁금증 연쇄'], '1': ['반전', '감정 꼬리', '훅 질문'], '2': '열린 결말'})}, OCTO[:3], enforce=True)
+assert r['stats']['devices'] == ['훅 질문', '궁금증 연쇄', '반전·비장의 무기', '감정 꼬리', '열린 결말 질문'] and not any(f.startswith('⑥') for f in r['fails']), r   # 3문장 편 목록 꼴
+r = sg.judge({'story': dict(OCTO_STORY, fiction={'allowed': False})}, OCTO)
+assert any(f.startswith('⑥ fiction.allowed=false') for f in r['fails']), r
 assert sg.device_names('반전+비장의 무기(일반 방법 vs 다른 방법, W3④)') == ['반전·비장의 무기']
 r = sg.judge({'story': OCTO_STORY}, OCTO[:-1] + ['문어는 3일 뒤에도 그 로봇을 찾아왔음'])
 assert any(w.startswith('⑤') for w in r['warns']), r
