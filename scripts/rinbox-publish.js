@@ -322,22 +322,32 @@ function narrationGate(mp4) {
 }
 
 // 이야기 beat 관문(10-20 소유주 «화면 해설이 아니라 스토리를 입혀야 된다. 창작 글쓰기» · 관리자 §7 규칙 5).
-// plan.story_beats = {situation, stake, attempt, turn, ending, emotion_tail} — 공용 story_gate 이름. 값은 그 beat 의 한 줄(일본어).
-// 린박스 엔진은 plan.arc(situation·conflict·turn·close)를 쓰니 arc 는 그대로 두고 이 칸을 따로 적는다.
-// 공용 story_gate 가 나오면 이 검사를 그 호출로 바꾼다. 10-23(KST) 전엔 경고만, 그 뒤엔 ✗.
-const STORY_BEATS = ['situation', 'stake', 'attempt', 'turn', 'ending', 'emotion_tail'];
-const STORY_STRICT_FROM = Date.parse('2026-10-23T00:00:00+09:00');
+// 공용 scripts/story_gate.py(도구개발 2e986a7)를 부른다 — 사본 금지. 종료 0 PASS·WARN·유예 / 4 FAIL / 5 검사 불가.
+// plan.story = {structure_id, beats:{situation,stake,attempt,turn,ending,emotion_tail}, map:[…], fiction:{allowed:false, devices:[]}}
+//   map 은 [제목, 해설 블록 0, 1, …] 순서의 문장마다 beat 이름 하나. 자막은 전사 그대로라 검사 문장에서 뺀다.
+//   원음 드라마라 허구 장치 없음(fiction.allowed=false). 엔진용 plan.arc 는 그대로 둔다.
+// 문장 배열은 이 관문이 만들어 _render/story_input.json 에 적고 --field story_lines 로 넘긴다.
+// 10-23(KST) 전엔 story_gate 가 FAIL 도 [유예]·0 으로 낸다 — 그 줄은 편 보고에 붙인다.
 function storyGate(mp4, meta) {
+  const out = { fail: [], warn: [], line: '' };
   const planPath = [path.join(path.dirname(mp4), '..', 'plan_local.json'), path.join(path.dirname(mp4), 'plan_local.json')].find((p) => fs.existsSync(p));
-  const p = planPath ? readJson(planPath, {}) : {};
-  const sb = p.story_beats && typeof p.story_beats === 'object' ? p.story_beats : {};
-  const miss = STORY_BEATS.filter((k) => !String(sb[k] || '').trim());
-  const out = { fail: [], warn: [] };
-  const sink = Date.now() >= STORY_STRICT_FROM ? out.fail : out.warn;
-  if (miss.length) sink.push(`plan.story_beats 빈 칸: ${miss.join(', ')}`);
-  // 터진 29편 공통: 제목 12자 이하·한마디 결말형(장면 서술 아님). 길이만 기계로 본다 — 장면 서술인지는 사람 눈.
-  const title = String((meta || {}).title || '').replace(/\s+/g, '');
-  if ([...title].length > 12) out.warn.push(`제목 ${[...title].length}자 — 터진 편은 12자 이하`);
+  if (!planPath) { out.fail.push('plan_local.json 이 없다 — 이야기 구조를 확인할 수 없다'); return out; }
+  const p = readJson(planPath, {});
+  const title = Array.isArray(p.title) ? p.title.join('') : String((meta || {}).title || '');
+  const lines = [title, ...(p.narration || []).map((n) => (n.cards || []).join(''))].filter(Boolean);
+  const input = path.join(path.dirname(mp4), 'story_input.json');
+  fs.writeFileSync(input, JSON.stringify({ story: p.story || null, fiction: (p.story || {}).fiction || p.fiction, story_lines: lines }, null, 2) + '\n', 'utf8');
+  try {
+    out.line = execFileSync('python', ['-I', '-X', 'utf8', path.join(__dirname, 'story_gate.py'), input, '--field', 'story_lines', '--lane', 'rinbox', '--lang', String(meta.locale || 'ja')],
+      { encoding: 'utf8', env: { ...process.env, PYTHONIOENCODING: 'utf-8' } }).trim().split(/\r?\n/).pop();
+    if (/WARN|FAIL|유예/.test(out.line)) out.warn.push(out.line);
+  } catch (e) {
+    const last = String(e.stdout || e.stderr || e.message).trim().split(/\r?\n/).pop();
+    out.fail.push(e.status === 4 ? last : `이야기 검사 불가(종료 ${e.status}): ${last} — 통과 아님`);
+  }
+  // 터진 29편 공통: 제목 12자 이하·한마디 결말형. 길이만 기계로 본다 — 장면 서술인지는 사람 눈.
+  const tl = [...title.replace(/\s+/g, '')].length;
+  if (tl > 12) out.warn.push(`제목 ${tl}자 — 터진 편은 12자 이하`);
   return out;
 }
 
