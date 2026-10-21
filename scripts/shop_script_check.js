@@ -15,7 +15,9 @@
 // 쓰임: node scripts/shop_script_check.js <메타.json>   — 항목별 ✓/✗ 줄을 찍는다(밤 보고서에 그대로 붙인다)
 // 10/20 12:00 KST 전에 시작한 편(<작업폴더>/started_at.txt)은 «구 원고 면제»로 통과시킨다(이미 만든 재고를 막지 않는다).
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
+const { spawnSync } = require('child_process');
 
 const SINCE = Date.parse('2026-10-20T12:00:00+09:00');
 const squash = (s) => String(s || '').replace(/[\s/?？!！.,~…'"«»·:;()]/g, '');
@@ -48,7 +50,6 @@ const MAX_LEN = 30;
 // beat 이름은 공용 story_gate 와 같게(린박스 ac3ab2a plan.story_beats)
 const BEATS = ['situation', 'stake', 'attempt', 'turn', 'ending', 'emotion_tail'];
 const PERSON = /(엄마|아빠|남편|아내|언니|오빠|누나|형|동생|딸|아들|시어머니|할머니|할아버지|친구|룸메|이웃|사장님|저는|제가|저도|내가|나는|우리|다들|여러분|그 집|손님|아이|애들)/;
-const FORMAL_NARR = /(습니다|ㅂ니다|됩니다|합니다)\s*[.!]?$/;
 const MIN_PERSON = 0.4;
 const CPS = 7.0;   // 자막 시각이 없을 때 추정(script_audit 과 같은 ko 7자/초)
 
@@ -197,22 +198,23 @@ function check(metaPath) {
     warn(iH < 0 || squash(ht.before) === squash(ht.after), '⑫ 사람 손질', iH < 0 ? '고친 문장이 원고에 없음' : `${ht.by}: «${ht.before}» → «${ht.after}»`);
   }
 
-  // ⑭ 이야기 6 beat — 상황→위기(욕구)→시도·실패→전환→결말→감정 꼬리, 6단 ①~⑥ 이 beat 에 매핑, 앞 세 beat 는 사람(화자·가족·대사)이 있어야
+  // ⑭ 이야기 — 공용 story_gate.py(도구개발 2e986a7) 그대로 부른다(사본 금지). 시작 시각 기준 유예: 10-23 전 시작 편은 FAIL 도 △
   const st = M.story || {};
+  const sgIn = path.join(os.tmpdir(), `shop_story_${path.basename(metaPath)}`);
+  fs.writeFileSync(sgIn, JSON.stringify({ lane: 'shopping', segments: rawSegs.map((text) => ({ text })), story: M.story || null,
+    facts: [M.narrative_fact, M.social_proof].filter((x) => x && x.source).map((x) => ({ line: x.line, source: x.source })) }, null, 2) + '\n', 'utf8');
+  const sgr = spawnSync('python', [path.join(__dirname, 'story_gate.py'), sgIn, '--field', 'segments', '--json', ...(enforced ? ['--enforce-now'] : [])],
+    { encoding: 'utf8', env: { ...process.env, PYTHONIOENCODING: 'utf-8' } });
+  let sg;
+  try { sg = JSON.parse(String(sgr.stdout).trim().split('\n').pop()); } catch { sg = { verdict: 'ERROR', error: `${sgr.stdout || ''}${sgr.stderr || ''}`.slice(0, 200), fails: [], warns: [] }; }
+  if (sg.verdict === 'ERROR') add(false, '⑭ 이야기(story_gate)', `검사 불가 · ${sg.error}`);
+  else if (sg.verdict === 'FAIL') gate(true, '⑭ 이야기(story_gate)', sg.fails.concat(sg.warns).join(' / '));
+  else warn(sg.verdict === 'WARN', '⑭ 이야기(story_gate)', sg.warns.join(' / ') || `PASS · ${st.structure_id} · ${(sg.stats || {}).n}문장`);
+  // ⑮ 사람의 이야기(쇼핑 레인 몫) — 상황·위기·시도 beat 문장에 화자·가족·대사, 사람·대사 문장 40% 미만 △
   const bt = st.beats || {};
-  const iB = BEATS.map((k) => find(bt[k]));
-  const human = (i) => i >= 0 && (PERSON.test(segs[i]) || DIALOGUE.test(segs[i]));
-  const mapOk = st.map && ['①', '②', '③', '④', '⑤', '⑥'].every((k) => BEATS.includes(st.map[k]));
-  const sErr2 = !M.story ? 'script_map.story 없음' : !st.structure_id ? 'structure_id 없음(W12 구조 ID)'
-    : iB.some((x) => x < 0) ? `원고에 없는 beat: ${BEATS.filter((k, i) => iB[i] < 0).join(',')}`
-      : !iB.every((x, i) => i === 0 || x >= iB[i - 1]) ? `beat 순서 어긋남(${iB.map((x) => x + 1).join('→')})`
-        : !mapOk ? 'map 이 6단 ①~⑥ 을 beat 이름으로 다 잇지 않음'
-          : !Array.isArray(st.fiction) ? 'fiction 배열 없음(허구 장치 없으면 [])'
-            : [0, 1, 2].some((k) => !human(iB[k])) ? `사람 없는 beat: ${[0, 1, 2].filter((k) => !human(iB[k])).map((k) => `${BEATS[k]} «${segs[iB[k]]}»`).join(' ')} — 화자·가족·대사로` : '';
-  gate(!!sErr2, '⑭ 이야기', sErr2 || `${st.structure_id} · ${BEATS.map((k, i) => `${k} ${iB[i] + 1}`).join(' → ')} · 허구 ${st.fiction.length ? st.fiction.join('/') : '없음'}`);
-  // ⑮ 화면 서술 금지 — «~합니다» 해설체 FAIL(10-23부터) · 사람·대사 문장 40% 미만 △
-  const formal = segs.filter((x) => !DIALOGUE.test(x) && FORMAL_NARR.test(x));
-  if (formal.length) gate(true, '⑮ 화면 서술', `해설체 ${formal.map((x) => `«${x}»`).join(' ')} — 사람의 이야기로`);
+  const iB = BEATS.slice(0, 3).map((k) => find(Array.isArray(bt[k]) ? bt[k][0] : bt[k]));
+  const noHuman = iB.map((x, k) => (x >= 0 && !(PERSON.test(segs[x]) || DIALOGUE.test(segs[x])) ? `${BEATS[k]} «${segs[x]}»` : null)).filter(Boolean);
+  if (M.story) gate(noHuman.length > 0, '⑮ 사람 beat', noHuman.length ? `사람 없는 beat: ${noHuman.join(' ')} — 화자·가족·대사로` : '상황·위기·시도 beat 에 사람·대사 있음');
   const pr = n ? segs.filter((x) => PERSON.test(x) || DIALOGUE.test(x)).length / n : 0;
   warn(pr < MIN_PERSON, '⑮ 사람 문장', `${Math.round(pr * 100)}%(권장 ≥${MIN_PERSON * 100}%) — 제품 화면만 말하는 문장 대신 화자·가족·대사`);
 
