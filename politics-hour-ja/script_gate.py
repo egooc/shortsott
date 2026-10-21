@@ -131,6 +131,43 @@ def shorts_struct_errors(ep, only=None, quiet=False):
     return bad
 
 
+def story_sentences(sh):
+    """쇼츠 beats → (문장, beat 매핑) — 해설 nar·원음 text·반응 컷 위 line 순서대로. 매핑은 칸의 sb(이야기 beat 이름)."""
+    sents, mp = [], []
+    for b in sh.get('beats', []):
+        t = (b.get('nar') or b.get('text') or b.get('line') or '').replace('\n', ' ').strip()
+        if t:
+            sents.append(t)
+            mp.append(b.get('sb') or '')
+    return sents, mp
+
+
+def story_lines(ep, only=None, enforce=None):
+    """공용 scripts/story_gate.judge 를 import(관리자 10-21 §7 규칙 5 «숏폼 원고 = 창작 글쓰기, 화면 해설 금지»): 쇼츠 항목마다
+    story{structure_id, beats{situation·stake·attempt·turn·ending·emotion_tail}, fiction{allowed:false}} + 칸마다 sb(문장→beat).
+    정치라 허구 장치 FAIL(실명 인물은 확인된 사건·발언만). 10-23 00:00 KST 전에는 FAIL 도 유예. → (FAIL 목록, 출력 줄 목록)"""
+    sys.path.insert(0, str(ROOT / 'scripts'))
+    import datetime as dt
+    import story_gate
+    enforce = dt.datetime.now(dt.timezone.utc) >= story_gate.ENFORCE_FROM if enforce is None else enforce
+    plan = ep / 'shorts' / 'plan.json'
+    bad, out = [], []
+    for sh in (json.loads(plan.read_text(encoding='utf-8')).get('shorts', []) if plan.exists() else []):
+        if only and sh['id'] != only:
+            continue
+        sents, mp = story_sentences(sh)
+        story = dict(sh.get('story') or {})
+        if story and not story.get('map'):
+            story['map'] = mp
+        r = story_gate.judge({**sh, 'story': story} if story else sh, sents, lane='politics_short', lang='ja')
+        why = ' / '.join(r['fails'] + r['warns']) or f'구조·매핑·전환 통과({r["stats"]["n"]}문장, 묘사형 {r["stats"]["descriptive"]})'
+        pre = '' if enforce or r['verdict'] != 'FAIL' else '[유예 ~10-23] '
+        out.append(f'[관문] {pre}story: {r["verdict"]} · {why} · 쇼츠 {sh["id"]}')
+        if r['verdict'] == 'FAIL' and enforce:
+            bad.append(f'쇼츠 {sh["id"]}: story FAIL — {" / ".join(r["fails"])}')
+    return bad, out
+
+
 sys.path.insert(0, str(ROOT / 'politics-hour'))
 import candidate_gate   # noqa: E402  ko 후보표 관문(28ca994) 그대로
 
@@ -170,6 +207,10 @@ def main():
             bad += sb
             if not sb and (ep / 'shorts' / 'plan.json').exists():
                 print('[script-ja] PASS 쇼츠 주고받기 구조(공격·반응·대응, 연속 ≤12초)')
+            stb, stl = story_lines(ep)   # 쇼츠 이야기 구조(§7 규칙 5, 10-23 전 유예)
+            bad += stb
+            for l in stl:
+                print(l)
         if candidate_gate.ep_date(ep) >= FROM or '--audit' in sys.argv:
             ab, al = audit_lines(ep)
             bad += ab

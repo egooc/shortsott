@@ -145,6 +145,12 @@ if script_gate.candidate_gate.ep_date(ep, sys.argv[2:]) >= script_gate.FROM:   #
     bad += _sb
     if not _sb:
         print('[gate-ja] PASS 쇼츠 주고받기 구조(공격·반응·대응, 연속 ≤12초)')
+    for _u in [u for u in sys.argv[2:] if '/shorts/' in u.replace(chr(92), '/')]:   # 쇼츠 이야기 구조(공용 story_gate, §7 규칙 5 · 10-23 전 유예)
+        _sid = Path(_u).parent.name   # shorts/<id>/upload.json
+        _stb, _stl = script_gate.story_lines(ep, only=_sid)
+        bad += _stb
+        for _l in _stl:
+            print('[gate-ja]', _l)
     _ab, _al = script_gate.audit_lines(ep)   # 공용 원고 검수표 devo V1·V3·V12·V14(관리자 10-20) — ko 관문 경로는 임시 폴더라 안 돈다
     bad += _ab
     for _l in _al:
