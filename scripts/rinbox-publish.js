@@ -321,6 +321,26 @@ function narrationGate(mp4) {
   return bad;
 }
 
+// 이야기 beat 관문(10-20 소유주 «화면 해설이 아니라 스토리를 입혀야 된다. 창작 글쓰기» · 관리자 §7 규칙 5).
+// plan.story_beats = {situation, stake, attempt, turn, ending, emotion_tail} — 공용 story_gate 이름. 값은 그 beat 의 한 줄(일본어).
+// 린박스 엔진은 plan.arc(situation·conflict·turn·close)를 쓰니 arc 는 그대로 두고 이 칸을 따로 적는다.
+// 공용 story_gate 가 나오면 이 검사를 그 호출로 바꾼다. 10-23(KST) 전엔 경고만, 그 뒤엔 ✗.
+const STORY_BEATS = ['situation', 'stake', 'attempt', 'turn', 'ending', 'emotion_tail'];
+const STORY_STRICT_FROM = Date.parse('2026-10-23T00:00:00+09:00');
+function storyGate(mp4, meta) {
+  const planPath = [path.join(path.dirname(mp4), '..', 'plan_local.json'), path.join(path.dirname(mp4), 'plan_local.json')].find((p) => fs.existsSync(p));
+  const p = planPath ? readJson(planPath, {}) : {};
+  const sb = p.story_beats && typeof p.story_beats === 'object' ? p.story_beats : {};
+  const miss = STORY_BEATS.filter((k) => !String(sb[k] || '').trim());
+  const out = { fail: [], warn: [] };
+  const sink = Date.now() >= STORY_STRICT_FROM ? out.fail : out.warn;
+  if (miss.length) sink.push(`plan.story_beats 빈 칸: ${miss.join(', ')}`);
+  // 터진 29편 공통: 제목 12자 이하·한마디 결말형(장면 서술 아님). 길이만 기계로 본다 — 장면 서술인지는 사람 눈.
+  const title = String((meta || {}).title || '').replace(/\s+/g, '');
+  if ([...title].length > 12) out.warn.push(`제목 ${[...title].length}자 — 터진 편은 12자 이하`);
+  return out;
+}
+
 // 롱투숏(work longshort-*) — 위 관문들은 린박스 plan_local.json 형식이라 롱투숏 plan.json 에선 구조상 못 돈다.
 // 롱투숏 관문은 publish_ko.sh(plan_gate·title_check·tag_gate·comment_hook·comment_gate·guide·P1)가 먼저 돌린다.
 // 건너뛰기가 아니라 «그쪽 관문 통과 증거 확인»(10-20 관리자): mp4 옆 gates_ok.json(publish_ko.sh 가 쓴다)
@@ -426,6 +446,10 @@ function cmdApprove(mp4Arg, revoke) {
   const nw = narrationGate(mp4);
   if (nw.length) { console.log(nw.map((l) => `  ✗ 해설: ${l}`).join('\n')); throw new Error('해설 문장 관문에서 막혔다 — 첫 해설은 행동으로·끝 해설은 평가 없이·nar4 는 숫자 1개'); }
   console.log('해설 문장 관문 · 통과');
+  const sg = storyGate(mp4, meta);
+  if (sg.warn.length) console.log(sg.warn.map((l) => `  ! 이야기: ${l}`).join('\n'));
+  if (sg.fail.length) { console.log(sg.fail.map((l) => `  ✗ 이야기: ${l}`).join('\n')); throw new Error('이야기 beat 관문에서 막혔다 — plan.story_beats 여섯 칸'); }
+  console.log('이야기 beat 관문 · ' + (sg.warn.length ? '경고' : '통과'));
   const tw = titleGate(mp4, meta);
   if (tw.length) { console.log(tw.map((l) => `  ✗ 제목: ${l}`).join('\n')); throw new Error('제목 관문에서 막혔다 — 10패턴 중 하나로 고치고 plan.title_pattern 을 적어라'); }
   console.log('제목 관문 · 통과');
@@ -661,6 +685,9 @@ async function cmdPublish(mp4Arg, args) {
   const nwp = narrationGate(mp4);
   if (nwp.length) throw new Error(`해설 문장 관문: ${nwp.join(' / ')} — 발행 중단`);
   lines.push('- 해설 문장 관문 통과');
+  const sgp = storyGate(mp4, meta);
+  if (sgp.fail.length) throw new Error(`이야기 beat 관문: ${sgp.fail.join(' / ')} — 발행 중단`);
+  lines.push(sgp.warn.length ? `- 이야기 beat 관문 경고: ${sgp.warn.join(' / ')}` : '- 이야기 beat 관문 통과');
   const twp = titleGate(mp4, meta);
   if (twp.length) throw new Error(`제목 관문: ${twp.join(' / ')} — 발행 중단`);
   lines.push('- 제목 관문 통과');
