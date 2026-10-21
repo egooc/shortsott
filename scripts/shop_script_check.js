@@ -7,8 +7,8 @@
 //     rebut: "반박 선제 질문 문장", social_proof: { line: "사회적 증거 문장", source: "https://… (쿠팡 페이지 등 확인한 곳)" },
 //     narrative_fact: { line: "충에 쓴 서사 팩트 문장", source: "https://… (그 사실을 확인한 곳)" },          // ⑬ G16
 //     person4: { problem: "문제 발견", reaction: "반응", struggle: "삽질(실패·반복)", result: "결과" },   // ⑪ G20 인물형 4박자
-//     story: { structure_id: "가족 불만형 등", beats: { situation, crisis, attempt_fail, turn, ending, tail },   // ⑭ 10-21 소유주 «숏폼도 스토리» — 문장 그대로
-//              map: { "①": "crisis", … "⑥": "ending" }, fiction: ["허구 장치 설명", …] }   // 6단 ①~⑥ 이 어느 beat 인지, 허구 장치(없으면 [])
+//     story: { structure_id: "가족 불만형 등", beats: { situation, stake, attempt, turn, ending, emotion_tail },   // ⑭ 10-21 소유주 «숏폼도 스토리» — 문장 그대로
+//              map: { "①": "stake", … "⑥": "ending" }, fiction: ["허구 장치 설명", …] }   // 6단 ①~⑥ 이 어느 beat 인지, 허구 장치(없으면 [])
 //   }
 //   meta.human_touch = { before, after, by, at }   // ⑫ 사람이 실제로 고쳤을 때만(선택). 없으면 기계 손질 패스 결과만 △ 로 기록(10-21 관리자)
 // 10-21 관리자(docs/materials-gap-20261021.md G16·G20): ⑩ 대사·⑪ 4박자·⑬ 서사 팩트는 10-23 00:00 KST 부터 시작한 편에 FAIL, 그 전엔 △.
@@ -45,7 +45,8 @@ const TRANSLATIONESE = /(에 있어서|[을를] 통해|에 의해|에 의한|하
 const MAX_LEN = 30;
 // ⑭ 이야기(10-21 소유주 질책 «화면 해설이 아니라 허구라도 스토리를», 관리자 §7 규칙 5 · devo V1·V5 · 전자책 W10·W12)
 //   공용 story_gate(도구개발)가 나오면 그쪽으로 옮긴다. 그때까지 script_map.story 표시 + 사람 표지로 본다.
-const BEATS = ['situation', 'crisis', 'attempt_fail', 'turn', 'ending', 'tail'];
+// beat 이름은 공용 story_gate 와 같게(린박스 ac3ab2a plan.story_beats)
+const BEATS = ['situation', 'stake', 'attempt', 'turn', 'ending', 'emotion_tail'];
 const PERSON = /(엄마|아빠|남편|아내|언니|오빠|누나|형|동생|딸|아들|시어머니|할머니|할아버지|친구|룸메|이웃|사장님|저는|제가|저도|내가|나는|우리|다들|여러분|그 집|손님|아이|애들)/;
 const FORMAL_NARR = /(습니다|ㅂ니다|됩니다|합니다)\s*[.!]?$/;
 const MIN_PERSON = 0.4;
