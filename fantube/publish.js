@@ -82,24 +82,21 @@ const M = JSON.parse(fs.readFileSync(meta, 'utf8'));
     if (new Date() >= new Date('2026-10-23T00:00:00+09:00')) bad.push(...g22);
     else console.warn(`[publish] △ 꽉갈이 G22(10/23부터 FAIL) — ${g22.join(' / ')}`);
   }
-  // 이야기 원고(10/21 소유주 질책 «화면 해설 말고 허구라도 스토리», RULES_PDF 30항) — 공용 story_gate 나오면 그쪽 import.
-  // spec.story = {structure_id, beats:[{id,text}]×6(setup·want·try·turn·end·tail, 20~30초라 합쳐도 됨), map:{문장:beat id}, fiction:{allowed, devices}}
-  // turn·tail 은 각각 우리 문장 1개 이상이 map 으로 붙어야 한다. 화면 서술(«~하고 있다·~하는 모습») 금지. 10/23 부터 exit 5.
-  const st = [];
-  const sy = S.story || {};
-  const BEATS = ['setup', 'want', 'try', 'turn', 'end', 'tail'];
-  const bids = (sy.beats || []).map(b => b.id);
-  if (!sy.structure_id) st.push('⑦ story.structure_id 없음');
-  for (const b of BEATS) if (!bids.includes(b)) st.push(`⑦ story.beats «${b}» 없음`);
-  const mapped = Object.values(sy.map || {});
-  for (const b of ['turn', 'tail']) if (!mapped.includes(b)) st.push(`⑦ story.map — «${b}» 에 붙은 문장 0(전환·감정 꼬리는 1문장씩 필수)`);
-  for (const k of Object.keys(sy.map || {})) if (!ours.some(x => x.text.replace(/\s/g, '').includes(k.replace(/\s/g, '')))) st.push(`⑦ story.map 문장 «${k}» 이 원고(TTS·우리 자막)에 없음`);
-  for (const x of ours) if (/하고\s?있다|하고\s?있는|모습이다|모습을\s?보|웃고\s?있|보이는\s?장면/.test(x.text)) st.push(`⑦ 화면 서술 «${x.text}» — 이야기 문장으로`);
-  if (!sy.fiction || typeof sy.fiction.allowed !== 'boolean') st.push('⑦ story.fiction {allowed, devices} 없음');
-  if (st.length) {
-    if (new Date() >= new Date('2026-10-23T00:00:00+09:00')) bad.push(...st);
-    else console.warn(`[publish] △ 이야기 원고(10/23부터 FAIL) — ${st.join(' / ')}`);
-  } else console.log(`✓ 이야기 원고 ${sy.structure_id} · ${(sy.beats || []).map(b => `${b.id}:${b.text}`).join(' | ')}`);
+  // 이야기 원고(10/21 소유주 질책 «화면 해설 말고 허구라도 스토리», RULES_PDF 30항) — 공용 scripts/story_gate.py(도구개발 2e986a7) 그대로.
+  // 원고 문장 = 우리 문장(TTS + 원음 인용 아닌 자막, 시각순) → <ep>/_story_input.json 의 narration. spec.story.map 은 {문장: beat} 로 적고 여기서 순번으로 바꾼다.
+  // 종료 4(FAIL) → 업로드 금지(10/23 전엔 story_gate 가 [유예]·0), 5(검사 불가) → 금지. 결과 줄은 편 보고에 그대로.
+  {
+    const sy = S.story || {};
+    const nar = ours.map(x => x.text);
+    const smap = sy.map && !Array.isArray(sy.map) && isNaN(Object.keys(sy.map)[0])
+      ? nar.map(t => { const k = Object.keys(sy.map).find(k => t.replace(/\s/g, '').includes(k.replace(/\s/g, '')) || k.replace(/\s/g, '').includes(t.replace(/\s/g, ''))); return k ? sy.map[k] : null; })
+      : sy.map;
+    const inp = path.join('D:/volcano-runs/fantube', ep, '_story_input.json');
+    fs.writeFileSync(inp, JSON.stringify({ narration: nar, story: S.story ? { ...sy, map: smap } : undefined, fiction: sy.fiction }, null, 2) + '\n', 'utf8');
+    const sg = spawnSync('python', [path.join(ROOT, 'scripts', 'story_gate.py'), inp, '--field', 'narration', '--lane', 'fantube'], { encoding: 'utf8', env: { ...process.env, PYTHONIOENCODING: 'utf-8' } });
+    process.stdout.write(sg.stdout || ''); process.stderr.write(sg.stderr || '');
+    if (sg.status !== 0) bad.push(`⑦ story_gate exit ${sg.status}${sg.status === 5 ? '(검사 불가)' : ''}`);
+  }
   if (!(S.caps || []).some(x => x.style === 'en')) console.warn('[publish] △ 영어 자막 1줄 없음(G22 ⑥, 템플릿 지원 뒤 FAIL)');
   if (bad.length) {
     console.error(`\x07[publish] ★FAIL 기획 게이트 — ${bad.join(' / ')}. 업로드 안 함.`);
