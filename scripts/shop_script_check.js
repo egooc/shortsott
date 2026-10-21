@@ -6,7 +6,9 @@
 //     gyeol: "결 문장", chung: "충 문장", jeon: "전 문장",
 //     rebut: "반박 선제 질문 문장", social_proof: { line: "사회적 증거 문장", source: "https://… (쿠팡 페이지 등 확인한 곳)" },
 //     narrative_fact: { line: "충에 쓴 서사 팩트 문장", source: "https://… (그 사실을 확인한 곳)" },          // ⑬ G16
-//     person4: { problem: "문제 발견", reaction: "반응", struggle: "삽질(실패·반복)", result: "결과" }   // ⑪ G20 인물형 4박자
+//     person4: { problem: "문제 발견", reaction: "반응", struggle: "삽질(실패·반복)", result: "결과" },   // ⑪ G20 인물형 4박자
+//     story: { structure_id: "가족 불만형 등", beats: { situation, crisis, attempt_fail, turn, ending, tail },   // ⑭ 10-21 소유주 «숏폼도 스토리» — 문장 그대로
+//              map: { "①": "crisis", … "⑥": "ending" }, fiction: ["허구 장치 설명", …] }   // 6단 ①~⑥ 이 어느 beat 인지, 허구 장치(없으면 [])
 //   }
 //   meta.human_touch = { before, after, by, at }   // ⑫ 사람이 실제로 고쳤을 때만(선택). 없으면 기계 손질 패스 결과만 △ 로 기록(10-21 관리자)
 // 10-21 관리자(docs/materials-gap-20261021.md G16·G20): ⑩ 대사·⑪ 4박자·⑬ 서사 팩트는 10-23 00:00 KST 부터 시작한 편에 FAIL, 그 전엔 △.
@@ -37,10 +39,16 @@ const DIALOGUE = /["“”「」『』]/;
 const MIN_DIALOGUE = 0.15;
 // ⑪ 삽질 표지(실패·반복)와 고난 크기(횟수·시간·숫자)
 const STRUGGLE = /(안 (돼|됐|되|빠|지워|떨어)|실패|소용(이)? ?없|그대로|또 |다시|몇 번|매번|포기|버렸|헛수고|못 (했|하|버))/;
-const HARDSHIP = /([0-9]|몇 번|매번|며칠|몇 시간|한 시간|내내|매일|수십|수백|평생|한참)/;
+const HARDSHIP = /([0-9]|(몇|두|세|네|열) 번|매번|며칠|몇 시간|한 시간|내내|매일|수십|수백|평생|한참)/;
 // ⑫ 손질 패스 — 번역투 표지·문장 길이 상한
 const TRANSLATIONESE = /(에 있어서|[을를] 통해|에 의해|에 의한|하는 것이 (가능|필요)|되어지|되어진|의 경우|함에 따라|하도록 하|것으로 보|를 가지고 있|을 가지고 있)/;
 const MAX_LEN = 30;
+// ⑭ 이야기(10-21 소유주 질책 «화면 해설이 아니라 허구라도 스토리를», 관리자 §7 규칙 5 · devo V1·V5 · 전자책 W10·W12)
+//   공용 story_gate(도구개발)가 나오면 그쪽으로 옮긴다. 그때까지 script_map.story 표시 + 사람 표지로 본다.
+const BEATS = ['situation', 'crisis', 'attempt_fail', 'turn', 'ending', 'tail'];
+const PERSON = /(엄마|아빠|남편|아내|언니|오빠|누나|형|동생|딸|아들|시어머니|할머니|할아버지|친구|룸메|이웃|사장님|저는|제가|저도|내가|나는|우리|다들|여러분|그 집|손님|아이|애들)/;
+const FORMAL_NARR = /(습니다|ㅂ니다|됩니다|합니다)\s*[.!]?$/;
+const MIN_PERSON = 0.4;
 const CPS = 7.0;   // 자막 시각이 없을 때 추정(script_audit 과 같은 ko 7자/초)
 
 // 문장(segment) 시작 시각 — <작업폴더>/_ff/cap.ass 의 Cap 줄(plan 문장을 « / » 로 나눈 조각)에서 찾는다. 못 찾으면 글자 수로 추정.
@@ -187,6 +195,25 @@ function check(metaPath) {
     const iH = find(ht.after);
     warn(iH < 0 || squash(ht.before) === squash(ht.after), '⑫ 사람 손질', iH < 0 ? '고친 문장이 원고에 없음' : `${ht.by}: «${ht.before}» → «${ht.after}»`);
   }
+
+  // ⑭ 이야기 6 beat — 상황→위기(욕구)→시도·실패→전환→결말→감정 꼬리, 6단 ①~⑥ 이 beat 에 매핑, 앞 세 beat 는 사람(화자·가족·대사)이 있어야
+  const st = M.story || {};
+  const bt = st.beats || {};
+  const iB = BEATS.map((k) => find(bt[k]));
+  const human = (i) => i >= 0 && (PERSON.test(segs[i]) || DIALOGUE.test(segs[i]));
+  const mapOk = st.map && ['①', '②', '③', '④', '⑤', '⑥'].every((k) => BEATS.includes(st.map[k]));
+  const sErr2 = !M.story ? 'script_map.story 없음' : !st.structure_id ? 'structure_id 없음(W12 구조 ID)'
+    : iB.some((x) => x < 0) ? `원고에 없는 beat: ${BEATS.filter((k, i) => iB[i] < 0).join(',')}`
+      : !iB.every((x, i) => i === 0 || x >= iB[i - 1]) ? `beat 순서 어긋남(${iB.map((x) => x + 1).join('→')})`
+        : !mapOk ? 'map 이 6단 ①~⑥ 을 beat 이름으로 다 잇지 않음'
+          : !Array.isArray(st.fiction) ? 'fiction 배열 없음(허구 장치 없으면 [])'
+            : [0, 1, 2].some((k) => !human(iB[k])) ? `사람 없는 beat: ${[0, 1, 2].filter((k) => !human(iB[k])).map((k) => `${BEATS[k]} «${segs[iB[k]]}»`).join(' ')} — 화자·가족·대사로` : '';
+  gate(!!sErr2, '⑭ 이야기', sErr2 || `${st.structure_id} · ${BEATS.map((k, i) => `${k} ${iB[i] + 1}`).join(' → ')} · 허구 ${st.fiction.length ? st.fiction.join('/') : '없음'}`);
+  // ⑮ 화면 서술 금지 — «~합니다» 해설체 FAIL(10-23부터) · 사람·대사 문장 40% 미만 △
+  const formal = segs.filter((x) => !DIALOGUE.test(x) && FORMAL_NARR.test(x));
+  if (formal.length) gate(true, '⑮ 화면 서술', `해설체 ${formal.map((x) => `«${x}»`).join(' ')} — 사람의 이야기로`);
+  const pr = n ? segs.filter((x) => PERSON.test(x) || DIALOGUE.test(x)).length / n : 0;
+  warn(pr < MIN_PERSON, '⑮ 사람 문장', `${Math.round(pr * 100)}%(권장 ≥${MIN_PERSON * 100}%) — 제품 화면만 말하는 문장 대신 화자·가족·대사`);
 
   // ⑧ 첫 질문 3초
   const T = segStarts(wd, rawSegs);
