@@ -131,6 +131,10 @@ def shorts_struct_errors(ep, only=None, quiet=False):
     return bad
 
 
+FACT_DEVICES = ('훅 질문', '시도·실패', '반전·비장의 무기', '금지된 지식', '의성어·현장감', '궁금증 연쇄', '클라이맥스 예고', '감정 꼬리', '열린 결말 질문')
+FICTION_DEVICES = ('캐릭터 설정', '빌런(반대자)', '빌런', '생각 풍선')
+
+
 def story_sentences(sh):
     """쇼츠 beats → (문장, beat 매핑) — 해설 nar·원음 text·반응 컷 위 line 순서대로. 매핑은 칸의 sb(이야기 beat 이름)."""
     sents, mp = [], []
@@ -160,6 +164,14 @@ def story_lines(ep, only=None, enforce=None):
         if story and not story.get('map'):
             story['map'] = mp
         r = story_gate.judge({**sh, 'story': story} if story else sh, sents, lane='politics_short', lang='ja')
+        dv = story.get('devices') or {}   # 장치 {문장 번호: 장치}(longshort-reset §9, 관리자 10-21) — 정치는 사실형만
+        dv = dv if isinstance(dv, dict) else dict(enumerate(dv))
+        fic = [d for d in dv.values() if d in FICTION_DEVICES]
+        if fic:
+            r['fails'].append(f'허구형 장치 {"·".join(fic)} — 정치는 사실형({"·".join(FACT_DEVICES)})만'); r['verdict'] = 'FAIL'
+        if len(set(dv.values()) - set(FICTION_DEVICES)) < 5:
+            r['warns'].append(f'장치 {len(set(dv.values()) - set(FICTION_DEVICES))}종 < 5 (story.devices)')
+            r['verdict'] = 'WARN' if r['verdict'] == 'PASS' else r['verdict']
         why = ' / '.join(r['fails'] + r['warns']) or f'구조·매핑·전환 통과({r["stats"]["n"]}문장, 묘사형 {r["stats"]["descriptive"]})'
         pre = '' if enforce or r['verdict'] != 'FAIL' else '[유예 ~10-23] '
         out.append(f'[관문] {pre}story: {r["verdict"]} · {why} · 쇼츠 {sh["id"]}')
