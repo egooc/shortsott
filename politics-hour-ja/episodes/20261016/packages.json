@@ -324,13 +324,31 @@
   "purpose": "politics_ja",
   "loop": {
     "note": "관리자 10-20 18:2x «ko 와 같은 루프» — 4h 마다 +50(LOOP_FEED) 없으면 다음 묶음, 머리 = 첫 60초 안 인물(高市 0–6·16–24.6초, 岡本 11.2–16초) + 본인 한마디 — 상대 인물. 제도 명사 머리 0, title_check politics_ja 경고 0, guide_words 0. 옛 packages(3·4번 제도 명사 머리)는 안 씀",
-    "thumb_now": "politics-hour-ja/episodes/20261016/thumb/thumb_q.jpg",
+    "thumb_now": "politics-hour-ja/episodes/20261016/thumb/thumb_vs_g.jpg",
     "applied": [
       {
         "idx": 0,
         "at": "2026-10-20T09:00:01.127Z",
         "views": 0,
         "note": "24h 자동 교체로 걸린 포장 2번 — 판정 시계 이 시점부터"
+      },
+      {
+        "idx": 1,
+        "at": "2026-10-20T13:15:12.721Z",
+        "views": 0,
+        "from": "「援用する余地はもはやない」高市総理と旧敵国条項",
+        "result": {
+          "gain": 0,
+          "hrs": 4,
+          "rate": 0,
+          "ended": "2026-10-20T17:15:03.921Z"
+        }
+      },
+      {
+        "idx": 2,
+        "at": "2026-10-20T17:15:10.102Z",
+        "views": 0,
+        "from": "高市総理「1%であれば…令和9年4月から実施可能」— 岡本議員「苦しいのはいまです」"
       }
     ],
     "packages": [
@@ -512,6 +530,16 @@
         },
         "_i": 2
       }
-    ]
+    ],
+    "streak": 0,
+    "stopped": {
+      "at": "2026-10-21T09:00:31Z",
+      "why": "결정 입력지 A3 ① — +48h 데이터 API 조회 0, 1편 비공개(삭제 아님), 이 채널 업로드 중단",
+      "state_before": {
+        "idx": 2,
+        "thumb": "politics-hour-ja/episodes/20261016/thumb/thumb_vs_g.jpg",
+        "privacy": "public"
+      }
+    }
   }
 }
