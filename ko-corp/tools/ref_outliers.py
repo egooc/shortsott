@@ -75,11 +75,36 @@ def long_videos(cid):
     return out
 
 
+def search(q):
+    """레퍼런스 9채널 밖까지: 검색 상위 롱폼마다 그 채널 중앙값을 재서 배수를 붙인다(search 100단위 + 채널당 몇 단위)."""
+    cut = (datetime.date.today() - datetime.timedelta(days=3)).isoformat()
+    items = api('search', 100, part='snippet', type='video', q=q, maxResults=25, regionCode='KR', relevanceLanguage='ko', videoDuration='long').get('items', [])
+    items += api('search', 100, part='snippet', type='video', q=q, maxResults=25, regionCode='KR', relevanceLanguage='ko', videoDuration='medium').get('items', [])
+    meds, rows = {}, []
+    for it in items:
+        cid = it['snippet']['channelId']
+        if cid not in meds:
+            vs = long_videos(cid)
+            base = [v['views'] for v in vs if v['at'] <= cut][:30]
+            meds[cid] = (statistics.median(base) if base else 0, {v['id']: v for v in vs})
+        med, vs = meds[cid]
+        v = vs.get(it['id']['videoId'])
+        if v and med:
+            rows.append(dict(v, channel=it['snippet']['channelTitle'], median=med, ratio=round(v['views'] / med, 1)))
+    rows.sort(key=lambda v: -v['ratio'])
+    print(f'검색 «{q}» 롱폼 {len(rows)}편 · API {units}단위')
+    for v in rows:
+        print(f'×{v["ratio"]:<5} {v["min"]:>3}분 {v["views"]:>9,} {v["channel"]} {v["at"]} {v["id"]} {v["title"]}')
+
+
 def main():
     global KEY
     if hasattr(sys.stdout, 'reconfigure'):
         sys.stdout.reconfigure(encoding='utf-8')
     KEY = key()
+    if '--search' in sys.argv:   # python ko-corp/tools/ref_outliers.py --search "진로그룹"
+        search(sys.argv[sys.argv.index('--search') + 1])
+        return
     words = sys.argv[sys.argv.index('--grep') + 1:] if '--grep' in sys.argv else []
     cut = (datetime.date.today() - datetime.timedelta(days=3)).isoformat()
     res = {'at': datetime.datetime.now().isoformat(timespec='minutes'), 'channels': [], 'outliers': [], 'grep': []}
