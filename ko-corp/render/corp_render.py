@@ -30,7 +30,7 @@ import nenkin_render as R  # noqa: E402  판·시계·하이퍼프레임 렌더 
 from ko_say import say  # noqa: E402
 
 FPS = 30
-CODE = '2026-10-22m'   # m: 움직임 개편(줌 1.20·컷 10초·표 배경 이동) · b: 판 글씨 키움(미리보기 1차)
+CODE = '2026-10-22n'   # n: 레퍼런스 경제꽈배기 실측(줌 1.12·컷 9초·표 1.06) · m: 움직임 개편 · b: 판 글씨 키움(미리보기 1차)
 SUPERTONIC = {'python': 'D:/midform/tts-lab/supertonic/.venv/Scripts/python.exe', 'dir': 'D:/midform/tts-lab/supertonic',
               'voice': 'F2', 'speed': 1.02, 'steps': 8, 'gap': 0.45, 'lang': 'ko', 'num_reading': False}
 WORKER = ROOT / 'ja-nenkin' / 'render' / 'supertonic_worker.py'      # lang 키를 받는 판(정치 원본은 ko 고정) — import 경로만
@@ -302,10 +302,10 @@ def hf_render(folder, out, fmt):
 
 
 MOVES = ['in', 'right', 'out', 'left']
-# 움직임(소유주 10-22 «영상이 움직이질 않아», 관리자 수치): 줌 1.00↔1.20 · 옆 이동 화면 폭 15%(≥12%) · 장면마다 방향 교대
-ZOOM, PAN_Z = (1.0, 1.20), 1.18            # 옆 이동은 1.18 로 키운 채 (iw-iw/1.18)=15.3% 를 가로지른다
-SHOT_MAX, INTRO_SHOT, INTRO_SEC = 10.0, 5.0, 60.0   # 그림 한 컷 최대 10초 · 첫 60초는 5초 안팎
-BOARD_ZOOM = (1.0, 1.08)                   # 표·도표 배경 밀어 넣기
+# 움직임(소유주 10-22 «영상이 움직이질 않아»·관리자 레퍼런스 경제꽈배기 실측): 그림 8~9초마다 바뀜 · 컷 안에서 1.00↔1.12 · 방향 교대
+ZOOM, PAN_Z = (1.0, 1.12), 1.12            # 옆 이동은 1.12 로 키운 채 (iw-iw/1.12)=10.7% 를 가로지른다
+SHOT_MAX, INTRO_SHOT, INTRO_SEC = 9.0, 5.0, 60.0    # 그림 한 컷 최대 9초 · 첫 60초는 5초 안팎
+BOARD_ZOOM = (1.0, 1.06)                   # 숫자·도표 카드 배경 밀어 넣기
 SSIM_STILL = 0.95                          # 장면 첫·끝 프레임 SSIM 이 이 이상이면 정지(종료 4)
 
 
@@ -370,7 +370,7 @@ def board_bg():
     return out
 
 
-def motion_gate(seg, folder):
+def motion_gate(seg, folder, shots=None):
     """장면 첫·끝 프레임 SSIM(아래 자막 300px 뺀 위쪽) — SSIM_STILL 이상이면 정지로 보고 종료 4. 정지 화면은 folder 에 남긴다(증명용)."""
     f0, f1 = folder / 'first.png', folder / 'last.png'
     crop = 'crop=1920:780:0:0'
@@ -379,7 +379,7 @@ def motion_gate(seg, folder):
     r = subprocess.run(['ffmpeg', '-nostdin', '-i', str(f0), '-i', str(f1), '-lavfi', 'ssim', '-f', 'null', '-'], capture_output=True, text=True)
     m = re.search(r'All:([\d.]+)', r.stderr)
     s = float(m.group(1)) if m else 1.0
-    (folder / 'motion.json').write_text(json.dumps({'ssim': s}) + '\n', encoding='utf-8')
+    (folder / 'motion.json').write_text(json.dumps({'ssim': s, 'shots': shots}) + '\n', encoding='utf-8')
     return s
 
 
@@ -504,7 +504,7 @@ def main(argv=None):
     for i in rng:
         blk, spec = blocks[i], vis[blocks[i]['vid']]
         folder = seg_dir(ep, i, blk, spec)
-        final = folder / 'segment.mp4'
+        final, shots = folder / 'segment.mp4', None
         if not final.exists():
             vd = voice_dir(ep, blk)
             vd.mkdir(parents=True, exist_ok=True)
@@ -522,16 +522,16 @@ def main(argv=None):
             css, body, js, board = scene_html(spec, d, cues, emph)
             page(folder / 'hf', f's{i}', d, css, body, js, 'clear' if board else False)
             if board:   # 표·도표: 투명 판 + 천천히 밀어 넣는 녹색 배경(한 컷)
-                bg_shots([board_bg()], d, i, folder / 'bg.mp4', max_shot=d + 1, zoom=BOARD_ZOOM, moves=('in', 'out'))
+                shots = bg_shots([board_bg()], d, i, folder / 'bg.mp4', max_shot=d + 1, zoom=BOARD_ZOOM, moves=('in', 'out'))
             else:       # 그림: 컷 최대 10초(첫 60초는 5초), 컷마다 방향 교대 — imgs 가 있으면 돌려 쓴다
                 imgs = [ep / 'img' / x for x in spec.get('imgs', [spec['img']])]
-                bg_shots(imgs, d, i, folder / 'bg.mp4', max_shot=INTRO_SHOT if start < INTRO_SEC else SHOT_MAX)
+                shots = bg_shots(imgs, d, i, folder / 'bg.mp4', max_shot=INTRO_SHOT if start < INTRO_SEC else SHOT_MAX)
             hf_render(folder / 'hf', folder / 'overlay.mov', 'mov')
             mux(folder / 'bg.mp4', wav, final, d, folder / 'overlay.mov')
             for x in ('bg.mp4', 'overlay.mov'):
                 (folder / x).unlink(missing_ok=True)
         mj = folder / 'motion.json'
-        ssim = json.loads(mj.read_text(encoding='utf-8'))['ssim'] if mj.exists() else motion_gate(final, folder) if final.exists() else None
+        ssim = json.loads(mj.read_text(encoding='utf-8'))['ssim'] if mj.exists() else motion_gate(final, folder, shots) if final.exists() else None
         if ssim is not None and ssim >= SSIM_STILL and '--tts-only' not in argv:
             print(f'[{i}] {blk["vid"]} 첫·끝 프레임 SSIM {ssim:.3f} ≥ {SSIM_STILL} — 정지 화면(관리자 10-22), 종료 4 — {folder}', flush=True)
             raise SystemExit(4)
