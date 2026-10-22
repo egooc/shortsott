@@ -65,6 +65,12 @@ def narration(seg, folder, provider, chrome):
                     for m, w in marks.items():
                         s = s.replace(m, w)
                     return s
+        if seg.get('tts_yomi'):   # TTS 입력만 읽기로 바꾼다, 자막은 원문 표기
+            base_say = say
+            def say(s, _y=seg['tts_yomi'], _b=base_say):
+                for w in sorted(_y, key=len, reverse=True):
+                    s = s.replace(w, _y[w])
+                return _b(s) if _b else s
         _, cues = tts.speak(provider, seg['text'], str(wav), say=say)
     dur = round(tts.wav_seconds(wav) + PAD, 3)
     spec = dict(chrome, **seg['visual'], duration=dur, captions=cues, issue_tag=seg.get('issue_tag', ''), followup=seg.get('followup', False))
@@ -118,6 +124,9 @@ def main(path, provider):
         voice = tts.voice_id(provider) if seg['type'] == 'nar' and not seg.get('audio') else None  # 목소리를 바꾸면 해설만 다시 만든다
         if seg['type'] == 'nar' and ep.get('tts_say'):
             seg = dict(seg, tts_say=True)   # 키에도 들어가 켜고 끄면 해설만 다시 만든다(끈 편의 저장본은 그대로)
+        yomi = {w: r for w, r in (ep.get('tts_yomi') or {}).items() if seg['type'] == 'nar' and w in seg.get('text', '')}
+        if yomi:   # episode.json "tts_yomi": {표기: 읽기} — 그 낱말이 든 해설만 키가 바뀐다(10-22 «추미애»→«추미의» 들림). 조각 하나만이면 그 조각에 "tts_yomi"
+            seg = dict(seg, tts_yomi={**yomi, **(seg.get('tts_yomi') or {})})
         folder = work / 'seg' / f'{i:03d}-{seg["type"]}-{key([seg, provider, ep.get("chrome", {}), CODE] + ([voice] if voice else []))}'
         final = folder / 'normalized.mp4'
         if not final.exists():

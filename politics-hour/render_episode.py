@@ -58,4 +58,12 @@ finally:
         except OSError:
             pass
     LOCK.unlink(missing_ok=True)
+    # 락을 지운 즉시 §10 한 줄 — 남은 밤 창은 수창 롱폼이 쓰고, 수창 관문이 이 줄을 읽는다(10-22 관리자: «- 정치 ko(HH:MM): M/DD 렌더 끝 …»)
+    try:
+        _rc = globals().get('rc', 'x')
+        _d = f'{int(ep.name[4:6])}/{ep.name[6:8]}' if ep.name.isdigit() and len(ep.name) == 8 else ep.name
+        with open('D:/midform/docs/handoff-manager-20261014.md', 'a', encoding='utf-8') as f:
+            f.write(f'- 정치 ko({time.strftime("%H:%M")}): {_d} 렌더 끝 — {"성공" if _rc == 0 else f"실패 rc={_rc}"}, 락 해제 ({round((time.time() - T0) / 60)}분)\n')
+    except Exception as e:   # 줄 쓰기 실패가 렌더 결과를 바꾸면 안 된다
+        print('[render] §10 줄 실패', e)
 sys.exit(rc)
