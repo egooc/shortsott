@@ -299,3 +299,5 @@ selection_unresolved, object_unverified, subject_outside_source, tracking_incomp
 관련 메모리: `shopping-source-resolution-floor` · `burned-subtitle-screening` ·
 `product-video-grab` · `shopping-av-review-cost` · `volcano-shop-flow-on-hold`
 자세한 경위는 `D:/volcano-runs/_preset_trials/LOG.md` 끝부분(2026-09-28~29 절).
+
+**쇼핑 롱폼 규칙(10-22 소유주)**: 약 10분짜리 여러 편(8분 미만 금지·억지로 늘리지 않음). 주제는 비슷한 롱폼 채널에서 터진 편(그 채널 중앙값×3 이상)을 레퍼런스로 확인한 뒤 정하고, 없으면 탈락. 10/25 착수 계획의 첫 단계로 반영(기존 8~10분 → 약 10분·여러 편).
