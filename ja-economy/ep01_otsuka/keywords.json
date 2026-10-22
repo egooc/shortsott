@@ -1,0 +1,45 @@
+{
+  "at": "2026-10-23",
+  "lane": "ja_economy",
+  "candidates": [
+    {
+      "keyword": "大塚家具",
+      "topic": "大塚家具 父娘の経営権争い→ヤマダ吸収→消滅",
+      "reason": "발굴 기획 1편(14a50a9), 각도=돈의 흐름(배당·현금·赤字)",
+      "vicarious": {
+        "type": "권력 역전",
+        "essence": "이긴 줄 알았던 쪽이 결국 모든 걸 잃는 걸 지켜보는 허망함",
+        "comments": "ひろゆき 切り抜き 422万·カカ 114万 댓글: 父と娘どちらが正しかったか·IKEA ニトリに負けただけ"
+      },
+      "reference": [
+        {
+          "channel": "お墓御殿",
+          "video_id": "udWDMA1kOs4",
+          "views": 916070,
+          "ratio": 36,
+          "minutes": 11,
+          "kind": "long"
+        },
+        {
+          "channel": "オワコン対策ゆっくり研究所",
+          "video_id": "fJRh8BjwJ3U",
+          "views": 91894,
+          "ratio": 13.6,
+          "minutes": 30,
+          "kind": "long"
+        },
+        {
+          "channel": "サラセツチャンネル",
+          "video_id": "Fcd5dbmDI0k",
+          "views": 97943,
+          "ratio": 11,
+          "minutes": 13,
+          "kind": "long"
+        }
+      ],
+      "reference_shortest_min": 11,
+      "target_min": 10,
+      "target_rule": "터진 레퍼런스 최단 11분 < 20분 → 10분(바닥 8분, 관리자 10-22)"
+    }
+  ]
+}
