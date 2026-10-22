@@ -35,7 +35,7 @@ REF_FROM = '20261023'
 
 
 def target_sec(ep):
-    """목표 길이(초): 기본 약 10분(600). 고른 주제의 레퍼런스(kind=long·×3) 중 가장 긴 편이 20분 이상이면 그 길이(소유주 10-22 «추천대로»)."""
+    """목표 길이(초): 기본 약 10분(600). 고른 주제의 레퍼런스(kind=long·×3) 중 가장 짧은 편이 20분 이상이면 그 길이(소유주 10-22 «추천대로»)."""
     kp = Path(ep) / 'keywords.json'
     if not kp.exists():
         return 600, None
@@ -44,7 +44,7 @@ def target_sec(ep):
     refs = [o for r in kd.get('candidates') or [] if r.get('keyword') in picked and isinstance(r.get('news_outlier'), list)
             for o in r['news_outlier'] if isinstance(o, dict) and o.get('kind') == 'long' and isinstance(o.get('sec'), (int, float))
             and o['sec'] <= 3600]   # 1시간 넘는 편은 생방송 다시보기(10-22 실측 6ukOlHpL-QM 5.4시간) — 길이 기준에서 뺀다
-    top = max(refs, key=lambda o: o['sec'], default=None)
+    top = min(refs, key=lambda o: o['sec'], default=None)   # 가장 짧은 터진 편(관리자 10-22 21:5x 정정, «억지로 늘리지 말고»)
     return (top['sec'] if top and top['sec'] >= 1200 else 600), top
 
 
