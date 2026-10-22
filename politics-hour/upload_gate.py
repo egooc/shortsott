@@ -261,6 +261,17 @@ bad += uncertain_facts.gate_lines(ep, sys.argv[2:])
 import jargon_gate   # noqa: E402  제목 전문 용어 풀이 두 출처 교차 확인 기록(G23, 10/23편부터)
 bad += jargon_gate.gate_lines(ep, sys.argv[2:])
 bad += guide_words.gate_lines([*sys.argv[2:], *[p for p in [ep / 'packages.json'] if p.exists()]], lang='ko', lane='politics')   # 제목·설명·태그·썸네일 낱말, 우회 GUIDE_OK=1 은 소유주 말 있을 때만
+if EP_DATE >= '20261023':   # 소유주 10-22 «억지로 늘리지 말고 여러 개» — 목표 약 10분, 8분 미만 FAIL, 12분 넘으면 쪼개기 권고(안 막음)
+    _mp4 = ep / 'work' / 'episode.mp4'
+    _r = subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', str(_mp4)], capture_output=True, text=True) if _mp4.exists() else None
+    _sec = float(_r.stdout.strip() or 0) if _r and _r.returncode == 0 else 0
+    _tgt, _ref = candidate_gate.target_sec(ep)   # 레퍼런스가 20분 이상이면 그 길이(하한 0.8배), 아니면 10분(하한 8분)
+    _min = 480 if _tgt == 600 else _tgt * 0.8
+    print(f'[gate] 길이 {_sec / 60:.1f}분 · 레퍼런스 {(_ref or {}).get("sec", 0) / 60:.1f}분({(_ref or {}).get("video_id", "-")}) → 목표 {_tgt / 60:.0f}분')
+    if _sec < _min:
+        bad.append(f'길이 {_sec / 60:.1f}분 — {_min / 60:.0f}분 미만 금지(목표 {_tgt / 60:.0f}분), 쟁점을 더하거나 다음 편과 합쳐라' if _sec else f'길이 잴 수 없음: {_mp4}')
+    elif _tgt == 600 and _sec > 720:
+        print(f'[gate] 참고 길이 {_sec / 60:.1f}분 — 목표 약 10분, 늘리지 말고 두 편으로 쪼갤 수 있는지 본다')
 for b in bad:
     print('[gate] FAIL', b)
 if bad:

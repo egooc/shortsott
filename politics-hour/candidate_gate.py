@@ -29,6 +29,23 @@ FROM = '20261021'   # 이 날짜 편부터 요구한다
 # 대리만족 유형(큰제로 07-18, 관리자 G15 10-21): 소재 → 본문+댓글 파악 → 본질(대리만족 한 문장) → 대본. 10/23편부터.
 VICARIOUS = ('집단 공감', '감정 대변', '상식 회복', '권력 역전')
 VIC_FROM = '20261023'
+# 소유주 10-22 «비슷한 롱폼 채널 중 터진 게 있나 레퍼런스 확인하고 주제를 잡고»: 고른 주제(keywords 에 든 행)는 news_outlier 에
+# kind=long·ratio≥3 편이 하나 이상 있어야 한다. {"none"} 이거나 쇼츠뿐이면 그 주제는 탈락. 10/23편부터.
+REF_FROM = '20261023'
+
+
+def target_sec(ep):
+    """목표 길이(초): 기본 약 10분(600). 고른 주제의 레퍼런스(kind=long·×3) 중 가장 긴 편이 20분 이상이면 그 길이(소유주 10-22 «추천대로»)."""
+    kp = Path(ep) / 'keywords.json'
+    if not kp.exists():
+        return 600, None
+    kd = json.loads(kp.read_text(encoding='utf-8'))
+    picked = set(kd.get('keywords') or [])
+    refs = [o for r in kd.get('candidates') or [] if r.get('keyword') in picked and isinstance(r.get('news_outlier'), list)
+            for o in r['news_outlier'] if isinstance(o, dict) and o.get('kind') == 'long' and isinstance(o.get('sec'), (int, float))
+            and o['sec'] <= 3600]   # 1시간 넘는 편은 생방송 다시보기(10-22 실측 6ukOlHpL-QM 5.4시간) — 길이 기준에서 뺀다
+    top = max(refs, key=lambda o: o['sec'], default=None)
+    return (top['sec'] if top and top['sec'] >= 1200 else 600), top
 
 
 def ep_date(ep, uploads=()):
@@ -64,7 +81,9 @@ def gate_lines(ep, uploads=()):
     kp = ep / 'keywords.json'
     if not kp.exists():
         return [f'후보표: keywords.json 없음 {kp}']
-    rows = json.loads(kp.read_text(encoding='utf-8')).get('candidates') or []
+    kd = json.loads(kp.read_text(encoding='utf-8'))
+    rows = kd.get('candidates') or []
+    picked = set(kd.get('keywords') or [])
     if not rows:
         return ['후보표: keywords.json 에 candidates 없음(상승 점수·발췌·지금의 감정·댓글 수·사유·뉴스 아웃라이어) — 원고 착수 금지']
     bad = []
@@ -80,6 +99,11 @@ def gate_lines(ep, uploads=()):
                 lost.append('news_outlier(' + '·'.join(OUT_KEYS) + ' 또는 {"none": 사유})')
             elif any(not isinstance(o.get('ratio'), (int, float)) or o['ratio'] < 3 for o in rows_o):
                 lost.append('news_outlier ratio ≥3 아님')
+        if ep_date(ep, uploads) >= REF_FROM and r.get('keyword') in picked:
+            longs = [o for o in (no if isinstance(no, list) else []) if isinstance(o, dict) and o.get('kind') == 'long'
+                     and isinstance(o.get('ratio'), (int, float)) and o['ratio'] >= 3]
+            if not longs:
+                lost.append('고른 주제인데 비슷한 롱폼 채널의 터진 편(kind=long·채널 중앙값 ×3 이상) 없음 — 탈락시키고 keywords 에서 빼라')
         if ep_date(ep, uploads) >= VIC_FROM:
             v = r.get('vicarious')
             if not isinstance(v, dict) or v.get('type') not in VICARIOUS or not str(v.get('essence', '')).strip() or not str(v.get('comments', '')).strip():
@@ -99,6 +123,7 @@ def fill(ep):
     k = json.loads(kp.read_text(encoding='utf-8'))
     d = json.loads(NEWS.read_text(encoding='utf-8'))
     sq = lambda x: re.sub(r'\s', '', str(x))
+    sec = {o['video_id']: o.get('sec') for o in d.get('outliers', [])}
     n = 0
     for r in k.get('candidates', []):
         if r.get('news_outlier'):
@@ -109,7 +134,13 @@ def fill(ep):
             o = c['news_outlier']
             if kw and (kw in sq(c['keyword']) or sq(c['keyword']) in kw or any(kw in sq(w) for w in o.get('title_words', []))):
                 hits.setdefault(o['video_id'], o)
-        r['news_outlier'] = sorted(hits.values(), key=lambda o: -o['ratio'])[:3] or {'none': f'yt_news_outliers {d.get("at")} {len(d.get("channels", []))}채널 해당 없음'}
+        for o in hits.values():   # 길이로 롱폼·쇼츠 표시(10/23부터 고른 주제는 kind=long 이 있어야 한다)
+            s = sec.get(o['video_id'])
+            if s is not None and 'kind' not in o:
+                o['kind'] = 'long' if s > 180 else 'shorts'
+            if s is not None:
+                o.setdefault('sec', s)   # 레퍼런스 길이 — 20분 이상이면 그 길이를 따른다(upload_gate 길이 관문)
+        r['news_outlier'] = sorted(hits.values(), key=lambda o: (o.get('kind') != 'long', -o['ratio']))[:3] or {'none': f'yt_news_outliers {d.get("at")} {len(d.get("channels", []))}채널 해당 없음'}
         n += 1
     kp.write_text(json.dumps(k, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     return n
