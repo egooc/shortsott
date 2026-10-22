@@ -208,6 +208,15 @@ img{{mix-blend-mode:normal}}
 '''
 
 
+
+def kanji_no(n):
+    """장 번호 → 한자 숫자(10 이상도): 10→十, 11→十一, 20→二十 (수창 ja02 10-22: 10장짜리 편에서 IndexError — additive)."""
+    d = '〇一二三四五六七八九'
+    if n < 10:
+        return d[n]
+    t, o = divmod(n, 10)
+    return ('' if t == 1 else d[t]) + '十' + (d[o] if o else '')
+
 def chrome(blk, spec):
     chap = blk['chap']
     if chap == '0':
@@ -216,7 +225,7 @@ def chrome(blk, spec):
         no, ti = '', 'まとめ'
     else:
         no, ti = (chap.split('. ', 1) + [''])[:2] if '. ' in chap else ('', chap)
-    body = f'<div id="side"><div class="no">{esc(("第" + "〇一二三四五六七八九"[int(no)] + "章") if no.isdigit() else "")}</div><div class="ti" style="font-size:{min(50, 640 // max(1, len(ti)))}px">{esc(ti)}</div></div><div id="capbar"></div>'
+    body = f'<div id="side"><div class="no">{esc(("第" + kanji_no(int(no)) + "章") if no.isdigit() else "")}</div><div class="ti" style="font-size:{min(50, 640 // max(1, len(ti)))}px">{esc(ti)}</div></div><div id="capbar"></div>'
     if spec.get('fiction'):
         body += '<div id="fic">架空の例</div>'
     if spec.get('source'):
@@ -646,11 +655,43 @@ def facts_gate(ep, enforce=True):
         raise SystemExit('원고 관문: ' + why + ' — gpt-ask 교차 확인 뒤 status 갱신, TTS 안 함')
 
 
+CHARS_PER_SEC = 6.5   # 1편 9,897자/1,553.8초=6.37 · 2편 7,880자/1,172.1초=6.72 (공백 뺀 글자 수, Supertonic F2 실측)
+
+
+def topic_gate(ep):
+    """소유주 10-22(관리자 정정본): 주제는 비슷한 롱폼 채널의 터진 편(그 채널 롱폼 중앙값 ×3+)을 레퍼런스로 확인한 뒤 —
+    레퍼런스 칸 없으면 탈락. 길이 기본 약 10분·8분 미만 금지, 레퍼런스가 20분+면 그 길이를 따른다.
+    <편>/topic.json = {keyword, reference:{channel, video_id, views, ratio, dur_min}, target_min} (topic_outliers.js 결과에서 고른다).
+    3편부터(이미 만든 1·2편은 그대로)."""
+    m = re.match(r'ep(\d+)', ep.name)
+    if not m or int(m.group(1)) < 3:
+        return
+    p = ep / 'topic.json'
+    if not p.exists():
+        raise SystemExit('원고 관문: topic.json 없음 — 터진 편 레퍼런스 없이는 주제 탈락, TTS 안 함')
+    t = json.loads(p.read_text(encoding='utf-8'))
+    ref = t.get('reference') or {}
+    miss = [k for k in ('channel', 'video_id', 'views', 'ratio', 'dur_min') if ref.get(k) in (None, '')]
+    if miss or not t.get('keyword') or not t.get('target_min'):
+        raise SystemExit('원고 관문: topic.json 칸 빠짐 ' + ', '.join(miss or ['keyword/target_min']) + ' — 주제 탈락')
+    if float(ref['ratio']) < 3:
+        raise SystemExit(f'원고 관문: 레퍼런스 배수 {ref["ratio"]} < 3 — 터진 편이 아니다, 주제 탈락')
+    need = max(8.0, float(ref['dur_min']) if float(ref['dur_min']) >= 20 else 10.0)
+    target = float(t['target_min'])
+    if target < need * 0.9:
+        raise SystemExit(f'원고 관문: target_min {target}분 < 기준 {need:.0f}분(레퍼런스 {ref["dur_min"]}분) — 길이 규칙 위반')
+    est = len(re.sub(r'\s', '', (ep / 'script.txt').read_text(encoding='utf-8'))) / CHARS_PER_SEC / 60
+    print(f'[관문] topic: 레퍼런스 {ref["ratio"]}x {ref["dur_min"]}분 → 목표 {target:.0f}분 · 원고 추정 {est:.1f}분', flush=True)
+    if est < 8 or not (target * 0.8 <= est <= target * 1.25):
+        raise SystemExit(f'원고 관문: 원고 추정 {est:.1f}분 — 목표 {target:.0f}분의 0.8~1.25배·8분 이상이어야 TTS(억지로 늘리지 말고 주제 범위로 맞춘다)')
+
+
 def script_gate(ep):
     """TTS 전 원고 관문(관리자 10-20 adoption): ref_overlap 종료 4·5 · script_audit --jargon △ · comment_hook 실패면 중단."""
     py, sc = sys.executable, ROOT / 'scripts'
     import datetime
     facts_gate(ep, enforce=datetime.date.today() >= datetime.date(2026, 10, 23))
+    topic_gate(ep)
     stamp = ep / 'audit' / 'script_gate_pass.json'
     sig = {n: key((ep / n).read_text(encoding='utf-8')) for n in ('script.txt', 'comment_spec.json')}
     old = json.loads(stamp.read_text(encoding='utf-8')) if stamp.exists() else {}

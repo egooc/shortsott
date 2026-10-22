@@ -1,0 +1,2906 @@
+{
+  "at": "2026-10-22T12:29:43.478Z",
+  "queries": [
+    "年金 確定申告",
+    "年金 住民税",
+    "年金 手取り",
+    "年金 通知書 見方",
+    "扶養親族等申告書"
+  ],
+  "ratio": 3,
+  "units": 1057,
+  "channels": [
+    {
+      "id": "UC30b1h_7V1HEgwV1EoCZcRQ",
+      "title": "保険年金マネー相談ゲートウェイ",
+      "subs": 24700,
+      "long_n": 96,
+      "median": 8125,
+      "search_hits": 22
+    },
+    {
+      "id": "UCxzI8X4wZF2Osa5Jd_RqgxQ",
+      "title": "定年前後のお金の新常識【社労士みなみ】",
+      "subs": 298000,
+      "long_n": 95,
+      "median": 58066,
+      "search_hits": 13
+    },
+    {
+      "id": "UCgNr-yxfjcW0ao2dhvBZVWA",
+      "title": "News65 (老後)",
+      "subs": 174000,
+      "long_n": 100,
+      "median": 127490,
+      "search_hits": 13
+    },
+    {
+      "id": "UCLU523cU8RRTIL10F94RB4w",
+      "title": "税理士KOBAYASHIちゃんねる",
+      "subs": 93600,
+      "long_n": 100,
+      "median": 47981,
+      "search_hits": 13
+    },
+    {
+      "id": "UC27e9lK-KS5EGvhx-DM0ShQ",
+      "title": "定年前後の「お金の悩み」解消ラボ",
+      "subs": 249000,
+      "long_n": 97,
+      "median": 36112,
+      "search_hits": 9
+    },
+    {
+      "id": "UCy5KsSNTrnYqosI_4SDT-oQ",
+      "title": "きな子のシニアお金ゼミ",
+      "subs": 166000,
+      "long_n": 88,
+      "median": 24272,
+      "search_hits": 8
+    },
+    {
+      "id": "UCeicl_qqEQyLBdqhhrw20Rw",
+      "title": "サラダのお金相談所",
+      "subs": 689000,
+      "long_n": 99,
+      "median": 183492,
+      "search_hits": 15
+    },
+    {
+      "id": "UCVgZUHlkoN51FOwoNMBGjfw",
+      "title": "厚生労働省 / Ministry of Health, Labour and Welfare",
+      "subs": 240000,
+      "long_n": 27,
+      "median": 1703,
+      "search_hits": 14
+    },
+    {
+      "id": "UCRfvvN--iV8kXJYqhVTn10g",
+      "title": "FP1級パパこみやまのこみやまFP総合オフィス",
+      "subs": 185000,
+      "long_n": 100,
+      "median": 64049,
+      "search_hits": 12
+    },
+    {
+      "id": "UCeBr3VIDh_-NBKNsftyj8ag",
+      "title": "年金・給付金カレンダー",
+      "subs": 298,
+      "long_n": 16,
+      "median": 504,
+      "search_hits": 10
+    },
+    {
+      "id": "UCvUfGFGJcZBu78F8bMfCgFg",
+      "title": "図解で学ぶお金の知識",
+      "subs": 382000,
+      "long_n": 83,
+      "median": 21558,
+      "search_hits": 9
+    },
+    {
+      "id": "UCzkApy4pduuiJecDg93c6Ng",
+      "title": "税金・社会保障教育ちゃんねる",
+      "subs": 82700,
+      "long_n": 100,
+      "median": 60778,
+      "search_hits": 11
+    },
+    {
+      "id": "UC4FTvtWRxSyLIn_fIUAMjMw",
+      "title": "FP カネスケのお得マネー塾",
+      "subs": 7110,
+      "long_n": 73,
+      "median": 488,
+      "search_hits": 10
+    },
+    {
+      "id": "UCx048BbWVmHMV3ip3K_GnpQ",
+      "title": "山本聡の年金・給付金ノート",
+      "subs": 6760,
+      "long_n": 7,
+      "median": 188504,
+      "search_hits": 3
+    },
+    {
+      "id": "UCdQWQPx1bGJyplSlLBxgN1Q",
+      "title": "はじめ静岡税理士チャンネル",
+      "subs": 42600,
+      "long_n": 82,
+      "median": 9254,
+      "search_hits": 8
+    }
+  ],
+  "outliers": [
+    {
+      "channel": "FP カネスケのお得マネー塾",
+      "channel_id": "UC4FTvtWRxSyLIn_fIUAMjMw",
+      "video_id": "MUZe3Rv-4Wo",
+      "title": "【10分で解説】年金受給者の確定申告｜必要？不要？申告すると損するケースも紹介！",
+      "views": 359441,
+      "ratio": 736.6,
+      "dur_min": 9,
+      "published": "2025-12-21"
+    },
+    {
+      "channel": "FP カネスケのお得マネー塾",
+      "channel_id": "UC4FTvtWRxSyLIn_fIUAMjMw",
+      "video_id": "mZNdEjFAJMI",
+      "title": "絶対にできる！スマホ確定申告。画面の通りにマネするだけで完了｜2026年版",
+      "views": 90555,
+      "ratio": 185.6,
+      "dur_min": 14,
+      "published": "2025-12-26"
+    },
+    {
+      "channel": "FP カネスケのお得マネー塾",
+      "channel_id": "UC4FTvtWRxSyLIn_fIUAMjMw",
+      "video_id": "qyCZid5zdDc",
+      "title": "【警告】年金だけでも要注意！住民税の申告をしないと税金を払いすぎます",
+      "views": 69193,
+      "ratio": 141.8,
+      "dur_min": 9.6,
+      "published": "2026-01-25"
+    },
+    {
+      "channel": "FP カネスケのお得マネー塾",
+      "channel_id": "UC4FTvtWRxSyLIn_fIUAMjMw",
+      "video_id": "dj1MwsC4k0k",
+      "title": "【警告】金を売る前に確認！この1枚の紙で確定申告の税金が数百万円変わります。（純金・ゴールド売却の注意点）2026年最新",
+      "views": 68671,
+      "ratio": 140.7,
+      "dur_min": 8.9,
+      "published": "2026-01-20"
+    },
+    {
+      "channel": "厚生労働省 / Ministry of Health, Labour and Welfare",
+      "channel_id": "UCVgZUHlkoN51FOwoNMBGjfw",
+      "video_id": "DwQuzTwS4fc",
+      "title": "41歳で認知症に。3人の子を育ててきたシングルマザーが「人生の終わり」と思ったあの時と起業した今　～one day of life～",
+      "views": 189962,
+      "ratio": 111.5,
+      "dur_min": 15.5,
+      "published": "2026-09-08"
+    },
+    {
+      "channel": "定年前後の「お金の悩み」解消ラボ",
+      "channel_id": "UC27e9lK-KS5EGvhx-DM0ShQ",
+      "video_id": "1DDDq-J8pCM",
+      "title": "【年金増額】65歳から一生涯もらえる「振替加算」とは？申請必須！？【加給年金/配偶者/特別加算/老齢年金】既婚者必見◎",
+      "views": 3899076,
+      "ratio": 108,
+      "dur_min": 18.2,
+      "published": "2023-08-10"
+    },
+    {
+      "channel": "定年前後の「お金の悩み」解消ラボ",
+      "channel_id": "UC27e9lK-KS5EGvhx-DM0ShQ",
+      "video_id": "hIsS2WzH1Gc",
+      "title": "【絶対確認】年金受給者に1月に届く源泉徴収票！見落とすと10万円の損！？ココだけは絶対確認して！公的年金等の源泉徴収票/確定申告/2025年/最新版",
+      "views": 3102499,
+      "ratio": 85.9,
+      "dur_min": 21.4,
+      "published": "2025-01-04"
+    },
+    {
+      "channel": "きな子のシニアお金ゼミ",
+      "channel_id": "UCy5KsSNTrnYqosI_4SDT-oQ",
+      "video_id": "ljCim2jy5vc",
+      "title": "年金月15万円から税金と社会保険料がこんなに天引きされるの⁉",
+      "views": 2083514,
+      "ratio": 85.8,
+      "dur_min": 23.8,
+      "published": "2024-09-05"
+    },
+    {
+      "channel": "厚生労働省 / Ministry of Health, Labour and Welfare",
+      "channel_id": "UCVgZUHlkoN51FOwoNMBGjfw",
+      "video_id": "_b6ntOaMPZs",
+      "title": "（日本年金機構）【分割版2】健康保険・厚生年金保険事務手続きガイド 保険料と標準報酬月額について",
+      "views": 104600,
+      "ratio": 61.4,
+      "dur_min": 9.1,
+      "published": "2026-10-01"
+    },
+    {
+      "channel": "定年前後の「お金の悩み」解消ラボ",
+      "channel_id": "UC27e9lK-KS5EGvhx-DM0ShQ",
+      "video_id": "7TZDCMGso_c",
+      "title": "【50歳以上】最大半額！？新幹線をお得に乗る裏ワザ10選！！わかりやすく解説/全国/北海道/東日本/西日本/東海/九州/JR/旅行/メリット/デメリット/比較",
+      "views": 2017947,
+      "ratio": 55.9,
+      "dur_min": 34.5,
+      "published": "2025-11-21"
+    },
+    {
+      "channel": "きな子のシニアお金ゼミ",
+      "channel_id": "UCy5KsSNTrnYqosI_4SDT-oQ",
+      "video_id": "3Pu3nDK4PaE",
+      "title": "【緊急】10月に届く年金通知書のココを必ず確認しろ！",
+      "views": 1282092,
+      "ratio": 52.8,
+      "dur_min": 31.1,
+      "published": "2025-10-03"
+    },
+    {
+      "channel": "定年前後の「お金の悩み」解消ラボ",
+      "channel_id": "UC27e9lK-KS5EGvhx-DM0ShQ",
+      "video_id": "t9BnNf37TuY",
+      "title": "【令和6年6月14日】「年金額」が変わる！その支給額は本当！？税金払い過ぎ？確認方法は超カンタン！6月上旬に届く大事な年金通知書/年金額改定通知書/年金振込通知書/老齢年金",
+      "views": 1881962,
+      "ratio": 52.1,
+      "dur_min": 23.3,
+      "published": "2024-05-17"
+    },
+    {
+      "channel": "FP カネスケのお得マネー塾",
+      "channel_id": "UC4FTvtWRxSyLIn_fIUAMjMw",
+      "video_id": "cg0cRkj2WRg",
+      "title": "【保存版】確定申告「やると損する人」の共通点7選｜あなたは大丈夫？",
+      "views": 24511,
+      "ratio": 50.2,
+      "dur_min": 9.6,
+      "published": "2026-02-24"
+    },
+    {
+      "channel": "定年前後の「お金の悩み」解消ラボ",
+      "channel_id": "UC27e9lK-KS5EGvhx-DM0ShQ",
+      "video_id": "9GD0azrfItM",
+      "title": "【老後年金】役所は教えてくれない！「60歳、65歳、70歳、75歳」から年金を最もお得に受け取る方法を解説",
+      "views": 1804085,
+      "ratio": 50,
+      "dur_min": 34.4,
+      "published": "2023-09-26"
+    },
+    {
+      "channel": "定年前後の「お金の悩み」解消ラボ",
+      "channel_id": "UC27e9lK-KS5EGvhx-DM0ShQ",
+      "video_id": "SOqpay-rzJs",
+      "title": "【絶対確認】1月に届く給与の源泉徴収票！申告漏れで14万円の損！？最重要チェックポイント3つ！所得税のルール変更に要注意！家族を養っている・養われている方向け/税理士監修",
+      "views": 1600879,
+      "ratio": 44.3,
+      "dur_min": 18.8,
+      "published": "2025-12-27"
+    },
+    {
+      "channel": "きな子のシニアお金ゼミ",
+      "channel_id": "UCy5KsSNTrnYqosI_4SDT-oQ",
+      "video_id": "mIo_9dcrbf0",
+      "title": "【警告】4月に届く固定資産税は97%が間違っている！？知らないと生涯で100万円以上損する理由と対処法！",
+      "views": 1074948,
+      "ratio": 44.3,
+      "dur_min": 21.7,
+      "published": "2026-03-31"
+    },
+    {
+      "channel": "FP カネスケのお得マネー塾",
+      "channel_id": "UC4FTvtWRxSyLIn_fIUAMjMw",
+      "video_id": "zaT9UR7rgSA",
+      "title": "年金受給者の住民税｜納税通知書の見方と非課税の条件【損しない3つの確認ポイント】",
+      "views": 19847,
+      "ratio": 40.7,
+      "dur_min": 11,
+      "published": "2026-05-05"
+    },
+    {
+      "channel": "きな子のシニアお金ゼミ",
+      "channel_id": "UCy5KsSNTrnYqosI_4SDT-oQ",
+      "video_id": "sObYG-7XX3k",
+      "title": "【2025年最新版】定年後も働くと年金いくら増える？早見表ですぐわかる！経過的加算・未納期間・在職定時改定・再雇用",
+      "views": 902428,
+      "ratio": 37.2,
+      "dur_min": 34,
+      "published": "2025-03-14"
+    },
+    {
+      "channel": "図解で学ぶお金の知識",
+      "channel_id": "UCvUfGFGJcZBu78F8bMfCgFg",
+      "video_id": "WgpMLKkGWag",
+      "title": "知らないとヤバイ！【あなたのお金を監視する】ある制度をご存じですか",
+      "views": 794947,
+      "ratio": 36.9,
+      "dur_min": 10.8,
+      "published": "2025-06-23"
+    },
+    {
+      "channel": "きな子のシニアお金ゼミ",
+      "channel_id": "UCy5KsSNTrnYqosI_4SDT-oQ",
+      "video_id": "PHmMm8J02sg",
+      "title": "【年金受給者の確定申告】必要？不要？わかりやすく解説！損しない方法（定額減税・所得税・住民税・給与）",
+      "views": 893650,
+      "ratio": 36.8,
+      "dur_min": 25.4,
+      "published": "2025-01-11"
+    },
+    {
+      "channel": "きな子のシニアお金ゼミ",
+      "channel_id": "UCy5KsSNTrnYqosI_4SDT-oQ",
+      "video_id": "IwrLqY_McOw",
+      "title": "【要確認！】2025年度から年金の停止基準が変更！どこよりもわかりやすく解説【在職老齢年金】",
+      "views": 848156,
+      "ratio": 34.9,
+      "dur_min": 34.3,
+      "published": "2025-02-16"
+    },
+    {
+      "channel": "税理士KOBAYASHIちゃんねる",
+      "channel_id": "UCLU523cU8RRTIL10F94RB4w",
+      "video_id": "-SgU32W6WQI",
+      "title": "【逃すな老後の特権】住民税非課税世帯になれない隠れた罠！年金をもらってから住民税非課税世帯になれないことを知っても手遅れ！年金受給者／年金繰り下げ受給／株式投資／個人年金",
+      "views": 1623762,
+      "ratio": 33.8,
+      "dur_min": 10.9,
+      "published": "2024-09-29"
+    },
+    {
+      "channel": "定年前後のお金の新常識【社労士みなみ】",
+      "channel_id": "UCxzI8X4wZF2Osa5Jd_RqgxQ",
+      "video_id": "t5dIDZ6Dd6w",
+      "title": "申請しないと大損！年金定期便に載っていない年金４つ。ねんきん定期便の正しい見方と注意点",
+      "views": 1779758,
+      "ratio": 30.7,
+      "dur_min": 17.6,
+      "published": "2024-12-12"
+    },
+    {
+      "channel": "定年前後の「お金の悩み」解消ラボ",
+      "channel_id": "UC27e9lK-KS5EGvhx-DM0ShQ",
+      "video_id": "pBRJ8f8ycQU",
+      "title": "【令和7年6月13日】「年金額」が変わる！その支給額は本当！？税金払い過ぎ？確認方法は超カンタン！6月上旬に届く大事な年金通知書/年金額改定通知書/年金振込通知書/老齢年金",
+      "views": 1063600,
+      "ratio": 29.5,
+      "dur_min": 40.3,
+      "published": "2025-05-09"
+    },
+    {
+      "channel": "保険年金マネー相談ゲートウェイ",
+      "channel_id": "UC30b1h_7V1HEgwV1EoCZcRQ",
+      "video_id": "xaNlvRxA490",
+      "title": "【年金／税】2026年提出分　扶養親族等申告書　今年は違います！",
+      "views": 237569,
+      "ratio": 29.2,
+      "dur_min": 11.6,
+      "published": "2026-09-08"
+    },
+    {
+      "channel": "厚生労働省 / Ministry of Health, Labour and Welfare",
+      "channel_id": "UCVgZUHlkoN51FOwoNMBGjfw",
+      "video_id": "-vJc5l7A4aI",
+      "title": "認知症と診断されて11年「今が一番幸せかもしれない」。83歳夫と妻の、穏やかで優しい一日　～one day of life～",
+      "views": 48610,
+      "ratio": 28.5,
+      "dur_min": 14.9,
+      "published": "2026-09-08"
+    },
+    {
+      "channel": "FP カネスケのお得マネー塾",
+      "channel_id": "UC4FTvtWRxSyLIn_fIUAMjMw",
+      "video_id": "LV6vGpFZ60s",
+      "title": "【FPが解説】医療費控除って何？実際いくら戻る？シミュレーションでわかる節税のコツ！",
+      "views": 13696,
+      "ratio": 28.1,
+      "dur_min": 10.5,
+      "published": "2025-10-17"
+    },
+    {
+      "channel": "きな子のシニアお金ゼミ",
+      "channel_id": "UCy5KsSNTrnYqosI_4SDT-oQ",
+      "video_id": "MgOie47TN6o",
+      "title": "【すぐわかる！】働きながら年金受給、確定申告と定額減税どうなる？（給与と年金両方ある人の所得税）",
+      "views": 678942,
+      "ratio": 28,
+      "dur_min": 31.4,
+      "published": "2025-01-27"
+    },
+    {
+      "channel": "年金・給付金カレンダー",
+      "channel_id": "UCeBr3VIDh_-NBKNsftyj8ag",
+      "video_id": "9LDTjaXuWwY",
+      "title": "【9月以降に届く封筒】扶養親族等申告書、令和8年12月1日改正で何が変わるか",
+      "views": 13992,
+      "ratio": 27.8,
+      "dur_min": 24.6,
+      "published": "2026-10-13"
+    },
+    {
+      "channel": "保険年金マネー相談ゲートウェイ",
+      "channel_id": "UC30b1h_7V1HEgwV1EoCZcRQ",
+      "video_id": "tBZ9lAty8g4",
+      "title": "【健康保険】75歳以上の健康保険証　８月からこうなる　後期高齢者医療　資格確認書　マイナ保険証　マイナンバーカード",
+      "views": 210765,
+      "ratio": 25.9,
+      "dur_min": 10.9,
+      "published": "2026-07-16"
+    },
+    {
+      "channel": "厚生労働省 / Ministry of Health, Labour and Welfare",
+      "channel_id": "UCVgZUHlkoN51FOwoNMBGjfw",
+      "video_id": "Qm73giS983o",
+      "title": "（日本年金機構）扶養親族等申告書をスマートフォンで提出する方法（令和9年分）【新規】全体版",
+      "views": 44022,
+      "ratio": 25.8,
+      "dur_min": 22.3,
+      "published": "2026-09-03"
+    },
+    {
+      "channel": "図解で学ぶお金の知識",
+      "channel_id": "UCvUfGFGJcZBu78F8bMfCgFg",
+      "video_id": "dc_FufFqDhk",
+      "title": "「給与と年金」がある人が【確定申告】必要か不要か確認する方法",
+      "views": 527522,
+      "ratio": 24.5,
+      "dur_min": 13.4,
+      "published": "2024-11-22"
+    },
+    {
+      "channel": "厚生労働省 / Ministry of Health, Labour and Welfare",
+      "channel_id": "UCVgZUHlkoN51FOwoNMBGjfw",
+      "video_id": "HC23sZKz1Hs",
+      "title": "（日本年金機構）扶養親族等申告書の提出方法について（令和9年分）【新規】",
+      "views": 40405,
+      "ratio": 23.7,
+      "dur_min": 22.3,
+      "published": "2026-09-03"
+    },
+    {
+      "channel": "定年前後の「お金の悩み」解消ラボ",
+      "channel_id": "UC27e9lK-KS5EGvhx-DM0ShQ",
+      "video_id": "-6eUaarRCWg",
+      "title": "【60歳以上】最大半額！？飛行機をお得に乗る裏ワザ8選！！わかりやすく解説/国内線/ANA/JAL/快適な航空会社/当日以外も予約OK/60歳以上が1人いればグループ割引OK/2026/最新版",
+      "views": 837960,
+      "ratio": 23.2,
+      "dur_min": 19.1,
+      "published": "2026-01-03"
+    },
+    {
+      "channel": "きな子のシニアお金ゼミ",
+      "channel_id": "UCy5KsSNTrnYqosI_4SDT-oQ",
+      "video_id": "7ApdAu2ePgU",
+      "title": "【保存版】年金世帯は住民税非課税世帯に該当しやすい！年収いくらまで？【夫婦・単身・住所地別】早見表2024年度版（優遇/211万円の壁/収入条件）",
+      "views": 550215,
+      "ratio": 22.7,
+      "dur_min": 20.2,
+      "published": "2024-08-16"
+    },
+    {
+      "channel": "定年前後の「お金の悩み」解消ラボ",
+      "channel_id": "UC27e9lK-KS5EGvhx-DM0ShQ",
+      "video_id": "MdbIXkEOalA",
+      "title": "【年金受給者】確定申告は必要？不要？対象となる「条件」と「金額」！わかりやすく解説◎知らないと損！申告義務はなくても「申告」がお得なケース！？/税理士監修のもと作成",
+      "views": 816827,
+      "ratio": 22.6,
+      "dur_min": 24.7,
+      "published": "2024-12-06"
+    },
+    {
+      "channel": "厚生労働省 / Ministry of Health, Labour and Welfare",
+      "channel_id": "UCVgZUHlkoN51FOwoNMBGjfw",
+      "video_id": "TY9FQ6KOKgc",
+      "title": "（日本年金機構）扶養親族等申告書の提出方法について（令和9年分）【継続】",
+      "views": 38431,
+      "ratio": 22.6,
+      "dur_min": 25.9,
+      "published": "2026-09-03"
+    },
+    {
+      "channel": "FP カネスケのお得マネー塾",
+      "channel_id": "UC4FTvtWRxSyLIn_fIUAMjMw",
+      "video_id": "CcHCtfKlCow",
+      "title": "そのまま払うな！国民健康保険｜9割が知らない“保険料を安くする方法”【50代以上必見】",
+      "views": 10945,
+      "ratio": 22.4,
+      "dur_min": 10,
+      "published": "2026-05-10"
+    },
+    {
+      "channel": "きな子のシニアお金ゼミ",
+      "channel_id": "UCy5KsSNTrnYqosI_4SDT-oQ",
+      "video_id": "dHliN0f6pds",
+      "title": "【緊急速報】2026年の確定申告〇〇を記入してしまうと20万円の大損に！避けるべき項目と対策を徹底解説",
+      "views": 540561,
+      "ratio": 22.3,
+      "dur_min": 20.7,
+      "published": "2026-01-24"
+    },
+    {
+      "channel": "きな子のシニアお金ゼミ",
+      "channel_id": "UCy5KsSNTrnYqosI_4SDT-oQ",
+      "video_id": "VSi4sESzYMI",
+      "title": "【総集編】定年後も働く人が絶対に知っておきたい制度まとめ（在職老齢年金・経過的加算・在職定時改定）",
+      "views": 504826,
+      "ratio": 20.8,
+      "dur_min": 70.1,
+      "published": "2024-12-04"
+    },
+    {
+      "channel": "FP カネスケのお得マネー塾",
+      "channel_id": "UC4FTvtWRxSyLIn_fIUAMjMw",
+      "video_id": "IhBSeFJ36fc",
+      "title": "【初心者向け】加給年金とは？もらえる金額・条件をわかりやすく解説！",
+      "views": 9953,
+      "ratio": 20.4,
+      "dur_min": 10.8,
+      "published": "2025-10-14"
+    },
+    {
+      "channel": "年金・給付金カレンダー",
+      "channel_id": "UCeBr3VIDh_-NBKNsftyj8ag",
+      "video_id": "Z7l7hVjxMYY",
+      "title": "10月下旬に届く！国民年金「社会保険料控除証明書」の見方と確定申告での使い方",
+      "views": 10116,
+      "ratio": 20.1,
+      "dur_min": 22.2,
+      "published": "2026-10-06"
+    },
+    {
+      "channel": "きな子のシニアお金ゼミ",
+      "channel_id": "UCy5KsSNTrnYqosI_4SDT-oQ",
+      "video_id": "9859OPCNLLg",
+      "title": "【最新！保存版】定年後も働くと年金いくら増える？【法改正あり】早見表ですぐわかる！経過的加算・未納期間・在職定時改定・再雇用",
+      "views": 462444,
+      "ratio": 19.1,
+      "dur_min": 26.1,
+      "published": "2024-07-27"
+    },
+    {
+      "channel": "税金・社会保障教育ちゃんねる",
+      "channel_id": "UCzkApy4pduuiJecDg93c6Ng",
+      "video_id": "c4jahuDp0Mg",
+      "title": "【239万でも税金0円】年金とパートで「所得0円」になる驚愕のカラクリ！手取り激減を防ぐ年収ラインを徹底解説",
+      "views": 1135721,
+      "ratio": 18.7,
+      "dur_min": 20.8,
+      "published": "2026-08-25"
+    },
+    {
+      "channel": "はじめ静岡税理士チャンネル",
+      "channel_id": "UCdQWQPx1bGJyplSlLBxgN1Q",
+      "video_id": "vvdNuhNEkE8",
+      "title": "【令和6年分】確定申告書等作成コーナー(e-tax)使用のための第一歩！ 事前準備とログインのやり方（方法）を解説、PC版・スマホ版【静岡県三島市の税理士】",
+      "views": 169858,
+      "ratio": 18.4,
+      "dur_min": 16.9,
+      "published": "2025-01-09"
+    },
+    {
+      "channel": "きな子のシニアお金ゼミ",
+      "channel_id": "UCy5KsSNTrnYqosI_4SDT-oQ",
+      "video_id": "V5xT8uIM5To",
+      "title": "【知らずに後悔】年金繰下げ受給「増額のはずが…！」",
+      "views": 435243,
+      "ratio": 17.9,
+      "dur_min": 29.4,
+      "published": "2024-10-17"
+    },
+    {
+      "channel": "サラダのお金相談所",
+      "channel_id": "UCeicl_qqEQyLBdqhhrw20Rw",
+      "video_id": "mL0bwzi8KFM",
+      "title": "【緊急解説】2026年4月からルール変更！年金＋7万円が一生上乗せ支給！給付金額・申請方法を解説【年金生活/老後】",
+      "views": 3281443,
+      "ratio": 17.9,
+      "dur_min": 37.2,
+      "published": "2026-01-25"
+    },
+    {
+      "channel": "厚生労働省 / Ministry of Health, Labour and Welfare",
+      "channel_id": "UCVgZUHlkoN51FOwoNMBGjfw",
+      "video_id": "IS0reCaohiw",
+      "title": "（日本年金機構）扶養親族等申告書をパソコンで提出する方法（令和9年分）【継続】全体版",
+      "views": 28162,
+      "ratio": 16.5,
+      "dur_min": 22.4,
+      "published": "2026-09-03"
+    },
+    {
+      "channel": "定年前後の「お金の悩み」解消ラボ",
+      "channel_id": "UC27e9lK-KS5EGvhx-DM0ShQ",
+      "video_id": "oUn0RNVXUKg",
+      "title": "【最新】年金と給与！両方もらうと税金はどうなる？確定申告は必要？所得税のルール変更に要注意！わかりやすく解説◎確定申告不要でも申告しないと損する人・申告すると損する人/年金受給者の確定申告/税理士監修",
+      "views": 561874,
+      "ratio": 15.6,
+      "dur_min": 26.8,
+      "published": "2026-02-28"
+    },
+    {
+      "channel": "保険年金マネー相談ゲートウェイ",
+      "channel_id": "UC30b1h_7V1HEgwV1EoCZcRQ",
+      "video_id": "3RvF0CWy1b8",
+      "title": "【年金】10月に年金振込通知書が届いた方へ【社労士解説】",
+      "views": 124000,
+      "ratio": 15.3,
+      "dur_min": 14.2,
+      "published": "2026-10-04"
+    },
+    {
+      "channel": "きな子のシニアお金ゼミ",
+      "channel_id": "UCy5KsSNTrnYqosI_4SDT-oQ",
+      "video_id": "n40rhC_X9uU",
+      "title": "【超速報】2026年1月に届く源泉徴収票！申告漏れると14万円損します！",
+      "views": 363180,
+      "ratio": 15,
+      "dur_min": 26.1,
+      "published": "2026-01-10"
+    },
+    {
+      "channel": "FP1級パパこみやまのこみやまFP総合オフィス",
+      "channel_id": "UCRfvvN--iV8kXJYqhVTn10g",
+      "video_id": "u0vve9aRMnM",
+      "title": "【今年だけは例外】年金受給者は2026年の確定申告は必要？不要？申告不要制度に騙されると大損確定！住民税の申告は？気をつけるべきポイントを全て網羅して解説",
+      "views": 962913,
+      "ratio": 15,
+      "dur_min": 31.7,
+      "published": "2026-01-14"
+    },
+    {
+      "channel": "はじめ静岡税理士チャンネル",
+      "channel_id": "UCdQWQPx1bGJyplSlLBxgN1Q",
+      "video_id": "rhF3BnEN_Pg",
+      "title": "【e-tax実演】はじめての住宅ローン控除、サラリーマンが令和6年分・令和7年分の確定申告ではじめて住宅ローン控除を受ける場合、特例対象個人、確定申告書等作成コーナーにて実演【静岡県三島市の税理士】",
+      "views": 134498,
+      "ratio": 14.5,
+      "dur_min": 54.9,
+      "published": "2025-01-07"
+    },
+    {
+      "channel": "定年前後の「お金の悩み」解消ラボ",
+      "channel_id": "UC27e9lK-KS5EGvhx-DM0ShQ",
+      "video_id": "6lcfkJGjexQ",
+      "title": "【速報】パソコンで確定申告！e-Tax完全ガイド！今年は絶対注意！未申告は大損！還付申告は1/5開始/令和7年分/最新版/税理士監修",
+      "views": 518790,
+      "ratio": 14.4,
+      "dur_min": 32.4,
+      "published": "2026-01-12"
+    },
+    {
+      "channel": "FP1級パパこみやまのこみやまFP総合オフィス",
+      "channel_id": "UCRfvvN--iV8kXJYqhVTn10g",
+      "video_id": "muEqGpcTkbA",
+      "title": "【100万円以上大損！？】65歳以降も働いて社会保険に入っていると将来後悔することに！危険な理由と対策を解説！",
+      "views": 893101,
+      "ratio": 13.9,
+      "dur_min": 39.5,
+      "published": "2025-11-29"
+    },
+    {
+      "channel": "定年前後のお金の新常識【社労士みなみ】",
+      "channel_id": "UCxzI8X4wZF2Osa5Jd_RqgxQ",
+      "video_id": "NKuqAxldZ7A",
+      "title": "【2026年1月に届く】公的年金等の源泉徴収票を確認して！確定申告で得する７つのケースも解説",
+      "views": 799286,
+      "ratio": 13.8,
+      "dur_min": 15.4,
+      "published": "2026-01-04"
+    },
+    {
+      "channel": "きな子のシニアお金ゼミ",
+      "channel_id": "UCy5KsSNTrnYqosI_4SDT-oQ",
+      "video_id": "rptvrT81VrQ",
+      "title": "【緊急解説】加給年金は不公平だから廃止！？2025年の年金制度改革に向けた議論【振替加算／繰下げ受給／在職老齢年金／特別支給の老齢厚生年金】",
+      "views": 335597,
+      "ratio": 13.8,
+      "dur_min": 25.1,
+      "published": "2024-06-17"
+    },
+    {
+      "channel": "定年前後の「お金の悩み」解消ラボ",
+      "channel_id": "UC27e9lK-KS5EGvhx-DM0ShQ",
+      "video_id": "ZEbYrL9AEf8",
+      "title": "【最新】2023年6月15日支給分「障害年金」支給額が変わる！？年金額〜改定ポイントまで！まるっと解説◎",
+      "views": 491094,
+      "ratio": 13.6,
+      "dur_min": 14.3,
+      "published": "2023-05-21"
+    },
+    {
+      "channel": "はじめ静岡税理士チャンネル",
+      "channel_id": "UCdQWQPx1bGJyplSlLBxgN1Q",
+      "video_id": "h66VzxXEGCM",
+      "title": "パート・バイトの年末調整書類の書き方『令和7年分以降』、扶養控除等申告書、基礎控除申告書、配偶者控除等申告書、特定親族特別控除申告書、所得金額調整控除申告書、保険料控除申告書【静岡県三島市の税理士】",
+      "views": 122360,
+      "ratio": 13.2,
+      "dur_min": 29.1,
+      "published": "2025-10-22"
+    },
+    {
+      "channel": "保険年金マネー相談ゲートウェイ",
+      "channel_id": "UC30b1h_7V1HEgwV1EoCZcRQ",
+      "video_id": "BDCrsG65mvA",
+      "title": "【年金／税】2026年の扶養親族等申告書は９月７日に送られます",
+      "views": 104039,
+      "ratio": 12.8,
+      "dur_min": 8.2,
+      "published": "2026-09-05"
+    },
+    {
+      "channel": "きな子のシニアお金ゼミ",
+      "channel_id": "UCy5KsSNTrnYqosI_4SDT-oQ",
+      "video_id": "Tcfw46wdeVY",
+      "title": "【2024年10月改正】パート社会保険の加入要件・入りたくない場合は？（社会保険の適用拡大/主婦年金廃止/扶養廃止）",
+      "views": 302952,
+      "ratio": 12.5,
+      "dur_min": 27.4,
+      "published": "2024-09-27"
+    },
+    {
+      "channel": "きな子のシニアお金ゼミ",
+      "channel_id": "UCy5KsSNTrnYqosI_4SDT-oQ",
+      "video_id": "8VrLV_uIKWc",
+      "title": "【超速報】2025年度の年金支給額決定！令和7年4月分より改定（マクロ経済スライド/老齢基礎年金/年金生活者支援給付金/在職老齢年金）",
+      "views": 300279,
+      "ratio": 12.4,
+      "dur_min": 18.1,
+      "published": "2025-01-25"
+    },
+    {
+      "channel": "厚生労働省 / Ministry of Health, Labour and Welfare",
+      "channel_id": "UCVgZUHlkoN51FOwoNMBGjfw",
+      "video_id": "BoJS_wOeG_o",
+      "title": "（日本年金機構）扶養親族等申告書　所得の計算方法について（令和9年分）",
+      "views": 20974,
+      "ratio": 12.3,
+      "dur_min": 10.7,
+      "published": "2026-10-15"
+    },
+    {
+      "channel": "News65 (老後)",
+      "channel_id": "UCgNr-yxfjcW0ao2dhvBZVWA",
+      "video_id": "9u_RQrENaE4",
+      "title": "【老後資金】50代・60代が絶対やってはいけない投資！2024年1月から始まる新NISAのNG行動について解説します",
+      "views": 1551908,
+      "ratio": 12.2,
+      "dur_min": 17.7,
+      "published": "2023-11-17"
+    },
+    {
+      "channel": "News65 (老後)",
+      "channel_id": "UCgNr-yxfjcW0ao2dhvBZVWA",
+      "video_id": "rlEBOmwWuJk",
+      "title": "【老後年金】66歳から年金受給は最強ではありません！手取り額ベースの損益分岐点でオススメしない理由を解説します",
+      "views": 1547535,
+      "ratio": 12.1,
+      "dur_min": 20.3,
+      "published": "2023-12-01"
+    },
+    {
+      "channel": "定年前後の「お金の悩み」解消ラボ",
+      "channel_id": "UC27e9lK-KS5EGvhx-DM0ShQ",
+      "video_id": "kcfYQw2Blnw",
+      "title": "【最新】確定申告の変更点！無効化に要注意！これ1本！わかりやすく解説/所得税のルール変更/確定申告の対象条件/医療費控除/スマホ/パソコン/e-Tax/マイナポータル連携/令和7年分/税理士監修",
+      "views": 435228,
+      "ratio": 12.1,
+      "dur_min": 35.2,
+      "published": "2026-02-06"
+    },
+    {
+      "channel": "FP1級パパこみやまのこみやまFP総合オフィス",
+      "channel_id": "UCRfvvN--iV8kXJYqhVTn10g",
+      "video_id": "6Rhnzoc4yhI",
+      "title": "【今世紀初の大激変】2026年4月から年収の壁が変わって大混乱！？パート主婦はいくらまで？学生は？年金受給者は？最新の税制改正と扶養判定の変更に年金制度改正を踏まえて解説",
+      "views": 765306,
+      "ratio": 11.9,
+      "dur_min": 32.1,
+      "published": "2026-03-24"
+    },
+    {
+      "channel": "税理士KOBAYASHIちゃんねる",
+      "channel_id": "UCLU523cU8RRTIL10F94RB4w",
+      "video_id": "pMRRxqwpLHo",
+      "title": "【220万円非課税へ】生前贈与の大改正で年間220万円まで非課税で贈与が可能に！暦年贈与と相続時精算課税制度の併用で誕生",
+      "views": 564111,
+      "ratio": 11.8,
+      "dur_min": 9.3,
+      "published": "2024-02-22"
+    },
+    {
+      "channel": "年金・給付金カレンダー",
+      "channel_id": "UCeBr3VIDh_-NBKNsftyj8ag",
+      "video_id": "htsVyp1uJjE",
+      "title": "2026年10月30日締切！扶養親族等申告書を返送しないと年金税額が増える",
+      "views": 5873,
+      "ratio": 11.7,
+      "dur_min": 23.1,
+      "published": "2026-10-04"
+    },
+    {
+      "channel": "FP カネスケのお得マネー塾",
+      "channel_id": "UC4FTvtWRxSyLIn_fIUAMjMw",
+      "video_id": "5jIbLmQxi-I",
+      "title": "【年金】60歳受給は危険？繰り上げ・繰り下げ損益分岐点を徹底比較！",
+      "views": 5726,
+      "ratio": 11.7,
+      "dur_min": 12.2,
+      "published": "2025-08-03"
+    },
+    {
+      "channel": "保険年金マネー相談ゲートウェイ",
+      "channel_id": "UC30b1h_7V1HEgwV1EoCZcRQ",
+      "video_id": "6XfeMTyhggc",
+      "title": "【年金】2026年10月15日年金支給日　振込額、ここに注意【社労士解説】",
+      "views": 93278,
+      "ratio": 11.5,
+      "dur_min": 10.1,
+      "published": "2026-09-20"
+    },
+    {
+      "channel": "はじめ静岡税理士チャンネル",
+      "channel_id": "UCdQWQPx1bGJyplSlLBxgN1Q",
+      "video_id": "tl83ZuSedxM",
+      "title": "給料と年金をもらっている人の年末調整、基礎控除申告書に年金の所得をどう書くか？確定申告は必要か？公的年金等の雑所得・個人年金の雑所得【静岡県三島市の税理士】",
+      "views": 105614,
+      "ratio": 11.4,
+      "dur_min": 22.1,
+      "published": "2026-10-15"
+    },
+    {
+      "channel": "FP1級パパこみやまのこみやまFP総合オフィス",
+      "channel_id": "UCRfvvN--iV8kXJYqhVTn10g",
+      "video_id": "4TZ05Q6p3Yg",
+      "title": "【神改正】65歳からは週10時間働けばコーヒー代が20万円に化ける！？いつから？誰が対象？週20時間を超えてはいけない理由も含めて解説！",
+      "views": 715591,
+      "ratio": 11.2,
+      "dur_min": 24,
+      "published": "2026-06-05"
+    },
+    {
+      "channel": "News65 (老後)",
+      "channel_id": "UCgNr-yxfjcW0ao2dhvBZVWA",
+      "video_id": "B8XqKwN6POQ",
+      "title": "【漫画】60歳で年金を受け取るとどうなる？手取り額で計算すると…60歳で年金受給開始が最強？【老後年金・繰上げ受給】",
+      "views": 1384023,
+      "ratio": 10.9,
+      "dur_min": 21.7,
+      "published": "2025-09-26"
+    },
+    {
+      "channel": "はじめ静岡税理士チャンネル",
+      "channel_id": "UCdQWQPx1bGJyplSlLBxgN1Q",
+      "video_id": "tXIQJxdK50s",
+      "title": "etax実演!!  確定申告で医療費控除を受ける方法、～サラリーマンが医療費控除を受ける場合～、令和6年確定申告書等作成コーナーで実演【静岡県三島市の税理士】",
+      "views": 98850,
+      "ratio": 10.7,
+      "dur_min": 36.2,
+      "published": "2025-01-18"
+    },
+    {
+      "channel": "FP1級パパこみやまのこみやまFP総合オフィス",
+      "channel_id": "UCRfvvN--iV8kXJYqhVTn10g",
+      "video_id": "f1foKZv_3Q0",
+      "title": "【確定】これが答えです！年金は何歳でもらうと得なのか？理由とケース別ベストな年金受給開始年齢の考え方を衝撃のシミュレーションをもとに解説！",
+      "views": 681464,
+      "ratio": 10.6,
+      "dur_min": 40,
+      "published": "2026-04-11"
+    },
+    {
+      "channel": "FP カネスケのお得マネー塾",
+      "channel_id": "UC4FTvtWRxSyLIn_fIUAMjMw",
+      "video_id": "H0M8N2PWydA",
+      "title": "失業保険で絶対NGな行動６選｜知らないと絶対に損します！",
+      "views": 5150,
+      "ratio": 10.6,
+      "dur_min": 13.4,
+      "published": "2026-04-10"
+    },
+    {
+      "channel": "定年前後のお金の新常識【社労士みなみ】",
+      "channel_id": "UCxzI8X4wZF2Osa5Jd_RqgxQ",
+      "video_id": "DWuXJ_ta2q8",
+      "title": "【確認要！】2024年10月発送の年金振込通知書が届く！２箇所絶対チェックわかりやすく解説／年金額の増減の影響とその理由３つ。定額減税も解説。",
+      "views": 607775,
+      "ratio": 10.5,
+      "dur_min": 12.8,
+      "published": "2024-10-04"
+    },
+    {
+      "channel": "保険年金マネー相談ゲートウェイ",
+      "channel_id": "UC30b1h_7V1HEgwV1EoCZcRQ",
+      "video_id": "1ls2jgmSyko",
+      "title": "【健康保険】あらためて75歳以上後期高齢者医療制度について",
+      "views": 84876,
+      "ratio": 10.4,
+      "dur_min": 10,
+      "published": "2026-05-06"
+    },
+    {
+      "channel": "News65 (老後)",
+      "channel_id": "UCgNr-yxfjcW0ao2dhvBZVWA",
+      "video_id": "A29hvcFA0B4",
+      "title": "【老後年金】60歳以降も働くと年金はどう増える？早見表でわかりやすく解説！【経過的加算・在職定時改定】",
+      "views": 1331789,
+      "ratio": 10.4,
+      "dur_min": 23.1,
+      "published": "2024-10-29"
+    },
+    {
+      "channel": "News65 (老後)",
+      "channel_id": "UCgNr-yxfjcW0ao2dhvBZVWA",
+      "video_id": "69KjV8JZuM4",
+      "title": "【老後年金】2024年1月に届く公的年金等の源泉徴収票の見方と、確定申告が必要な人・必要ではない人【総集編】",
+      "views": 1330880,
+      "ratio": 10.4,
+      "dur_min": 27.5,
+      "published": "2024-01-03"
+    },
+    {
+      "channel": "税理士KOBAYASHIちゃんねる",
+      "channel_id": "UCLU523cU8RRTIL10F94RB4w",
+      "video_id": "MeKJX8YeJ40",
+      "title": "”知らないと怖い”年齢で激変する社会保険の扶養制度！",
+      "views": 496860,
+      "ratio": 10.4,
+      "dur_min": 11,
+      "published": "2026-05-25"
+    },
+    {
+      "channel": "はじめ静岡税理士チャンネル",
+      "channel_id": "UCdQWQPx1bGJyplSlLBxgN1Q",
+      "video_id": "oW4yjgSXbFA",
+      "title": "【年末調整】令和6年分(2024年分)給与所得者の基礎控除申告書、配偶者控除等申告書  兼  年末調整に係る定額減税のための申告書 、所得金額調整控除申告書の書き方を解説【静岡県三島市の税理士】",
+      "views": 95085,
+      "ratio": 10.3,
+      "dur_min": 32.7,
+      "published": "2024-09-24"
+    },
+    {
+      "channel": "News65 (老後)",
+      "channel_id": "UCgNr-yxfjcW0ao2dhvBZVWA",
+      "video_id": "ZViskXzqpgE",
+      "title": "【ストップ老後貧乏】50代60代の人が絶対やってはいけない無駄な買い物8選",
+      "views": 1302122,
+      "ratio": 10.2,
+      "dur_min": 18.4,
+      "published": "2024-07-05"
+    },
+    {
+      "channel": "税金・社会保障教育ちゃんねる",
+      "channel_id": "UCzkApy4pduuiJecDg93c6Ng",
+      "video_id": "K96_gnQa5tw",
+      "title": "65歳以上は優遇！年金控除50万増など5つの合法ルールを解説。働く年金受給者はさらにお得な「隠れた控除」や「保険料の裏技的なルール」も解説",
+      "views": 618681,
+      "ratio": 10.2,
+      "dur_min": 16.4,
+      "published": "2025-11-16"
+    },
+    {
+      "channel": "定年前後の「お金の悩み」解消ラボ",
+      "channel_id": "UC27e9lK-KS5EGvhx-DM0ShQ",
+      "video_id": "aXU0zPDC130",
+      "title": "【知らないと損】年金と給与！両方もらうと税金はどうなる？確定申告は必要？わかりやすく解説◎要注意！確定申告不要でも申告しないと損する人・申告すると損する人/年金受給者の確定申告/税理士監修",
+      "views": 353710,
+      "ratio": 9.8,
+      "dur_min": 20.9,
+      "published": "2025-02-07"
+    },
+    {
+      "channel": "サラダのお金相談所",
+      "channel_id": "UCeicl_qqEQyLBdqhhrw20Rw",
+      "video_id": "oVhfMDDHiuw",
+      "title": "【警告】5月に届く自動車税は絶対確認して！そのまま絶対に払うと99%が損します！【納税/税金/通知書】",
+      "views": 1791479,
+      "ratio": 9.8,
+      "dur_min": 36.9,
+      "published": "2026-04-29"
+    },
+    {
+      "channel": "保険年金マネー相談ゲートウェイ",
+      "channel_id": "UC30b1h_7V1HEgwV1EoCZcRQ",
+      "video_id": "Os14pMOlpys",
+      "title": "【年金】８月に年金振込通知書が届いた方へ【社労士解説】",
+      "views": 78574,
+      "ratio": 9.7,
+      "dur_min": 10.1,
+      "published": "2026-08-08"
+    },
+    {
+      "channel": "保険年金マネー相談ゲートウェイ",
+      "channel_id": "UC30b1h_7V1HEgwV1EoCZcRQ",
+      "video_id": "sICKzSc1HKI",
+      "title": "【マネー】いよいよ始まる年金振込口座強制ひもづけ　マイナンバー　公金受取口座",
+      "views": 78411,
+      "ratio": 9.7,
+      "dur_min": 8.2,
+      "published": "2026-07-14"
+    },
+    {
+      "channel": "保険年金マネー相談ゲートウェイ",
+      "channel_id": "UC30b1h_7V1HEgwV1EoCZcRQ",
+      "video_id": "qfPVNwxkpCk",
+      "title": "【年金】８月14日は年金支給日留意点",
+      "views": 77138,
+      "ratio": 9.5,
+      "dur_min": 8.3,
+      "published": "2026-07-23"
+    },
+    {
+      "channel": "保険年金マネー相談ゲートウェイ",
+      "channel_id": "UC30b1h_7V1HEgwV1EoCZcRQ",
+      "video_id": "5PR-SHZVBlM",
+      "title": "【速報】ついに成立！株の利益で保険料アップへ！健康保険・後期高齢者医療・金融所得、保険料計算に反映へ",
+      "views": 76886,
+      "ratio": 9.5,
+      "dur_min": 8.1,
+      "published": "2026-05-31"
+    },
+    {
+      "channel": "年金・給付金カレンダー",
+      "channel_id": "UCeBr3VIDh_-NBKNsftyj8ag",
+      "video_id": "2zeGeAFI9Js",
+      "title": "【年末前に確認】年金受給者が確定申告不要になる2つの条件・令和8年版【扶養親族等申告書】",
+      "views": 4660,
+      "ratio": 9.3,
+      "dur_min": 22.5,
+      "published": "2026-10-14"
+    },
+    {
+      "channel": "定年前後のお金の新常識【社労士みなみ】",
+      "channel_id": "UCxzI8X4wZF2Osa5Jd_RqgxQ",
+      "video_id": "Nbn3k9D74-c",
+      "title": "【超重要】1月届く公的年金等の源泉徴収票の見方。定額減税と令和７年追加の不足給付を知ろう！ 3つの重要なチェックポイントも解説",
+      "views": 534953,
+      "ratio": 9.2,
+      "dur_min": 16.8,
+      "published": "2025-01-06"
+    },
+    {
+      "channel": "News65 (老後)",
+      "channel_id": "UCgNr-yxfjcW0ao2dhvBZVWA",
+      "video_id": "eIf1-XXfYT0",
+      "title": "【漫画】65歳で定年退職するとどうなる？給料減額・年金不安…ある男の定年後の選択と働き方【老後のリアル】",
+      "views": 1163933,
+      "ratio": 9.1,
+      "dur_min": 21.2,
+      "published": "2025-06-20"
+    },
+    {
+      "channel": "定年前後の「お金の悩み」解消ラボ",
+      "channel_id": "UC27e9lK-KS5EGvhx-DM0ShQ",
+      "video_id": "y5S46YP9e_Y",
+      "title": "【知らないと大損！】65歳から一生6万円が年金に上乗せ！生涯合計140万円！年金生活者支援給付金とは？わかりやすく解説！",
+      "views": 330144,
+      "ratio": 9.1,
+      "dur_min": 19.9,
+      "published": "2024-04-21"
+    },
+    {
+      "channel": "税理士KOBAYASHIちゃんねる",
+      "channel_id": "UCLU523cU8RRTIL10F94RB4w",
+      "video_id": "nXd1qKCa99A",
+      "title": "【年金受給者の穴】確定申告不要でも住民税は課税される！住民税の申告をして減税せよ！",
+      "views": 427609,
+      "ratio": 8.9,
+      "dur_min": 8.8,
+      "published": "2025-12-15"
+    },
+    {
+      "channel": "FP1級パパこみやまのこみやまFP総合オフィス",
+      "channel_id": "UCRfvvN--iV8kXJYqhVTn10g",
+      "video_id": "HQqPxCa-wLI",
+      "title": "【爆増します】働く年金受給者が優遇される3つの裏ワザや勘違いで100万円損するケースを解説！50代も60代も知っておくべき10の知恵とは？",
+      "views": 569507,
+      "ratio": 8.9,
+      "dur_min": 40.4,
+      "published": "2026-05-12"
+    },
+    {
+      "channel": "税金・社会保障教育ちゃんねる",
+      "channel_id": "UCzkApy4pduuiJecDg93c6Ng",
+      "video_id": "KWWR98j6Cs8",
+      "title": "65歳以上の介護保険料の嫌な仕組み！申請の有無で2倍変わるルールはあり！？年金受給者は知らないとずっと損する、介護保険のしくみと一緒に解説",
+      "views": 543713,
+      "ratio": 8.9,
+      "dur_min": 19,
+      "published": "2025-12-30"
+    },
+    {
+      "channel": "はじめ静岡税理士チャンネル",
+      "channel_id": "UCdQWQPx1bGJyplSlLBxgN1Q",
+      "video_id": "nFCxtQU85m0",
+      "title": "【e-tax実演!!】『公的年金等＋給料』の確定申告、定額減税を受ける方法、確定申告書等作成コーナーで実演、医療費控除を受ける【静岡県三島市の税理士】",
+      "views": 81159,
+      "ratio": 8.8,
+      "dur_min": 29,
+      "published": "2025-02-09"
+    },
+    {
+      "channel": "はじめ静岡税理士チャンネル",
+      "channel_id": "UCdQWQPx1bGJyplSlLBxgN1Q",
+      "video_id": "PA8TJRRMP4w",
+      "title": "確定申告後の添付書類のPDFデータ提出方法、e-tax web版で実演、確定申告書等作成コーナーでの電子申告後に、住宅ローンの年末残高証明書のイメージデータ提出、住宅ローン控除【静岡県三島市の税理士】",
+      "views": 81188,
+      "ratio": 8.8,
+      "dur_min": 14.1,
+      "published": "2025-01-31"
+    },
+    {
+      "channel": "定年前後のお金の新常識【社労士みなみ】",
+      "channel_id": "UCxzI8X4wZF2Osa5Jd_RqgxQ",
+      "video_id": "FPPZ_xHr3MU",
+      "title": "定年後の再雇用、最低2年はガマン！？メリットが大きい５つの理由/再雇用制度の給与や社会保険/勤務延長",
+      "views": 504062,
+      "ratio": 8.7,
+      "dur_min": 18,
+      "published": "2024-09-27"
+    },
+    {
+      "channel": "News65 (老後)",
+      "channel_id": "UCgNr-yxfjcW0ao2dhvBZVWA",
+      "video_id": "MdiSw-5LtvQ",
+      "title": "【2025年1月8日発送】年金受給者に届く公的年金等の源泉徴収票を確認して！今年は定額減税の記載に注意【老後年金】",
+      "views": 1110880,
+      "ratio": 8.7,
+      "dur_min": 32.9,
+      "published": "2025-01-06"
+    },
+    {
+      "channel": "定年前後の「お金の悩み」解消ラボ",
+      "channel_id": "UC27e9lK-KS5EGvhx-DM0ShQ",
+      "video_id": "L07XJ9JodmI",
+      "title": "【絶対確認】年金受給者に1月に届く源泉徴収票！見落とすと5万円の損！？ココだけは絶対確認して！超重要チェックポイント5つ！公的年金等の源泉徴収票/確定申告/2026年/令和7年/最新版/税理士監修",
+      "views": 315070,
+      "ratio": 8.7,
+      "dur_min": 37.5,
+      "published": "2026-01-19"
+    },
+    {
+      "channel": "税金・社会保障教育ちゃんねる",
+      "channel_id": "UCzkApy4pduuiJecDg93c6Ng",
+      "video_id": "a4mCFwpxDIU",
+      "title": "【2026年最適年収】年金をもらいながら働くなら年収いくら？「手取り大損」を防ぐ3つの最適パターン",
+      "views": 527429,
+      "ratio": 8.7,
+      "dur_min": 20.7,
+      "published": "2026-07-29"
+    },
+    {
+      "channel": "定年前後の「お金の悩み」解消ラボ",
+      "channel_id": "UC27e9lK-KS5EGvhx-DM0ShQ",
+      "video_id": "YWbQHw8Gmnk",
+      "title": "【激変】飛行機の新ルール！知らないと乗れない！？2026年 変更点10選/空港/国内線/国際線/手荷物/搭乗時間/料金/最新版",
+      "views": 305873,
+      "ratio": 8.5,
+      "dur_min": 35.4,
+      "published": "2026-09-27"
+    },
+    {
+      "channel": "FP カネスケのお得マネー塾",
+      "channel_id": "UC4FTvtWRxSyLIn_fIUAMjMw",
+      "video_id": "rMpsvWzsdtk",
+      "title": "【2026年10月】月8万円パート、手取り年13万円減る…でも本当に損？",
+      "views": 4084,
+      "ratio": 8.4,
+      "dur_min": 11.6,
+      "published": "2026-09-15"
+    },
+    {
+      "channel": "FP1級パパこみやまのこみやまFP総合オフィス",
+      "channel_id": "UCRfvvN--iV8kXJYqhVTn10g",
+      "video_id": "hFCOr5Ho0ig",
+      "title": "【2026年10月〜】130万円の壁も「週20時間の壁」へ！手取りと年金ここまで変わります",
+      "views": 533192,
+      "ratio": 8.3,
+      "dur_min": 49.5,
+      "published": "2026-09-12"
+    },
+    {
+      "channel": "サラダのお金相談所",
+      "channel_id": "UCeicl_qqEQyLBdqhhrw20Rw",
+      "video_id": "xBai9pAeCdA",
+      "title": "【永久保存版】4月からのルール変更で〇〇歳で年金受給が最強です！役所は教えない得する年金受給の年齢！【繰上げ受給/繰り下げ受給】",
+      "views": 1492035,
+      "ratio": 8.1,
+      "dur_min": 66.2,
+      "published": "2026-04-22"
+    },
+    {
+      "channel": "保険年金マネー相談ゲートウェイ",
+      "channel_id": "UC30b1h_7V1HEgwV1EoCZcRQ",
+      "video_id": "fWiGYiOksT4",
+      "title": "【年金】70歳になると年金はどう変わる？",
+      "views": 65284,
+      "ratio": 8,
+      "dur_min": 11.6,
+      "published": "2026-10-13"
+    },
+    {
+      "channel": "税理士KOBAYASHIちゃんねる",
+      "channel_id": "UCLU523cU8RRTIL10F94RB4w",
+      "video_id": "Bmrl7q7_rYg",
+      "title": "【配当金の有利課税が終了！】住民税の課税方式が変わりました。確定申告の有利不利の判定が変わります。国民健康保険や後期高齢者医療保険にも影響します。",
+      "views": 382029,
+      "ratio": 8,
+      "dur_min": 9.2,
+      "published": "2024-01-15"
+    },
+    {
+      "channel": "サラダのお金相談所",
+      "channel_id": "UCeicl_qqEQyLBdqhhrw20Rw",
+      "video_id": "8pzly8nb6FA",
+      "title": "【知らないと損！】60歳からの5年間がボーナスタイム！！再雇用は絶対ダメです！【定年退職/年金/社会保険】",
+      "views": 1462604,
+      "ratio": 8,
+      "dur_min": 64.8,
+      "published": "2026-02-13"
+    },
+    {
+      "channel": "税理士KOBAYASHIちゃんねる",
+      "channel_id": "UCLU523cU8RRTIL10F94RB4w",
+      "video_id": "3ag6n7NJadU",
+      "title": "【知らないは損択】保険金を受け取ったときの税金を解説！生命保険／死亡保険金／満期保険金／解約返戻金",
+      "views": 379400,
+      "ratio": 7.9,
+      "dur_min": 9.1,
+      "published": "2023-08-05"
+    },
+    {
+      "channel": "FP1級パパこみやまのこみやまFP総合オフィス",
+      "channel_id": "UCRfvvN--iV8kXJYqhVTn10g",
+      "video_id": "4cL3XY7KK8U",
+      "title": "【国保】年収1億円でも保険料が年間2万円になる最大7割引きの隠された条件とは？130万円で保険料13万円のフリーターが存在する理由と安くする具体的な方法を解説",
+      "views": 496964,
+      "ratio": 7.8,
+      "dur_min": 39.6,
+      "published": "2026-02-14"
+    },
+    {
+      "channel": "税金・社会保障教育ちゃんねる",
+      "channel_id": "UCzkApy4pduuiJecDg93c6Ng",
+      "video_id": "aD0AGrS8Tfc",
+      "title": "個人年金を受け取って黙ってたらダメ？申告しないと計算が狂う？",
+      "views": 467265,
+      "ratio": 7.7,
+      "dur_min": 9.9,
+      "published": "2024-06-01"
+    },
+    {
+      "channel": "FP カネスケのお得マネー塾",
+      "channel_id": "UC4FTvtWRxSyLIn_fIUAMjMw",
+      "video_id": "tlzjTzXdkZI",
+      "title": "【遺族年金】あなたは大丈夫？配偶者が亡くなっても1円も受け取れない人の条件",
+      "views": 3736,
+      "ratio": 7.7,
+      "dur_min": 9.7,
+      "published": "2025-08-17"
+    },
+    {
+      "channel": "News65 (老後)",
+      "channel_id": "UCgNr-yxfjcW0ao2dhvBZVWA",
+      "video_id": "EAn5KBcvdTI",
+      "title": "【定年退職】60歳で即退職は危険！定年後に再雇用で2年働くと老後資金が激変する3つの理由",
+      "views": 950614,
+      "ratio": 7.5,
+      "dur_min": 19,
+      "published": "2025-04-25"
+    },
+    {
+      "channel": "サラダのお金相談所",
+      "channel_id": "UCeicl_qqEQyLBdqhhrw20Rw",
+      "video_id": "ChnnarOKi0k",
+      "title": "【知らないと損】2026年から貯金のルール変更で50代60代は800万円の大損です！55歳以上は絶対に申請してください！【給付金/助成金/貰える】",
+      "views": 1371101,
+      "ratio": 7.5,
+      "dur_min": 41.6,
+      "published": "2026-01-09"
+    },
+    {
+      "channel": "定年前後のお金の新常識【社労士みなみ】",
+      "channel_id": "UCxzI8X4wZF2Osa5Jd_RqgxQ",
+      "video_id": "LgVJB4cu5jI",
+      "title": "【64歳11ヶ月退職で損する人続出！】7つの落とし穴と回避策とは？失業給付の額は高いがデメリットも知っておこう。",
+      "views": 430844,
+      "ratio": 7.4,
+      "dur_min": 19.5,
+      "published": "2025-09-23"
+    },
+    {
+      "channel": "保険年金マネー相談ゲートウェイ",
+      "channel_id": "UC30b1h_7V1HEgwV1EoCZcRQ",
+      "video_id": "G0KOp6MlDzY",
+      "title": "【マネー】公金受取口座のメリットデメリット徹底整理　給付金　マイナンバー",
+      "views": 58979,
+      "ratio": 7.3,
+      "dur_min": 9.4,
+      "published": "2026-07-18"
+    },
+    {
+      "channel": "定年前後のお金の新常識【社労士みなみ】",
+      "channel_id": "UCxzI8X4wZF2Osa5Jd_RqgxQ",
+      "video_id": "Ia9ls2eUezI",
+      "title": "【神改正！】退職前に2025年4月以降の雇用保険制度改正を知ろう！自己都合退職でも失業手当が即支給されるポイント！教育訓練休暇給付金の新設",
+      "views": 423353,
+      "ratio": 7.3,
+      "dur_min": 19.2,
+      "published": "2025-02-07"
+    },
+    {
+      "channel": "税理士KOBAYASHIちゃんねる",
+      "channel_id": "UCLU523cU8RRTIL10F94RB4w",
+      "video_id": "Arab_MkiztI",
+      "title": "【社保扶養から外れる年齢】年の差５歳以上の夫婦は注意して！社会保険の被扶養者から外れてしまう年齢が来る！",
+      "views": 351435,
+      "ratio": 7.3,
+      "dur_min": 10.8,
+      "published": "2024-08-07"
+    },
+    {
+      "channel": "厚生労働省 / Ministry of Health, Labour and Welfare",
+      "channel_id": "UCVgZUHlkoN51FOwoNMBGjfw",
+      "video_id": "kkw171i5DDw",
+      "title": "（日本年金機構）扶養親族等申告書をパソコンで提出する方法（令和9年分）【新規】全体版",
+      "views": 12510,
+      "ratio": 7.3,
+      "dur_min": 21.6,
+      "published": "2026-09-03"
+    },
+    {
+      "channel": "FP1級パパこみやまのこみやまFP総合オフィス",
+      "channel_id": "UCRfvvN--iV8kXJYqhVTn10g",
+      "video_id": "cm1RLSqg5pY",
+      "title": "【特に今年は要注意！】確定申告じゃなくて住民税の申告をしないと10万円損する人とは？簡単判定フローチャートも紹介！申告しないと大損するメカニズムを具体例を出しながら解説！",
+      "views": 468105,
+      "ratio": 7.3,
+      "dur_min": 37.2,
+      "published": "2026-03-02"
+    },
+    {
+      "channel": "はじめ静岡税理士チャンネル",
+      "channel_id": "UCdQWQPx1bGJyplSlLBxgN1Q",
+      "video_id": "QZPncmRttc0",
+      "title": "【e-tax実演】年の途中で退職したため、定額減税が途中の人の確定申告、確定申告書等作成コーナーで実演【静岡県三島市の税理士】",
+      "views": 67496,
+      "ratio": 7.3,
+      "dur_min": 28.4,
+      "published": "2025-01-12"
+    },
+    {
+      "channel": "定年前後の「お金の悩み」解消ラボ",
+      "channel_id": "UC27e9lK-KS5EGvhx-DM0ShQ",
+      "video_id": "xCn6MXLt15E",
+      "title": "【絶対注意】激変の年末調整！未記入者は5万円の損！？変更点3つ&書き方/改正点/注意点/書き方/わかりやすく解説/所得税/扶養控除/配偶者控除/控除/申告書/令和7年/2025年/提出分",
+      "views": 260202,
+      "ratio": 7.2,
+      "dur_min": 58.6,
+      "published": "2025-11-09"
+    },
+    {
+      "channel": "きな子のシニアお金ゼミ",
+      "channel_id": "UCy5KsSNTrnYqosI_4SDT-oQ",
+      "video_id": "1PijeBhJ3FE",
+      "title": "【2025年度版】年収はいくらまで？住民税非課税世帯に該当しやすいのは年金世帯！早見表",
+      "views": 174669,
+      "ratio": 7.2,
+      "dur_min": 21.8,
+      "published": "2025-11-01"
+    },
+    {
+      "channel": "保険年金マネー相談ゲートウェイ",
+      "channel_id": "UC30b1h_7V1HEgwV1EoCZcRQ",
+      "video_id": "5P4iKqNMEvo",
+      "title": "【年金】４月に年金振込通知書が届いた方へ",
+      "views": 57837,
+      "ratio": 7.1,
+      "dur_min": 8.3,
+      "published": "2026-04-10"
+    },
+    {
+      "channel": "定年前後の「お金の悩み」解消ラボ",
+      "channel_id": "UC27e9lK-KS5EGvhx-DM0ShQ",
+      "video_id": "PHFw9LOZk4Q",
+      "title": "【最新版】医療費控除とは？「条件」と「金額」！やり方までわかりやすく解説◎知らないと損/保険適応外だけど対象になる医療費/セルフメディケーション税制/最新版/2025年/確定申告/税理士監修のもと作成",
+      "views": 256573,
+      "ratio": 7.1,
+      "dur_min": 39.8,
+      "published": "2025-01-10"
+    },
+    {
+      "channel": "きな子のシニアお金ゼミ",
+      "channel_id": "UCy5KsSNTrnYqosI_4SDT-oQ",
+      "video_id": "7LC3luUEcpM",
+      "title": "【知らないと大損】65歳から介護保険料が倍増する⁉︎ 役所で「ある申請」をするだけで劇的に安くなる裏ワザを解説します",
+      "views": 171441,
+      "ratio": 7.1,
+      "dur_min": 24.5,
+      "published": "2025-12-13"
+    },
+    {
+      "channel": "定年前後のお金の新常識【社労士みなみ】",
+      "channel_id": "UCxzI8X4wZF2Osa5Jd_RqgxQ",
+      "video_id": "R2MnZ62eHAg",
+      "title": "【１０分かんたん解説】定年後の給料・手当はどう変わる？2026年10月改正「同一労働同一賃金」の新常識",
+      "views": 407541,
+      "ratio": 7,
+      "dur_min": 11.6,
+      "published": "2026-10-08"
+    },
+    {
+      "channel": "News65 (老後)",
+      "channel_id": "UCgNr-yxfjcW0ao2dhvBZVWA",
+      "video_id": "D7T5I_QMYr8",
+      "title": "【漫画】65歳まで働くのが幸せなのか？60歳で定年退職した男と会社に残った男、どちらを選んでも待っていた地獄の正体とは…【老後生活】",
+      "views": 887742,
+      "ratio": 7,
+      "dur_min": 26.3,
+      "published": "2026-01-16"
+    },
+    {
+      "channel": "きな子のシニアお金ゼミ",
+      "channel_id": "UCy5KsSNTrnYqosI_4SDT-oQ",
+      "video_id": "46tRC0jlkbM",
+      "title": "【超速報】2026年から年収の壁制度変更で増税します！絶対損しない方法",
+      "views": 169399,
+      "ratio": 7,
+      "dur_min": 35,
+      "published": "2026-01-16"
+    },
+    {
+      "channel": "定年前後のお金の新常識【社労士みなみ】",
+      "channel_id": "UCxzI8X4wZF2Osa5Jd_RqgxQ",
+      "video_id": "ZjPHneAmG_k",
+      "title": "【12月届く年金通知書の表示確認！年金増！】年金振込通知書を確認して！",
+      "views": 398685,
+      "ratio": 6.9,
+      "dur_min": 15.5,
+      "published": "2025-12-05"
+    },
+    {
+      "channel": "News65 (老後)",
+      "channel_id": "UCgNr-yxfjcW0ao2dhvBZVWA",
+      "video_id": "pFakm9rc77g",
+      "title": "【老後資金】独身60代の平均貯蓄額に残酷な格差！貯金、年金、就業状況から60歳以上の老後生活の現実を解説",
+      "views": 870774,
+      "ratio": 6.8,
+      "dur_min": 22.6,
+      "published": "2023-10-06"
+    },
+    {
+      "channel": "税理士KOBAYASHIちゃんねる",
+      "channel_id": "UCLU523cU8RRTIL10F94RB4w",
+      "video_id": "LUt9wo_OS-s",
+      "title": "【追加支給】源泉徴収票のここを見ろ！年末調整で定額減税し切れなかった人は調整給付金が追加でもらえる",
+      "views": 325643,
+      "ratio": 6.8,
+      "dur_min": 9.8,
+      "published": "2024-12-19"
+    },
+    {
+      "channel": "定年前後の「お金の悩み」解消ラボ",
+      "channel_id": "UC27e9lK-KS5EGvhx-DM0ShQ",
+      "video_id": "9gOpMqLXqvQ",
+      "title": "【必見】6月15日「老齢年金」の年金額が変わる！？通知書の見方も解説◎",
+      "views": 246400,
+      "ratio": 6.8,
+      "dur_min": 12.2,
+      "published": "2023-06-02"
+    },
+    {
+      "channel": "税金・社会保障教育ちゃんねる",
+      "channel_id": "UCzkApy4pduuiJecDg93c6Ng",
+      "video_id": "tj6N6lkUV4I",
+      "title": "【2026年】年金から引かれる「保険料」の罠！申請で安くなる人、高くなる人の違いとは？国保と介護保険料の隠れたルールを解説！",
+      "views": 414966,
+      "ratio": 6.8,
+      "dur_min": 19.8,
+      "published": "2026-05-16"
+    },
+    {
+      "channel": "FP カネスケのお得マネー塾",
+      "channel_id": "UC4FTvtWRxSyLIn_fIUAMjMw",
+      "video_id": "ihLNcXbJhDk",
+      "title": "【9割が勘違い】年収125万円でも扶養を外れる？年収の壁2026を5問で確認",
+      "views": 3296,
+      "ratio": 6.8,
+      "dur_min": 10,
+      "published": "2026-09-03"
+    },
+    {
+      "channel": "定年前後のお金の新常識【社労士みなみ】",
+      "channel_id": "UCxzI8X4wZF2Osa5Jd_RqgxQ",
+      "video_id": "BJx7Ijlxm5w",
+      "title": "【申請をせずに大損！】65歳以降の介護保険料が3倍！？介護保険制度の安くなる仕組みの制度活用法！",
+      "views": 389374,
+      "ratio": 6.7,
+      "dur_min": 19.2,
+      "published": "2025-09-13"
+    },
+    {
+      "channel": "定年前後のお金の新常識【社労士みなみ】",
+      "channel_id": "UCxzI8X4wZF2Osa5Jd_RqgxQ",
+      "video_id": "zDZ6WmyntNA",
+      "title": "【ねんきん定期便の実例】50代エリートサラリーマンの年金額はいくら？総支払保険料4000万円。将来の年金額は多い？少ない？",
+      "views": 389046,
+      "ratio": 6.7,
+      "dur_min": 16.6,
+      "published": "2025-04-25"
+    },
+    {
+      "channel": "定年前後の「お金の悩み」解消ラボ",
+      "channel_id": "UC27e9lK-KS5EGvhx-DM0ShQ",
+      "video_id": "xnkZQPOS_Lo",
+      "title": "【個人年金保険】受け取り方で「税金」が変わる！「確定申告」は必要！？わかりやすく解説◎契約者本人が受取人/遺族が受取人/所得税/住民税/贈与税/確定年金/終身年金/税理士監修",
+      "views": 240360,
+      "ratio": 6.7,
+      "dur_min": 38.5,
+      "published": "2025-03-01"
+    },
+    {
+      "channel": "きな子のシニアお金ゼミ",
+      "channel_id": "UCy5KsSNTrnYqosI_4SDT-oQ",
+      "video_id": "rCizfbymO1k",
+      "title": "【超速報】2025年最新版！働きながら年金受給、確定申告と定額減税どうなる？（給与と年金両方ある人の所得税）",
+      "views": 162252,
+      "ratio": 6.7,
+      "dur_min": 31.7,
+      "published": "2025-12-05"
+    },
+    {
+      "channel": "きな子のシニアお金ゼミ",
+      "channel_id": "UCy5KsSNTrnYqosI_4SDT-oQ",
+      "video_id": "hW4a3Lo1vX0",
+      "title": "【最新版】衝撃！リアルな年金収入を統計資料より分析",
+      "views": 163371,
+      "ratio": 6.7,
+      "dur_min": 22.8,
+      "published": "2024-10-25"
+    },
+    {
+      "channel": "定年前後のお金の新常識【社労士みなみ】",
+      "channel_id": "UCxzI8X4wZF2Osa5Jd_RqgxQ",
+      "video_id": "-uTTFs7wN2o",
+      "title": "【発送！６月１５日年金振込日までに絶対確認！】年金受給者全員に届く！年金額改定通知書・年金振込通知書の見方と注意点！",
+      "views": 381877,
+      "ratio": 6.6,
+      "dur_min": 18.6,
+      "published": "2026-05-29"
+    },
+    {
+      "channel": "定年前後の「お金の悩み」解消ラボ",
+      "channel_id": "UC27e9lK-KS5EGvhx-DM0ShQ",
+      "video_id": "3U_AcJzIoP8",
+      "title": "【超便利】スマホで確定申告！e-Tax完全ガイド◎定額減税に注意！準備〜入力まで実演！わかりやすく解説◎年金/退職金/医療費控除/住宅ローン/ふるさと納税/副業/必要書類/最新版/税理士監修のもと作成",
+      "views": 235150,
+      "ratio": 6.5,
+      "dur_min": 36.5,
+      "published": "2025-02-01"
+    },
+    {
+      "channel": "図解で学ぶお金の知識",
+      "channel_id": "UCvUfGFGJcZBu78F8bMfCgFg",
+      "video_id": "IWbygYK9gvU",
+      "title": "確定申告をしていないことがバレる人の割合とペナルティ",
+      "views": 138090,
+      "ratio": 6.4,
+      "dur_min": 11.5,
+      "published": "2024-12-06"
+    },
+    {
+      "channel": "税金・社会保障教育ちゃんねる",
+      "channel_id": "UCzkApy4pduuiJecDg93c6Ng",
+      "video_id": "wW15xY5fkB0",
+      "title": "【国保が３倍!?】年金受給者の保険料が高すぎる？合法で最安２万円にする方法や計算方法を解説",
+      "views": 389389,
+      "ratio": 6.4,
+      "dur_min": 21.9,
+      "published": "2026-07-02"
+    },
+    {
+      "channel": "News65 (老後)",
+      "channel_id": "UCgNr-yxfjcW0ao2dhvBZVWA",
+      "video_id": "e74N2LiJpSc",
+      "title": "【漫画】62歳で年金受給するとどうなる？60歳定年退職 vs 2年だけ再雇用。税金・保険料を徹底比較した結果…【老後年金・繰上げ受給】",
+      "views": 799572,
+      "ratio": 6.3,
+      "dur_min": 25.9,
+      "published": "2025-12-19"
+    },
+    {
+      "channel": "図解で学ぶお金の知識",
+      "channel_id": "UCvUfGFGJcZBu78F8bMfCgFg",
+      "video_id": "P6Wv1KBrLZg",
+      "title": "2025年の年金改正で加給年金】の今後はどうなる？",
+      "views": 135564,
+      "ratio": 6.3,
+      "dur_min": 10.9,
+      "published": "2024-09-05"
+    },
+    {
+      "channel": "定年前後の「お金の悩み」解消ラボ",
+      "channel_id": "UC27e9lK-KS5EGvhx-DM0ShQ",
+      "video_id": "sgaytNjCDjk",
+      "title": "【絶対確認】年末調整！申告漏れで6万4千円の損！？最重要チェックポイント5つ！改正点/注意点/書き方/わかりやすく解説/所得税/扶養控除/配偶者控除/注意点/申告書/令和7年/2025年",
+      "views": 225496,
+      "ratio": 6.2,
+      "dur_min": 33.1,
+      "published": "2025-11-19"
+    },
+    {
+      "channel": "News65 (老後)",
+      "channel_id": "UCgNr-yxfjcW0ao2dhvBZVWA",
+      "video_id": "xrxCsVhX55o",
+      "title": "【漫画】年金は何歳からもらうべき？「60歳・65歳・70歳・75歳」で受給した4人の末路…絶対に知っておくべき老後の罠【老後年金・損益分岐点】",
+      "views": 774242,
+      "ratio": 6.1,
+      "dur_min": 27.4,
+      "published": "2026-03-06"
+    },
+    {
+      "channel": "サラダのお金相談所",
+      "channel_id": "UCeicl_qqEQyLBdqhhrw20Rw",
+      "video_id": "0HiBaI8WgaU",
+      "title": "【半数以上がもらい漏れ】6月15日から年金に7万円が一生上乗せ支給！60歳以上は絶対に申請してください！【給付金/申請方法/支給金額】",
+      "views": 1113440,
+      "ratio": 6.1,
+      "dur_min": 37.8,
+      "published": "2026-05-29"
+    },
+    {
+      "channel": "税金・社会保障教育ちゃんねる",
+      "channel_id": "UCzkApy4pduuiJecDg93c6Ng",
+      "video_id": "gtY9aEHE8kg",
+      "title": "【年金と給与】230万なのに非課税、156万は課税って合法ルールなの？",
+      "views": 370895,
+      "ratio": 6.1,
+      "dur_min": 12.3,
+      "published": "2025-07-13"
+    },
+    {
+      "channel": "定年前後のお金の新常識【社労士みなみ】",
+      "channel_id": "UCxzI8X4wZF2Osa5Jd_RqgxQ",
+      "video_id": "SQp68SyR8MQ",
+      "title": "【2025年４月以降を知らないと大損！】退職後の健康保険の賢い選び方。任意継続と国民健康保険の選択でどっちが安いか？",
+      "views": 347130,
+      "ratio": 6,
+      "dur_min": 17.9,
+      "published": "2025-02-28"
+    },
+    {
+      "channel": "税理士KOBAYASHIちゃんねる",
+      "channel_id": "UCLU523cU8RRTIL10F94RB4w",
+      "video_id": "-Xhwcyq1ApY",
+      "title": "【知らないと大損】株取引の確定申告で所得がアップしてしまう仕組みと弊害！これを知らないで確定申告をするのは禁物です",
+      "views": 288806,
+      "ratio": 6,
+      "dur_min": 13.4,
+      "published": "2024-03-03"
+    },
+    {
+      "channel": "図解で学ぶお金の知識",
+      "channel_id": "UCvUfGFGJcZBu78F8bMfCgFg",
+      "video_id": "N0ievnkMiug",
+      "title": "【2026年度版】年金と給与、両方ある場合に住民税非課税となるのはどんな人？具体例で解説",
+      "views": 129361,
+      "ratio": 6,
+      "dur_min": 10.4,
+      "published": "2025-08-19"
+    },
+    {
+      "channel": "はじめ静岡税理士チャンネル",
+      "channel_id": "UCdQWQPx1bGJyplSlLBxgN1Q",
+      "video_id": "aXRUsbMKrTA",
+      "title": "【年末調整】令和7年分(2025年分)給与所得者の基礎控除申告書、配偶者控除等申告書  兼  特定親族特別控除申告書 、所得金額調整控除申告書の書き方を解説【静岡県三島市の税理士】",
+      "views": 55892,
+      "ratio": 6,
+      "dur_min": 47,
+      "published": "2025-08-18"
+    },
+    {
+      "channel": "定年前後のお金の新常識【社労士みなみ】",
+      "channel_id": "UCxzI8X4wZF2Osa5Jd_RqgxQ",
+      "video_id": "GUdQcle7jpQ",
+      "title": "65歳を待たずにもらえて減額なし！年金定期便で確認＆特別支給の老齢厚生年金は申請必須！50代ねんきん定期便の見方",
+      "views": 343314,
+      "ratio": 5.9,
+      "dur_min": 18.4,
+      "published": "2025-01-15"
+    },
+    {
+      "channel": "税理士KOBAYASHIちゃんねる",
+      "channel_id": "UCLU523cU8RRTIL10F94RB4w",
+      "video_id": "kHvxBd2igpI",
+      "title": "【注意！】住民税非課税世帯の基準額が変わる！税制改正の恩恵を受けるのは誰？",
+      "views": 281223,
+      "ratio": 5.9,
+      "dur_min": 11.3,
+      "published": "2025-08-31"
+    },
+    {
+      "channel": "税理士KOBAYASHIちゃんねる",
+      "channel_id": "UCLU523cU8RRTIL10F94RB4w",
+      "video_id": "DANlhFN3lJI",
+      "title": "【所得税確定申告はしなくても】住民税の申告だけはした方がいい人！",
+      "views": 283792,
+      "ratio": 5.9,
+      "dur_min": 10.1,
+      "published": "2024-03-12"
+    },
+    {
+      "channel": "税理士KOBAYASHIちゃんねる",
+      "channel_id": "UCLU523cU8RRTIL10F94RB4w",
+      "video_id": "Q_c-k6-M2Jg",
+      "title": "【間違えないで】年金と給料がある人はどちらでも使えます！年金受給者と給与所得者の確定申告不要制度",
+      "views": 281095,
+      "ratio": 5.9,
+      "dur_min": 9.4,
+      "published": "2024-02-02"
+    },
+    {
+      "channel": "定年前後の「お金の悩み」解消ラボ",
+      "channel_id": "UC27e9lK-KS5EGvhx-DM0ShQ",
+      "video_id": "DZ9BE_LFgWc",
+      "title": "【申請必須】2024年5月末〆切！一世帯10万円給付！対象世帯〜申請方法までわかる！住民税約5,000円世帯が対象/支給完了の給付金/申請不要でもらえるケースまで徹底解説。まずは概要欄を要チェック！",
+      "views": 214176,
+      "ratio": 5.9,
+      "dur_min": 22.9,
+      "published": "2024-05-10"
+    },
+    {
+      "channel": "きな子のシニアお金ゼミ",
+      "channel_id": "UCy5KsSNTrnYqosI_4SDT-oQ",
+      "video_id": "JqM7JN8gQVM",
+      "title": "【2026年最新版】最大8割安くなる！保険料を一番賢く払う裏技｜国民健康保険・退職・任意継続",
+      "views": 144014,
+      "ratio": 5.9,
+      "dur_min": 28.2,
+      "published": "2026-04-19"
+    },
+    {
+      "channel": "図解で学ぶお金の知識",
+      "channel_id": "UCvUfGFGJcZBu78F8bMfCgFg",
+      "video_id": "ga9nn1fqQao",
+      "title": "【悲報】資産1000万円でも対象？ 財務省が描く自己負担倍増のシナリオ",
+      "views": 126173,
+      "ratio": 5.9,
+      "dur_min": 10.6,
+      "published": "2026-02-05"
+    },
+    {
+      "channel": "はじめ静岡税理士チャンネル",
+      "channel_id": "UCdQWQPx1bGJyplSlLBxgN1Q",
+      "video_id": "SeDozV7aDYs",
+      "title": "ダブルワークの人が年末調整・確定申告でやること、年末調整書類の書き方、給与所得者（パート・バイト）の確定申告【静岡県三島市の税理士】",
+      "views": 54702,
+      "ratio": 5.9,
+      "dur_min": 32.3,
+      "published": "2024-10-18"
+    },
+    {
+      "channel": "はじめ静岡税理士チャンネル",
+      "channel_id": "UCdQWQPx1bGJyplSlLBxgN1Q",
+      "video_id": "yUOBxFBwE4Y",
+      "title": "【年末調整】令和6年分(2024年分)保険料控除申告書の書き方を解説【静岡県三島市の税理士】",
+      "views": 54889,
+      "ratio": 5.9,
+      "dur_min": 22.2,
+      "published": "2024-09-24"
+    },
+    {
+      "channel": "サラダのお金相談所",
+      "channel_id": "UCeicl_qqEQyLBdqhhrw20Rw",
+      "video_id": "EiGyEpDd_ao",
+      "title": "【2026年最新】50歳以上は新幹線が半額！知らないと大損する「制度・キャンペーン」【シニア割/お得】",
+      "views": 1068456,
+      "ratio": 5.8,
+      "dur_min": 45.5,
+      "published": "2026-06-19"
+    },
+    {
+      "channel": "News65 (老後)",
+      "channel_id": "UCgNr-yxfjcW0ao2dhvBZVWA",
+      "video_id": "Qy8Ti6DEpXw",
+      "title": "【老後資金】65歳までに必要な貯金額は？本当に老後に必要なお金と計算方法を解説します。",
+      "views": 726328,
+      "ratio": 5.7,
+      "dur_min": 25.8,
+      "published": "2024-07-19"
+    },
+    {
+      "channel": "定年前後の「お金の悩み」解消ラボ",
+      "channel_id": "UC27e9lK-KS5EGvhx-DM0ShQ",
+      "video_id": "sZbXUJXOH-I",
+      "title": "【最新版】スマホで確定申告！医療費控除のやり方！e-Tax・マイナポータル連携 で更に便利◎わかりやすく解説！マイナンバーカード方式/ID・パスワード方式/パソコンでのやり方/2025年/税理士監修",
+      "views": 205598,
+      "ratio": 5.7,
+      "dur_min": 39.8,
+      "published": "2025-01-26"
+    },
+    {
+      "channel": "サラダのお金相談所",
+      "channel_id": "UCeicl_qqEQyLBdqhhrw20Rw",
+      "video_id": "wNDPmPjmlSI",
+      "title": "【年金受給者】2025年の確定申告は「全員対象」のルール変更があります！知らないと超大損！【税制改正/源泉徴収】",
+      "views": 1049059,
+      "ratio": 5.7,
+      "dur_min": 47.8,
+      "published": "2026-01-14"
+    },
+    {
+      "channel": "図解で学ぶお金の知識",
+      "channel_id": "UCvUfGFGJcZBu78F8bMfCgFg",
+      "video_id": "ODdde4vqIHA",
+      "title": "分岐点は43万円！金融所得に社会保険料がかかります",
+      "views": 122046,
+      "ratio": 5.7,
+      "dur_min": 8.3,
+      "published": "2025-12-03"
+    },
+    {
+      "channel": "News65 (老後)",
+      "channel_id": "UCgNr-yxfjcW0ao2dhvBZVWA",
+      "video_id": "TERYSzzpk_g",
+      "title": "【知らないと大損】年金＋6万円の終身上乗せ！「年金生活者支援給付金」とは？2024年の給付金額、支給条件、申請方法を解説します【老後年金】",
+      "views": 718316,
+      "ratio": 5.6,
+      "dur_min": 18.1,
+      "published": "2024-03-15"
+    },
+    {
+      "channel": "FP1級パパこみやまのこみやまFP総合オフィス",
+      "channel_id": "UCRfvvN--iV8kXJYqhVTn10g",
+      "video_id": "Pj7tJbl68Js",
+      "title": "【衝撃】ねんきん定期便にのらない加給年金を申請すると100万円以上損する！？衝撃のシミュレーションと早見表と共に他4つの隠れ年金も解説！",
+      "views": 357145,
+      "ratio": 5.6,
+      "dur_min": 38.6,
+      "published": "2026-05-16"
+    },
+    {
+      "channel": "FP1級パパこみやまのこみやまFP総合オフィス",
+      "channel_id": "UCRfvvN--iV8kXJYqhVTn10g",
+      "video_id": "2va3uXarbJI",
+      "title": "【超緊急】専業主婦が終わる日…扶養内パート消滅か！？財務省が社会保険の扶養を見直して第3号被保険者が無くなって130万円の壁が消滅する悲惨な未来や意外な敵について解説！",
+      "views": 361860,
+      "ratio": 5.6,
+      "dur_min": 36.9,
+      "published": "2026-05-04"
+    },
+    {
+      "channel": "FP1級パパこみやまのこみやまFP総合オフィス",
+      "channel_id": "UCRfvvN--iV8kXJYqhVTn10g",
+      "video_id": "1vsyxG0XLTk",
+      "title": "【要注意】2026年(令和7年分)のe-Taxで確定申告は事前準備が命！4つの罠と忘れていると特大トラブルにつながる入力項目を実際の画面を使いながら解説",
+      "views": 361631,
+      "ratio": 5.6,
+      "dur_min": 38.5,
+      "published": "2026-02-20"
+    },
+    {
+      "channel": "はじめ静岡税理士チャンネル",
+      "channel_id": "UCdQWQPx1bGJyplSlLBxgN1Q",
+      "video_id": "X5ZiZIN8o9k",
+      "title": "個人年金の確定申告、確定申告書等作成コーナーで実演!! 一括受取の場合・分割受取の場合、給料＋公的年金＋個人年金の確定申告のやり方【年金受給者】【静岡県三島市の税理士】",
+      "views": 51580,
+      "ratio": 5.6,
+      "dur_min": 21.2,
+      "published": "2026-01-30"
+    },
+    {
+      "channel": "税理士KOBAYASHIちゃんねる",
+      "channel_id": "UCLU523cU8RRTIL10F94RB4w",
+      "video_id": "o-5CUDqRj4k",
+      "title": "【金融所得で国保料アップへ】株取引で申告不要を選択しても社会保険料に反映させる案を政府が検討へ！",
+      "views": 263077,
+      "ratio": 5.5,
+      "dur_min": 8.6,
+      "published": "2024-04-30"
+    },
+    {
+      "channel": "FP1級パパこみやまのこみやまFP総合オフィス",
+      "channel_id": "UCRfvvN--iV8kXJYqhVTn10g",
+      "video_id": "zTBiUstJp0s",
+      "title": "【罰金200万円】金(ゴールド)で儲けると税金だけでなく〇〇も爆増！売る前に対策を確認！ちょっとの利益でも大損するメカニズムや50万円の非課税枠&税金が半分になる方法も解説",
+      "views": 351619,
+      "ratio": 5.5,
+      "dur_min": 38.8,
+      "published": "2026-02-07"
+    },
+    {
+      "channel": "税理士KOBAYASHIちゃんねる",
+      "channel_id": "UCLU523cU8RRTIL10F94RB4w",
+      "video_id": "5Wl3rh3Bsjs",
+      "title": "【国保料が上がる】株取引を確定申告すると国民健康保険料に影響します！思いもよらない意外な関係で保険料がアップ",
+      "views": 257913,
+      "ratio": 5.4,
+      "dur_min": 12,
+      "published": "2024-02-12"
+    },
+    {
+      "channel": "保険年金マネー相談ゲートウェイ",
+      "channel_id": "UC30b1h_7V1HEgwV1EoCZcRQ",
+      "video_id": "o7lFejowR3U",
+      "title": "【年金】６月15日は年金支給日その留意点",
+      "views": 43140,
+      "ratio": 5.3,
+      "dur_min": 8.4,
+      "published": "2026-05-17"
+    },
+    {
+      "channel": "FP1級パパこみやまのこみやまFP総合オフィス",
+      "channel_id": "UCRfvvN--iV8kXJYqhVTn10g",
+      "video_id": "68tGT3ushYw",
+      "title": "【来年改正！？】投資で儲けたら社会保険料が爆上がり！？40倍以上の負担になる具体的なケースや今からできる対策を解説！",
+      "views": 336911,
+      "ratio": 5.3,
+      "dur_min": 31.3,
+      "published": "2025-11-24"
+    },
+    {
+      "channel": "図解で学ぶお金の知識",
+      "channel_id": "UCvUfGFGJcZBu78F8bMfCgFg",
+      "video_id": "kzCPI63o8jI",
+      "title": "なぜ？【シニアの約４割が住民税非課税世帯】の衝撃",
+      "views": 112830,
+      "ratio": 5.2,
+      "dur_min": 13.6,
+      "published": "2025-06-11"
+    },
+    {
+      "channel": "図解で学ぶお金の知識",
+      "channel_id": "UCvUfGFGJcZBu78F8bMfCgFg",
+      "video_id": "UWPBdcUBZF4",
+      "title": "【令和7年版・年末調整】の変更点と【３つの申告書】の具体的な記載方法",
+      "views": 112689,
+      "ratio": 5.2,
+      "dur_min": 21.1,
+      "published": "2024-11-07"
+    },
+    {
+      "channel": "FP カネスケのお得マネー塾",
+      "channel_id": "UC4FTvtWRxSyLIn_fIUAMjMw",
+      "video_id": "jVjSYcqcfiw",
+      "title": "税務署は見ています。7,500万円の金、その売り方は危険です。",
+      "views": 2526,
+      "ratio": 5.2,
+      "dur_min": 10.6,
+      "published": "2026-02-09"
+    },
+    {
+      "channel": "保険年金マネー相談ゲートウェイ",
+      "channel_id": "UC30b1h_7V1HEgwV1EoCZcRQ",
+      "video_id": "N-ZB9SRDPfI",
+      "title": "【年金】６月に年金振込通知書が届いた方へ",
+      "views": 41744,
+      "ratio": 5.1,
+      "dur_min": 8.3,
+      "published": "2026-06-05"
+    },
+    {
+      "channel": "年金・給付金カレンダー",
+      "channel_id": "UCeBr3VIDh_-NBKNsftyj8ag",
+      "video_id": "Nj9pVREBz0o",
+      "title": "10月20日開始・Androidスマホでマイナンバーカードのセットアップをする手順と注意点",
+      "views": 2564,
+      "ratio": 5.1,
+      "dur_min": 20.3,
+      "published": "2026-10-07"
+    },
+    {
+      "channel": "税金・社会保障教育ちゃんねる",
+      "channel_id": "UCzkApy4pduuiJecDg93c6Ng",
+      "video_id": "kjxanuutXwI",
+      "title": "【2026年最新】年金をもらって「働く人」も「休む人」も全員お得！？知らないと損する「生活にお得な制度」を解説。",
+      "views": 311334,
+      "ratio": 5.1,
+      "dur_min": 18.8,
+      "published": "2026-05-04"
+    },
+    {
+      "channel": "はじめ静岡税理士チャンネル",
+      "channel_id": "UCdQWQPx1bGJyplSlLBxgN1Q",
+      "video_id": "nxdY-2t7rVU",
+      "title": "【年末調整】令和7年分(2025年分)給与所得者の扶養控除等(異動)申告書の書き方を解説【静岡県三島市の税理士】",
+      "views": 46776,
+      "ratio": 5.1,
+      "dur_min": 24.6,
+      "published": "2024-09-24"
+    },
+    {
+      "channel": "定年前後のお金の新常識【社労士みなみ】",
+      "channel_id": "UCxzI8X4wZF2Osa5Jd_RqgxQ",
+      "video_id": "IqSClo9eNwU",
+      "title": "【R7年最新】50代の平均貯蓄額あなたは上位何%？老後生活を送るために必要な資金額は？【貯金/平均額/中央値/年代別】",
+      "views": 287624,
+      "ratio": 5,
+      "dur_min": 17.9,
+      "published": "2025-05-02"
+    },
+    {
+      "channel": "News65 (老後)",
+      "channel_id": "UCgNr-yxfjcW0ao2dhvBZVWA",
+      "video_id": "NGY_eMfEQis",
+      "title": "【50代60代必見】金持ち老後と貧乏老後、その違いは？残酷な格差を生む10の特徴を徹底解説！【老後資金】",
+      "views": 643803,
+      "ratio": 5,
+      "dur_min": 26.6,
+      "published": "2025-05-02"
+    },
+    {
+      "channel": "サラダのお金相談所",
+      "channel_id": "UCeicl_qqEQyLBdqhhrw20Rw",
+      "video_id": "EQl6uAO8FJk",
+      "title": "【緊急】2026年4月から年金制度が激変します！知らないと大損する7つのルール変更！【年金改正/社会保険料】",
+      "views": 922621,
+      "ratio": 5,
+      "dur_min": 42.7,
+      "published": "2026-03-18"
+    },
+    {
+      "channel": "定年前後のお金の新常識【社労士みなみ】",
+      "channel_id": "UCxzI8X4wZF2Osa5Jd_RqgxQ",
+      "video_id": "LJNFRnn9ml0",
+      "title": "【超速報】2025年度の年金支給額決定(令和7年４月分より改定)老齢年金・障害年金・遺族年金・在職定時改定・年金生活者支援給付金・国民健康保険料の改定",
+      "views": 284323,
+      "ratio": 4.9,
+      "dur_min": 17.2,
+      "published": "2025-01-24"
+    },
+    {
+      "channel": "税理士KOBAYASHIちゃんねる",
+      "channel_id": "UCLU523cU8RRTIL10F94RB4w",
+      "video_id": "pJVNTmBtBvc",
+      "title": "【こんなのあり!?】年金受給を1か月停止して住民税非課税世帯になれ！驚く起死回生の一手があった！",
+      "views": 234740,
+      "ratio": 4.9,
+      "dur_min": 10.3,
+      "published": "2025-04-23"
+    },
+    {
+      "channel": "定年前後の「お金の悩み」解消ラボ",
+      "channel_id": "UC27e9lK-KS5EGvhx-DM0ShQ",
+      "video_id": "-0qAT97Xc7w",
+      "title": "【最新】家族分の医療費控除！まとめて申告する方法！無効化に要注意！基本～やり方までわかりやすく解説◎扶養外の家族/対象条件/金額/入力方法/スマホ/パソコン/e-Tax/マイナポータル連携/令和7年分",
+      "views": 177147,
+      "ratio": 4.9,
+      "dur_min": 35.7,
+      "published": "2026-02-13"
+    },
+    {
+      "channel": "サラダのお金相談所",
+      "channel_id": "UCeicl_qqEQyLBdqhhrw20Rw",
+      "video_id": "PjjcRWpTpj4",
+      "title": "【緊急速報】2026年4月からの年金支給額が〇〇万円に変わります！実質減額で老後崩壊へ！",
+      "views": 899581,
+      "ratio": 4.9,
+      "dur_min": 36.9,
+      "published": "2025-12-12"
+    },
+    {
+      "channel": "税金・社会保障教育ちゃんねる",
+      "channel_id": "UCzkApy4pduuiJecDg93c6Ng",
+      "video_id": "WaVErNMtcYE",
+      "title": "【年金＋給与】確定申告が必要な人・不要な人の境界線！所得が20万以下のとき・やらないと損なケース・フローチャートで解説。",
+      "views": 300831,
+      "ratio": 4.9,
+      "dur_min": 18.9,
+      "published": "2025-12-21"
+    },
+    {
+      "channel": "税理士KOBAYASHIちゃんねる",
+      "channel_id": "UCLU523cU8RRTIL10F94RB4w",
+      "video_id": "yxAWIF2kxZA",
+      "title": "【年末行事】株の損失は繰り越すな！損失を繰越控除する確定申告は超危険！益出し・損出しで解消＆節税",
+      "views": 231234,
+      "ratio": 4.8,
+      "dur_min": 10,
+      "published": "2024-12-10"
+    },
+    {
+      "channel": "きな子のシニアお金ゼミ",
+      "channel_id": "UCy5KsSNTrnYqosI_4SDT-oQ",
+      "video_id": "u8xuo8oNJCs",
+      "title": "【緊急】加給年金2025年改正へ！厚生労働省が見直し案",
+      "views": 115530,
+      "ratio": 4.8,
+      "dur_min": 12.4,
+      "published": "2024-12-17"
+    },
+    {
+      "channel": "FP1級パパこみやまのこみやまFP総合オフィス",
+      "channel_id": "UCRfvvN--iV8kXJYqhVTn10g",
+      "video_id": "Uw9DP9HZGyo",
+      "title": "【複利】資産はここから爆発的に増えていく！積立投資で越えるべきラインと絶対に押さえておくべき注意点を解説！",
+      "views": 308634,
+      "ratio": 4.8,
+      "dur_min": 32.4,
+      "published": "2026-06-24"
+    },
+    {
+      "channel": "図解で学ぶお金の知識",
+      "channel_id": "UCvUfGFGJcZBu78F8bMfCgFg",
+      "video_id": "kzW4idcq9WA",
+      "title": "既に決定済み！【年金の家族手当】は減額されます",
+      "views": 104375,
+      "ratio": 4.8,
+      "dur_min": 9.8,
+      "published": "2025-08-23"
+    },
+    {
+      "channel": "図解で学ぶお金の知識",
+      "channel_id": "UCvUfGFGJcZBu78F8bMfCgFg",
+      "video_id": "QdsAbm6MslQ",
+      "title": "【世帯分離】で【住民税非課税世帯】になる方法とメリットとデメリット",
+      "views": 104031,
+      "ratio": 4.8,
+      "dur_min": 12.5,
+      "published": "2025-07-30"
+    },
+    {
+      "channel": "図解で学ぶお金の知識",
+      "channel_id": "UCvUfGFGJcZBu78F8bMfCgFg",
+      "video_id": "awjDEyq45zQ",
+      "title": "【2025年4月～】改正雇用保険法で失業手当が早くもらえるようになりました【図解で解説】",
+      "views": 102515,
+      "ratio": 4.8,
+      "dur_min": 15.7,
+      "published": "2024-10-02"
+    },
+    {
+      "channel": "税金・社会保障教育ちゃんねる",
+      "channel_id": "UCzkApy4pduuiJecDg93c6Ng",
+      "video_id": "Dwr8uPmGOUY",
+      "title": "60歳以上でパートで働く年金受給者のお得？ズル？なルールを解説！税金0円・保険料最安にする理想の年収や負担倍増の悲劇を解説",
+      "views": 294573,
+      "ratio": 4.8,
+      "dur_min": 15.5,
+      "published": "2025-10-12"
+    },
+    {
+      "channel": "定年前後の「お金の悩み」解消ラボ",
+      "channel_id": "UC27e9lK-KS5EGvhx-DM0ShQ",
+      "video_id": "Xavzo5dmMXg",
+      "title": "【e-Tax】パソコンでで確定申告！わかりやすく解説◎マイナポータル連携とは？e-Taxとは？準備〜入力まで実演！完全ガイド/医療費控除/寄付金控除/公的年金控除/2025年提出分/最新版/税理士監修",
+      "views": 168065,
+      "ratio": 4.7,
+      "dur_min": 24.8,
+      "published": "2025-02-21"
+    },
+    {
+      "channel": "News65 (老後)",
+      "channel_id": "UCgNr-yxfjcW0ao2dhvBZVWA",
+      "video_id": "acF9ZzsFUl8",
+      "title": "【知らないと大損】住民税非課税世帯になれる裏技！年金事務所が教えない「支給停止申出書」を徹底解説します！【老後年金】",
+      "views": 584212,
+      "ratio": 4.6,
+      "dur_min": 20.9,
+      "published": "2025-07-25"
+    },
+    {
+      "channel": "News65 (老後)",
+      "channel_id": "UCgNr-yxfjcW0ao2dhvBZVWA",
+      "video_id": "JBCXQu7toV4",
+      "title": "【老後年金】月16万円の手取り額はいくら？繰上げ受給した場合と通常の65歳に受け取る場合との比較、損益分岐点について解説します",
+      "views": 580875,
+      "ratio": 4.6,
+      "dur_min": 24.1,
+      "published": "2023-09-01"
+    },
+    {
+      "channel": "厚生労働省 / Ministry of Health, Labour and Welfare",
+      "channel_id": "UCVgZUHlkoN51FOwoNMBGjfw",
+      "video_id": "M9QhnXhXmm8",
+      "title": "【医療機関向け】電子カルテ情報共有サービス 〜第１回説明動画（スケジュールと事前準備等）【厚生労働省】",
+      "views": 7800,
+      "ratio": 4.6,
+      "dur_min": 22.9,
+      "published": "2026-10-02"
+    },
+    {
+      "channel": "税金・社会保障教育ちゃんねる",
+      "channel_id": "UCzkApy4pduuiJecDg93c6Ng",
+      "video_id": "efkF4VIZHxQ",
+      "title": "特別支給の老齢厚生年金とは？65歳前に年金受給できるが注意点もある？支給条件や失業保険で支給停止する理由などを解説",
+      "views": 282254,
+      "ratio": 4.6,
+      "dur_min": 9.9,
+      "published": "2024-11-03"
+    },
+    {
+      "channel": "税理士KOBAYASHIちゃんねる",
+      "channel_id": "UCLU523cU8RRTIL10F94RB4w",
+      "video_id": "qlKf-_v-T78",
+      "title": "【うまく使ったもん勝ち】このルールを知らずに特定口座の確定申告は無茶！複数の特定口座を持っている人は必見！譲渡損失の繰越控除／損益通算／配当控除",
+      "views": 215340,
+      "ratio": 4.5,
+      "dur_min": 9.8,
+      "published": "2025-11-19"
+    },
+    {
+      "channel": "サラダのお金相談所",
+      "channel_id": "UCeicl_qqEQyLBdqhhrw20Rw",
+      "video_id": "6Zq2X5P_Gyo",
+      "title": "【絶対申請しろ！】1月5日までの申請で年金生活者へ給付金を支給！！年金＋7万円が一生上乗せ支給【年金生活/老後】",
+      "views": 805428,
+      "ratio": 4.4,
+      "dur_min": 41.9,
+      "published": "2025-12-19"
+    },
+    {
+      "channel": "保険年金マネー相談ゲートウェイ",
+      "channel_id": "UC30b1h_7V1HEgwV1EoCZcRQ",
+      "video_id": "y6SPQuAaG80",
+      "title": "【健康保険】2026年４月　後期高齢者医療保険料引き上げ",
+      "views": 34956,
+      "ratio": 4.3,
+      "dur_min": 8.2,
+      "published": "2026-04-17"
+    },
+    {
+      "channel": "保険年金マネー相談ゲートウェイ",
+      "channel_id": "UC30b1h_7V1HEgwV1EoCZcRQ",
+      "video_id": "-BpppABlU-M",
+      "title": "【年金】2月に年金振込通知書が届いた方へ　2026",
+      "views": 34976,
+      "ratio": 4.3,
+      "dur_min": 9.7,
+      "published": "2026-02-09"
+    },
+    {
+      "channel": "保険年金マネー相談ゲートウェイ",
+      "channel_id": "UC30b1h_7V1HEgwV1EoCZcRQ",
+      "video_id": "fxmJn-M4Op4",
+      "title": "【年金】2月13日は年金支給日　その留意点",
+      "views": 34907,
+      "ratio": 4.3,
+      "dur_min": 8.1,
+      "published": "2026-01-31"
+    },
+    {
+      "channel": "News65 (老後)",
+      "channel_id": "UCgNr-yxfjcW0ao2dhvBZVWA",
+      "video_id": "pbu-9-qaIyw",
+      "title": "【老後年金】企業年金を年金受取りした時の手取り額とは？年金月額21万円（公的年金15万円+企業年金6万円）の税金・社会保険料と、手取りをアップさせる3つの方法を解説",
+      "views": 552275,
+      "ratio": 4.3,
+      "dur_min": 22.8,
+      "published": "2024-04-19"
+    },
+    {
+      "channel": "FP カネスケのお得マネー塾",
+      "channel_id": "UC4FTvtWRxSyLIn_fIUAMjMw",
+      "video_id": "9mVqYpQJUVQ",
+      "title": "【提出前必見】確定申告で20万円損する人の共通点5選",
+      "views": 2091,
+      "ratio": 4.3,
+      "dur_min": 8.1,
+      "published": "2026-02-19"
+    },
+    {
+      "channel": "はじめ静岡税理士チャンネル",
+      "channel_id": "UCdQWQPx1bGJyplSlLBxgN1Q",
+      "video_id": "XbBHpqVZ96w",
+      "title": "【給与計算担当者向け】定額減税の仕方についてわかりやすく解説【月次減税事務】、従業員の給与から天引きする源泉所得税・個人住民税について、会社・個人事業主の事務担当者必見！【静岡県三島市の税理士】",
+      "views": 39623,
+      "ratio": 4.3,
+      "dur_min": 53.1,
+      "published": "2024-03-27"
+    },
+    {
+      "channel": "News65 (老後)",
+      "channel_id": "UCgNr-yxfjcW0ao2dhvBZVWA",
+      "video_id": "vQH75KwfAJk",
+      "title": "【定額減税】2024年6月は減税で手取りアップ！6月に届く「年金振込通知書・年金額改定通知書」完全解説【老後年金】",
+      "views": 534445,
+      "ratio": 4.2,
+      "dur_min": 22.5,
+      "published": "2024-05-17"
+    },
+    {
+      "channel": "税理士KOBAYASHIちゃんねる",
+      "channel_id": "UCLU523cU8RRTIL10F94RB4w",
+      "video_id": "T2EGJDDAxZ0",
+      "title": "【年金受給者は危険！】住民税非課税世帯から外れたり、介護保険料や国民健康保険料が上がったりします。株式譲渡損失の繰越控除の確定申告は慎重に！",
+      "views": 201844,
+      "ratio": 4.2,
+      "dur_min": 9.8,
+      "published": "2024-01-24"
+    },
+    {
+      "channel": "税金・社会保障教育ちゃんねる",
+      "channel_id": "UCzkApy4pduuiJecDg93c6Ng",
+      "video_id": "Laa_F_NvfZ8",
+      "title": "年金受給者でパートをしたら税金とか増えたりする？注意することは？",
+      "views": 257022,
+      "ratio": 4.2,
+      "dur_min": 11.3,
+      "published": "2024-07-27"
+    },
+    {
+      "channel": "定年前後のお金の新常識【社労士みなみ】",
+      "channel_id": "UCxzI8X4wZF2Osa5Jd_RqgxQ",
+      "video_id": "luQFzF_mUG8",
+      "title": "【2026年1月23日正式発表！】働きながら年金をもらう60代以降がサラリーマン会社員が最強時代へ！在職老齢年金2026年度改定額発表",
+      "views": 237889,
+      "ratio": 4.1,
+      "dur_min": 15.9,
+      "published": "2026-01-24"
+    },
+    {
+      "channel": "News65 (老後)",
+      "channel_id": "UCgNr-yxfjcW0ao2dhvBZVWA",
+      "video_id": "tujQDKyiXJU",
+      "title": "【2024年6月開始】年金受給者がもらえる調整給付金（補足給付金）と定額減税。支給対象者や申請方法を解説します",
+      "views": 516600,
+      "ratio": 4.1,
+      "dur_min": 19.6,
+      "published": "2024-06-21"
+    },
+    {
+      "channel": "サラダのお金相談所",
+      "channel_id": "UCeicl_qqEQyLBdqhhrw20Rw",
+      "video_id": "TZNU1PRsoeE",
+      "title": "【緊急】5月に届く固定資産税は絶対確認して！そのまま絶対に払うと99%が損します！【納税/税金/通知書】",
+      "views": 759454,
+      "ratio": 4.1,
+      "dur_min": 46.4,
+      "published": "2026-04-15"
+    },
+    {
+      "channel": "サラダのお金相談所",
+      "channel_id": "UCeicl_qqEQyLBdqhhrw20Rw",
+      "video_id": "qndpsAPgZZo",
+      "title": "【ルール変更】2026年4月から年金の手取りが大幅減額します！手取り額早見表と手取り率はいくら？【国民年金/厚生年金】",
+      "views": 750795,
+      "ratio": 4.1,
+      "dur_min": 49,
+      "published": "2026-02-20"
+    },
+    {
+      "channel": "きな子のシニアお金ゼミ",
+      "channel_id": "UCy5KsSNTrnYqosI_4SDT-oQ",
+      "video_id": "jwwtPHgnmxM",
+      "title": "【2026年最新版】絶対乗り換えるな！マイナンバーカード申請のデメリットとマイナ保険証の闇",
+      "views": 98264,
+      "ratio": 4,
+      "dur_min": 51.6,
+      "published": "2026-01-03"
+    },
+    {
+      "channel": "きな子のシニアお金ゼミ",
+      "channel_id": "UCy5KsSNTrnYqosI_4SDT-oQ",
+      "video_id": "JNm8PzBCrac",
+      "title": "【速報】高齢者の働き損解消へ！在職老齢年金の廃止について厚生労働省から具体案（50万円の壁/年金減額/給与と年金）",
+      "views": 97800,
+      "ratio": 4,
+      "dur_min": 19,
+      "published": "2024-11-22"
+    },
+    {
+      "channel": "サラダのお金相談所",
+      "channel_id": "UCeicl_qqEQyLBdqhhrw20Rw",
+      "video_id": "wR9CEcQT_nI",
+      "title": "【50歳以上は必見】申請しないともらえない年金・給付金制度！知らないだけで一生涯で1000万円以上の差！",
+      "views": 734253,
+      "ratio": 4,
+      "dur_min": 43.2,
+      "published": "2026-05-20"
+    },
+    {
+      "channel": "サラダのお金相談所",
+      "channel_id": "UCeicl_qqEQyLBdqhhrw20Rw",
+      "video_id": "u1uYtKerL3Y",
+      "title": "【絶対申請して】政府からのボーナス！50歳以上が貰える給付金・年金制度！【年金生活者/住民税非課税】",
+      "views": 738630,
+      "ratio": 4,
+      "dur_min": 41,
+      "published": "2025-11-21"
+    },
+    {
+      "channel": "図解で学ぶお金の知識",
+      "channel_id": "UCvUfGFGJcZBu78F8bMfCgFg",
+      "video_id": "f1ZZT9YBqNQ",
+      "title": "【2026年9月始動】国税庁のAI監視「KSK2」の恐るべき実態と今すぐやめるべき3つの事",
+      "views": 85786,
+      "ratio": 4,
+      "dur_min": 10.2,
+      "published": "2026-03-10"
+    },
+    {
+      "channel": "定年前後のお金の新常識【社労士みなみ】",
+      "channel_id": "UCxzI8X4wZF2Osa5Jd_RqgxQ",
+      "video_id": "-K6Zgrt-2Jk",
+      "title": "【法改正！いつからスタート？給付金額いくら？手取りは？】65歳以上パート・バイト・再雇用・正社員も週１０時間以上働くと３つの給付金が対象になります！",
+      "views": 227692,
+      "ratio": 3.9,
+      "dur_min": 15.3,
+      "published": "2026-05-15"
+    },
+    {
+      "channel": "News65 (老後)",
+      "channel_id": "UCgNr-yxfjcW0ao2dhvBZVWA",
+      "video_id": "qSkYzc65rJw",
+      "title": "【漫画】日本人の半分が独身になる時代。アラフィフ独身男が気づいた意外な老後の答えとは？【漫画動画】",
+      "views": 498547,
+      "ratio": 3.9,
+      "dur_min": 22.3,
+      "published": "2026-04-03"
+    },
+    {
+      "channel": "きな子のシニアお金ゼミ",
+      "channel_id": "UCy5KsSNTrnYqosI_4SDT-oQ",
+      "video_id": "UVx0-NIbiS4",
+      "title": "【60歳までに絶対見ろ】2026年から60歳以上の再雇用は大損します！",
+      "views": 93793,
+      "ratio": 3.9,
+      "dur_min": 21.9,
+      "published": "2025-12-20"
+    },
+    {
+      "channel": "FP1級パパこみやまのこみやまFP総合オフィス",
+      "channel_id": "UCRfvvN--iV8kXJYqhVTn10g",
+      "video_id": "9LslXdOS1AY",
+      "title": "【新NISAもアウトです】扶養から外される絶対にやってはいけない投資を5つ紹介します！",
+      "views": 248195,
+      "ratio": 3.9,
+      "dur_min": 47.9,
+      "published": "2026-09-19"
+    },
+    {
+      "channel": "FP1級パパこみやまのこみやまFP総合オフィス",
+      "channel_id": "UCRfvvN--iV8kXJYqhVTn10g",
+      "video_id": "XFoU_RDKVOU",
+      "title": "【節約の落とし穴】お金を使えないと失うものとは？損する人の特徴と対策を解説！老後資産で一番大切な資産活用をマスターしよう！",
+      "views": 251509,
+      "ratio": 3.9,
+      "dur_min": 40.5,
+      "published": "2026-07-31"
+    },
+    {
+      "channel": "FP1級パパこみやまのこみやまFP総合オフィス",
+      "channel_id": "UCRfvvN--iV8kXJYqhVTn10g",
+      "video_id": "5NwC4YTgtF4",
+      "title": "【100万円以上損する！】高齢者が絶対に超えてはいけない年収の壁は〇〇万円の壁！具体的な負担増のシミュレーションと対策を解説",
+      "views": 250858,
+      "ratio": 3.9,
+      "dur_min": 38.2,
+      "published": "2025-12-15"
+    },
+    {
+      "channel": "税金・社会保障教育ちゃんねる",
+      "channel_id": "UCzkApy4pduuiJecDg93c6Ng",
+      "video_id": "mn1R8AdCp7c",
+      "title": "【2026年】年金受給者も申請して節税！10万以上の大損を回避！申告書が来ない人が油断して老後資金を失う理由を解説",
+      "views": 236133,
+      "ratio": 3.9,
+      "dur_min": 17.8,
+      "published": "2026-06-05"
+    },
+    {
+      "channel": "税金・社会保障教育ちゃんねる",
+      "channel_id": "UCzkApy4pduuiJecDg93c6Ng",
+      "video_id": "DPdGDFtk71s",
+      "title": "【退職後の保険料】任意継続と国民健康保険料をくらべて安いほうを解説。1年でやめるほうがいい？切り替えるタイミングは4月？",
+      "views": 236817,
+      "ratio": 3.9,
+      "dur_min": 13.4,
+      "published": "2024-10-20"
+    },
+    {
+      "channel": "保険年金マネー相談ゲートウェイ",
+      "channel_id": "UC30b1h_7V1HEgwV1EoCZcRQ",
+      "video_id": "l5XrcyGnEvI",
+      "title": "【年金】65歳以上働くと年金はいくら増えるのか？【社労士解説】",
+      "views": 31068,
+      "ratio": 3.8,
+      "dur_min": 9.4,
+      "published": "2026-09-22"
+    },
+    {
+      "channel": "サラダのお金相談所",
+      "channel_id": "UCeicl_qqEQyLBdqhhrw20Rw",
+      "video_id": "j76glhNobF8",
+      "title": "【絶対確認して】ﾏｲﾅﾝﾊﾞｰｶｰﾄﾞのルール変更で貯金が激減します！2026年から知らない人ほど大損します！【保険証/ルール変更/確定申告】",
+      "views": 697359,
+      "ratio": 3.8,
+      "dur_min": 40.4,
+      "published": "2026-02-27"
+    },
+    {
+      "channel": "FP1級パパこみやまのこみやまFP総合オフィス",
+      "channel_id": "UCRfvvN--iV8kXJYqhVTn10g",
+      "video_id": "CEu53N8Ej78",
+      "title": "【扶養がいても国保が安い！？】退職後の健康保険で任意継続を選ぶと大損する2つの理由と最強の裏ワザとは？巧妙に隠された罠と具体的な対策方法も合わせて解説！",
+      "views": 242347,
+      "ratio": 3.8,
+      "dur_min": 49.7,
+      "published": "2026-03-07"
+    },
+    {
+      "channel": "FP カネスケのお得マネー塾",
+      "channel_id": "UC4FTvtWRxSyLIn_fIUAMjMw",
+      "video_id": "fA55EzUzdlQ",
+      "title": "【保存版】医療費控除の確定申告｜10万円以下でも戻る！やり方・書き方を完全解説　2026年最新版",
+      "views": 1848,
+      "ratio": 3.8,
+      "dur_min": 10.8,
+      "published": "2026-01-10"
+    },
+    {
+      "channel": "税理士KOBAYASHIちゃんねる",
+      "channel_id": "UCLU523cU8RRTIL10F94RB4w",
+      "video_id": "p_vbv3VRIUA",
+      "title": "【非課税なのに脱税？】新NISAで夫婦間贈与が多発か！税務署がNISA口座を管理しているからバレバレです",
+      "views": 179881,
+      "ratio": 3.7,
+      "dur_min": 9.5,
+      "published": "2024-03-31"
+    },
+    {
+      "channel": "税金・社会保障教育ちゃんねる",
+      "channel_id": "UCzkApy4pduuiJecDg93c6Ng",
+      "video_id": "tLoh3CsxFrc",
+      "title": "【年金＋パートの裏技】稼ぎながら出費節約の両立が可能！？働く年金受給者がお得な理由と手取りが多くなる理由を解説",
+      "views": 222242,
+      "ratio": 3.7,
+      "dur_min": 18.8,
+      "published": "2025-12-07"
+    },
+    {
+      "channel": "定年前後のお金の新常識【社労士みなみ】",
+      "channel_id": "UCxzI8X4wZF2Osa5Jd_RqgxQ",
+      "video_id": "pFyqgSEGV2s",
+      "title": "【2025年改正！早見表＆在職老齢年金はこう変わる＆よくある質問】年金支給停止基準額の変更！計算方法は？2025年以降はどうなる？",
+      "views": 207459,
+      "ratio": 3.6,
+      "dur_min": 15.7,
+      "published": "2025-01-25"
+    },
+    {
+      "channel": "定年前後のお金の新常識【社労士みなみ】",
+      "channel_id": "UCxzI8X4wZF2Osa5Jd_RqgxQ",
+      "video_id": "8-HT0e50CcU",
+      "title": "【速報】働く高齢者の年金のカットの基準変更へ。在職老齢年金の変更について厚生労働省から具体案（50万円→62万円の壁）",
+      "views": 211339,
+      "ratio": 3.6,
+      "dur_min": 14.3,
+      "published": "2024-11-26"
+    },
+    {
+      "channel": "図解で学ぶお金の知識",
+      "channel_id": "UCvUfGFGJcZBu78F8bMfCgFg",
+      "video_id": "KgtmGE9gpI4",
+      "title": "【具体例で解説】独身者の遺産を受け取る人と今からできる対策",
+      "views": 76547,
+      "ratio": 3.6,
+      "dur_min": 10,
+      "published": "2026-05-18"
+    },
+    {
+      "channel": "News65 (老後)",
+      "channel_id": "UCgNr-yxfjcW0ao2dhvBZVWA",
+      "video_id": "FFxR_iUXIg8",
+      "title": "【2024年10月15日】年金額が変わる！年金振込通知書が10月に届く場合と通知書の見方を解説【老後年金】",
+      "views": 442726,
+      "ratio": 3.5,
+      "dur_min": 16.6,
+      "published": "2024-10-14"
+    },
+    {
+      "channel": "きな子のシニアお金ゼミ",
+      "channel_id": "UCy5KsSNTrnYqosI_4SDT-oQ",
+      "video_id": "no7osn7Pz5I",
+      "title": "【60歳以上必見】知らないと200万円損します。絶対にやってはいけない年金の受け取り方",
+      "views": 85038,
+      "ratio": 3.5,
+      "dur_min": 24.6,
+      "published": "2026-04-21"
+    },
+    {
+      "channel": "きな子のシニアお金ゼミ",
+      "channel_id": "UCy5KsSNTrnYqosI_4SDT-oQ",
+      "video_id": "l9P1EkkyMjI",
+      "title": "【総まとめ】5年に一度の年金大改正2025年【加給年金・遺族年金・主婦年金106万円の壁・国民年金・在職年金】",
+      "views": 84726,
+      "ratio": 3.5,
+      "dur_min": 143.2,
+      "published": "2024-12-27"
+    },
+    {
+      "channel": "きな子のシニアお金ゼミ",
+      "channel_id": "UCy5KsSNTrnYqosI_4SDT-oQ",
+      "video_id": "uJqyp1nl0rI",
+      "title": "【裏技】年金カット回避策！賢い人はやっている働きながら年金を満額もらう方法（在職老齢年金/2024年最新/50万円超）",
+      "views": 85411,
+      "ratio": 3.5,
+      "dur_min": 21.7,
+      "published": "2024-08-22"
+    },
+    {
+      "channel": "図解で学ぶお金の知識",
+      "channel_id": "UCvUfGFGJcZBu78F8bMfCgFg",
+      "video_id": "El0ENhBiQts",
+      "title": "106万円の壁・撤廃！【また手取り減少！】扶養内で働く妻はどうなる？",
+      "views": 76456,
+      "ratio": 3.5,
+      "dur_min": 17.1,
+      "published": "2024-11-12"
+    },
+    {
+      "channel": "税金・社会保障教育ちゃんねる",
+      "channel_id": "UCzkApy4pduuiJecDg93c6Ng",
+      "video_id": "Ho15dymViS4",
+      "title": "【年金と給与】2026年「住民税非課税世帯」になる年収と防衛策！新ルールで脱落続出？",
+      "views": 209925,
+      "ratio": 3.5,
+      "dur_min": 19.8,
+      "published": "2026-04-28"
+    },
+    {
+      "channel": "はじめ静岡税理士チャンネル",
+      "channel_id": "UCdQWQPx1bGJyplSlLBxgN1Q",
+      "video_id": "hAMhMEwoKGE",
+      "title": "確定申告書等作成コーナー(e-tax)使用のための第一歩！ 事前準備とログイン【静岡県三島市の税理士】",
+      "views": 32015,
+      "ratio": 3.5,
+      "dur_min": 13.6,
+      "published": "2026-01-11"
+    },
+    {
+      "channel": "News65 (老後)",
+      "channel_id": "UCgNr-yxfjcW0ao2dhvBZVWA",
+      "video_id": "p7VweojAlTs",
+      "title": "【漫画】賃貸で老後を迎えるとどうなるのか？「60歳で審査落ち」…年金生活者の過酷な現実【漫画動画】",
+      "views": 439742,
+      "ratio": 3.4,
+      "dur_min": 23.6,
+      "published": "2025-12-12"
+    },
+    {
+      "channel": "定年前後の「お金の悩み」解消ラボ",
+      "channel_id": "UC27e9lK-KS5EGvhx-DM0ShQ",
+      "video_id": "OlDXkPkwjPw",
+      "title": "【生活保護】2023年10月から適用される新しい生活保護費について解説",
+      "views": 123783,
+      "ratio": 3.4,
+      "dur_min": 26.4,
+      "published": "2023-10-07"
+    },
+    {
+      "channel": "サラダのお金相談所",
+      "channel_id": "UCeicl_qqEQyLBdqhhrw20Rw",
+      "video_id": "5XrpPATgZSA",
+      "title": "【速報！】6月に届く年金通知書はココだけは絶対に確認して！20万円以上も大損します！【年金額改定通知書/振込通知書】",
+      "views": 630953,
+      "ratio": 3.4,
+      "dur_min": 40.3,
+      "published": "2026-05-22"
+    },
+    {
+      "channel": "はじめ静岡税理士チャンネル",
+      "channel_id": "UCdQWQPx1bGJyplSlLBxgN1Q",
+      "video_id": "78qoRkB5Nf0",
+      "title": "株を売却した場合・配当金を受け取った場合の確定申告のやり方、確定申告書等作成コーナー(e-tax)で実演、譲渡所得と配当所得、総合課税と分離課税、配当控除を解説【静岡県三島市の税理士】",
+      "views": 31588,
+      "ratio": 3.4,
+      "dur_min": 32.2,
+      "published": "2026-01-26"
+    },
+    {
+      "channel": "サラダのお金相談所",
+      "channel_id": "UCeicl_qqEQyLBdqhhrw20Rw",
+      "video_id": "6uoJ2ZVR5nQ",
+      "title": "【2026年ルール変更！】年金受給者は4月までに絶対申請して！非課税世帯になれる裏技を徹底解説！",
+      "views": 610347,
+      "ratio": 3.3,
+      "dur_min": 46,
+      "published": "2026-03-11"
+    },
+    {
+      "channel": "サラダのお金相談所",
+      "channel_id": "UCeicl_qqEQyLBdqhhrw20Rw",
+      "video_id": "L4XqhHpn624",
+      "title": "【知らないと損！】2026年から新NISAのルールで「神レベルに制度変更」！50歳以上は全員勝ち組へ！【投資/資産運用/貯金】",
+      "views": 599617,
+      "ratio": 3.3,
+      "dur_min": 39.6,
+      "published": "2025-11-28"
+    },
+    {
+      "channel": "FP1級パパこみやまのこみやまFP総合オフィス",
+      "channel_id": "UCRfvvN--iV8kXJYqhVTn10g",
+      "video_id": "FyBkA2VbPRM",
+      "title": "【制度のバグ】211万円を超えても非課税世帯！でも150万円で課税世帯！？税制の致命的な穴をついて住民税をゼロ円にするための対策を解説！",
+      "views": 210020,
+      "ratio": 3.3,
+      "dur_min": 36.4,
+      "published": "2026-06-12"
+    },
+    {
+      "channel": "税金・社会保障教育ちゃんねる",
+      "channel_id": "UCzkApy4pduuiJecDg93c6Ng",
+      "video_id": "nkrEnGD7Tc0",
+      "title": "年金の繰り上げ受給で後悔しないようにしたい…7つのポイントを紹介。繰上げしないほうがいい場合はどんなとき？早くもらうと損する？",
+      "views": 199879,
+      "ratio": 3.3,
+      "dur_min": 10.6,
+      "published": "2025-02-01"
+    },
+    {
+      "channel": "税金・社会保障教育ちゃんねる",
+      "channel_id": "UCzkApy4pduuiJecDg93c6Ng",
+      "video_id": "RGwfB_R1D6k",
+      "title": "個人年金をもらうなら一括と分割のどっちがいい？税金や保険料が違う？",
+      "views": 200330,
+      "ratio": 3.3,
+      "dur_min": 11.8,
+      "published": "2024-08-31"
+    },
+    {
+      "channel": "定年前後のお金の新常識【社労士みなみ】",
+      "channel_id": "UCxzI8X4wZF2Osa5Jd_RqgxQ",
+      "video_id": "iyK-22rrHSs",
+      "title": "【確認して！12月に年金が増える理由】2024年11月届く「年金決定通知書・支給額変更通知書」わかりやすく解説／在職定時改定・在職老齢年金",
+      "views": 184551,
+      "ratio": 3.2,
+      "dur_min": 16.6,
+      "published": "2024-10-26"
+    },
+    {
+      "channel": "News65 (老後)",
+      "channel_id": "UCgNr-yxfjcW0ao2dhvBZVWA",
+      "video_id": "FucCpwQyaqM",
+      "title": "【漫画】年収別のリアルな年金生活…300万・500万・800万・1000万の独身4人が手取りを計算したら、老後の余裕は逆転！？【老後年金】",
+      "views": 403155,
+      "ratio": 3.2,
+      "dur_min": 28.9,
+      "published": "2026-07-31"
+    },
+    {
+      "channel": "News65 (老後)",
+      "channel_id": "UCgNr-yxfjcW0ao2dhvBZVWA",
+      "video_id": "Kbh6HIyLkA8",
+      "title": "【ストップ老後貧乏】50代60代が絶対に行ってはいけない場所10選",
+      "views": 406998,
+      "ratio": 3.2,
+      "dur_min": 22.7,
+      "published": "2024-11-25"
+    },
+    {
+      "channel": "サラダのお金相談所",
+      "channel_id": "UCeicl_qqEQyLBdqhhrw20Rw",
+      "video_id": "VtjGxZEyJUo",
+      "title": "【知らないと大損】4月15日から60歳から年金に7万円が一生上乗せ支給されます！総額140万円以上がもらえるチャンス！【給付金/ 絶対申請して】",
+      "views": 579791,
+      "ratio": 3.2,
+      "dur_min": 38.3,
+      "published": "2026-03-25"
+    },
+    {
+      "channel": "サラダのお金相談所",
+      "channel_id": "UCeicl_qqEQyLBdqhhrw20Rw",
+      "video_id": "dTdFj2UOH50",
+      "title": "【知らないと損】2026年のルール変更で65歳以降に社会保険に加入すると大損です！【介護保険料/雇用保険/年金】",
+      "views": 585034,
+      "ratio": 3.2,
+      "dur_min": 45.5,
+      "published": "2026-01-21"
+    },
+    {
+      "channel": "税金・社会保障教育ちゃんねる",
+      "channel_id": "UCzkApy4pduuiJecDg93c6Ng",
+      "video_id": "AnmfMJ9FR3U",
+      "title": "年金＋パートで中途半端に働くと損する？「2つの危険」と「安全圏」で手取りを増やす働き方を解説",
+      "views": 192438,
+      "ratio": 3.2,
+      "dur_min": 20.6,
+      "published": "2026-10-15"
+    },
+    {
+      "channel": "税金・社会保障教育ちゃんねる",
+      "channel_id": "UCzkApy4pduuiJecDg93c6Ng",
+      "video_id": "BSDNDWbeXJY",
+      "title": "年金受給者が働くならいくらまでがいい？【手取りが減る年収】に注意！税金や負担額を計算シミュレーション。夫も巻き込む税金と社会保険料の罠を解説",
+      "views": 192860,
+      "ratio": 3.2,
+      "dur_min": 17.4,
+      "published": "2025-08-31"
+    },
+    {
+      "channel": "保険年金マネー相談ゲートウェイ",
+      "channel_id": "UC30b1h_7V1HEgwV1EoCZcRQ",
+      "video_id": "ad78lKnURYg",
+      "title": "【年金】10月分から年金額が増える人　在職定時改定【社労士解説】",
+      "views": 25587,
+      "ratio": 3.1,
+      "dur_min": 10.8,
+      "published": "2026-09-12"
+    },
+    {
+      "channel": "保険年金マネー相談ゲートウェイ",
+      "channel_id": "UC30b1h_7V1HEgwV1EoCZcRQ",
+      "video_id": "wNdmHMMo2ME",
+      "title": "【税】住民税はこう計算する　所得税との比較",
+      "views": 25121,
+      "ratio": 3.1,
+      "dur_min": 10.2,
+      "published": "2026-02-14"
+    },
+    {
+      "channel": "税理士KOBAYASHIちゃんねる",
+      "channel_id": "UCLU523cU8RRTIL10F94RB4w",
+      "video_id": "isHe8XzFA3M",
+      "title": "【調整給付金もらえますか？】問い合わせ殺到！国民も役所も混乱、定額減税調整給付金の対象者がわからない！定額減税対象外の人も不足額給付金で補完決定",
+      "views": 146624,
+      "ratio": 3.1,
+      "dur_min": 10.5,
+      "published": "2024-07-09"
+    },
+    {
+      "channel": "定年前後の「お金の悩み」解消ラボ",
+      "channel_id": "UC27e9lK-KS5EGvhx-DM0ShQ",
+      "video_id": "r-0NkPWg0yA",
+      "title": "【辞めると損する退職日】月末or月末以外どっちがお得？1日違いで数万円差！将来の年金額、配偶者の保険料にも影響！社会保険料/資格喪失日/わかりやすく解説。",
+      "views": 113223,
+      "ratio": 3.1,
+      "dur_min": 15.7,
+      "published": "2024-07-27"
+    },
+    {
+      "channel": "FP1級パパこみやまのこみやまFP総合オフィス",
+      "channel_id": "UCRfvvN--iV8kXJYqhVTn10g",
+      "video_id": "TwKVlhaVlk8",
+      "title": "【速報】ついに金融所得が社会保険料に反映されて最大35倍の負担になる法案が国会に提出！中身を読み込んで分かった具体的な対策を解説！",
+      "views": 195638,
+      "ratio": 3.1,
+      "dur_min": 22.8,
+      "published": "2026-03-18"
+    },
+    {
+      "channel": "税金・社会保障教育ちゃんねる",
+      "channel_id": "UCzkApy4pduuiJecDg93c6Ng",
+      "video_id": "wZtc4yePTOA",
+      "title": "【年金と給与】うまく活用できれば239万や500万でも非課税って違法じゃない？優遇措置で保険料も安くなる「歪な税制」を解説",
+      "views": 188082,
+      "ratio": 3.1,
+      "dur_min": 19.7,
+      "published": "2026-08-13"
+    },
+    {
+      "channel": "税金・社会保障教育ちゃんねる",
+      "channel_id": "UCzkApy4pduuiJecDg93c6Ng",
+      "video_id": "-6VkUVBb39o",
+      "title": "2026年4月、働く年金受給者が【勝ち組】に？厳しい現実と「独身税」の正体。年金・税制の新ルールを徹底解説",
+      "views": 190238,
+      "ratio": 3.1,
+      "dur_min": 18.4,
+      "published": "2026-03-23"
+    },
+    {
+      "channel": "FP カネスケのお得マネー塾",
+      "channel_id": "UC4FTvtWRxSyLIn_fIUAMjMw",
+      "video_id": "k4DV0jwnxAA",
+      "title": "【年末調整2026】生命保険料控除で税金はいくら戻る？上限を知らないと損！",
+      "views": 1521,
+      "ratio": 3.1,
+      "dur_min": 8.7,
+      "published": "2026-10-01"
+    },
+    {
+      "channel": "News65 (老後)",
+      "channel_id": "UCgNr-yxfjcW0ao2dhvBZVWA",
+      "video_id": "C3nadCCn4Bk",
+      "title": "【警告】60歳年金受給が最強のウソ！繰上げ受給は本当に得なのか？徹底検証します【老後年金】",
+      "views": 387162,
+      "ratio": 3,
+      "dur_min": 25.4,
+      "published": "2024-11-11"
+    }
+  ]
+}

@@ -125,3 +125,4 @@ ja 年金·給付金·相続 해설 롱폼(20~30분, 65세 이상 일본 시청�
 - 편마다 달라지는 요소(P6 변형) — packages.json `variant` 칸에 기록: logo(띠 왼쪽 세로 채널명 / 없음), desc_style(풀이 먼저 / 금액 먼저), anim(문서 확대 / 표 순차), thumb_style(A 금액 / B 서류명 / C 서류 실물). 1편: logo=왼쪽 띠·desc=풀이 먼저·anim=문서 확대+표 순차. 2편: 같은 logo·desc=확정신고 불요 풀이 먼저·anim=원천징수표 확대.
 - 결 확장(다른 서류·다른 연령층)은 48h 500만 뒤에만 — 첫 10편은 年金書類 한 결.
 - 10-21 00:56 G4·G10·G24 반영(위 §9).
+- 10-21 규칙: rising_seeds.json 직접 쓰기 금지 — `node scripts/rising_keywords.js --set-lane <레인키> <lane.json> [--merge]` 로만 (063ef38).
