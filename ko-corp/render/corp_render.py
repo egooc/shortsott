@@ -449,6 +449,27 @@ def script_gates(ep):
     gate(ep)
 
 
+LOCK = ROOT / 'politics-hour' / 'RENDERING.lock'   # 레인 공용 «무거운 작업 한 자리»(라벨 무관)
+
+
+def take_lock(ep, only):
+    """RENDERING.lock 을 이 렌더 이름으로 쓰고, 끝나거나 멈추면(종료 4 포함) 내 것일 때만 지운다."""
+    import atexit
+    import time
+    if LOCK.exists():
+        raise SystemExit(f'RENDERING.lock 있음 — 시작 안 함: {LOCK.read_text(encoding="utf-8").strip()}')
+    LOCK.write_text(json.dumps({'pid': os.getpid(), 'episode': f'corp {Path(ep).name}' + (f' --only {only}' if only else ''),
+                                'started': time.strftime('%Y-%m-%d %H:%M'), 'expect_hours': 2}, ensure_ascii=False) + '\n', encoding='utf-8')
+
+    def release():
+        try:
+            if json.loads(LOCK.read_text(encoding='utf-8')).get('pid') == os.getpid():
+                LOCK.unlink()
+        except (OSError, ValueError):
+            pass
+    atexit.register(release)
+
+
 def main(argv=None):
     if hasattr(sys.stdout, 'reconfigure'):
         sys.stdout.reconfigure(encoding='utf-8')
@@ -497,6 +518,7 @@ def main(argv=None):
     script_gates(ep)
     if '--no-gate' not in argv:
         R.wait_gate()
+    take_lock(ep, only)   # 시험 렌더도 락을 잡는다(관리자 §7 10-22 23:3x), 끝나면 지운다
     work = ep / 'seg'
     work.mkdir(exist_ok=True)
     parts, total = [], 0.0
