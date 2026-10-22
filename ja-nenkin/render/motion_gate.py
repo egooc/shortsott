@@ -14,7 +14,7 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from nenkin_render import STAGE_BOX  # noqa: E402
+from nenkin_render import LOCKS, STAGE_BOX  # noqa: E402
 
 LIMIT = 0.95
 
@@ -38,6 +38,10 @@ def ssim(a, b):
 
 
 def main(argv):
+    busy = [x for x in LOCKS if x.exists() and not x.read_text(encoding='utf-8').startswith('nenkin_ja')]
+    if busy:   # 10-22 23:3x §7: 남의 락 위에선 프레임 뽑기·SSIM 도 시작하지 않는다
+        print('[관문] motion: 다른 레인 RENDERING 락 있음 — 락 풀린 뒤 다시(종료 3)', ', '.join(x.name for x in busy))
+        return 3
     ep = Path(argv[0]).resolve()
     lst = ep / (argv[argv.index('--concat') + 1] if '--concat' in argv else 'concat.txt')
     keep = int(argv[argv.index('--keep') + 1]) if '--keep' in argv else 3

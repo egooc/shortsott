@@ -54,6 +54,33 @@ def wait_gate():
         if not locks and gb >= FREE_GB:
             return gb
         time.sleep(15 * 60)
+
+
+class render_lock:
+    """관리자 10-22 23:3x §7: RENDERING.lock 은 라벨과 상관없이 «무거운 작업 한 자리» — 시험 렌더·움직임 덧입히기도 락을 잡고, 끝나면 지운다.
+    잡기 전에 wait_gate(다른 락 없음·빈 메모리 8GB)를 기다린다. 내가 만든 락만 지운다(내용 확인)."""
+    def __init__(self, label, wait=True):
+        self.label, self.wait = label, wait
+
+    def __enter__(self):
+        import atexit
+        import datetime
+        if self.wait:
+            wait_gate()
+        elif any(x.exists() for x in LOCKS):
+            raise SystemExit('다른 레인 RENDERING 락이 있다 — --no-gate 여도 락 위에는 안 돈다(10-22 23:3x)')
+        atexit.register(self.__exit__, None, None, None)   # 중간에 죽어도 내 락은 지운다
+        self.text = f'nenkin_ja {self.label} {datetime.datetime.now():%Y-%m-%d %H:%M:%S} 시작 (PID {os.getpid()})\n'
+        LOCKS[0].write_text(self.text, encoding='utf-8')
+        return self
+
+    def __exit__(self, *exc):
+        try:
+            if LOCKS[0].read_text(encoding='utf-8') == self.text:
+                LOCKS[0].unlink()
+        except FileNotFoundError:
+            pass
+        return False
 CHANNEL = '年金書類の読み方教室'   # 소유주 10-20 00:40 확정
 CODE = '2026-10-18b'   # 10-18 말 속도 1.0·문장 사이 0.7초 — 0.95는 숫자 중간이 끊겨 역전사 불일치 11/218(0.97도 2건), 1.0은 0
 SUPERTONIC = {'python': 'D:/midform/tts-lab/supertonic/.venv/Scripts/python.exe', 'dir': 'D:/midform/tts-lab/supertonic',
@@ -821,8 +848,8 @@ def main(argv=None):
     if '--motion-pass' in argv:        # 이미 만든 편(1·2편)에 상시 줌만 덧입힌다 — TTS·하이퍼프레임 다시 안 돎, 소리는 그대로 복사
         src = ep / argv[argv.index('--motion-pass') + 1]
         dst = ep / argv[argv.index('--motion-pass') + 2]
-        if '--no-gate' not in argv:
-            wait_gate()
+        lock = render_lock(f'{ep.name} motion-pass', wait='--no-gate' not in argv)
+        lock.__enter__()
         segs = [Path(m) for m in re.findall(r"file '([^']+)'", src.read_text(encoding='utf-8'))]
         done = []
         for n, s in enumerate(segs):
@@ -842,11 +869,12 @@ def main(argv=None):
         sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'scripts'))
         import loudnorm_final
         print(loudnorm_final.normalize(out))
+        lock.__exit__(None, None, None)
         print(out)
         return 0
     script_gate(ep)
-    if '--no-gate' not in argv:
-        wait_gate()
+    if not any(x.startswith('--preview') for x in argv):
+        render_lock(f'{ep.name} render{" " + only if only else ""}', wait='--no-gate' not in argv).__enter__()   # TTS 도 무거운 작업
     work = ep / 'seg'
     work.mkdir(exist_ok=True)
     yomi = load_yomi(ep)
