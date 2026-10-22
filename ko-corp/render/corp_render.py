@@ -30,7 +30,7 @@ import nenkin_render as R  # noqa: E402  판·시계·하이퍼프레임 렌더 
 from ko_say import say  # noqa: E402
 
 FPS = 30
-CODE = '2026-10-19b'   # b: 판 글씨 키움(미리보기 1차)
+CODE = '2026-10-22m'   # m: 움직임 개편(줌 1.20·컷 10초·표 배경 이동) · b: 판 글씨 키움(미리보기 1차)
 SUPERTONIC = {'python': 'D:/midform/tts-lab/supertonic/.venv/Scripts/python.exe', 'dir': 'D:/midform/tts-lab/supertonic',
               'voice': 'F2', 'speed': 1.02, 'steps': 8, 'gap': 0.45, 'lang': 'ko', 'num_reading': False}
 WORKER = ROOT / 'ja-nenkin' / 'render' / 'supertonic_worker.py'      # lang 키를 받는 판(정치 원본은 ko 고정) — import 경로만
@@ -50,6 +50,7 @@ CSS = f'''@font-face{{font-family:K;src:url(assets/K.ttf);font-weight:100 900}}
 html,body{{margin:0;background:transparent}}
 #root{{position:relative;width:1920px;height:1080px;overflow:hidden;font-family:K;color:{CREAM};word-break:keep-all}}
 #root.board{{background:radial-gradient(ellipse at 50% 40%,{GREEN} 0%,{GREEN_D} 100%)}}
+#root.board.clear{{background:transparent}}
 #head{{position:absolute;left:84px;top:58px;font-family:P;font-size:46px;color:{YELLOW};letter-spacing:.01em;display:flex;align-items:center;gap:18px}}
 #head::before{{content:"";width:10px;height:46px;background:{YELLOW};border-radius:3px}}
 #src{{position:absolute;right:60px;top:66px;font-size:24px;font-weight:600;color:{MUTE}}}
@@ -278,7 +279,7 @@ def page(folder, cid, d, css, body, js, board):
             shutil.copy2(src, folder / 'assets' / name)
     (folder / 'index.html').write_text(
         f'<!doctype html><html lang="ko"><head><meta charset="utf-8"><style>{CSS}{css}{THEME}</style></head><body>'
-        f'<div id="root" class="{"board" if board else ""}" data-composition-id="{cid}" data-width="1920" data-height="1080" data-duration="{d:.3f}">'
+        f'<div id="root" class="{"board clear" if board == "clear" else "board" if board else ""}" data-composition-id="{cid}" data-width="1920" data-height="1080" data-duration="{d:.3f}">'
         f'<section class="clip" data-start="0" data-duration="{d:.3f}" style="position:absolute;inset:0">{body}</section></div>'
         f'<script src="assets/gsap.min.js"></script><script>const tl=gsap.timeline({{paused:true}});{R.COUNT_JS}{"".join(js)}'
         f'window.__timelines=window.__timelines||{{}};window.__timelines["{cid}"]=tl;</script></body></html>', encoding='utf-8')
@@ -301,24 +302,85 @@ def hf_render(folder, out, fmt):
 
 
 MOVES = ['in', 'right', 'out', 'left']
+# 움직임(소유주 10-22 «영상이 움직이질 않아», 관리자 수치): 줌 1.00↔1.20 · 옆 이동 화면 폭 15%(≥12%) · 장면마다 방향 교대
+ZOOM, PAN_Z = (1.0, 1.20), 1.18            # 옆 이동은 1.18 로 키운 채 (iw-iw/1.18)=15.3% 를 가로지른다
+SHOT_MAX, INTRO_SHOT, INTRO_SEC = 10.0, 5.0, 60.0   # 그림 한 컷 최대 10초 · 첫 60초는 5초 안팎
+BOARD_ZOOM = (1.0, 1.08)                   # 표·도표 배경 밀어 넣기
+SSIM_STILL = 0.95                          # 장면 첫·끝 프레임 SSIM 이 이 이상이면 정지(종료 4)
 
 
-def ken_burns(img, d, move, out):
-    """그림 한 장 → d 초 영상. 천천히 당기거나(in/out) 옆으로 민다(left/right) — 장면 하나 20~30초, 빠른 컷 없음(가이드 §4-5).
+def ken_burns(img, d, move, out, focus=0.5, zoom=ZOOM, n=None):
+    """그림 한 장 → d 초 영상. 당기거나(in/out) 옆으로 민다(left/right). focus = 줌 중심 가로 위치(0~1)·옆 이동의 세로 위치.
     2배로 키운 뒤 잘라 움직임이 계단처럼 떨리지 않게 한다."""
-    n = int(round(d * FPS))
+    n = n or int(round(d * FPS))
     W, H = 3840, 2160
-    z0, z1 = {'in': (1.0, 1.10), 'out': (1.10, 1.0), 'left': (1.08, 1.08), 'right': (1.08, 1.08)}[move]
+    a, b = zoom
+    z0, z1 = {'in': (a, b), 'out': (b, a), 'left': (PAN_Z, PAN_Z), 'right': (PAN_Z, PAN_Z)}[move]
     zx = f'({z0}+({z1}-{z0})*on/{max(1, n - 1)})'
     if move in ('left', 'right'):
         p = f'(on/{max(1, n - 1)})' if move == 'right' else f'(1-on/{max(1, n - 1)})'
-        x = f'(iw-iw/zoom)*{p}'
+        x, y = f'(iw-iw/zoom)*{p}', f'(ih-ih/zoom)*{focus}'
     else:
-        x = 'iw/2-(iw/zoom/2)'
+        x, y = f'(iw-iw/zoom)*{focus}', 'ih/2-(ih/zoom/2)'
     vf = (f'scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},'
-          f"zoompan=z='{zx}':x='{x}':y='ih/2-(ih/zoom/2)':d=1:s=1920x1080:fps={FPS},setsar=1")
+          f"zoompan=z='{zx}':x='{x}':y='{y}':d=1:s=1920x1080:fps={FPS},setsar=1")
     subprocess.run(['ffmpeg', '-nostdin', '-v', 'error', '-y', '-loop', '1', '-framerate', str(FPS), '-t', f'{d:.3f}', '-i', str(img),
                     '-vf', vf, '-frames:v', str(n), '-c:v', 'libx264', '-crf', '18', '-preset', 'medium', '-pix_fmt', 'yuv420p', str(out)], check=True)
+
+
+def bg_shots(imgs, d, i, out, max_shot=SHOT_MAX, zoom=ZOOM, moves=MOVES):
+    """장면 배경을 max_shot 초 이하 컷 여러 개로 — 그림이 여러 장이면 돌려 쓰고, 한 장이면 다른 부분(focus)을 잡는다. 컷마다 방향을 바꾼다."""
+    n = int(round(d * FPS))
+    k = max(1, -(-n // int(max_shot * FPS)))
+    frames = [n // k + (1 if j < n % k else 0) for j in range(k)]
+    parts = []
+    for j, fn in enumerate(frames):
+        p = Path(out).with_name(f'shot{j}.mp4')
+        ken_burns(imgs[j % len(imgs)], fn / FPS, moves[(i + j) % len(moves)], p, focus=(0.5, 0.2, 0.8)[(i + j) % 3], zoom=zoom, n=fn)
+        parts.append(p)
+    if k == 1:
+        shutil.move(str(parts[0]), out)
+        return k
+    lst = Path(out).with_name('shots.txt')
+    lst.write_text(''.join(f"file '{p.as_posix()}'\n" for p in parts), encoding='utf-8')
+    subprocess.run(['ffmpeg', '-nostdin', '-v', 'error', '-y', '-f', 'concat', '-safe', '0', '-i', str(lst), '-c', 'copy', str(out)], check=True)
+    for p in parts + [lst]:
+        p.unlink(missing_ok=True)
+    return k
+
+
+def board_bg():
+    """표·도표 배경 그림(한 번만) — 녹색 방사 그라데이션 + 큰 흐린 원 몇 개(평면·무질감, 움직임이 눈에 보이게)."""
+    out = HERE / 'board_bg.png'
+    if out.exists():
+        return out
+    from PIL import Image, ImageDraw, ImageFilter
+    W, H = 3840, 2160
+    hx = lambda c: tuple(int(c[k:k + 2], 16) for k in (1, 3, 5))
+    g0, g1, ln = hx(GREEN), hx(GREEN_D), hx(LINE)
+    im = Image.radial_gradient('L').resize((W, H))
+    base = Image.composite(Image.new('RGB', (W, H), g1), Image.new('RGB', (W, H), g0), im)
+    lay = Image.new('L', (W, H), 0)
+    dr = ImageDraw.Draw(lay)
+    for cx, cy, r in ((600, 500, 520), (3300, 700, 640), (2200, 1900, 560), (1200, 1750, 380), (2900, 1500, 300)):
+        dr.ellipse((cx - r, cy - r, cx + r, cy + r), fill=70)
+    lay = lay.filter(ImageFilter.GaussianBlur(14))
+    base = Image.composite(Image.new('RGB', (W, H), ln), base, lay)
+    base.save(out)
+    return out
+
+
+def motion_gate(seg, folder):
+    """장면 첫·끝 프레임 SSIM(아래 자막 300px 뺀 위쪽) — SSIM_STILL 이상이면 정지로 보고 종료 4. 정지 화면은 folder 에 남긴다(증명용)."""
+    f0, f1 = folder / 'first.png', folder / 'last.png'
+    crop = 'crop=1920:780:0:0'
+    subprocess.run(['ffmpeg', '-nostdin', '-v', 'error', '-y', '-i', str(seg), '-vf', crop, '-frames:v', '1', str(f0)], check=True)
+    subprocess.run(['ffmpeg', '-nostdin', '-v', 'error', '-y', '-sseof', '-0.2', '-i', str(seg), '-vf', crop, '-update', '1', str(f1)], check=True)
+    r = subprocess.run(['ffmpeg', '-nostdin', '-i', str(f0), '-i', str(f1), '-lavfi', 'ssim', '-f', 'null', '-'], capture_output=True, text=True)
+    m = re.search(r'All:([\d.]+)', r.stderr)
+    s = float(m.group(1)) if m else 1.0
+    (folder / 'motion.json').write_text(json.dumps({'ssim': s}) + '\n', encoding='utf-8')
+    return s
 
 
 def mux(video, wav, out, d, overlay=None):
@@ -438,6 +500,7 @@ def main(argv=None):
     work = ep / 'seg'
     work.mkdir(exist_ok=True)
     parts, total = [], 0.0
+    start = sum(wav_seconds(voice_dir(ep, b) / 'voice.wav') + .45 for b in blocks[:rng.start] if (voice_dir(ep, b) / 'voice.wav').exists())
     for i in rng:
         blk, spec = blocks[i], vis[blocks[i]['vid']]
         folder = seg_dir(ep, i, blk, spec)
@@ -457,17 +520,22 @@ def main(argv=None):
             folder.mkdir(parents=True, exist_ok=True)
             d = round(wav_seconds(wav) + .45, 3)
             css, body, js, board = scene_html(spec, d, cues, emph)
-            page(folder / 'hf', f's{i}', d, css, body, js, board)
-            if board:
-                hf_render(folder / 'hf', folder / 'screen.mp4', 'mp4')
-                mux(folder / 'screen.mp4', wav, final, d)
-            else:
-                ken_burns(ep / 'img' / spec['img'], d, spec.get('move', MOVES[i % 4]), folder / 'bg.mp4')
-                hf_render(folder / 'hf', folder / 'overlay.mov', 'mov')
-                mux(folder / 'bg.mp4', wav, final, d, folder / 'overlay.mov')
-                for x in ('bg.mp4', 'overlay.mov'):
-                    (folder / x).unlink(missing_ok=True)
-            (folder / 'screen.mp4').unlink(missing_ok=True)
+            page(folder / 'hf', f's{i}', d, css, body, js, 'clear' if board else False)
+            if board:   # 표·도표: 투명 판 + 천천히 밀어 넣는 녹색 배경(한 컷)
+                bg_shots([board_bg()], d, i, folder / 'bg.mp4', max_shot=d + 1, zoom=BOARD_ZOOM, moves=('in', 'out'))
+            else:       # 그림: 컷 최대 10초(첫 60초는 5초), 컷마다 방향 교대 — imgs 가 있으면 돌려 쓴다
+                imgs = [ep / 'img' / x for x in spec.get('imgs', [spec['img']])]
+                bg_shots(imgs, d, i, folder / 'bg.mp4', max_shot=INTRO_SHOT if start < INTRO_SEC else SHOT_MAX)
+            hf_render(folder / 'hf', folder / 'overlay.mov', 'mov')
+            mux(folder / 'bg.mp4', wav, final, d, folder / 'overlay.mov')
+            for x in ('bg.mp4', 'overlay.mov'):
+                (folder / x).unlink(missing_ok=True)
+        mj = folder / 'motion.json'
+        ssim = json.loads(mj.read_text(encoding='utf-8'))['ssim'] if mj.exists() else motion_gate(final, folder) if final.exists() else None
+        if ssim is not None and ssim >= SSIM_STILL and '--tts-only' not in argv:
+            print(f'[{i}] {blk["vid"]} 첫·끝 프레임 SSIM {ssim:.3f} ≥ {SSIM_STILL} — 정지 화면(관리자 10-22), 종료 4 — {folder}', flush=True)
+            raise SystemExit(4)
+        start += wav_seconds(voice_dir(ep, blk) / 'voice.wav') + .45 if (voice_dir(ep, blk) / 'voice.wav').exists() else 0
         if final.exists():
             parts.append(final)
             total += float(subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', str(final)],
