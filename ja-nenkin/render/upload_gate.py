@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 """연금JA 업로드 전 관문(관리자 10-20 adoption) — 하나라도 실패면 종료 4, 업로드 금지.
 
-    python ja-nenkin/render/upload_gate.py ja-nenkin/ep01
+    python ja-nenkin/render/upload_gate.py ja-nenkin/ep01 [--concat concat_v5.txt]
 
 순서: title_check --lane nenkin_ja --jargon ja-nenkin/jargon.json --fail-on-warn
       → tag_gate packages.json --script script.txt --fail-on-warn → packages_gate <편> --lang ja --lane nenkin
+      → motion_gate <편> --concat <올릴 판의 concat>(10-22, 장면 첫·끝 판 SSIM ≥0.95 면 FAIL) — --concat 없으면 concat.txt
 """
 import subprocess
 import sys
@@ -24,6 +25,8 @@ def main(argv=None):
                          '--jargon', str(ROOT / 'ja-nenkin' / 'jargon.json'), '--fail-on-warn']),
         ('tag_gate', [py, str(SC / 'tag_gate.py'), str(pk), '--script', str(ep / 'script.txt'), '--fail-on-warn']),
         ('packages_gate', [py, str(SC / 'packages_gate.py'), str(ep), '--lang', 'ja', '--lane', 'nenkin']),
+        ('motion_gate', [py, str(Path(__file__).parent / 'motion_gate.py'), str(ep), '--concat',
+                         argv[argv.index('--concat') + 1] if '--concat' in argv else 'concat.txt']),
     ]
     bad = []
     for name, cmd in steps:

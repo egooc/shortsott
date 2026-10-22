@@ -625,6 +625,60 @@ def hf_render(folder, out):
     shutil.move(str(Path(folder) / 'screen.mp4'), out)
 
 
+# 상시 움직임(소유주 10-22 «줌인·줌아웃·이동 왜 안 해», 관리자 지시): 하이퍼프레임 상시 트윈 금지 → ffmpeg 배경층에서 판(그림·도표) 영역만
+# 장면 내내 천천히 당긴다. 왼쪽 띠·자막 띠(92px)는 고정 — 읽기 방해 금지. 줌 1.10배(판을 0.91→1.00 로 키운다: 1.00→1.10 로 자르면
+# 판 가장자리 큰 글자가 잘려서, 같은 배율을 바깥 여백 쪽으로 둔다 — 배경이 단색 生成り라 이음매가 없다). 같은 움직임은 12초까지(10~12초),
+# 넘으면 방향을 바꾼다(당김 → 옆으로 비킨 채 살짝 물러남 → 다시 당김…). 관리자 10-22 정정: 경제 채널 실측(8초 교체·계속 당김), 고령층이라 10~12초·1.10.
+STAGE_BOX = (160, 8, 1752, 812)    # x, y, w, h — #side 150px·#capbar(위 테두리 829) 안쪽으로 8~10px 들임(띠 경계 색 번짐이 여백 선으로 보였다)
+ZOOM = 1.10
+SHOT = 12.0
+KEYS = [(1 / ZOOM, .5), (1.0, .5), (.95, .25), (1.0, .5), (.95, .75)]   # (판 배율, 가로 기준점) — 첫 칸만 시작점, 나머지를 돈다
+
+
+def motion_keys(d):
+    n = max(1, -(-int(d * 1000) // int(SHOT * 1000)))
+    ks = [KEYS[0]] + [KEYS[1 + k % 4] for k in range(n)]
+    return [(round(d * k / n, 3), s, ax) for k, (s, ax) in enumerate(ks)]
+
+
+def _piece(keys, idx):
+    """on(출력 프레임 번호) → 구간별 직선 보간 식."""
+    t = f'(on/{FPS})'
+    expr = f'{keys[-1][idx]}'
+    for (t0, *a), (t1, *b) in reversed(list(zip(keys, keys[1:]))):
+        v0, v1 = a[idx - 1], b[idx - 1]
+        expr = f'if(lt({t},{t1}),{v0}+({v1}-{v0})*({t}-{t0})/{max(.001, t1 - t0)},{expr})'
+    return expr
+
+
+def edge_color(src):
+    """판 가장자리 실제 색(첫 프레임 판 테두리 4변의 최빈값) — 生成り 상수로 메우면 인코딩 뒤 1~2단위 어긋나 여백 경계 선이 보였다."""
+    x, y, w, h = STAGE_BOX
+    raw = subprocess.run(['ffmpeg', '-nostdin', '-v', 'error', '-i', str(src), '-frames:v', '1', '-vf', f'crop={w}:{h}:{x}:{y}',
+                          '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-'], capture_output=True, check=True).stdout
+    px = lambda i, j: raw[(j * w + i) * 3:(j * w + i) * 3 + 3]
+    m = 12
+    pts = [px(i, j) for i in range(m, w - m, 7) for j in (m, h - m)] + [px(i, j) for j in range(m, h - m, 7) for i in (m, w - m)]
+    from collections import Counter
+    r, g, b = Counter(pts).most_common(1)[0][0]
+    return f'0x{r:02X}{g:02X}{b:02X}'
+
+
+def stage_motion(src, d, out, audio=False):
+    """판 영역만 움직인 영상. src 는 하이퍼프레임 screen.mp4(또는 이미 만든 segment.mp4 — audio=True 면 소리 그대로 복사)."""
+    x, y, w, h = STAGE_BOX
+    keys = motion_keys(d)
+    cw, ch = int(round(w * ZOOM / 2)) * 2, int(round(h * ZOOM / 2)) * 2
+    z = f'{ZOOM}*({_piece(keys, 1)})'
+    fc = (f'[0:v]split[b][s];[s]crop={w}:{h}:{x}:{y},pad={cw}:{ch}:(ow-iw)/2:(oh-ih)/2:color={edge_color(src)},scale={cw * 2}:{ch * 2}:flags=bicubic,'
+          f"zoompan=z='{z}':x='(iw-iw/zoom)*({_piece(keys, 2)})':y='(ih-ih/zoom)/2':d=1:s={w}x{h}:fps={FPS},setsar=1[m];"
+          f'[b][m]overlay={x}:{y}:shortest=1,format=yuv420p[v]')
+    amap = ['-map', '0:a', '-c:a', 'copy'] if audio else []
+    subprocess.run(['ffmpeg', '-nostdin', '-v', 'error', '-y', '-i', str(src), '-filter_complex', fc, '-map', '[v]', *amap,
+                    '-r', str(FPS), '-c:v', 'libx264', '-crf', '20', '-preset', 'medium', '-pix_fmt', 'yuv420p', str(out)], check=True)
+    return keys
+
+
 def mux(video, wav, out, d):
     subprocess.run(['ffmpeg', '-nostdin', '-v', 'error', '-y', '-i', str(video), '-i', str(wav),
                     '-filter_complex', f'[1:a]apad=whole_dur={d:.3f},aresample=48000[a]', '-map', '0:v', '-map', '[a]',
@@ -764,6 +818,32 @@ def main(argv=None):
                 shutil.copy2(p, out / 'png' / f'v{i:03d}_{blk["vid"]}.png')
             print(i, blk['vid'], flush=True)
         return 0
+    if '--motion-pass' in argv:        # 이미 만든 편(1·2편)에 상시 줌만 덧입힌다 — TTS·하이퍼프레임 다시 안 돎, 소리는 그대로 복사
+        src = ep / argv[argv.index('--motion-pass') + 1]
+        dst = ep / argv[argv.index('--motion-pass') + 2]
+        if '--no-gate' not in argv:
+            wait_gate()
+        segs = [Path(m) for m in re.findall(r"file '([^']+)'", src.read_text(encoding='utf-8'))]
+        done = []
+        for n, s in enumerate(segs):
+            s = s if s.is_absolute() else src.parent / s
+            mv = s.parent / 'segment_moved.mp4'
+            if not mv.exists():
+                d = float(subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', str(s)],
+                                         capture_output=True, text=True).stdout)
+                stage_motion(s, d, mv.with_suffix('.tmp.mp4'), audio=True)
+                mv.with_suffix('.tmp.mp4').replace(mv)
+            done.append(mv)
+            print(f'[motion {n + 1}/{len(segs)}] {s.parent.name}', flush=True)
+        dst.write_text(''.join(f"file '{p.as_posix()}'\n" for p in done), encoding='utf-8')
+        out = ep / (dst.stem.replace('concat', 'episode') + '.mp4')
+        subprocess.run(['ffmpeg', '-nostdin', '-v', 'error', '-y', '-f', 'concat', '-safe', '0', '-i', str(dst),
+                        '-c:v', 'copy', '-c:a', 'aac', '-b:a', '160k', str(out)], check=True)
+        sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'scripts'))
+        import loudnorm_final
+        print(loudnorm_final.normalize(out))
+        print(out)
+        return 0
     script_gate(ep)
     if '--no-gate' not in argv:
         wait_gate()
@@ -792,8 +872,10 @@ def main(argv=None):
             cb, cj = captions(cues, d, emph)
             page(folder / 'hf', f's{i}', d, sc, chrome(blk, spec) + f'<div id="stage">{sb}</div>' + cb, transitions(d, bool(k)) + no_blank(sj) + cj, ep)
             hf_render(folder / 'hf', folder / 'screen.mp4')
-            mux(folder / 'screen.mp4', wav, final, d)
+            stage_motion(folder / 'screen.mp4', d, folder / 'moved.mp4')   # 판 영역 상시 줌(10-22)
+            mux(folder / 'moved.mp4', wav, final, d)
             (folder / 'screen.mp4').unlink(missing_ok=True)
+            (folder / 'moved.mp4').unlink(missing_ok=True)
             shutil.rmtree(folder / 'hf' / 'img', ignore_errors=True)
             shutil.rmtree(folder / 'hf' / 'docs', ignore_errors=True)
         if final.exists():
