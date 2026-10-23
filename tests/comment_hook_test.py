@@ -129,7 +129,11 @@ with tempfile.TemporaryDirectory() as t:
                          'comment_calls': [{'type': '상대도 안 됨', 'line': '사람 열 명이 붙어도 상대가 안 됩니다'}]})
     r = ch.check(ce, channel='ko_event', enforce=True)
     assert any(e.startswith('④ comment_calls 줄') for e in r['errors']) and any(e.startswith('②') for e in r['errors']), r
+    ch.CHANNEL_TYPES_DOCS = t / 'nodocs'
     assert ch.check(ce, channel='ko_robot')['code'] == 5     # 표 없음 = 검사 불가
+    ch.CHANNEL_TYPES_DOCS = t / 'ctdocs'   # server/data 에 없으면 docs 사본(다른 PC)
+    w(t / 'ctdocs' / 'ko_robot.json', {'types': [{'name': '로봇이 더 낫다'}], 'top3': ['로봇이 더 낫다']})
+    assert ch.check(ce, channel='ko_robot')['code'] != 5 and ch.channel_types('ko_robot')['top3'] == ['로봇이 더 낫다']
     assert not any(e.startswith('④') for e in ch.check(g)['errors'])   # 채널 없으면 ④ 없음
     # 검사 불가: 없는 경로 → 5 + 장부
     assert ch.main([str(t / 'nope')]) == 5

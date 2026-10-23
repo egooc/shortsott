@@ -252,8 +252,9 @@ ${list(cb, 60) || '(댓글 0)'}`, `vs_${a}_${b}`);
 // 입력 = 채널 최근 공개 편 전체(댓글 많은 순 --max) 댓글 인기 50+최신 50. GPT 1회 = 유형 5~8개 이름·설명 + 댓글마다 유형 번호.
 // 비율·대표 댓글(원문·좋아요)은 로컬 집계라 지어낼 수 없다. 부른 순간(편 id+초)은 자막(--subs, 09~12시 KST 에만 받음)이나
 // 댓글 속 타임스탬프에 근거할 때만 초를 남기고, 근거 없는 초는 null(장면 묘사만).
-// 출력 server/data/comment_types/<key>.{json,md} — comment_hook --channel <key> 가 읽는다. 주 1회: 6일 안 표가 있으면 --force 없이는 건너뜀.
+// 출력 server/data/comment_types/<key>.{json,md} + 같은 내용 docs/comment_types/(커밋용) — comment_hook --channel <key> 가 읽는다. 주 1회: 6일 안 표가 있으면 --force 없이는 건너뜀.
 const TYPES_OUT = path.join(ROOT, 'server', 'data', 'comment_types');
+const TYPES_DOCS = path.join(ROOT, 'docs', 'comment_types');   // server/data 는 gitignore — 다른 PC(N100)가 받도록 추적 경로에도(10-23 관리자), 갱신마다 같이 커밋
 const CHANNELS = {   // 관리자 순서(10-23). ledger = 제작 장부 레인(그 youtube_id 로 채널 id 를 찾는다), id = 고정 채널 id
   ko_event: { name: '야생일지', ledger: 'n100_ko_event', lang: 'ko' },
   ko_robot: { name: '로보토리', ledger: 'n100_ko_robot', lang: 'ko' },
@@ -423,8 +424,11 @@ async function channelTypes(key, chKey, { days = 60, max = 60, subs = false, for
   }
   const ans = gpt(typesPrompt(ch, vids), `types_${chKey}`);
   const res = { ...base, ...tallyTypes(ch, vids, ans) };
-  fs.writeFileSync(outJ, JSON.stringify(res, null, 2) + '\n', 'utf8');
-  fs.writeFileSync(path.join(TYPES_OUT, `${chKey}.md`), typesMd(res), 'utf8');
+  for (const dir of [TYPES_OUT, TYPES_DOCS]) {
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, `${chKey}.json`), JSON.stringify(res, null, 2) + '\n', 'utf8');
+    fs.writeFileSync(path.join(dir, `${chKey}.md`), typesMd(res), 'utf8');
+  }
   return res;
 }
 

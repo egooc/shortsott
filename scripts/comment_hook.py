@@ -14,7 +14,7 @@
   ④ 채널 반응 유형(10-23 소유주·관리자): --channel <key>(또는 spec 의 channel_types) 가 있으면 server/data/comment_types/<key>.json
      (comment_mine --channel-types)을 읽어 expected_comment.type 에 그 채널 유형 이름도 받는다. 원고에 채널 상위 3유형 중 2개 이상을
      부르는 줄이 있어야 한다 — spec 의 comment_calls: [{type, line}] (expected_comment 자신도 한 줄로 셈), line 은 본문·고정 댓글에 실제로.
-     표가 없으면 검사 불가(5). ENFORCE_TYPES_FROM(10-24 00:00 KST) 전에는 ④ 실패가 경고(△)만.
+     표가 server/data 에 없으면 docs/comment_types/<key>.json(저장소 추적 사본)을 읽고, 둘 다 없으면 검사 불가(5). ENFORCE_TYPES_FROM(10-24 00:00 KST) 전에는 ④ 실패가 경고(△)만.
 종료 코드: 0 통과 · 4 FAIL · 5 검사 불가(입력을 못 읽음·본문과 고정 댓글이 둘 다 없음) — 통과 아님, server/data/gate_errors.jsonl 에 남김.
 
 레인 어댑터(--lane 생략 시 파일 이름으로 짐작):
@@ -41,13 +41,14 @@ LEGACY_UNTIL = _dt.datetime(2026, 10, 21, 0, 0, tzinfo=_dt.timezone(_dt.timedelt
 TEXT_KEYS = {'text', 'cards', 'captions', 'narration', 'segments', 'sequence', 'lines', 'cues', 'script'}
 PINNED_KEYS = ('pinned_comment', 'comment_question')
 CHANNEL_TYPES_DIR = ROOT / 'server' / 'data' / 'comment_types'
+CHANNEL_TYPES_DOCS = ROOT / 'docs' / 'comment_types'   # server/data 는 gitignore — 다른 PC 는 저장소의 docs 쪽을 읽는다(10-23)
 ENFORCE_TYPES_FROM = _dt.datetime(2026, 10, 24, 0, 0, tzinfo=_dt.timezone(_dt.timedelta(hours=9)))
 
 
 def channel_types(key):
     """comment_mine --channel-types 표 → dict(types, top3) 또는 None."""
-    f = CHANNEL_TYPES_DIR / f'{key}.json'
-    if not f.exists():
+    f = next((d / f'{key}.json' for d in (CHANNEL_TYPES_DIR, CHANNEL_TYPES_DOCS) if (d / f'{key}.json').exists()), None)
+    if f is None:
         return None
     d = json.loads(f.read_text(encoding='utf-8'))
     return d if d.get('types') else None
