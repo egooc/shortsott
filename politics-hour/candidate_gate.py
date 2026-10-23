@@ -131,9 +131,6 @@ def villain_lines(ep, kd, uploads=()):
         bad.append(f'빌런 «{name}» 이 keywords 1순위가 아님')
     if (kd.get('thumb') or [''])[0] != name:
         bad.append(f'빌런 «{name}» 이 썸네일 1순위(thumb[0])가 아님')
-    prev = sorted(p for p in ep.parent.glob('2026*/keywords.json') if p.parent.name < ep.name)
-    pv = next((json.loads(p.read_text(encoding='utf-8')).get('villain') for p in reversed(prev)
-               if isinstance(json.loads(p.read_text(encoding='utf-8')).get('villain'), dict)), None)
     # 소유주 10-23 «빌런들이 키워드에 분명히 올라와 있다 — 구글 트렌드·네이버 트렌드에서 왜 안 찾냐» — 빌런은 상승 검색어 표(rising_keywords politics_ko) 상위 5위 안에서
     rk = Path(__file__).resolve().parents[1] / 'server' / 'data' / 'rising_keywords' / 'politics_ko_latest.json'
     if rk.exists():
@@ -142,13 +139,18 @@ def villain_lines(ep, kd, uploads=()):
             bad.append(f'빌런 «{name}» 이 상승 검색어 상위 5위({" · ".join(top)}) 밖 — 표에서 사람을 골라라')
     else:
         bad.append('상승 검색어 표 없음 — node scripts/rising_keywords.js --lane politics_ko 먼저')
-    # 소유주 10-23 «이슈 하나 잡아서 꾸준히 가라고, 꾸준히» — villain.issue(예: «소방 재정 빨대») 도 전 편과 같아야 한다, 바꾸면 switch 사유
+    # 소유주 10-23 «이슈 하나 잡아서 꾸준히» + «추미애만 하지 말고 한동훈도, 장동혁도» — 줄기는 여러 개를 동시에 판다.
+    # politics-hour/threads.json {"active": [{"villain", "issue", "since"}]} — 빌런은 줄기 중 하나, 이슈는 그 줄기 것과 같아야 한다(바꾸면 switch 사유 + threads.json 갱신)
     if not str(v.get('issue', '')).strip():
         bad.append(f'빌런 «{name}»: "issue"(이어 파는 이슈 한 줄) 없음')
-    elif pv and pv.get('name') == name and pv.get('issue') and pv.get('issue') != v['issue'] and not str(v.get('switch', '')).strip():
-        bad.append(f'전 편 이슈 «{pv.get("issue")}» 를 버렸다 — 계속 파거나 "switch": 사유(조회·검색어 실측)')
-    if pv and pv.get('name') != name and not str(v.get('switch', '')).strip():
-        bad.append(f'전 편 빌런 «{pv.get("name")}» 을 버렸다 — 계속 파거나 "switch": 사유(조회·댓글 실측)')
+    th = Path(__file__).resolve().parent / 'threads.json'
+    act = json.loads(th.read_text(encoding='utf-8')).get('active', []) if th.exists() else []
+    mine = next((t for t in act if t.get('villain') == name), None)
+    if not str(v.get('switch', '')).strip():
+        if not mine:
+            bad.append(f'빌런 «{name}» 이 지금 줄기({" · ".join(t["villain"] for t in act)})에 없음 — 새 줄기면 "switch": 사유 + threads.json 에 추가')
+        elif v.get('issue') and mine.get('issue') != v['issue']:
+            bad.append(f'«{name}» 줄기 이슈 «{mine.get("issue")}» 와 다름 «{v["issue"]}» — 계속 파거나 "switch": 사유(조회·검색어 실측)')
     return bad
 
 
