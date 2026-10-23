@@ -449,7 +449,7 @@ if (require.main === module) {
         const r = await channelTypes(key, k, { days: +opt('--days', 60), max: +opt('--max', 60), subs: argv.includes('--subs'), force: argv.includes('--force'), noGpt });
         if (r.skipped) console.log(`${r.channel} 표가 6일 안(${r.at.slice(0, 10)}) — 건너뜀(--force 로 다시)`);
         else if (r.raw_only) console.log(`${r.channel} 댓글만 모음(--no-gpt) → server/data/comment_types/${k}_raw.json`);
-        else console.log(`${r.channel}(${r.channel_title}) 편 ${r.videos.length} · 댓글 ${r.total} · 상위 3: ${r.types.slice(0, 3).map((t) => `${t.name} ${t.pct}%`).join(' · ')} · 쿼터 오늘 ${quota()} → server/data/comment_types/${k}.{json,md}`);
+        else console.log(`${r.channel}(${r.channel_title}) 편 ${r.videos.length} · 댓글 ${r.total} · 관문 상위 3(부름): ${r.types.filter((t) => r.top3.includes(t.name)).map((t) => `${t.name} ${t.pct}%`).join(' · ') || '없음'} · 쿼터 오늘 ${quota()} → server/data/comment_types/${k}.{json,md}`);
       } else if (argv.includes('--vs')) {
         const i = argv.indexOf('--vs');
         const r = await vs(key, vid(argv[i + 1]), vid(argv[i + 2]), noGpt);
