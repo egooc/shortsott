@@ -305,7 +305,27 @@ L.render_frame = render_frame
 L.narration_events = narration_events
 L._write_ass = write_ass
 if __name__ == '__main__':
-    import json
+    import json, os, time
     if len(sys.argv) > 1 and json.loads(Path(sys.argv[1]).read_text(encoding='utf-8')).get('layout') == 'close':
         use_close()
-    L.main()
+    # 관리자 10-23: 수창 롱폼 락 위에서 쇼츠 렌더가 겹쳐 장면당 72초→225~335초 — 락이 있으면 종료 4, 없으면 라벨 달아 잡고 끝나면 해제(render_episode.py 와 같은 락)
+    # --frame-only(한 장 미리보기)는 가벼워서 락을 안 본다
+    LOCK = HERE.parent / 'RENDERING.lock'
+    if '--frame-only' in sys.argv:
+        L.main()
+        sys.exit(0)
+    try:
+        with open(LOCK, 'x', encoding='utf-8') as f:   # 'x' = 없을 때만 만든다(두 렌더가 동시에 잡는 경합 방지)
+            f.write(json.dumps({'label': f'정치 쇼츠 {Path(sys.argv[1]).stem if len(sys.argv) > 1 else "?"}', 'pid': os.getpid(),
+                                'started': time.strftime('%Y-%m-%d %H:%M')}, ensure_ascii=False) + '\n')
+    except FileExistsError:
+        print(f'[lock] RENDERING.lock 있음 — 다른 렌더 중, 빈 틈에 다시: {LOCK.read_text(encoding="utf-8", errors="replace").strip()[:200]}')
+        sys.exit(4)
+    try:
+        L.main()
+    finally:
+        try:
+            if json.loads(LOCK.read_text(encoding='utf-8')).get('pid') == os.getpid():   # 내 락만 지운다
+                LOCK.unlink()
+        except (OSError, ValueError):
+            pass
