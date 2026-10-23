@@ -656,9 +656,13 @@ def hf_render(folder, out):
 # 장면 내내 천천히 당긴다. 왼쪽 띠·자막 띠(92px)는 고정 — 읽기 방해 금지. 줌 1.10배(판을 0.91→1.00 로 키운다: 1.00→1.10 로 자르면
 # 판 가장자리 큰 글자가 잘려서, 같은 배율을 바깥 여백 쪽으로 둔다 — 배경이 단색 生成り라 이음매가 없다). 같은 움직임은 12초까지(10~12초),
 # 넘으면 방향을 바꾼다(당김 → 옆으로 비킨 채 살짝 물러남 → 다시 당김…). 관리자 10-22 정정: 경제 채널 실측(8초 교체·계속 당김), 고령층이라 10~12초·1.10.
-STAGE_BOX = (160, 8, 1752, 812)    # x, y, w, h — #side 150px·#capbar(위 테두리 829) 안쪽으로 8~10px 들임(띠 경계 색 번짐이 여백 선으로 보였다)
+STAGE_BOX = (160, 8, 1752, 818)    # x, y, w, h — #side 150px·#capbar(위 테두리 829) 안쪽으로 들임(띠 경계 색 번짐이 여백 선으로 보였다)
+# 10-23 눈검사: 원래 판의 동그라미 그림이 y 829 까지 내려와, 판이 작아질 때 상자 밖(820~829)에 원본 조각이 비쳤다 →
+# 상자를 826 까지 내리고 상자 밖 띠(왼 150~160·위 0~8·오른 1912~1920·아래 826~829)는 판 가장자리 색으로 덮는다.
+STAGE_GAPS = [(150, 0, 10, 829), (150, 0, 1770, 8), (1912, 0, 8, 829), (150, 826, 1770, 3)]
 ZOOM = 1.10
 SHOT = 12.0
+MOTION_VER = 2   # 2 = 10-23 판 밖 띠 덮기·여백 가장자리 늘려 채우기
 KEYS = [(1 / ZOOM, .5), (1.0, .5), (.95, .25), (1.0, .5), (.95, .75)]   # (판 배율, 가로 기준점) — 첫 칸만 시작점, 나머지를 돈다
 
 
@@ -697,7 +701,10 @@ def stage_motion(src, d, out, audio=False):
     keys = motion_keys(d)
     cw, ch = int(round(w * ZOOM / 2)) * 2, int(round(h * ZOOM / 2)) * 2
     z = f'{ZOOM}*({_piece(keys, 1)})'
-    fc = (f'[0:v]split[b][s];[s]crop={w}:{h}:{x}:{y},pad={cw}:{ch}:(ow-iw)/2:(oh-ih)/2:color={edge_color(src)},scale={cw * 2}:{ch * 2}:flags=bicubic,'
+    col = edge_color(src)
+    gaps = ''.join(f',drawbox=x={gx}:y={gy}:w={gw}:h={gh}:color={col}:t=fill' for gx, gy, gw, gh in STAGE_GAPS)
+    fc = (f'[0:v]split[b0][s];[b0]null{gaps}[b];[s]crop={w}:{h}:{x}:{y},pad={cw}:{ch}:(ow-iw)/2:(oh-ih)/2:color={col},'
+          f'fillborders=left={(cw - w) // 2}:right={cw - w - (cw - w) // 2}:top={(ch - h) // 2}:bottom={ch - h - (ch - h) // 2}:mode=smear,scale={cw * 2}:{ch * 2}:flags=bicubic,'
           f"zoompan=z='{z}':x='(iw-iw/zoom)*({_piece(keys, 2)})':y='(ih-ih/zoom)/2':d=1:s={w}x{h}:fps={FPS},setsar=1[m];"
           f'[b][m]overlay={x}:{y}:shortest=1,format=yuv420p[v]')
     amap = ['-map', '0:a', '-c:a', 'copy'] if audio else []
@@ -854,7 +861,7 @@ def main(argv=None):
         done = []
         for n, s in enumerate(segs):
             s = s if s.is_absolute() else src.parent / s
-            mv = s.parent / 'segment_moved.mp4'
+            mv = s.parent / f'segment_moved_{MOTION_VER}.mp4'   # 움직임 식이 바뀌면 판 번호를 올려 다시 만든다(10-23 캐시 재사용 사고)
             if not mv.exists():
                 d = float(subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', str(s)],
                                          capture_output=True, text=True).stdout)
