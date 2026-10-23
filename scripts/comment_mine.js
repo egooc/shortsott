@@ -4,7 +4,7 @@
 //   node scripts/comment_mine.js --ours [--days 30] [--per 8] [--no-gpt]       우리 채널 공개 편(최근 30일, 채널마다 댓글 많은 순 --per 편)
 //   node scripts/comment_mine.js --refs [--per 5]                               레퍼런스: yt_news_outliers 아웃라이어 상위
 //   node scripts/comment_mine.js --vs <잘된 videoId> <우리 videoId>             부검(Z5): 빠진 한 끗 1~3
-//   node scripts/comment_mine.js --channel-types <key> [--days 60] [--max 25] [--subs] [--force]
+//   node scripts/comment_mine.js --channel-types <key> [--days 60] [--max 60] [--subs] [--force]
 //                                                          채널 고유 반응 유형 5~8(10-23) → server/data/comment_types/<key>, 주 1회
 //        key: ko_event(야생일지)·ko_robot(로보토리)·ko_mon2_old(무쓸모)·ko_longshort(지구관측소)·dogu(도구의쓸모)·ja(沼落ち)
 //
@@ -315,9 +315,10 @@ function typesPrompt(ch, vids) {
 일반 분류(정정·경험담·훈수·공감·논쟁)로 쓰지 말고 이 채널 소재에 고유한 반응으로, 댓글 말투 그대로 짧게 이름 지어라
 (동물 채널 예: «한국이었으면 잡아먹힘» «상대도 안 됨» «귀엽다»). 서로 겹치지 않게.
 JSON 하나만 답하라(설명 금지):
-{"types": [{"name": "짧은 이름", "desc": "어떤 댓글인지 한 줄", "trigger": "이 반응을 부르는 영상 속 순간의 공통점 한 줄", "line_hint": "원고에 넣으면 이 반응을 부를 문장 예 1개"}],
+{"types": [{"name": "짧은 이름", "desc": "어떤 댓글인지 한 줄", "trigger": "이 반응을 부르는 영상 속 순간의 공통점 한 줄", "line_hint": "원고에 넣으면 이 반응을 부를 문장 예 1개", "call": "부름|피함"}],
  "assign": {"v1.1": 1, "v1.2": 0},
  "moments": [{"type": 1, "video": "v3", "at_sec": 12, "what": "그 순간 장면 한 줄", "basis": "자막|댓글 타임스탬프|없음"}]}
+call: 피함 = 영상 오류 지적·제작자 비난·불쾌·혐오처럼 원고가 일부러 부르면 안 되는 반응, 나머지는 부름.
 assign: 위 댓글 번호 전부를 유형 번호(1부터, types 순서)로. 0 = 기타(인사·도배·광고·분류 불가).
 moments: 유형마다 1~3개, 그 반응을 부른 편과 순간. at_sec 는 자막 시각이나 댓글 속 타임스탬프에 근거할 때만 숫자, 근거 없으면 null 로 두고 what 에 댓글이 가리키는 장면을 적어라. 지어내지 마라.
 
@@ -356,19 +357,20 @@ function tallyTypes(ch, vids, ans) {
       moments.push({ video: c.video, title: v ? v.title : '', at_sec: null, what: `좋아요 1위 댓글이 달린 편`, basis: '근거 없음 — 초 미상' });
     }
     return { name: String(t.name || `유형 ${k + 1}`).trim(), desc: t.desc || '', trigger: t.trigger || '', line_hint: t.line_hint || '',
+      call: /피함/.test(t.call || '') ? '피함' : '부름',
       count: cs.length, pct: pct(cs.length), likes: cs.reduce((s, c) => s + c.likes, 0),
       examples: cs.slice().sort((a, b) => b.likes - a.likes).slice(0, 3).map((c) => ({ video: c.video, text: c.text.slice(0, 120), likes: c.likes })),
       moments };
   }).sort((a, b) => b.count - a.count || b.likes - a.likes).map((t, i) => ({ rank: i + 1, ...t }));
-  return { total: refs.size, types: out, other: { count: other.length, pct: pct(other.length) }, top3: out.slice(0, 3).map((t) => t.name) };
+  return { total: refs.size, types: out, other: { count: other.length, pct: pct(other.length) }, top3: out.filter((t) => t.call !== '피함' && t.count > 0).slice(0, 3).map((t) => t.name) };   // 관문은 «부름» 유형만
 }
 
 function typesMd(res) {
   const L = [`# 채널 반응 유형 — ${res.channel} (${res.key}, ${res.at.slice(0, 10)})`, '',
     `- 편 ${res.videos.length} · 분류한 댓글 ${res.total} · 자막 근거 편 ${res.videos.filter((v) => v.subs).length} · 기타 ${res.other.pct}%`,
     `- ★원고 관문(comment_hook --channel ${res.key}): 상위 3유형 «${res.top3.join('» «')}» 중 2개 이상을 부르는 줄(comment_calls)`, '',
-    '| # | 유형 | 비율 | 댓글 | 좋아요 합 | 부르는 순간 공통점 | 원고 줄 예 |', '|---|---|---|---|---|---|---|',
-    ...res.types.map((t) => `| ${t.rank} | ${t.name} | ${t.pct}% | ${t.count} | ${t.likes.toLocaleString()} | ${t.trigger.replace(/\|/g, '/')} | ${t.line_hint.replace(/\|/g, '/')} |`), ''];
+    '| # | 유형 | 비율 | 댓글 | 좋아요 합 | 원고 | 부르는 순간 공통점 | 원고 줄 예 |', '|---|---|---|---|---|---|---|---|',
+    ...res.types.map((t) => `| ${t.rank} | ${t.name} | ${t.pct}% | ${t.count} | ${t.likes.toLocaleString()} | ${t.call === '피함' ? '피함' : '부름'} | ${t.trigger.replace(/\|/g, '/')} | ${t.line_hint.replace(/\|/g, '/')} |`), ''];
   for (const t of res.types) {
     L.push(`## ${t.rank}. ${t.name} — ${t.pct}%`, `${t.desc}`, '', '대표 댓글:',
       ...t.examples.map((e) => `- «${e.text}» ♥${e.likes} (${e.video})`), '', '부른 순간:',
@@ -390,7 +392,7 @@ async function channelId(key, ch) {
   return best[0];
 }
 
-async function channelTypes(key, chKey, { days = 60, max = 25, subs = false, force = false, noGpt = false } = {}) {
+async function channelTypes(key, chKey, { days = 60, max = 60, subs = false, force = false, noGpt = false } = {}) {
   const ch = CHANNELS[chKey];
   if (!ch) throw new Error(`채널 키 «${chKey}» 없음 — ${Object.keys(CHANNELS).join('·')}`);
   const outJ = path.join(TYPES_OUT, `${chKey}.json`);
@@ -444,7 +446,7 @@ if (require.main === module) {
     try {
       if (argv.includes('--channel-types')) {
         const k = opt('--channel-types');
-        const r = await channelTypes(key, k, { days: +opt('--days', 60), max: +opt('--max', 25), subs: argv.includes('--subs'), force: argv.includes('--force'), noGpt });
+        const r = await channelTypes(key, k, { days: +opt('--days', 60), max: +opt('--max', 60), subs: argv.includes('--subs'), force: argv.includes('--force'), noGpt });
         if (r.skipped) console.log(`${r.channel} 표가 6일 안(${r.at.slice(0, 10)}) — 건너뜀(--force 로 다시)`);
         else if (r.raw_only) console.log(`${r.channel} 댓글만 모음(--no-gpt) → server/data/comment_types/${k}_raw.json`);
         else console.log(`${r.channel}(${r.channel_title}) 편 ${r.videos.length} · 댓글 ${r.total} · 상위 3: ${r.types.slice(0, 3).map((t) => `${t.name} ${t.pct}%`).join(' · ')} · 쿼터 오늘 ${quota()} → server/data/comment_types/${k}.{json,md}`);
