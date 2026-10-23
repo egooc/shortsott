@@ -156,3 +156,6 @@
 
 ## 마지막 보고
 `D:/volcano-runs/_upload/produce_<YYYYMMDD>.md`(KST 날짜)에 편마다 한 단락: 이름·상품·쿠팡 링크·인포크 번호·길이·레퍼런스·쓴 소스(핸들)·눈 검사에서 고친 것, 버린 편은 이유. 마지막 줄에 `OK <만든 편 수>`.
+
+## 끝 정리 (10-23 관리자 — D: 15GB 관문)
+보고서를 쓴 뒤 `python D:/midform/scripts/shop_cleanup_runs.py apply` 를 실행해 발행 3일 지난 편의 중간 파일(_ff·footage·src·sheets·cand·eye·*_nobgm/_v1/_raw)을 지우고, 보고서 «집계» 에 회수 GB 와 D: 빈 공간을 적는다. 최종 mp4·_upload json·보고서·_gate_log 는 지우지 않는다.
