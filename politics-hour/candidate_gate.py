@@ -110,6 +110,32 @@ def gate_lines(ep, uploads=()):
                 lost.append('vicarious({"type": ' + '|'.join(VICARIOUS) + ', "comments": 댓글에서 읽은 반응·농담, "essence": 대리만족 한 문장})')
         if lost:
             bad.append(f'후보표 {i}번 «{r.get("keyword", "?")}»: {", ".join(lost)} 비었거나 맞지 않음')
+    bad += villain_lines(ep, kd, uploads)
+    return bad
+
+
+# 소유주 10-23 «정치 쪽은 항상 빌런을 찾아서 빌런을 계속 파야 돼. 야당 여당 상관없이» — 편마다 빌런 한 명,
+# keywords.json "villain": {"name": 인물, "why": 댓글이 그를 미워하는 이유(실측 반응), "since": 처음 판 편 날짜}.
+# 빌런 = keywords 1순위 = 썸네일 1순위 낱말(그래서 제목 맨 앞·해시태그에도 들어간다). 전 편 빌런을 버리면 "switch": 사유 필수.
+VILLAIN_FROM = '20261024'
+
+
+def villain_lines(ep, kd, uploads=()):
+    if ep_date(ep, uploads) < VILLAIN_FROM:
+        return []
+    v = kd.get('villain')
+    if not isinstance(v, dict) or not str(v.get('name', '')).strip() or not str(v.get('why', '')).strip():
+        return ['빌런: keywords.json "villain": {"name", "why"(댓글 반응), "since"} 없음 — 여야 상관없이 한 명을 정해 계속 판다']
+    bad, name = [], v['name'].strip()
+    if (kd.get('keywords') or [''])[0] != name:
+        bad.append(f'빌런 «{name}» 이 keywords 1순위가 아님')
+    if (kd.get('thumb') or [''])[0] != name:
+        bad.append(f'빌런 «{name}» 이 썸네일 1순위(thumb[0])가 아님')
+    prev = sorted(p for p in ep.parent.glob('2026*/keywords.json') if p.parent.name < ep.name)
+    pv = next((json.loads(p.read_text(encoding='utf-8')).get('villain') for p in reversed(prev)
+               if isinstance(json.loads(p.read_text(encoding='utf-8')).get('villain'), dict)), None)
+    if pv and pv.get('name') != name and not str(v.get('switch', '')).strip():
+        bad.append(f'전 편 빌런 «{pv.get("name")}» 을 버렸다 — 계속 파거나 "switch": 사유(조회·댓글 실측)')
     return bad
 
 
