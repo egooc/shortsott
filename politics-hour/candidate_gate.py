@@ -115,7 +115,7 @@ def gate_lines(ep, uploads=()):
 
 
 # 소유주 10-23 «정치 쪽은 항상 빌런을 찾아서 빌런을 계속 파야 돼. 야당 여당 상관없이» — 편마다 빌런 한 명,
-# keywords.json "villain": {"name": 인물, "why": 댓글이 그를 미워하는 이유(실측 반응), "since": 처음 판 편 날짜}.
+# keywords.json "villain": {"name": 인물, "issue": 이어 파는 이슈, "why": 댓글이 그를 미워하는 이유(실측 반응), "since": 처음 판 편 날짜}.
 # 빌런 = keywords 1순위 = 썸네일 1순위 낱말(그래서 제목 맨 앞·해시태그에도 들어간다). 전 편 빌런을 버리면 "switch": 사유 필수.
 VILLAIN_FROM = '20261024'
 
@@ -142,6 +142,11 @@ def villain_lines(ep, kd, uploads=()):
             bad.append(f'빌런 «{name}» 이 상승 검색어 상위 5위({" · ".join(top)}) 밖 — 표에서 사람을 골라라')
     else:
         bad.append('상승 검색어 표 없음 — node scripts/rising_keywords.js --lane politics_ko 먼저')
+    # 소유주 10-23 «이슈 하나 잡아서 꾸준히 가라고, 꾸준히» — villain.issue(예: «소방 재정 빨대») 도 전 편과 같아야 한다, 바꾸면 switch 사유
+    if not str(v.get('issue', '')).strip():
+        bad.append(f'빌런 «{name}»: "issue"(이어 파는 이슈 한 줄) 없음')
+    elif pv and pv.get('name') == name and pv.get('issue') and pv.get('issue') != v['issue'] and not str(v.get('switch', '')).strip():
+        bad.append(f'전 편 이슈 «{pv.get("issue")}» 를 버렸다 — 계속 파거나 "switch": 사유(조회·검색어 실측)')
     if pv and pv.get('name') != name and not str(v.get('switch', '')).strip():
         bad.append(f'전 편 빌런 «{pv.get("name")}» 을 버렸다 — 계속 파거나 "switch": 사유(조회·댓글 실측)')
     return bad
