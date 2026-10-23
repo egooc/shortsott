@@ -272,6 +272,24 @@ if EP_DATE >= '20261023':   # 소유주 10-22 «억지로 늘리지 말고 여�
         bad.append(f'길이 {_sec / 60:.1f}분 — {_min / 60:.0f}분 미만 금지(목표 {_tgt / 60:.0f}분), 쟁점을 더하거나 다음 편과 합쳐라' if _sec else f'길이 잴 수 없음: {_mp4}')
     elif _tgt == 600 and _sec > 720:
         print(f'[gate] 참고 길이 {_sec / 60:.1f}분 — 목표 약 10분, 늘리지 말고 두 편으로 쪼갤 수 있는지 본다')
+# 소유주 10-23 «여당 유튜브인데 이재명을 이재명이라 그래? 대통령이라고 해야지» — 제목·설명·태그·해시태그·포장에서 이름만 쓴 «이재명» FAIL(«이재명 정부»는 허용)
+_BARE = re.compile(r'이재명(?!\s*(대통령|정부))')
+_hashtags = lambda d: [l for l in (d or '').split('\n') if re.fullmatch(r'(#\S+\s*)+', l.strip())]
+for up in [*sys.argv[2:], *[p for p in [ep / 'packages.json'] if p.exists()]]:
+    _j = json.loads(Path(up).read_text(encoding='utf-8'))
+    _items = [_j] if 'packages' not in _j else [*_j['packages'], *(_j.get('loop') or [])]
+    for i, _p in enumerate(_items):
+        _txt = ' '.join([_p.get('title', ''), _p.get('description', ''), *_p.get('desc_head', []), *_p.get('tags', []), *_p.get('hashtags', []), *_p.get('big', [])])
+        for m in _BARE.finditer(_txt):
+            bad.append(f'{Path(up).name}{f" {i}번" if "packages" in _j else ""}: 이름만 쓴 «{_txt[max(0, m.start() - 12):m.end() + 8]}» — «이재명 대통령»으로')
+    # 소유주 10-23 «이슈 키워드는 제목이랑 해시태그에 반영한 거야?» — 키워드마다 제목 또는 해시태그에, 1순위는 둘 다(10/23편부터)
+    if EP_DATE >= '20261023' and 'packages' not in _j and 'shorts' not in Path(up).resolve().parts:
+        _t, _h = _j.get('title', ''), ''.join(_hashtags(_j.get('description'))).replace(' ', '')
+        for n, k in enumerate(kws):
+            k0 = k.split('(')[0].strip()
+            inT, inH = k0 in _t, '#' + k0.replace(' ', '') in _h
+            if not (inT or inH) or (n == 0 and not (inT and inH)):
+                bad.append(f'{Path(up).name}: 키워드 «{k0}» — 제목 {"O" if inT else "X"} · 해시태그 {"O" if inH else "X"} ({"1순위는 둘 다" if n == 0 else "둘 중 하나는"})')
 for b in bad:
     print('[gate] FAIL', b)
 if bad:
