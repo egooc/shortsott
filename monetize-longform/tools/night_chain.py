@@ -100,7 +100,8 @@ def pending(wait_word, done_word):
     last_wait = max((i for i, l in enumerate(lines) if wait_word in l), default=-1)
     if last_wait < 0:
         return False
-    return not any(done_word in l for l in lines[last_wait + 1:])
+    # 같은 줄에 «대기 0편 — 끝»처럼 둘 다 적힌 경우(정치 ko 10-24 14:4x)도 끝으로 본다 → last_wait 줄 포함
+    return not any(done_word in l for l in lines[last_wait:])
 
 
 def politics_shorts_pending():

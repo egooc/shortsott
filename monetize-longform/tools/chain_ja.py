@@ -8,6 +8,7 @@ night_chain_ja01.py 의 ko 판(편 폴더 인자). 실행은 schtasks 한 번 �
 역전사 종료 4(실제 불일치)면 렌더를 멈추고 사람이 audit/report_*.md 를 본다 → 수정 뒤 --render-only 로 렌더만.
 """
 import datetime as dt
+import json
 import os
 import re
 import subprocess
@@ -111,6 +112,10 @@ def chain():
     os.environ['MONETIZE_LOCK_HELD'] = '1'   # 자식 render.py 가 렌더러 자체 락을 건너뛰게(10-23 01:14 ja03 TTS 실패 원인)
     try:
         if '--render-only' not in sys.argv:
+            rc = run('comment_hook', comment_hook_cmd(rel))   # 관리자 10-24: 댓글 장치 관문은 TTS 전(표 있는 채널은 --channel)
+            if rc:
+                log(f'댓글 장치 관문 {rc} — TTS 보류(comment_spec.json·원고 반응 줄 확인)')
+                return rc
             rc = run('tts', PY + ['monetize-longform/render.py', rel, '--tts-only', '--no-gate'])
             if rc:
                 log('TTS 실패 — 중단')
@@ -145,6 +150,20 @@ def chain():
             lock.unlink()
             log('락 지움')
 
+
+
+COMMENT_KEY_ALIAS = {'shopping_old_ssulmo': 'ko_mon2_old'}   # 업로드 프로필 이름과 반응 표 이름이 다른 채널
+
+
+def comment_hook_cmd(rel):
+    """관리자 10-24: 댓글 장치 관문(TTS 전). server/data 또는 docs 의 comment_types/<key>.json 이 있는 채널만 --channel, 없으면 generic."""
+    lane = json.loads((EP / 'lane.json').read_text(encoding='utf-8')) if (EP / 'lane.json').exists() else {}
+    purpose = lane.get('comment_channel') or lane.get('upload_purpose') or ''
+    key = COMMENT_KEY_ALIAS.get(purpose, purpose)
+    cmd = PY + ['scripts/comment_hook.py', rel, '--lane', 'generic', '--spec', rel + '/comment_spec.json']
+    if key and any((ROOT / d / 'comment_types' / f'{key}.json').exists() for d in ('server/data', 'docs')):
+        cmd += ['--channel', key]
+    return cmd
 
 def main():
     if RUNNING.exists():
