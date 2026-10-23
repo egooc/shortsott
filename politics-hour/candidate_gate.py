@@ -134,6 +134,14 @@ def villain_lines(ep, kd, uploads=()):
     prev = sorted(p for p in ep.parent.glob('2026*/keywords.json') if p.parent.name < ep.name)
     pv = next((json.loads(p.read_text(encoding='utf-8')).get('villain') for p in reversed(prev)
                if isinstance(json.loads(p.read_text(encoding='utf-8')).get('villain'), dict)), None)
+    # 소유주 10-23 «빌런들이 키워드에 분명히 올라와 있다 — 구글 트렌드·네이버 트렌드에서 왜 안 찾냐» — 빌런은 상승 검색어 표(rising_keywords politics_ko) 상위 5위 안에서
+    rk = Path(__file__).resolve().parents[1] / 'server' / 'data' / 'rising_keywords' / 'politics_ko_latest.json'
+    if rk.exists():
+        top = [r['keyword'] for r in sorted(json.loads(rk.read_text(encoding='utf-8')).get('rows') or [], key=lambda r: -(r.get('rising_score') or 0))][:5]
+        if name not in top and name not in (v.get('rising_top5') or []):
+            bad.append(f'빌런 «{name}» 이 상승 검색어 상위 5위({" · ".join(top)}) 밖 — 표에서 사람을 골라라')
+    else:
+        bad.append('상승 검색어 표 없음 — node scripts/rising_keywords.js --lane politics_ko 먼저')
     if pv and pv.get('name') != name and not str(v.get('switch', '')).strip():
         bad.append(f'전 편 빌런 «{pv.get("name")}» 을 버렸다 — 계속 파거나 "switch": 사유(조회·댓글 실측)')
     return bad
