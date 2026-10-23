@@ -4,6 +4,9 @@
 //   node scripts/comment_mine.js --ours [--days 30] [--per 8] [--no-gpt]       우리 채널 공개 편(최근 30일, 채널마다 댓글 많은 순 --per 편)
 //   node scripts/comment_mine.js --refs [--per 5]                               레퍼런스: yt_news_outliers 아웃라이어 상위
 //   node scripts/comment_mine.js --vs <잘된 videoId> <우리 videoId>             부검(Z5): 빠진 한 끗 1~3
+//   node scripts/comment_mine.js --channel-types <key> [--days 60] [--max 25] [--subs] [--force]
+//                                                          채널 고유 반응 유형 5~8(10-23) → server/data/comment_types/<key>, 주 1회
+//        key: ko_event(야생일지)·ko_robot(로보토리)·ko_mon2_old(무쓸모)·ko_longshort(지구관측소)·dogu(도구의쓸모)·ja(沼落ち)
 //
 // 댓글: 발굴용 키(.env YOUTUBE_API_KEY_SEARCH) commentThreads.list — 편당 인기순 50 + 최신순 50(2단위). 업로드 프로젝트 토큰 안 씀.
 //       하루 상한 300단위(server/data/comment_mine/_quota.json), 넘으면 남은 편은 건너뛴다. 403/429 = 그날 중지·gate_errors.jsonl.
@@ -54,6 +57,7 @@ function quota(add = 0) {
   return d[k] || 0;
 }
 
+const isoSec = (s) => { const m = String(s || '').match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/); return m ? (+m[1] || 0) * 3600 + (+m[2] || 0) * 60 + (+m[3] || 0) : 0; };
 const vid = (s) => (String(s).match(/(?:v=|youtu\.be\/|shorts\/)([\w-]{11})/) || [null, s])[1];
 
 const apiQuota = require('./api_quota');   // 발굴 키 공용 쿼터 장부(10-20) — 도구 자체 300 상한과 함께
@@ -74,8 +78,8 @@ async function videoMeta(key, ids) {
   for (let i = 0; i < ids.length; i += 50) {
     const j = await yt(key, 'videos', { part: 'snippet,statistics,contentDetails,status', id: ids.slice(i, i + 50).join(',') });
     for (const v of j.items || []) {
-      out.push({ id: v.id, title: v.snippet.title, channel: v.snippet.channelTitle, published: v.snippet.publishedAt, privacy: v.status.privacyStatus,
-        views: +v.statistics.viewCount || 0, likes: +v.statistics.likeCount || 0, comments: +v.statistics.commentCount || 0 });
+      out.push({ id: v.id, title: v.snippet.title, channel: v.snippet.channelTitle, channelId: v.snippet.channelId, published: v.snippet.publishedAt, privacy: v.status.privacyStatus,
+        views: +v.statistics.viewCount || 0, likes: +v.statistics.likeCount || 0, comments: +v.statistics.commentCount || 0, dur: isoSec(v.contentDetails && v.contentDetails.duration) });
     }
   }
   return out;
@@ -243,7 +247,187 @@ ${list(cb, 60) || '(댓글 0)'}`, `vs_${a}_${b}`);
   return res;
 }
 
-module.exports = { fetchComments, mineVideo, repeatedWords, expectedFor, summaryMd, TYPES };
+// ── 채널별 반응 유형(10-23 소유주 «같은 결로 올리면 비슷한 댓글이 반복된다 → 그 반응을 더 끌어내는 원고», 관리자 배정) ──
+// 일반 6종(정정·경험담…)은 «한국 있었으면 잡아먹혔다·상대도 안 된다·귀엽다» 같은 채널 고유 결을 못 잡는다.
+// 입력 = 채널 최근 공개 편 전체(댓글 많은 순 --max) 댓글 인기 50+최신 50. GPT 1회 = 유형 5~8개 이름·설명 + 댓글마다 유형 번호.
+// 비율·대표 댓글(원문·좋아요)은 로컬 집계라 지어낼 수 없다. 부른 순간(편 id+초)은 자막(--subs, 09~12시 KST 에만 받음)이나
+// 댓글 속 타임스탬프에 근거할 때만 초를 남기고, 근거 없는 초는 null(장면 묘사만).
+// 출력 server/data/comment_types/<key>.{json,md} — comment_hook --channel <key> 가 읽는다. 주 1회: 6일 안 표가 있으면 --force 없이는 건너뜀.
+const TYPES_OUT = path.join(ROOT, 'server', 'data', 'comment_types');
+const CHANNELS = {   // 관리자 순서(10-23). ledger = 제작 장부 레인(그 youtube_id 로 채널 id 를 찾는다), id = 고정 채널 id
+  ko_event: { name: '야생일지', ledger: 'n100_ko_event', lang: 'ko' },
+  ko_robot: { name: '로보토리', ledger: 'n100_ko_robot', lang: 'ko' },
+  ko_mon2_old: { name: '무쓸모', ledger: 'n100_ko_mon2_old', lang: 'ko' },
+  ko_longshort: { name: '지구관측소', id: 'UCbOp4wMmedc1_7vkrvYH_mQ', lang: 'ko' },
+  dogu: { name: '도구의쓸모', id: 'UCxI-BIzq8mH0Wfe99c24YEg', lang: 'ko' },
+  ja: { name: '沼落ちシネマ', id: 'UCdIp0WlNZzoNHrq5zz7mAWQ', lang: 'ja' },
+};
+const PER_VIDEO = 40;   // GPT 에 보내는 편당 댓글(좋아요 순 + 타임스탬프 든 댓글)
+
+const TS_RE = /(?:^|[^\d:])(\d{1,2}):([0-5]\d)(?![\d:])/g;
+const commentTs = (text) => [...String(text).matchAll(TS_RE)].map((m) => +m[1] * 60 + +m[2]);
+const mmss = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+
+function parseVtt(text) {
+  const out = [];
+  let t = null;
+  for (const ln of String(text).split(/\r?\n/)) {
+    const m = ln.match(/^(\d+):(\d{2}):(\d{2})[.,]\d+\s+-->/) || ln.match(/^(\d{2}):(\d{2})[.,]\d+\s+-->/);
+    if (m) { t = m.length === 4 ? +m[1] * 3600 + +m[2] * 60 + +m[3] : +m[1] * 60 + +m[2]; continue; }
+    const s = ln.replace(/<[^>]*>/g, '').trim();
+    if (t == null || !s || /^(WEBVTT|Kind:|Language:)/.test(s)) continue;
+    if (out.some((o) => o.text === s)) continue;   // 자동 자막의 굴러가는 중복 줄
+    out.push({ t, text: s });
+  }
+  return out;
+}
+
+function fetchSubs(id, lang) {
+  const dir = path.join(TYPES_OUT, '_subs');
+  fs.mkdirSync(dir, { recursive: true });
+  const find = () => fs.readdirSync(dir).find((f) => f.startsWith(`${id}.`) && f.endsWith('.vtt'));
+  if (!find()) {
+    const h = +new Date(Date.now() + 9 * 36e5).toISOString().slice(11, 13);
+    if (h < 9 || h >= 12) return null;   // 유튜브 자막은 09~12시 KST 만(운영 규칙)
+    try {
+      execFileSync('yt-dlp', ['--skip-download', '--write-subs', '--write-auto-subs', '--sub-langs', lang, '--sub-format', 'vtt',
+        '-o', path.join(dir, '%(id)s'), `https://www.youtube.com/watch?v=${id}`], { timeout: 120000, stdio: 'ignore' });
+    } catch { /* 자막 없음 — 순간 초는 댓글 타임스탬프로만 */ }
+  }
+  const f = find();
+  return f ? parseVtt(fs.readFileSync(path.join(dir, f), 'utf8')) : null;
+}
+
+function pickComments(cs, k = PER_VIDEO) {
+  const ts = cs.filter((c) => commentTs(c.text).length);
+  const top = cs.slice().sort((a, b) => b.likes - a.likes);
+  const seen = new Set();
+  return [...top.slice(0, k), ...ts].filter((c) => (seen.has(c.id) ? false : seen.add(c.id))).slice(0, k + 10);
+}
+
+function typesPrompt(ch, vids) {
+  const blocks = vids.map((v, i) => {
+    const sub = v.subs ? v.subs.slice(0, 40).map((s) => `[${mmss(s.t)}] ${s.text}`).join(' ') : '없음';
+    return `[v${i + 1}] «${v.title}» (길이 ${v.dur}초, 조회 ${v.views.toLocaleString()})\n자막: ${sub}\n댓글:\n` +
+      v.picked.map((c, j) => `v${i + 1}.${j + 1} [♥${c.likes} · 답${c.replies || 0}] ${c.text.slice(0, 160)}`).join('\n');
+  }).join('\n\n');
+  return `유튜브 채널 «${ch.name}» 최근 공개 편 ${vids.length}개의 댓글이다. 이 채널에 반복해서 달리는 반응 유형을 5~8개로 묶어라.
+일반 분류(정정·경험담·훈수·공감·논쟁)로 쓰지 말고 이 채널 소재에 고유한 반응으로, 댓글 말투 그대로 짧게 이름 지어라
+(동물 채널 예: «한국이었으면 잡아먹힘» «상대도 안 됨» «귀엽다»). 서로 겹치지 않게.
+JSON 하나만 답하라(설명 금지):
+{"types": [{"name": "짧은 이름", "desc": "어떤 댓글인지 한 줄", "trigger": "이 반응을 부르는 영상 속 순간의 공통점 한 줄", "line_hint": "원고에 넣으면 이 반응을 부를 문장 예 1개"}],
+ "assign": {"v1.1": 1, "v1.2": 0},
+ "moments": [{"type": 1, "video": "v3", "at_sec": 12, "what": "그 순간 장면 한 줄", "basis": "자막|댓글 타임스탬프|없음"}]}
+assign: 위 댓글 번호 전부를 유형 번호(1부터, types 순서)로. 0 = 기타(인사·도배·광고·분류 불가).
+moments: 유형마다 1~3개, 그 반응을 부른 편과 순간. at_sec 는 자막 시각이나 댓글 속 타임스탬프에 근거할 때만 숫자, 근거 없으면 null 로 두고 what 에 댓글이 가리키는 장면을 적어라. 지어내지 마라.
+
+${blocks}`;
+}
+
+// GPT 답 → 비율·대표 댓글·순간(검증) — 순수 함수(테스트 대상)
+function tallyTypes(ch, vids, ans) {
+  const types = (ans.types || []).slice(0, 8);
+  const refs = new Map();
+  vids.forEach((v, i) => v.picked.forEach((c, j) => refs.set(`v${i + 1}.${j + 1}`, { ...c, video: v.id })));
+  const bucket = types.map(() => []);
+  const other = [];
+  for (const [ref, c] of refs) {
+    const n = +((ans.assign || {})[ref]);
+    if (n >= 1 && n <= types.length) bucket[n - 1].push(c); else other.push(c);
+  }
+  const total = refs.size || 1;
+  const pct = (n) => Math.round((n / total) * 1000) / 10;
+  const out = types.map((t, k) => {
+    const cs = bucket[k];
+    const moments = (ans.moments || []).filter((m) => +m.type === k + 1).slice(0, 3).map((m) => {
+      const vi = +(String(m.video || '').match(/\d+/) || [0])[0] - 1;
+      const v = vids[vi];
+      if (!v) return null;
+      let at = m.at_sec == null || m.at_sec === '' ? null : +m.at_sec;
+      const grounded = Number.isFinite(at) && at >= 0 && at <= (v.dur || 0) + 1 &&
+        ((/자막/.test(m.basis || '') && v.subs && v.subs.length) ||
+         (/타임스탬프/.test(m.basis || '') && v.picked.some((c) => commentTs(c.text).some((s) => Math.abs(s - at) <= 2))));
+      if (!grounded) at = null;
+      return { video: v.id, title: v.title, at_sec: at, what: m.what || '', basis: at == null ? '근거 없음 — 초 미상' : m.basis };
+    }).filter(Boolean);
+    if (!moments.length && cs.length) {   // GPT 가 순간을 안 줬으면 그 유형 좋아요 1위 댓글의 편(초 미상)
+      const c = cs.slice().sort((a, b) => b.likes - a.likes)[0];
+      const v = vids.find((x) => x.id === c.video);
+      moments.push({ video: c.video, title: v ? v.title : '', at_sec: null, what: `좋아요 1위 댓글이 달린 편`, basis: '근거 없음 — 초 미상' });
+    }
+    return { name: String(t.name || `유형 ${k + 1}`).trim(), desc: t.desc || '', trigger: t.trigger || '', line_hint: t.line_hint || '',
+      count: cs.length, pct: pct(cs.length), likes: cs.reduce((s, c) => s + c.likes, 0),
+      examples: cs.slice().sort((a, b) => b.likes - a.likes).slice(0, 3).map((c) => ({ video: c.video, text: c.text.slice(0, 120), likes: c.likes })),
+      moments };
+  }).sort((a, b) => b.count - a.count || b.likes - a.likes).map((t, i) => ({ rank: i + 1, ...t }));
+  return { total: refs.size, types: out, other: { count: other.length, pct: pct(other.length) }, top3: out.slice(0, 3).map((t) => t.name) };
+}
+
+function typesMd(res) {
+  const L = [`# 채널 반응 유형 — ${res.channel} (${res.key}, ${res.at.slice(0, 10)})`, '',
+    `- 편 ${res.videos.length} · 분류한 댓글 ${res.total} · 자막 근거 편 ${res.videos.filter((v) => v.subs).length} · 기타 ${res.other.pct}%`,
+    `- ★원고 관문(comment_hook --channel ${res.key}): 상위 3유형 «${res.top3.join('» «')}» 중 2개 이상을 부르는 줄(comment_calls)`, '',
+    '| # | 유형 | 비율 | 댓글 | 좋아요 합 | 부르는 순간 공통점 | 원고 줄 예 |', '|---|---|---|---|---|---|---|',
+    ...res.types.map((t) => `| ${t.rank} | ${t.name} | ${t.pct}% | ${t.count} | ${t.likes.toLocaleString()} | ${t.trigger.replace(/\|/g, '/')} | ${t.line_hint.replace(/\|/g, '/')} |`), ''];
+  for (const t of res.types) {
+    L.push(`## ${t.rank}. ${t.name} — ${t.pct}%`, `${t.desc}`, '', '대표 댓글:',
+      ...t.examples.map((e) => `- «${e.text}» ♥${e.likes} (${e.video})`), '', '부른 순간:',
+      ...t.moments.map((m) => `- ${m.video} ${m.at_sec == null ? '초 미상' : `${mmss(m.at_sec)}(${m.at_sec}초)`} — ${m.what} [${m.basis}] «${(m.title || '').slice(0, 30)}»`), '');
+  }
+  return L.join('\n');
+}
+
+async function channelId(key, ch) {
+  if (ch.id) return ch.id;
+  const ids = fs.existsSync(PROD) ? fs.readFileSync(PROD, 'utf8').split(/\r?\n/).filter(Boolean)
+    .map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter((r) => r && r.lane === ch.ledger && r.youtube_id).map((r) => r.youtube_id) : [];
+  if (!ids.length) throw new Error(`제작 장부에 ${ch.ledger} youtube_id 없음 — 채널 id 를 못 찾음`);
+  const ms = await videoMeta(key, ids.slice(-5));
+  const cnt = {};
+  for (const m of ms) cnt[m.channelId] = (cnt[m.channelId] || 0) + 1;
+  const best = Object.entries(cnt).sort((a, b) => b[1] - a[1])[0];
+  if (!best) throw new Error(`${ch.ledger} 영상이 공개 목록에 없음`);
+  return best[0];
+}
+
+async function channelTypes(key, chKey, { days = 60, max = 25, subs = false, force = false, noGpt = false } = {}) {
+  const ch = CHANNELS[chKey];
+  if (!ch) throw new Error(`채널 키 «${chKey}» 없음 — ${Object.keys(CHANNELS).join('·')}`);
+  const outJ = path.join(TYPES_OUT, `${chKey}.json`);
+  if (!force && fs.existsSync(outJ)) {
+    const prev = JSON.parse(fs.readFileSync(outJ, 'utf8'));
+    if (Date.now() - Date.parse(prev.at) < 6 * 864e5) return { skipped: true, ...prev };
+  }
+  const cid = await channelId(key, ch);
+  const metas = (await videoMeta(key, await uploads(key, cid, days))).filter((m) => m.privacy === 'public' && m.comments > 0)
+    .sort((a, b) => b.comments - a.comments).slice(0, max);
+  const vids = [];
+  for (const m of metas) {
+    let cs;
+    try { cs = await fetchComments(key, m.id); } catch (e) {
+      if (e instanceof Stop || e instanceof Cap) { console.log(`  ⚠ ${e.message} — 남은 편 건너뜀`); break; }
+      continue;
+    }
+    vids.push({ ...m, mined: cs.length, picked: pickComments(cs), subs: subs ? fetchSubs(m.id, ch.lang) : null });
+    console.log(`  ${ch.name} «${m.title.slice(0, 30)}» 댓글 ${cs.length}${subs ? ` · 자막 ${vids[vids.length - 1].subs ? 'O' : 'X'}` : ''} · 쿼터 오늘 ${quota()}`);
+  }
+  if (!vids.length) throw new Error(`${ch.name} 댓글 있는 공개 편 없음(최근 ${days}일)`);
+  const base = { at: new Date().toISOString(), key: chKey, channel: ch.name, channel_id: cid, channel_title: vids[0].channel, lang: ch.lang, days,
+    videos: vids.map((v) => ({ id: v.id, title: v.title, views: v.views, comments: v.comments, mined: v.mined, sent: v.picked.length, dur: v.dur, subs: !!(v.subs && v.subs.length) })) };
+  fs.mkdirSync(TYPES_OUT, { recursive: true });
+  if (noGpt) {
+    fs.writeFileSync(path.join(TYPES_OUT, `${chKey}_raw.json`), JSON.stringify({ ...base, raw: vids }, null, 2) + '\n', 'utf8');
+    return { ...base, raw_only: true };
+  }
+  const ans = gpt(typesPrompt(ch, vids), `types_${chKey}`);
+  const res = { ...base, ...tallyTypes(ch, vids, ans) };
+  fs.writeFileSync(outJ, JSON.stringify(res, null, 2) + '\n', 'utf8');
+  fs.writeFileSync(path.join(TYPES_OUT, `${chKey}.md`), typesMd(res), 'utf8');
+  return res;
+}
+
+module.exports = { fetchComments, mineVideo, repeatedWords, expectedFor, summaryMd, TYPES,
+  CHANNELS, channelTypes, tallyTypes, typesMd, typesPrompt, parseVtt, commentTs, pickComments };
 
 if (require.main === module) {
   (async () => {
@@ -258,7 +442,13 @@ if (require.main === module) {
     };
     if (!key) loud('.env 에 YOUTUBE_API_KEY_SEARCH 없음', 5);
     try {
-      if (argv.includes('--vs')) {
+      if (argv.includes('--channel-types')) {
+        const k = opt('--channel-types');
+        const r = await channelTypes(key, k, { days: +opt('--days', 60), max: +opt('--max', 25), subs: argv.includes('--subs'), force: argv.includes('--force'), noGpt });
+        if (r.skipped) console.log(`${r.channel} 표가 6일 안(${r.at.slice(0, 10)}) — 건너뜀(--force 로 다시)`);
+        else if (r.raw_only) console.log(`${r.channel} 댓글만 모음(--no-gpt) → server/data/comment_types/${k}_raw.json`);
+        else console.log(`${r.channel}(${r.channel_title}) 편 ${r.videos.length} · 댓글 ${r.total} · 상위 3: ${r.types.slice(0, 3).map((t) => `${t.name} ${t.pct}%`).join(' · ')} · 쿼터 오늘 ${quota()} → server/data/comment_types/${k}.{json,md}`);
+      } else if (argv.includes('--vs')) {
         const i = argv.indexOf('--vs');
         const r = await vs(key, vid(argv[i + 1]), vid(argv[i + 2]), noGpt);
         console.log(`부검 ${(r.analysis?.missing || []).length}가지 · 쿼터 오늘 ${quota()}단위`);

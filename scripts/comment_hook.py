@@ -2,7 +2,7 @@
 """댓글 장치 관문 — 공용(10-20 소유주 질책 «댓글 반응을 노리는 원고를 쓰기로 했는데 반영이 안 됐다», 관리자 명세).
 
     python scripts/comment_hook.py <원고 또는 폴더> [--lane shopping|rinbox|politics_shorts|longshort|fantube|n100|generic]
-                                    [--spec 메타.json] [--script 본문 파일 ...] [--json out]
+                                    [--spec 메타.json] [--script 본문 파일 ...] [--channel ko_event] [--json out]
 
 검사(전부 통과해야 0):
   ① expected_comment = {type, line, at_sec} 객체 필수. type ∈ 정정·경험담·훈수·공감·논쟁·위험성 경고(전 레인 통일, 10-20 · 위험성 경고 10-21 G19). 선택 필드 form ∈ 질문·단정·훈수 유도·경험담 요청.
@@ -11,6 +11,10 @@
   ② line 이 원고 본문(해설·자막) 또는 고정 댓글 문구(pinned_comment·comment_question)에 실제로 있어야 한다(공백·부호 무시).
   ③ 끝 3문장에 아래 중 하나: 질문(?·까·죠·나요…) · 반박 가능한 단정(무조건·절대·정답·최고… 또는 line 이 끝 3문장 안 + type 정정/논쟁)
      · 경험담 요청(«이런 적»·«해 보신 분»·«댓글로»…). 본문이 없는 레인(정치 쇼츠 = 발췌 원음)은 고정 댓글 끝 3문장으로 본다.
+  ④ 채널 반응 유형(10-23 소유주·관리자): --channel <key>(또는 spec 의 channel_types) 가 있으면 server/data/comment_types/<key>.json
+     (comment_mine --channel-types)을 읽어 expected_comment.type 에 그 채널 유형 이름도 받는다. 원고에 채널 상위 3유형 중 2개 이상을
+     부르는 줄이 있어야 한다 — spec 의 comment_calls: [{type, line}] (expected_comment 자신도 한 줄로 셈), line 은 본문·고정 댓글에 실제로.
+     표가 없으면 검사 불가(5). ENFORCE_TYPES_FROM(10-24 00:00 KST) 전에는 ④ 실패가 경고(△)만.
 종료 코드: 0 통과 · 4 FAIL · 5 검사 불가(입력을 못 읽음·본문과 고정 댓글이 둘 다 없음) — 통과 아님, server/data/gate_errors.jsonl 에 남김.
 
 레인 어댑터(--lane 생략 시 파일 이름으로 짐작):
@@ -36,6 +40,17 @@ LEGACY_FORM_TYPES = {'질문': '질문', '단정': '단정'}      # 린박스 �
 LEGACY_UNTIL = _dt.datetime(2026, 10, 21, 0, 0, tzinfo=_dt.timezone(_dt.timedelta(hours=9)))
 TEXT_KEYS = {'text', 'cards', 'captions', 'narration', 'segments', 'sequence', 'lines', 'cues', 'script'}
 PINNED_KEYS = ('pinned_comment', 'comment_question')
+CHANNEL_TYPES_DIR = ROOT / 'server' / 'data' / 'comment_types'
+ENFORCE_TYPES_FROM = _dt.datetime(2026, 10, 24, 0, 0, tzinfo=_dt.timezone(_dt.timedelta(hours=9)))
+
+
+def channel_types(key):
+    """comment_mine --channel-types 표 → dict(types, top3) 또는 None."""
+    f = CHANNEL_TYPES_DIR / f'{key}.json'
+    if not f.exists():
+        return None
+    d = json.loads(f.read_text(encoding='utf-8'))
+    return d if d.get('types') else None
 
 _SQ = re.compile(r'[\s、。，,.「」『』“”‘’"\'？?！!・…~\-–—()（）\[\]<>《》«»:：;；/]')
 _SPLIT = re.compile(r'(?<=[。？！?!.])\s*|\n+')
@@ -252,7 +267,7 @@ def load(path, lane=None, spec=None, scripts=None):
     return lane, d, body, pinned, str(spec_p)
 
 
-def check(path, lane=None, spec=None, scripts=None):
+def check(path, lane=None, spec=None, scripts=None, channel=None, enforce=None):
     res = {'path': str(path), 'lane': lane, 'ok': False, 'code': 5, 'errors': [], 'ending': None, 'error': None}
     try:
         lane, d, body, pinned, src = load(path, lane, spec, scripts)
@@ -269,17 +284,29 @@ def check(path, lane=None, spec=None, scripts=None):
     errs = []
     ec = d.get('expected_comment')
     warns = []
+    channel = channel or d.get('channel_types') or (ec.get('channel') if isinstance(ec, dict) else None)
+    ct = None
+    if channel:
+        ct = channel_types(channel)
+        if ct is None:
+            res['error'] = f'채널 반응 유형표 없음: server/data/comment_types/{channel}.json (comment_mine --channel-types {channel})'
+            res['errors'] = [f"검사 불가: {res['error']}"]
+            return res
+        res['channel'] = channel
+    allowed = TYPES + ([t['name'] for t in ct['types']] if ct else [])
     if not isinstance(ec, dict):
         errs.append('① expected_comment 가 {type, line, at_sec} 객체가 아님' + (f'(메모 문자열 «{ec}»)' if isinstance(ec, str) else '(없음)'))
         ec = {}
     else:
         parts = [t.strip() for t in re.split(r'[/·,]', str(ec.get('type', ''))) if t.strip()]
+        if ct and str(ec.get('type', '')).strip() in allowed:   # 채널 유형 이름엔 «·»가 들어갈 수 있다
+            parts = [str(ec.get('type')).strip()]
         legacy = [x for x in parts if x in LEGACY_FORM_TYPES]
         if legacy and _dt.datetime.now(LEGACY_UNTIL.tzinfo) < LEGACY_UNTIL:
             warns.append(f'type «{"·".join(legacy)}» 는 이제 form 값 — type 은 {"·".join(TYPES)} 중 하나로, «{legacy[0]}» 은 form 에(10-21 00:00 부터 FAIL)')
             parts = [x for x in parts if x not in LEGACY_FORM_TYPES] or ['공감']
-        if not parts or any(x not in TYPES for x in parts):
-            errs.append(f'① expected_comment.type «{ec.get("type")}» — {"·".join(TYPES)} 중 하나' +
+        if not parts or any(x not in allowed for x in parts):
+            errs.append(f'① expected_comment.type «{ec.get("type")}» — {"·".join(allowed)} 중 하나' +
                         (' (질문·단정은 form 필드로)' if legacy else ''))
         if ec.get('form') is not None and ec.get('form') not in FORMS:
             errs.append(f'① expected_comment.form «{ec.get("form")}» — {"·".join(FORMS)} 중 하나(선택 필드)')
@@ -317,6 +344,32 @@ def check(path, lane=None, spec=None, scripts=None):
     res['ending'] = {'from': tail_from, 'tail': tail, 'kinds': sorted(set(kinds)), 'self_answered': self_q}
     if not kinds:
         errs.append('③ 끝 3문장에 질문·동의/반박 청하는 열린 결말·반박 가능한 단정·경험담 요청이 없음: ' + ' / '.join(tail))
+    if ct:
+        top3 = ct.get('top3') or [t['name'] for t in ct['types'][:3]]
+        calls = [c for c in (d.get('comment_calls') or []) if isinstance(c, dict)]
+        if isinstance(ec, dict) and ec.get('type') and ec.get('line'):
+            calls = [{'type': ec['type'], 'line': ec['line']}] + calls
+        body_sq, pin_sq = squash(''.join(body_s)), squash(''.join(pinned))
+        called, missing = [], []
+        for c in calls:
+            ln = squash(c.get('line'))
+            if not ln or (ln not in body_sq and ln not in pin_sq):
+                missing.append(f"{c.get('type')}: «{c.get('line')}»")
+            elif str(c.get('type', '')).strip() in top3:
+                called.append(str(c['type']).strip())
+        called = sorted(set(called), key=top3.index)
+        res['channel_calls'] = {'top3': top3, 'called': called, 'missing_lines': missing}
+        e4 = []
+        if missing:
+            e4.append('④ comment_calls 줄이 본문·고정 댓글에 없음: ' + ' / '.join(missing))
+        if len(called) < 2:
+            e4.append(f'④ 채널 상위 3유형({"·".join(top3)}) 중 2개 이상을 부르는 줄이 없음(지금 {len(called)}개: {"·".join(called) or "-"}) '
+                      '— spec 에 comment_calls: [{type, line}] 로 원고 문장을 지목')
+        now = _dt.datetime.now(ENFORCE_TYPES_FROM.tzinfo)
+        if e4 and (enforce is False or (enforce is None and now < ENFORCE_TYPES_FROM)):
+            warns += [f'{m} [유예 ~10-24]' for m in e4]
+        else:
+            errs += e4
     res['errors'] = errs
     res['warnings'] = warns
     res['ok'] = not errs
@@ -341,7 +394,7 @@ def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
     opt = lambda k: argv[argv.index(k) + 1] if k in argv else None
     scripts = [argv[i + 1] for i, a in enumerate(argv) if a == '--script'] or None
-    res = check(argv[0], opt('--lane'), opt('--spec'), scripts)
+    res = check(argv[0], opt('--lane'), opt('--spec'), scripts, channel=opt('--channel'), enforce=True if '--enforce-now' in argv else None)
     if opt('--json'):
         Path(opt('--json')).write_text(json.dumps(res, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     name = Path(argv[0]).name

@@ -110,6 +110,27 @@ with tempfile.TemporaryDirectory() as t:
                             'expected_comment': {'type': '경험담', 'line': '열매가 떠오릅니다', 'at_sec': 3}})
     r = ch.check(hk / 'plan_v4.json', lane='longshort')
     assert not r['ok'] and any(e.startswith('③') for e in r['errors']), r
+    # ④ 채널 반응 유형(10-23): 표의 유형 이름을 type 으로 받고, 상위 3유형 중 2개 이상을 부르는 줄이 있어야
+    ch.CHANNEL_TYPES_DIR = t / 'ct'
+    w(t / 'ct' / 'ko_event.json', {'types': [{'name': '한국이었으면 잡아먹힘'}, {'name': '상대도 안 됨'}, {'name': '귀엽다'}, {'name': '촬영자 걱정'}],
+                                    'top3': ['한국이었으면 잡아먹힘', '상대도 안 됨', '귀엽다']})
+    ce = t / 'ce'
+    w(ce / 'script.txt', '코앞까지 온 실버백입니다.\n한국 산에서 만났으면 이미 끝났을 겁니다.\n사람 열 명이 붙어도 상대가 안 됩니다.\n여러분이라면 그 자리에서 버틸 수 있을까요?\n')
+    w(ce / 'spec.json', {'expected_comment': {'type': '한국이었으면 잡아먹힘', 'line': '한국 산에서 만났으면 이미 끝났을 겁니다', 'at_sec': 4},
+                         'comment_calls': [{'type': '상대도 안 됨', 'line': '사람 열 명이 붙어도 상대가 안 됩니다'}]})
+    r = ch.check(ce, channel='ko_event', enforce=True)
+    assert r['ok'] and r['channel_calls']['called'] == ['한국이었으면 잡아먹힘', '상대도 안 됨'], r
+    w(ce / 'spec.json', {'channel_types': 'ko_event', 'expected_comment': {'type': '한국이었으면 잡아먹힘', 'line': '한국 산에서 만났으면 이미 끝났을 겁니다', 'at_sec': 4},
+                         'comment_calls': [{'type': '촬영자 걱정', 'line': '코앞까지 온 실버백입니다'}]})
+    r = ch.check(ce, enforce=True)   # spec 의 channel_types 로도 켜진다 · 4위 유형은 안 셈
+    assert r['code'] == 4 and any(e.startswith('④ 채널 상위 3유형') for e in r['errors']), r
+    assert ch.check(ce, enforce=False)['ok'] and any('[유예 ~10-24]' in x for x in ch.check(ce, enforce=False)['warnings'])
+    w(ce / 'spec.json', {'expected_comment': {'type': '귀엽다', 'line': '없는 문장', 'at_sec': 1},
+                         'comment_calls': [{'type': '상대도 안 됨', 'line': '사람 열 명이 붙어도 상대가 안 됩니다'}]})
+    r = ch.check(ce, channel='ko_event', enforce=True)
+    assert any(e.startswith('④ comment_calls 줄') for e in r['errors']) and any(e.startswith('②') for e in r['errors']), r
+    assert ch.check(ce, channel='ko_robot')['code'] == 5     # 표 없음 = 검사 불가
+    assert not any(e.startswith('④') for e in ch.check(g)['errors'])   # 채널 없으면 ④ 없음
     # 검사 불가: 없는 경로 → 5 + 장부
     assert ch.main([str(t / 'nope')]) == 5
     assert len(ch.LEDGER.read_text(encoding='utf-8').splitlines()) == 2
