@@ -280,7 +280,7 @@ _BARE = re.compile(r'이재명(?!\s*(대통령|정부))')
 _hashtags = lambda d: [l for l in (d or '').split('\n') if re.fullmatch(r'(#\S+\s*)+', l.strip())]
 for up in [*sys.argv[2:], *[p for p in [ep / 'packages.json'] if p.exists()]]:
     _j = json.loads(Path(up).read_text(encoding='utf-8'))
-    _items = [_j] if 'packages' not in _j else [*_j['packages'], *(_j.get('loop') or [])]
+    _items = [_j] if 'packages' not in _j else [*_j['packages'], *((_j.get('loop') or {}).get('packages', []))]
     for i, _p in enumerate(_items):
         _txt = ' '.join([_p.get('title', ''), _p.get('description', ''), *_p.get('desc_head', []), *_p.get('tags', []), *_p.get('hashtags', []), *_p.get('big', [])])
         for m in _BARE.finditer(_txt):

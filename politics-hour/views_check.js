@@ -111,8 +111,9 @@ async function repack(videoId, h, views, H) {
   }
   const last = lastA ? lastA.idx : 0;
   let idx = (last % n) + 1;
-  for (let k = 0; k < n && !headOk(pf, pk.packages[idx].title); k++) idx = (idx % n) + 1;
-  if (!headOk(pf, pk.packages[idx].title)) {
+  const okP = (p) => !p.hold && headOk(pf, p.title);   // hold: 소유주 판단 대기 묶음(10-24 브런슨 군사 낱말 등)
+  for (let k = 0; k < n && !okP(pk.packages[idx]); k++) idx = (idx % n) + 1;
+  if (!okP(pk.packages[idx])) {
     append(ALERT, { at: new Date().toISOString(), videoId, h, alert: '대체 포장 전부 제목 머리 관문 FAIL — 새 묶음 필요(첫 쟁점 인물+쟁점 낱말 머리 15자·뉴스 제목 낱말 2개), 관리자 보고' });
     return { idx: last, title: pk.packages[last]?.title, style: '머리 관문 통과 묶음 없음 — 교체 안 함', kept: true };
   }
@@ -285,7 +286,7 @@ async function loop(videoId) {
     save(); return;
   }
   const used = new Set(L.applied.map((a) => a.idx));
-  const next = L.packages.find((p, i) => !used.has(i) && headOk(pf, p.title)) || (G10 ? L.packages.filter((p) => retestable(p._i) && headOk(pf, p.title)).sort((a, b) => endedAt(a._i) - endedAt(b._i))[0] : null);
+  const next = L.packages.find((p, i) => !used.has(i) && !p.hold && headOk(pf, p.title)) || (G10 ? L.packages.filter((p) => retestable(p._i) && !p.hold && headOk(pf, p.title)).sort((a, b) => endedAt(a._i) - endedAt(b._i))[0] : null);
   if (!next) {
     const soon = G10 ? Math.min(...L.packages.filter((p) => p._i !== last?.idx && L.applied.some((a) => a.idx === p._i)).map((p) => endedAt(p._i) + RETEST_DAYS * DAY)) : Infinity;
     if (Number.isFinite(soon)) {   // 진 묶음 재시험이 곧 열린다 — 경보 대신 대기(새 후보는 그래도 붙여 두면 먼저 쓴다)
