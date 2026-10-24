@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-ENFORCE_FROM = '20261023'
+ENFORCE_FROM = '00000000'   # 소유주 10-24 «제목을 바꾸는데 왜 타겟을 바꿔?» — 옛 편 루프도 타겟 바뀌는 묶음은 안 건다
 HEAD = 15
 
 
