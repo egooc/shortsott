@@ -102,6 +102,7 @@ async function repack(videoId, h, views, H) {
   const n = pk.packages.length - 1;
   if (n < 1) return null;
   const lastA = pk.applied[pk.applied.length - 1];
+  if (h !== 'now' && Number.isInteger(pk.fixed) && lastA?.idx === pk.fixed) return { idx: pk.fixed, title: pk.packages[pk.fixed].title, style: '고정 묶음(소유주 확정) — 유지', kept: true };   // 10-24 관리자 ③
   // 바꾼 지 3시간이 안 됐으면 새 포장이 노출을 받을 시간을 준다(자동 점검만 — 소유주 즉시 교체는 막지 않음)
   // 1주(+168h) 뒤에는 매일 점검·주 1회 교체(소유주 10-18 «썸네일은 성과에 따라 계속 수정»)
   const hold = h !== 'now' && h > 168 ? 7 * 24 : 3;
@@ -117,7 +118,7 @@ async function repack(videoId, h, views, H) {
   }
   const next = pk.packages[idx];
   const purpose = purposeOf(videoId) || 'politics';
-  if (next.thumbnail && thumbsToday(purpose) >= THUMB_CAP) {
+  if (next.thumbnail && thumbsToday(purpose) >= THUMB_CAP && !(h === 'now' && process.argv.includes('--owner'))) {   // --owner: 소유주 직접 지시 즉시 교체만 한도 밖 1회(429 면 썸네일 먼저 실패라 제목 안 바뀜)
     return { idx: last, title: pk.packages[last]?.title, style: `썸네일 하루 한도 ${THUMB_CAP}회 — 오늘 교체 안 함`, kept: true, capped: true };
   }
   const v = (await (await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&id=${videoId}`, { headers: H })).json()).items[0];
