@@ -51,7 +51,8 @@ def channel_types(key):
     if f is None:
         return None
     d = json.loads(f.read_text(encoding='utf-8'))
-    return d if d.get('types') else None
+    top3 = d.get('top3') or [t['name'] for t in d.get('types', [])[:3]]
+    return d if d.get('types') and len(top3) >= 2 else None   # «부름» 유형이 2개 미만인 표(댓글 거의 없음 — 도구의쓸모 10-24)는 표 없음과 같다
 
 _SQ = re.compile(r'[\s、。，,.「」『』“”‘’"\'？?！!・…~\-–—()（）\[\]<>《》«»:：;；/]')
 _SPLIT = re.compile(r'(?<=[。？！?!.])\s*|\n+')

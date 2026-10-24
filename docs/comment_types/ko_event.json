@@ -1,5 +1,5 @@
 {
-  "at": "2026-10-23T08:20:05.642Z",
+  "at": "2026-10-24T00:21:13.137Z",
   "key": "ko_event",
   "channel": "야생일지",
   "channel_id": "UCohzTbTHxgvyJNvcmIM18ng",
@@ -8,44 +8,34 @@
   "days": 60,
   "videos": [
     {
-      "id": "3jaSRSKAf2M",
-      "title": "개미집에 쇳물을 붓는 이유",
-      "views": 28009,
-      "comments": 11,
-      "mined": 5,
-      "sent": 5,
-      "dur": 26,
-      "subs": false
-    },
-    {
       "id": "C4P5QySPg6s",
       "title": "맹수가 렌즈를 물어도 꿈쩍 안 하는 작가들",
-      "views": 12791,
+      "views": 12798,
       "comments": 4,
       "mined": 3,
       "sent": 3,
       "dur": 41,
-      "subs": false
+      "subs": true
     },
     {
       "id": "AxyAwwWh2yk",
       "title": "거미가 코앞인데 꽁무니 건드린 개미",
-      "views": 5994,
+      "views": 5996,
       "comments": 4,
       "mined": 3,
       "sent": 3,
       "dur": 40,
-      "subs": false
+      "subs": true
     },
     {
       "id": "RN6tbgSKU0Y",
       "title": "트럭 바로 옆인데 구름 뚫은 흙기둥",
-      "views": 14908,
+      "views": 14911,
       "comments": 4,
       "mined": 4,
       "sent": 4,
       "dur": 29,
-      "subs": false
+      "subs": true
     },
     {
       "id": "Gzt8PqFKZ5c",
@@ -55,27 +45,27 @@
       "mined": 4,
       "sent": 4,
       "dur": 30,
-      "subs": false
+      "subs": true
     },
     {
       "id": "2IR5YG5QyYg",
       "title": "눈이 마주쳐도 빤히 보는 범고래",
-      "views": 9755,
+      "views": 9769,
       "comments": 4,
       "mined": 4,
       "sent": 4,
       "dur": 50,
-      "subs": false
+      "subs": true
     },
     {
       "id": "poAQuwUTa2U",
       "title": "전부 바라쿠다인데 코앞까지 간 다이버",
-      "views": 30697,
+      "views": 30698,
       "comments": 3,
       "mined": 3,
       "sent": 3,
       "dur": 44,
-      "subs": false
+      "subs": true
     },
     {
       "id": "flpSQDhGHxc",
@@ -85,27 +75,27 @@
       "mined": 1,
       "sent": 1,
       "dur": 46,
-      "subs": false
+      "subs": true
     },
     {
       "id": "Xl3jDyoP7c0",
       "title": "멈추지도 않고 잔디에 길을 깔았다",
-      "views": 37221,
+      "views": 37222,
       "comments": 3,
       "mined": 2,
       "sent": 2,
       "dur": 42,
-      "subs": false
+      "subs": true
     },
     {
       "id": "YySHhZtvsfo",
       "title": "사람이 코앞인데 그냥 지나친 고릴라",
-      "views": 28524,
+      "views": 28525,
       "comments": 2,
       "mined": 2,
       "sent": 2,
       "dur": 38,
-      "subs": false
+      "subs": true
     },
     {
       "id": "qH1JUAfVpLc",
@@ -115,7 +105,7 @@
       "mined": 2,
       "sent": 2,
       "dur": 42,
-      "subs": false
+      "subs": true
     },
     {
       "id": "CSe0BAozgGo",
@@ -125,7 +115,7 @@
       "mined": 2,
       "sent": 2,
       "dur": 47,
-      "subs": false
+      "subs": true
     },
     {
       "id": "3-OTpCRop2M",
@@ -135,7 +125,7 @@
       "mined": 2,
       "sent": 2,
       "dur": 45,
-      "subs": false
+      "subs": true
     },
     {
       "id": "KWkwjGqPJNs",
@@ -145,7 +135,7 @@
       "mined": 2,
       "sent": 2,
       "dur": 46,
-      "subs": false
+      "subs": true
     },
     {
       "id": "lhvU4kTi4Uk",
@@ -155,17 +145,17 @@
       "mined": 2,
       "sent": 2,
       "dur": 49,
-      "subs": false
+      "subs": true
     },
     {
       "id": "b58Q83UQ9rU",
       "title": "공원 쪽으로 기어가는 악어",
-      "views": 18078,
+      "views": 18079,
       "comments": 2,
       "mined": 2,
       "sent": 2,
       "dur": 33,
-      "subs": false
+      "subs": true
     },
     {
       "id": "8huIqghR3Rw",
@@ -175,67 +165,57 @@
       "mined": 1,
       "sent": 1,
       "dur": 29,
-      "subs": false
-    },
-    {
-      "id": "rVHMCObEt7U",
-      "title": "유리꽃은 집고 병은 찍는 이유",
-      "views": 13369,
-      "comments": 2,
-      "mined": 2,
-      "sent": 2,
-      "dur": 26,
-      "subs": false
+      "subs": true
     },
     {
       "id": "bEhPVtgHWIQ",
       "title": "대왕문어가 렌즈 앞에 벌떡 일어섰더니",
-      "views": 900,
+      "views": 1136,
       "comments": 1,
       "mined": 1,
       "sent": 1,
       "dur": 49,
-      "subs": false
+      "subs": true
     },
     {
       "id": "4RxLwfeYEis",
       "title": "치타가 사람 앞인데 수영장에 들이댄다",
-      "views": 1244,
+      "views": 1386,
       "comments": 1,
       "mined": 1,
       "sent": 1,
       "dur": 43,
-      "subs": false
+      "subs": true
     },
     {
       "id": "aQvKQZncuc0",
       "title": "700kg 무스랑 눈 맞췄더니",
-      "views": 1441,
+      "views": 1533,
       "comments": 1,
       "mined": 1,
       "sent": 1,
       "dur": 49,
-      "subs": false
+      "subs": true
     },
     {
       "id": "mW2UMFkxdYg",
       "title": "실버백이 코앞인데 꼼짝 안 한 남자",
-      "views": 1407,
+      "views": 1416,
       "comments": 1,
       "mined": 1,
       "sent": 1,
       "dur": 40,
-      "subs": false
+      "subs": true
     },
     {
       "id": "bRIS07aegLk",
       "title": "하이에나 턱 긁었더니 튀어나온 소리",
-      "views": 1997,
+      "views": 2200,
       "comments": 1,
       "mined": 1,
       "sent": 1,
       "dur": 49,
-      "subs": false
+      "subs": true
     },
     {
       "id": "D2DPStjUYrM",
@@ -245,7 +225,7 @@
       "mined": 1,
       "sent": 1,
       "dur": 43,
-      "subs": false
+      "subs": true
     },
     {
       "id": "nNheQlTn7so",
@@ -255,27 +235,27 @@
       "mined": 1,
       "sent": 1,
       "dur": 41,
-      "subs": false
+      "subs": true
     },
     {
       "id": "-1YqDG5JmNw",
       "title": "이빨을 만졌는데 눈 감은 하이에나",
-      "views": 6674,
+      "views": 6697,
       "comments": 1,
       "mined": 1,
       "sent": 1,
       "dur": 46,
-      "subs": false
+      "subs": true
     },
     {
       "id": "zd8ETSX0fSc",
       "title": "카메라가 코앞인데 그대로 밀고 온 문어",
-      "views": 77142,
+      "views": 95397,
       "comments": 1,
       "mined": 1,
       "sent": 1,
       "dur": 42,
-      "subs": false
+      "subs": true
     },
     {
       "id": "5gmbe3rRng8",
@@ -285,17 +265,17 @@
       "mined": 1,
       "sent": 1,
       "dur": 41,
-      "subs": false
+      "subs": true
     },
     {
       "id": "7UGJzDqeEG0",
       "title": "곰이 등 뒤인데 피자부터 건넨다",
-      "views": 7290,
+      "views": 7310,
       "comments": 1,
       "mined": 1,
       "sent": 1,
       "dur": 41,
-      "subs": false
+      "subs": true
     },
     {
       "id": "u75H6MVqfXg",
@@ -305,7 +285,7 @@
       "mined": 1,
       "sent": 1,
       "dur": 41,
-      "subs": false
+      "subs": true
     },
     {
       "id": "b8lkJ5L1P60",
@@ -315,7 +295,7 @@
       "mined": 1,
       "sent": 1,
       "dur": 42,
-      "subs": false
+      "subs": true
     },
     {
       "id": "k2B3Q4NlyjA",
@@ -325,37 +305,37 @@
       "mined": 1,
       "sent": 1,
       "dur": 39,
-      "subs": false
+      "subs": true
     },
     {
       "id": "RUzN65nONvw",
       "title": "배가 코앞인데 꿈쩍 않는 얼음벽",
-      "views": 5992,
+      "views": 5993,
       "comments": 1,
       "mined": 1,
       "sent": 1,
       "dur": 29,
-      "subs": false
+      "subs": true
     },
     {
       "id": "poLFWTPkJpg",
       "title": "떠내려갈 판인데 미역으로 몸 묶는 해달",
-      "views": 18563,
+      "views": 18577,
       "comments": 1,
       "mined": 1,
       "sent": 1,
       "dur": 28,
-      "subs": false
+      "subs": true
     },
     {
       "id": "-UT7zSWjsoE",
       "title": "상어 떼에 갇혔는데 먼저 덤빈 아기 악어",
-      "views": 2230,
+      "views": 2235,
       "comments": 1,
       "mined": 1,
       "sent": 1,
       "dur": 46,
-      "subs": false
+      "subs": true
     },
     {
       "id": "e0yqCvaMOEw",
@@ -365,7 +345,7 @@
       "mined": 1,
       "sent": 1,
       "dur": 47,
-      "subs": false
+      "subs": true
     },
     {
       "id": "rzcxr69U31A",
@@ -375,7 +355,7 @@
       "mined": 1,
       "sent": 1,
       "dur": 44,
-      "subs": false
+      "subs": true
     },
     {
       "id": "q9ePsF15TxY",
@@ -385,17 +365,17 @@
       "mined": 1,
       "sent": 1,
       "dur": 47,
-      "subs": false
+      "subs": true
     },
     {
       "id": "i269OhRIBT8",
       "title": "옆에서 포효해도 꿈쩍 않는 사자",
-      "views": 3635,
+      "views": 3639,
       "comments": 1,
       "mined": 1,
       "sent": 1,
       "dur": 47,
-      "subs": false
+      "subs": true
     },
     {
       "id": "IDCxYDssgaA",
@@ -405,7 +385,7 @@
       "mined": 1,
       "sent": 1,
       "dur": 46,
-      "subs": false
+      "subs": true
     },
     {
       "id": "Tn974uwq_Pk",
@@ -415,7 +395,7 @@
       "mined": 1,
       "sent": 1,
       "dur": 44,
-      "subs": false
+      "subs": true
     },
     {
       "id": "78QqQOnU1ss",
@@ -425,17 +405,17 @@
       "mined": 1,
       "sent": 1,
       "dur": 35,
-      "subs": false
+      "subs": true
     },
     {
       "id": "RMlimHv_O9Y",
       "title": "냄비 공장 프레스가 총알까지 뭉개는 이유",
-      "views": 1143,
+      "views": 1144,
       "comments": 1,
       "mined": 1,
       "sent": 1,
       "dur": 45,
-      "subs": false
+      "subs": true
     },
     {
       "id": "EQndUbDW5q0",
@@ -445,7 +425,7 @@
       "mined": 1,
       "sent": 1,
       "dur": 46,
-      "subs": false
+      "subs": true
     },
     {
       "id": "v9NbeuDcooc",
@@ -455,21 +435,174 @@
       "mined": 1,
       "sent": 1,
       "dur": 41,
-      "subs": false
+      "subs": true
     }
   ],
-  "total": 73,
+  "total": 66,
   "types": [
     {
       "rank": 1,
-      "name": "댕댕이네ㅋㅋ",
-      "desc": "동물의 귀여움·순함·친근함을 집 강아지에 빗대거나, 먹이와 일상에 관한 대사를 붙이는 댓글.",
-      "trigger": "위협적으로 보이던 동물이 사람에게 다가오거나 장난치고, 상대를 해치지 않는 순간.",
-      "line_hint": "이빨까지 맡기는 걸 보면 우리 집 강아지보다 순한데요.",
+      "name": "우리집 개보다 순하네",
+      "desc": "동물을 반려동물처럼 귀여워하거나, 공격하지 않는 행동과 구조된 모습에 애정을 보내는 댓글.",
+      "trigger": "위협적으로 보이던 동물이 얌전히 손길을 받거나 작은 생명을 해치지 않고 지나가는 순간.",
+      "line_hint": "이빨까지 보여주던 하이에나가 귀를 긁어주자 손에 고개를 맡깁니다.",
       "call": "부름",
-      "count": 15,
-      "pct": 20.5,
-      "likes": 14,
+      "count": 10,
+      "pct": 15.2,
+      "likes": 7,
+      "examples": [
+        {
+          "video": "Gzt8PqFKZ5c",
+          "text": "앞발은 궁금함에 폭주하고 뒷발은 무서움에 문워크해서 따로 노는 시골 똥강아지특",
+          "likes": 2
+        },
+        {
+          "video": "CSe0BAozgGo",
+          "text": "사람보다 애기들은 더 잘보호하는게 동물❤❤❤❤❤❤❤❤❤❤❤",
+          "likes": 2
+        },
+        {
+          "video": "AxyAwwWh2yk",
+          "text": "착하내 안 죽이고..",
+          "likes": 1
+        }
+      ],
+      "moments": [
+        {
+          "video": "AxyAwwWh2yk",
+          "title": "거미가 코앞인데 꽁무니 건드린 개미",
+          "at_sec": 25,
+          "what": "낙타거미가 붙잡았던 개미를 죽이지 않고 바닥에 내려놓는다.",
+          "basis": "자막"
+        },
+        {
+          "video": "-1YqDG5JmNw",
+          "title": "이빨을 만졌는데 눈 감은 하이에나",
+          "at_sec": 35,
+          "what": "하이에나가 철망에 머리를 얹고 귀를 긁는 손에 고개를 맡긴다.",
+          "basis": "자막"
+        },
+        {
+          "video": "nNheQlTn7so",
+          "title": "상어가 코앞인데 사람이 매달린 이유",
+          "at_sec": 32,
+          "what": "고래상어 몸통을 조이던 밧줄이 완전히 풀려 잠수부 손에 들린다.",
+          "basis": "자막"
+        }
+      ]
+    },
+    {
+      "rank": 2,
+      "name": "잘못 건드리면 요단강",
+      "desc": "맹수와 사람의 거리, 동물끼리의 힘 차이, 추락 위험을 보고 공격 결과나 생존 가능성을 따지는 댓글.",
+      "trigger": "이빨·덩치·높이가 드러나고 공격이나 추락까지 한 끗 차이로 보이는 순간.",
+      "line_hint": "몸을 낮춘 사람 바로 옆으로 거대한 실버백이 지나갑니다.",
+      "call": "부름",
+      "count": 10,
+      "pct": 15.2,
+      "likes": 7,
+      "examples": [
+        {
+          "video": "2IR5YG5QyYg",
+          "text": "사람 확인하고 그냥 간거지. 괜히 건드렸다간 조떼는거 아니까~",
+          "likes": 4
+        },
+        {
+          "video": "poAQuwUTa2U",
+          "text": "이빨이 날카로운 육식 어류인데 맘만먹으면 3초만에 다이버 뼈만 남기고 뜯어먹을수 있을꺼같다",
+          "likes": 1
+        },
+        {
+          "video": "poAQuwUTa2U",
+          "text": "기괴하고 무섭다",
+          "likes": 1
+        }
+      ],
+      "moments": [
+        {
+          "video": "poAQuwUTa2U",
+          "title": "전부 바라쿠다인데 코앞까지 간 다이버",
+          "at_sec": 10,
+          "what": "다이버가 빽빽하게 늘어선 바라쿠다 떼 바로 옆을 헤엄쳐 간다.",
+          "basis": "자막"
+        },
+        {
+          "video": "mW2UMFkxdYg",
+          "title": "실버백이 코앞인데 꼼짝 안 한 남자",
+          "at_sec": 1,
+          "what": "쪼그려 앉은 남자 바로 옆에 거대한 고릴라가 선다.",
+          "basis": "자막"
+        },
+        {
+          "video": "b8lkJ5L1P60",
+          "title": "발밑이 까마득해도 슬리퍼로 걷는 남자",
+          "at_sec": 19,
+          "what": "높은 비계 위 작업자가 슬리퍼를 신고 파이프를 딛고 있는 모습이 드러난다.",
+          "basis": "자막"
+        }
+      ]
+    },
+    {
+      "rank": 3,
+      "name": "주인장 시력",
+      "desc": "화면과 해설의 불일치, 동물·장비 오인, 억지 반전과 장인 포장을 지적하거나 제작자를 비난하는 댓글.",
+      "trigger": "눈앞에 보이는 사실과 다른 단정이나 불필요한 위험·반전·대단함을 해설이 덧붙이는 순간.",
+      "line_hint": "카메라가 코앞까지 다가가도 북극곰은 눈을 한 번도 뜨지 않습니다.",
+      "call": "피함",
+      "count": 10,
+      "pct": 15.2,
+      "likes": 6,
+      "examples": [
+        {
+          "video": "AxyAwwWh2yk",
+          "text": "뭔 개소린지",
+          "likes": 2
+        },
+        {
+          "video": "AxyAwwWh2yk",
+          "text": "간이 배밖으로 나온건 당연히 개미 아니냐? 거미 포식자 개미 피식자 피식자가 포식자한테 나대는데 어찌 거미가 간이 배밖으로 나올 수 있냐 마지막에 거미가 아니라 라는 문장 자체가 국어 모르는놈임",
+          "likes": 1
+        },
+        {
+          "video": "flpSQDhGHxc",
+          "text": "주인장 시력",
+          "likes": 1
+        }
+      ],
+      "moments": [
+        {
+          "video": "8huIqghR3Rw",
+          "title": "맹수가 코앞인데 눈도 안 뜬다",
+          "at_sec": 9,
+          "what": "해설은 북극곰이 눈을 뜨지 않는다고 말하지만 댓글은 눈을 떴다고 지적한다.",
+          "basis": "자막"
+        },
+        {
+          "video": "AxyAwwWh2yk",
+          "title": "거미가 코앞인데 꽁무니 건드린 개미",
+          "at_sec": 34,
+          "what": "개미가 대담하다는 결론에 붙은 '거미가 아니라'라는 비교를 댓글이 문제 삼는다.",
+          "basis": "자막"
+        },
+        {
+          "video": "u75H6MVqfXg",
+          "title": "나무 꼭대기인데 윗동을 통째로 잘랐다",
+          "at_sec": 5,
+          "what": "벌목 도구를 전기톱이라고 부르는 해설에 댓글이 엔진톱이라고 정정한다.",
+          "basis": "자막"
+        }
+      ]
+    },
+    {
+      "rank": 4,
+      "name": "야~ 츄르 없냐?",
+      "desc": "동물에게 속마음과 대사를 붙이거나 자연현상을 사람의 일상과 판타지로 바꿔 노는 댓글.",
+      "trigger": "먹이를 바라보거나 자리를 차지하는 행동처럼 시청자가 대사와 역할을 붙이기 좋은 순간.",
+      "line_hint": "렌즈 앞까지 코를 들이민 여우, 촬영료부터 달라는 표정이네요.",
+      "call": "부름",
+      "count": 8,
+      "pct": 12.1,
+      "likes": 7,
       "examples": [
         {
           "video": "C4P5QySPg6s",
@@ -482,300 +615,96 @@
           "likes": 2
         },
         {
-          "video": "Gzt8PqFKZ5c",
-          "text": "앞발은 궁금함에 폭주하고 뒷발은 무서움에 문워크해서 따로 노는 시골 똥강아지특",
-          "likes": 2
+          "video": "3-OTpCRop2M",
+          "text": "도둑이얏",
+          "likes": 1
         }
       ],
       "moments": [
         {
-          "video": "Gzt8PqFKZ5c",
-          "title": "사람이 코앞인데 렌즈에 코 들이민 여우",
+          "video": "C4P5QySPg6s",
+          "title": "맹수가 렌즈를 물어도 꿈쩍 안 하는 작가들",
           "at_sec": null,
-          "what": "여우가 렌즈에 다가오는 모습을 댓글에서 앞발은 궁금하고 뒷발은 무서운 강아지에 비유한다.",
+          "what": "동물들이 사진작가와 렌즈에 접근하는 모습을 먹이를 요구하는 행동으로 받아친다.",
           "basis": "근거 없음 — 초 미상"
         },
         {
-          "video": "-1YqDG5JmNw",
-          "title": "이빨을 만졌는데 눈 감은 하이에나",
-          "at_sec": null,
-          "what": "하이에나의 이빨을 만지는 장면을 보고 자기 집 강아지보다 순하다고 한다.",
-          "basis": "근거 없음 — 초 미상"
+          "video": "lhvU4kTi4Uk",
+          "title": "볼일 보는 고양이 누가 감시 중이다",
+          "at_sec": 1,
+          "what": "고양이가 변기에 올라앉아 볼일을 보는 모습에 엄마에게 변명하는 대사를 붙인다.",
+          "basis": "자막"
         },
         {
-          "video": "e0yqCvaMOEw",
-          "title": "덮칠 줄 알았는데 메롱한 눈표범",
-          "at_sec": null,
-          "what": "눈표범이 혀를 내미는 모습에 귀엽다는 반응이 달린다.",
-          "basis": "근거 없음 — 초 미상"
+          "video": "RN6tbgSKU0Y",
+          "title": "트럭 바로 옆인데 구름 뚫은 흙기둥",
+          "at_sec": 7,
+          "what": "회오리가 바닥의 흙을 빨아올리는 모습을 먼지흡입 서비스에 빗댄다.",
+          "basis": "자막"
         }
       ]
     },
     {
-      "rank": 2,
-      "name": "눈 떴는데요?",
-      "desc": "동물·재료·도구 이름이나 행동 해석이 화면과 다르다고 따지고, 설명의 진위나 제작 수준을 공격하는 댓글.",
-      "trigger": "화면에서 확인되는 내용과 제목·내레이션이 어긋나거나, 납득하기 어려운 설명을 단정하는 순간.",
-      "line_hint": "맹수가 코앞까지 와도 끝까지 눈을 뜨지 않습니다.",
+      "rank": 5,
+      "name": "이걸 좋다고 보여주냐",
+      "desc": "야생동물에 대한 인간의 개입을 비난하거나 동물 외모·제품 출처를 혐오와 조롱으로 받아치는 댓글.",
+      "trigger": "먹이 주기와 야생 촬영을 긍정적으로 보여주거나 동물 얼굴·제조 현장을 가까이 보여주는 순간.",
+      "line_hint": "손바닥에 모이를 올리자 비둘기들이 서로 밀치며 몰려듭니다.",
       "call": "피함",
-      "count": 13,
-      "pct": 17.8,
-      "likes": 7,
-      "examples": [
-        {
-          "video": "AxyAwwWh2yk",
-          "text": "뭔 개소린지",
-          "likes": 2
-        },
-        {
-          "video": "3jaSRSKAf2M",
-          "text": "굥죶같은 새끼들이 영상 굥죶같이 쳐찍어내네 ㅋㅋ",
-          "likes": 1
-        },
-        {
-          "video": "AxyAwwWh2yk",
-          "text": "간이 배밖으로 나온건 당연히 개미 아니냐? 거미 포식자 개미 피식자 피식자가 포식자한테 나대는데 어찌 거미가 간이 배밖으로 나올 수 있냐 마지막에 거미가 아니라 라는 문장 자체가 국어 모르는놈임",
-          "likes": 1
-        }
-      ],
-      "moments": [
-        {
-          "video": "8huIqghR3Rw",
-          "title": "맹수가 코앞인데 눈도 안 뜬다",
-          "at_sec": null,
-          "what": "눈을 안 뜬다는 소개에 대해 댓글은 동물이 눈을 떴다고 지적한다.",
-          "basis": "근거 없음 — 초 미상"
-        },
-        {
-          "video": "3jaSRSKAf2M",
-          "title": "개미집에 쇳물을 붓는 이유",
-          "at_sec": null,
-          "what": "개미집에 붓는 금속을 쇠로 부른 데 대해 알루미늄이라는 지적이 반복된다.",
-          "basis": "근거 없음 — 초 미상"
-        },
-        {
-          "video": "AxyAwwWh2yk",
-          "title": "거미가 코앞인데 꽁무니 건드린 개미",
-          "at_sec": null,
-          "what": "마지막 설명에서 겁 없이 행동한 주체를 거미와 개미 중 누구로 지칭했는지 따진다.",
-          "basis": "근거 없음 — 초 미상"
-        }
-      ]
-    },
-    {
-      "rank": 3,
-      "name": "눈 마주치면 요단강",
-      "desc": "맹수와의 거리·이빨·눈맞춤이나 추락 위험을 보고 자기 목숨까지 아찔해지는 댓글.",
-      "trigger": "사람이나 작은 동물이 위험한 상대 바로 앞에 있거나, 사람이 높은 곳에서 위태롭게 움직이는 순간.",
-      "line_hint": "눈앞의 실버백을 두고 남자는 꼼짝도 하지 않습니다.",
-      "call": "부름",
-      "count": 8,
-      "pct": 11,
+      "count": 6,
+      "pct": 9.1,
       "likes": 3,
       "examples": [
-        {
-          "video": "poAQuwUTa2U",
-          "text": "기괴하고 무섭다",
-          "likes": 1
-        },
-        {
-          "video": "poAQuwUTa2U",
-          "text": "이빨이 날카로운 육식 어류인데 맘만먹으면 3초만에 다이버 뼈만 남기고 뜯어먹을수 있을꺼같다",
-          "likes": 1
-        },
-        {
-          "video": "b58Q83UQ9rU",
-          "text": "소름!!😳😱😱😱😱😱",
-          "likes": 1
-        }
-      ],
-      "moments": [
-        {
-          "video": "poAQuwUTa2U",
-          "title": "전부 바라쿠다인데 코앞까지 간 다이버",
-          "at_sec": null,
-          "what": "다이버가 바라쿠다 무리 가까이 있는 모습을 보고 날카로운 이빨에 뜯어먹힐 위험을 떠올린다.",
-          "basis": "근거 없음 — 초 미상"
-        },
-        {
-          "video": "mW2UMFkxdYg",
-          "title": "실버백이 코앞인데 꼼짝 안 한 남자",
-          "at_sec": null,
-          "what": "남자가 실버백 바로 앞에 있는 장면에서 눈이 마주치면 죽을 것 같다고 반응한다.",
-          "basis": "근거 없음 — 초 미상"
-        },
-        {
-          "video": "b8lkJ5L1P60",
-          "title": "발밑이 까마득해도 슬리퍼로 걷는 남자",
-          "at_sec": null,
-          "what": "남자가 높은 곳을 슬리퍼로 걷는 모습을 보고 추락을 걱정한다.",
-          "basis": "근거 없음 — 초 미상"
-        }
-      ]
-    },
-    {
-      "rank": 4,
-      "name": "동물한테 왜 그러냐",
-      "desc": "개미집에 붓기·야생동물 노출·먹이 주기처럼 인간이 동물에게 개입하는 행위를 해롭다고 비난하거나 비꼬는 댓글.",
-      "trigger": "사람의 구경거리나 편의를 위해 동물의 서식처와 생활에 손을 대는 순간.",
-      "line_hint": "개미가 안에 남아 있어도 그대로 뜨거운 금속을 붓습니다.",
-      "call": "피함",
-      "count": 5,
-      "pct": 6.8,
-      "likes": 9,
-      "examples": [
-        {
-          "video": "3jaSRSKAf2M",
-          "text": "그 안에 개미 가 있을 수도 잇어요",
-          "likes": 5
-        },
         {
           "video": "C4P5QySPg6s",
           "text": "지금이야 자연보호에 인식이 생겨 야생동물을 보호종으로 인식하지만 예전엔 희귀야생동물을 알리는 이런인간들때문에 수많은 야생동물이 멸종됐다. 부드러운 털때문에 아름답고 희귀한 동물이라서. 인간의 욕망때문에 멸종된 수많은",
           "likes": 2
         },
         {
-          "video": "3jaSRSKAf2M",
-          "text": "개미가 뜨거운 목욕을 하고 싶었데",
+          "video": "KWkwjGqPJNs",
+          "text": "왜주는거임ㅡㅡ 또라인가",
           "likes": 1
+        },
+        {
+          "video": "2IR5YG5QyYg",
+          "text": "눈깔 존나 싸패 같이 생김",
+          "likes": 0
         }
       ],
       "moments": [
-        {
-          "video": "3jaSRSKAf2M",
-          "title": "개미집에 쇳물을 붓는 이유",
-          "at_sec": null,
-          "what": "개미집에 뜨거운 금속을 붓는 장면에서 안에 개미가 남아 있을 가능성을 걱정한다.",
-          "basis": "근거 없음 — 초 미상"
-        },
-        {
-          "video": "C4P5QySPg6s",
-          "title": "맹수가 렌즈를 물어도 꿈쩍 안 하는 작가들",
-          "at_sec": null,
-          "what": "야생동물 촬영을 소개하는 영상에서 희귀동물을 외부에 알리는 인간의 행위를 멸종과 연결해 비난한다.",
-          "basis": "근거 없음 — 초 미상"
-        },
         {
           "video": "KWkwjGqPJNs",
           "title": "손바닥 모이에 난리 난 비둘기들",
-          "at_sec": null,
-          "what": "손바닥의 모이를 비둘기에게 주는 행동 자체를 하지 말라고 비난한다.",
-          "basis": "근거 없음 — 초 미상"
-        }
-      ]
-    },
-    {
-      "rank": 5,
-      "name": "그래 봐야 잡아먹힘",
-      "desc": "강해 보이는 동물도 인간의 식욕·보복이나 다른 동물 앞에서는 별것 아니라며 서열을 뒤집는 댓글.",
-      "trigger": "덩치나 공격성이 강조된 동물, 또는 먹거리로도 익숙한 동물이 위압적으로 등장하는 순간.",
-      "line_hint": "700kg 무스가 노려보는데, 누군가는 벌써 뿔부터 보고 있겠죠.",
-      "call": "부름",
-      "count": 5,
-      "pct": 6.8,
-      "likes": 4,
-      "examples": [
-        {
-          "video": "2IR5YG5QyYg",
-          "text": "사람 확인하고 그냥 간거지. 괜히 건드렸다간 조떼는거 아니까~",
-          "likes": 4
-        },
-        {
-          "video": "aQvKQZncuc0",
-          "text": "한국에 안사는것을 다행이라 생각해라.녹용이다 몸에좋다해서 예전에 멸종됐을거야..어딜 노려봐?",
-          "likes": 0
-        },
-        {
-          "video": "bRIS07aegLk",
-          "text": "의외로 당나귀에게 짐…😅",
-          "likes": 0
-        }
-      ],
-      "moments": [
-        {
-          "video": "aQvKQZncuc0",
-          "title": "700kg 무스랑 눈 맞췄더니",
-          "at_sec": null,
-          "what": "무스가 바라보는 모습을 두고 한국에 있었다면 녹용 때문에 잡혔을 것이라고 농담한다.",
-          "basis": "근거 없음 — 초 미상"
+          "at_sec": 5,
+          "what": "사람 손바닥의 모이를 먹으려고 비둘기들이 몰려든다.",
+          "basis": "자막"
         },
         {
           "video": "2IR5YG5QyYg",
           "title": "눈이 마주쳐도 빤히 보는 범고래",
           "at_sec": null,
-          "what": "범고래가 사람을 지나치는 모습을 인간의 보복을 알아서 피한 것이라고 해석한다.",
+          "what": "물 위로 머리를 내민 범고래의 눈을 두고 혐오와 인신화된 비난이 달린다.",
           "basis": "근거 없음 — 초 미상"
         },
         {
-          "video": "7UGJzDqeEG0",
-          "title": "곰이 등 뒤인데 피자부터 건넨다",
+          "video": "RMlimHv_O9Y",
+          "title": "냄비 공장 프레스가 총알까지 뭉개는 이유",
           "at_sec": null,
-          "what": "곰에게 피자를 건네는 영상에 곰고기 맛을 알려주겠다는 댓글이 달린다.",
+          "what": "냄비 제조 공정을 보여주는 영상에 제품의 중국산 여부를 비하하는 댓글이 달린다.",
           "basis": "근거 없음 — 초 미상"
         }
       ]
     },
     {
       "rank": 6,
-      "name": "그냥 하면 되는데",
-      "desc": "작업의 비결을 장비 설정·금형·비용 문제로 풀면서, 대단한 기술처럼 소개한 설명을 깎아내리는 댓글.",
-      "trigger": "공사·제조·수공예 과정을 특별한 묘기나 불가피한 방식으로 소개하는 순간.",
-      "line_hint": "이 모양은 금형으로 만들 수 없어 반드시 손으로 빚어야 합니다.",
-      "call": "피함",
-      "count": 5,
-      "pct": 6.8,
-      "likes": 2,
-      "examples": [
-        {
-          "video": "rVHMCObEt7U",
-          "text": "병은 금형 하나면 되는데 꽃은 각양각색이니까 금형 만들기 귀찮아서 하는거지 에휴",
-          "likes": 1
-        },
-        {
-          "video": "rVHMCObEt7U",
-          "text": "개소리여 금형 틀로 못만드는 형상은 없단다. 거푸집으로 찍은 재료가 수축할때 오차까지 예측해서 마이크로 단위까지 공차를 잡는게 현대 재조업의 현주소다. 수공예 영역이고 대량생산해봤자 돈이 안되니 안하는 것",
-          "likes": 1
-        },
-        {
-          "video": "Xl3jDyoP7c0",
-          "text": "문이 더이상 열리지 않게 체인으로 고정해서 일정하게 떨어 지겠끔 만들었네요 이건 5톤 이고 대형 덤프로 하면 인생 종침 그리고 요즘은 전부 오토라 나랏씨 작업이 더욱 힘듬 차량 안전상 기어 작동시 덤프가 안됨",
-          "likes": 0
-        }
-      ],
-      "moments": [
-        {
-          "video": "Xl3jDyoP7c0",
-          "title": "멈추지도 않고 잔디에 길을 깔았다",
-          "at_sec": null,
-          "what": "덤프트럭이 재료를 일정하게 떨어뜨리는 작업을 체인 고정과 차량 조건으로 설명한다.",
-          "basis": "근거 없음 — 초 미상"
-        },
-        {
-          "video": "rVHMCObEt7U",
-          "title": "유리꽃은 집고 병은 찍는 이유",
-          "at_sec": null,
-          "what": "유리꽃과 병의 제작 방식 차이를 금형 제작 가능성과 대량생산 비용 문제로 반박한다.",
-          "basis": "근거 없음 — 초 미상"
-        },
-        {
-          "video": "EQndUbDW5q0",
-          "title": "옻칠판을 주걱으로 미는 이유",
-          "at_sec": null,
-          "what": "옻칠판을 주걱으로 미는 작업을 보고 바른 뒤 샌딩과 광택 작업을 하면 된다고 깎아내린다.",
-          "basis": "근거 없음 — 초 미상"
-        }
-      ]
-    },
-    {
-      "rank": 7,
-      "name": "얘 능력 뭐냐",
-      "desc": "동물이 도구를 쓰거나 문제를 해결하는 영리함, 몸에 갖춘 특별한 능력에 감탄하는 댓글.",
-      "trigger": "동물이 예상 밖의 방법으로 목적을 이루거나 색을 바꾸는 등 특별한 능력을 드러내는 순간.",
-      "line_hint": "하나씩 가져갈 줄 알았는데, 아예 탑째 가져갑니다.",
+      "name": "천잰가",
+      "desc": "동물의 문제 해결과 특수 능력, 간단한 장치의 기발한 효과에 감탄하는 댓글.",
+      "trigger": "의자를 발판으로 쓰거나 먹이를 쌓는 행동처럼 목적과 해결 방법이 한눈에 연결되는 순간.",
+      "line_hint": "끌고 온 의자는 앉을 자리가 아니라 더 높은 의자로 올라가는 발판이었습니다.",
       "call": "부름",
-      "count": 4,
-      "pct": 5.5,
-      "likes": 5,
+      "count": 5,
+      "pct": 7.6,
+      "likes": 7,
       "examples": [
         {
           "video": "3-OTpCRop2M",
@@ -783,80 +712,150 @@
           "likes": 4
         },
         {
+          "video": "78QqQOnU1ss",
+          "text": "굿굿굿!!!!😂",
+          "likes": 2
+        },
+        {
           "video": "lhvU4kTi4Uk",
           "text": "천잰가",
           "likes": 1
-        },
-        {
-          "video": "bEhPVtgHWIQ",
-          "text": "정말 미스테리한 연채동물 문어~ 색을바꾸는 능력 누가따라할수 있을까~~?😮😮",
-          "likes": 0
         }
       ],
       "moments": [
         {
           "video": "3-OTpCRop2M",
           "title": "의자 끌고 온 강아지의 속셈",
-          "at_sec": null,
-          "what": "강아지가 의자를 끌고 오는 행동을 똑똑하다고 평가한다.",
-          "basis": "근거 없음 — 초 미상"
+          "at_sec": 24,
+          "what": "강아지가 직접 옮긴 파란 의자를 발판 삼아 높은 사무용 의자에 올라간다.",
+          "basis": "자막"
         },
         {
           "video": "q9ePsF15TxY",
           "title": "하나만 물면 되는데 탑째 문 까마귀",
-          "at_sec": null,
-          "what": "까마귀가 하나만 집지 않고 탑째 무는 행동에 똑똑하다는 반응이 달린다.",
-          "basis": "근거 없음 — 초 미상"
+          "at_sec": 21,
+          "what": "까마귀가 쌓은 쿠키를 통째로 부리에 끼우고 더 밀어 넣는다.",
+          "basis": "자막"
         },
         {
-          "video": "bEhPVtgHWIQ",
-          "title": "대왕문어가 렌즈 앞에 벌떡 일어섰더니",
+          "video": "78QqQOnU1ss",
+          "title": "사료 쟁탈전을 페트병이 끝냈다",
+          "at_sec": 24,
+          "what": "페트병 급식기마다 병아리들이 둘러서고 먹는 만큼 사료가 흘러내린다.",
+          "basis": "자막"
+        }
+      ]
+    },
+    {
+      "rank": 7,
+      "name": "현장에선 원래 이렇게 함",
+      "desc": "장인 묘기로 소개된 작업에 실제 장비 원리·작업 조건·기존 현장 사례를 덧붙이는 댓글.",
+      "trigger": "트럭이나 제작 도구가 일을 단번에 해결하는 모습을 특별한 솜씨로 소개하는 순간.",
+      "line_hint": "트럭이 움직이는 동안 자갈이 일정하게 떨어지며 길게 깔립니다.",
+      "call": "부름",
+      "count": 4,
+      "pct": 6.1,
+      "likes": 2,
+      "examples": [
+        {
+          "video": "Xl3jDyoP7c0",
+          "text": "이거보고 일시키는것들 또 땀푸들한티 이렇게 하라고 당분간 지랄하긋다. ㅋㅋ",
+          "likes": 2
+        },
+        {
+          "video": "Xl3jDyoP7c0",
+          "text": "문이 더이상 열리지 않게 체인으로 고정해서 일정하게 떨어 지겠끔 만들었네요 이건 5톤 이고 대형 덤프로 하면 인생 종침 그리고 요즘은 전부 오토라 나랏씨 작업이 더욱 힘듬 차량 안전상 기어 작동시 덤프가 안됨",
+          "likes": 0
+        },
+        {
+          "video": "qH1JUAfVpLc",
+          "text": "별로 어렵지않음.. 브레이크 풀면 트럭이 알아서 앞으로 간다는",
+          "likes": 0
+        }
+      ],
+      "moments": [
+        {
+          "video": "Xl3jDyoP7c0",
+          "title": "멈추지도 않고 잔디에 길을 깔았다",
+          "at_sec": 9,
+          "what": "덤프트럭이 멈추지 않고 이동하며 일정한 폭으로 자갈을 깐다.",
+          "basis": "자막"
+        },
+        {
+          "video": "qH1JUAfVpLc",
+          "title": "건물만 한 탱크인데 줄 하나로 눕힌 트럭",
+          "at_sec": 28,
+          "what": "비스듬하게 기울어진 탱크가 트럭 짐칸 위로 조금씩 끌려 올라간다.",
+          "basis": "자막"
+        },
+        {
+          "video": "Tn974uwq_Pk",
+          "title": "도장 판을 박박 씻는 이유",
           "at_sec": null,
-          "what": "문어 영상에서 댓글이 색을 바꾸는 능력을 짚으며 감탄한다.",
+          "what": "손님이 요청한 도장을 현장에서 만드는 과정을 국내 중고차 단지의 제작 사례와 연결한다.",
           "basis": "근거 없음 — 초 미상"
         }
       ]
     },
     {
       "rank": 8,
-      "name": "눈깔 싸패 같음",
-      "desc": "실제 공격 위험보다 동물의 눈과 외모를 근거로 사이코패스라고 부르며 적대감을 드러내는 댓글.",
-      "trigger": "동물의 눈을 가까이 보여주며 잔인하거나 악의적인 성격을 덧씌우는 순간.",
-      "line_hint": "저 눈빛만 봐도 얼마나 잔인한 녀석인지 알 수 있습니다.",
-      "call": "피함",
-      "count": 2,
-      "pct": 2.7,
+      "name": "한국이었으면 잡아먹힘",
+      "desc": "위풍당당한 야생동물을 음식이나 보양 재료로 바꿔 보고 인간의 식욕으로 받아치는 댓글.",
+      "trigger": "문어·곰·큰 뿔 달린 동물의 몸집과 존재감을 강조하는 순간.",
+      "line_hint": "바위틈에서 나온 문어가 굵은 다리로 렌즈 앞을 가득 채웁니다.",
+      "call": "부름",
+      "count": 3,
+      "pct": 4.5,
       "likes": 0,
       "examples": [
         {
-          "video": "2IR5YG5QyYg",
-          "text": "눈깔 존나 싸패 같이 생김",
+          "video": "aQvKQZncuc0",
+          "text": "한국에 안사는것을 다행이라 생각해라.녹용이다 몸에좋다해서 예전에 멸종됐을거야..어딜 노려봐?",
           "likes": 0
         },
         {
-          "video": "2IR5YG5QyYg",
-          "text": "저 눈깔을봐. 미친 사이코패스",
+          "video": "zd8ETSX0fSc",
+          "text": "츄릅~",
+          "likes": 0
+        },
+        {
+          "video": "7UGJzDqeEG0",
+          "text": "저들에게 곰고기 맛을 일깨워줍니다",
           "likes": 0
         }
       ],
       "moments": [
         {
-          "video": "2IR5YG5QyYg",
-          "title": "눈이 마주쳐도 빤히 보는 범고래",
+          "video": "aQvKQZncuc0",
+          "title": "700kg 무스랑 눈 맞췄더니",
+          "at_sec": 1,
+          "what": "큰 뿔을 가진 무스가 나무 사이에서 사람 쪽으로 걸어나온다.",
+          "basis": "자막"
+        },
+        {
+          "video": "zd8ETSX0fSc",
+          "title": "카메라가 코앞인데 그대로 밀고 온 문어",
           "at_sec": null,
-          "what": "범고래의 눈을 가리키며 사이코패스처럼 생겼다는 댓글이 반복된다.",
+          "what": "바위틈에서 나와 카메라 앞으로 기어오는 큰 문어를 보고 입맛을 다신다.",
+          "basis": "근거 없음 — 초 미상"
+        },
+        {
+          "video": "7UGJzDqeEG0",
+          "title": "곰이 등 뒤인데 피자부터 건넨다",
+          "at_sec": null,
+          "what": "배달 기사와 집 주변을 돌아다니는 곰을 곰고기 대상으로 받아친다.",
           "basis": "근거 없음 — 초 미상"
         }
       ]
     }
   ],
   "other": {
-    "count": 16,
-    "pct": 21.9
+    "count": 10,
+    "pct": 15.2
   },
   "top3": [
-    "댕댕이네ㅋㅋ",
-    "눈 마주치면 요단강",
-    "그래 봐야 잡아먹힘"
+    "우리집 개보다 순하네",
+    "잘못 건드리면 요단강",
+    "야~ 츄르 없냐?"
   ]
 }

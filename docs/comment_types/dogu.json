@@ -1,0 +1,38 @@
+{
+  "at": "2026-10-24T00:29:27.229Z",
+  "key": "dogu",
+  "channel": "도구의쓸모",
+  "channel_id": "UCxI-BIzq8mH0Wfe99c24YEg",
+  "channel_title": "도구의쓸모",
+  "lang": "ko",
+  "days": 60,
+  "videos": [
+    {
+      "id": "5nbs95wkh2A",
+      "title": "공룡 멸종의 그날 24시간｜소행성이 떨어진 뒤 지구에서 실제로 벌어진 일을 화석과 숫자로",
+      "views": 1,
+      "comments": 1,
+      "mined": 1,
+      "sent": 1,
+      "dur": 1267,
+      "subs": true
+    },
+    {
+      "id": "d5ETp5U2wlE",
+      "title": "바이크 고장의 80%는 여기서 시작된다｜체인·오일·전기, 정비사가 말 안 해 주는 진짜 이유",
+      "views": 14,
+      "comments": 1,
+      "mined": 1,
+      "sent": 1,
+      "dur": 1259,
+      "subs": true
+    }
+  ],
+  "total": 2,
+  "types": [],
+  "other": {
+    "count": 2,
+    "pct": 100
+  },
+  "top3": []
+}
