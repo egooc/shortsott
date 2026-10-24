@@ -161,6 +161,37 @@ if script_gate.candidate_gate.ep_date(ep, sys.argv[2:]) >= script_gate.FROM:   #
     bad += _ab
     for _l in _al:
         print('[gate-ja] PASS', _l)
+# 포장 머리·뉴스 헤드라인 낱말(소유주 10-24 «자극적인 첫 소재 냅두고 제목을 저 따위로» «뉴스에 다 있는데», 관리자 → ko 와 같은 원칙):
+#  ① 롱폼 제목과 모든 포장 제목 앞 12자 안에 첫 쟁점 낱말(keywords.json first_issue, 없으면 후보표 첫 줄 keyword) — 둘째 쟁점 머리 포장 금지
+#  ② 그 쟁점 news_outlier 의 title_words·quotes 중 2개 이상이 제목에 — 뉴스가 쓴 센 낱말을 그대로. 10/24편부터 막고 그 전 편은 WARN.
+HEAD_FROM = '20261024'
+_cands = [c for c in kw.get('candidates', []) if isinstance(c, dict)]
+_first = kw.get('first_issue') or (_cands[0].get('keyword') if _cands else '')
+_no = (_cands[0].get('news_outlier') if _cands else None) or []
+_no = [_no] if isinstance(_no, dict) else _no
+_strong = list(dict.fromkeys(w for o in _no for w in [*o.get('title_words', []), *o.get('quotes', [])] if w))
+_titles = [(Path(u).parent.name + '/' + Path(u).name, json.loads(Path(u).read_text(encoding='utf-8')).get('title', ''))
+           for u in sys.argv[2:] if '/shorts/' not in u.replace(chr(92), '/')]
+_titles += [(f'packages.json {i}번', pk.get('title', '')) for i, pk in enumerate(json.loads(pkp.read_text(encoding='utf-8'))['packages'] if pkp.exists() else [])]
+_hb = []
+if _titles and not _first:
+    _hb.append('첫 쟁점 낱말 없음 — keywords.json first_issue 또는 후보표 candidates[0].keyword')
+if _titles and not _strong:
+    _hb.append('첫 쟁점 news_outlier title_words·quotes 없음 — 터진 뉴스 헤드라인 낱말 없이 제목을 못 정한다')
+for _w, _t in _titles:
+    _n = re.sub(r'<[^>]+>|[\s“”"「」『』？?！!、。・]', '', _t)
+    if _first and re.sub(r'[\s・]', '', _first) not in _n[:12]:
+        _hb.append(f'{_w}: 제목 머리(앞 12자)에 첫 쟁점 «{_first}» 없음 — «{_t}»')
+    _hit = [x for x in _strong if re.sub(r'[\s「」・]', '', x) in _n]
+    if _strong and len(_hit) < 2:
+        _hb.append(f'{_w}: 뉴스 헤드라인 낱말 {len(_hit)}개(2개 이상) — 후보 {" · ".join(_strong[:6])} — «{_t}»')
+    elif _strong and not [b for b in _hb if b.startswith(_w + ':')]:
+        print(f'[gate-ja] PASS 포장 머리 «{_first}»·뉴스 낱말 {" · ".join(_hit[:3])} — {_w}')
+if script_gate.candidate_gate.ep_date(ep, sys.argv[2:]) >= HEAD_FROM:
+    bad += _hb
+else:
+    for _b in _hb:
+        print('[gate-ja] WARN(10/24 전 편)', _b)
 # 커뮤니티 가이드 낱말(10-18 소유주 «제재 없이 조회 0 = 가이드 위반», 정본 config/guide_words.json · 도구개발 공용 판정) — 걸리면 종료 4
 guide = guide_words.gate_lines([*sys.argv[2:], *[x for x in [ep / 'packages.json', ep / 'keywords.json'] if x.exists()]], lang='ja', lane='politics_ja')
 bad += guide
