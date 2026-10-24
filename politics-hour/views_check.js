@@ -31,13 +31,15 @@ const FLOOR = { 3: 20, 6: 40, 4: 25, 8: 50, 12: 70, 24: 100, 48: 200, 72: 300, 9
 
 async function auth(purpose = 'politics') {   // 채널 = packages.json 의 purpose(다른 롱폼 레인, 도구개발 10-18)
   const store = JSON.parse(fs.readFileSync(path.join(DATA, 'youtube_upload_profiles.json'), 'utf8'));
-  const p = store.profiles.find((x) => x.purpose === purpose);
+  const PROFILE_ALIAS = { ko_mon: 'arabshot' };   // 수창 롱폼 10-22: packages.json purpose 가 업로드 프로필 purpose 와 다를 때(도구의쓸모 = Mansa 프로필 arabshot) — additive
+  const p = store.profiles.find((x) => x.purpose === purpose) || store.profiles.find((x) => x.purpose === PROFILE_ALIAS[purpose]);
+  if (!p) throw new Error(`업로드 프로필 없음: ${purpose}`);
   const c = new OAuth2Client(p.oauthClientId, p.oauthClientSecret, p.oauthRedirectUri);
   c.setCredentials({ refresh_token: p.refreshToken });
   return { Authorization: `Bearer ${(await c.getAccessToken()).token}` };
 }
 
-const ROOTS = [path.join(__dirname, 'episodes'), ...['ja-nenkin', 'ko-truecrime', 'biz-rise-fall', 'politics-hour-ja/episodes'].map((d) => path.join(__dirname, '..', d))];   // 각 레인 <레인>/<ep>/packages.json
+const ROOTS = [path.join(__dirname, 'episodes'), ...['ja-nenkin', 'ko-truecrime', 'biz-rise-fall', 'politics-hour-ja/episodes', 'monetize-longform'].map((d) => path.join(__dirname, '..', d))];   // 각 레인 <레인>/<ep>/packages.json
 function packagesPath(videoId) {
   return ROOTS.filter((r) => fs.existsSync(r)).flatMap((r) => fs.readdirSync(r).map((d) => path.join(r, d, 'packages.json')))
     .find((f) => fs.existsSync(f) && JSON.parse(fs.readFileSync(f, 'utf8')).video_id === videoId);
@@ -45,7 +47,7 @@ function packagesPath(videoId) {
 const findPackages = (videoId) => { const f = packagesPath(videoId); return f ? JSON.parse(fs.readFileSync(f, 'utf8')) : null; };
 
 // 점검 때 그 편 키워드가 아직 오르는지(관리자 10-19 «공개 시점 상승 지속 여부») — 같은 폴더 keywords.json 낱말별 rising_keywords 최신 점수
-const RISING_LANE = { politics: 'politics_ko', politics_ja: 'politics_ja' };
+const RISING_LANE = { politics: 'politics_ko', politics_ja: 'politics_ja', jp_highlight: 'monetize_ja', ko_highlight: 'monetize_ko', ko_mon: 'monetize_bike' };   // 수창 롱폼(monetize-longform, 10-22)
 function risingNow(videoId, purpose) {
   try {
     const f = packagesPath(videoId), lane = RISING_LANE[purpose];
@@ -85,6 +87,12 @@ function thumbsToday(purpose) {
     .filter((r) => r.purpose === purpose && r.ok !== false && kstDay(r.at) === today).length;   // 실패(429)는 안 셈
 }
 
+// 제목 머리 관문(관리자 10-24): 첫 쟁점 인물+쟁점 낱말이 머리 15자에, 뉴스 아웃라이어 제목 낱말 2개+ — 못 넘는 묶음은 걸지 않는다(package_gate.py 종료 4)
+function headOk(pf, title) {
+  try { execFileSync('python', [path.join(__dirname, 'package_gate.py'), path.dirname(pf), '--title', title || ''], { stdio: 'pipe' }); return true; }
+  catch (e) { if (e.status === 4) { console.log(`[gate] 머리 관문 FAIL «${title}» — 건너뜀`); return false; } throw e; }
+}
+
 async function repack(videoId, h, views, H) {
   const pf = packagesPath(videoId);
   if (!pf) return null;
@@ -101,7 +109,12 @@ async function repack(videoId, h, views, H) {
     return { idx: lastA.idx, title: pk.packages[lastA.idx].title, style: `직전 교체 ${hold === 3 ? '3시간' : '1주'} 안 — 유지`, kept: true, hold };
   }
   const last = lastA ? lastA.idx : 0;
-  const idx = (last % n) + 1;
+  let idx = (last % n) + 1;
+  for (let k = 0; k < n && !headOk(pf, pk.packages[idx].title); k++) idx = (idx % n) + 1;
+  if (!headOk(pf, pk.packages[idx].title)) {
+    append(ALERT, { at: new Date().toISOString(), videoId, h, alert: '대체 포장 전부 제목 머리 관문 FAIL — 새 묶음 필요(첫 쟁점 인물+쟁점 낱말 머리 15자·뉴스 제목 낱말 2개), 관리자 보고' });
+    return { idx: last, title: pk.packages[last]?.title, style: '머리 관문 통과 묶음 없음 — 교체 안 함', kept: true };
+  }
   const next = pk.packages[idx];
   const purpose = purposeOf(videoId) || 'politics';
   if (next.thumbnail && thumbsToday(purpose) >= THUMB_CAP) {
@@ -271,7 +284,7 @@ async function loop(videoId) {
     save(); return;
   }
   const used = new Set(L.applied.map((a) => a.idx));
-  const next = L.packages.find((p, i) => !used.has(i)) || (G10 ? L.packages.filter((p) => retestable(p._i)).sort((a, b) => endedAt(a._i) - endedAt(b._i))[0] : null);
+  const next = L.packages.find((p, i) => !used.has(i) && headOk(pf, p.title)) || (G10 ? L.packages.filter((p) => retestable(p._i) && headOk(pf, p.title)).sort((a, b) => endedAt(a._i) - endedAt(b._i))[0] : null);
   if (!next) {
     const soon = G10 ? Math.min(...L.packages.filter((p) => p._i !== last?.idx && L.applied.some((a) => a.idx === p._i)).map((p) => endedAt(p._i) + RETEST_DAYS * DAY)) : Infinity;
     if (Number.isFinite(soon)) {   // 진 묶음 재시험이 곧 열린다 — 경보 대신 대기(새 후보는 그래도 붙여 두면 먼저 쓴다)

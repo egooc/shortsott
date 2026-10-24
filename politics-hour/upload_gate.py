@@ -260,6 +260,9 @@ import uncertain_facts   # noqa: E402  불확실 팩트 목록(uncertain_facts.j
 bad += uncertain_facts.gate_lines(ep, sys.argv[2:])
 import jargon_gate   # noqa: E402  제목 전문 용어 풀이 두 출처 교차 확인 기록(G23, 10/23편부터)
 bad += jargon_gate.gate_lines(ep, sys.argv[2:])
+import package_gate   # noqa: E402  포장 묶음 제목 머리 관문(관리자 10-24) — 첫 쟁점 인물+쟁점 낱말 머리 15자·뉴스 제목 낱말 2개+, 업로드 관문은 10/25편부터(10/23편은 루프에서만)
+if EP_DATE >= '20261025' and (ep / 'packages.json').exists():
+    bad += [f'packages.json {tag}: {x}' for tag, t in package_gate.titles(ep) for x in package_gate.check(ep, t)]
 bad += guide_words.gate_lines([*sys.argv[2:], *[p for p in [ep / 'packages.json'] if p.exists()]], lang='ko', lane='politics')   # 제목·설명·태그·썸네일 낱말, 우회 GUIDE_OK=1 은 소유주 말 있을 때만
 if EP_DATE >= '20261023':   # 소유주 10-22 «억지로 늘리지 말고 여러 개» — 목표 약 10분, 8분 미만 FAIL, 12분 넘으면 쪼개기 권고(안 막음)
     _mp4 = ep / 'work' / 'episode.mp4'
