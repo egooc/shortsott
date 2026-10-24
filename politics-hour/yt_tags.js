@@ -13,7 +13,9 @@ const { OAuth2Client } = require(path.join(__dirname, '..', 'node_modules', 'goo
   const tags = JSON.parse(fs.readFileSync(metaPath, 'utf8')).tags || [];
   if (!tags.length) throw new Error('upload.json 에 tags 가 없다');
   const store = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'server', 'data', 'youtube_upload_profiles.json'), 'utf8'));
-  const p = store.profiles.find((x) => x.purpose === 'politics');
+  const purpose = process.argv.includes('--purpose') ? process.argv[process.argv.indexOf('--purpose') + 1] : 'politics';   // 연금JA 10-24: 다른 레인 채널(기본은 그대로 politics)
+  const p = store.profiles.find((x) => x.purpose === purpose);
+  if (!p) throw new Error(`업로드 프로필 없음: ${purpose}`);
   const c = new OAuth2Client(p.oauthClientId, p.oauthClientSecret, p.oauthRedirectUri);
   c.setCredentials({ refresh_token: p.refreshToken });
   const H = { Authorization: `Bearer ${(await c.getAccessToken()).token}`, 'Content-Type': 'application/json' };

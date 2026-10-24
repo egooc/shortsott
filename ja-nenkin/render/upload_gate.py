@@ -28,6 +28,13 @@ def main(argv=None):
         ('motion_gate', [py, str(Path(__file__).parent / 'motion_gate.py'), str(ep), '--concat',
                          argv[argv.index('--concat') + 1] if '--concat' in argv else 'concat.txt']),
     ]
+    up = ep / 'upload.json'   # 10-24 사고: 15분 넘는 편은 longUploadsStatus allowed 여야(upload.json 이 있을 때 그 file 로 잰다)
+    if up.exists():
+        import json
+        steps.append(('long_upload', ['node', str(Path(__file__).parent / 'long_upload_check.js'), 'nenkin_ja',
+                                      json.loads(up.read_text(encoding='utf-8'))['file']]))
+    else:
+        steps.append(('long_upload', [py, '-c', 'import sys; print("upload.json 없음 — 올릴 파일을 모른다"); sys.exit(4)']))
     bad = []
     for name, cmd in steps:
         r = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', env={**__import__('os').environ, 'PYTHONIOENCODING': 'utf-8'})
