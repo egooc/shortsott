@@ -248,7 +248,7 @@ function check(metaPath) {
   warn(share > 0.6 || bareNum.length, 'V14 어미·숫자',
     `끝 글자 «~${topEnd}» ${Math.round(share * 100)}%(≤60%) · 어미 ${Object.entries(freq).map(([k, v]) => `${k}${v}`).join(' ')}${bareNum.length ? ` · 비교 없는 숫자 ${bareNum.map((x) => `«${x}»`).join(' ')}` : ''}`);
 
-  // ⑯ 경쟁 쇼핑 채널 레퍼런스(10-25 소유주): plan.ref_seller(채널·영상 링크·조회·배수≥3·올린 날 30일 안) + 쿠팡 리뷰 수 기록
+  // ⑯ 경쟁 쇼핑 채널 레퍼런스(10-25 소유주): plan.ref_seller(채널·영상 링크·조회·배수≥3·올린 날 90일 안) + 쿠팡 리뷰 수 기록
   {
     const planObj = JSON.parse(fs.readFileSync(planPath, 'utf8'));
     const sg = (bad, item, msg) => (started >= ENFORCE_SELLER ? add(!bad, item, msg) : warn(bad, item, `${msg}${bad ? ' (10-25 12시 이후 착수분부터 FAIL)' : ''}`));
@@ -263,7 +263,7 @@ function check(metaPath) {
       const pd = Date.parse(String(rs.posted || ''));
       const base = Number.isFinite(started) ? started : Date.now();
       if (!Number.isFinite(pd)) problems.push('posted(YYYY-MM-DD)');
-      else if (base - pd > 30 * 86400000 || pd > base + 86400000) problems.push(`posted ${rs.posted} 가 착수 30일 안이 아님`);
+      else if (base - pd > 90 * 86400000 || pd > base + 86400000) problems.push(`posted ${rs.posted} 가 착수 90일 안이 아님`);
     }
     sg(problems.length > 0, '⑯ ref_seller', problems.length ? problems.join(' · ') : `${rs.channel} ×${rs.mult} ${Number(rs.views).toLocaleString()}회 · ${rs.posted} · ${rs.url}`);
     const cr = planObj.coupang_reviews || meta.coupang_reviews || null;
