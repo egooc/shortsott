@@ -12,7 +12,9 @@
 - 디스크(10/15 D: 여유 6GB대까지 떨어짐): 편을 시작할 때마다 `df -h /d` 로 D: 여유를 본다. 한 편에 약 1GB 를 쓴다. 3GB 미만이면 그 편은 시작하지 않고 보고서에 «디스크 부족 멈춤»을 적고 끝낸다. 편이 끝나면 `src/` 의 쓰지 않은 원본과 `footage/*_raw.mp4`(지우기 전 클립)를 그 자리에서 지운다(clean 클립·렌더 결과·시트는 남긴다). 다른 폴더는 지우지 않는다.
 
 ## 1. 소재 고르기
-- 최신 `D:/volcano-runs/_cand/refs/remake_*.md` 표에서 고른다. 이미 쓴 것은 뺀다:
+- ★10-25 소유주 «쇼핑 소스는 레퍼런스 채널 중 터졌던 영상 기준으로 재가공 · 레퍼런스 풀 계속 늘리기 · 인스타 위주»: 후보표 출처는 **경쟁 쇼핑 채널 레퍼런스 풀뿐**이다. 먼저 `node D:/midform/scripts/shop_seller_pool.js` 를 돌려 `D:/volcano-runs/_cand/refs/seller_pool_<날짜>.md`(배수≥3·30일 안·미사용, 여러 채널이 겹쳐 올린 상품군 먼저)를 만들고 거기서 위에서부터 고른다. 일반 틱톡·인스타 가젯 바이럴(remake_*.md) 경로는 끈다. 풀은 발굴이 `_cand/refs/seller_pool_extra.json` 에 계속 늘린다(인스타 위주).
+- 고른 영상은 `plan.json` 에 `"ref_seller":{"channel":"…","url":"영상 링크","views":숫자,"mult":배수(≥3),"posted":"YYYY-MM-DD(착수 30일 안)"}` 로 적는다. 없으면 shop_script_check ⑯ 이 종료 4(10-25 12시 이후 착수분부터).
+- (옛 절차, 참고용 — 위 풀로 대체됨) 최신 `D:/volcano-runs/_cand/refs/remake_*.md` 표에서 고른다. 이미 쓴 것은 뺀다:
   `D:/volcano-runs/_upload/*.json` 의 `remake_of.url` 과 `product` 를 모두 읽어 겹치는 레퍼런스·같은 상품군은 제외.
 - 살림(주방·욕실·수납·청소·세탁)만. 아기용품·완구·문구·패션은 받지 않는다(2절).
 - ★고르는 순서(10/20 소유주 «나»): 표에서 **«🔥지금»(14일 안에 계정 평균 2배+) 먼저, 그다음 조회 높은 순**으로 위에서부터 본다. 아래 조건에 걸리는 것만 건너뛰고, 처음 통과하는 것을 고른다(공간 돌리기 때문에 큰 소재를 건너뛰지 않는다).
@@ -40,7 +42,7 @@
 ## 3. 쿠팡 링크 (영상 속 모양과 같은 상품에만)
 - 검색: `node -e "const c=require('D:/midform/scripts/coupang_api');c.call('GET','/products/search',{query:'keyword='+encodeURIComponent('<검색어>')+'&limit=10'}).then(r=>(r.data.productData||[]).forEach(x=>console.log(x.productId,x.productPrice,x.isRocket?'R':'',x.productName,x.productImage)))"`
 - 상품 사진을 `curl -s -L -A "Mozilla/5.0" -o <wd>/cand/cp_<id>.jpg <url>` 로 받아 **눈으로 모양을 대조**한다. 같은 모양이 없으면 그 소재는 «멈춤»(비슷한 다른 제품에 링크 금지).
-- 같은 모양이 여럿이면 검색 순위가 높은 로켓배송.
+- ★10-25: 같은 모양이 여럿이면 **리뷰 수가 가장 많은 상품(광고 제외)**을 단다. 리뷰 수는 파트너스 API 에 없으므로 `node D:/midform/scripts/coupang_search.js "<검색어>" --out <wd>/cand/cp_reviews.json`(브라우저 검색 결과 화면, 막히면 `--headed`)으로 읽고, 같은 모양 중 최다와 고른 상품을 `plan.json` 에 `"coupang_reviews":{"picked":{"id":"…","reviews":숫자},"top":{"id":"…","reviews":숫자},"why":"(고른 쪽이 최다가 아닐 때만 — 모양이 달라서 등)"}` 로 적는다(⑯ 관문). 리뷰 수를 못 읽으면(403) 그 이유를 보고서에 적고 멈춘다. 로켓 여부는 동률일 때만 참고.
 - 링크를 건 상품의 그날 쿠팡가(`productPrice`)를 메타 `price_krw`(숫자)에 적는다 — 위 가격대 규칙이 이 값을 본다. 영상·설명에는 가격을 넣지 않는다(5절 규칙 그대로).
 - 링크: `node D:/midform/scripts/coupang_api.js deeplink https://www.coupang.com/vp/products/<id>` → shortenUrl. `curl -s -o /dev/null -w "%{http_code}" -A "Mozilla/5.0" <short>` 가 302 인지 확인.
 - 상품 사진은 `<wd>/cp_img.jpg` 로 복사(인포크용).

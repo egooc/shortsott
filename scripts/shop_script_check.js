@@ -37,6 +37,7 @@ const V2_EMOTION = /(너무 좋|대박|놀라워|놀라웠|놀랍|감동|충격�
 const V3_SUMMARY = /^(그래서|결국|이처럼|역시)|꼭 사세요|꼭 써 보세요|(정말|참|역시).*(였|이었)(습니다|어요)/;
 const V14_COMPARE = /(배|보다|대신|만에|에서|전|후|하루|매일|한 번|%|→|vs)/;
 const ENFORCE_1023 = Date.parse('2026-10-23T00:00:00+09:00');
+const ENFORCE_SELLER = Date.parse('2026-10-25T12:00:00+09:00');   // 10-25 소유주: 경쟁 쇼핑 채널 레퍼런스 풀 + 쿠팡 리뷰 수 기록
 // ⑩ 대사 — 따옴표로 묶은 사람 말(설명 대신 대사로 장면을 넘긴다, 하늘 8)
 const DIALOGUE = /["“”「」『』]/;
 const MIN_DIALOGUE = 0.15;
@@ -246,6 +247,34 @@ function check(metaPath) {
   const bareNum = segs.filter((x) => /[0-9]/.test(x) && !V14_COMPARE.test(x));
   warn(share > 0.6 || bareNum.length, 'V14 어미·숫자',
     `끝 글자 «~${topEnd}» ${Math.round(share * 100)}%(≤60%) · 어미 ${Object.entries(freq).map(([k, v]) => `${k}${v}`).join(' ')}${bareNum.length ? ` · 비교 없는 숫자 ${bareNum.map((x) => `«${x}»`).join(' ')}` : ''}`);
+
+  // ⑯ 경쟁 쇼핑 채널 레퍼런스(10-25 소유주): plan.ref_seller(채널·영상 링크·조회·배수≥3·올린 날 30일 안) + 쿠팡 리뷰 수 기록
+  {
+    const planObj = JSON.parse(fs.readFileSync(planPath, 'utf8'));
+    const sg = (bad, item, msg) => (started >= ENFORCE_SELLER ? add(!bad, item, msg) : warn(bad, item, `${msg}${bad ? ' (10-25 12시 이후 착수분부터 FAIL)' : ''}`));
+    const rs = planObj.ref_seller || meta.ref_seller || null;
+    const problems = [];
+    if (!rs) problems.push('ref_seller 없음');
+    else {
+      if (!rs.channel) problems.push('channel');
+      if (!/^https?:\/\/(www\.)?(youtube\.com|youtu\.be|instagram\.com)\//.test(String(rs.url || ''))) problems.push('url(유튜브·인스타 영상 링크)');
+      if (!(Number(rs.views) > 0)) problems.push('views');
+      if (!(Number(rs.mult) >= 3)) problems.push(`mult ${rs.mult} (≥3)`);
+      const pd = Date.parse(String(rs.posted || ''));
+      const base = Number.isFinite(started) ? started : Date.now();
+      if (!Number.isFinite(pd)) problems.push('posted(YYYY-MM-DD)');
+      else if (base - pd > 30 * 86400000 || pd > base + 86400000) problems.push(`posted ${rs.posted} 가 착수 30일 안이 아님`);
+    }
+    sg(problems.length > 0, '⑯ ref_seller', problems.length ? problems.join(' · ') : `${rs.channel} ×${rs.mult} ${Number(rs.views).toLocaleString()}회 · ${rs.posted} · ${rs.url}`);
+    const cr = planObj.coupang_reviews || meta.coupang_reviews || null;
+    const cp = [];
+    if (!cr || !cr.picked || !cr.top) cp.push('coupang_reviews{picked:{id,reviews},top:{id,reviews},why?} 없음');
+    else {
+      if (!Number.isFinite(Number(cr.picked.reviews)) || !Number.isFinite(Number(cr.top.reviews))) cp.push('reviews 숫자');
+      else if (Number(cr.picked.reviews) < Number(cr.top.reviews) && !String(cr.why || '').trim()) cp.push(`고른 상품 리뷰 ${cr.picked.reviews} < 같은 모양 최다 ${cr.top.reviews} — why(모양이 달라서 등) 필요`);
+    }
+    sg(cp.length > 0, '⑯ 쿠팡 리뷰 수', cp.length ? cp.join(' · ') : `고른 ${cr.picked.id} 리뷰 ${cr.picked.reviews} · 같은 모양 최다 ${cr.top.id} 리뷰 ${cr.top.reviews}${cr.why ? ` (${cr.why})` : ''}`);
+  }
 
   return { code: out.every((x) => x.ok) ? 0 : 4, out };
 }
