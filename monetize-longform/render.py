@@ -239,6 +239,8 @@ def intro_bg(M, ep, imgs, d, i, out):
     """첫 60초 그림 장면 — 짧은 컷 + 큰 확대 + 흔들림 + 휩 전환 + 입자. 반환: 컷 수(motion_gate 용)."""
     out = Path(out)
     k = max(1, int(round(d / INTRO_CUT)))
+    if len(imgs) > 1:                                  # 10-24 ko12: 그림이 컷보다 적으면 A·B·A·B 로 되풀이돼 보인다 → 컷 수를 그림 수에 맞춘다(컷이 길어질 뿐)
+        k = min(k, len(imgs))
     xf = INTRO_XF if k > 1 else 0.0
     seg = (d + xf * (k - 1)) / k                     # xfade 로 줄어드는 길이만큼 컷을 늘린다
     parts = []
@@ -271,8 +273,15 @@ def intro_bg(M, ep, imgs, d, i, out):
             p.unlink(missing_ok=True)
     kind = INTRO_PARTICLES.get(Path(ep).name)
     if kind:
+        # 10-24 ko12: 장면마다 파이썬으로 입자를 그리면 첫 1분 렌더가 느리다 → 레인별 20초 입자 영상을 한 번 만들어 장면마다 시작점만 바꿔 돌려 쓴다
+        cache = Path('D:/volcano-runs/particles') / f'{kind}_20s.mp4'
+        if not cache.exists():
+            cache.parent.mkdir(parents=True, exist_ok=True)
+            particles_clip(kind, 20.0, cache, seed=7)
         pc = out.with_name('iparticles.mp4')
-        particles_clip(kind, d, pc, seed=i)
+        ss = (i * 3.7) % 10.0
+        subprocess.run(['ffmpeg', '-nostdin', '-v', 'error', '-y', '-stream_loop', '-1', '-ss', f'{ss:.2f}', '-i', str(cache), '-t', f'{d:.3f}',
+                        '-c:v', 'libx264', '-crf', '20', '-pix_fmt', 'yuv420p', str(pc)], check=True)
         subprocess.run(['ffmpeg', '-nostdin', '-v', 'error', '-y', '-i', str(base), '-i', str(pc), '-filter_complex',
                         '[0:v]format=gbrp[a];[1:v]format=gbrp[b];[a][b]blend=all_mode=screen:all_opacity=0.9,format=yuv420p', '-t', f'{d:.3f}',
                         '-c:v', 'libx264', '-crf', '18', '-pix_fmt', 'yuv420p', str(out)], check=True)
