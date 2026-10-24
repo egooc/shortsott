@@ -195,6 +195,93 @@ def clip_bg(M, ep, clip, imgs, d, i, out, **kw):
     return shots
 
 
+# ★10-24 소유주: «롱폼 초반 1분은 화려하게, 장면 전환 빠르게, 모션 넣고, 그래픽 넣지 마라» + «터지기 전까지는 GPT로만»(유료 영상 생성 없음).
+# 첫 60초 그림 장면 배경 = 3초 안팎 컷 · 확대 1.00→1.20 · 일부 흔들림 · 컷 사이 0.25초 휩 전환 · 입자(눈/재·불티/먼지) 덧씌움.
+INTRO_CUT = 3.0
+INTRO_ZOOM = (1.0, 1.20)
+INTRO_XF = 0.25
+INTRO_TRANS = ['slideleft', 'zoomin', 'fadewhite', 'smoothright', 'circleopen', 'slideright']
+INTRO_PARTICLES = {'ep_ko11': 'snow', 'ep_ko12': 'ash', 'ep_ko13': 'dust'}
+
+
+def particles_clip(kind, d, out, seed=0):
+    """검은 바탕 위 입자 영상(화면 혼합용). snow=흰 눈 사선 낙하 · ash=회색 재+주황 불티 상승 · dust=빛 먼지 부유."""
+    import numpy as np
+    W, H, n = 960, 540, int(round(d * FPS))
+    rng = np.random.default_rng(seed)
+    N = {'snow': 260, 'ash': 220, 'dust': 140}.get(kind, 160)
+    x, y = rng.uniform(0, W, N), rng.uniform(0, H, N)
+    size = rng.uniform(1.0, 3.6, N)
+    vx = {'snow': rng.uniform(-1.2, -0.2, N), 'ash': rng.uniform(-0.4, 0.6, N), 'dust': rng.uniform(-0.25, 0.25, N)}[kind]
+    vy = {'snow': rng.uniform(1.2, 3.2, N), 'ash': rng.uniform(-2.2, -0.6, N), 'dust': rng.uniform(-0.25, 0.25, N)}[kind]
+    hot = rng.uniform(0, 1, N) < (0.25 if kind == 'ash' else 0)
+    yy, xx = np.mgrid[0:H, 0:W]
+    p = subprocess.Popen(['ffmpeg', '-nostdin', '-v', 'error', '-y', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-s', f'{W}x{H}', '-r', str(FPS), '-i', '-',
+                          '-vf', 'scale=1920:1080', '-c:v', 'libx264', '-crf', '20', '-pix_fmt', 'yuv420p', str(out)], stdin=subprocess.PIPE)
+    for f in range(n):
+        img = np.zeros((H, W, 3), np.float32)
+        x[:] = (x + vx + 0.6 * np.sin(f / 9 + y / 40)) % W
+        y[:] = (y + vy) % H
+        for k in range(N):
+            xi, yi, r = int(x[k]), int(y[k]), size[k]
+            x0, x1, y0, y1 = max(0, xi - 4), min(W, xi + 5), max(0, yi - 4), min(H, yi + 5)
+            g = np.exp(-(((xx[y0:y1, x0:x1] - x[k]) ** 2 + (yy[y0:y1, x0:x1] - y[k]) ** 2) / (r * r)))
+            col = (1.0, 0.55, 0.15) if hot[k] else ((0.95, 0.97, 1.0) if kind == 'snow' else (0.75, 0.72, 0.68) if kind == 'ash' else (1.0, 0.92, 0.75))
+            a = 0.85 if kind == 'snow' else 0.6
+            for c in range(3):
+                img[y0:y1, x0:x1, c] = np.maximum(img[y0:y1, x0:x1, c], g * col[c] * a)
+        p.stdin.write((np.clip(img, 0, 1) * 255).astype(np.uint8).tobytes())
+    p.stdin.close()
+    p.wait()
+
+
+def intro_bg(M, ep, imgs, d, i, out):
+    """첫 60초 그림 장면 — 짧은 컷 + 큰 확대 + 흔들림 + 휩 전환 + 입자. 반환: 컷 수(motion_gate 용)."""
+    out = Path(out)
+    k = max(1, int(round(d / INTRO_CUT)))
+    xf = INTRO_XF if k > 1 else 0.0
+    seg = (d + xf * (k - 1)) / k                     # xfade 로 줄어드는 길이만큼 컷을 늘린다
+    parts = []
+    for j in range(k):
+        p = out.with_name(f'ishot{j}.mp4')
+        move = ['in', 'right', 'in', 'left'][(i + j) % 4]
+        M.ken_burns(imgs[j % len(imgs)], seg, move, p, focus=(0.5, 0.3, 0.7)[(i + j) % 3], zoom=INTRO_ZOOM, n=int(round(seg * FPS)))
+        if (i + j) % 3 == 1:                           # 카메라 흔들림(작게)
+            q = out.with_name(f'ishot{j}s.mp4')
+            subprocess.run(['ffmpeg', '-nostdin', '-v', 'error', '-y', '-i', str(p), '-vf',
+                            "scale=2016:1134,crop=1920:1080:48+30*sin(t*9):27+18*cos(t*11)", '-c:v', 'libx264', '-crf', '18', '-pix_fmt', 'yuv420p', str(q)], check=True)
+            p.unlink(); q.rename(p)
+        parts.append(p)
+    base = out.with_name('ibase.mp4')
+    if k == 1:
+        shutil.move(str(parts[0]), base)
+    else:
+        args = []
+        for p in parts:
+            args += ['-i', str(p)]
+        fc, prev, t = [], '[0:v]', seg
+        for j in range(1, k):
+            tr = INTRO_TRANS[(i + j) % len(INTRO_TRANS)]
+            lab = f'[x{j}]'
+            fc.append(f'{prev}[{j}:v]xfade=transition={tr}:duration={xf}:offset={t - xf:.3f}{lab}')
+            prev, t = lab, t + seg - xf
+        subprocess.run(['ffmpeg', '-nostdin', '-v', 'error', '-y', *args, '-filter_complex', ';'.join(fc), '-map', prev,
+                        '-c:v', 'libx264', '-crf', '18', '-pix_fmt', 'yuv420p', str(base)], check=True)
+        for p in parts:
+            p.unlink(missing_ok=True)
+    kind = INTRO_PARTICLES.get(Path(ep).name)
+    if kind:
+        pc = out.with_name('iparticles.mp4')
+        particles_clip(kind, d, pc, seed=i)
+        subprocess.run(['ffmpeg', '-nostdin', '-v', 'error', '-y', '-i', str(base), '-i', str(pc), '-filter_complex',
+                        '[0:v]format=gbrp[a];[1:v]format=gbrp[b];[a][b]blend=all_mode=screen:all_opacity=0.9,format=yuv420p', '-t', f'{d:.3f}',
+                        '-c:v', 'libx264', '-crf', '18', '-pix_fmt', 'yuv420p', str(out)], check=True)
+        base.unlink(missing_ok=True); pc.unlink(missing_ok=True)
+    else:
+        shutil.move(str(base), out)
+    return k
+
+
 def patch_ko_clips(M, ep):
     """ko(corp_render): visuals 의 pic 장면에 'clip' 이 있으면 bg_shots 대신 clip_bg — corp_render 는 안 고친다(import 만)."""
     orig_html, orig_bg = M.scene_html, M.bg_shots
@@ -208,6 +295,8 @@ def patch_ko_clips(M, ep):
         spec = cur.get('spec') or {}
         if spec.get('type') == 'pic' and spec.get('clip'):
             return clip_bg(M, ep, spec['clip'], imgs, d, i, Path(out), **kw)
+        if spec.get('type') == 'pic' and kw.get('max_shot') == M.INTRO_SHOT and Path(ep).name in INTRO_PARTICLES:
+            return intro_bg(M, ep, imgs, d, i, Path(out))   # 10-24 첫 60초 = 빠른 컷·휩 전환·입자
         # ★10-23 ko08·ko10 motion_gate 0.953/0.955: 컷이 in→…→out 로 끝나면 첫·끝 프레임이 같은 그림·같은 배율(1.00) — 'out' 을 빼고 당김·옆 이동만 번갈아
         kw.setdefault('moves', SAFE_MOVES)
         return orig_bg(imgs, d, i, out, **kw)

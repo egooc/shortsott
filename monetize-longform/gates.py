@@ -114,6 +114,37 @@ def package(ep):
     ranks = sorted(x.get('ctr_rank') for x in d if isinstance(x.get('ctr_rank'), int))
     if ranks != list(range(1, len(d) + 1)):
         bad.append(f'drafts ctr_rank 가 1~{len(d)} 한 번씩이 아님: {ranks}')
+    bad += keyword_fit(ep)
+    return bad
+
+
+KW_ENFORCE_FROM = '2026-10-24'   # 소유주 10-24 «제목에 키워드를 잘 묻혀야 돼, 제목이랑 해시태그에» — 이날 이후 후보표부터
+
+
+def keyword_fit(ep):
+    """제목·해시태그에 실제 검색어(유튜브 자동완성, tools/kw_suggest.py → keyword_suggest.json)가 묻혔는가.
+    포장 묶음(packages[0..2], 없으면 drafts 상위 3)마다 제목에 검색어 2개 이상 · packages 의 해시태그에 2개 이상(공백 무시)."""
+    at = str((load(ep / 'keywords.json', {}) or {}).get('at', ''))[:10]
+    if at < KW_ENFORCE_FROM:
+        return []
+    ks = load(ep / 'keyword_suggest.json')
+    if not ks or not ks.get('phrases'):
+        return ['keyword_suggest.json 없음 — tools/kw_suggest.py <편> "씨앗" … 로 실제 검색어를 먼저 받는다']
+    norm = lambda s: re.sub(r'[\s#·,｜|]', '', s)
+    ph = [norm(p) for p in ks['phrases'] if len(norm(p)) >= 3]
+    pk = load(ep / 'packages.json', {}) or {}
+    rows = pk.get('packages') or sorted(pk.get('drafts') or [], key=lambda x: x.get('ctr_rank', 99))[:3]
+    bad = []
+    for i, x in enumerate(rows[:3]):
+        t = norm(x.get('title', ''))
+        hit = [p for p in ph if p in t]
+        if len(hit) < 2:
+            bad.append(f'포장 {i}번 제목에 실제 검색어 {len(hit)}개({hit[:3]}) — 2개 이상 묻혀라(keyword_suggest.json)')
+        if pk.get('packages'):
+            h = norm(''.join(x.get('hashtags') or []))
+            hh = [p for p in ph if p in h]
+            if len(hh) < 2:
+                bad.append(f'포장 {i}번 해시태그에 실제 검색어 {len(hh)}개 — 2개 이상')
     return bad
 
 

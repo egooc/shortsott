@@ -14,7 +14,8 @@ argv = sys.argv[1:]
 ep = Path(argv[0]).resolve()
 jobs = int(argv[argv.index('--jobs') + 1]) if '--jobs' in argv else 2
 session = argv[argv.index('--session') + 1] if '--session' in argv else '수창 롱폼'
-keys = [a for i, a in enumerate(argv[1:], 1) if not a.startswith('--') and argv[i - 1] not in ('--jobs', '--session')]
+refs = [argv[i + 1] for i, a in enumerate(argv) if a == '--style-ref']   # 10-24: 레인 레퍼런스 화면을 붙여 화풍을 맞춘다(여러 장 가능)
+keys = [a for i, a in enumerate(argv[1:], 1) if not a.startswith('--') and argv[i - 1] not in ('--jobs', '--session', '--style-ref')]
 P = json.loads((ep / 'img_prompts.json').read_text(encoding='utf-8'))
 style = P.pop('_style')
 keys = keys or list(P)
@@ -25,8 +26,10 @@ def one(k):
     out = ep / 'img' / f'{k}.png'
     if out.exists():
         return k, 'skip'
-    r = subprocess.run(['node', 'D:/midform/scripts/gpt-ask.js', '--session', session, '--no-search', '--image', str(out),
-                        f'{style}\n\n장면: {P[k]}'], capture_output=True, text=True, encoding='utf-8')
+    att = [x for r_ in refs for x in ('--attach', r_)]
+    note = '\n\n붙인 그림은 화풍 기준이다 — 선·색·빛·질감·밝기를 그대로 따르고, 내용(인물·물체·구도·글자·로고)은 따라 하지 말 것.' if refs else ''
+    r = subprocess.run(['node', 'D:/midform/scripts/gpt-ask.js', '--session', session, '--no-search', *att, '--image', str(out),
+                        f'{style}{note}\n\n장면: {P[k]}'], capture_output=True, text=True, encoding='utf-8')
     return k, ('ok' if out.exists() else 'FAIL ' + (r.stderr or r.stdout)[-300:])
 
 
