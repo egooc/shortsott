@@ -6,10 +6,10 @@
 
 beats.json:
   {"bgm": "assets/bgm/shopping/Komiku_-_12_-_Bicycle.ogg",
-   "beats": [{"bg": "kitchen", "year": "1999년", "gray": false, "dur": 6.0, "sfx": "pop",
-              "cats": [{"pose": "shock", "x": 0.22, "tag": "가게 사장(재연)", "line": "이게 다 팔렸다고?!", "color": "red", "flip": false}]}]}
+   "beats": [{"bg": "kitchen", "year": "1999년", "gray": false, "dur": 6.0, "sfx": "pop", "line": "이게 다 팔렸다고?!", "color": "red",
+              "sub": "보조 자막(출처 기준 등)", "real": false, "cats": [{"pose": "boss_shock", "x": 0.22, "tag": "가게 사장(재연)", "flip": false}]}]}
   bg = img/<bg>.png(16:9 장면 그림), pose = cast/<pose>.png(초록 배경 고양이 → 자동 키잉). line 의 줄바꿈은 «\n», 색은 yellow|red|white.
-  dur 이 없으면 대사 글자 수로 정한다(9자/줄·약 6초/화면 레퍼런스 실측). 실존 인물 대사의 tag 엔 «(재연)» 이 있어야 한다 — 없으면 종료 4.
+  dur 이 없으면 대사 글자 수로 정한다(9자/줄·약 6초/화면 레퍼런스 실측). real=true(실존 인물 대사)인 화면의 이름표엔 «재연» 이 있어야 한다 — 없으면 종료 4.
 렌더 동안 politics-hour/RENDERING.lock 을 잡는다(락 있으면 시작 안 함). 원본 고양이 밈 영상 프레임은 쓰지 않는다 — 고양이는 전부 cast/ 의 우리 그림.
 """
 import atexit
@@ -26,8 +26,7 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 ROOT = Path(__file__).resolve().parents[2]
 LOCK = ROOT / 'politics-hour' / 'RENDERING.lock'
 FONT = str(ROOT / 'assets' / 'fonts' / 'rinbox' / 'GmarketSansBold.otf')
-SFX = {'pop': ROOT / 'fantube' / 'sfx' / 'pop.wav', 'sparkle': ROOT / 'fantube' / 'sfx' / 'sparkle.wav',
-       'hit': ROOT / 'politics-hour' / 'assets' / 'sfx' / 'transition_hit.wav'}
+SFX = {k: Path(__file__).resolve().parent / 'sfx' / f'{k}.wav' for k in ('pop', 'boing', 'tada', 'womp')}   # make_sfx.py 로 합성
 W, H, FPS = 1920, 1080, 30
 COLORS = {'yellow': (255, 232, 0), 'red': (235, 20, 20), 'white': (255, 255, 255)}
 CODE = '2026-10-26a'
@@ -81,26 +80,39 @@ def outlined(draw, xy, text, font, fill, stroke=12, anchor='mm'):
                         stroke_width=stroke, stroke_fill=(0, 0, 0))
 
 
+def wrap(line, n=11):
+    """22자 대사 → 가운데에 가까운 띄어쓰기에서 두 줄(레퍼런스 한 줄 약 9~11자)."""
+    if '\n' in line or len(line) <= n + 1:
+        return line
+    cuts = [i for i, ch in enumerate(line) if ch == ' ']
+    if not cuts:
+        return line
+    i = min(cuts, key=lambda c: abs(c - len(line) / 2))
+    return line[:i] + '\n' + line[i + 1:]
+
+
 def text_layer(beat, path):
-    """연도(왼쪽 위) · 대사(굵은 테두리 글씨) · 이름표(흰 상자) 한 장."""
+    """연도·장소(왼쪽 위) · 대사(굵은 테두리 글씨, 노랑/빨강) · 보조 자막 · 이름표(흰 상자) 한 장."""
     im = Image.new('RGBA', (W, H), (0, 0, 0, 0))
     d = ImageDraw.Draw(im)
     if beat.get('year'):
-        outlined(d, (36, 30), beat['year'], ImageFont.truetype(FONT, 64), (255, 255, 255), 10, 'la')
+        outlined(d, (36, 30), beat['year'], ImageFont.truetype(FONT, 60), (255, 255, 255), 10, 'la')
     cats = beat.get('cats', [])
+    if beat.get('line'):
+        xs = [c.get('x', 0.25) for c in cats]
+        tx = beat.get('tx', 0.5 if len(cats) > 1 else (0.64 if (xs or [0.25])[0] < 0.5 else 0.36))
+        text = wrap(beat['line'])
+        size = 84 if max(len(s) for s in text.split('\n')) <= 11 else 72
+        outlined(d, (int(tx * W), int(beat.get('ty', 0.34) * H)), text, ImageFont.truetype(FONT, size), COLORS[beat.get('color', 'yellow')], 14)
+        if beat.get('sub'):
+            outlined(d, (int(tx * W), int(beat.get('ty', 0.34) * H) + 150), beat['sub'], ImageFont.truetype(FONT, 34), (255, 255, 255), 6)
     for c in cats:
-        x = int(c.get('x', 0.25) * W)
-        if c.get('line'):
-            lines = c['line'].split('\n')
-            size = 76 if max(len(s) for s in lines) <= 11 else 64
-            tx = int(c.get('tx', 0.68 if c.get('x', 0.25) < 0.5 else 0.32) * W) if len(cats) == 1 else x
-            ty = int(c.get('ty', 0.36 if len(cats) == 1 else 0.2) * H)
-            outlined(d, (tx, ty), c['line'], ImageFont.truetype(FONT, size), COLORS[c.get('color', 'yellow')])
         if c.get('tag'):
             f = ImageFont.truetype(FONT, 40)
             l, t, r, b = d.multiline_textbbox((0, 0), c['tag'], font=f, align='center', spacing=4)
             bw, bh = r - l + 36, b - t + 22
-            bx, by = max(12, min(W - bw - 12, x - bw // 2)), H - bh - 40
+            x = int(c.get('x', 0.25) * W)
+            bx, by = max(12, min(W - bw - 12, x - bw // 2)), H - bh - 36
             d.rectangle((bx, by, bx + bw, by + bh), fill=(255, 255, 255), outline=(0, 0, 0), width=3)
             d.multiline_text((bx + bw / 2, by + bh / 2), c['tag'], font=f, fill=(0, 0, 0), anchor='mm', align='center', spacing=4)
     im.save(path)
@@ -109,12 +121,12 @@ def text_layer(beat, path):
 def beat_dur(beat):
     if beat.get('dur'):
         return float(beat['dur'])
-    n = sum(len(c.get('line', '').replace('\n', '')) for c in beat.get('cats', []))
+    n = len(beat.get('line', '').replace('\n', ''))
     return round(min(8.0, max(3.5, 2.0 + n * 0.11)), 1)
 
 
 def check(beats):
-    bad = [i for i, b in enumerate(beats) for c in b.get('cats', []) if c.get('real') and '재연' not in c.get('tag', '')]
+    bad = [i for i, b in enumerate(beats) if b.get('real') and '재연' not in ''.join(c.get('tag', '') for c in b.get('cats', []))]
     if bad:
         print(f'재연 표시 관문: 실존 인물 대사에 «재연» 없는 화면 {bad} — 종료 4')
         raise SystemExit(4)
