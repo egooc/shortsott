@@ -2,6 +2,7 @@
 """장면 그림 일괄 생성 — img_prompts.json 의 각 키 → img/<키>.png (이미 있으면 건너뜀). GPT 창구 gpt-ask.js, 동시 3건.
 
     python ko-corp/tools/gen_images.py ko-corp/ep02 [키 ...]
+    python ko-corp/tools/gen_images.py ko-corp/cat01 --prompts cast_prompts.json --dir cast   다른 프롬프트 파일·출력 폴더
 
 화풍은 글이 아니라 레퍼런스 화면으로 맞춘다(관리자 10-24 §7): img_prompts.json 의 "_style_refs" = 레퍼런스 터진 편 캡처 3~5장
 (ko-corp/style_refs, 로고·글자·자막 잘라낸 것) 경로 목록. 비었거나 파일이 없으면 종료 4. 요청마다 img/prompt_log.jsonl 에 style_refs 를 남긴다.
@@ -27,16 +28,19 @@ def style_refs(P):
 
 def main():
     sys.stdout.reconfigure(encoding='utf-8')
-    ep = Path(sys.argv[1]).resolve()
-    P = json.loads((ep / 'img_prompts.json').read_text(encoding='utf-8'))
+    argv = sys.argv[1:]
+    opt = {k: argv[argv.index(k) + 1] for k in ('--prompts', '--dir') if k in argv}
+    ep = Path(argv[0]).resolve()
+    P = json.loads((ep / opt.get('--prompts', 'img_prompts.json')).read_text(encoding='utf-8'))
     style = P.pop('_style')
     refs = style_refs(P)
-    keys = sys.argv[2:] or list(P)
-    (ep / 'img').mkdir(exist_ok=True)
-    log = ep / 'img' / 'prompt_log.jsonl'
+    keys = [a for i, a in enumerate(argv[1:], 1) if not a.startswith('--') and argv[i - 1] not in opt] or list(P)
+    outdir = ep / opt.get('--dir', 'img')
+    outdir.mkdir(exist_ok=True)
+    log = outdir / 'prompt_log.jsonl'
 
     def one(k):
-        out = ep / 'img' / f'{k}.png'
+        out = outdir / f'{k}.png'
         if out.exists():
             return k, 'skip'
         prompt = f'{style}{NOTE}\n\n장면: {P[k]}'
