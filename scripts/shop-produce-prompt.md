@@ -161,3 +161,6 @@
 
 ## 끝 정리 (10-23 관리자 — D: 15GB 관문)
 보고서를 쓴 뒤 `python D:/midform/scripts/shop_cleanup_runs.py apply` 를 실행해 발행 3일 지난 편의 중간 파일(_ff·footage·src·sheets·cand·eye·*_nobgm/_v1/_raw)을 지우고, 보고서 «집계» 에 회수 GB 와 D: 빈 공간을 적는다. 최종 mp4·_upload json·보고서·_gate_log 는 지우지 않는다.
+
+## 참고 자료 (10-26 관리자 — GPT 납품, 소재 선정에는 쓰지 않는다)
+`D:/midform/docs/gpt-queue-20261025/INDEX.md` «쇼핑» 칸(results2/ 검증판 먼저): 겨울 품목 60개·품목별 쿠팡 대표 상품(04·21)·첫 2초 후킹(45)·대본 v2(73·90 등)·쿠팡 정책·수수료(40·114)·경쟁 계정 심층(154·155). 쿠팡 후보 찾기·훅 문구·정책 확인에 참고만 한다. **소재는 반드시 seller_pool 의 경쟁 채널 터진 편(plan.ref_seller)에서 고른다** — 대본·품목표에서 소재를 고르지 않는다.
