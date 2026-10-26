@@ -22,5 +22,5 @@ const { OAuth2Client } = require(path.join(ROOT, 'node_modules', 'google-auth-li
   const st = ch.status.longUploadsStatus;
   const ok = sec <= 15 * 60 || st === 'allowed';
   console.log(`긴 영상 ${(sec / 60).toFixed(1)}분 · longUploadsStatus ${st} → ${ok ? '통과' : '막힘(15분 넘는데 allowed 아님 — 전화 인증 youtube.com/verify 뒤에)'}`);
-  process.exit(ok ? 0 : 4);
-})().catch((e) => { console.error('ERR', e.message); process.exit(4); });
+  process.exitCode = ok ? 0 : 4;   // process.exit 는 fetch 핸들 닫는 중 libuv assert(종료 127) — exitCode 로
+})().catch((e) => { console.error('ERR', e.message); process.exitCode = 4; });
