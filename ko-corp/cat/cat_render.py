@@ -29,7 +29,7 @@ FONT = str(ROOT / 'assets' / 'fonts' / 'rinbox' / 'GmarketSansBold.otf')
 SFX = {k: Path(__file__).resolve().parent / 'sfx' / f'{k}.wav' for k in ('pop', 'boing', 'tada', 'womp')}   # make_sfx.py 로 합성
 W, H, FPS = 1920, 1080, 30
 COLORS = {'yellow': (255, 232, 0), 'red': (235, 20, 20), 'white': (255, 255, 255)}
-CODE = '2026-10-26b'
+CODE = '2026-10-26c'
 
 
 def take_lock(ep):
@@ -91,6 +91,38 @@ def wrap(line, n=11):
     return line[:i] + '\n' + line[i + 1:]
 
 
+CAST = {'black.explain': 'black_explain', 'black.serious': 'black_serious', 'black.laugh': 'black_explain', 'black.suspicious': 'black_serious',
+        'calico.photo': 'calico_photo', 'calico.shock': 'calico_shock', 'calico.laugh': 'calico_photo', 'couple.shy': 'couple_shy', 'couple.happy': 'couple_happy'}
+
+
+def pose_src(ep, name):
+    """«boss.angry» → pose/boss_angry.png(표정 낱장, 소유주 10-26) · 없으면 cast/ 시트 조각."""
+    f = ep / 'pose' / (name.replace('.', '_') + '.png')
+    return f if f.exists() else ep / 'cast' / (CAST.get(name, name.replace('.', '_')) + '.png')
+
+
+def layout(ep, beat):
+    """v2 화면(speaker·line·react·cutin) → 고양이 배치 + 글자 목록. v1(cats·line)은 그대로 둔다."""
+    if 'speaker' not in beat:
+        return beat
+    b = dict(beat)
+    if beat.get('cutin'):   # 표정 컷인: 고양이 하나를 크게, 글자 없음
+        b['cats'] = [{'src': pose_src(ep, beat['speaker']), 'x': 0.5, 'h': 1.15, 'bottom': H + 260, 'bob': 6}]
+        b['texts'], b['year'] = [], ''
+        return b
+    b['cats'] = [{'src': pose_src(ep, beat['speaker']), 'x': 0.2, 'h': 0.8, 'tag': beat.get('tag', '')}]
+    lines = [x.strip() for x in beat.get('line', '').split('/') if x.strip()]
+    size = 96 if len(lines) <= 3 and max(map(len, lines or [''])) <= 11 else 84
+    b['texts'] = [{'text': '\n'.join(lines), 'x': 0.6, 'y': 0.33 if beat.get('react') else 0.4, 'size': size, 'color': beat.get('color', 'yellow')}]
+    if beat.get('react'):
+        b['cats'].append({'src': pose_src(ep, beat['react']), 'x': 0.86, 'h': 0.42, 'bob': 14})
+        if beat.get('react_line'):
+            b['texts'].append({'text': beat['react_line'], 'x': 0.8, 'y': 0.63, 'size': 62, 'color': 'white'})
+    if beat.get('sub'):
+        b['texts'].append({'text': beat['sub'], 'x': 0.6, 'y': 0.12, 'size': 34, 'color': 'white'})
+    return b
+
+
 def text_layer(beat, path):
     """연도·장소(왼쪽 위) · 대사(굵은 테두리 글씨, 노랑/빨강) · 보조 자막 · 이름표(흰 상자) 한 장."""
     im = Image.new('RGBA', (W, H), (0, 0, 0, 0))
@@ -98,7 +130,9 @@ def text_layer(beat, path):
     if beat.get('year'):
         outlined(d, (36, 30), beat['year'], ImageFont.truetype(FONT, 72), (255, 255, 255), 12, 'la')
     cats = beat.get('cats', [])
-    if beat.get('line'):
+    for t in beat.get('texts', []):
+        outlined(d, (int(t['x'] * W), int(t['y'] * H)), t['text'], ImageFont.truetype(FONT, t['size']), COLORS[t['color']], max(6, t['size'] // 7))
+    if beat.get('line') and 'texts' not in beat:
         xs = [c.get('x', 0.25) for c in cats]
         tx = beat.get('tx', 0.5 if len(cats) > 1 else (0.64 if (xs or [0.25])[0] < 0.5 else 0.36))
         text = wrap(beat['line'])
@@ -125,7 +159,14 @@ def beat_dur(beat):
     return round(min(8.0, max(3.5, 2.0 + n * 0.11)), 1)
 
 
-def check(beats):
+def check(beats, max_run=15.0):
+    run, prev = 0.0, None
+    for i, b in enumerate(beats):
+        run = run + beat_dur(b) if (b['bg'], bool(b.get('gray'))) == prev else beat_dur(b)
+        prev = (b['bg'], bool(b.get('gray')))
+        if 'speaker' in b and run > max_run:
+            print(f'배경 반복 관문: 화면 {i} 까지 «{b["bg"]}» 연속 {run:.0f}초 > {max_run:.0f}초(소유주 10-26 C) — 종료 4')
+            raise SystemExit(4)
     bad = [i for i, b in enumerate(beats) if b.get('real') and '재연' not in ''.join(c.get('tag', '') for c in b.get('cats', []))]
     if bad:
         print(f'재연 표시 관문: 실존 인물 대사에 «재연» 없는 화면 {bad} — 종료 4')
@@ -134,10 +175,11 @@ def check(beats):
 
 def render_beat(ep, i, beat, d, work):
     seg = work / f'b{i:03d}.mp4'
-    key = json.dumps([beat, d, CODE], ensure_ascii=False, sort_keys=True)
+    key = json.dumps([beat, d, CODE, str(sorted(p.stat().st_mtime for p in (ep / 'pose').glob('*.png')) if (ep / 'pose').exists() else '')], ensure_ascii=False, sort_keys=True)
     if seg.exists() and (work / f'b{i:03d}.key').exists() and (work / f'b{i:03d}.key').read_text(encoding='utf-8') == key:
         return seg
     txt = work / f'b{i:03d}_text.png'
+    beat = layout(ep, beat)
     text_layer(beat, txt)
     n = int(d * FPS)
     z0, z1 = (1.0, 1.06) if i % 2 == 0 else (1.06, 1.0)
@@ -146,7 +188,8 @@ def render_beat(ep, i, beat, d, work):
     flt = [f'[0]scale=3840:-2,zoompan=z=\'{z0}+({z1}-{z0})*on/{n}\':x=\'(iw-iw/zoom)/2\':y=\'(ih-ih/zoom)/2\':d={n}:s={W}x{H}:fps={FPS}{gray},format=rgba[v0]']
     last = 'v0'
     for j, c in enumerate(beat.get('cats', [])):
-        cat = keyed(ep / 'cast' / f'{c["pose"]}.png', work / f'cat_{c["pose"]}.png')
+        src = Path(c['src']) if c.get('src') else ep / 'cast' / f'{c["pose"]}.png'
+        cat = keyed(src, work / f'cat_{src.parent.name}_{src.stem}.png')
         h = int(c.get('h', 0.74) * H)
         inputs += ['-loop', '1', '-i', cat]
         k = j + 1
@@ -154,7 +197,7 @@ def render_beat(ep, i, beat, d, work):
         x = int(c.get('x', 0.25) * W)
         bob = c.get('bob', 10)
         flt.append(f'[{k}]scale=-1:{h}{flip}[c{j}]')
-        flt.append(f'[{last}][c{j}]overlay=x=\'{x}-w/2\':y=\'{H - 40}-h+{bob}*sin(2*PI*t*1.6+{j})\':shortest=1[v{j + 1}]')
+        flt.append(f'[{last}][c{j}]overlay=x=\'{x}-w/2\':y=\'{c.get('bottom', H - 40)}-h+{bob}*sin(2*PI*t*1.6+{j})\':shortest=1[v{j + 1}]')
         last = f'v{j + 1}'
     k = len(beat.get('cats', [])) + 1
     inputs += ['-loop', '1', '-i', txt]

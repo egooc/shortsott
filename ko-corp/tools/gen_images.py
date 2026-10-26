@@ -34,6 +34,7 @@ def main():
     P = json.loads((ep / opt.get('--prompts', 'img_prompts.json')).read_text(encoding='utf-8'))
     style = P.pop('_style')
     refs = style_refs(P)
+    note = '\n\n' + P.pop('_note') if '_note' in P else NOTE  # 캐릭터 낱장처럼 첨부 그림의 «같은 고양이»를 따라야 할 때 덮어쓴다
     keys = [a for i, a in enumerate(argv[1:], 1) if not a.startswith('--') and argv[i - 1] not in opt] or list(P)
     outdir = ep / opt.get('--dir', 'img')
     outdir.mkdir(exist_ok=True)
@@ -43,7 +44,7 @@ def main():
         out = outdir / f'{k}.png'
         if out.exists():
             return k, 'skip'
-        prompt = f'{style}{NOTE}\n\n장면: {P[k]}'
+        prompt = f'{style}{note}\n\n장면: {P[k]}'
         att = [x for r in refs for x in ('--attach', str(r))]
         r = subprocess.run(['node', 'D:/midform/scripts/gpt-ask.js', '--session', '기업 흥망', '--no-search', *att, '--image', str(out), prompt],
                            capture_output=True, text=True, encoding='utf-8')
