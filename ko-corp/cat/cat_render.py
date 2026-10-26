@@ -29,7 +29,7 @@ FONT = str(ROOT / 'assets' / 'fonts' / 'rinbox' / 'GmarketSansBold.otf')
 SFX = {k: Path(__file__).resolve().parent / 'sfx' / f'{k}.wav' for k in ('pop', 'boing', 'tada', 'womp')}   # make_sfx.py 로 합성
 W, H, FPS = 1920, 1080, 30
 COLORS = {'yellow': (255, 232, 0), 'red': (235, 20, 20), 'white': (255, 255, 255)}
-CODE = '2026-10-26a'
+CODE = '2026-10-26b'
 
 
 def take_lock(ep):
@@ -96,19 +96,19 @@ def text_layer(beat, path):
     im = Image.new('RGBA', (W, H), (0, 0, 0, 0))
     d = ImageDraw.Draw(im)
     if beat.get('year'):
-        outlined(d, (36, 30), beat['year'], ImageFont.truetype(FONT, 60), (255, 255, 255), 10, 'la')
+        outlined(d, (36, 30), beat['year'], ImageFont.truetype(FONT, 72), (255, 255, 255), 12, 'la')
     cats = beat.get('cats', [])
     if beat.get('line'):
         xs = [c.get('x', 0.25) for c in cats]
         tx = beat.get('tx', 0.5 if len(cats) > 1 else (0.64 if (xs or [0.25])[0] < 0.5 else 0.36))
         text = wrap(beat['line'])
-        size = 84 if max(len(s) for s in text.split('\n')) <= 11 else 72
+        size = 100 if max(len(s) for s in text.split('\n')) <= 11 else 86
         outlined(d, (int(tx * W), int(beat.get('ty', 0.34) * H)), text, ImageFont.truetype(FONT, size), COLORS[beat.get('color', 'yellow')], 14)
         if beat.get('sub'):
-            outlined(d, (int(tx * W), int(beat.get('ty', 0.34) * H) + 150), beat['sub'], ImageFont.truetype(FONT, 34), (255, 255, 255), 6)
+            outlined(d, (int(tx * W), int(beat.get('ty', 0.34) * H) + 170), beat['sub'], ImageFont.truetype(FONT, 34), (255, 255, 255), 6)
     for c in cats:
         if c.get('tag'):
-            f = ImageFont.truetype(FONT, 40)
+            f = ImageFont.truetype(FONT, 54)
             l, t, r, b = d.multiline_textbbox((0, 0), c['tag'], font=f, align='center', spacing=4)
             bw, bh = r - l + 36, b - t + 22
             x = int(c.get('x', 0.25) * W)
@@ -147,7 +147,7 @@ def render_beat(ep, i, beat, d, work):
     last = 'v0'
     for j, c in enumerate(beat.get('cats', [])):
         cat = keyed(ep / 'cast' / f'{c["pose"]}.png', work / f'cat_{c["pose"]}.png')
-        h = int(c.get('h', 0.62) * H)
+        h = int(c.get('h', 0.74) * H)
         inputs += ['-loop', '1', '-i', cat]
         k = j + 1
         flip = ',hflip' if c.get('flip') else ''
@@ -187,22 +187,24 @@ def main():
     ff('-f', 'concat', '-safe', 0, '-i', work / 'list.txt', '-c', 'copy', video)
     total = sum(durs)
     # 소리: BGM(-20dB 깔기) + 화면마다 효과음
-    ins, mix, t = ['-stream_loop', '-1', '-i', ROOT / spec['bgm']], ['[0]volume=0.18,atrim=0:%.2f[bg]' % total], 0.0
+    ins, mix, t = ['-stream_loop', '-1', '-i', ROOT / spec['bgm']], ['[0]volume=0.4,atrim=0:%.2f[bg]' % total], 0.0
     labels = ['[bg]']
     for i, (b, d) in enumerate(zip(beats, durs)):
         s = b.get('sfx', 'pop')
         if s and s in SFX:
             ins += ['-i', SFX[s]]
             k = len(labels)
-            mix.append(f'[{k}]adelay={int(t * 1000)}|{int(t * 1000)},volume=0.7[s{k}]')
+            mix.append(f'[{k}]adelay={int(t * 1000)}|{int(t * 1000)},volume=0.45[s{k}]')
             labels.append(f'[s{k}]')
         t += d
     mix.append(''.join(labels) + f'amix=inputs={len(labels)}:normalize=0:duration=first[a]')
     audio = work / 'audio.wav'
     ff(*ins, '-filter_complex', ';'.join(mix), '-map', '[a]', '-t', f'{total:.2f}', '-ar', 48000, audio)
     final = out / ('test.mp4' if '--only' in sys.argv else 'episode.mp4')
-    ff('-i', video, '-i', audio, '-map', '0:v', '-map', '1:a', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k',
-       '-af', 'loudnorm=I=-14:TP=-1.5:LRA=11', '-shortest', final)
+    ff('-i', video, '-i', audio, '-map', '0:v', '-map', '1:a', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-shortest', final)
+    sys.path.insert(0, str(ROOT / 'scripts'))
+    import loudnorm_final
+    print('음량', loudnorm_final.normalize(final))
     (out / 'timing.json').write_text(json.dumps([{'i': i, 'start': round(sum(durs[:i]), 2), 'dur': d} for i, d in enumerate(durs)], indent=2) + '\n', encoding='utf-8')
     print(f'{final} · 화면 {len(beats)}개 · {total:.1f}초 · 평균 {total / len(beats):.1f}초/화면')
 
