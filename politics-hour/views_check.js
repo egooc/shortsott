@@ -102,6 +102,7 @@ async function repack(videoId, h, views, H) {
   const n = pk.packages.length - 1;
   if (n < 1) return null;
   const lastA = pk.applied[pk.applied.length - 1];
+  if (h !== 'now' && pk.retired) { const i = lastA?.idx ?? 0; return { idx: i, title: pk.packages[i].title, style: `지난 이슈 — 교체 안 함(${pk.retired})`, kept: true }; }   // 소유주 10-28 «지난 이슈는 이미 늦었고 버려»
   if (h !== 'now' && Number.isInteger(pk.fixed) && lastA?.idx === pk.fixed) return { idx: pk.fixed, title: pk.packages[pk.fixed].title, style: '고정 묶음(소유주 확정) — 유지', kept: true };   // 10-24 관리자 ③
   // 바꾼 지 3시간이 안 됐으면 새 포장이 노출을 받을 시간을 준다(자동 점검만 — 소유주 즉시 교체는 막지 않음)
   // 1주(+168h) 뒤에는 매일 점검·주 1회 교체(소유주 10-18 «썸네일은 성과에 따라 계속 수정»)
@@ -163,6 +164,7 @@ async function loop(videoId) {
   const pk = JSON.parse(fs.readFileSync(pf, 'utf8'));
   const L = pk.loop;
   if (!L || !L.packages?.length) throw new Error('packages.json 에 loop 묶음 없음');
+  if (pk.retired) { console.log(`[loop] ${videoId} 지난 이슈 — 교체 안 함(${pk.retired})`); return; }
   L.applied = L.applied || [];
   const purpose = pk.purpose || 'politics';
   const H = await auth(purpose);
