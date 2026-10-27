@@ -110,7 +110,7 @@ function fragmentHit(line, fragment) {
 
 // 정규식 리터럴 줄(= /…/, (/…/, .test( , new RegExp()에서는 ? 가 수량자다 — 개수 규칙에서 뺀다.
 function isLikelyRegexLine(line) {
-  return /(=\s*\/|\(\/|\.test\(|new RegExp\()/.test(line) && /\/[gimsuy]*[,;)\s]|\/[gimsuy]*$/.test(line.trim());
+  return /(=\s*\/|\(\/|[\[,]\s*\/[^/\s*]|\.test\(|new RegExp\()/.test(line) && /\/[gimsuy]*[,;)\]\s]|\/[gimsuy]*$/.test(line.trim());
 }
 
 function inspectLine(line) {

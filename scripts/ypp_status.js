@@ -1,6 +1,6 @@
 // 수익 창출(YPP) 조건 현황 — 채널 OAuth Analytics `dimensions=creatorContentType` 로 쇼츠/롱폼을 나눠 센다(관리자 ypp_split.js 정식화, 10-21).
 //
-//   node scripts/ypp_status.js [--purpose politics,idol_fantube_ko] [--json]
+//   node scripts/ypp_status.js [--purpose politics,idol3sec_ko] [--json]
 //   const { yppStatus, yppLine } = require('./ypp_status'); (await yppLine()) → 07:40 보고 §1 한 줄
 //
 // 조건(유튜브 기준): 구독 1,000 + 롱폼 공개 시청 4,000시간(365일) 또는 쇼츠 조회 1,000만(90일). 쇼츠 시청 시간은 롱폼 시간에 안 셈.
@@ -14,7 +14,7 @@ const ROOT = path.resolve(__dirname, '..');
 const PROFILES = path.join(ROOT, 'server', 'data', 'youtube_upload_profiles.json');
 const OUT = path.join(ROOT, 'server', 'data', 'ypp_status.json');
 const SKIP = new Set(['shopping_old_ssulmo']);   // 쓸모연구소는 항상 논외(소유주 10-12·10-13)
-const NAMES = { politics: '쟁점브리핑', politics_ja: '国会ノート', idol_fantube_ko: '최애모먼트', ko_highlight: '지구관측소', jp_highlight: '沼落ちシネマ', shopping: '쇼핑', arabshot: '어랍숏' };
+const NAMES = { politics: '쟁점브리핑', politics_ja: '国会ノート', idol3sec_ko: '아이돌 3초', idol_fantube_ko: '최애모먼트(옛)', ko_highlight: '지구관측소', jp_highlight: '沼落ちシネマ', shopping: '쇼핑', arabshot: '어랍숏' };
 const LONG_TYPES = ['videoOnDemand', 'liveStream', 'VIDEO_ON_DEMAND', 'LIVE_STREAM'];   // API 값은 camelCase(videoOnDemand·shorts) — 10-21 실측
 const GOAL = { subs: 1000, long_hours: 4000, shorts_views: 10000000 };
 

@@ -21,9 +21,9 @@ const OUT = path.join(ROOT, 'server', 'data', 'hook_table');
 const LEDGER = path.join(ROOT, 'server', 'data', 'production_ledger.jsonl');
 const FRAMES = path.join(OUT, 'frames.json');
 const STAY_SPLIT = 70;
-// 장부 레인 → { Analytics 프로필 purpose, script_audit --lane }
+// 장부 레인 → { Analytics 프로필 purpose, 옛 채널 purpose(조회용), script_audit --lane }
 const LANES = {
-  fantube: { purpose: 'idol_fantube_ko', audit: 'fantube' },
+  fantube: { purpose: 'idol3sec_ko', old: ['idol_fantube_ko'], audit: 'fantube' },   // 10-27 새 채널 «아이돌 3초», 옛 최애모먼트 편은 옛 키로 조회
   ja: { purpose: 'jp_highlight', audit: 'rinbox' },
   ko_longshort: { purpose: 'ko_highlight', audit: 'longshort' },
   shop: { purpose: 'shopping', audit: 'shopping' },
@@ -129,11 +129,16 @@ async function build({ lanes, days = 30, api = false, gpt = true, limit = Infini
     const { shortsStay } = require('./retention_curve');
     for (const lane of [...new Set(rows.map((r) => r.lane))]) {
       const mine = rows.filter((r) => r.lane === lane);
-      try {
-        for (const s of await shortsStay(mine.map((r) => r.videoId), { purpose: LANES[lane].purpose })) Object.assign(mine.find((r) => r.videoId === s.id) || {}, { stay_ratio: s.stay_ratio, avp: s.avp, views: s.views, likes: s.likes, comments: s.comments, shares: s.shares });
-      } catch (e) {
-        if (e.stop) throw e;   // 403·429 는 그 자리에서 멈춘다(우회 금지)
-        mine.forEach((r) => { r.api_error = e.message.slice(0, 120); });
+      const [main, ...old] = [LANES[lane].purpose, ...(LANES[lane].old || [])];
+      for (const purpose of [main, ...old]) {
+        const left = purpose === main ? mine : mine.filter((r) => r.stay_ratio == null);   // 옛 채널 키는 새 채널에서 안 잡힌 편만
+        if (!left.length) break;
+        try {
+          for (const s of await shortsStay(left.map((r) => r.videoId), { purpose })) Object.assign(left.find((r) => r.videoId === s.id) || {}, { stay_ratio: s.stay_ratio, avp: s.avp, views: s.views, likes: s.likes, comments: s.comments, shares: s.shares });
+        } catch (e) {
+          if (e.stop) throw e;   // 403·429 는 그 자리에서 멈춘다(우회 금지)
+          if (purpose === main) mine.forEach((r) => { r.api_error = e.message.slice(0, 120); });
+        }
       }
     }
   }
