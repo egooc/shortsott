@@ -159,13 +159,38 @@ def beat_dur(beat):
     return round(min(8.0, max(3.5, 2.0 + n * 0.11)), 1)
 
 
-def check(beats, max_run=15.0):
-    run, prev = 0.0, None
+def shot_key(b):
+    """구도 = 배경·흑백·컷인 여부·말하는/반응 고양이(표정 빼고). 표정만 바뀐 같은 구도는 같은 컷으로 센다."""
+    who = lambda p: (p or '').split('.')[0].split('_')[0]
+    return (b['bg'], bool(b.get('gray')), bool(b.get('cutin')), who(b.get('speaker')), who(b.get('react')))
+
+
+def stats(beats):
+    run, prev, longest, rep, rmax, pk = 0.0, None, 0.0, 0, 0, None
+    for b in beats:
+        run = run + beat_dur(b) if (b['bg'], bool(b.get('gray'))) == prev else beat_dur(b)
+        prev = (b['bg'], bool(b.get('gray')))
+        longest = max(longest, run)
+        rep = rep + 1 if shot_key(b) == pk else 1
+        pk = shot_key(b)
+        rmax = max(rmax, rep)
+    poses = {p for b in beats for p in (b.get('speaker'), b.get('react')) if p}
+    return {'배경': len({b['bg'] for b in beats}), '포즈': len(poses), '인물': len({p.split('.')[0].split('_')[0] for p in poses}),
+            '구도 반복 최대': rmax, '같은 배경 최장(초)': round(longest, 1), '화면': len(beats), '길이(초)': round(sum(map(beat_dur, beats)), 1)}
+
+
+def check(beats, max_run=15.0, max_rep=2):
+    run, prev, rep, pk = 0.0, None, 0, None
     for i, b in enumerate(beats):
         run = run + beat_dur(b) if (b['bg'], bool(b.get('gray'))) == prev else beat_dur(b)
         prev = (b['bg'], bool(b.get('gray')))
         if 'speaker' in b and run > max_run:
             print(f'배경 반복 관문: 화면 {i} 까지 «{b["bg"]}» 연속 {run:.0f}초 > {max_run:.0f}초(소유주 10-26 C) — 종료 4')
+            raise SystemExit(4)
+        rep = rep + 1 if shot_key(b) == pk else 1
+        pk = shot_key(b)
+        if 'speaker' in b and rep > max_rep:
+            print(f'구도 반복 관문: 화면 {i} 까지 같은 구도 {rep}컷 연속 > {max_rep}(관리자 10-27, 동네 업종 3판 지적) — 종료 4')
             raise SystemExit(4)
     bad = [i for i, b in enumerate(beats) if b.get('real') and '재연' not in ''.join(c.get('tag', '') for c in b.get('cats', []))]
     if bad:
@@ -214,6 +239,11 @@ def main():
     spec = json.loads((ep / 'beats.json').read_text(encoding='utf-8'))
     beats = spec['beats']
     check(beats)
+    (ep / 'out').mkdir(exist_ok=True)
+    (ep / 'out' / 'stats.json').write_text(json.dumps(stats(beats), ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+    if '--check' in sys.argv:
+        print(json.dumps(stats(beats), ensure_ascii=False))
+        return
     if '--only' in sys.argv:
         a, b = map(int, sys.argv[sys.argv.index('--only') + 1].split('-'))
         beats = beats[a:b + 1]
