@@ -34,7 +34,8 @@ def missing(day):
 
 if __name__ == '__main__':
     sys.stdout.reconfigure(encoding='utf-8')
-    day = sys.argv[1] if len(sys.argv) > 1 else (date.today() + timedelta(days=1)).strftime('%Y%m%d')
+    pos = [a for a in sys.argv[1:] if not a.startswith('--')]
+    day = pos[0] if pos else (date.today() + timedelta(days=1)).strftime('%Y%m%d')
     bad = missing(day)
     if not bad:
         print(f'[prep] PASS {day}')
