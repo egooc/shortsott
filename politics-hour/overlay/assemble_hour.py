@@ -27,6 +27,7 @@ import narration_overlay  # noqa: E402
 import quote_overlay  # noqa: E402
 import cold_overlay  # noqa: E402
 import tts  # noqa: E402
+import beep  # noqa: E402  원음 인용 욕설 삐·자막 xx(소유주 10-27)
 
 from config import PYTHON as VISION_PY
 PAD = .35  # 해설 음성 뒤 숨
@@ -92,7 +93,7 @@ def quote(seg, folder, chrome):
     overlay(quote_overlay, spec, mov)
     out = folder / 'segment.mp4'
     quote_overlay.compose(seg['src'], seg['in'], spec, mov, out)
-    return out
+    return beep.apply(out, seg['beep'], folder / 'segment_beep.mp4') if seg.get('beep') else out
 
 
 def cold(seg, folder):
@@ -103,7 +104,7 @@ def cold(seg, folder):
     overlay(cold_overlay, spec, mov)
     out = folder / 'segment.mp4'
     cold_overlay.compose(seg['src'], seg['in'], spec, mov, out)
-    return out
+    return beep.apply(out, seg['beep'], folder / 'segment_beep.mp4') if seg.get('beep') else out
 
 
 def normalize(src, out):
@@ -120,7 +121,16 @@ def main(path, provider):
     ep = json.loads(Path(path).read_text(encoding='utf-8'))
     work = (path_base / ep['workdir']).resolve(); (work / 'seg').mkdir(parents=True, exist_ok=True)
     parts, clock = [], 0.0
+    # 원음 인용 욕설: 전사 토큰 시각으로 삐 구간을 정하고 자막은 «xx»(beep.py). 처리 기록은 work/beep_log.json → 렌더 뒤 beep_check.py
+    blog = beep.plan(path_base, ep['segments'])
+    (work / 'beep_log.json').write_text(json.dumps({'episode': str(path_base), 'freq': beep.FREQ, 'pad': beep.PAD, 'segments': blog},
+                                                   ensure_ascii=False, indent=1) + '\n', encoding='utf-8')
     for i, seg in enumerate(ep['segments']):
+        if seg['type'] in ('quote', 'cold'):   # 욕설이 있을 때만 조각이 바뀐다(키도 그때만 바뀌어 다른 조각 저장본은 그대로)
+            iv, _ = beep.seg_intervals(path_base, seg)
+            seg = beep.masked(seg)
+            if iv:
+                seg = dict(seg, beep=iv)
         voice = tts.voice_id(provider) if seg['type'] == 'nar' and not seg.get('audio') else None  # 목소리를 바꾸면 해설만 다시 만든다
         if seg['type'] == 'nar' and ep.get('tts_say'):
             seg = dict(seg, tts_say=True)   # 키에도 들어가 켜고 끄면 해설만 다시 만든다(끈 편의 저장본은 그대로)
@@ -140,7 +150,7 @@ def main(path, provider):
             normalize(raw, final)
             # 합친 뒤에는 큰 중간 파일(투명 MOV·하이퍼프레임 작업 폴더·합성 전 영상)을 지운다. normalized.mp4 만 남긴다.
             import shutil
-            for junk in [folder / 'overlay.mov', raw, folder / 'grid.png', folder / 'streak.png', folder / 'ticker.txt']:
+            for junk in [folder / 'overlay.mov', raw, folder / 'segment.mp4', folder / 'grid.png', folder / 'streak.png', folder / 'ticker.txt']:
                 Path(junk).unlink(missing_ok=True)
             shutil.rmtree(folder / 'overlay.hf', ignore_errors=True)
         parts.append(final)

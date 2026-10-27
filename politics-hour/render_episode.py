@@ -11,7 +11,14 @@ sys.path.insert(0, str(ROOT)); import uncertain_facts   # noqa: E402  불확실 
 _fact = uncertain_facts.gate_lines(ep)
 if _fact:
     print('\n'.join('[fact] FAIL ' + b for b in _fact)); sys.exit(3)
-LOCK.write_text(json.dumps({'pid': os.getpid(), 'episode': ep.name, 'started': time.strftime('%Y-%m-%d %H:%M'),
+# 소유주 10-27 관문(관리자 경유) — 렌더 전, 락을 쓰기 전에 막는다: 시작 관문(첫 원음 발췌 15초 안·목차 카드 금지, 10/28편부터 — 길이는 글자수 추정)
+# + 욕설·비속어(원고 script_*.py·해설 자막, 모든 편). 원음 인용 속 욕설은 막지 않고 assemble_hour 가 자막 xx·음성 삐로 처리한다.
+import opening_gate, profanity   # noqa: E402,E401
+_open = opening_gate.gate_lines(ep, estimate=True)
+_prof = profanity.script_lines(ep) + profanity.episode_lines(ep)[0]
+if _open or _prof:
+    print('\n'.join('[gate] FAIL ' + b for b in _open + _prof)); sys.exit(4)
+LOCK.write_text(json.dumps({'pid': os.getpid(), 'label': f'정치 ko {ep.name}', 'episode': ep.name, 'started': time.strftime('%Y-%m-%d %H:%M'),
                             'expect_hours': 6}, ensure_ascii=False) + '\n', encoding='utf-8')
 try:
     with open(ep / 'render.log', 'w', encoding='utf-8') as log:
