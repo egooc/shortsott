@@ -89,6 +89,8 @@ async function unschedule(token, item) {
 const BLOTATO_STATE = path.join(ROOT, 'server', 'data', 'blotato_publish_state.json');
 
 async function blotatoApi(method, endpoint) {
+  // 발행 경로 스위치(10-29): Zernio 글·건너뛴 글·Blotato 끔은 공용 api() 가 판단한다(이 함수는 예전에 zernio: id 도 Blotato 에 물었다)
+  if (require('./publish-routes').blotatoOff() || /^\/(?:posts|schedules)\/(?:zernio|skip):/.test(endpoint)) return require('./blotato-publish').api(method, endpoint);
   const key = String(process.env.BLOTATO_API_KEY || '').trim();
   if (!key) throw new Error('BLOTATO_API_KEY is not set');
   const response = await fetch(`https://backend.blotato.com/v2${endpoint}`, {

@@ -46,6 +46,7 @@ function apiKey() {
 }
 
 async function api(method, endpoint, body) {
+  if (require('./publish-routes').blotatoOff()) throw require('./publish-routes').offError(`${method} ${endpoint}`);   // Blotato 꺼짐(10-29)
   const res = await fetch(`${API_BASE}${endpoint}`, {
     method,
     headers: { 'blotato-api-key': apiKey(), 'Content-Type': 'application/json' },

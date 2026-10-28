@@ -126,6 +126,7 @@ async function blotatoRows(since) {
     return at >= since && at <= now;
   });
   if (!recent.length) return [];
+  if (require('./publish-routes').blotatoOff()) return recent.map((h) => ({ platform: h.platform, locale: h.locale, draft: h.draft, publishAt: h.scheduledTime || '', status: String(h.submissionId || '').startsWith('skip:') ? 'skipped' : '', error: 'blotato_off' }));
   if (!key) return recent.map((h) => ({ ...h, error: 'BLOTATO_API_KEY not set' }));
   const rows = [];
   for (const entry of recent) {

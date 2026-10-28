@@ -1,0 +1,12 @@
+{
+  "_doc": "발행 경로 스위치(관리자 배정 10-29, 소유주 «틱톡은 무료로 제르니오 2계정, 메타는 메타 개발자 인증 준비, 인스타·페북은 지금 도움이 하나도 안 된다», Blotato past_due 미갱신). scripts/publish-routes.js 가 읽고 blotato-publish.js api()·uploadLocalFile 과 Blotato 를 직접 부르던 스크립트들이 따른다.",
+  "blotato": "off",
+  "_blotato": "off = Blotato 호출 0회. 인스타·페북·스레드 글은 실패가 아니라 skip:blotato_off 로 기록(레인 fill·발행 FAIL 안 남). 메타 직접 앱이 생기면 그 경로로 바꾼다(docs/meta-direct-app-prep.md).",
+  "tiktok": {
+    "hold": true,
+    "keep": [
+      "62703"
+    ]
+  },
+  "_tiktok": "hold=true 면 틱톡 글은 skip:zernio_hold(소유주가 Zernio 2계정을 고를 때까지). keep 은 hold 와 상관없이 지금처럼 Zernio 로 가는 Blotato accountId — 62703 쓸모연구소는 상시 논외 규칙(일괄 보류에서 뺀다). 고른 뒤: hold=false, 안 고른 계정은 zernio_accounts.json 에서 뺀다(빠진 틱톡 계정 글은 skip:zernio_unmapped)."
+}

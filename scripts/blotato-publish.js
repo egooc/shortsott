@@ -94,6 +94,11 @@ function apiKey() {
 // 여기 한 곳에서 «틱톡 + Zernio 에 연결된 계정»이면 Zernio 로 돌린다. 매핑: midform/config/zernio_accounts.json
 // (Blotato accountId → Zernio _id). 매핑에 없는 틱톡 계정은 그대로 Blotato 로 간다.
 const ZERNIO_MAP_PATH = path.join(ROOT, 'midform', 'config', 'zernio_accounts.json');
+// ── 발행 경로 스위치 (관리자 배정 10-29) ─────────────────────────────────────
+// Blotato 미갱신(past_due) → publish_routes.json blotato=off 면 Blotato 호출 0회. 인스타·페북·스레드 글은
+// 실패가 아니라 skip:blotato_off 로 돌려준다(발행기들이 그 id 를 그대로 기록 → 레인 fill·발행 FAIL 안 남).
+// 틱톡은 소유주가 Zernio 2계정을 고를 때까지 skip:zernio_hold(keep 계정은 예외).
+const routes = require('./publish-routes');
 function zernioTarget(endpoint, body) {
   if (endpoint !== '/posts' || body?.post?.content?.platform !== 'tiktok') return '';
   return zernioIdFor(body.post.accountId);
@@ -102,9 +107,12 @@ async function zernioPost(zid, body) {
   const key = String(process.env.ZERNIO_API_KEY || '').trim();
   if (!key) throw new Error('ZERNIO_API_KEY 가 .env 에 없다');
   const t = body.post.target || {};
+  // uploadLocalFile(Blotato 꺼짐)·zernioUpload(틱톡 보류)는 local:<경로> 만 돌려준다 — 실제 글이 나갈 때 여기서 Zernio 에 올린다
+  const urls = [];
+  for (const url of body.post.content.mediaUrls || []) urls.push(String(url).startsWith('local:') ? await zernioUploadNow(String(url).slice(6)) : url);
   const req = {
     content: String(body.post.content.text || '').slice(0, 2200),
-    mediaItems: (body.post.content.mediaUrls || []).map((url) => ({ type: 'video', url })),
+    mediaItems: urls.map((url) => ({ type: 'video', url })),
     platforms: [{ platform: 'tiktok', accountId: zid }],
     tiktokSettings: {
       privacy_level: t.privacyLevel || 'PUBLIC_TO_EVERYONE',
@@ -124,6 +132,17 @@ async function zernioPost(zid, body) {
 }
 
 async function api(method, endpoint, body) {
+  const off = routes.blotatoOff();
+  if (method === 'POST' && endpoint === '/posts') {
+    const platform = body?.post?.content?.platform;
+    if (platform === 'tiktok') {
+      const hold = routes.tiktokHold(body.post.accountId);
+      if (hold) return routes.skipped(hold);
+      if (off && !zernioTarget(endpoint, body)) return routes.skipped('zernio_unmapped');
+    } else if (off) return routes.skipped('blotato_off');
+  }
+  // 건너뛴 글의 상태 조회·예약 취소(check-claims 등)
+  if (/^\/(?:posts|schedules)\/skip:/.test(endpoint)) return method === 'DELETE' ? { ok: true } : { status: 'skipped', publicUrl: '' };
   const zid = method === 'POST' ? zernioTarget(endpoint, body) : '';
   if (zid) return zernioPost(zid, body);
   // Zernio 로 보낸 글의 상태 조회·예약 취소(check-claims 의 cancelSocialForDraft 등) — 같은 경로로 받아 Zernio 에 묻는다
@@ -136,6 +155,7 @@ async function api(method, endpoint, body) {
     const p = j.post || j;
     return method === 'DELETE' ? { ok: true } : { status: p.status, publicUrl: (p.platforms || [])[0]?.platformPostUrl || '' };
   }
+  if (off) throw routes.offError(`${method} ${endpoint}`);
   const response = await fetch(`${API_BASE}${endpoint}`, {
     method,
     headers: { 'blotato-api-key': apiKey(), 'Content-Type': 'application/json' },
@@ -158,6 +178,11 @@ function zernioIdFor(accountId) {
   try { return JSON.parse(fs.readFileSync(ZERNIO_MAP_PATH, 'utf8')).tiktok?.[String(accountId)] || ''; } catch { return ''; }
 }
 async function zernioUpload(filePath) {
+  // 틱톡 보류 중(publish_routes tiktok.hold)엔 Zernio 저장소에 미리 올리지 않는다 — 실제 글이 나갈 때 zernioPost 가 올린다
+  if ((routes.routes().tiktok || {}).hold) return `local:${path.resolve(filePath)}`;
+  return zernioUploadNow(filePath);
+}
+async function zernioUploadNow(filePath) {
   const key = String(process.env.ZERNIO_API_KEY || '').trim();
   if (!key) throw new Error('ZERNIO_API_KEY 가 .env 에 없다');
   const bytes = fs.readFileSync(filePath);
@@ -180,6 +205,8 @@ async function zernioUpload(filePath) {
 }
 
 async function uploadLocalFile(filePath) {
+  // Blotato 꺼짐: 아무 데도 안 올리고 표시만 — 틱톡(Zernio) 글이면 zernioPost 가 그때 올리고, 메타 글은 어차피 건너뛴다
+  if (routes.blotatoOff()) return `local:${path.resolve(filePath)}`;
   const filename = path.basename(filePath);
   const { presignedUrl, publicUrl } = await api('POST', '/media/uploads', { filename });
   if (!presignedUrl || !publicUrl) throw new Error('presigned upload returned no URL');
@@ -471,8 +498,9 @@ async function main() {
           scheduledTime
         });
         const id = result?.postSubmissionId || result?.id || 'submitted';
+        if (result?.skipped === 'zernio_hold') { lines.push(`- SKIP(zernio_hold) ${platform} [${locale}]: ${draftName}`); continue; }
         console.log(`[post] ${locale}/${platform} @ ${scheduledTime} -> ${id}`);
-        lines.push(`- OK ${platform} [${locale}] ${scheduledTime}: ${draftName} (${id})`);
+        lines.push(result?.skipped ? `- SKIP(${result.skipped}) ${platform} [${locale}]: ${draftName}` : `- OK ${platform} [${locale}] ${scheduledTime}: ${draftName} (${id})`);
         state.history = [...(state.history || []), {
           at: new Date().toISOString(),
           draft: draftName,

@@ -25,6 +25,7 @@ const REPORT_DIR = path.join(ROOT, 'server', 'output', 'blotato-publish-reports'
 const readJson = (f, fb) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return fb; } };
 
 async function api(qs) {
+  if (require('./publish-routes').blotatoOff()) return [];   // Blotato 꺼짐(10-29) — 실패 글 조회 0회
   const key = String(process.env.BLOTATO_API_KEY || '').trim();
   if (!key) throw new Error('BLOTATO_API_KEY 가 없다 — .env 를 확인하라');
   const r = await fetch(`${API}/posts?${qs}`, { headers: { 'blotato-api-key': key } });

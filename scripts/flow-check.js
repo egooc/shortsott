@@ -88,7 +88,7 @@ async function youtube() {
 }
 
 async function blotato() {
-  if (!BL_KEY) return [];
+  if (!BL_KEY || require('./publish-routes').blotatoOff()) return [];   // Blotato 꺼짐(10-29)
   // limit 은 50 이 상한이다(200 이면 400). 플랫폼별로 따로 받아 폭을 넓힌다.
   const out = [];
   for (const platform of ['instagram', 'facebook', 'threads']) {

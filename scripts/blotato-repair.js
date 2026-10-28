@@ -38,6 +38,7 @@ async function api(method, endpoint, body) {
 }
 
 (async () => {
+  if (require('./publish-routes').blotatoOff()) { console.log('blotato-repair: Blotato 꺼짐(midform/config/publish_routes.json) — 할 일 없음'); return; }
   // .env 에 키가 있으면 읽어 온다(다른 스크립트와 같은 방식).
   if (!process.env.BLOTATO_API_KEY) {
     const env = path.join(ROOT, '.env');
