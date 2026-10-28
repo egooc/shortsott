@@ -308,7 +308,7 @@ def load_segs(path):
             if st == 'Head':
                 if m:
                     top = max(top, int(float(m.group(2)) + (float(fs.group(1)) if fs else 100) * .6 + 140))   # 첫 화면 펀치 줌(1.12배)에 제목이 커져도 안 닿게
-            elif st in ('Narr', 'Dialogue', 'Default') and t:
+            elif t and st not in ('Credit', 'Effect') and not st.startswith('Disc'):   # Disc* = 쇼핑 광고 표기
                 cues.append((a, b, t, st == 'Dialogue'))
     else:
         for blk in re.split(r'\n\s*\n', txt.replace('\r', '')):
@@ -325,7 +325,7 @@ def load_segs(path):
     for a, b, t, dlg in cues:
         if dlg:
             segs.append({'t0': a, 't1': b, 'text': f'"{t}"', 'chunks': [[a, b, t]]})
-        elif segs and not segs[-1]['text'].startswith('"') and a - segs[-1]['t1'] < .08:
+        elif segs and not segs[-1]['text'].startswith('"') and a - segs[-1]['t1'] < .08 and len(segs[-1]['chunks']) < 3:   # 틈 없이 이어지는 자막(쇼핑)은 3조각마다 끊는다
             segs[-1]['t1'] = b; segs[-1]['text'] += ' / ' + t; segs[-1]['chunks'].append([a, b, t])
         else:
             segs.append({'t0': a, 't1': b, 'text': t, 'chunks': [[a, b, t]]})
