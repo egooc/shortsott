@@ -55,7 +55,10 @@ async function api() {
 function profileLinkMeta(metaPath) {
   const m = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
   const wd = path.dirname(m.file);
-  const social = path.join(wd, `${path.basename(wd)}_social.mp4`);
+  // 예능식 편집 A/C(10-29): C 편은 _social 판에 variety_fx 를 얹은 _social_vfx.mp4 를 올린다 — 없으면 경고하고 _social(=A)
+  const vfx = path.join(wd, `${path.basename(wd)}_social_vfx.mp4`);
+  if (m.vfx === 'C' && !fs.existsSync(vfx)) console.log(`  ⚠ vfx C 인데 ${path.basename(vfx)} 없음 — A 판으로 올림`);
+  const social = m.vfx === 'C' && fs.existsSync(vfx) ? vfx : path.join(wd, `${path.basename(wd)}_social.mp4`);
   if (!fs.existsSync(social)) return metaPath;
   let n = 0;
   try { n = JSON.parse(fs.readFileSync(path.join(DIR, 'product_numbers.json'), 'utf8')).numbers[path.basename(wd)] || 0; } catch { /* 번호 없음 */ }

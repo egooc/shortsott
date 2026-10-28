@@ -3,7 +3,8 @@
 cap.ass 만 주면 질문 «?»가 자막에 없어 «?!» 스티커가 빠진다 — 문장 원문(plan)을 붙여야 C판과 같은 결과.
 원본: D:/volcano-runs/sfx_test/tools/seg_times.py(도구개발, ffref55 전용)를 작업 폴더 인자로 일반화.
 
-    python -X utf8 scripts/shop_seg_times.py <wd> [--plan plan.json] [--out <wd>/seg_times.json]
+    python -X utf8 scripts/shop_seg_times.py <wd> [--plan plan.json] [--ass cap.ass] [--out <wd>/seg_times.json]
+    유튜브에 올라가는 건 _social 판이다(shop_schedule) → --plan plan_social.json --ass <wd>/cap_social.ass --out <wd>/seg_social.json
 
 자막은 <wd>/cap_ff.ass(ff 렌더 직후 떠 둔 사본)를 먼저, 없으면 <wd>/_ff/cap.ass — 다른 판 렌더가 _ff/cap.ass 를 덮으니
 _ff 렌더 바로 다음에 돌리거나 사본을 떠 둔다.
@@ -25,9 +26,10 @@ def main():
     ap.add_argument('wd')
     ap.add_argument('--plan', default='plan.json')
     ap.add_argument('--out')
+    ap.add_argument('--ass', help='자막 파일(유튜브용 _social 판은 <wd>/cap_social.ass)')
     a = ap.parse_args()
     wd = Path(a.wd)
-    ass = wd / 'cap_ff.ass' if (wd / 'cap_ff.ass').exists() else wd / '_ff' / 'cap.ass'
+    ass = Path(a.ass) if a.ass else wd / 'cap_ff.ass' if (wd / 'cap_ff.ass').exists() else wd / '_ff' / 'cap.ass'
     caps = []
     for ln in ass.read_text(encoding='utf-8').splitlines():
         if ln.startswith('Dialogue:') and ',Cap,' in ln:
