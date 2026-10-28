@@ -107,6 +107,38 @@ def cold(seg, folder):
     return beep.apply(out, seg['beep'], folder / 'segment_beep.mp4') if seg.get('beep') else out
 
 
+def hook(seg, folder, provider, chrome):
+    """몽타주 훅(hook_overlay.py, 10-28 시사썰전 결): 해설 TTS 구마다 다른 얼굴·자료 컷 + 손그림 효과 + 1~2어절 자막."""
+    import hook_overlay
+    if provider != 'supertonic':
+        raise SystemExit('hook 조각은 supertonic 만(구마다 합성해 자막 시각을 잡는다)')
+    say = None
+    if seg.get('tts_say'):
+        sys.path.insert(0, 'D:/midform/ko-corp/render')
+        from ko_say import say
+    if seg.get('tts_yomi'):
+        base_say = say
+        def say(s, _y=seg['tts_yomi'], _b=base_say):
+            for w in sorted(_y, key=len, reverse=True):
+                s = s.replace(w, _y[w])
+            return _b(s) if _b else s
+    wav = folder / 'voice.wav'
+    cues = hook_overlay.speak(seg, wav, say=say)
+    dur = round(tts.wav_seconds(wav) + hook_overlay.TAIL, 3)
+    cuts = [dict(c, src=str((Path(path_base) / c['src']).resolve())) for c in seg['cuts']]
+    spec = dict(chrome, **{k: v for k, v in seg.items() if k not in ('cuts', 'type')}, cuts=cuts, duration=dur, cues=cues)
+    spec['windows'] = hook_overlay.cut_times(spec, cues, dur)
+    hf = folder / 'overlay.hf'
+    pops = hook_overlay.build(spec, hf)
+    mov = folder / 'overlay.mov'
+    quote_overlay.render(hf, mov)
+    out = folder / 'segment.mp4'
+    hook_overlay.compose(spec, mov, wav, out, pops)
+    (folder / 'hook_cues.json').write_text(json.dumps({'cues': cues, 'windows': spec['windows'], 'duration': dur},
+                                                      ensure_ascii=False, indent=1) + '\n', encoding='utf-8')
+    return out
+
+
 def normalize(src, out):
     """모든 조각을 같은 규격(1920x1080·30fps·SAR1·AAC 48k 스테레오)으로 맞춰 이어 붙일 수 있게 한다."""
     subprocess.run(['ffmpeg', '-nostdin', '-v', 'error', '-y', '-i', str(src), '-vf', 'fps=30,scale=1920:1080,setsar=1',
@@ -131,10 +163,10 @@ def main(path, provider):
             seg = beep.masked(seg)
             if iv:
                 seg = dict(seg, beep=iv)
-        voice = tts.voice_id(provider) if seg['type'] == 'nar' and not seg.get('audio') else None  # 목소리를 바꾸면 해설만 다시 만든다
-        if seg['type'] == 'nar' and ep.get('tts_say'):
+        voice = tts.voice_id(provider) if seg['type'] in ('nar', 'hook') and not seg.get('audio') else None  # 목소리를 바꾸면 해설만 다시 만든다
+        if seg['type'] in ('nar', 'hook') and ep.get('tts_say'):
             seg = dict(seg, tts_say=True)   # 키에도 들어가 켜고 끄면 해설만 다시 만든다(끈 편의 저장본은 그대로)
-        yomi = {w: r for w, r in (ep.get('tts_yomi') or {}).items() if seg['type'] == 'nar' and w in seg.get('text', '')}
+        yomi = {w: r for w, r in (ep.get('tts_yomi') or {}).items() if seg['type'] in ('nar', 'hook') and w in seg.get('text', '')}
         if yomi:   # episode.json "tts_yomi": {표기: 읽기} — 그 낱말이 든 해설만 키가 바뀐다(10-22 «추미애»→«추미의» 들림). 조각 하나만이면 그 조각에 "tts_yomi"
             seg = dict(seg, tts_yomi={**yomi, **(seg.get('tts_yomi') or {})})
         folder = work / 'seg' / f'{i:03d}-{seg["type"]}-{key([seg, provider, ep.get("chrome", {}), CODE] + ([voice] if voice else []))}'
@@ -146,6 +178,7 @@ def main(path, provider):
             if seg.get('bg'):
                 seg = dict(seg, bg=dict(seg['bg'], src=str((path_base / seg['bg']['src']).resolve())))
             raw = (narration(seg, folder, provider, chrome) if seg['type'] == 'nar' else
+                   hook(seg, folder, provider, chrome) if seg['type'] == 'hook' else
                    cold(seg, folder) if seg['type'] == 'cold' else quote(seg, folder, chrome))
             normalize(raw, final)
             # 합친 뒤에는 큰 중간 파일(투명 MOV·하이퍼프레임 작업 폴더·합성 전 영상)을 지운다. normalized.mp4 만 남긴다.

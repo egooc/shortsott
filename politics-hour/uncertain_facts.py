@@ -28,7 +28,7 @@ VERDICT = {'confirmed': 'confirmed', 'wrong': 'open', 'unverified': 'open'}
 
 def nar_texts(ep):
     E = json.loads((Path(ep) / 'episode.json').read_text(encoding='utf-8'))
-    return [(i, s['text']) for i, s in enumerate(E['segments']) if s.get('type') == 'nar' and s.get('text')]
+    return [(i, s['text']) for i, s in enumerate(E['segments']) if s.get('type') in ('nar', 'hook') and s.get('text')]   # 몽타주 훅 문구도 사실 주장(10-28)
 
 
 def sha(ep):

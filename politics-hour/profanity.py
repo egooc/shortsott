@@ -129,8 +129,11 @@ def episode_lines(ep):
     if not p.exists():
         return bad, notes
     for i, s in enumerate(json.loads(p.read_text(encoding='utf-8'))['segments']):
-        if s['type'] == 'nar':
-            for t in [s.get('text', '')] + _strings(s.get('visual', {})):
+        if s['type'] in ('nar', 'hook'):   # 몽타주 훅(10-28)도 해설과 같은 우리 말 — 자막 덩어리·이름표·꼬리표·손글씨까지
+            hook_txt = ([c for ln in s.get('lines', []) for c in ln.get('caps', [])] + list(s.get('title', []))
+                        + [str(v) for c in s.get('cuts', []) for k in ('name', 'tag', 'note', 'sticker') if c.get(k)
+                           for v in (c[k].get('lines') or [c[k].get('text', '')])]) if s['type'] == 'hook' else []
+            for t in [s.get('text', '')] + _strings(s.get('visual', {})) + hook_txt:
                 h = hits(t)
                 if h:
                     bad.append(_fmt(f'해설 자막 [{i}]', h, t))
