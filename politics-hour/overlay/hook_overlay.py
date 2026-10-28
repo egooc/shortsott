@@ -235,3 +235,66 @@ def compose(spec, overlay, voice, out, pops=()):
     subprocess.run(['ffmpeg', '-nostdin', '-v', 'error', '-y', *args, '-filter_complex', f, '-map', '[v]', '-map', '[a]', '-t', f'{d:.3f}',
                     '-c:v', 'libx264', '-crf', '20', '-preset', 'medium', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '160k', str(out)],
                    check=True)
+
+
+# ---------- 세로(쇼츠)용 — 같은 장식을 PIL 레이어로(릴레이 쇼츠 shorts/relay_render.py, 소유주 10-29 «숏폼에도 예능편집넣고 · 훅 넣고») ----------
+# 위 CSS 의 .stk(어그로 230px·검정 테두리 16)·.note(손글씨 80px·테두리 10)·.cap(어그로·*노랑*/#빨강#) 을 크기만 세로 화면에 맞춰 그린다.
+def _pil_font(name, n):
+    from PIL import ImageFont
+    return ImageFont.truetype(str(ASSETS / 'fonts' / name), n)
+
+
+def _rgba(h):
+    h = h.lstrip('#')
+    return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4)) + (255,)
+
+
+def _pil_text(text, fname, n, stroke, fill=(255, 255, 255, 255), ls=0):
+    from PIL import Image, ImageDraw
+    f = _pil_font(fname, n)
+    d = ImageDraw.Draw(Image.new('RGBA', (8, 8)))
+    ws = [d.textlength(ch, font=f) for ch in text]
+    tw = int(sum(ws) + ls * (len(text) - 1)) + stroke * 2 + 8
+    im = Image.new('RGBA', (tw, int(n * 1.5) + stroke * 2), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    x = stroke + 4
+    for ch, w in zip(text, ws):
+        d.text((x, im.height / 2), ch, font=f, fill=fill, anchor='lm', stroke_width=stroke, stroke_fill=(0, 0, 0, 255))
+        x += w + ls
+    return im
+
+
+def pil_sticker(text, n=200, rot=8):
+    """팝업 스티커(?! · !!) — .stk 와 같은 어그로·흰 글씨·검정 테두리·글자 사이 좁게. 기울임 rot 도."""
+    from PIL import Image
+    im = _pil_text(text, 'SBAggroB.ttf', n, max(8, n // 14), ls=-n * 0.078)
+    return im.rotate(-rot, resample=Image.BICUBIC, expand=True)
+
+
+def pil_note(text, n=74, rot=-6):
+    """손글씨 속마음 — .note 와 같은 배민연성체·흰 글씨·검정 테두리."""
+    from PIL import Image
+    im = _pil_text(text, 'BMYEONSUNG.ttf', n, max(6, n // 8))
+    return im.rotate(-rot, resample=Image.BICUBIC, expand=True)
+
+
+def pil_caps(text, n=118, maxw=1000):
+    """1~2어절 강조 자막 — .cap 과 같은 어그로·테두리, *낱말* 노랑·#낱말# 빨강. maxw 를 넘으면 글자 크기를 줄인다."""
+    from PIL import Image, ImageDraw
+    parts = re.split(r'(\*[^*]+\*|#[^#]+#)', text)
+    runs = [(p[1:-1], _rgba(YEL) if p[0] == '*' else _rgba(RED)) if p[:1] in '*#' and len(p) > 2 else (p, (255, 255, 255, 255))
+            for p in parts if p]
+    d = ImageDraw.Draw(Image.new('RGBA', (8, 8)))
+    while n > 60 and d.textlength(''.join(r for r, _ in runs), font=_pil_font('SBAggroB.ttf', n)) - 3 * len(_plain(text)) > maxw:
+        n -= 4
+    f = _pil_font('SBAggroB.ttf', n)
+    st = max(8, n // 8)
+    tw = int(sum(d.textlength(ch, font=f) - 3 for r, _ in runs for ch in r)) + st * 2 + 8
+    im = Image.new('RGBA', (tw, int(n * 1.4) + st * 2), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    x = st + 4
+    for r, col in runs:
+        for ch in r:
+            d.text((x, im.height / 2), ch, font=f, fill=col, anchor='lm', stroke_width=st, stroke_fill=(0, 0, 0, 255))
+            x += d.textlength(ch, font=f) - 3          # letter-spacing -3px
+    return im

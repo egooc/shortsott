@@ -88,6 +88,14 @@ for up in sys.argv[2:]:
     if 'shorts' not in Path(up).resolve().parts:
         continue
     name = Path(up).name.split('.')[0]
+    _ru = json.loads(Path(up).read_text(encoding='utf-8'))
+    if _ru.get('format') == 'relay':   # 릴레이 쇼츠(10-28 소유주): plan.json 대신 relay.json·<name>.render.json — 화면 제목·첫 5초 자막
+        _rp = Path(_ru['relay_plan'])
+        _rj = json.loads(_rp.read_text(encoding='utf-8'))
+        _rm = json.loads((_rp.parent / f'{_rj["name"]}.render.json').read_text(encoding='utf-8'))
+        hay = ' '.join([*_rj['title'], *[c['text'] for c in _rm['captions'] if c['t0'] < 5]])
+        need(_ru.get('big') or _rj.get('keywords', [])[:1], hay, f'{name} 첫 5초(화면 제목·첫 자막)')
+        continue
     plan = Path(up).parent.parent / 'ls' / Path(up).parent.name / name / 'plan.json'
     if not plan.exists():
         bad.append(f'{name}: plan.json 없음 {plan}')
@@ -122,12 +130,19 @@ for up in sys.argv[2:]:
         continue
     name = Path(up).name.split('.')[0]
     plan = Path(up).parent.parent / 'ls' / Path(up).parent.name / name / 'plan.json'
-    if not plan.exists():
+    _ru = json.loads(Path(up).read_text(encoding='utf-8'))
+    if _ru.get('format') == 'relay':   # 릴레이 쇼츠는 주고받기 대신 릴레이 전용 판정(shorts/relay_gate.py — 원음 100%·얼굴·출처·3곳 같은 날)
+        r = subprocess.run([sys.executable, '-X', 'utf8', str(Path(__file__).resolve().parent / 'shorts' / 'relay_gate.py'), _ru['relay_plan'], str(up)],
+                           capture_output=True, text=True, encoding='utf-8')
+        if r.returncode:
+            bad.append(f'{name} relay_gate 종료 {r.returncode}: ' + ' / '.join(x for x in r.stdout.splitlines() if x.startswith('FAIL'))[:400])
+    elif not plan.exists():
         continue
-    bad += exchange_gate.check(json.loads(plan.read_text(encoding='utf-8')), name)[0]
+    else:
+        bad += exchange_gate.check(json.loads(plan.read_text(encoding='utf-8')), name)[0]
     r = subprocess.run([sys.executable, '-X', 'utf8', str(Path(__file__).resolve().parents[1] / 'scripts' / 'exchange_check.py'), str(plan),
-                        '--lane', 'politics_shorts', '--enforce-now'], capture_output=True, text=True, encoding='utf-8')
-    if r.returncode:
+                        '--lane', 'politics_shorts', '--enforce-now'], capture_output=True, text=True, encoding='utf-8') if plan.exists() else None
+    if r and r.returncode:
         bad.append(f'{name} exchange_check 종료 {r.returncode}: ' + ' / '.join(x for x in r.stdout.splitlines() if 'FAIL' in x or '불가' in x)[:400])
     # 이야기 구조(공용 story_gate 2e986a7, 소유주 10-21 «화면 해설 말고 스토리») — 정치는 허구 금지 고정. 원고 순서 문장 = upload.json story_lines. 10-23 전 FAIL 은 유예(0)
     r = subprocess.run([sys.executable, '-X', 'utf8', str(Path(__file__).resolve().parents[1] / 'scripts' / 'story_gate.py'), str(up),
@@ -168,6 +183,9 @@ if EP_DATE >= '20261021':
         if 'shorts' in Path(up).resolve().parts:
             plan = Path(up).parent.parent / 'ls' / Path(up).parent.name / Path(up).name.split('.')[0] / 'plan.json'
             body = '\n'.join(c.split('|')[-1] for s in (json.loads(plan.read_text(encoding='utf-8'))['sequence'] if plan.exists() else []) for c in s.get('captions', []))
+            _ru = json.loads(Path(up).read_text(encoding='utf-8'))
+            if not plan.exists() and _ru.get('format') == 'relay':   # 릴레이 쇼츠 = 화면 자막(원음) 순서 문장
+                body = '\n'.join(_ru.get('story_lines', []))
             extra = ['--ratio', '0']
         else:
             segs = json.loads(epj.read_text(encoding='utf-8'))['segments'] if epj.exists() else []
