@@ -289,6 +289,48 @@ def _ts(x):
     return int(x[0]) * 3600 + int(x[1]) * 60 + float(x[2])
 
 
+HEADISH = ('head', 'title', 'top', 'hook')
+
+
+def _ass_cues(txt):
+    r"""ASS → (대사 조각들, 제목 띠 아래 y[1920 기준]).
+    제목 띠 = 스타일 이름이 Head/Title/Top/Hook 류이거나, 영상 거의 내내(80%+) 떠 있는 위쪽 1/3 줄.
+    아래 끝은 \pos 가 있으면 그 y, 없으면 스타일 정렬·MarginV 로 셈 — 정렬(\an·스타일) 7~9 는 y 가 글자 위, 4~6 가운데, 1~3 아래.
+    PlayResY 가 1920 이 아니면 비율로 바꾼다(N100 템플릿 자막, 10-29 «!!» 가 두 줄 제목 끝 글자를 가린 일)."""
+    resy = float((re.search(r'^PlayResY:\s*([\d.]+)', txt, re.M) or [0, 1920])[1])
+    k = 1920 / resy
+    styles, fmt = {}, None
+    for ln in txt.splitlines():
+        if ln.startswith('Format:') and fmt is None and 'Fontsize' in ln:
+            fmt = [x.strip().lower() for x in ln.split(':', 1)[1].split(',')]
+        elif ln.startswith('Style:') and fmt:
+            v = [x.strip() for x in ln.split(':', 1)[1].split(',')]
+            d = dict(zip(fmt, v))
+            styles[d.get('name', '')] = {'fs': float(d.get('fontsize') or 60), 'an': int(d.get('alignment') or 2), 'mv': float(d.get('marginv') or 0)}
+    ev = []
+    for ln in txt.splitlines():
+        if not ln.startswith('Dialogue:'):
+            continue
+        f = ln.split(':', 1)[1].split(',', 9)
+        ev.append((f[3].strip(), _ts(f[1].strip()), _ts(f[2].strip()), f[9]))
+    end = max((e[2] for e in ev), default=0)
+    cues, top = [], 0
+    for st, a, b, raw in ev:
+        sty = styles.get(st, {'fs': 60, 'an': 2, 'mv': 0})
+        m = re.search(r'\\pos\(([\d.]+),([\d.]+)\)', raw); fs = re.search(r'\\fs([\d.]+)', raw); an = re.search(r'\\an(\d)', raw)
+        fsz, al = float(fs.group(1)) if fs else sty['fs'], int(an.group(1)) if an else sty['an']
+        n = raw.count('\\N') + 1
+        y = float(m.group(2)) if m else (sty['mv'] if al >= 7 else (resy / 2 if al >= 4 else resy - sty['mv']))
+        bottom = y + fsz * 1.25 * n if al >= 7 else (y + fsz * 1.25 * n / 2 if al >= 4 else y)
+        t = re.sub(r'\{[^}]*\}', '', raw).replace('\\N', ' ').strip()
+        head = not st.startswith('Disc') and (any(h in st.lower() for h in HEADISH) or (end and b - a >= .8 * end and bottom < resy * .35))
+        if head:
+            top = max(top, int(bottom * k + 100))     # +100: 첫 화면 펀치 줌(1.12배)·스티커 튀는 크기에도 안 닿게
+        elif t and st not in ('Credit', 'Effect') and not st.startswith('Disc'):   # Disc* = 쇼핑 광고 표기
+            cues.append((a, b, t, st == 'Dialogue'))
+    return cues, top
+
+
 def load_segs(path):
     """대사 시각표. .json(t0·t1·text·chunks) 그대로, 아니면 자막 파일(.ass·.srt·.vtt)에서 만든다 → (segs, 위쪽 안전 y).
     ASS(볼케이노 어랍숏 captions.ass): Head=영상 내내 떠 있는 제목 → 그 아래부터 그래픽, Narr 조각은 0.08초 넘게 끊기면 새 줄,
@@ -298,18 +340,7 @@ def load_segs(path):
         return json.loads(txt), 0
     cues, top = [], 0
     if p.suffix.lower() == '.ass':
-        for ln in txt.splitlines():
-            if not ln.startswith('Dialogue:'):
-                continue
-            f = ln.split(':', 1)[1].split(',', 9)
-            st, a, b, raw = f[3].strip(), _ts(f[1].strip()), _ts(f[2].strip()), f[9]
-            m = re.search(r'\\pos\(([\d.]+),([\d.]+)\)', raw); fs = re.search(r'\\fs([\d.]+)', raw)
-            t = re.sub(r'\{[^}]*\}', '', raw).replace('\\N', ' ').strip()
-            if st == 'Head':
-                if m:
-                    top = max(top, int(float(m.group(2)) + (float(fs.group(1)) if fs else 100) * .6 + 140))   # 첫 화면 펀치 줌(1.12배)에 제목이 커져도 안 닿게
-            elif t and st not in ('Credit', 'Effect') and not st.startswith('Disc'):   # Disc* = 쇼핑 광고 표기
-                cues.append((a, b, t, st == 'Dialogue'))
+        cues, top = _ass_cues(txt)
     else:
         for blk in re.split(r'\n\s*\n', txt.replace('\r', '')):
             ls = blk.split('\n')
@@ -349,10 +380,13 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('video'); ap.add_argument('segs'); ap.add_argument('--out', required=True)
     ap.add_argument('--plan'); ap.add_argument('--dry', action='store_true')
+    ap.add_argument('--top', type=int, help='제목 띠 아래 y(1920 기준) 직접 지정 — 자동 계산보다 우선')
     ap.add_argument('--fonts', help='글꼴 폴더(없으면 영상 위 폴더의 fonts → 정치 assets → 설치 글꼴)')
     a = ap.parse_args()
     out = Path(a.out); work = out.with_suffix('.vfx'); work.mkdir(parents=True, exist_ok=True)
     segs, top = load_segs(a.segs)
+    top = a.top if a.top is not None else top
+    print('제목 띠 아래 y =', top)
     fx = json.loads(Path(a.plan).read_text(encoding='utf-8')) if a.plan else keep_below(auto(segs), top)
     fonts = pick_fonts(font_dirs(a.video, a.fonts))
     (work / 'fx.json').write_text(json.dumps(fx, ensure_ascii=False, indent=1) + '\n', encoding='utf-8')
