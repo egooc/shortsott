@@ -993,7 +993,10 @@
         "ja": "롱투숏은 ko(냐옹시네마) 전용 — 2026-10-14 소유주 결정"
       },
       "note": "롱투숏(A 레인) 출처 크리에이터. 2026-10-14 소유주 결정으로 냐옹시네마가 롱투숏으로 전환되면서 등록. 국내 여행 유튜버, 설명란에 무단·법적 경고 없음(A 세션 확인). 편별 work 키 대신 크리에이터 단위 키를 쓴다.",
-      "cast": []
+      "cast": [],
+      "platform_blocks": {
+        "instagram": "2026-10-20 보류 — ls29(P1 FAIL·소유주 «그냥 대기 냅둬») 인스타 내보낼지 §5 63 소유주 답 대기(관리자 권고: 제외). 답 나오면 이 줄 지운다."
+      }
     },
     "longshort-sangga": {
       "match": "상가의 안녕히살아보기",
@@ -1409,6 +1412,434 @@
       "asr_fixes": {},
       "cast_source": "ja.wikipedia «地獄の辰捕物控» キャスト (2026-10-16 확인)",
       "note": "北大路欣也 주연, 전과자 岡っ引き 辰造. 1話: 深川 연쇄 かどわかし, 결혼 사흘째 아내 お玉 실종(공식 설명란). 桃太郎侍 1·2話 뒤 ja 다음 소재(10-16 린박스 C)."
+    },
+    "longshort-lx02-cranberry": {
+      "match": "DownieLive",
+      "title_ko": "크랜베리 밭(DownieLive·Luke Parmeter)",
+      "year": null,
+      "kind": "youtube_creator",
+      "lane": "longshort",
+      "broadcaster": "DownieLive",
+      "rights_tier": "preflight",
+      "rights_holder_ko": "DownieLive · Luke Parmeter",
+      "source_line_ko": "원본: 유튜브 채널 「DownieLive」 · 「Luke Parmeter」",
+      "watch_line_ko": "원본 영상은 「DownieLive」·「Luke Parmeter」 채널에서 보실 수 있습니다.",
+      "source_channel": "DownieLive",
+      "locale_block": {
+        "ja": "롱투숏은 ko(냐옹시네마) 전용 — 2026-10-14 소유주 결정"
+      },
+      "note": "롱투숏 해설형 lx02(10-20 소유주 승인). 원본 H8NMzQns3xw(DownieLive 124만 구독)·pGWP86dZ-_0(Luke Parmeter Productions, 농장 의뢰 1년 기록). 두 설명란 모두 재업로드 금지·법적 경고 없음, 연령 제한 0(A 세션 확인 10-20).",
+      "cast": []
+    },
+    "longshort-lx03-toucan": {
+      "match": "2CAN TV",
+      "title_ko": "투칸 부리 관리(2CAN TV)",
+      "year": null,
+      "kind": "youtube_creator",
+      "lane": "longshort",
+      "broadcaster": "2CAN TV - My Life With Toucans!",
+      "rights_tier": "preflight",
+      "rights_holder_ko": "2CAN TV - My Life With Toucans!",
+      "source_line_ko": "원본: 유튜브 채널 「2CAN TV - My Life With Toucans!」",
+      "watch_line_ko": "원본 영상은 「2CAN TV - My Life With Toucans!」 채널에서 보실 수 있습니다.",
+      "source_channel": "2CAN TV - My Life With Toucans!",
+      "locale_block": {
+        "ja": "롱투숏은 ko(냐옹시네마) 전용 — 2026-10-14 소유주 결정"
+      },
+      "note": "롱투숏 해설형 lx03(10-27 소유주 «이어서 해야지»로 18:00 자리 진행). 원본 _wY9QAIjO_Y(쇼츠, 박힌 영어 자막 LaMa 지움)·M9WCUVcFAtU(같은 채널 롱폼). 두 설명란 모두 재업로드 금지·저작권 경고 없음(A 세션 10-27 확인).",
+      "cast": []
+    },
+    "sanbiki-ga-kiru-1987": {
+      "match": "三匹が斬る|sanbiki",
+      "title_ja": "三匹が斬る！",
+      "title_ko": "산비키가 키루",
+      "title_en": "Sanbiki ga Kiru (The Lethal Three)",
+      "year": 1987,
+      "kind": "drama",
+      "broadcaster": "テレビ朝日／東映",
+      "rights_tier": "preflight",
+      "rights_holder_ja": "東映",
+      "source_line_ja": "制作：テレビ朝日・東映／放送：テレビ朝日系｜「三匹が斬る！」",
+      "watch_line_ja": "本編は権利者の公式チャンネルで無料公開されています。",
+      "credit_ja": "「三匹が斬る！」はぜひフルバージョンでご覧になることをおすすめします。",
+      "official_free": "東映時代劇YouTube（東映公式チャンネル）",
+      "source_channel": "東映時代劇YouTube",
+      "source_channel_id": "UCJm60FFiYSH2mJONr6vnV_A",
+      "locale_block": {
+        "ko": "소유주 방침 2026-09-30: ko 채널은 한국 드라마만 올린다. 일본 작품의 ko 발행 금지."
+      },
+      "available_episodes": [
+        {
+          "ep": 1,
+          "id": "Tksu38RQOKE",
+          "sec": 2692,
+          "region": "blocked US,CA"
+        },
+        {
+          "ep": 2,
+          "id": "ynnHXEESEwM",
+          "sec": 2692,
+          "region": "blocked US,CA"
+        }
+      ],
+      "verified_by": "東映時代劇YouTube 公式 1話 설명란(배역: 殿様=矢坂平四郎(高橋)·千石=久慈慎之介(役所)·たこ=燕陣内(小朝)) (2026-10-27)",
+      "cast": [
+        {
+          "name": "矢坂平四郎",
+          "actor": "高橋英樹",
+          "aliases": [
+            "殿様"
+          ]
+        },
+        {
+          "name": "久慈慎之介",
+          "actor": "役所広司",
+          "aliases": [
+            "千石"
+          ]
+        },
+        {
+          "name": "燕陣内",
+          "actor": "春風亭小朝",
+          "aliases": [
+            "たこ",
+            "タコ"
+          ]
+        }
+      ],
+      "note": "작품명에 «斬る» — 영상 제목에는 작품명을 쓰지 않는다(태그·크레딧만). 2026-10-27 비슷한 결 시험 작품(소유주 «하나씩 끼워넣어 조회수»)"
+    },
+    "longshort-kp01-gukppong": {
+      "match": "kokoro 코코로",
+      "title_ko": "부산 숙소 벌레 물린 일본인 손님(kokoro 코코로)",
+      "year": null,
+      "kind": "youtube_creator",
+      "lane": "longshort",
+      "broadcaster": "kokoro 코코로",
+      "rights_tier": "preflight",
+      "rights_holder_ko": "kokoro 코코로",
+      "source_line_ko": "원본: 유튜브 채널 「kokoro 코코로」",
+      "watch_line_ko": "원본 영상은 「kokoro 코코로」 채널에서 보실 수 있습니다.",
+      "source_channel": "kokoro 코코로",
+      "locale_block": {
+        "ja": "롱투숏은 ko(냐옹시네마) 전용 — 2026-10-14 소유주 결정"
+      },
+      "note": "국뽕 시험 kp01(10-28 소유주 «업로드해»). 원본 dpD8ItsHWLo. 설명란 무단 전재 경고 없음(A 세션 10-27 확인).",
+      "cast": []
+    },
+    "longshort-kp02-gukppong": {
+      "match": "しげchan",
+      "title_ko": "교통카드 안 되는 버스 탄 일본인(しげchan)",
+      "year": null,
+      "kind": "youtube_creator",
+      "lane": "longshort",
+      "broadcaster": "しげchan",
+      "rights_tier": "preflight",
+      "rights_holder_ko": "しげchan",
+      "source_line_ko": "원본: 유튜브 채널 「しげchan」",
+      "watch_line_ko": "원본 영상은 「しげchan」 채널에서 보실 수 있습니다.",
+      "source_channel": "しげchan",
+      "locale_block": {
+        "ja": "롱투숏은 ko(냐옹시네마) 전용 — 2026-10-14 소유주 결정"
+      },
+      "note": "국뽕 시험 kp02(10-28 소유주 «업로드해»). 원본 CxWMqi9-j6c. 설명란 전재 금지 문구 없음·연령 제한 0(A 세션 10-28 확인).",
+      "cast": []
+    },
+    "longshort-kp04-gukppong": {
+      "match": "Yes Theory",
+      "title_ko": "돈 0원으로 서울에 남은 외국인(Yes Theory)",
+      "year": null,
+      "kind": "youtube_creator",
+      "lane": "longshort",
+      "broadcaster": "Yes Theory",
+      "rights_tier": "preflight",
+      "rights_holder_ko": "Yes Theory",
+      "source_line_ko": "원본: 유튜브 채널 「Yes Theory」",
+      "watch_line_ko": "원본 영상은 「Yes Theory」 채널에서 보실 수 있습니다.",
+      "source_channel": "Yes Theory",
+      "locale_block": {
+        "ja": "롱투숏은 ko(냐옹시네마) 전용 — 2026-10-14 소유주 결정"
+      },
+      "note": "국뽕 시험 kp04(10-28 소유주 «업로드해»). 원본 WtJxVrr2F8M. 설명란 무단 전재 경고 없음(A 세션 10-27 확인).",
+      "cast": []
+    },
+    "yagyu-abare-tabi-1980": {
+      "match": "柳生あばれ旅|yagyu-abare",
+      "title_ja": "柳生あばれ旅",
+      "title_ko": "야규 아바레타비",
+      "title_en": "Yagyu Abare-tabi",
+      "year": 1980,
+      "kind": "drama",
+      "broadcaster": "テレビ朝日／東映",
+      "rights_tier": "preflight",
+      "rights_holder_ja": "東映",
+      "source_line_ja": "制作：テレビ朝日・東映／放送：テレビ朝日系｜「柳生あばれ旅」",
+      "watch_line_ja": "本編は権利者の公式チャンネルで無料公開されています。",
+      "credit_ja": "「柳生あばれ旅」はぜひフルバージョンでご覧になることをおすすめします。",
+      "official_free": "東映時代劇YouTube（東映公式チャンネル）",
+      "source_channel": "東映時代劇YouTube",
+      "source_channel_id": "UCJm60FFiYSH2mJONr6vnV_A",
+      "locale_block": {
+        "ko": "소유주 방침 2026-09-30: ko 채널은 한국 드라마만 올린다. 일본 작품의 ko 발행 금지."
+      },
+      "available_episodes": [
+        {
+          "ep": 1,
+          "id": "ollxPLjUl0w",
+          "sec": 2779,
+          "region": "blocked US,CA"
+        },
+        {
+          "ep": 2,
+          "id": "x7068h3bcjc",
+          "region": "blocked US,CA"
+        }
+      ],
+      "verified_by": "東映時代劇YouTube 公式 1話 설명란(十兵衛=千葉真一·又十郎=勝野洋, 家光治下·隠密巡検使) + 화면 이름 자막 «柳生 又十郎» (2026-10-28)",
+      "cast": [
+        {
+          "name": "柳生十兵衛",
+          "actor": "千葉真一",
+          "aliases": [
+            "十兵衛",
+            "兄上"
+          ]
+        },
+        {
+          "name": "柳生又十郎",
+          "actor": "勝野洋",
+          "aliases": [
+            "又十郎"
+          ]
+        },
+        {
+          "name": "柳生但馬守",
+          "actor": "",
+          "aliases": [
+            "但馬",
+            "父上",
+            "親父殿"
+          ]
+        },
+        {
+          "name": "徳川家光",
+          "actor": "",
+          "aliases": [
+            "上様",
+            "将軍"
+          ]
+        }
+      ],
+      "note": "2026-10-28 새 작품 빠른 시험(소유주 «잘 나오는 소재 사이에 하나씩»), 1화 第1話「天狗の子守唄－品川－」"
+    },
+    "shin-hissatsu-shigotonin-1981": {
+      "match": "新・必殺仕事人|新･必殺仕事人|shin-hissatsu",
+      "title_ja": "新・必殺仕事人",
+      "title_ko": "신 필살 시고토닌",
+      "title_en": "Shin Hissatsu Shigotonin",
+      "year": 1981,
+      "kind": "drama",
+      "broadcaster": "朝日放送／松竹",
+      "rights_tier": "preflight",
+      "rights_holder_ja": "松竹・ABC TV",
+      "source_line_ja": "制作：朝日放送・松竹／放送：1981年5月8日〜1982年6月25日・全55話｜「新・必殺仕事人」",
+      "watch_line_ja": "本編は権利者の公式チャンネルで無料公開されています。",
+      "credit_ja": "「新・必殺仕事人」はぜひフルバージョンでご覧になることをおすすめします。",
+      "official_free": "松竹公式チャンネル",
+      "source_channel": "松竹",
+      "locale_block": {
+        "ko": "소유주 방침 2026-09-30: ko 채널은 한국 드라마만 올린다. 일본 작품의 ko 발행 금지."
+      },
+      "available_episodes": [
+        {
+          "ep": 1,
+          "id": "U63BadqUrUI",
+          "sec": 2753,
+          "region": "none"
+        },
+        {
+          "ep": 2,
+          "id": "XzRRISWd070",
+          "region": "none"
+        }
+      ],
+      "verified_by": "松竹 공식 1話 설명란(主水=藤田まこと·秀=三田村邦彦·勇次=中条きよし·加代=鮎川いずみ·おりく=山田五十鈴·菅井きん·白木万理, 第一話「主水 腹が出る」) (2026-10-28)",
+      "cast": [
+        {
+          "name": "中村主水",
+          "actor": "藤田まこと",
+          "aliases": [
+            "主水",
+            "婿殿",
+            "八丁堀",
+            "中村"
+          ]
+        },
+        {
+          "name": "秀",
+          "actor": "三田村邦彦",
+          "aliases": [
+            "ヒデ"
+          ]
+        },
+        {
+          "name": "加代",
+          "actor": "鮎川いずみ",
+          "aliases": []
+        },
+        {
+          "name": "勇次",
+          "actor": "中条きよし",
+          "aliases": []
+        },
+        {
+          "name": "おりく",
+          "actor": "山田五十鈴",
+          "aliases": []
+        },
+        {
+          "name": "中村せん",
+          "actor": "菅井きん",
+          "aliases": [
+            "せん",
+            "義母",
+            "姑"
+          ]
+        },
+        {
+          "name": "中村りつ",
+          "actor": "白木万理",
+          "aliases": [
+            "りつ",
+            "妻",
+            "女房"
+          ]
+        }
+      ],
+      "note": "2026-10-28 새 작품 빠른 시험. 본업이 «殺し» — 주인공 집안 해학 장면만, 제목·첫 프레임에 殺·刀 금지."
+    },
+    "kutsukake-tokijiro-1972": {
+      "match": "沓掛時次郎|kutsukake",
+      "title_ja": "長谷川伸シリーズ 沓掛時次郎",
+      "title_ko": "구츠카케 토키지로",
+      "title_en": "Kutsukake Tokijiro",
+      "year": 1972,
+      "kind": "drama",
+      "broadcaster": "NET（現・テレビ朝日）／東映",
+      "rights_tier": "preflight",
+      "rights_holder_ja": "東映",
+      "source_line_ja": "制作：東映｜「長谷川伸シリーズ 沓掛時次郎」（1972年放送）",
+      "watch_line_ja": "本編は権利者の公式チャンネルで無料公開されています。",
+      "credit_ja": "「沓掛時次郎」はぜひフルバージョンでご覧になることをおすすめします。",
+      "official_free": "東映時代劇YouTube（東映公式チャンネル）",
+      "source_channel": "東映時代劇YouTube",
+      "source_channel_id": "UCJm60FFiYSH2mJONr6vnV_A",
+      "locale_block": {
+        "ko": "소유주 방침 2026-09-30: ko 채널은 한국 드라마만 올린다. 일본 작품의 ko 발행 금지."
+      },
+      "available_episodes": [
+        {
+          "ep": 1,
+          "id": "8zRkdiJ_B_c",
+          "sec": 2698,
+          "region": "none"
+        },
+        {
+          "ep": 2,
+          "id": "eoYgAKK7R4s",
+          "region": "none"
+        }
+      ],
+      "verified_by": "東映時代劇YouTube 公式 前編 설명란(1972年放送·鶴田浩二＆菅原文太＆田中邦衛＆片岡千恵蔵) + 전사 «沓掛の兄貴» (2026-10-28)",
+      "cast": [
+        {
+          "name": "沓掛時次郎",
+          "actor": "鶴田浩二",
+          "aliases": [
+            "時次郎",
+            "沓掛",
+            "兄貴"
+          ]
+        },
+        {
+          "name": "三蔵",
+          "actor": "",
+          "aliases": [
+            "三蔵"
+          ]
+        },
+        {
+          "name": "おきぬ",
+          "actor": "",
+          "aliases": [
+            "おきぬ"
+          ]
+        },
+        {
+          "name": "太郎吉",
+          "actor": "",
+          "aliases": [
+            "太郎吉",
+            "坊主"
+          ]
+        }
+      ],
+      "note": "2026-10-28 새 작품 빠른 시험 3번째. 股旅 인정극·결투가 본줄기 — 칼·죽음 없는 대화 장면만"
+    },
+    "doshin-akatsuki-rannosuke-1981": {
+      "match": "同心暁蘭之介|doshin-akatsuki",
+      "title_ja": "同心暁蘭之介",
+      "title_ko": "동심 아카츠키 란노스케",
+      "title_en": "Doshin Akatsuki Rannosuke",
+      "year": 1981,
+      "kind": "drama",
+      "broadcaster": "杉友プロダクション",
+      "rights_tier": "preflight",
+      "rights_holder_ja": "杉友プロダクション",
+      "source_line_ja": "制作：杉友プロダクション｜「同心暁蘭之介」",
+      "watch_line_ja": "本編は権利者の公式チャンネルで無料公開されています。",
+      "credit_ja": "「同心暁蘭之介」はぜひフルバージョンでご覧になることをおすすめします。",
+      "official_free": "杉良太郎【公式】",
+      "source_channel": "杉良太郎【公式】",
+      "locale_block": {
+        "ko": "소유주 방침 2026-09-30: ko 채널은 한국 드라마만 올린다. 일본 작품의 ko 발행 금지."
+      },
+      "available_episodes": [
+        {
+          "ep": 1,
+          "id": "TV58pB2Ck_w",
+          "sec": 2717,
+          "region": "none",
+          "title": "同心の泣いた日"
+        }
+      ],
+      "verified_by": "杉良太郎【公式】 第1話 설명란(主演：杉良太郎・制作：杉友プロダクション) + 전사 «暁»·«茂助»·«野津善次郎» (2026-10-28)",
+      "cast": [
+        {
+          "name": "暁蘭之介",
+          "actor": "杉良太郎",
+          "aliases": [
+            "暁",
+            "蘭之介"
+          ]
+        },
+        {
+          "name": "野津善次郎",
+          "actor": "",
+          "aliases": [
+            "野津",
+            "善次郎"
+          ]
+        },
+        {
+          "name": "茂助",
+          "actor": "",
+          "aliases": [
+            "茂助"
+          ]
+        }
+      ],
+      "note": "2026-10-28 새 작품 빠른 시험 4번째(1화만 공개). 억울한 사형수 이야기 — 처형·피 장면 제외"
     }
   },
   "banned_broadcasters": [],
