@@ -38,6 +38,10 @@ const V3_SUMMARY = /^(그래서|결국|이처럼|역시)|꼭 사세요|꼭 써 �
 const V14_COMPARE = /(배|보다|대신|만에|에서|전|후|하루|매일|한 번|%|→|vs)/;
 const ENFORCE_1023 = Date.parse('2026-10-23T00:00:00+09:00');
 const ENFORCE_SELLER = Date.parse('2026-10-25T12:00:00+09:00');   // 10-25 소유주: 경쟁 쇼핑 채널 레퍼런스 풀 + 쿠팡 리뷰 수 기록
+const ENFORCE_HOOK = Date.parse('2026-10-28T00:00:00+09:00');     // 10-28 소유주: 첫 1초 상품·훅 돌려쓰기(⑰)
+const HOOK_TYPES = ['정체', '사연', '결과먼저', '기묘', '손해', '경고'];
+const WARN_HOOK = /마세요/;
+const UPLOAD_DIR = 'D:/volcano-runs/_upload';
 // ⑩ 대사 — 따옴표로 묶은 사람 말(설명 대신 대사로 장면을 넘긴다, 하늘 8)
 const DIALOGUE = /["“”「」『』]/;
 const MIN_DIALOGUE = 0.15;
@@ -259,21 +263,59 @@ function check(metaPath) {
       if (!rs.channel) problems.push('channel');
       if (!/^https?:\/\/(www\.)?(youtube\.com|youtu\.be|instagram\.com)\//.test(String(rs.url || ''))) problems.push('url(유튜브·인스타 영상 링크)');
       if (!(Number(rs.views) > 0)) problems.push('views');
-      if (!(Number(rs.mult) >= 3)) problems.push(`mult ${rs.mult} (≥3)`);
+      // 10-28 소유주 «시즌 상품은 해마다 비슷»: season:true 면 작년 같은 시즌(착수 300~430일 전)·조회 10만↑(server/data/shop_season_pool.json)
+      const season = rs.season === true;
+      if (season ? !(Number(rs.views) >= 100000) : !(Number(rs.mult) >= 3)) problems.push(season ? `views ${rs.views} (작년 시즌 ≥100000)` : `mult ${rs.mult} (≥3)`);
       const pd = Date.parse(String(rs.posted || ''));
       const base = Number.isFinite(started) ? started : Date.now();
       if (!Number.isFinite(pd)) problems.push('posted(YYYY-MM-DD)');
-      else if (base - pd > 90 * 86400000 || pd > base + 86400000) problems.push(`posted ${rs.posted} 가 착수 90일 안이 아님`);
+      else if (season ? (base - pd < 300 * 86400000 || base - pd > 430 * 86400000) : (base - pd > 90 * 86400000 || pd > base + 86400000)) problems.push(season ? `posted ${rs.posted} 가 작년 같은 시즌(300~430일 전)이 아님` : `posted ${rs.posted} 가 착수 90일 안이 아님`);
     }
-    sg(problems.length > 0, '⑯ ref_seller', problems.length ? problems.join(' · ') : `${rs.channel} ×${rs.mult} ${Number(rs.views).toLocaleString()}회 · ${rs.posted} · ${rs.url}`);
+    sg(problems.length > 0, '⑯ ref_seller', problems.length ? problems.join(' · ') : `${rs.season ? '작년 시즌 ' : ''}${rs.channel} ×${rs.mult ?? '-'} ${Number(rs.views).toLocaleString()}회 · ${rs.posted} · ${rs.url}`);
     const cr = planObj.coupang_reviews || meta.coupang_reviews || null;
     const cp = [];
+    // 10-28 소유주 «그냥 api로»: 쿠팡 화면이 막혀 리뷰 수 대신 파트너스 API /products/search 순위(rank)로 고른다
+    if (cr && cr.route === 'partners-api') {
+      if (!cr.picked || !cr.top || !(Number(cr.picked.rank) >= 1) || !(Number(cr.top.rank) >= 1)) cp.push('coupang_reviews{route:"partners-api",query,picked:{id,rank},top:{id,rank},why?} — rank 숫자');
+      else if (Number(cr.picked.rank) > Number(cr.top.rank) && !String(cr.why || '').trim()) cp.push(`고른 상품 순위 ${cr.picked.rank} > 같은 모양 최상위 ${cr.top.rank} — why(모양이 달라서 등) 필요`);
+      sg(cp.length > 0, '⑯ 쿠팡 순위(API)', cp.length ? cp.join(' · ') : `«${cr.query || ''}» 고른 ${cr.picked.id} ${cr.picked.rank}위 · 같은 모양 최상위 ${cr.top.id} ${cr.top.rank}위${cr.why ? ` (${cr.why})` : ''}`);
+    } else {
     if (!cr || !cr.picked || !cr.top) cp.push('coupang_reviews{picked:{id,reviews},top:{id,reviews},why?} 없음');
     else {
       if (!Number.isFinite(Number(cr.picked.reviews)) || !Number.isFinite(Number(cr.top.reviews))) cp.push('reviews 숫자');
       else if (Number(cr.picked.reviews) < Number(cr.top.reviews) && !String(cr.why || '').trim()) cp.push(`고른 상품 리뷰 ${cr.picked.reviews} < 같은 모양 최다 ${cr.top.reviews} — why(모양이 달라서 등) 필요`);
     }
     sg(cp.length > 0, '⑯ 쿠팡 리뷰 수', cp.length ? cp.join(' · ') : `고른 ${cr.picked.id} 리뷰 ${cr.picked.reviews} · 같은 모양 최다 ${cr.top.id} 리뷰 ${cr.top.reviews}${cr.why ? ` (${cr.why})` : ''}`);
+    }
+  }
+
+  // ⑰ 첫 1초 후킹(10-28 소유주 «클릭과 구매전환», docs/shopping-hook-top2x12-20261028.md): 상위 2채널×12편은 0~0.5초에 상품이 화면에 있고
+  //    정체·사연·결과로 멈추게 한다 — 우리 3편은 5.5초까지 상품이 없고 전부 «~없이 ~하지 마세요».
+  //    meta.hook = { type: "정체|사연|결과먼저|기묘|손해|경고", product_at_s: 숫자(상품·사용 결과가 처음 또렷이 보이는 초), sheet: "<첫 6초 0.5초 간격 시트 경로>" }
+  //    plan.segments[0].media[0].shows = "product|result" (첫 컷에 상품 또는 상품을 쓴 결과)
+  {
+    const planObj = JSON.parse(fs.readFileSync(planPath, 'utf8'));
+    const hg = (bad, item, msg) => (started >= ENFORCE_HOOK ? add(!bad, item, msg) : warn(bad, item, `${msg}${bad ? ' (10-28부터 착수분 FAIL)' : ''}`));
+    const h = meta.hook || {};
+    const hp = [];
+    if (!HOOK_TYPES.includes(h.type)) hp.push(`type «${h.type || ''}» (${HOOK_TYPES.join('|')})`);
+    if (!(Number(h.product_at_s) >= 0) || Number(h.product_at_s) > 1) hp.push(`product_at_s ${h.product_at_s} (≤1초)`);
+    if (!h.sheet || !fs.existsSync(h.sheet)) hp.push(`sheet(첫 6초 시트) 없음: ${h.sheet || ''}`);
+    const first = ((planObj.segments[0] || {}).media || [])[0] || {};
+    if (!['product', 'result'].includes(first.shows)) hp.push(`첫 컷 shows «${first.shows || ''}» (product|result)`);
+    hg(hp.length > 0, '⑰ 첫 1초 상품', hp.length ? hp.join(' · ') : `${h.type} · 상품 ${h.product_at_s}초 · 첫 컷 ${first.shows}`);
+    // 같은 훅 공식 반복 금지: 최근 3편과 같은 type 2편 이상이거나, «~마세요» 경고형이 최근 3편에 이미 있으면 FAIL
+    const others = fs.readdirSync(UPLOAD_DIR).filter((f) => /^ffref\d+\.json$/.test(f) && path.join(UPLOAD_DIR, f) !== path.resolve(metaPath))
+      .map((f) => path.join(UPLOAD_DIR, f)).sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs).slice(0, 3)
+      .map((f) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return {}; } });
+    const isWarnHook = (mm, firstLine) => (mm.hook && mm.hook.type === '경고') || WARN_HOOK.test(firstLine || String(mm.title || ''));
+    const sameType = others.filter((o) => o.hook && o.hook.type === h.type).length;
+    const warnNow = isWarnHook(meta, segs[0]);
+    const warnRecent = others.filter((o) => isWarnHook(o)).length;
+    const rp = [];
+    if (sameType >= 2) rp.push(`최근 3편 중 ${sameType}편이 같은 «${h.type}»`);
+    if (warnNow && warnRecent) rp.push(`«~마세요» 경고형은 4편에 1편 이하(최근 3편에 ${warnRecent}편)`);
+    hg(rp.length > 0, '⑰ 훅 돌려쓰기', rp.length ? rp.join(' · ') : `최근 3편 type ${others.map((o) => (o.hook && o.hook.type) || (isWarnHook(o) ? '경고(제목)' : '?')).join('·')}`);
   }
 
   return { code: out.every((x) => x.ok) ? 0 : 4, out };

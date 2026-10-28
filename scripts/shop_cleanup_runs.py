@@ -15,6 +15,7 @@ for d in sorted(glob.glob('ff*/')):
     for n in ['_ff','footage','src','sheets','cand','eye','frames','preview','tmp']:
         p=os.path.join(d,n)
         if os.path.exists(p): rows.append(p)
+    rows+=glob.glob(d+'/*.vfx')  # variety_fx 작업 폴더(10-29)
     for pat in ['*_nobgm.mp4','*_v1.mp4','*_raw.mp4','*_prev*.mp4']:
         rows+=glob.glob(d+'/'+pat)
 for p in rows:
