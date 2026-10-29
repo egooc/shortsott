@@ -261,7 +261,10 @@ nav.top { display: grid; gap: 2px; }
 .scard .ss { font-size: 12.5px; }
 .scard .sl { font-size: 12.5px; color: var(--text); opacity: .8; min-height: 36px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .sbtns { display: flex; gap: 6px; margin-top: 4px; }
-.sbtns button { flex: 1; }
+.ctx { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+.ctx .bar { margin: 0; height: 5px; }
+.ctx.c-warn span { color: var(--warn); font-weight: 600; } .ctx.c-bad span { color: var(--bad); font-weight: 600; }
+.sbtns button { flex: 1; white-space: nowrap; padding-left: 4px; padding-right: 4px; }
 
 /* 알림·기록 카드 */
 .agrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
@@ -414,6 +417,11 @@ function status(s, online) {
   if (m > 24 * 60) return 'stale';
   return 'idle';
 }
+// 대화 크기: 다음 턴마다 다시 읽는 토큰. 25만 넘으면 주의, 40만 넘으면 비우기 권장.
+const BIG_CTX = 250000;
+const fmtK = (n) => n >= 10000 ? `${(n / 10000).toFixed(1)}만` : n.toLocaleString('ko-KR');
+const ctxTone = (n) => n >= 400000 ? 'bad' : n >= BIG_CTX ? 'warn' : 'ok';
+const modelName = (m) => /fable/.test(m) ? 'Fable' : /opus/.test(m) ? 'Opus' : /sonnet/.test(m) ? 'Sonnet' : /haiku/.test(m) ? 'Haiku' : m;
 const STATUS_TEXT = { busy: '작업 중', idle: '대기', stale: '오래 멈춤', off: '기기 꺼짐' };
 // 화면 미리보기에서 상태줄·안내문을 걷어 내고 마지막 «말» 한 줄만.
 const NOISE = /new task\?|clear to save|Update installed|Restart to update|for shortcuts|bypass permissions|auto mode|shift\+tab|esc to interrupt|disable recaps|^[>❯]\s*$/i;
@@ -532,10 +540,12 @@ function sessionTable(rows, opts = {}) {
     return `<div class="scard s-${s.status}">
       <div class="stop"><span class="spill ${s.status}"><span class="dot d-${s.status}"></span>${STATUS_TEXT[s.status]}</span><span class="muted">${ago(s.last_output_at)}</span></div>
       <div class="st" data-session="${esc(s.handle)}">${esc(s.title || '이름 없음')}</div>
-      <div class="muted ss">${opts.project ? esc(PROJECT_NAMES[s.project] || s.project) + ' · ' : ''}${esc(devName(s.device))} · ${esc(AGENT_NAMES[s.agent] || s.agent || '터미널')}</div>
+      <div class="muted ss">${opts.project ? esc(PROJECT_NAMES[s.project] || s.project) + ' · ' : ''}${esc(devName(s.device))} · ${esc(AGENT_NAMES[s.agent] || s.agent || '터미널')}${s.model ? ' · ' + esc(modelName(s.model)) : ''}</div>
+      ${s.context_tokens ? `<div class="ctx c-${ctxTone(s.context_tokens)}"><span>대화 ${fmtK(s.context_tokens)}</span><div class="bar"><i class="b-${ctxTone(s.context_tokens)}" style="width:${Math.min(100, s.context_tokens / 6000)}%"></i></div></div>` : ''}
       <div class="sl">${last ? esc(last) : '<span class="muted">—</span>'}</div>
       <div class="sbtns"><button class="small" data-open="${esc(s.handle)}">열기</button>
-        ${s.online && s.agent ? `<button class="small" data-qsend="${esc(s.handle)}">진행 상황</button>` : ''}
+        ${s.online && s.agent ? `<button class="small" data-qsend="${esc(s.handle)}">진행</button>` : ''}
+        ${s.online && s.agent === 'claude' ? (s.compacting ? '<button class="small" disabled>비우는 중…</button>' : `<button class="small" data-compact="${esc(s.handle)}">비우기</button>`) : ''}
         ${s.online ? `<button class="small danger" data-close="${esc(s.handle)}">닫기</button>` : ''}</div>
     </div>`;
   }).join('')}</div>`;
@@ -561,6 +571,8 @@ function homeAlerts(M) {
   const out = [];
   const stale = M.all.filter((s) => s.status === 'stale');
   if (stale.length) out.push({ tone: 'warn', t: `하루 넘게 멈춘 세션 ${stale.length}개`, act: 'page:tidy' });
+  const big = M.all.filter((s) => (s.context_tokens || 0) >= BIG_CTX);
+  if (big.length) out.push({ tone: 'warn', t: `대화가 큰 세션 ${big.length}개 · 비우면 토큰 절약`, s: big.slice(0, 3).map((s) => s.title).join(' · '), act: 'tab:big' });
   for (const d of S.devices.filter((d) => !d.online)) out.push({ tone: 'bad', t: `${devName(d.device)} 연결 끊김`, s: d.state?.at ? ago(Date.parse(d.state.at)) : '' });
   for (const d of S.devices) if ((d.state?.render_locks || []).length) out.push({ tone: 'busy', t: `${devName(d.device)} 렌더 중` });
   for (const p of M.projects) {
@@ -756,16 +768,17 @@ function renderProject(M) {
   const mgrTitle = S.config?.projects?.[p.key]?.manager;
   const mgr = mgrTitle ? findByTitle(M, mgrTitle, p.sessions) || findByTitle(M, mgrTitle) : null;
   return head(esc(p.name), sub, NEW_BTN)
-    + `<div class="body">${chatBox(`pm:${p.key}`, mgr, `${p.name} 담당`, mgr ? mgr.title : '프로젝트 관리자 세션')}
+    + `<div class="body">${chatBox(`pm:${p.key}`, mgr, `${p.name} 담당`, '여러 레인에 걸친 지시만 — 레인 하나의 일은 아래 세션 카드에서 그 세션에 바로')}
     <div class="tabs ptabs">${tabs.map(([k, l]) => `<div class="tab ${view.ptab === k ? 'on' : ''}" data-ptab="${esc(k)}">${esc(l)}</div>`).join('')}</div>${body}</div>`;
 }
 
 function renderTidy(M) {
   const rows = [...M.all].sort((a, b) => (a.last_output_at || 0) - (b.last_output_at || 0));
-  const filt = view.tab === 'stale' ? rows.filter((s) => s.status === 'stale') : view.tab === 'busy' ? rows.filter((s) => s.status === 'busy') : rows;
-  const n = (k) => k === 'all' ? rows.length : rows.filter((s) => s.status === k).length;
+  const filt = view.tab === 'stale' ? rows.filter((s) => s.status === 'stale') : view.tab === 'busy' ? rows.filter((s) => s.status === 'busy')
+    : view.tab === 'big' ? rows.filter((s) => s.context_tokens).sort((a, b) => b.context_tokens - a.context_tokens) : rows;
+  const n = (k) => k === 'all' ? rows.length : k === 'big' ? rows.filter((s) => (s.context_tokens || 0) >= BIG_CTX).length : rows.filter((s) => s.status === k).length;
   return head('세션 정리', '오래 멈춘 세션이 위에 옵니다. 이어서 할지, 마무리할지, 닫을지 고르세요.') + `<div class="body">
-    <div class="tabs">${[['all', '전체'], ['stale', '오래 멈춤'], ['busy', '작업 중']].map(([k, t]) => `<div class="tab ${view.tab === k ? 'on' : ''}" data-tab="${k}">${t} ${n(k)}</div>`).join('')}</div>
+    <div class="tabs">${[['all', '전체'], ['big', '대화 큰 순'], ['stale', '오래 멈춤'], ['busy', '작업 중']].map(([k, t]) => `<div class="tab ${view.tab === k ? 'on' : ''}" data-tab="${k}">${t} ${n(k)}</div>`).join('')}</div>
     <div class="card">${sessionTable(filt, { project: true })}</div></div>`;
 }
 
@@ -779,7 +792,7 @@ function renderDecisions() {
 }
 
 function renderLog() {
-  const OP = { send: '메시지', launch: '세션 열기', close: '세션 닫기', decision: '결정 답', ask: '결정 요청' };
+  const OP = { send: '메시지', launch: '세션 열기', close: '세션 닫기', compact: '대화 비우기', decision: '결정 답', deliver: '답 전달', ask: '결정 요청', share: '결과물', config: '설정' };
   const TONE = { send: 'busy', launch: 'ok', close: 'warn', decision: 'ok', ask: 'busy' };
   return head('기록', '오피스에서 한 조작이 모두 남습니다') + `<div class="body">${S.actions.length ? `<div class="agrid">${S.actions.map((a) => `<div class="acard a-${a.ok ? TONE[a.op] || 'muted' : 'bad'} tall">
     <span class="ltop"><span class="lane">${OP[a.op] || a.op}</span><span class="muted">${a.device ? esc(devName(a.device)) + ' · ' : ''}${ago(Date.parse(a.at))}</span></span>
@@ -900,6 +913,15 @@ function newSession() {
     setTimeout(load, 4000);
   });
 }
+function compactSession(handle) {
+  const s = findSession(handle); if (!s) return;
+  modal(`<h3>대화 비우기</h3><div>«${esc(s.title)}» 의 대화를 비웁니다. 지금 대화 ${s.context_tokens ? fmtK(s.context_tokens) + ' 토큰' : ''} — 이 세션은 한 턴마다 이만큼을 다시 읽습니다.</div>
+    <div class="muted">순서: 하던 턴이 끝나길 기다림 → 세션이 인계 파일을 씀 → 파일 확인 → 대화 비우기 → 인계 파일로 다시 시작. 몇 분 걸리고, 인계 파일이 안 써지면 비우지 않습니다.</div>`, async () => {
+    const r = await cmd(s.device, 'compact', { handle, title: s.title }, s.title);
+    toast(r.ok ? '비우기를 시작했습니다 · 끝나면 기록에 남습니다' : `시작하지 못했습니다: ${r.error}`);
+    setTimeout(load, 3000);
+  });
+}
 function closeSession(handle) {
   const s = findSession(handle); if (!s) return;
   const d = S.devices.find((x) => x.device === s.device);
@@ -921,13 +943,14 @@ async function answer(id, value) {
     });
   }
   const r = await call(`/api/decisions/${id}`, { answer: value });
-  toast(r.ok ? (r.delivered && !r.delivered.startsWith('전달 실패') ? `답했습니다 — 세션에 전달됨` : r.delivered ? `답은 저장됐지만 ${r.delivered}` : '답했습니다') : (r.error || '실패'));
+  toast(r.ok ? (r.delivered ? `답했습니다 · ${r.delivered}` : '답했습니다') : (r.error || '실패'));
   load();
 }
 
 // ── 이벤트 ──
 document.addEventListener('click', (e) => {
-  const t = e.target.closest('[data-page],[data-project],[data-session],[data-open],[data-close],[data-qsend],[data-act],[data-tab],[data-ptab],[data-mlane],[data-chat],[data-unattach],[data-mkmanager],[data-quick],[data-answer]');
+  const t = e.target.closest('[data-page],[data-project],[data-session],[data-open],[data-close],[data-qsend],[data-compact],[data-act],[data-tab],[data-ptab],[data-mlane],[data-chat],[data-unattach],[data-mkmanager],[data-quick],[data-answer]');
+  if (t && t.dataset.compact) return compactSession(t.dataset.compact);
   if (t && t.dataset.qsend) {
     // 카드의 «진행 상황»: 그 세션에 진행 상황 질문을 넣고, 패널을 열어 답을 본다.
     const s = findSession(t.dataset.qsend); if (!s) return;
@@ -964,6 +987,7 @@ document.addEventListener('click', (e) => {
   if (a === 'panel-x') return closePanel();
   if (a === 'menu') return $('side').classList.toggle('open');
   if (a && a.startsWith('page:')) { view.page = a.slice(5); window.scrollTo(0, 0); return render(); }
+  if (a === 'tab:big') { view.page = 'tidy'; view.tab = 'big'; return render(); }
   if (a && a.startsWith('project:')) { view.page = 'project'; view.project = a.slice(8); return render(); }
   if (a === 'expand') return t.classList.toggle('clamp');
   if (a === 'drawer') return $('side').classList.toggle('open');

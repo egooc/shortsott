@@ -145,6 +145,8 @@ node D:/midform/office/ask.js "질문 한 문장" --lane <레인> --options "안
 
 Do not wait. The owner answers by button on office.grow-up.kr (phone push), and the answer is typed into the asking session as one line: `[오피스 결정 답] #번호 질문 → 답`. Follow it and log one line to handoff-manager §10. Full rules: `docs/office-decisions.md`. Incident reports still go to the manager directly.
 
+Token rule (owner 2026-10-29): do not send completion replies or acknowledgements to the AI office session or the manager — every message wakes a large session that re-reads its whole conversation. Log completion as one line in handoff-manager §10 instead. Message another session only when it must act. Lane-level instructions from the owner arrive directly in the lane session; the project manager channel is for cross-lane work only.
+
 ## Change History
 
 ### 2026-07-27 — OpenCode model split pinned

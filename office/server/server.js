@@ -63,8 +63,8 @@ const STATIC = {
 };
 const { VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY } = process.env;
 if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) webpush.setVapidDetails('https://office.grow-up.kr', VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
-const OPS = new Set(['read', 'send', 'launch', 'close', 'refresh']);
-const LOGGED_OPS = new Set(['send', 'launch', 'close']);
+const OPS = new Set(['read', 'send', 'launch', 'close', 'compact', 'refresh']);
+const LOGGED_OPS = new Set(['send', 'launch', 'close', 'compact']);
 
 const send = (res, code, body, type = 'application/json; charset=utf-8') => {
   res.writeHead(code, { 'content-type': type, 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
@@ -192,6 +192,24 @@ function watchDevices() {
       notify({ title: '기기 연결 끊김', body: `${device} 가 10분째 오피스에 안 붙어 있습니다.`, tag: `device-${device}`, url: '/' });
     }
   }
+}
+
+// 결정 답 묶음 전달: 기기·터미널마다 첫 답이 들어온 뒤 60초를 기다렸다가 모은 답을 한 번에 넣는다.
+const answerQueue = new Map(); // `${device}|${handle}` → { lines, timer }
+function queueAnswer(device, handle, line) {
+  const key = `${device}|${handle}`;
+  const q = answerQueue.get(key) || { lines: [], timer: null };
+  q.lines.push(line);
+  if (!q.timer) q.timer = setTimeout(() => flushAnswers(key, device, handle), 60e3);
+  answerQueue.set(key, q);
+}
+async function flushAnswers(key, device, handle) {
+  const q = answerQueue.get(key); answerQueue.delete(key);
+  if (!q || !q.lines.length) return;
+  const text = (q.lines.length === 1 ? `[오피스 결정 답] ${q.lines[0]}`
+    : `[오피스 결정 답 ${q.lines.length}건] ` + q.lines.join(' / ')).slice(0, 4000);
+  const r = await command(device, 'send', { handle, text });
+  logAction({ op: 'deliver', device, label: `결정 답 ${q.lines.length}건 전달`, text: r.ok ? '' : r.error, ok: r.ok });
 }
 
 function logAction(entry) {
@@ -333,13 +351,12 @@ async function api(req, res, url) {
       body: JSON.stringify({ status: 'answered', answer: String(answer).slice(0, 2000), answered_at: new Date().toISOString() }),
     });
     const rows = r.ok ? await r.json() : [];
-    // 물어본 세션 터미널에 답을 바로 넣는다(그 세션은 폴링하지 않는다).
+    // 물어본 세션 터미널에 답을 넣는다. 같은 세션에 가는 답은 1분 모아 한 번에(세션이 답마다 깨어나 대화 전체를 다시 읽지 않게).
     let delivered = null;
     const route = rows[0] && readRoutes()[rows[0].id];
     if (route && route.handle) {
-      const text = `[오피스 결정 답] #${rows[0].id} ${rows[0].question} → ${answer}`.replace(/\s*\n\s*/g, ' ').slice(0, 1500);
-      const d = await command(route.device, 'send', { handle: route.handle, text });
-      delivered = d.ok ? devName(route.device) : `전달 실패: ${d.error}`;
+      queueAnswer(route.device, route.handle, `#${rows[0].id} ${String(rows[0].question).replace(/\s*\n\s*/g, ' ').slice(0, 300)} → ${answer}`);
+      delivered = '1분 안에 세션에 전달';
     }
     logAction({ op: 'decision', device: route?.device, label: rows[0] ? `${rows[0].lane}: ${rows[0].question}`.slice(0, 160) : `#${m[1]}`, text: answer + (delivered ? ` (${delivered})` : ''), ok: rows.length > 0 });
     return send(res, rows.length ? 200 : 409, rows.length ? { ok: true, delivered } : { error: '이미 답했거나 없는 결정' });
