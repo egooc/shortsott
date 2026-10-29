@@ -33,6 +33,12 @@ const LANES = {
 };
 // 재고 경고는 예약 공개로 운영하는 레인만(N100 레인은 바로 공개라 재고 개념이 없다).
 const STOCK_LANES = new Set(['ja', 'ko_longshort', 'fantube', 'shop', 'politics_long', 'politics_short', 'politics_ja', 'politics_ja_longform']);
+// 레인 → 맡은 세션 이름(오피스 카드의 [세션 열기]).
+const LANE_SESSIONS = {
+  ja: 'YTHOME-SF-JP 린박스 C', ko_longshort: 'YTHOME-SF-KO 롱투숏 A', fantube: 'YTHOME-SF-KO 팬튜브 B', shop: 'YTHOME-SF-KO 쇼핑',
+  politics_long: 'YTHOME-LF-KO 정치', politics_short: 'YTHOME-LF-KO 정치', politics_ja: 'YTHOME-LF-JP 정치', politics_ja_longform: 'YTHOME-LF-JP 정치',
+  nenkin_ja: 'YTHOME-LF-JP 연금', corp: 'YTHOME-LF-KO 기업흥망',
+};
 const laneName = (k) => LANES[k] || (k.startsWith('n100_') ? `N100 ${k.slice(5)}` : k);
 
 function profiles() {
@@ -188,12 +194,31 @@ module.exports = {
     ]);
 
     // ── 개요: 지금 확인할 것 ──
+    // 카드를 누르면 detail(설명)·rec(추천)이 펼쳐지고, session(세션 이름)이 있으면 [세션 열기]가 붙는다.
     const todo = [];
-    for (const [k, L] of Object.entries(byLane)) if (STOCK_LANES.has(k) && L.sched === 0) todo.push({ title: `${laneName(k)} — 장부에 예약된 편 없음`, sub: '실제로 재고가 없거나, 그 레인이 예약 시각(publish_at)을 장부에 안 적고 있습니다', tone: 'warn' });
-    for (const [k, L] of Object.entries(byLane)) if (L.wait > 0) todo.push({ title: `${laneName(k)} 업로드·예약 안 된 완성 편 ${L.wait}개`, sub: '제작은 끝났는데 공개 일정이 없습니다', tone: 'warn' });
-    if (failed.length) todo.push({ title: `자동화 실패 ${failed.length}건`, sub: failed.slice(0, 4).map((t) => t.n.replace(/^midform-/, '')).join(' · '), tone: 'bad' });
-    if (postFailed.length) todo.push({ title: `SNS 게시 실패 ${postFailed.length}건`, sub: postFailed.slice(0, 3).map((t) => t.n.replace(/^midform-/, '')).join(' · '), tone: 'warn' });
-    if (locks.length) todo.push({ title: '정치 렌더 진행 중', sub: '이 시간에는 무거운 작업·재부팅을 피합니다', tone: 'busy' });
+    const tname = (t) => t.n.replace(/^midform-/, '');
+    for (const [k, L] of Object.entries(byLane)) if (STOCK_LANES.has(k) && L.sched === 0) {
+      const lastPub = recent.filter((r) => r.lane === k && r.stage === '공개').sort((a, b) => Date.parse(b.publish_at) - Date.parse(a.publish_at))[0];
+      todo.push({ title: `${laneName(k)} — 장부에 예약된 편 없음`, sub: L.wait ? `완성됐지만 일정 없는 편 ${L.wait}개` : '다음에 공개할 편이 없습니다', tone: 'warn',
+        detail: `앞으로 공개될 편이 제작 장부에 없습니다. 마지막 공개: ${lastPub ? `${mdhm(Date.parse(lastPub.publish_at))} «${lastPub.title || lastPub.id}»` : '최근 14일 없음'}. 24시간 제작 ${L.made24}편.`
+          + (L.wait ? ` 완성 편 ${L.wait}개가 슬롯을 기다리는 중이라, 예약만 걸면 재고가 됩니다.` : ' 장부 밖에서 예약했다면 그 레인이 장부에 publish_at 을 안 적은 것입니다.'),
+        rec: L.wait ? '완성 편을 다음 슬롯에 예약' : '레인 세션에 다음 편 제작 시작 지시', session: LANE_SESSIONS[k] });
+    }
+    for (const [k, L] of Object.entries(byLane)) if (L.wait > 0 && !(STOCK_LANES.has(k) && L.sched === 0)) {
+      const ids = recent.filter((r) => r.lane === k && (r.stage === '제작 완료' || r.stage === '업로드')).map((r) => r.id).slice(0, 6);
+      todo.push({ title: `${laneName(k)} 완성 편 ${L.wait}개 — 공개 일정 없음`, sub: ids.join(' · '), tone: 'warn',
+        detail: `제작은 끝났는데 공개 예약이 없는 편: ${ids.join(', ')}. 슬롯 대기 중이거나, 검수에서 멈췄거나, 버린 편일 수 있습니다.`,
+        rec: '올릴 편은 예약, 버린 편은 장부에 retracted 표시', session: LANE_SESSIONS[k] });
+    }
+    if (failed.length) todo.push({ title: `자동화 실패 ${failed.length}건`, sub: failed.slice(0, 4).map(tname).join(' · '), tone: 'bad',
+      detail: '정기 작업 마지막 실행이 실패로 끝났습니다: ' + failed.map((t) => `${tname(t)}(${t.l ? mdhm(Date.parse(t.l)) : '?'}, 코드 ${t.r})`).join(', ') + '. 자세한 표는 «자동화» 탭.',
+      rec: '도구개발 세션에 실패 원인 확인 맡기기 — 매일 도는 작업부터', session: 'YTHOME-M-도구개발' });
+    if (postFailed.length) todo.push({ title: `SNS 게시 실패 ${postFailed.length}건`, sub: postFailed.slice(0, 3).map(tname).join(' · '), tone: 'warn',
+      detail: '편별 SNS 게시 예약(페이스북·네이버 클립 등)이 실패했습니다: ' + postFailed.slice(0, 10).map(tname).join(', ') + (postFailed.length > 10 ? ' 외' : '') + '.',
+      rec: '계정 로그인·차단 여부부터 확인, 같은 채널이 몰려 있으면 그 계정 문제', session: 'YTHOME-M-HEAD' });
+    if (locks.length) todo.push({ title: '정치 렌더 진행 중', sub: '이 시간에는 무거운 작업·재부팅을 피합니다', tone: 'busy',
+      detail: `렌더 락: ${locks.join(', ')}. 18:30~00:30 정치 렌더 시간에는 다른 레인의 렌더·STT·대량 작업과 PC 재부팅을 피합니다.`,
+      rec: '끝날 때까지 기다리기', session: 'YTHOME-LF-KO 정치' });
 
     const all = recent;
     return {

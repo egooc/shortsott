@@ -263,6 +263,16 @@ nav.top { display: grid; gap: 2px; }
 .sbtns { display: flex; gap: 6px; margin-top: 4px; }
 .ctx { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
 .ctx .bar { margin: 0; height: 5px; }
+.xcard { cursor: pointer; }
+.agrid { align-items: start; }
+.acard.tall .at { flex: none; }
+.xcard .xd { display: none; width: 100%; margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--line2); font-size: 13.5px; line-height: 1.6; }
+.xcard.open .xd { display: grid; gap: 8px; }
+.xcard .xrec { background: var(--accent-soft); color: var(--text); border-radius: 8px; padding: 8px 10px; }
+.xcard .xrec b { color: var(--accent); margin-right: 6px; }
+.xcard .xb { display: flex; gap: 6px; flex-wrap: wrap; }
+.xcard::after { content: '펼치기 ›'; font-size: 12px; color: var(--accent); }
+.xcard.open::after { content: none; }
 .card.plan { border-color: color-mix(in srgb, var(--warn) 40%, var(--line)); }
 .prow { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line2); }
 .card.plan h2 + .prow { border-top: 0; }
@@ -677,8 +687,15 @@ const SECTIONS = {
   // 폰에서는 표가 카드로 바뀐다(첫 칸이 제목, 나머지는 «머리글: 값» 줄).
   table: (s) => s.rows.length ? `<div class="tw"><table class="rt"><thead><tr>${s.columns.map((c) => `<th>${esc(c)}</th>`).join('')}</tr></thead>
     <tbody>${s.rows.map((r) => `<tr>${r.map((c, i) => `<td data-label="${esc(s.columns[i] || '')}">${cell(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : `<div class="empty">${esc(s.empty || '없습니다.')}</div>`,
-  list: (s) => s.items.length ? `<div class="agrid">${s.items.map((i) => `<div class="acard a-${i.tone || 'muted'} tall">
-    <span class="at">${esc(i.title)}</span>${i.sub ? `<span class="muted">${esc(i.sub)}</span>` : ''}${i.right ? `<span class="muted">${esc(i.right)}</span>` : ''}</div>`).join('')}</div>`
+  // 카드를 누르면 설명·추천이 펼쳐지고 [담당에게 묻기]·[세션 열기]. 모듈이 detail·rec·session(세션 이름)을 채운다.
+  list: (s) => s.items.length ? `<div class="agrid">${s.items.map((i) => {
+    const sess = i.session && CUR_M ? findByTitle(CUR_M, i.session) : null;
+    const ask = `[카드] ${i.title}${i.sub ? ' — ' + i.sub : ''}${i.rec ? ' (추천: ' + i.rec + ')' : ''}\n`;
+    return `<div class="acard a-${i.tone || 'muted'} tall xcard" data-act="xpand">
+    <span class="at">${esc(i.title)}</span>${i.sub ? `<span class="muted">${esc(i.sub)}</span>` : ''}${i.right ? `<span class="muted">${esc(i.right)}</span>` : ''}
+    <div class="xd">${i.detail ? `<div>${esc(i.detail)}</div>` : ''}${i.rec ? `<div class="xrec"><b>추천</b> ${esc(i.rec)}</div>` : ''}
+      <div class="xb"><button class="small primary" data-askmgr="${esc(ask)}">담당에게 묻기</button>${sess ? `<button class="small" data-open="${esc(sess.handle)}">${esc(cleanTitle(sess.title))} 열기</button>` : ''}</div></div></div>`;
+  }).join('')}</div>`
     : `<div class="empty">${esc(s.empty || '없습니다.')}</div>`,
   calendar: (s) => `<div class="cal">${s.days.map((d) => `<div class="day"><div class="dh">${esc(d.label)} <span class="muted">${d.items.length}</span></div>
     ${d.items.map((i) => `<div class="ev"><b>${esc(i.time)}</b> ${esc(i.text)}${i.sub ? `<div class="muted">${esc(i.sub)}</div>` : ''}</div>`).join('') || '<div class="muted" style="padding:6px 0">비어 있음</div>'}</div>`).join('')}</div>`,
@@ -919,8 +936,9 @@ function busyMain() {
   if (a && $('main').contains(a) && /TEXTAREA|INPUT|SELECT/.test(a.tagName)) return true;
   return [...$('main').querySelectorAll('video,audio')].some((v) => !v.paused);
 }
+let CUR_M = null;
 function render(auto) {
-  const M = model();
+  const M = model(); CUR_M = M;
   renderSide(M);
   const P = { home: renderHome, project: renderProject, tidy: renderTidy, decisions: renderDecisions, log: renderLog, results: renderResults };
   if (!(auto && busyMain())) {
@@ -1064,8 +1082,17 @@ async function answer(id, value) {
 
 // ── 이벤트 ──
 document.addEventListener('click', (e) => {
-  const t = e.target.closest('[data-page],[data-project],[data-session],[data-open],[data-close],[data-qsend],[data-compact],[data-act],[data-tab],[data-ptab],[data-mlane],[data-chat],[data-unattach],[data-mkmanager],[data-quick],[data-answer]');
+  const t = e.target.closest('[data-page],[data-project],[data-session],[data-open],[data-close],[data-qsend],[data-compact],[data-askmgr],[data-act],[data-tab],[data-ptab],[data-mlane],[data-chat],[data-unattach],[data-mkmanager],[data-quick],[data-answer]');
   if (t && t.dataset.compact) return compactSession(t.dataset.compact);
+  if (t && t.dataset.askmgr) {
+    // 카드 주제를 이 프로젝트 담당 대화창에 미리 채운다(오늘 화면이면 오피스 담당 창).
+    const key = view.page === 'project' ? `pm:${view.project}` : 'office';
+    DRAFTS[key] = t.dataset.askmgr + (DRAFTS[key] || '');
+    if (key === 'office') { if (!fabOpen) toggleFab(); const ta = $('fab').querySelector('textarea'); ta.value = DRAFTS.office; ta.focus(); return; }
+    render(); const ta = document.querySelector(`[data-draft="${key}"]`);
+    if (ta) { ta.scrollIntoView({ behavior: 'smooth', block: 'center' }); ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
+    return;
+  }
   if (t && t.dataset.qsend) {
     // 카드의 «진행 상황»: 그 세션에 진행 상황 질문을 넣고, 패널을 열어 답을 본다.
     const s = findSession(t.dataset.qsend); if (!s) return;
@@ -1106,6 +1133,7 @@ document.addEventListener('click', (e) => {
   if (a && a.startsWith('project:')) { view.page = 'project'; view.project = a.slice(8); return render(); }
   if (a === 'expand') return t.classList.toggle('clamp');
   if (a === 'fab') return toggleFab();
+  if (a === 'xpand') { if (e.target.closest('button')) return; return t.classList.toggle('open'); }
   if (a === 'drawer') return $('side').classList.toggle('open');
 });
 
