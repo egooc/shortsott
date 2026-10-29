@@ -4,6 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>AI 오피스</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon-192.png">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="theme-color" content="#0e1014">
+<meta name="mobile-web-app-capable" content="yes">
 <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css" rel="stylesheet">
 <style>
 :root {
@@ -166,6 +171,7 @@ aside.panel { background: var(--panel); border-left: 1px solid var(--line); disp
     <nav class="top" id="nav"></nav>
     <div class="tree" id="tree"></div>
     <div class="devs" id="devs"></div>
+    <div class="devs" id="pushbox"></div>
   </aside>
   <main id="main"></main>
   <aside class="panel" id="panel" hidden></aside>
@@ -528,6 +534,38 @@ document.addEventListener('click', (e) => {
   if (a === 'menu') return $('side').classList.toggle('open');
   if (a && a.startsWith('page:')) { view.page = a.slice(5); return render(); }
 });
+
+// ── 홈 화면 앱·푸시 알림 ──
+let swReg = null;
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').then((r) => { swReg = r; renderPush(); }).catch(() => {});
+const b64ToBytes = (b) => { const p = '='.repeat((4 - b.length % 4) % 4); const s = atob((b + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(s, (c) => c.charCodeAt(0)); };
+async function renderPush() {
+  const box = $('pushbox'); if (!box) return;
+  if (!swReg || !('PushManager' in window) || !OFFICE.vapid) { box.innerHTML = ''; return; }
+  const sub = await swReg.pushManager.getSubscription();
+  box.innerHTML = sub && Notification.permission === 'granted'
+    ? '<div><span class="dot d-idle"></span>이 기기 알림 켜짐 <button class="small" style="margin-left:auto" data-act="push-test">시험</button></div>'
+    : Notification.permission === 'denied'
+      ? '<div>알림이 막혀 있습니다. 브라우저 사이트 설정에서 허용해 주세요.</div>'
+      : '<button class="small primary" style="width:100%" data-act="push-on">이 기기에서 알림 켜기</button>';
+}
+async function pushOn() {
+  if (await Notification.requestPermission() !== 'granted') return renderPush();
+  const sub = (await swReg.pushManager.getSubscription()) || await swReg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(OFFICE.vapid) });
+  const r = await call('/api/push/subscribe', { subscription: sub.toJSON() });
+  toast(r.ok ? '알림을 켰습니다' : '알림을 켜지 못했습니다');
+  if (r.ok) await call('/api/push/test', {});
+  renderPush();
+}
+document.addEventListener('click', (e) => {
+  const a = e.target.closest('[data-act]')?.dataset.act;
+  if (a === 'push-on') pushOn();
+  if (a === 'push-test') call('/api/push/test', {}).then((r) => toast(r.ok ? '시험 알림을 보냈습니다' : '보내지 못했습니다'));
+});
+// 알림을 눌러 들어오면 해당 화면으로(#decisions 등).
+function routeFromHash() { const h = location.hash.slice(1); if (['decisions', 'tidy', 'log', 'home'].includes(h)) view.page = h; }
+window.addEventListener('hashchange', () => { routeFromHash(); render(); });
+routeFromHash();
 
 async function show() {
   const { data: { session } } = await sb.auth.getSession();

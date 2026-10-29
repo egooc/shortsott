@@ -18,6 +18,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { WebSocketServer } = require('ws');
+const webpush = require('web-push');
 
 function loadEnv(file) {
   try {
@@ -37,6 +38,15 @@ const TOKENS = new Map((process.env.OFFICE_DEVICE_TOKENS || '').split(',').filte
 }));
 const PUBLIC = path.join(__dirname, 'public');
 const ACTIONS = path.join(__dirname, 'actions.jsonl');
+const SUBS = path.join(__dirname, 'push-subs.json');
+const STATIC = {
+  '/manifest.webmanifest': 'application/manifest+json; charset=utf-8',
+  '/sw.js': 'text/javascript; charset=utf-8',
+  '/icon-192.png': 'image/png',
+  '/icon-512.png': 'image/png',
+};
+const { VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY } = process.env;
+if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) webpush.setVapidDetails('https://office.grow-up.kr', VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
 const OPS = new Set(['read', 'send', 'launch', 'close', 'refresh']);
 const LOGGED_OPS = new Set(['send', 'launch', 'close']);
 
@@ -122,6 +132,52 @@ function command(device, op, args) {
   });
 }
 
+// ── 푸시 알림 (소유주 폰·PC 브라우저) ──
+const readSubs = () => { try { return JSON.parse(fs.readFileSync(SUBS, 'utf8')); } catch { return []; } };
+const writeSubs = (s) => fs.writeFileSync(SUBS, JSON.stringify(s, null, 2) + '\n', { encoding: 'utf8', mode: 0o600 });
+async function notify(payload) {
+  if (!VAPID_PRIVATE_KEY) return 0;
+  const subs = readSubs();
+  const keep = [];
+  let sent = 0;
+  for (const s of subs) {
+    try { await webpush.sendNotification(s, JSON.stringify(payload), { TTL: 3600 }); keep.push(s); sent++; }
+    catch (e) { if (e.statusCode !== 404 && e.statusCode !== 410) keep.push(s); }
+  }
+  if (keep.length !== subs.length) writeSubs(keep);
+  return sent;
+}
+
+// 새 결정이 올라오면 알린다. 처음 켤 때 이미 있던 것은 알리지 않는다.
+const seenDecisions = new Set();
+let decisionsPrimed = false;
+async function watchDecisions() {
+  const r = await sb('office_decisions?select=id,lane,question&status=eq.open&order=created_at.asc').catch(() => null);
+  if (!r || !r.ok) return;
+  for (const d of await r.json()) {
+    if (seenDecisions.has(d.id)) continue;
+    seenDecisions.add(d.id);
+    if (decisionsPrimed) await notify({ title: `결정 대기 · ${d.lane}`, body: d.question, tag: `decision-${d.id}`, url: '/#decisions' });
+  }
+  decisionsPrimed = true;
+}
+
+// 기기가 끊긴 채 10분이 지나면 한 번 알린다.
+const offlineSince = new Map();
+function watchDevices() {
+  for (const [device, d] of devices) {
+    const online = !!(d.ws && d.ws.readyState === 1);
+    if (online) { offlineSince.delete(device); continue; }
+    if (!d.connected_at) continue; // 이번 실행에서 한 번도 안 붙은 기기는 조용히
+    const o = offlineSince.get(device) || { at: Date.now(), told: false };
+    offlineSince.set(device, o);
+    if (!o.told && Date.now() - o.at > 10 * 60e3) {
+      o.told = true;
+      notify({ title: '기기 연결 끊김', body: `${device} 가 10분째 오피스에 안 붙어 있습니다.`, tag: `device-${device}`, url: '/' });
+    }
+  }
+}
+
 function logAction(entry) {
   fs.appendFileSync(ACTIONS, JSON.stringify({ at: new Date().toISOString(), ...entry }) + '\n', 'utf8');
 }
@@ -167,6 +223,19 @@ async function api(req, res, url) {
     return send(res, r.ok ? 200 : 502, r);
   }
 
+  if (url.pathname === '/api/push/subscribe' && req.method === 'POST') {
+    const { subscription } = await readBody(req, 16 * 1024);
+    if (!subscription || !subscription.endpoint || !/^https:\/\//.test(subscription.endpoint)) return send(res, 400, { error: '구독 정보가 없다' });
+    const subs = readSubs().filter((s) => s.endpoint !== subscription.endpoint);
+    subs.push(subscription);
+    writeSubs(subs.slice(-10));
+    return send(res, 200, { ok: true, count: subs.length });
+  }
+  if (url.pathname === '/api/push/test' && req.method === 'POST') {
+    const sent = await notify({ title: 'AI 오피스', body: '알림이 켜졌습니다. 결정 대기와 기기 끊김을 알려 드립니다.', tag: 'test', url: '/' });
+    return send(res, 200, { ok: sent > 0, sent });
+  }
+
   const m = url.pathname.match(/^\/api\/decisions\/(\d+)$/);
   if (m && req.method === 'POST') {
     const { answer } = await readBody(req);
@@ -189,7 +258,11 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname.startsWith('/api/')) return await api(req, res, url);
     if (req.method !== 'GET') return send(res, 405, { error: 'method' });
     if (url.pathname === '/config.js') {
-      return send(res, 200, `window.OFFICE=${JSON.stringify({ url: SUPABASE_URL, anon: SUPABASE_ANON_KEY })};`, 'text/javascript; charset=utf-8');
+      return send(res, 200, `window.OFFICE=${JSON.stringify({ url: SUPABASE_URL, anon: SUPABASE_ANON_KEY, vapid: VAPID_PUBLIC_KEY || null })};`, 'text/javascript; charset=utf-8');
+    }
+    if (STATIC[url.pathname]) {
+      res.writeHead(200, { 'content-type': STATIC[url.pathname], 'cache-control': url.pathname === '/sw.js' ? 'no-cache' : 'public, max-age=86400' });
+      return res.end(fs.readFileSync(path.join(PUBLIC, url.pathname.slice(1))));
     }
     if (url.pathname === '/health') return send(res, 200, { ok: true, devices: [...devices.values()].filter((d) => d.ws).length });
     // 다른 기기가 연결기를 받아 가는 곳(비밀 없음 — 토큰은 기기에서 만든다).
@@ -246,6 +319,8 @@ wss.on('connection', (ws) => {
 });
 
 setInterval(() => { for (const c of wss.clients) if (c.readyState === 1) c.ping(); }, 30e3);
+setInterval(() => { watchDecisions().catch(() => {}); watchDevices(); }, 30e3);
+watchDecisions().catch(() => {});
 
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !SUPABASE_SERVICE_ROLE_KEY || !OFFICE_OWNER_UID) {
   console.error('[office] .env 값이 빠졌다');
