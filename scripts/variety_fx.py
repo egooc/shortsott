@@ -131,7 +131,7 @@ def font_dirs(video, extra=None):
 def pick_fonts(dirs):
     got = {}
     for fam, names in FONTS.items():
-        got[fam] = next((d / n for n in names for d in dirs if (d / n).is_file()), None)
+        got[fam] = next((Path(n) for n in names if Path(n).is_absolute() and Path(n).is_file()), None)             or next((d / n for n in names for d in dirs if (d / n).is_file()), None)
         if not got[fam]:
             raise SystemExit(f'글꼴 없음: {fam} — {names} 중 하나를 --fonts 폴더에 두세요(찾은 곳: {[str(d) for d in dirs]})')
     return got
@@ -380,9 +380,19 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('video'); ap.add_argument('segs'); ap.add_argument('--out', required=True)
     ap.add_argument('--plan'); ap.add_argument('--dry', action='store_true')
+    ap.add_argument('--size', default='1080x1920', help='출력 그래픽 크기 WxH — 16:9 롱폼은 1920x1080(좌표는 fx.json 에 그 크기 기준으로)')
+    ap.add_argument('--style', help='JSON {"colors": {"RED": "#..", "INK": "#..", "YEL": "#..", "NAVY": "#.."}, "fonts": {"Paper": [파일명 또는 절대경로], "Aggro": [...], "Hand": [...]}}')
     ap.add_argument('--top', type=int, help='제목 띠 아래 y(1920 기준) 직접 지정 — 자동 계산보다 우선')
     ap.add_argument('--fonts', help='글꼴 폴더(없으면 영상 위 폴더의 fonts → 정치 assets → 설치 글꼴)')
     a = ap.parse_args()
+    global W, H, YEL, RED, INK, NAVY
+    W, H = (int(x) for x in a.size.lower().split('x'))
+    if a.style:   # 레인별 결(예: 정치JA 일본 보도 색·일본어 글꼴) — 코드 안 고치고 바꾼다
+        st = json.loads(Path(a.style).read_text(encoding='utf-8'))
+        c = st.get('colors', {})
+        YEL, RED, INK, NAVY = c.get('YEL', YEL), c.get('RED', RED), c.get('INK', INK), c.get('NAVY', NAVY)
+        for fam, names in st.get('fonts', {}).items():
+            FONTS[fam] = names if isinstance(names, list) else [names]
     out = Path(a.out); work = out.with_suffix('.vfx'); work.mkdir(parents=True, exist_ok=True)
     segs, top = load_segs(a.segs)
     top = a.top if a.top is not None else top
