@@ -122,6 +122,12 @@ for up in sys.argv[2:]:
 import subprocess   # noqa: E402
 import candidate_gate   # noqa: E402  편 날짜(ep_date)·후보표(상승 점수·발췌·지금의 감정·댓글 수) — 10/21편부터
 EP_DATE = candidate_gate.ep_date(ep, sys.argv[2:])
+# 공용 결 표 관문(도구개발 18cd569, 소유주 «결분석 다 잡고 가자») — 롱폼은 편 폴더, 쇼츠는 업로드 메타 폴더. 10-31 00:00 전엔 경고만 0
+for _gd in dict.fromkeys([ep] + [Path(u).resolve().parent for u in sys.argv[2:] if 'shorts' in Path(u).resolve().parts]):
+    _g = subprocess.run([sys.executable, '-X', 'utf8', 'D:/midform/scripts/gyeol_gate.py', str(_gd)], capture_output=True, text=True, encoding='utf-8')
+    print(_g.stdout.strip()[:600])
+    if _g.returncode:
+        bad.append(f'{_gd.name} 결 표 gyeol_gate 종료 {_g.returncode} — gyeol_table.md(레퍼런스·초|결|우리 장면 4줄+·반전·약속)')
 # 쇼츠 주고받기(10-20 15:00 소유주 «주고받는 중요 멘트랑 반응이나 대응») + 3단 얼굴 띠 틀 — 10/21편부터. shorts/exchange_gate.py
 import subprocess   # noqa: E402
 sys.path.insert(0, str(Path(__file__).resolve().parent / 'shorts')); import exchange_gate   # noqa: E402
