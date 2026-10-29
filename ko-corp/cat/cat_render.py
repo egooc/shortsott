@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-"""고양이 밈 기업 흥망(헤이루만 한국판 시범) 렌더 — 내레이션 0, 화면 대사 + 효과음 + BGM.
+"""고양이 밈 기업 흥망(헤이루만 한국판 시범) 렌더 — 화면 대사 + 대사 음성(voice/, cat_voice.py) + 효과음 + BGM.
+4판(10-29 소유주 #25 «tts 왜 빠졌어»): voice/voice.json 이 있으면 화면 길이를 말 길이에 맞춰 늘리고 목소리를 섞는다.
 
     python -X utf8 ko-corp/cat/cat_render.py ko-corp/cat01            beats.json → out/episode.mp4
     python -X utf8 ko-corp/cat/cat_render.py ko-corp/cat01 --only 0-5   앞 몇 화면만(시험, 락은 똑같이 잡는다)
@@ -29,7 +30,8 @@ FONT = str(ROOT / 'assets' / 'fonts' / 'rinbox' / 'GmarketSansBold.otf')
 SFX = {k: Path(__file__).resolve().parent / 'sfx' / f'{k}.wav' for k in ('pop', 'boing', 'tada', 'womp')}   # make_sfx.py 로 합성
 W, H, FPS = 1920, 1080, 30
 COLORS = {'yellow': (255, 232, 0), 'red': (235, 20, 20), 'white': (255, 255, 255)}
-CODE = '2026-10-29a'
+CODE = '2026-10-29b'
+LEAD, GAP, TAIL = 0.25, 0.3, 0.45   # 화면 시작→대사, 대사→반응 대사, 끝 여유(초)
 
 
 def take_lock(ep):
@@ -195,6 +197,10 @@ def text_layer(beat, path):
 
 
 def beat_dur(beat):
+    v = beat.get('_voice')
+    if v:   # 말이 다 끝나야 다음 화면
+        need = LEAD + v.get('a', 0) + (GAP + v['b'] if 'b' in v else 0) + TAIL
+        return round(max(float(beat.get('dur') or 0), need), 2)
     if beat.get('dur'):
         return float(beat['dur'])
     n = len(beat.get('line', '').replace('\n', ''))
@@ -288,6 +294,11 @@ def main():
         sys.exit(4)
     spec = json.loads((ep / 'beats.json').read_text(encoding='utf-8'))
     beats = spec['beats']
+    vj = ep / 'voice' / 'voice.json'
+    vclips = json.loads(vj.read_text(encoding='utf-8'))['clips'] if vj.exists() else {}
+    for b in beats:
+        if str(b['n']) in vclips:
+            b['_voice'] = vclips[str(b['n'])]
     check(beats, ep)
     (ep / 'out').mkdir(exist_ok=True)
     (ep / 'out' / 'stats.json').write_text(json.dumps(stats(beats), ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
@@ -310,7 +321,7 @@ def main():
     ff('-f', 'concat', '-safe', 0, '-i', work / 'list.txt', '-c', 'copy', video)
     total = sum(durs)
     # 소리: BGM(-20dB 깔기) + 화면마다 효과음
-    ins, mix, t = ['-stream_loop', '-1', '-i', ROOT / spec['bgm']], ['[0]volume=0.4,atrim=0:%.2f[bg]' % total], 0.0
+    ins, mix, t = ['-stream_loop', '-1', '-i', ROOT / spec['bgm']], ['[0]volume=%s,atrim=0:%.2f[bg]' % (0.18 if vclips else 0.4, total)], 0.0
     labels = ['[bg]']
     for i, (b, d) in enumerate(zip(beats, durs)):
         s = b.get('sfx', 'pop')
@@ -319,6 +330,14 @@ def main():
             k = len(labels)
             mix.append(f'[{k}]adelay={int(t * 1000)}|{int(t * 1000)},volume=0.45[s{k}]')
             labels.append(f'[s{k}]')
+        v, at = b.get('_voice') or {}, t + LEAD
+        for part in ('a', 'b'):   # 대사 → 반응 대사
+            if part in v:
+                ins += ['-i', ep / 'voice' / f'{b["n"]:02d}_{part}.wav']
+                k = len(labels)
+                mix.append(f'[{k}]adelay={int(at * 1000)}|{int(at * 1000)},volume=1.6[s{k}]')
+                labels.append(f'[s{k}]')
+                at += v[part] + GAP
         t += d
     mix.append(''.join(labels) + f'amix=inputs={len(labels)}:normalize=0:duration=first[a]')
     audio = work / 'audio.wav'
