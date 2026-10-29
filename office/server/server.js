@@ -7,6 +7,11 @@
 //   POST /api/cmd                [소유주] {device, op, args} → 그 기기 연결기로 전달. op 는 read·send·launch·close·refresh 만.
 //   POST /api/decisions/:id      [소유주] {answer} 결정 답
 //   POST /api/ingest             (옛 수집기) 기기 토큰으로 스냅샷 저장
+//   POST /api/device/decisions   (기기 토큰) 세션의 결정 요청 — office/ask.js. media_ids 로 결과물을 붙일 수 있다
+//   POST /api/device/share       (기기 토큰) 결과물 올리기 — office/share.js (media.js)
+//   POST /api/upload             [소유주] 스크린샷 등 올리기 → 세션이 받아 볼 서명 주소
+//   POST /api/projects           [소유주] 프로젝트 이름·담당 세션, 오피스 담당 세션 지정
+//   GET  /media/:id?e=&s=        서명 주소로 결과물 보기(Range 지원)
 //
 // [소유주] = 수파베이스 로그인 토큰을 /auth/v1/user 로 확인하고 OFFICE_OWNER_UID 와 같을 때만.
 // .env (커밋 금지): SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, OFFICE_OWNER_UID,
@@ -29,6 +34,12 @@ function loadEnv(file) {
   } catch {}
 }
 loadEnv(path.join(__dirname, '.env'));
+const media = require('./media'); // .env 를 읽은 뒤에 불러야 서명 키가 잡힌다
+
+// 프로젝트 설정: 이름·담당(관리자) 세션. 오피스 담당 세션은 «총괄» 대화창이 말을 거는 곳.
+const PROJECTS = path.join(__dirname, 'projects.json');
+const readProjects = () => { try { return JSON.parse(fs.readFileSync(PROJECTS, 'utf8')); } catch { return { projects: {}, office: null }; } };
+const writeProjects = (p) => fs.writeFileSync(PROJECTS, JSON.stringify(p, null, 2) + '\n', 'utf8');
 
 const { SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, OFFICE_OWNER_UID } = process.env;
 const PORT = Number(process.env.PORT || 3300);
@@ -210,6 +221,17 @@ async function api(req, res, url) {
   if (url.pathname.startsWith('/api/device/')) {
     const device = deviceFor(req.headers['x-office-token']);
     if (!device) return send(res, 401, { error: 'unknown device' });
+    // 결과물 올리기(office/share.js). 본문 = 파일 그대로, 정보는 주소 뒤 ?name=&title=&lane=&project=&from=&note=
+    if (url.pathname === '/api/device/share' && req.method === 'POST') {
+      const q = url.searchParams;
+      let item;
+      try {
+        item = await media.save(req, { name: q.get('name'), title: q.get('title'), lane: q.get('lane'), project: q.get('project'), from: q.get('from'), note: q.get('note'), device });
+      } catch (e) { return send(res, e.code && e.code < 600 ? e.code : 500, { error: e.message }); }
+      if (q.get('notify') !== '0') notify({ title: `새 결과물 · ${item.lane || devName(device)}`, body: item.title, tag: `media-${item.id}`, url: '/#results' }).catch(() => {});
+      logAction({ device, op: 'share', label: `${item.lane ? item.lane + ': ' : ''}${item.title}`.slice(0, 160), text: `${item.mime} · ${(item.size / 1048576).toFixed(1)}MB`, ok: true });
+      return send(res, 200, { ok: true, id: item.id });
+    }
     if (url.pathname === '/api/device/decisions' && req.method === 'POST') {
       const b = await readBody(req, 32 * 1024);
       if (!b.lane || !b.question) return send(res, 400, { error: 'lane·question 이 필요하다' });
@@ -222,8 +244,10 @@ async function api(req, res, url) {
       const r = await sb('office_decisions', { method: 'POST', headers: { prefer: 'return=representation' }, body: JSON.stringify(row) });
       const out = r.ok ? (await r.json())[0] : null;
       if (!out) return send(res, 502, { error: '저장 실패' });
+      const mediaIds = Array.isArray(b.media_ids) ? b.media_ids.filter((x) => typeof x === 'string' && media.get(x)).slice(0, 6) : [];
+      for (const mid of mediaIds) media.link(mid, out.id);
       const routes = readRoutes();
-      routes[out.id] = { device, handle: typeof b.handle === 'string' ? b.handle : null };
+      routes[out.id] = { device, handle: typeof b.handle === 'string' ? b.handle : null, media: mediaIds };
       writeRoutes(routes);
       seenDecisions.add(out.id);
       notify({ title: `결정 대기 · ${row.lane}`, body: row.question, tag: `decision-${out.id}`, url: '/#decisions' }).catch(() => {});
@@ -243,12 +267,38 @@ async function api(req, res, url) {
 
   if (url.pathname === '/api/state' && req.method === 'GET') {
     const decisions = await sb('office_decisions?select=*&order=created_at.desc&limit=100').then((r) => r.ok ? r.json() : []);
+    const routes = readRoutes();
+    for (const d of decisions) d.media = (routes[d.id]?.media || []);
     return send(res, 200, {
       devices: [...devices.entries()].map(([device, d]) => ({
         device, online: !!(d.ws && d.ws.readyState === 1), connected_at: d.connected_at, state: d.state,
       })),
-      decisions, actions: recentActions(),
+      decisions, actions: recentActions(), media: media.listForOwner(), config: readProjects(),
     });
+  }
+
+  // 소유주가 올리는 스크린샷 등(총괄·담당 대화창 첨부). 세션이 받아 볼 수 있게 절대 서명 주소를 돌려준다.
+  if (url.pathname === '/api/upload' && req.method === 'POST') {
+    let item;
+    try { item = await media.save(req, { name: url.searchParams.get('name'), title: url.searchParams.get('name'), by_owner: true }); }
+    catch (e) { return send(res, e.code && e.code < 600 ? e.code : 500, { error: e.message }); }
+    return send(res, 200, { ok: true, id: item.id, url: `https://office.grow-up.kr${media.signedUrl(item.id)}` });
+  }
+
+  // 프로젝트 담당 세션 지정 {key, name?, manager?} · 오피스 담당 {office: {device, title}}
+  if (url.pathname === '/api/projects' && req.method === 'POST') {
+    const b = await readBody(req, 16 * 1024);
+    const cfg = readProjects();
+    if (b.office) cfg.office = { device: String(b.office.device || ''), title: String(b.office.title || '').slice(0, 120) };
+    if (b.key) {
+      const p = cfg.projects[b.key] || {};
+      if (b.name != null) p.name = String(b.name).slice(0, 60);
+      if (b.manager != null) p.manager = String(b.manager).slice(0, 120);
+      cfg.projects[b.key] = p;
+    }
+    writeProjects(cfg);
+    logAction({ op: 'config', label: b.key ? `프로젝트 ${b.key} 설정` : '오피스 담당 설정', text: JSON.stringify(b).slice(0, 200), ok: true });
+    return send(res, 200, { ok: true, config: cfg });
   }
 
   if (url.pathname === '/api/cmd' && req.method === 'POST') {
@@ -302,6 +352,8 @@ const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, 'http://x');
     if (url.pathname.startsWith('/api/')) return await api(req, res, url);
+    const mm = url.pathname.match(/^\/media\/([A-Za-z0-9_-]{12})$/);
+    if (mm && req.method === 'GET') return media.serve(req, res, mm[1], url.searchParams);
     if (req.method !== 'GET') return send(res, 405, { error: 'method' });
     if (url.pathname === '/config.js') {
       return send(res, 200, `window.OFFICE=${JSON.stringify({ url: SUPABASE_URL, anon: SUPABASE_ANON_KEY, vapid: VAPID_PUBLIC_KEY || null })};`, 'text/javascript; charset=utf-8');
@@ -368,6 +420,7 @@ wss.on('connection', (ws) => {
 
 setInterval(() => { for (const c of wss.clients) if (c.readyState === 1) c.ping(); }, 30e3);
 setInterval(() => { watchDecisions().catch(() => {}); watchDevices(); }, 30e3);
+setInterval(() => { try { media.cleanup(); } catch (e) { console.error('[media] 정리 실패', e.message); } }, 3600e3);
 watchDecisions().catch(() => {});
 
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !SUPABASE_SERVICE_ROLE_KEY || !OFFICE_OWNER_UID) {
