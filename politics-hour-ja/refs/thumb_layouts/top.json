@@ -1,0 +1,562 @@
+{
+ "kosuke": {
+  "channel_id": "UCAPpxMVxcbix9NEckFS5hLg",
+  "name": "コースケTV",
+  "median": 461000,
+  "n": 85,
+  "top": [
+   {
+    "id": "xO2yd7F7Yd0",
+    "title": "Shocking broadcast incident on Sunday Morning over the \"biting judo athlete\" from China.",
+    "views": 1800000,
+    "x": 3.9,
+    "file": "kosuke_0_xO2yd7F7Yd0.jpg",
+    "layout": "vframe"
+   },
+   {
+    "id": "xN3TZFUggrE",
+    "title": "Shocking footage of Nippon TV's 24-Hour Marathon goes viral, leaving everyone stunned.",
+    "views": 1800000,
+    "x": 3.9,
+    "file": "kosuke_1_xN3TZFUggrE.jpg",
+    "layout": "vframe"
+   },
+   {
+    "id": "ihAGH01zB2w",
+    "title": "Shocking Footage of Ayano Sasaki Goes Viral: The Truth Revealed 【Fukuoka Mayoral Election】",
+    "views": 1000000,
+    "x": 2.2,
+    "file": "kosuke_2_ihAGH01zB2w.jpg",
+    "layout": "vframe"
+   },
+   {
+    "id": "VvSIZMqXmjw",
+    "title": "Unprecedented broadcast mishap occurs during Sunday Morning's \"Henoko\" feature.",
+    "views": 829000,
+    "x": 1.8,
+    "file": "kosuke_3_VvSIZMqXmjw.jpg",
+    "layout": "vframe"
+   },
+   {
+    "id": "SUvsKLLtdhE",
+    "title": "Komeito’s Failed Three-Party Merger: They Begged Sanae Takaichi for Help, and the Result Was Shoc...",
+    "views": 769000,
+    "x": 1.7,
+    "file": "kosuke_4_SUvsKLLtdhE.jpg",
+    "layout": "vframe"
+   },
+   {
+    "id": "A1iLR4hCQ1k",
+    "title": "Kiyomi Tsujimoto demands an apology from Prime Minister Takaichi, but gets shut down in seconds.",
+    "views": 757000,
+    "x": 1.6,
+    "file": "kosuke_5_A1iLR4hCQ1k.jpg",
+    "layout": "vframe"
+   },
+   {
+    "id": "5l-OEwael_4",
+    "title": "Everyone Shocked by Nobuko Nakano’s \"Insane\" True Colors.",
+    "views": 738000,
+    "x": 1.6,
+    "file": "kosuke_6_5l-OEwael_4.jpg",
+    "layout": "vframe"
+   },
+   {
+    "id": "9hWx-ZKRY2s",
+    "title": "Nippon TV's \"shocking footage\" of Governor Koji's meeting with Sanae Takaichi goes viral.",
+    "views": 729000,
+    "x": 1.6,
+    "file": "kosuke_7_9hWx-ZKRY2s.jpg",
+    "layout": "vframe"
+   },
+   {
+    "id": "Ut_M6QdcoTA",
+    "title": "Sun-Morning faces another major controversy: Shocking on-air blunder during discussion on \"Paris ...",
+    "views": 725000,
+    "x": 1.6,
+    "file": "kosuke_8_Ut_M6QdcoTA.jpg",
+    "layout": "vframe"
+   }
+  ]
+ },
+ "ronten": {
+  "channel_id": "UC43pbk9eMp8tHVzNaP9mHxw",
+  "name": "政治の論点屋",
+  "median": 38000.0,
+  "n": 90,
+  "top": [
+   {
+    "id": "tvCkNtWoROQ",
+    "title": "[Behind the Scenes of the Takaichi Personnel Appointments] The Truth Behind Ishii’s \"Dismissal\"? ...",
+    "views": 983000,
+    "x": 25.9,
+    "file": "ronten_0_tvCkNtWoROQ.jpg",
+    "layout": "solo"
+   },
+   {
+    "id": "Zg_EwmvDUtk",
+    "title": "【中道が約6億円を受領】政党交付金の使い道は？選挙費用の明細開示を求める声…公明党が立憲との選挙協力を解消した背景とは【選挙ドットコム/今野忍・山本期日前】",
+    "views": 439000,
+    "x": 11.6,
+    "file": "ronten_1_Zg_EwmvDUtk.jpg",
+    "layout": "solo"
+   },
+   {
+    "id": "MFjVMTNh7MQ",
+    "title": "[Kenta Izumi Speaks Out] \"It’s Not Just Representative Ogawa's Fault...\" Who Is to Blame for the ...",
+    "views": 421000,
+    "x": 11.1,
+    "file": "ronten_2_MFjVMTNh7MQ.jpg",
+    "layout": "solo"
+   },
+   {
+    "id": "DyOHhS1AmAg",
+    "title": "【立憲支持率急落？】立憲の文春追及が完全に裏目…今度は世論調査\"デマ\"便乗で逆風拡大【選挙ドットコム/今野忍】",
+    "views": 335000,
+    "x": 8.8,
+    "file": "ronten_3_DyOHhS1AmAg.jpg",
+    "layout": "vs"
+   },
+   {
+    "id": "oz6OSaAGjlY",
+    "title": "\"Didn't you slam other parties over 'politics and money'?\" Centrist Reform Coalition's boomerang ...",
+    "views": 320000,
+    "x": 8.4,
+    "file": "ronten_4_oz6OSaAGjlY.jpg",
+    "layout": "lineup"
+   },
+   {
+    "id": "cllDQetB7jo",
+    "title": "Senkyo Dot Com (Long) 129",
+    "views": 294000,
+    "x": 7.7,
+    "file": "ronten_5_cllDQetB7jo.jpg",
+    "layout": "solo"
+   },
+   {
+    "id": "CUsBl8Q2nkQ",
+    "title": "[Fukuoka Prefectural Assembly in Turmoil] Names of those who supported the \"Motion to Cancel\" hav...",
+    "views": 244000,
+    "x": 6.4,
+    "file": "ronten_6_CUsBl8Q2nkQ.jpg",
+    "layout": "solo"
+   },
+   {
+    "id": "83IhPdHdpBs",
+    "title": "【激震】「動議」反対議員の会員資格停止…福岡県議会「議連補助金」の闇！服部知事の責任と本当の問題点【選挙ドットコム/今野忍】",
+    "views": 210000,
+    "x": 5.5,
+    "file": "ronten_7_83IhPdHdpBs.jpg",
+    "layout": "lineup"
+   },
+   {
+    "id": "uwu2rdAVYGE",
+    "title": "【高市外交の狙い】日米首脳会談「35分」で何を語った？米中が「同盟国」と合意文書…旧敵国条項削除要請の背景とは【選挙ドットコム/今野忍】",
+    "views": 200000,
+    "x": 5.3,
+    "file": "ronten_8_uwu2rdAVYGE.jpg",
+    "layout": "solo"
+   }
+  ]
+ },
+ "ouentai": {
+  "channel_id": "UC67XaHuGbx2RzMhyhtXcfZA",
+  "name": "じゃぱん応援隊",
+  "median": 225000.0,
+  "n": 90,
+  "top": [
+   {
+    "id": "Flas8KGV43s",
+    "title": "得票数2位で次期総長に選ばれた藤垣裕子さん、東大生からの逆襲が始まり「早速詰むｗｗｗ」",
+    "views": 1000000,
+    "x": 4.4,
+    "file": "ouentai_0_Flas8KGV43s.jpg",
+    "layout": "band"
+   },
+   {
+    "id": "9bkZrVWurxI",
+    "title": "「高市総理は性接待くらいしかできない」と発言した中野信子さん、\"ヤバすぎる正体\"がコチラ...",
+    "views": 931000,
+    "x": 4.1,
+    "file": "ouentai_1_9bkZrVWurxI.jpg",
+    "layout": "band"
+   },
+   {
+    "id": "1rf-CtKsMBA",
+    "title": "\"庶民の味方\"を気取っていた奥田ふみよさん、とんでもないカネの流れが発覚し「完全に詰むｗｗｗ」",
+    "views": 732000,
+    "x": 3.3,
+    "file": "ouentai_2_1rf-CtKsMBA.jpg",
+    "layout": "band"
+   },
+   {
+    "id": "9frDiq3TYHg",
+    "title": "参院予算委員長に任命された有村治子さん、初日から\"とんでもない無双\"を見せ野党を震え上がらせてしまうｗｗｗ",
+    "views": 694000,
+    "x": 3.1,
+    "file": "ouentai_3_9frDiq3TYHg.jpg",
+    "layout": "band"
+   },
+   {
+    "id": "_INgrauoLdY",
+    "title": "ムスリムさん、わざわざ日本に来て「ハラール食がない！」と逆ギレした結果トンデモない事態になるｗｗｗ",
+    "views": 636000,
+    "x": 2.8,
+    "file": "ouentai_4__INgrauoLdY.jpg",
+    "layout": "band"
+   },
+   {
+    "id": "5Rr6vKAS9Hg",
+    "title": "【緊急】野党とメディアから叩かれまくる簗大臣、完全にハメられていたことが判明する",
+    "views": 616000,
+    "x": 2.7,
+    "file": "ouentai_5_5Rr6vKAS9Hg.jpg",
+    "layout": "band"
+   },
+   {
+    "id": "TWu-JrKCiWQ",
+    "title": "立憲民主党さん、新戦力を発表した結果⇒正体がヤバすぎて貴重な支持者を失ってしまうｗｗｗ",
+    "views": 567000,
+    "x": 2.5,
+    "file": "ouentai_6_TWu-JrKCiWQ.jpg",
+    "layout": "band"
+   },
+   {
+    "id": "My34t5L6vQI",
+    "title": "サイバー攻撃を受けた企業一覧が報じられる⇒リストを見たX民、\"恐ろしい事実\"に気づいてしまう...",
+    "views": 563000,
+    "x": 2.5,
+    "file": "ouentai_7_My34t5L6vQI.jpg",
+    "layout": "band"
+   },
+   {
+    "id": "1lKWfWpMSMY",
+    "title": "【爆笑】NHKさん、あまりに人気がなさすぎた結果⇒\"アホすぎる命乞い\"を開始してしまうｗｗｗ",
+    "views": 555000,
+    "x": 2.5,
+    "file": "ouentai_8_1lKWfWpMSMY.jpg",
+    "layout": "band"
+   }
+  ]
+ },
+ "shirokuma": {
+  "channel_id": "UCFPcKTEntQAJA1j6BNiC2mA",
+  "name": "しろくま政治解説",
+  "median": 24000.0,
+  "n": 54,
+  "top": [
+   {
+    "id": "NRZwHksBOZg",
+    "title": "[Big Achievement] Election Comedian Yamamoto Kijitsumae kept roasting Okinawa's election violatio...",
+    "views": 677000,
+    "x": 28.2,
+    "file": "shirokuma_0_NRZwHksBOZg.jpg",
+    "layout": "band"
+   },
+   {
+    "id": "Y4at16pmL3w",
+    "title": "【ブチギレ】「受け取るなッ！」584,700,300円の政党交付金を受け取った中道。維新・吉村代表がハッキリ言った結果…！",
+    "views": 240000,
+    "x": 10.0,
+    "file": "shirokuma_1_Y4at16pmL3w.jpg",
+    "layout": "band"
+   },
+   {
+    "id": "NEG4lZ38iDI",
+    "title": "[Bad News] Reporter to Constitutional Democratic Party Representative Mizuoka: \"Your reputation i...",
+    "views": 206000,
+    "x": 8.6,
+    "file": "shirokuma_2_NEG4lZ38iDI.jpg",
+    "layout": "band"
+   },
+   {
+    "id": "8g-6TqVSnmE",
+    "title": "[Summary] For the Busy: The \"Centrist Reform Coalition\" Collapsed in Just 8 Months, But Left Behi...",
+    "views": 187000,
+    "x": 7.8,
+    "file": "shirokuma_3_8g-6TqVSnmE.jpg",
+    "layout": "band"
+   },
+   {
+    "id": "NJ1a4eAfbjw",
+    "title": "[Okinawa Gubernatorial Election] We analyzed the results of Koja's landslide 150,000-vote victory...",
+    "views": 175000,
+    "x": 7.3,
+    "file": "shirokuma_4_NJ1a4eAfbjw.jpg",
+    "layout": "band"
+   },
+   {
+    "id": "7dMFhvc9Vcc",
+    "title": "[Sad News] Isa Nakamichi refutes media reports, but is confronted with reality by political journ...",
+    "views": 168000,
+    "x": 7.0,
+    "file": "shirokuma_5_7dMFhvc9Vcc.jpg",
+    "layout": "band"
+   },
+   {
+    "id": "9ZHHUCJRY_k",
+    "title": "[BREAKING]",
+    "views": 100000,
+    "x": 4.2,
+    "file": "shirokuma_6_9ZHHUCJRY_k.jpg",
+    "layout": "band"
+   },
+   {
+    "id": "9jidPxAXNaE",
+    "title": "[Milestone] Social Democratic Party's approval rating finally breaks through the limit...",
+    "views": 98000,
+    "x": 4.1,
+    "file": "shirokuma_7_9jidPxAXNaE.jpg",
+    "layout": "band"
+   },
+   {
+    "id": "DDq8iiDEbWE",
+    "title": "[Okinawa Gubernatorial Election] The result of blaming the loss on social media...! A string of f...",
+    "views": 94000,
+    "x": 3.9,
+    "file": "shirokuma_8_DDq8iiDEbWE.jpg",
+    "layout": "band"
+   }
+  ]
+ },
+ "nippon": {
+  "channel_id": "UCZ5kcpwjkwrnxAew4Gl5E6Q",
+  "name": "にっぽん放送局",
+  "median": 11500.0,
+  "n": 88,
+  "top": [
+   {
+    "id": "ucAvsKetAyk",
+    "title": "[Shiba Kazuya] China panics over Takaichi Cabinet's refusal to bow to pressure. Here is Secretary...",
+    "views": 1400000,
+    "x": 121.7,
+    "file": "nippon_0_ucAvsKetAyk.jpg",
+    "layout": "solo"
+   },
+   {
+    "id": "oM279d8vg1k",
+    "title": "[Shimba Kazuya] Following the gasoline tax cut, here's some great news for the Japanese people! P...",
+    "views": 890000,
+    "x": 77.4,
+    "file": "nippon_1_oM279d8vg1k.jpg",
+    "layout": "solo"
+   },
+   {
+    "id": "x51sweOYDjM",
+    "title": "[Best episode] Hideo Higashikokubaru, who came to watch the speech, was spotted by Secretary Gene...",
+    "views": 865000,
+    "x": 75.2,
+    "file": "nippon_2_x51sweOYDjM.jpg",
+    "layout": "scene"
+   },
+   {
+    "id": "YJ6Wt978E_o",
+    "title": "Yoshimura Finally Makes His Move! All Kurauchi Faction Candidates to be Defeated: Declaring War o...",
+    "views": 557000,
+    "x": 48.4,
+    "file": "nippon_3_YJ6Wt978E_o.jpg",
+    "layout": "solo"
+   },
+   {
+    "id": "7vRuQvns5UA",
+    "title": "※もはやヤクザ！県議会の闇を追及していた議員を脅して口止め！実名を公表します、、【福岡県議会】",
+    "views": 406000,
+    "x": 35.3,
+    "file": "nippon_4_7vRuQvns5UA.jpg",
+    "layout": "lineup"
+   },
+   {
+    "id": "Udd6AMZYj_M",
+    "title": "Iwao Kurauchi still trying to wriggle out of it. It’s way worse than just extortion—he’s backed i...",
+    "views": 312000,
+    "x": 27.1,
+    "file": "nippon_5_Udd6AMZYj_M.jpg",
+    "layout": "solo"
+   },
+   {
+    "id": "XIZuDJ7dtGk",
+    "title": "[Shimba Kazuya] We have received a message from Constitutional Democratic Party Secretary-General...",
+    "views": 272000,
+    "x": 23.7,
+    "file": "nippon_6_XIZuDJ7dtGk.jpg",
+    "layout": "solo"
+   },
+   {
+    "id": "ocq_pQBC-5g",
+    "title": "[Shiba Kazuya] China's remark to Prime Minister Takaichi, \"We'll cut off your filthy head,\" has b...",
+    "views": 246000,
+    "x": 21.4,
+    "file": "nippon_7_ocq_pQBC-5g.jpg",
+    "layout": "solo"
+   },
+   {
+    "id": "eJTyNExJskk",
+    "title": "※沖縄県知事選挙。古謝げんたの応援に 榛葉ウグイス嬢が参上！【国民民主党 榛葉賀津也】",
+    "views": 240000,
+    "x": 20.9,
+    "file": "nippon_8_eJTyNExJskk.jpg",
+    "layout": "solo"
+   }
+  ]
+ },
+ "kindan": {
+  "channel_id": "UClwypYz1IxTbaip2YPPrYGA",
+  "name": "禁断の日本政治",
+  "median": 27500.0,
+  "n": 90,
+  "top": [
+   {
+    "id": "0uQSAVZWVDo",
+    "title": "【公明裏切り立憲完全終了…】国民共産も協力門前払いで行く末なし…今野記者が民主改革の会の苦境を解説「参院も地方議員もいない」「立憲のことも別に切れる」【公明党/小川淳也/玉木雄一郎/選挙ドットコム】",
+    "views": 260000,
+    "x": 9.5,
+    "file": "kindan_0_0uQSAVZWVDo.jpg",
+    "layout": "lineup"
+   },
+   {
+    "id": "Ft5qvvCX3Kc",
+    "title": "【神演説】維新・吉村代表沖縄入り！古謝げんた応援演説で大雨を止ませる奇跡w 子沢山トーク＆大阪ノリ炸裂でデニー玉城撃退へ【沖縄県知事選/古謝げんた/吉村洋文/日本維新の会/自民党】",
+    "views": 203000,
+    "x": 7.4,
+    "file": "kindan_1_Ft5qvvCX3Kc.jpg",
+    "layout": "center_word"
+   },
+   {
+    "id": "aE0P0NuXuHo",
+    "title": "[Furious over centrist party receiving subsidies] Co-representative Fujita lashes out at proporti...",
+    "views": 153000,
+    "x": 5.6,
+    "file": "kindan_2_aE0P0NuXuHo.jpg",
+    "layout": "vs"
+   },
+   {
+    "id": "swZvgqbwVgE",
+    "title": "【左派暴走一刀両断】津田大介氏切り抜き動画批判に「情弱か性悪」「怒る価値もない」事実未確認で批判する左派論客投稿を痛烈に切り返す【今野忍/おときた駿/選挙ドットコム/高市早苗/改造内閣】",
+    "views": 152000,
+    "x": 5.5,
+    "file": "kindan_3_swZvgqbwVgE.jpg",
+    "layout": "center_word"
+   },
+   {
+    "id": "ZPiMqHKYLiA",
+    "title": "【今野記者ブチ切れ】崩壊中道の政党交付金騒動を一刀両断「税金だって分かってんのか」「だから国民は怒ってる」【中道改革連合/民主改革の会/小川淳也】",
+    "views": 129000,
+    "x": 4.7,
+    "file": "kindan_4_ZPiMqHKYLiA.jpg",
+    "layout": "lineup"
+   },
+   {
+    "id": "8jwiQ7y-1kg",
+    "title": "【分裂中道政党交付金受け取りに今野苦言】今野記者、交付金の使途に注文「今出してほしいよね」選挙協力解消も国会では一緒…エグすぎる公明党のやり方に驚愕…【公明党／立憲民主党／選挙ドットコム】",
+    "views": 119000,
+    "x": 4.3,
+    "file": "kindan_5_8jwiQ7y-1kg.jpg",
+    "layout": "lineup"
+   },
+   {
+    "id": "B58oskfD60Q",
+    "title": "[Constitutional Democratic Party's banner backfires] Harsh criticism of Kazuma Nakatani's strateg...",
+    "views": 118000,
+    "x": 4.3,
+    "file": "kindan_6_B58oskfD60Q.jpg",
+    "layout": "lineup"
+   },
+   {
+    "id": "d-oTcGcefck",
+    "title": "【デニー玉城衝撃完敗】衝撃のゼロ打ち惨敗…古謝新知事誕生の勝因を徹底分析！辺野古事件のデニー最悪対応の大きすぎる影響下地幹郎衝撃激白【選挙ドットコム/沖縄県知事選/玉城デニー/古謝げんた/自民党】",
+    "views": 116000,
+    "x": 4.2,
+    "file": "kindan_7_d-oTcGcefck.jpg",
+    "layout": "center_word"
+   },
+   {
+    "id": "ikb7Z3RKv48",
+    "title": "[Representative Yoshimura's Biggest Outburst Yet] Fierce Criticism of Opposition Parties Abandoni...",
+    "views": 112000,
+    "x": 4.1,
+    "file": "kindan_8_ikb7Z3RKv48.jpg",
+    "layout": "solo"
+   }
+  ]
+ },
+ "rehacq": {
+  "channel_id": "UCG_oqDSlIYEspNpd2H4zWhw",
+  "name": "ReHacQ",
+  "median": 264000,
+  "n": 87,
+  "top": [
+   {
+    "id": "ZMij1z4NOgo",
+    "title": "[Dan Mitsu vs. Kei Tanaka] How a 29-Year-Old’s Life Changed: The Secret Story of Her Debut and th...",
+    "views": 1900000,
+    "x": 7.2,
+    "file": "rehacq_0_ZMij1z4NOgo.jpg",
+    "layout": "vs"
+   },
+   {
+    "id": "vutUxeLPgTg",
+    "title": "【高橋弘樹vs秦始皇帝】新解釈キングダム！春秋戦国時代の史記はウソ！？秦王・嬴政の正体とは？史実での李信とは？【ReHacQvs鶴間和幸】",
+    "views": 1100000,
+    "x": 4.2,
+    "file": "rehacq_1_vutUxeLPgTg.jpg",
+    "layout": "vs"
+   },
+   {
+    "id": "CKPxKpVeNGs",
+    "title": "[Masahiro Higashide vs. Nankai Trough] Complete Explanation! The impending massive earthquake, ts...",
+    "views": 1000000,
+    "x": 3.8,
+    "file": "rehacq_2_CKPxKpVeNGs.jpg",
+    "layout": "vs"
+   },
+   {
+    "id": "pD7n-7fHvG8",
+    "title": "[Hiromiki Takahashi vs. UTokyo Meteorologist] When Will CO2 Emissions Peak? The Unexplained Tropi...",
+    "views": 811000,
+    "x": 3.1,
+    "file": "rehacq_3_pD7n-7fHvG8.jpg",
+    "layout": "vs"
+   },
+   {
+    "id": "k0dvGhnbYD8",
+    "title": "[Hiroki Takahashi vs. 2026 Okinawa Gubernatorial Election] Emergency Interview! Genta Koja Speaks...",
+    "views": 676000,
+    "x": 2.6,
+    "file": "rehacq_4_k0dvGhnbYD8.jpg",
+    "layout": "vs"
+   },
+   {
+    "id": "dkhoQqy4zbA",
+    "title": "[Capital Earthquake] Full Breakdown! What Is the Shocking Scale of Damage? How Can You Survive th...",
+    "views": 673000,
+    "x": 2.5,
+    "file": "rehacq_5_dkhoQqy4zbA.jpg",
+    "layout": "vs"
+   },
+   {
+    "id": "AJavpAfI-sU",
+    "title": "[Kohei Saito vs. Inequality] The World's Top Trader Speaks Out! The Dark Side of Capitalism… What...",
+    "views": 653000,
+    "x": 2.5,
+    "file": "rehacq_6_AJavpAfI-sU.jpg",
+    "layout": "vs"
+   },
+   {
+    "id": "yBigB1RH4p8",
+    "title": "【スーツ・ベテランちvs国学研究者】なぜ「天皇中心」の国家観は生まれた？教科書では学べない国学者・平田篤胤の正体【ReHacQvs石橋直樹】",
+    "views": 645000,
+    "x": 2.4,
+    "file": "rehacq_7_yBigB1RH4p8.jpg",
+    "layout": "lineup"
+   },
+   {
+    "id": "In_SdSNz53g",
+    "title": "[Yuichi Goza vs. Hiroki Takahashi] The Bakumatsu Period: An Era of Mass Reskilling!? How Did Samu...",
+    "views": 622000,
+    "x": 2.4,
+    "file": "rehacq_8_In_SdSNz53g.jpg",
+    "layout": "vs"
+   }
+  ]
+ }
+}
