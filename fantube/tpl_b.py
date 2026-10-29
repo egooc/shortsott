@@ -382,6 +382,23 @@ def main(spec_path):
     sys.path.insert(0, 'D:/midform/scripts')       # -14 LUFS 2패스(도구개발 공용, 10/19) — 영상은 복사, 이미 맞으면 그대로
     import loudnorm_final
     loudnorm_final.normalize(str(out))
+    # 효과음 선택(도구개발 variety_fx cd40ad7, 10/29): spec.sfx = {"rel": -18, "turn": "whoosh.short", "end": "pop"} 일 때만.
+    # 그래픽·줌 없이(--sfx-only, 영상 복사) 전환 플래시 지점 1곳 + 끝 한마디 0~1곳, 그 자리 원음 대비 rel dB, 끝나면 -14 LUFS 재정규화. 기본 끔.
+    sfx = s.get('sfx')
+    if sfx:
+        import shutil
+        plan = [{'t': t, 'kind': 'sfx', 'sfx': sfx.get('turn', 'whoosh.short')} for t in (s.get('flash') or [])[:1]]
+        end = [c for c in s['caps'] if c.get('style') == 'end']
+        if end and sfx.get('end', 'pop'):
+            plan.append({'t': end[0]['t0'], 'kind': 'sfx', 'sfx': sfx.get('end', 'pop')})
+        pj = work / 'sfx_plan.json'
+        pj.write_text(json.dumps(plan, ensure_ascii=False, indent=1) + '\n', encoding='utf-8')
+        nosfx = out.with_name(out.stem + '_nosfx' + out.suffix)
+        shutil.copyfile(out, nosfx)
+        subprocess.run([sys.executable, '-X', 'utf8', 'D:/midform/scripts/variety_fx.py', str(nosfx), str(pj), '--plan', str(pj),
+                        '--sfx-only', '--rel', str(sfx.get('rel', -18)), '--out', str(out)], check=True)
+        loudnorm_final.normalize(str(out))
+        print(f'효과음 {len(plan)}개(원음 대비 {sfx.get("rel", -18)} dB) · 효과음 없는 판 {nosfx.name}')
     print(f'{out} · {total:.1f}초 · 컷 {n}개')
 
 
