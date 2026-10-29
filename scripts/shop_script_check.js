@@ -205,6 +205,14 @@ function check(metaPath) {
     warn(iH < 0 || squash(ht.before) === squash(ht.after), '⑫ 사람 손질', iH < 0 ? '고친 문장이 원고에 없음' : `${ht.by}: «${ht.before}» → «${ht.after}»`);
   }
 
+  // ⑯+ 작년 시즌 풀 사용(10-29 소유주 확인): 최근 4편(_upload ffref*.json, 이 편 포함)에 ref_seller.season 이 하나도 없으면 △
+  {
+    const rec = fs.readdirSync(UPLOAD_DIR).filter((f) => /^ffref\d+\.json$/.test(f) && f !== path.basename(metaPath))
+      .map((f) => ({ f, t: fs.statSync(path.join(UPLOAD_DIR, f)).mtimeMs })).sort((x, y) => y.t - x.t).slice(0, 3)
+      .map(({ f }) => { try { return JSON.parse(fs.readFileSync(path.join(UPLOAD_DIR, f), 'utf8')); } catch { return {}; } });
+    const n = [meta, ...rec].filter((x) => x.ref_seller && x.ref_seller.season).length;
+    warn(n === 0, '⑯ 작년 시즌 풀', n ? `최근 4편 중 시즌 편 ${n}` : '최근 4편 시즌 편 0 — 한 밤 첫 편은 shop_season_pool 에서');
+  }
   // ⑱ 결 표 — 공용 gyeol_gate.py(도구개발 18cd569) 그대로 부른다(사본 금지). <작업폴더>/gyeol_table.md|json: 레퍼런스 출처 · «초|결|우리 장면» 4줄+ · 반전·약속 줄.
   //    관문 자체가 2026-10-31 00:00 전에는 경고만 찍고 0 — 그 뒤 종료 4·5 면 FAIL. 10-29 12:00 전 착수분은 면제.
   if (Number.isFinite(started) && started < GYEOL_FROM) warn(false, '⑱ 결 표', '10-29 12:00 전 착수분 면제');
