@@ -372,6 +372,10 @@ main { padding-bottom: 80px; }
   .card { padding: 14px 16px; border-radius: 14px; }
   .hide-m { display: none !important; }
   .only-m { display: inline; }
+  /* 서랍(한도·기기·알림·기록) 여는 단추: 페이지 왼쪽 위 */
+  .menub { display: grid; place-items: center; position: absolute; top: 14px; left: 12px; z-index: 5; width: 40px; height: 40px; padding: 0;
+    border-radius: 12px; font-size: 20px; background: var(--panel); border: 1px solid var(--line); box-shadow: 0 2px 8px rgb(0 0 0 / .08); }
+  .head { padding-left: 62px !important; }
   .head .primary { width: 42px; height: 42px; padding: 0; border-radius: 50%; font-size: 22px; line-height: 1; }
   .tabbar { display: grid; grid-template-columns: repeat(5, 1fr); position: fixed; left: 0; right: 0; bottom: 0; z-index: 5;
     background: var(--panel); border-top: 1px solid var(--line); padding: 6px 4px calc(6px + env(safe-area-inset-bottom)); }
@@ -428,6 +432,7 @@ main { padding-bottom: 80px; }
     <div class="devs" id="pushbox"></div>
   </aside>
   <main id="main"></main>
+  <button class="menub only-m" data-act="menu" aria-label="메뉴">☰</button>
   <nav class="tabbar" id="tabbar"></nav>
   <div class="fab" id="fab"></div>
   <aside class="panel" id="panel" hidden></aside>
