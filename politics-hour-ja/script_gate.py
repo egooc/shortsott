@@ -180,12 +180,47 @@ def story_lines(ep, only=None, enforce=None):
     return bad, out
 
 
+HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT / 'politics-hour'))
 import candidate_gate   # noqa: E402  ko 후보표 관문(28ca994) 그대로
 
 
+# ko 빌런 검사 중 ko 자료를 읽는 두 줄(상승 검색어 politics_ko 상위 5 · politics-hour/threads.json 줄기)은 일본 자료로 바꿔 본다(10-29).
+#  일본: 빌런은 villain_watch 최신 보고서 상위 3 또는 상승 검색어 politics_ja 상위 5 안 · 줄기는 politics-hour-ja/threads.json
+KO_ONLY = ('상승 검색어 상위 5위', '지금 줄기', '상승 검색어 표 없음', '줄기 이슈')
+
+
+def ja_villain_lines(ep):
+    kd = json.loads((Path(ep) / 'keywords.json').read_text(encoding='utf-8'))
+    v = kd.get('villain') or {}
+    name = str(v.get('name', '')).strip()
+    if not name:
+        return []
+    bad = []
+    rep = sorted((HERE / '_scan' / 'villain_watch').glob('*.md'))
+    watch = []
+    if rep:
+        for ln in rep[-1].read_text(encoding='utf-8').splitlines():
+            m = re.match(r'\| ([^|★]+?)(?: ★새 신호)? \| \d+', ln)
+            if m:
+                watch.append(m.group(1).strip())
+    rk = ROOT / 'server' / 'data' / 'rising_keywords' / 'politics_ja_latest.json'
+    top = [r['keyword'] for r in sorted(json.loads(rk.read_text(encoding='utf-8')).get('rows') or [], key=lambda r: -(r.get('rising_score') or 0))][:5] if rk.exists() else []
+    if name not in watch[:3] and name not in top:
+        bad.append(f'빌런 «{name}» 이 villain_watch 상위 3({" · ".join(watch[:3])})·상승 검색어 politics_ja 상위 5({" · ".join(top)}) 밖')
+    th = HERE / 'threads.json'
+    act = json.loads(th.read_text(encoding='utf-8')).get('active', []) if th.exists() else []
+    mine = next((t for t in act if t.get('villain') == name), None)
+    if not str(v.get('switch', '')).strip():
+        if not mine:
+            bad.append(f'빌런 «{name}» 이 politics-hour-ja/threads.json 줄기에 없음 — 새 줄기면 "switch": 사유 + threads.json 에 추가')
+        elif v.get('issue') and mine.get('issue') != v['issue']:
+            bad.append(f'«{name}» 줄기 이슈 «{mine.get("issue")}» 와 다름 «{v["issue"]}»')
+    return bad
+
+
 def candidates_errors(ep):
-    return candidate_gate.gate_lines(ep)
+    return [b for b in candidate_gate.gate_lines(ep) if not any(k in b for k in KO_ONLY)] + ja_villain_lines(ep)
 
 
 def spoken(ep, all_types=False):
