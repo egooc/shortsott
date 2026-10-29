@@ -8,6 +8,7 @@
 //   · 5분마다: office/modules/*.js 프로젝트 대시보드 모듈을 돌려 함께 올린다(프로젝트를 아는 세션이 모듈을 만든다).
 //   · 허브가 보낸 명령 중 정해 둔 여섯 가지만 실행한다: read · send · launch · close · compact(인계 남기고 비우기) · refresh.
 //     아무 셸 명령이나 받지 않는다(handoff-office §4). Orca CLI 인자 배열로만 부르고 셸을 거치지 않는다.
+//   · launch_cu: «GPT 손»(화면 조작 Codex) 세션을 띄우고 5초마다 멈춤 화면을 감시한다(office/cu.js).
 //   · 닫기는 렌더 락이 있으면 force 없이는 거절한다. 띄우기·닫기는 §10 에 한 줄 남긴다.
 // 설정: D:/midform/.env.office (OFFICE_DEVICE, OFFICE_DEVICE_TOKEN, OFFICE_HUB_URL) — 토큰 값은 찍지 않는다.
 
@@ -174,11 +175,14 @@ async function state() {
     device: DEVICE, platform: process.platform, at: new Date().toISOString(),
     orca_ok: !terms.error, orca_error: terms.error || null,
     repos: Array.isArray(repoList) ? repoList.map((r) => ({ id: r.id, name: r.displayName || r.name, path: r.path })) : [],
-    sessions, render_locks: activeLocks(), snapshot, dashboards, limits,
+    sessions, render_locks: activeLocks(), snapshot, dashboards, limits, caps: cu.caps(),
   };
 }
 
 // 허브 명령 → Orca CLI. 여기 없는 op 는 전부 거절.
+const { makeCu } = require('./cu');
+let cu = null; // appendHandoff·orca 가 정의된 뒤 만든다
+
 const OPS = {
   async refresh() { return { ok: true }; },
   async read({ handle, cursor }) {
@@ -204,6 +208,8 @@ const OPS = {
     appendHandoff(`세션 띄움 — ${agent} · ${title || path.basename(folder)}`);
     return r;
   },
+  // GPT 손: 화면 조작 Codex 세션 띄우기(렌더 중·소유주 사용 중이면 거절, 기기당 하나)
+  async launch_cu({ force }) { return cu.launch({ force: !!force }); },
   async compact({ handle, title }) {
     if (!handle || !title) throw new Error('세션이 없다');
     if (compacting.has(handle)) throw new Error('이미 비우는 중');
@@ -219,6 +225,9 @@ const OPS = {
     return r;
   },
 };
+
+cu = makeCu({ orca, activeLocks, appendHandoff, log, device: DEVICE });
+if (!ONCE) setInterval(() => cu.watch().catch(() => {}), 5e3);
 
 let ws = null;
 let timer = null;
@@ -250,7 +259,7 @@ function connect() {
       const result = await fn(m.args || {});
       send({ type: 'result', id: m.id, ok: true, result });
       log('명령', m.op, '성공');
-      if (['send', 'launch', 'close'].includes(m.op)) setTimeout(pushState, 3000);
+      if (['send', 'launch', 'launch_cu', 'close'].includes(m.op)) setTimeout(pushState, 3000);
     } catch (e) {
       send({ type: 'result', id: m.id, ok: false, error: e.message });
       log('명령', m.op, '실패', e.message);

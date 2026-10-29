@@ -63,8 +63,8 @@ const STATIC = {
 };
 const { VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY } = process.env;
 if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) webpush.setVapidDetails('https://office.grow-up.kr', VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
-const OPS = new Set(['read', 'send', 'launch', 'close', 'compact', 'refresh']);
-const LOGGED_OPS = new Set(['send', 'launch', 'close', 'compact']);
+const OPS = new Set(['read', 'send', 'launch', 'launch_cu', 'close', 'compact', 'refresh']);
+const LOGGED_OPS = new Set(['send', 'launch', 'launch_cu', 'close', 'compact']);
 
 const send = (res, code, body, type = 'application/json; charset=utf-8') => {
   res.writeHead(code, { 'content-type': type, 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
@@ -381,7 +381,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (url.pathname === '/health') return send(res, 200, { ok: true, devices: [...devices.values()].filter((d) => d.ws).length });
     // 다른 기기가 연결기를 받아 가는 곳(비밀 없음 — 토큰은 기기에서 만든다).
-    if (url.pathname === '/agent.js' || url.pathname === '/ask.js') {
+    if (['/agent.js', '/ask.js', '/cu.js', '/share.js'].includes(url.pathname)) {
       return send(res, 200, fs.readFileSync(path.join(PUBLIC, url.pathname.slice(1)), 'utf8'), 'text/javascript; charset=utf-8');
     }
     if (url.pathname === '/' || url.pathname === '/index.html') {
