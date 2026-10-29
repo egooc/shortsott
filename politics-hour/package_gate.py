@@ -17,6 +17,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 ENFORCE_FROM = '00000000'   # 소유주 10-24 «제목을 바꾸는데 왜 타겟을 바꿔?» — 옛 편 루프도 타겟 바뀌는 묶음은 안 건다
 HEAD = 15
+THUMB_FROM = '20261030'   # 소유주 10-29 «썸네일 3개가 여직껏 제목만 바뀌는 거였어?» — 묶음마다 사진이 달라야(그 전 편은 경고만)
 NEW_FROM = '20261028'   # 소유주 10-27: ③④⑤ 는 10/28편부터(그 전 편 교체 묶음은 지금처럼 ①② 만)
 MAX_LEN, QUOTE_HEAD, MAX_QUOTES, MAX_OTHERS = 45, 20, 2, 1
 OPENERS = '"“«\'‘'
@@ -118,6 +119,25 @@ def profanity_rules(title, pkg=None):
     return [f'욕설·비속어 {sorted(set(h))} — 제목에서 빼라(원문 인용이 꼭 필요하면 «욕설»·«막말»로 바꿔 적는다)'] if h else []
 
 
+def thumb_rules(ep, villain):
+    """thumb/pkg*.json 끼리: sides img 집합이 같으면 FAIL, 빌런 칸 img 가 같아도 FAIL."""
+    cf = sorted((ep / 'thumb').glob('pkg*.json')) if (ep / 'thumb').exists() else []
+    seen_set, seen_v, bad = {}, {}, []
+    for f in cf:
+        try:
+            sides = json.loads(f.read_text(encoding='utf-8')).get('sides', [])
+        except ValueError:
+            continue
+        imgs = frozenset(s.get('img', '') for s in sides)
+        vimg = next((s.get('img', '') for s in sides if villain and villain in s.get('name', '')), sides[0].get('img', '') if sides else '')
+        if imgs in seen_set:
+            bad.append(f'썸네일 {f.stem} 사진 구성이 {seen_set[imgs]} 와 같음 — 글자만 바뀐 묶음, 빌런 장면·상대 인물을 바꿔라')
+        elif vimg and vimg in seen_v:
+            bad.append(f'썸네일 {f.stem} 빌런 사진 {Path(vimg).name} 이 {seen_v[vimg]} 와 같음 — 묶음마다 다른 장면·표정')
+        seen_set.setdefault(imgs, f.stem); seen_v.setdefault(vimg, f.stem)
+    return bad
+
+
 def titles(ep):
     p = json.loads((ep / 'packages.json').read_text(encoding='utf-8'))
     out = [(f'packages[{i}]', x.get('title', '')) for i, x in enumerate(p.get('packages', []))]
@@ -138,6 +158,12 @@ if __name__ == '__main__':
         items = [(tag, x.get('title', ''), x) for tag, x in pk]
     enforce = ep.name[:8] >= ENFORCE_FROM
     fail = False
+    tb = thumb_rules(ep, lead_and_issue(ep)[0]) if (ep / 'keywords.json').exists() else []
+    if tb:
+        print('[pkg] ' + ('FAIL' if ep.name[:8] >= THUMB_FROM else '경고') + ' 썸네일 다양성' + ''.join('\n      - ' + x for x in tb))
+        fail |= ep.name[:8] >= THUMB_FROM
+    else:
+        print('[pkg] PASS 썸네일 다양성')
     for tag, t, pkg in items:
         b = check(ep, t, pkg)
         print(f'[pkg] {"FAIL" if b else "PASS"} {tag} «{t}»' + ''.join(f'\n      - {x}' for x in b))

@@ -27,5 +27,5 @@
 8. 시작 관문(소유주 10-27, 10/28편부터): `opening_gate.py <폴더>` — 첫 원음 발췌(콜드오픈 말고 첫 quote) 시작 15초 이내·그 앞 «오늘의 쟁점» 목차(timeline 번호 카드)·ISSUE 번호 카드 금지, 종료 4. build_episode·render_episode(렌더 전, 락 쓰기 전)·upload_gate 가 부른다.
 9. 욕설 관문(소유주 10-27, 모든 편): `profanity.py <폴더> [upload.json]` + `profanity.json`(정규식) — 원고·해설 자막·포장(제목·설명·태그·고정 댓글·묶음 해시태그·썸네일 문구) 종료 4, 원음 인용 속 욕설은 assemble_hour 가 자막 «xx»·음성 1kHz 삐(work/beep_log.json), 렌더 뒤 `beep_check.py <폴더>`(after_render·upload_gate) 가 최종 mp4 에서 확인.
 10. 주제 인물 얼굴(소유주 10-29 «김건희 주제는 김건희가 나와야지. 목소리는 기자 목소리 그대로»·«앞으로도 이런 케이스는 이렇게»): 훅 조각은 전부 화면이 빌런(주제 인물) 얼굴, 소리는 패널·기자 원음 그대로. 기자·패널이 남의 말을 전하는 구간(전언)은 화면을 그 말한 사람 장면으로 덮고 꼬리표에 «전언». 본편 핵심 컷에도 빌런 장면 1~2초씩(최소 2회). 쇼츠는 `shorts/relay_gate.py`(b_roll·subject·quoted_person), 롱폼 훅(hook_overlay cuts)도 같은 원칙.
-11. 썸네일(소유주 10-29 «4번 좋은데·더 확대해서 인물만 알아보면 돼»): `thumb_quote.py` mode cutout — 두 칸 방송 배경 어둡게(bg_dim .4)·흐리게(bg_blur 8), 인물 누끼(rembg) 흰 외곽선 4px, 얼굴 상자 썸네일 높이 80%(face_h .8·face_top 20, 머리끝·턱 잘려도 됨), 서로 마주 보게. 10/30편부터 pkg*.json 기본.
+11. 썸네일(소유주 10-29 «4번 좋은데·더 확대해서 인물만 알아보면 돼»): `thumb_quote.py` mode cutout — 두 칸 방송 배경 어둡게(bg_dim .4)·흐리게(bg_blur 8), 인물 누끼(rembg) 흰 외곽선 4px, 얼굴 상자 썸네일 높이 80%(face_h .8·face_top 20, 머리끝·턱 잘려도 됨), 서로 마주 보게. 10/30편부터 pkg*.json 기본. 묶음마다 사진(빌런 장면·상대 인물)이 달라야 한다 — package_gate(THUMB_FROM 20261030, 소유주 10-29 «썸네일 3개가 여직껏 제목만 바뀌는 거였어?»).
 
