@@ -53,7 +53,7 @@ const post = (platform, accountId, url = 'local:C:/x.mp4') => mod.api('POST', '/
     set({ blotato: 'off', tiktok: { hold: false } });
     const r5 = await post('tiktok', '99999');
     check('보류 해제 뒤 매핑 없는 틱톡 → skip:zernio_unmapped', r5.skipped === 'zernio_unmapped');
-    const r6 = await post('tiktok', '57391', `local:${tmp}`);
+    const r6 = await post('tiktok', '57731', `local:${tmp}`);
     check('보류 해제 뒤 매핑 틱톡 → Zernio', String(r6.postSubmissionId).startsWith('zernio:'));
     check('여전히 Blotato 호출 0회', blotatoCalls() === 0);
   } finally {

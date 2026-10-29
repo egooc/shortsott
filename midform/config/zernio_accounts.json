@@ -1,9 +1,19 @@
 {
- "_doc": "틱톡은 Zernio 로(2026-10-07 소유주, Blotato Starter 틱톡 3계정/24h 제한). Blotato accountId → Zernio account _id. blotato-publish.js api() 가 읽는다. 2026-10-07 명화관 ko/ja 와 조상의손길 연결 완료 — 매핑에 있는 틱톡은 전부 Zernio 로 간다. 미연결 계정은 매핑에 없으므로 그대로 Blotato 로 떨어진다.",
- "tiktok": {
-  "62703": "6ac644609b1dd044dd7998d4",
-  "57391": "6ac64e2f1fe96663bfdf0b95",
-  "57731": "6ac64f6aab446c181c06c302",
-  "62766": "6ac6475cc43702eb9a1df8f3"
- }
+  "_doc": "틱톡은 전부 Zernio 로(2026-10-07 소유주, Blotato Starter 틱톡 3계정/24h 제한). Blotato accountId → Zernio account _id. blotato-publish.js api() 가 읽는다. 62703 shorteg006 · 62766 조상의손길 · 57391 냐옹시네마 · 57731 沼落ちシネマ",
+  "tiktok": {
+    "57731": "6ac64f6aab446c181c06c302",
+    "62703": "6ac644609b1dd044dd7998d4"
+  },
+  "_names": {
+    "57391": "meow_cinema21 / 시네마숏 (ko 린박스)",
+    "57731": "numaochicinema / 沼落ちシネマ (ja 린박스)",
+    "62703": "shorteg006 / 쓸모연구소 (쇼핑)",
+    "62766": "ancestralhands_official / 조상의손길"
+  },
+  "_plan": "소유주 결정 2026-10-08: **지금은 틱톡만 Zernio**. 저장소도 발행도 Zernio 라 Blotato 를 전혀 안 거친다. 인스타·스레드·페이스북은 그대로 Blotato — 메타 개발자 인증을 받은 뒤에 정리할 예정이다. 그때까지 메타 3종을 Zernio 로 옮기자는 제안을 다시 꺼내지 말 것.",
+  "_dropped": {
+    "57391": "6ac64e2f1fe96663bfdf0b95",
+    "62766": "6ac6475cc43702eb9a1df8f3",
+    "_why": "2026-10-29 소유주 오피스 #8 «쇼핑이랑 일본 영화채널» — 무료 2계정만 남김. 빠진 계정 틱톡 글은 skip:zernio_unmapped. 되살리려면 tiktok 으로 옮긴다."
+  }
 }
