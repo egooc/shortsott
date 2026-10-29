@@ -75,6 +75,8 @@ def run(ep, retranscribe=False):
         # 받아쓰기는 수를 대개 아라비아 숫자로 «14일» «13.3이었습니다» 처럼 붙여 준다 — 아라비아 숫자는 원고와 같은 파서로,
         # 남은 한글 부분만 한자어·고유어 수 파서로 읽는다(«14일»의 «일»을 1로 붙여 읽지 않게)
         # 소수(18.2%·27.1%)는 한 덩어리로 맞춘다 — 쪼개 세면 «27.1→27.2» 가 다른 곳의 1 에 묻힌다(10/19편 실측)
+        # Speechmatics ko 는 «247만 장»을 «247 만장» 처럼 숫자와 큰 단위를 띄어 적는다(10/30편 실측) — 붙여서 한 수로 읽는다
+        heard = re.sub(r'(\d) (?=[만억조]|천만|백만)', r'\1', heard)
         dec_want = Counter(d for x in sents for d in DEC.findall(x))
         dmiss = dec_want - Counter(DEC.findall(heard))
         # Speechmatics ko 는 «십삼 점 삼»을 «133» 으로 붙여 적는다(10/19 실측: 입력·쉼표·띄어쓰기를 바꿔도 같음, «십팔 점 이»는 18.2).
