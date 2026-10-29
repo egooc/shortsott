@@ -257,7 +257,8 @@ nav.top { display: grid; gap: 2px; }
 .scard .stop { display: flex; justify-content: space-between; align-items: center; font-size: 12px; }
 .spill { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; color: var(--muted); }
 .spill.busy { color: var(--accent); } .spill.stale { color: var(--warn); } .spill.idle { color: var(--ok); }
-.scard .st { font-weight: 700; font-size: 15px; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scard .st { font-weight: 700; font-size: 15px; cursor: pointer; }
+.kind { font-size: 12px; font-weight: 500; color: var(--muted); white-space: nowrap; }
 .scard .ss { font-size: 12.5px; }
 .scard .sl { font-size: 12.5px; color: var(--text); opacity: .8; min-height: 36px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .sbtns { display: flex; gap: 6px; margin-top: 4px; }
@@ -278,7 +279,7 @@ nav.top { display: grid; gap: 2px; }
 .card.plan h2 + .prow { border-top: 0; }
 .prow .pn2 { width: 24px; height: 24px; border-radius: 50%; background: var(--warn); color: #fff; display: grid; place-items: center; font-size: 12px; font-weight: 700; flex: none; }
 .prow .pn2.muted { background: var(--line2); color: var(--muted); }
-.prow .pm { flex: 1; min-width: 0; } .prow .pm b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prow .pm { flex: 1; min-width: 0; } .prow .pm b { display: block; }
 .prow .ctx { display: block; font-size: 13px; }
 .plater { margin-top: 10px; font-size: 12px; }
 .ctx.c-warn span { color: var(--warn); font-weight: 600; } .ctx.c-bad span { color: var(--bad); font-weight: 600; }
@@ -598,7 +599,7 @@ function sessionTable(rows, opts = {}) {
     const last = lastLine(s.preview, s.title);
     return `<div class="scard s-${s.status}">
       <div class="stop"><span class="spill ${s.status}"><span class="dot d-${s.status}"></span>${STATUS_TEXT[s.status]}</span><span class="muted">${ago(s.last_output_at)}</span></div>
-      <div class="st" data-session="${esc(s.handle)}">${esc(s.title || '이름 없음')}</div>
+      <div class="st" data-session="${esc(s.handle)}">${niceHtml(s.title)}</div>
       <div class="muted ss">${opts.project ? esc(PROJECT_NAMES[s.project] || s.project) + ' · ' : ''}${esc(devName(s.device))} · ${esc(AGENT_NAMES[s.agent] || s.agent || '터미널')}${s.model ? ' · ' + esc(modelName(s.model)) : ''}</div>
       ${s.context_tokens ? `<div class="ctx c-${ctxTone(s.context_tokens)}"><span>대화 ${fmtK(s.context_tokens)}</span><div class="bar"><i class="b-${ctxTone(s.context_tokens)}" style="width:${Math.min(100, s.context_tokens / 6000)}%"></i></div></div>` : ''}
       <div class="sl">${last ? esc(last) : '<span class="muted">—</span>'}</div>
@@ -631,7 +632,7 @@ function homeAlerts(M) {
   const stale = M.all.filter((s) => s.status === 'stale');
   if (stale.length) out.push({ tone: 'warn', t: `하루 넘게 멈춘 세션 ${stale.length}개`, act: 'page:tidy' });
   const plan = compactPlan(M).now;
-  if (plan.length) out.push({ tone: 'warn', t: `비우기 추천 ${plan.length}개`, s: plan.slice(0, 3).map((x) => `${x.s.title} ${fmtK(x.s.context_tokens)}`).join(' · '), act: 'page:tidy' });
+  if (plan.length) out.push({ tone: 'warn', t: `비우기 추천 ${plan.length}개`, s: plan.slice(0, 3).map((x) => `${nice(x.s.title).name} ${fmtK(x.s.context_tokens)}`).join(' · '), act: 'page:tidy' });
   for (const d of S.devices.filter((d) => !d.online)) out.push({ tone: 'bad', t: `${devName(d.device)} 연결 끊김`, s: d.state?.at ? ago(Date.parse(d.state.at)) : '' });
   for (const d of S.devices) if ((d.state?.render_locks || []).length) out.push({ tone: 'busy', t: `${devName(d.device)} 렌더 중` });
   for (const p of M.projects) {
@@ -715,7 +716,7 @@ const SECTIONS = {
     return `<div class="acard a-${i.tone || 'muted'} tall xcard" data-act="xpand">
     <span class="at">${esc(i.title)}</span>${i.sub ? `<span class="muted">${esc(i.sub)}</span>` : ''}${i.right ? `<span class="muted">${esc(i.right)}</span>` : ''}
     <div class="xd">${i.detail ? `<div>${esc(i.detail)}</div>` : ''}${i.rec ? `<div class="xrec"><b>추천</b> ${esc(i.rec)}</div>` : ''}
-      <div class="xb"><button class="small primary" data-askmgr="${esc(ask)}">담당에게 묻기</button>${sess ? `<button class="small" data-open="${esc(sess.handle)}">${esc(cleanTitle(sess.title))} 열기</button>` : ''}</div></div></div>`;
+      <div class="xb"><button class="small primary" data-askmgr="${esc(ask)}">담당에게 묻기</button>${sess ? `<button class="small" data-open="${esc(sess.handle)}">${esc(nice(sess.title).name)} 열기</button>` : ''}</div></div></div>`;
   }).join('')}</div>`
     : `<div class="empty">${esc(s.empty || '없습니다.')}</div>`,
   calendar: (s) => `<div class="cal">${s.days.map((d) => `<div class="day"><div class="dh">${esc(d.label)} <span class="muted">${d.items.length}</span></div>
@@ -761,6 +762,17 @@ const CHAT = {};    // key → 세션
 const ATTACH = {};  // key → [{id, url, name}]
 const DRAFTS = {};  // key → 입력 중인 글(15초 새로고침에도 남게)
 const cleanTitle = (t) => String(t || '').replace(/^[^\p{L}\p{N}]+/u, '').trim();
+// «YTHOME-SF-JP 린박스 C» 같은 세션 코드를 소유주가 읽는 이름으로: 린박스 · 유튜브 일본 쇼츠
+function nice(t) {
+  const c = cleanTitle(t);
+  let m = c.match(/^YTHOME-(SF|LF)-(KO|JP)\s*(.*)$/);
+  if (m) return { name: m[3].replace(/\s+[A-Z]$/, '') || '이름 없음', kind: `유튜브 ${m[2] === 'KO' ? '한국' : '일본'} ${m[1] === 'SF' ? '쇼츠' : '롱폼'}` };
+  m = c.match(/^YTHOME-M-(.*)$/);
+  if (m) return m[1] === 'HEAD' ? { name: '유튜브 담당', kind: '유튜브 전체 관리' } : { name: m[1], kind: '유튜브 지원' };
+  return { name: c || '이름 없음', kind: '' };
+}
+const niceTitle = (t) => { const n = nice(t); return n.kind ? `${n.name} (${n.kind})` : n.name; };
+const niceHtml = (t) => { const n = nice(t); return `${esc(n.name)}${n.kind ? ` <span class="kind">${esc(n.kind)}</span>` : ''}`; };
 function findByTitle(M, title, list) {
   const want = cleanTitle(title);
   return want ? (list || M.all).find((s) => cleanTitle(s.title) === want) || (list || M.all).find((s) => cleanTitle(s.title).includes(want)) : null;
@@ -918,7 +930,7 @@ function planCard(M) {
   if (!now.length && !later.length) return '';
   const row = (x, i, ok) => `<div class="prow">
     <span class="pn2 ${ok ? '' : 'muted'}">${ok ? i + 1 : '·'}</span>
-    <div class="pm"><b>${esc(x.s.title)}</b><div class="muted">${esc(x.why)}</div></div>
+    <div class="pm"><b>${niceHtml(x.s.title)}</b><div class="muted">${esc(x.why)}</div></div>
     <span class="ctx c-${ctxTone(x.s.context_tokens)}"><span>${fmtK(x.s.context_tokens)}</span></span>
     ${ok ? `<button class="small primary" data-compact="${esc(x.s.handle)}">비우기</button>` : '<button class="small" disabled>나중에</button>'}</div>`;
   const save = now.reduce((a, x) => a + x.s.context_tokens, 0);
@@ -992,7 +1004,7 @@ function openPanel(handle) {
   view.session = handle;
   $('app').classList.add('with-panel');
   const p = $('panel'); p.hidden = false;
-  p.innerHTML = `<div class="ph"><div class="row1"><b>${esc(s.title || '이름 없음')}</b>
+  p.innerHTML = `<div class="ph"><div class="row1"><b>${niceHtml(s.title)}</b>
       <div><button class="small danger" data-close="${esc(handle)}">세션 닫기</button> <button class="small" data-act="panel-x">✕</button></div></div>
       <div class="meta"></div></div>
     <div class="screen" id="screen">화면을 불러오는 중…</div>
@@ -1072,7 +1084,7 @@ function newSession() {
 }
 function compactSession(handle) {
   const s = findSession(handle); if (!s) return;
-  modal(`<h3>대화 비우기</h3><div>«${esc(s.title)}» 의 대화를 비웁니다. 지금 대화 ${s.context_tokens ? fmtK(s.context_tokens) + ' 토큰' : ''} — 이 세션은 한 턴마다 이만큼을 다시 읽습니다.</div>
+  modal(`<h3>대화 비우기</h3><div>«${esc(niceTitle(s.title))}» 의 대화를 비웁니다. 지금 대화 ${s.context_tokens ? fmtK(s.context_tokens) + ' 토큰' : ''} — 이 세션은 한 턴마다 이만큼을 다시 읽습니다.</div>
     <div class="muted">순서: 하던 턴이 끝나길 기다림 → 세션이 인계 파일을 씀 → 파일 확인 → 대화 비우기 → 인계 파일로 다시 시작. 몇 분 걸리고, 인계 파일이 안 써지면 비우지 않습니다.</div>`, async () => {
     const r = await cmd(s.device, 'compact', { handle, title: s.title }, s.title);
     toast(r.ok ? '비우기를 시작했습니다 · 끝나면 기록에 남습니다' : `시작하지 못했습니다: ${r.error}`);
@@ -1083,7 +1095,7 @@ function closeSession(handle) {
   const s = findSession(handle); if (!s) return;
   const d = S.devices.find((x) => x.device === s.device);
   const locks = d?.state?.render_locks || [];
-  modal(`<h3>세션 닫기</h3><div>«${esc(s.title || '이름 없음')}» (${esc(devName(s.device))}) 를 닫을까요?</div>
+  modal(`<h3>세션 닫기</h3><div>«${esc(niceTitle(s.title))}» (${esc(devName(s.device))}) 를 닫을까요?</div>
     <div class="muted">마지막 활동 ${ago(s.last_output_at)} · ${STATUS_TEXT[s.status]}<br>닫으면 이 세션의 대화는 끝납니다. 이어서 할 일이 있으면 먼저 «마무리 요청»으로 인계 파일을 남기세요.</div>
     ${s.status === 'busy' ? '<div style="color:var(--warn)">지금 작업 중인 세션입니다.</div>' : ''}
     ${locks.length ? `<div style="color:var(--bad)">이 기기에서 렌더가 진행 중입니다 (${locks.length}). 그래도 닫으려면 확인을 누르세요.</div>` : ''}`, async () => {
