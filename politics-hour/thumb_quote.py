@@ -81,6 +81,9 @@ def cutout_faces(c, ep, cfg, pw):
 #   center_word = 밝은 바탕 + 양옆 인물(누끼) + 가운데 세로 큰 글자 2~4줄: people[2], words[](빨강·남색 번갈아, 흰 테)
 #   scene       = 사건 장면 한 장 전체(어둡게) + 빨간 원/화살표 + 아래 글자 2줄: scene{img, box?: [x0, y0, x1]},
 #                 marks[{circle: [cx, cy, r]} | {arrow: [x0, y0, x1, y1]}](썸네일 1280x720 좌표), line1(노랑), line2(흰)
+#   band        = 위 장면/인물 + 아래 단색 띠(band_y 부터, 기본 400 ≈ 아래 44%)에 큰 글자 2~3줄(정치JA 10-29 요청, JA 1위 18/63):
+#                 scene{img, box?} 또는 people[1~2]{img, face?, hint?}(누끼), band_y, band_color(기본 남색), lines[], line_colors[](기본 노랑·흰·흰)
+#   lineup 의 line2_color(기본 흰, 정치JA 는 노랑)
 VS_DEFAULTS = {'mode': 'cutout', 'bg_dim': 0.4, 'bg_blur': 8, 'outline': {'color': '#FFFFFF', 'px': 4}, 'face_h': 0.8, 'face_top': 20}
 YEL, RED, NAVY = (245, 197, 24), (230, 30, 43), (16, 19, 28)
 
@@ -188,7 +191,7 @@ def lay_lineup(ep, cfg):
     s1 = _fit(d, cfg['line1'], 116, W - 50)
     d.text((W / 2, 585), cfg['line1'], font=f(s1), fill=RED, anchor='ms', stroke_width=9, stroke_fill=(255, 255, 255))
     s2 = _fit(d, cfg['line2'], 92, W - 80)
-    d.text((W / 2, 698), cfg['line2'], font=f(s2), fill=(255, 255, 255), anchor='ms', stroke_width=6, stroke_fill=(0, 0, 0))
+    d.text((W / 2, 698), cfg['line2'], font=f(s2), fill=rgb(cfg['line2_color']) if cfg.get('line2_color') else (255, 255, 255), anchor='ms', stroke_width=6, stroke_fill=(0, 0, 0))
     return _chrome(c, cfg)
 
 
@@ -250,7 +253,43 @@ def lay_scene(ep, cfg):
     return _chrome(c, cfg)
 
 
-LAYOUTS = {'lineup': lay_lineup, 'solo': lay_solo, 'center_word': lay_center_word, 'scene': lay_scene}
+def lay_band(ep, cfg):
+    by = int(cfg.get('band_y', 400))
+    if cfg.get('scene'):
+        sc = cfg['scene']
+        im = Image.open(ep / sc['img']).convert('RGB')
+        if sc.get('box'):   # 띠 위 칸(W x by) 비율로 자른다
+            x0, y0, x1 = sc['box']
+            im = im.crop((x0, y0, x1, y0 + int((x1 - x0) * by / W)))
+        else:
+            k = max(W / im.width, by / im.height)
+            im = im.resize((int(im.width * k), int(im.height * k)))
+            im = im.crop(((im.width - W) // 2, (im.height - by) // 2, (im.width - W) // 2 + W, (im.height - by) // 2 + by))
+        c = Image.new('RGB', (W, HT), NAVY)
+        c.paste(im.resize((W, by)), (0, 0))
+    else:
+        sess, ppl = _sess(cfg), cfg['people'][:2]
+        c = _bg(ep, ppl[0]['img'], dim=.5, blur=12)
+        n = len(ppl)
+        for i, p in enumerate(ppl):
+            cut, fc = _cut(ep, p, sess)
+            cx = W * (.5 if n == 1 else (.27 if i == 0 else .73))
+            _place(c, cut, fc, cfg.get('face_h', .42) * HT, cx, cfg.get('face_top', 40), outline=((255, 255, 255), 4),
+                   clip=None if n == 1 else (0 if i == 0 else W // 2, W // 2 if i == 0 else W))
+    d = ImageDraw.Draw(c)
+    d.rectangle([0, by, W, HT], fill=rgb(cfg.get('band_color', '#10131C')))
+    lines = cfg['lines'][:3]
+    cols = cfg.get('line_colors') or ['#F5C518', '#FFFFFF', '#FFFFFF']
+    room = HT - by - 30
+    sizes = [_fit(d, t, min(120, int(room / len(lines)) - 12), W - 70) for t in lines]
+    y = by + (HT - by - sum(s + 12 for s in sizes)) / 2 + 4
+    for i, (t, s) in enumerate(zip(lines, sizes)):
+        d.text((W / 2, y + s), t, font=f(s), fill=rgb(cols[min(i, len(cols) - 1)]), anchor='ms', stroke_width=5, stroke_fill=(0, 0, 0))
+        y += s + 12
+    return _chrome(c, cfg)
+
+
+LAYOUTS = {'lineup': lay_lineup, 'solo': lay_solo, 'center_word': lay_center_word, 'scene': lay_scene, 'band': lay_band}
 
 
 ep = Path(sys.argv[1])
