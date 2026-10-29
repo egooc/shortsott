@@ -18,6 +18,8 @@ HERE = Path(__file__).resolve().parent
 ENFORCE_FROM = '00000000'   # 소유주 10-24 «제목을 바꾸는데 왜 타겟을 바꿔?» — 옛 편 루프도 타겟 바뀌는 묶음은 안 건다
 HEAD = 15
 THUMB_FROM = '20261030'   # 소유주 10-29 «썸네일 3개가 여직껏 제목만 바뀌는 거였어?» — 묶음마다 사진이 달라야(그 전 편은 경고만)
+LAYOUT_FROM = '20261031'   # 소유주 10-29 오피스 #3 «세 틀로 나눠 시험» — pkg0·1·2 = 맞대결·나란히·한 명 크게
+LAYOUT_SET = {'vs', 'lineup', 'solo'}
 NEW_FROM = '20261028'   # 소유주 10-27: ③④⑤ 는 10/28편부터(그 전 편 교체 묶음은 지금처럼 ①② 만)
 MAX_LEN, QUOTE_HEAD, MAX_QUOTES, MAX_OTHERS = 45, 20, 2, 1
 OPENERS = '"“«\'‘'
@@ -135,6 +137,16 @@ def thumb_rules(ep, villain):
         elif vimg and vimg in seen_v:
             bad.append(f'썸네일 {f.stem} 빌런 사진 {Path(vimg).name} 이 {seen_v[vimg]} 와 같음 — 묶음마다 다른 장면·표정')
         seen_set.setdefault(imgs, f.stem); seen_v.setdefault(vimg, f.stem)
+    if ep.name[:8] >= LAYOUT_FROM and cf:
+        lay = {}
+        for f in cf:
+            try:
+                c = json.loads(f.read_text(encoding='utf-8'))
+            except ValueError:
+                continue
+            lay[f.stem] = c.get('layout') or 'vs'
+        if set(lay.values()) != LAYOUT_SET or len(lay) != len(LAYOUT_SET):
+            bad.append(f'썸네일 틀 {lay} — 묶음 3개가 vs·lineup·solo 를 하나씩 써야(틀 시험, 오피스 #3)')
     return bad
 
 
