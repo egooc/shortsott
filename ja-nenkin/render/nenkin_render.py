@@ -817,6 +817,9 @@ def main(argv=None):
         sys.stdout.reconfigure(encoding='utf-8')
     argv = sys.argv[1:] if argv is None else argv
     ep = Path(argv[0]).resolve()
+    # 공용 결 표 관문(도구개발 10-29, 10-31 00:00 전엔 경고만) — 정지 화면 미리보기는 뺀다
+    if '--preview' not in argv and subprocess.run([sys.executable, '-X', 'utf8', 'D:/midform/scripts/gyeol_gate.py', str(ep)]).returncode:
+        sys.exit(4)
     only = argv[argv.index('--only') + 1] if '--only' in argv else None
     blocks = parse_script(ep / 'script.txt')
     vis = json.loads((ep / 'visuals.json').read_text(encoding='utf-8'))
