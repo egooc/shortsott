@@ -291,7 +291,7 @@ def main(spec_path):
     else:
         base_png(s['top'], work / 'base.png')
     srcs = list(s['sources'])
-    args = ['ffmpeg', '-v', 'error', '-y']
+    args = ['ffmpeg', '-nostdin', '-v', 'error', '-y']
     for k in srcs:
         args += ['-i', s['sources'][k]['path']]
     args += ['-loop', '1', '-framerate', str(FPS), '-i', str(work / 'base.png')]
