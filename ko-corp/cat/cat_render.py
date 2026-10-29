@@ -29,7 +29,7 @@ FONT = str(ROOT / 'assets' / 'fonts' / 'rinbox' / 'GmarketSansBold.otf')
 SFX = {k: Path(__file__).resolve().parent / 'sfx' / f'{k}.wav' for k in ('pop', 'boing', 'tada', 'womp')}   # make_sfx.py 로 합성
 W, H, FPS = 1920, 1080, 30
 COLORS = {'yellow': (255, 232, 0), 'red': (235, 20, 20), 'white': (255, 255, 255)}
-CODE = '2026-10-27a'
+CODE = '2026-10-29a'
 
 
 def take_lock(ep):
@@ -110,8 +110,21 @@ def layout(ep, beat):
         b['cats'] = [{'src': pose_src(ep, beat['speaker']), 'x': 0.5, 'h': 1.15, 'bottom': H + 260, 'bob': 6}]
         b['texts'], b['year'] = [], ''
         return b
-    b['cats'] = [{'src': pose_src(ep, beat['speaker']), 'x': 0.2, 'h': 0.8, 'tag': beat.get('tag', ''), 'enter': bool(beat.get('enter'))}]
     lines = [x.strip() for x in beat.get('line', '').split('/') if x.strip()]
+    if beat.get('v3'):   # 3판(소유주 10-29): 고양이 크게 · 대사 4~5줄 · 소품/도표로 화면 채우기
+        b['cats'] = [{'src': pose_src(ep, beat['speaker']), 'x': 0.17, 'h': 0.98, 'bottom': H + 70, 'tag': beat.get('tag', ''), 'enter': bool(beat.get('enter'))}]
+        size = 100 if len(lines) <= 4 and max(map(len, lines or [''])) <= 9 else 90
+        b['texts'] = [{'text': '\n'.join(lines), 'x': 0.55, 'y': 0.05, 'size': size, 'color': beat.get('color', 'yellow'), 'anchor': 'ma'}]
+        if beat.get('react'):
+            b['cats'].append({'src': pose_src(ep, beat['react']), 'x': 0.88, 'h': 0.46, 'bob': 14})
+            if beat.get('react_line'):
+                b['texts'].append({'text': beat['react_line'].replace(' / ', '\n').replace('/', '\n'), 'x': 0.88, 'y': 0.47, 'size': 58, 'color': 'white', 'anchor': 'md'})
+        if beat.get('prop'):
+            b['cats'].insert(0, {'src': ep / 'props' / f"{beat['prop']}.png", 'x': 0.56, 'h': 0.33, 'bottom': H - 70, 'bob': 0})
+        if beat.get('sub'):
+            b['texts'].append({'text': beat['sub'], 'x': 0.55, 'y': 0.975, 'size': 28, 'color': 'white', 'anchor': 'md'})
+        return b
+    b['cats'] = [{'src': pose_src(ep, beat['speaker']), 'x': 0.2, 'h': 0.8, 'tag': beat.get('tag', ''), 'enter': bool(beat.get('enter'))}]
     size = 96 if len(lines) <= 3 and max(map(len, lines or [''])) <= 11 else 84
     b['texts'] = [{'text': '\n'.join(lines), 'x': 0.6, 'y': 0.33 if beat.get('react') else 0.4, 'size': size, 'color': beat.get('color', 'yellow')}]
     if beat.get('react'):
@@ -123,6 +136,33 @@ def layout(ep, beat):
     return b
 
 
+def chart_card(d, chart):
+    """«지면» 도표 카드: 흰 종이 + 굵은 검은 테 + 제목 띠 + 항목·값 줄(최대 4). 아래 가운데(두 고양이 사이)."""
+    title, rows = chart.get('title', ''), chart.get('rows', [])[:4]
+    fT, fR = ImageFont.truetype(FONT, 50), ImageFont.truetype(FONT, 48)
+    cw, rh = 780, 70
+    ch = 78 + rh * len(rows) + 20
+    x0, y1 = int(0.56 * W - cw / 2), int(0.93 * H)
+    y0 = y1 - ch
+    d.rounded_rectangle((x0 + 10, y0 + 12, x0 + cw + 10, y1 + 12), 18, fill=(0, 0, 0, 110))
+    d.rounded_rectangle((x0, y0, x0 + cw, y1), 18, fill=(255, 253, 246), outline=(0, 0, 0), width=6)
+    d.rounded_rectangle((x0, y0, x0 + cw, y0 + 78), 18, fill=(230, 40, 40), outline=(0, 0, 0), width=6)
+    d.text((x0 + cw / 2, y0 + 40), title, font=fT, fill=(255, 255, 255), anchor='mm', stroke_width=3, stroke_fill=(0, 0, 0))
+    for k, (name, val) in enumerate(rows):
+        yy = y0 + 78 + 10 + rh * k + rh / 2
+        if k:
+            d.line((x0 + 24, yy - rh / 2, x0 + cw - 24, yy - rh / 2), fill=(200, 196, 186), width=2)
+        d.text((x0 + 36, yy), name, font=fR, fill=(20, 20, 30), anchor='lm')
+        cx = x0 + cw - 70
+        if val in ('✔', 'O', 'o'):   # 글꼴에 ✔·✘ 가 없어 직접 그린다
+            d.ellipse((cx - 24, yy - 24, cx + 24, yy + 24), outline=(20, 150, 60), width=8)
+        elif val in ('✘', 'X', 'x'):
+            d.line((cx - 22, yy - 22, cx + 22, yy + 22), fill=(220, 30, 30), width=9)
+            d.line((cx - 22, yy + 22, cx + 22, yy - 22), fill=(220, 30, 30), width=9)
+        else:
+            d.text((x0 + cw - 36, yy), val, font=fR, fill=(20, 60, 200), anchor='rm')
+
+
 def text_layer(beat, path):
     """연도·장소(왼쪽 위) · 대사(굵은 테두리 글씨, 노랑/빨강) · 보조 자막 · 이름표(흰 상자) 한 장."""
     im = Image.new('RGBA', (W, H), (0, 0, 0, 0))
@@ -131,7 +171,9 @@ def text_layer(beat, path):
         outlined(d, (36, 30), beat['year'], ImageFont.truetype(FONT, 72), (255, 255, 255), 12, 'la')
     cats = beat.get('cats', [])
     for t in beat.get('texts', []):
-        outlined(d, (int(t['x'] * W), int(t['y'] * H)), t['text'], ImageFont.truetype(FONT, t['size']), COLORS[t['color']], max(6, t['size'] // 7))
+        outlined(d, (int(t['x'] * W), int(t['y'] * H)), t['text'], ImageFont.truetype(FONT, t['size']), COLORS[t['color']], max(6, t['size'] // 7), t.get('anchor', 'mm'))
+    if beat.get('chart'):
+        chart_card(d, beat['chart'])
     if beat.get('line') and 'texts' not in beat:
         xs = [c.get('x', 0.25) for c in cats]
         tx = beat.get('tx', 0.5 if len(cats) > 1 else (0.64 if (xs or [0.25])[0] < 0.5 else 0.36))
@@ -192,7 +234,8 @@ def check(beats, ep, max_run=15.0, max_rep=2):
         if 'speaker' in b and rep > max_rep:
             print(f'구도 반복 관문: 화면 {i} 까지 같은 구도 {rep}컷 연속 > {max_rep}(관리자 10-27, 동네 업종 3판 지적) — 종료 4')
             raise SystemExit(4)
-    miss = sorted({p for b in beats for p in (b.get('speaker'), b.get('react')) if p and not pose_src(ep, p).exists()})
+    miss = sorted({p for b in beats for p in (b.get('speaker'), b.get('react')) if p and not pose_src(ep, p).exists()}
+                  | {f"props/{b['prop']}" for b in beats if b.get('prop') and not (ep / 'props' / f"{b['prop']}.png").exists()})
     if miss:
         print(f'표정 그림 없음: {miss} — 종료 4')
         raise SystemExit(4)
@@ -204,7 +247,7 @@ def check(beats, ep, max_run=15.0, max_rep=2):
 
 def render_beat(ep, i, beat, d, work):
     seg = work / f'b{i:03d}.mp4'
-    key = json.dumps([beat, d, CODE, str(sorted(p.stat().st_mtime for p in (ep / 'pose').glob('*.png')) if (ep / 'pose').exists() else '')], ensure_ascii=False, sort_keys=True)
+    key = json.dumps([beat, d, CODE, str(sorted(p.stat().st_mtime for p in [*(ep / 'pose').glob('*.png'), *(ep / 'props').glob('*.png')]))], ensure_ascii=False, sort_keys=True)
     if seg.exists() and (work / f'b{i:03d}.key').exists() and (work / f'b{i:03d}.key').read_text(encoding='utf-8') == key:
         return seg
     txt = work / f'b{i:03d}_text.png'
