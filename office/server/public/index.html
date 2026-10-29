@@ -813,15 +813,18 @@ function toggleFab() {
   if (fabOpen) { fabScreen(); fabTimer = setInterval(fabScreen, 4000); setTimeout(() => $('fab').querySelector('textarea')?.focus(), 50); }
 }
 
+let SENDING = false;
 async function sendChat(key) {
+  if (SENDING) return;
   const sess = CHAT[key]; const ta = document.querySelector(`[data-draft="${key}"]`);
   const text = (ta?.value || '').trim(); const att = ATTACH[key] || [];
   if (!sess || (!text && !att.length)) return;
   const body = [`[오피스 · 소유주] ${text}`, ...att.map((a, i) => `첨부${i + 1}(${a.name}): ${a.url}  ← 6시간 유효, curl -o 로 받아서 열어 볼 것`)].join('\n');
-  const r = await cmd(sess.device, 'send', { handle: sess.handle, text: body }, sess.title);
+  SENDING = true;
+  const r = await cmd(sess.device, 'send', { handle: sess.handle, text: body }, sess.title).finally(() => { SENDING = false; });
   if (!r.ok) return toast(`못 보냈습니다: ${r.error}`);
   DRAFTS[key] = ''; ATTACH[key] = [];
-  toast('보냈습니다');
+  toast(r.result?.queued ? '보냈습니다 — 세션이 하던 일을 끝내고 읽습니다' : '보냈습니다');
   if (key === 'office') { if (ta) ta.value = ''; renderFab(model()); setTimeout(fabScreen, 1500); return; }
   openPanel(sess.handle);
 }

@@ -188,7 +188,12 @@ const OPS = {
   },
   async send({ handle, text }) {
     if (!text || text.length > 8000) throw new Error('보낼 글이 비었거나 너무 길다');
-    return orca(['terminal', 'send', '--terminal', handle, '--text', text, '--enter', '--wait-submit', '5'], 40e3);
+    // 세션이 일하는 중이면 글은 들어갔는데 제출 확인만 늦는다 — 실패로 돌리면 소유주가 같은 말을 또 보낸다
+    try { return await orca(['terminal', 'send', '--terminal', handle, '--text', text, '--enter', '--wait-submit', '5'], 40e3); }
+    catch (e) {
+      if (/submit|timed? ?out|timeout|ETIMEDOUT|killed/i.test(e.message)) return { queued: true, note: e.message.slice(0, 120) };
+      throw e;
+    }
   },
   async launch({ folder, agent = 'claude', prompt, title }) {
     if (!['claude', 'codex'].includes(agent)) throw new Error('claude·codex 만 띄운다');
