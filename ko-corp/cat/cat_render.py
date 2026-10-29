@@ -29,7 +29,7 @@ FONT = str(ROOT / 'assets' / 'fonts' / 'rinbox' / 'GmarketSansBold.otf')
 SFX = {k: Path(__file__).resolve().parent / 'sfx' / f'{k}.wav' for k in ('pop', 'boing', 'tada', 'womp')}   # make_sfx.py 로 합성
 W, H, FPS = 1920, 1080, 30
 COLORS = {'yellow': (255, 232, 0), 'red': (235, 20, 20), 'white': (255, 255, 255)}
-CODE = '2026-10-26c'
+CODE = '2026-10-27a'
 
 
 def take_lock(ep):
@@ -110,7 +110,7 @@ def layout(ep, beat):
         b['cats'] = [{'src': pose_src(ep, beat['speaker']), 'x': 0.5, 'h': 1.15, 'bottom': H + 260, 'bob': 6}]
         b['texts'], b['year'] = [], ''
         return b
-    b['cats'] = [{'src': pose_src(ep, beat['speaker']), 'x': 0.2, 'h': 0.8, 'tag': beat.get('tag', '')}]
+    b['cats'] = [{'src': pose_src(ep, beat['speaker']), 'x': 0.2, 'h': 0.8, 'tag': beat.get('tag', ''), 'enter': bool(beat.get('enter'))}]
     lines = [x.strip() for x in beat.get('line', '').split('/') if x.strip()]
     size = 96 if len(lines) <= 3 and max(map(len, lines or [''])) <= 11 else 84
     b['texts'] = [{'text': '\n'.join(lines), 'x': 0.6, 'y': 0.33 if beat.get('react') else 0.4, 'size': size, 'color': beat.get('color', 'yellow')}]
@@ -179,7 +179,7 @@ def stats(beats):
             '구도 반복 최대': rmax, '같은 배경 최장(초)': round(longest, 1), '화면': len(beats), '길이(초)': round(sum(map(beat_dur, beats)), 1)}
 
 
-def check(beats, max_run=15.0, max_rep=2):
+def check(beats, ep, max_run=15.0, max_rep=2):
     run, prev, rep, pk = 0.0, None, 0, None
     for i, b in enumerate(beats):
         run = run + beat_dur(b) if (b['bg'], bool(b.get('gray'))) == prev else beat_dur(b)
@@ -192,6 +192,10 @@ def check(beats, max_run=15.0, max_rep=2):
         if 'speaker' in b and rep > max_rep:
             print(f'구도 반복 관문: 화면 {i} 까지 같은 구도 {rep}컷 연속 > {max_rep}(관리자 10-27, 동네 업종 3판 지적) — 종료 4')
             raise SystemExit(4)
+    miss = sorted({p for b in beats for p in (b.get('speaker'), b.get('react')) if p and not pose_src(ep, p).exists()})
+    if miss:
+        print(f'표정 그림 없음: {miss} — 종료 4')
+        raise SystemExit(4)
     bad = [i for i, b in enumerate(beats) if b.get('real') and '재연' not in ''.join(c.get('tag', '') for c in b.get('cats', []))]
     if bad:
         print(f'재연 표시 관문: 실존 인물 대사에 «재연» 없는 화면 {bad} — 종료 4')
@@ -222,7 +226,8 @@ def render_beat(ep, i, beat, d, work):
         x = int(c.get('x', 0.25) * W)
         bob = c.get('bob', 10)
         flt.append(f'[{k}]scale=-1:{h}{flip}[c{j}]')
-        flt.append(f'[{last}][c{j}]overlay=x=\'{x}-w/2\':y=\'{c.get('bottom', H - 40)}-h+{bob}*sin(2*PI*t*1.6+{j})\':shortest=1[v{j + 1}]')
+        rise = '+if(lt(t,0.25),(1-t/0.25)*h,0)' if c.get('enter') else ''   # 등장: 아래에서 튀어나옴(결 분석서 §1-2)
+        flt.append(f'[{last}][c{j}]overlay=x=\'{x}-w/2\':y=\'{c.get('bottom', H - 40)}-h+{bob}*sin(2*PI*t*1.6+{j}){rise}\':shortest=1[v{j + 1}]')
         last = f'v{j + 1}'
     k = len(beat.get('cats', [])) + 1
     inputs += ['-loop', '1', '-i', txt]
@@ -236,9 +241,11 @@ def render_beat(ep, i, beat, d, work):
 def main():
     sys.stdout.reconfigure(encoding='utf-8')
     ep = Path(sys.argv[1]).resolve()
+    if subprocess.run([sys.executable, '-X', 'utf8', 'D:/midform/scripts/gyeol_gate.py', str(ep)]).returncode:   # 공용 결 표 관문
+        sys.exit(4)
     spec = json.loads((ep / 'beats.json').read_text(encoding='utf-8'))
     beats = spec['beats']
-    check(beats)
+    check(beats, ep)
     (ep / 'out').mkdir(exist_ok=True)
     (ep / 'out' / 'stats.json').write_text(json.dumps(stats(beats), ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     if '--check' in sys.argv:
