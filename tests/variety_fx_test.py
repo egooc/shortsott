@@ -81,6 +81,21 @@ kept = [e['t'] for e in v.thin_sfx(many) if e.get('sfx')]
 check('효과음 솎기: 최대 6·5초 간격', len(kept) <= v.SFX_MAX and all(abs(x - y) >= v.SFX_GAP for i, x in enumerate(kept) for y in kept[i + 1:]))
 check('펀치(hit)가 먼저 남는다', 1 in kept)
 
+# 그래픽 종류 빼기(쇼핑 성장 모드 화살표 금지 10-30)
+if hasattr(v, 'drop_kinds'):
+    mix = [{'t': 1, 'kind': 'arrow', 'sfx': 'swoosh'}, {'t': 1.5, 'kind': 'sticker', 'sfx': None}, {'t': 9, 'kind': 'tag', 'as': 'cta', 'sfx': 'x'}]
+    left = v.drop_kinds([dict(e) for e in mix], ['arrow'])
+    check('--no-kind arrow: 화살표만 빠지고 빈 효과음 몫은 남은 것이 받는다', [e['kind'] for e in left] == ['sticker', 'tag'] and left[0]['sfx'])
+    check('--no-kind cta: as 이름으로도 뺀다', [e['kind'] for e in v.drop_kinds([dict(e) for e in mix], ['cta'], rethin=False)] == ['arrow', 'sticker'])
+    with tempfile.TemporaryDirectory() as d:
+        a = Path(d) / 'c.ass'; a.write_text(ASS, encoding='utf-8')
+        out = Path(d) / 'o.mp4'
+        import subprocess
+        r = subprocess.run([sys.executable, '-X', 'utf8', str(ROOT / 'scripts' / (sys.argv[1] if len(sys.argv) > 1 else 'variety_fx.py')), 'x.mp4', str(a),
+                            '--out', str(out), '--dry', '--no-kind', 'arrow,note'], capture_output=True, text=True, encoding='utf-8')
+        kinds = {e['kind'] for e in json.loads((out.with_suffix('.vfx') / 'fx.json').read_text(encoding='utf-8'))} if r.returncode == 0 else {'?'}
+        check('--dry --no-kind arrow,note: fx.json 에 화살표·메모 없음', r.returncode == 0 and not kinds & {'arrow', 'note', '?'})
+
 lock = json.loads((v.KIT / 'kit.lock.json').read_text(encoding='utf-8'))
 need = set(v.SFX.values())
 check('쓰는 효과음 역할의 테이크 파일이 다 있다',

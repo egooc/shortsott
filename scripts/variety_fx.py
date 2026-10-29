@@ -118,6 +118,20 @@ def thin_sfx(fx):
     return fx
 
 
+def drop_kinds(fx, kinds, rethin=True):
+    """레인이 금지한 그래픽 종류를 뺀다(쇼핑 성장 모드 빨간 화살표 금지 10-30). kind 또는 as 가 맞으면 뺀다.
+    rethin=True(자동 배치)면 빠진 자리 효과음 몫을 남은 것들이 다시 나눠 갖는다."""
+    kinds = {k.strip() for k in kinds if k.strip()}
+    if not kinds:
+        return fx
+    fx = [e for e in fx if e.get('kind') not in kinds and e.get('as') not in kinds]
+    if rethin:
+        for e in fx:
+            e['sfx'] = SFX.get(e.get('as', e['kind']))
+        thin_sfx(fx)
+    return fx
+
+
 SIL = ('<svg viewBox="0 0 400 460" width="400" height="460"><path d="M200 40c62 0 104 46 104 112s-42 122-104 122S96 218 96 152 138 40 200 40z" '
        f'fill="{NAVY}" stroke="#fff" stroke-width="8"/><path d="M20 460c8-110 84-170 180-170s172 60 180 170z" fill="{NAVY}" stroke="#fff" '
        'stroke-width="8"/><text x="200" y="215" text-anchor="middle" font-family="Aggro" font-size="170" fill="#fff">?</text></svg>')
@@ -398,6 +412,7 @@ def main():
     ap.add_argument('--gain', type=float, default=0.0, help='모든 효과음 dB 더하기(기본 0 = 자리 믹스 +4~6dB). 소유주 10-28: -3~-7dB 는 «거의 안 들려»')
     ap.add_argument('--rel', type=float, help='효과음 크기를 그 자리 믹스 대비 이 dB 로 고정(예: -18). --gain 보다 우선')
     ap.add_argument('--top', type=int, help='제목 띠 아래 y(1920 기준) 직접 지정 — 자동 계산보다 우선')
+    ap.add_argument('--no-kind', action='append', default=[], help='뺄 그래픽 종류(쉼표·여러 번 가능): arrow·sticker·note·tag·punch·silhouette 또는 as 이름 cta·number. 예: --no-kind arrow')
     ap.add_argument('--fonts', help='글꼴 폴더(없으면 영상 위 폴더의 fonts → 정치 assets → 설치 글꼴)')
     a = ap.parse_args()
     global W, H, YEL, RED, INK, NAVY, GAIN, REL
@@ -414,6 +429,7 @@ def main():
     top = a.top if a.top is not None else top
     print('제목 띠 아래 y =', top)
     fx = json.loads(Path(a.plan).read_text(encoding='utf-8')) if a.plan else keep_below(auto(segs), top)
+    fx = drop_kinds(fx, ','.join(a.no_kind).split(','), rethin=not a.plan)
     fonts = None if a.sfx_only else pick_fonts(font_dirs(a.video, a.fonts))
     (work / 'fx.json').write_text(json.dumps(fx, ensure_ascii=False, indent=1) + '\n', encoding='utf-8')
     print(len(fx), 'effects →', work / 'fx.json')
