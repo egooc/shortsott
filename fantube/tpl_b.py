@@ -345,8 +345,9 @@ def main(spec_path):
         a, b = g['a'] - src['base'], g['b'] - src['base']
         cw = g['cw'] // 2 * 2
         ch = round(cw * VH / W) // 2 * 2
-        if g.get('fit') and s.get('style') == 'claim':
-            raise SystemExit('결 틀(style=claim)은 가로 통짜(fit) 금지 — 레퍼런스 24편 전부 9:16 크롭, cw·x 를 얼굴 쪽으로 좁혀라')
+        if g.get('fit') and s.get('style') == 'claim' and not s.get('fit_ok'):
+            # 10/29 소유주(검수 #21 릴리 번복 편): «원본 자막이 차라리 다 보이는 게 좋겠다» — 박힌 자막이 창보다 넓은 컷은 spec.fit_ok 에 사유를 적고 fit 허용
+            raise SystemExit('결 틀(style=claim)은 가로 통짜(fit) 금지 — 레퍼런스 24편 전부 9:16 크롭. 박힌 자막을 온전히 보여야 하면 spec.fit_ok 에 사유(소유주 10/29)를 적어라')
         if g.get('fit'):                             # 10/27 원본 자막형: 자막이 창보다 넓은 컷은 가로 전체를 1080 폭에 맞추고 위아래는 같은 그림을 흐리게 깔아 채운다
             fc.append(f"[{ii}:v]trim={a:.3f}:{b:.3f},setpts=PTS-STARTPTS,fps={FPS},split=2[f{i}a][f{i}b]")
             fc.append(f"[f{i}a]scale={W}:{VH}:force_original_aspect_ratio=increase,crop={W}:{VH},gblur=sigma=40,eq=brightness=-0.12:saturation=0.8[bg{i}]")
