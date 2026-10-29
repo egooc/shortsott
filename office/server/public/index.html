@@ -327,6 +327,24 @@ img.media { object-fit: cover; max-height: 320px; }
 .att .x { border: 0; background: none; padding: 0 6px; color: var(--muted); }
 .chat .cb { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
 
+/* 오피스 담당 떠 있는 대화창 */
+main { padding-bottom: 80px; }
+.fab { position: fixed; right: 20px; bottom: 20px; z-index: 8; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+.fbtn { display: inline-flex; align-items: center; gap: 8px; border-radius: 999px; padding: 11px 18px; font-weight: 700;
+  background: var(--accent); border-color: var(--accent); color: #fff; box-shadow: 0 8px 24px rgb(0 0 0 / .18); }
+.fbtn .dot { box-shadow: 0 0 0 2px #fff; }
+.fab.open .fbtn { display: none; }
+.fpanel { display: none; width: 420px; height: min(580px, calc(100vh - 60px)); background: var(--panel); border: 1px solid var(--line);
+  border-radius: 16px; box-shadow: 0 16px 48px rgb(0 0 0 / .22); flex-direction: column; overflow: hidden; }
+.fab.open .fpanel { display: flex; }
+.fpanel .fh { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.fpanel .fh .fst { flex: 1; font-size: 12px; }
+.fpanel .fscreen { flex: 1; overflow: auto; background: var(--term-bg); color: var(--term-text); margin: 10px; border-radius: 10px;
+  padding: 10px 12px; font: 12px/1.45 ui-monospace, "Cascadia Mono", Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
+.fpanel .fatts { padding: 0 12px; margin: 0; }
+.fpanel .composer2 { padding: 0 12px 12px; }
+#app.with-panel ~ .fab, body:has(aside.panel:not([hidden])) .fab { right: 480px; }
+
 /* 아래 탭(폰) */
 .tabbar { display: none; }
 
@@ -352,6 +370,13 @@ img.media { object-fit: cover; max-height: 320px; }
   .tabbar button.on { color: var(--accent); font-weight: 600; }
   .tabbar .badge { position: absolute; top: 0; left: 55%; background: var(--bad); color: #fff; font-size: 10px; border-radius: 999px; padding: 0 5px; }
   table.rt tbody, .sgrid, .agrid { grid-template-columns: 1fr; }
+  textarea, input, select { font-size: 16px; } /* 아이폰: 16px 미만이면 입력할 때 화면이 확대된다 */
+  main { padding-bottom: calc(140px + env(safe-area-inset-bottom)); }
+  .fab { right: 12px; bottom: calc(76px + env(safe-area-inset-bottom)); }
+  .fbtn { padding: 10px 14px; }
+  .fab.open { left: 8px; right: 8px; }
+  .fpanel { width: 100%; height: calc(100vh - 160px); }
+  body:has(aside.panel:not([hidden])) .fab { display: none; }
   .mgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   .mcard .mb { padding: 8px 10px 10px; } .mcard .mt { font-size: 13.5px; }
   .meters { grid-template-columns: repeat(2, 1fr); gap: 8px; }
@@ -384,6 +409,7 @@ img.media { object-fit: cover; max-height: 320px; }
   </aside>
   <main id="main"></main>
   <nav class="tabbar" id="tabbar"></nav>
+  <div class="fab" id="fab"></div>
   <aside class="panel" id="panel" hidden></aside>
 </div>
 
@@ -598,7 +624,6 @@ function renderHome(M) {
   const online = S.devices.filter((d) => d.online).length;
   return head('오늘', `<span class="pillrow"><span class="pill">세션 ${M.all.length}</span><span class="pill busy">작업 중 ${busy}</span><span class="pill">기기 ${online}/${S.devices.length}</span></span>`, NEW_BTN)
     + `<div class="body">
-    ${chatBox('office', findByTitle(M, S.config?.office?.title), '오피스 담당', '화면·기능 피드백, 전체 지시는 여기에')}
     ${meters(limitsNow())}
     <div class="grid2">
       <div>
@@ -609,7 +634,7 @@ function renderHome(M) {
           <div class="mgrid two">${(S.media || []).filter((m) => !m.by_owner).slice(0, 4).map(mediaCard).join('')}</div>` : ''}
       </div>
       <div>
-        ${alerts.length ? `<h3 class="sh">확인할 것</h3>${alerts.map((a) => `<div class="acard a-${a.tone}" ${a.act ? `data-act="${esc(a.act)}"` : ''}>
+        ${alerts.length ? `<h3 class="sh">확인할 것</h3>${alerts.map((a) => `<div class="acard a-${a.tone} ${a.s && a.s.length > 12 ? 'tall' : ''}" ${a.act ? `data-act="${esc(a.act)}"` : ''}>
           <span class="at">${esc(a.t)}</span>${a.s ? `<span class="muted">${esc(a.s)}</span>` : ''}${a.act ? '<span class="go">보기 ›</span>' : ''}</div>`).join('')}` : ''}
         <h3 class="sh">프로젝트</h3>
         ${M.projects.map((p) => {
@@ -726,6 +751,51 @@ async function attachFiles(key, files) {
   }
   render();
 }
+// ── 오피스 담당: 오른쪽 아래에 떠 있는 대화창(접기·펴기). 가운데 화면이 바뀌어도 이 상자는 그대로 둔다. ──
+let fabOpen = (() => { try { return localStorage.getItem('fabOpen') === '1'; } catch { return false; } })();
+let fabTimer = null;
+function renderFab(M) {
+  const sess = findByTitle(M, S.config?.office?.title);
+  CHAT.office = sess;
+  const el = $('fab');
+  if (!el.dataset.built) {
+    el.dataset.built = '1';
+    el.innerHTML = `<button class="fbtn" data-act="fab"><span class="dot"></span><span>오피스 담당</span></button>
+      <div class="fpanel"><div class="fh"><b>오피스 담당</b><span class="muted fst"></span><button class="small ghost" data-act="fab">접기</button></div>
+        <div class="fscreen">불러오는 중…</div>
+        <div class="atts fatts"></div>
+        <div class="composer2"><textarea rows="2" data-draft="office" placeholder="화면·기능 피드백, 전체 지시"></textarea>
+          <label class="attach" title="이미지·영상 붙이기">📎<input type="file" accept="image/*,video/*" multiple data-attach="office" hidden></label>
+          <button class="primary" data-chat="office">보내기</button></div></div>`;
+  }
+  el.classList.toggle('open', fabOpen);
+  if (fabOpen && !fabTimer && sess) { fabTimer = setInterval(fabScreen, 4000); fabScreen(); }
+  const dot = el.querySelector('.fbtn .dot');
+  dot.className = `dot d-${sess ? sess.status : 'off'}`;
+  el.querySelector('.fst').textContent = sess ? `${STATUS_TEXT[sess.status]} · ${ago(sess.last_output_at)}` : '세션 없음';
+  const att = ATTACH.office || [];
+  el.querySelector('.fatts').innerHTML = att.map((a, i) => `<span class="att">${esc(a.name)} <button class="x" data-unattach="office:${i}">×</button></span>`).join('');
+}
+async function fabScreen() {
+  const sess = CHAT.office; const box = $('fab').querySelector('.fscreen');
+  if (!fabOpen || !sess || !box) return;
+  const r = await cmd(sess.device, 'read', { handle: sess.handle }).catch(() => null);
+  const tail = r?.ok ? (r.result?.terminal?.tail || []) : null;
+  if (!tail) return;
+  // 상태줄·구분선은 빼고 마지막 말만
+  const lines = tail.map((l) => String(l)).filter((l) => l.trim() && !/^[─━\s]+$/.test(l) && !NOISE.test(l.trim()));
+  const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
+  box.textContent = lines.slice(-40).join('\n');
+  if (atBottom) box.scrollTop = box.scrollHeight;
+}
+function toggleFab() {
+  fabOpen = !fabOpen;
+  try { localStorage.setItem('fabOpen', fabOpen ? '1' : '0'); } catch {}
+  renderFab(model());
+  clearInterval(fabTimer);
+  if (fabOpen) { fabScreen(); fabTimer = setInterval(fabScreen, 4000); setTimeout(() => $('fab').querySelector('textarea')?.focus(), 50); }
+}
+
 async function sendChat(key) {
   const sess = CHAT[key]; const ta = document.querySelector(`[data-draft="${key}"]`);
   const text = (ta?.value || '').trim(); const att = ATTACH[key] || [];
@@ -735,6 +805,7 @@ async function sendChat(key) {
   if (!r.ok) return toast(`못 보냈습니다: ${r.error}`);
   DRAFTS[key] = ''; ATTACH[key] = [];
   toast('보냈습니다');
+  if (key === 'office') { if (ta) ta.value = ''; renderFab(model()); setTimeout(fabScreen, 1500); return; }
   openPanel(sess.handle);
 }
 function makeManager(key) {
@@ -857,6 +928,7 @@ function render(auto) {
     $('main').innerHTML = (P[view.page] || renderHome)(M);
   }
   if (view.session) renderPanelHead(M);
+  renderFab(M);
   // 폰 아래 탭: 오늘 · 결정 · 결과물 · 프로젝트(서랍) · 세션
   const open = S.decisions.filter((d) => d.status === 'open').length;
   const TB = [['page:home', '오늘', 'home', '⌂'], ['page:decisions', '결정', 'decisions', '✓'], ['page:results', '결과물', 'results', '▣'], ['drawer', '프로젝트', 'project', '▤'], ['page:tidy', '세션', 'tidy', '◎']];
@@ -1033,6 +1105,7 @@ document.addEventListener('click', (e) => {
   if (a === 'tab:big') { view.page = 'tidy'; view.tab = 'big'; return render(); }
   if (a && a.startsWith('project:')) { view.page = 'project'; view.project = a.slice(8); return render(); }
   if (a === 'expand') return t.classList.toggle('clamp');
+  if (a === 'fab') return toggleFab();
   if (a === 'drawer') return $('side').classList.toggle('open');
 });
 
