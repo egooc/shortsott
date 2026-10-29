@@ -23,9 +23,12 @@ function tagsOf(meta) {
 (async () => {
   const [videoId, metaPath] = process.argv.slice(2);
   if (!videoId || !metaPath) throw new Error('usage: node fantube/yt_tags.js <videoId> <upload.json> [--check] [--gate]');
-  const tags = tagsOf(JSON.parse(fs.readFileSync(metaPath, 'utf8')));
+  const META = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+  const tags = tagsOf(META);
   const store = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'server', 'data', 'youtube_upload_profiles.json'), 'utf8'));
-  const p = store.profiles.find((x) => x.purpose === 'idol_fantube_ko');
+  const purpose = META.purpose || 'idol3sec_ko';   // 레인별 채널(10/27 코르티스 레인 증설) — upload.json 의 purpose
+  const p = store.profiles.find((x) => x.purpose === purpose);
+  if (!p) throw new Error(`채널 프로필 없음: purpose=${purpose} — yt-connect.js 로 먼저 연결`);
   const c = new OAuth2Client(p.oauthClientId, p.oauthClientSecret, p.oauthRedirectUri);
   c.setCredentials({ refresh_token: p.refreshToken });
   const H = { Authorization: `Bearer ${(await c.getAccessToken()).token}`, 'Content-Type': 'application/json' };
