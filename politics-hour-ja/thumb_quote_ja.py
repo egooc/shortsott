@@ -25,6 +25,14 @@ def truetype(font=None, size=10, *a, **k):
     return _tt(font, size, *a, **k)
 
 
+# 누끼(cutout·layout)는 .venv-vision 의 rembg 가 필요하다. ko thumb_quote.py 가 스스로 거기서 다시 돌면 이 글꼴 바꿔치기가 빠지므로 여기서 먼저 옮겨 탄다(10-29)
+VENV_VISION = ROOT / '.venv-vision' / 'Scripts' / 'python.exe'
+if Path(sys.executable).resolve() != VENV_VISION.resolve() and VENV_VISION.exists():
+    import importlib.util
+    import subprocess
+    if importlib.util.find_spec('rembg') is None:
+        sys.exit(subprocess.run([str(VENV_VISION), '-X', 'utf8', __file__, *sys.argv[1:]]).returncode)
+
 ImageFont.truetype = truetype
 sys.argv = [str(ROOT / 'politics-hour' / 'thumb_quote.py')] + sys.argv[1:]
 runpy.run_path(sys.argv[0], run_name='__main__')
