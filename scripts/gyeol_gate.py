@@ -5,7 +5,7 @@
 작업 폴더에서 gyeol_table.md 또는 gyeol_table.json 을 찾아 세 가지를 본다.
   ① 레퍼런스 출처 — docs/gyeol-analysis-*.md(§ 번호) 또는 가이드 파일(…GUIDE….md, docs/…/*.md), 또는 «레퍼런스: <주소·영상 id>» 줄
   ② «초·결·우리 장면» 3열 표, 초가 읽히는 줄 4개 이상(초는 12.3 · 12.3s · 12초 · 1:05 꼴)
-  ③ 반전 장면의 초(결 칸에 반전·뒤집기·전환) + 약속 장면의 초(결 칸에 약속·최종 답·정점·회수, 또는 본문 «약속 … 15:42» 꼴)
+  ③ 반전 장면의 초(결 칸에 반전·뒤집기·전환, «…예고» 줄은 빼고) + 약속 장면의 초(결 칸에 약속·최종 답·정점·회수, 또는 본문 «약속 … 15:42» 꼴)
 JSON 꼴: {"reference": "...", "rows": [{"t": 12.3, "gyeol": "반전", "scene": "..."}...]}
 
 종료 코드: 0 통과 · 4 결 표 없음/항목 빠짐 · 5 결 표를 읽지 못함(표·JSON 형식 아님).
@@ -95,7 +95,7 @@ def judge(target):
         promise_text = PROMISE_TEXT.search(text)
         has_ref = bool(REF.search(text))
     good = [r for r in rows if r['t'] is not None and r['gyeol'] and r['scene']]
-    turn = [r for r in good if TURN.search(r['gyeol'])]
+    turn = [r for r in good if TURN.search(r['gyeol']) and '예고' not in r['gyeol']]   # «반전 예고» 줄은 반전 초가 아니다(롱투숏 A 10-29)
     prom = [r for r in good if PROMISE.search(r['gyeol'])]
     out, bad = [f'결 표: {f}'], False
     checks = [

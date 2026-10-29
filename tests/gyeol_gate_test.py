@@ -6,7 +6,7 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-GATE = ROOT / 'scripts' / 'gyeol_gate.py'
+GATE = ROOT / 'scripts' / (sys.argv[1] if len(sys.argv) > 1 else 'gyeol_gate.py')
 GOOD = """# 시험 편 결 표
 기준: docs/gyeol-analysis-20261027.md §2
 
@@ -50,6 +50,8 @@ with tempfile.TemporaryDirectory() as d:
     c, o = run(noprom, '--strict'); check('약속 장면 없음 → 종료 4', c == 4 and 'FAIL 약속' in o, o)
     few = d / 'few'; few.mkdir(); (few / 'gyeol_table.md').write_text('\n'.join(GOOD.splitlines()[:7]) + '\n', encoding='utf-8')
     c, o = run(few, '--strict'); check('줄 4개 미만 → 종료 4', c == 4, o)
+    tz = d / 'teaser'; tz.mkdir(); (tz / 'gyeol_table.md').write_text(GOOD.replace('| 0.5 | 후킹 |', '| 0.5 | 반전 예고 |'), encoding='utf-8')
+    c, o = run(tz, '--strict'); check('«반전 예고» 줄은 반전 초로 안 잡는다(11.0)', c == 0 and '반전 장면 초 11' in o, o)
     js = d / 'js'; js.mkdir()
     (js / 'gyeol_table.json').write_text(json.dumps({'reference': 'docs/fantube/GUIDE_TOP2x12.md', 'rows': [
         {'t': 0.3, 'gyeol': '후킹', 'scene': 'a'}, {'t': '0:07', 'gyeol': '반전', 'scene': 'b'},
