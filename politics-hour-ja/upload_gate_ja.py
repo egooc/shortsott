@@ -23,6 +23,10 @@ for up in sys.argv[2:]:
     t = json.loads(Path(up).read_text(encoding='utf-8')).get('title', '')
     if '/shorts/' not in up.replace(chr(92), '/') and not 16 <= len(t) <= 30:
         bad.append(f'{Path(up).name}: 제목 {len(t)}자 (16~30자여야 함)')
+# 결 표 관문(도구개발 18cd569, 소유주 «결분석 다 잡고 가자»): 편 폴더 gyeol_table.md/json — 공용 파일을 그대로 부른다. 10-31 00:00 전엔 경고만
+_gy = subprocess.run([sys.executable, '-X', 'utf8', str(GATE.parents[1] / 'scripts' / 'gyeol_gate.py'), sys.argv[1]]).returncode
+if _gy:
+    bad.append(f'결 표 관문(gyeol_gate) 종료 {_gy} — 편 폴더에 gyeol_table.md(레퍼런스 출처·«초|결|우리 장면» 4줄+·반전/약속 줄)')
 # 썸네일 낱말은 첫 30초(콜드오픈·도입) 안에 자막·해설·화면 글자로 모두 나와야 한다(관리자·소유주 10-17)
 ep = Path(sys.argv[1])
 kw = json.loads((ep / 'keywords.json').read_text(encoding='utf-8')) if (ep / 'keywords.json').exists() else {}
@@ -199,4 +203,4 @@ if not guide:
     print('[gate-ja] PASS 가이드 낱말(제목·설명·태그·포장·썸네일 낱말)')
 for b in bad:
     print('[gate-ja] FAIL', b)
-sys.exit(4 if guide else 3 if rc or bad else 0)
+sys.exit(4 if guide or _gy else 3 if rc or bad else 0)
