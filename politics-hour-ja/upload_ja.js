@@ -46,6 +46,14 @@ async function main() {
     if (p.video_id !== videoId) { p.video_id = videoId; fs.writeFileSync(pk, JSON.stringify(p, null, 2) + '\n', 'utf8'); }
   }
   if (at) execFileSync('node', [path.join(ROOT, 'politics-hour', 'views_check.js'), videoId, '--schedule', at], { cwd: ROOT, stdio: 'inherit' });
+  // 제작 장부(소유주 10-29: 오피스 대시보드가 다음 공개·재고를 여기서 읽는다, docs/production-ledger.md · 마지막 줄이 이긴다)
+  if (at) {
+    const um = JSON.parse(fs.readFileSync(meta, 'utf8'));
+    const jst = new Date(new Date(at).getTime() + 9 * 3600e3).toISOString().replace(/\.\d+Z$/, '+09:00');
+    fs.appendFileSync(path.join(ROOT, 'server', 'data', 'production_ledger.jsonl'), JSON.stringify({
+      at: new Date().toISOString(), session: '정치JA', lane: 'politics_ja_longform', id: path.basename(path.resolve(ep)),
+      title: um.title, youtube_id: videoId, publish_at: jst, note: only ? '처리 확인·예약 재기록' : '업로드·예약' }) + '\n', 'utf8');
+  }
   console.log(JSON.stringify({ videoId, publishAt: at, processed: true }));
 }
 
