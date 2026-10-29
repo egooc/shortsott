@@ -182,6 +182,7 @@ h3.sh { font-size: 13px; font-weight: 600; color: var(--muted); margin: 6px 2px 
 .dopts { display: grid; gap: 8px; margin-top: 12px; }
 .opt { display: flex; align-items: center; justify-content: space-between; gap: 8px; text-align: left; width: 100%;
   padding: 11px 14px; border-radius: 11px; font-weight: 600; font-size: 14px; }
+.askprev { background: var(--bg); border-radius: 10px; padding: 10px 12px; margin: 8px 0 10px; font-size: 13.5px; color: var(--muted); display: grid; gap: 4px; }
 .opt small { flex: none; white-space: nowrap; font-size: 11px; color: var(--accent); font-weight: 600; }
 .opt.rec { border-color: var(--accent); }
 .opt.ghost { color: var(--muted); font-weight: 500; border-style: dashed; }
@@ -712,7 +713,7 @@ const SECTIONS = {
   // 카드를 누르면 설명·추천이 펼쳐지고 [담당에게 묻기]·[세션 열기]. 모듈이 detail·rec·session(세션 이름)을 채운다.
   list: (s) => s.items.length ? `<div class="agrid">${s.items.map((i) => {
     const sess = i.session && CUR_M ? findByTitle(CUR_M, i.session) : null;
-    const ask = `[카드] ${i.title}${i.sub ? ' — ' + i.sub : ''}${i.rec ? ' (추천: ' + i.rec + ')' : ''}\n`;
+    const ask = JSON.stringify({ title: i.title, sub: i.sub || '', detail: i.detail || '', rec: i.rec || '', session: sess ? nice(sess.title).name : (i.session || '') });
     return `<div class="acard a-${i.tone || 'muted'} tall xcard" data-act="xpand">
     <span class="at">${esc(i.title)}</span>${i.sub ? `<span class="muted">${esc(i.sub)}</span>` : ''}${i.right ? `<span class="muted">${esc(i.right)}</span>` : ''}
     <div class="xd">${i.detail ? `<div>${esc(i.detail)}</div>` : ''}${i.rec ? `<div class="xrec"><b>추천</b> ${esc(i.rec)}</div>` : ''}
@@ -1043,6 +1044,23 @@ async function sendText(text) {
 function sendMsg() { const t = $('msg').value; if (!t.trim()) return; $('msg').value = ''; sendText(t); }
 
 // ── 모달 ──
+// «담당에게 묻기»: 카드 내용을 통째로 담아 담당 세션에 바로 보낸다. 덧붙일 말은 선택.
+function askManager(c) {
+  const key = view.page === 'project' ? `pm:${view.project}` : 'office';
+  const sess = CHAT[key];
+  if (!sess) return toast('담당 세션이 없습니다');
+  const lines = [`[오피스 · 소유주 · 카드 질문] ${c.title}`, c.sub && `요약: ${c.sub}`, c.detail && `상황: ${c.detail}`, c.rec && `화면 추천: ${c.rec}`, c.session && `맡은 세션: ${c.session}`].filter(Boolean);
+  const m = modal(`<h3>${esc(nice(sess.title).name)}에게 묻기</h3>
+    <div class="askprev">${lines.slice(1).map((l) => `<div>${esc(l)}</div>`).join('')}</div>
+    <textarea rows="3" data-askq placeholder="더 물을 말 (비워 두면: 어떻게 할지 판단해서 처리하고, 내가 정할 게 있으면 결정으로 올려 줘)"></textarea>`, async (box) => {
+    const q = box.querySelector('[data-askq]').value.trim() || '어떻게 할지 판단해서 처리해 줘. 내가 정할 게 있으면 결정으로 올려 줘.';
+    const r = await cmd(sess.device, 'send', { handle: sess.handle, text: [...lines, `질문: ${q}`].join('\n') }, sess.title);
+    if (!r.ok) { toast(`못 보냈습니다: ${r.error}`); return true; }
+    toast(r.result?.queued ? '보냈습니다 — 담당이 하던 일을 끝내고 읽습니다' : '보냈습니다');
+  });
+  m.querySelector('[data-ok]').textContent = '보내기';
+  setTimeout(() => m.querySelector('[data-askq]').focus(), 50);
+}
 function modal(html, onOk) {
   const m = document.createElement('div'); m.className = 'modal';
   m.innerHTML = `<div class="box">${html}<div class="btns"><button data-x>취소</button><button class="primary" data-ok>확인</button></div></div>`;
@@ -1122,15 +1140,7 @@ document.addEventListener('click', (e) => {
   if ($('side').classList.contains('open') && !e.target.closest('#side, [data-act="menu"]')) { $('side').classList.remove('open'); return; }
   const t = e.target.closest('[data-page],[data-project],[data-session],[data-open],[data-close],[data-qsend],[data-compact],[data-askmgr],[data-act],[data-tab],[data-ptab],[data-mlane],[data-chat],[data-unattach],[data-mkmanager],[data-quick],[data-answer]');
   if (t && t.dataset.compact) return compactSession(t.dataset.compact);
-  if (t && t.dataset.askmgr) {
-    // 카드 주제를 이 프로젝트 담당 대화창에 미리 채운다(오늘 화면이면 오피스 담당 창).
-    const key = view.page === 'project' ? `pm:${view.project}` : 'office';
-    DRAFTS[key] = t.dataset.askmgr + (DRAFTS[key] || '');
-    if (key === 'office') { if (!fabOpen) toggleFab(); const ta = $('fab').querySelector('textarea'); ta.value = DRAFTS.office; ta.focus(); return; }
-    render(); const ta = document.querySelector(`[data-draft="${key}"]`);
-    if (ta) { ta.scrollIntoView({ behavior: 'smooth', block: 'center' }); ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
-    return;
-  }
+  if (t && t.dataset.askmgr) return askManager(JSON.parse(t.dataset.askmgr));
   if (t && t.dataset.qsend) {
     // 카드의 «진행 상황»: 그 세션에 진행 상황 질문을 넣고, 패널을 열어 답을 본다.
     const s = findSession(t.dataset.qsend); if (!s) return;
