@@ -12,6 +12,7 @@ python -X utf8 scripts/variety_fx.py <완성.mp4> <시각표> --out <출력.mp4>
 - `<시각표>`: 대사 시각 JSON(t0·t1·text·chunks) **또는 자막 파일**(.ass·.srt·.vtt).
   - 볼케이노 어랍숏은 `edits/<해시>/captions.ass` 를 그대로 주면 된다. Head(위 제목)는 피해서 그 아래에 그래픽을 놓고, Dialogue(원음 대사) 줄에는 손글씨 반응을 붙인다. Effect·Credit 줄은 쓰지 않는다.
 - `--dry`: 효과 계획(`<출력>.vfx/fx.json`)만 쓰고 렌더하지 않는다. 고치고 싶으면 fx.json 을 고쳐서 `--plan` 으로 다시 돌린다.
+- `--no-kind arrow` (쉼표·여러 번 가능): 그 그래픽 종류를 뺀다(쇼핑 성장 모드 화살표 금지). kind(arrow·sticker·note·tag·punch·silhouette) 또는 as(cta·number). 자동 배치면 빈 효과음 몫을 남은 그래픽이 받는다.
 - 결과는 -14 LUFS로 맞춘다(`scripts/loudnorm_final.py`).
 - 효과음 규칙(소유주 «거의 안 들려» → «너무 잦아»): 그 자리 믹스보다 +4~6dB, 최소 5초 간격, 한 편 최대 6개. 그래픽은 더 자주 나와도 대부분 소리 없이 나온다.
 
