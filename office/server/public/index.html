@@ -263,6 +263,14 @@ nav.top { display: grid; gap: 2px; }
 .sbtns { display: flex; gap: 6px; margin-top: 4px; }
 .ctx { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
 .ctx .bar { margin: 0; height: 5px; }
+.card.plan { border-color: color-mix(in srgb, var(--warn) 40%, var(--line)); }
+.prow { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line2); }
+.card.plan h2 + .prow { border-top: 0; }
+.prow .pn2 { width: 24px; height: 24px; border-radius: 50%; background: var(--warn); color: #fff; display: grid; place-items: center; font-size: 12px; font-weight: 700; flex: none; }
+.prow .pn2.muted { background: var(--line2); color: var(--muted); }
+.prow .pm { flex: 1; min-width: 0; } .prow .pm b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prow .ctx { display: block; font-size: 13px; }
+.plater { margin-top: 10px; font-size: 12px; }
 .ctx.c-warn span { color: var(--warn); font-weight: 600; } .ctx.c-bad span { color: var(--bad); font-weight: 600; }
 .sbtns button { flex: 1; white-space: nowrap; padding-left: 4px; padding-right: 4px; }
 
@@ -571,8 +579,8 @@ function homeAlerts(M) {
   const out = [];
   const stale = M.all.filter((s) => s.status === 'stale');
   if (stale.length) out.push({ tone: 'warn', t: `하루 넘게 멈춘 세션 ${stale.length}개`, act: 'page:tidy' });
-  const big = M.all.filter((s) => (s.context_tokens || 0) >= BIG_CTX);
-  if (big.length) out.push({ tone: 'warn', t: `대화가 큰 세션 ${big.length}개 · 비우면 토큰 절약`, s: big.slice(0, 3).map((s) => s.title).join(' · '), act: 'tab:big' });
+  const plan = compactPlan(M).now;
+  if (plan.length) out.push({ tone: 'warn', t: `비우기 추천 ${plan.length}개`, s: plan.slice(0, 3).map((x) => `${x.s.title} ${fmtK(x.s.context_tokens)}`).join(' · '), act: 'page:tidy' });
   for (const d of S.devices.filter((d) => !d.online)) out.push({ tone: 'bad', t: `${devName(d.device)} 연결 끊김`, s: d.state?.at ? ago(Date.parse(d.state.at)) : '' });
   for (const d of S.devices) if ((d.state?.render_locks || []).length) out.push({ tone: 'busy', t: `${devName(d.device)} 렌더 중` });
   for (const p of M.projects) {
@@ -772,12 +780,47 @@ function renderProject(M) {
     <div class="tabs ptabs">${tabs.map(([k, l]) => `<div class="tab ${view.ptab === k ? 'on' : ''}" data-ptab="${esc(k)}">${esc(l)}</div>`).join('')}</div>${body}</div>`;
 }
 
+// 비우기 추천: 큰 대화 × 자주 깨는 세션일수록 비웠을 때 아끼는 양이 크다. 지금 비우면 곤란한 세션은 «나중에»로.
+const PLAN_MIN = 150000;
+function compactPlan(M) {
+  const openBy = (s) => S.decisions.filter((d) => d.status === 'open' && cleanTitle(d.asked_by || '').startsWith(cleanTitle(s.title)));
+  const locked = new Set(S.devices.filter((d) => (d.state?.render_locks || []).length).map((d) => d.device));
+  const now = [], later = [];
+  for (const s of M.all) {
+    if (s.agent !== 'claude' || !s.online || !s.context_tokens || s.context_tokens < PLAN_MIN || s.compacting) continue;
+    const idleH = (Date.now() - (s.last_output_at || 0)) / 36e5;
+    const activity = idleH < 3 ? 1 : idleH < 12 ? 0.6 : idleH < 24 ? 0.3 : 0.1; // 최근에 일할수록 앞으로도 자주 깬다
+    const item = { s, score: s.context_tokens * activity, idleH };
+    const dec = openBy(s);
+    if (s.status === 'busy') later.push({ ...item, why: '지금 작업 중 — 이 턴이 끝난 뒤' });
+    else if (dec.length) later.push({ ...item, why: `결정 ${dec.map((d) => '#' + d.id).join('·')} 답을 기다리는 중 — 답한 뒤` });
+    else if (locked.has(s.device) && /정치/.test(s.title || '')) later.push({ ...item, why: '정치 렌더 중 — 렌더 끝난 뒤' });
+    else if (idleH >= 24) later.push({ ...item, why: '하루 넘게 쉬는 중 — 깨우지 않으면 비용 0, 급하지 않음' });
+    else now.push({ ...item, why: idleH < 3 ? '최근에 자주 일함 — 턴마다 이만큼 다시 읽음' : `${Math.round(idleH)}시간 전까지 일함` });
+  }
+  now.sort((a, b) => b.score - a.score); later.sort((a, b) => b.score - a.score);
+  return { now, later };
+}
+function planCard(M) {
+  const { now, later } = compactPlan(M);
+  if (!now.length && !later.length) return '';
+  const row = (x, i, ok) => `<div class="prow">
+    <span class="pn2 ${ok ? '' : 'muted'}">${ok ? i + 1 : '·'}</span>
+    <div class="pm"><b>${esc(x.s.title)}</b><div class="muted">${esc(x.why)}</div></div>
+    <span class="ctx c-${ctxTone(x.s.context_tokens)}"><span>${fmtK(x.s.context_tokens)}</span></span>
+    ${ok ? `<button class="small primary" data-compact="${esc(x.s.handle)}">비우기</button>` : '<button class="small" disabled>나중에</button>'}</div>`;
+  const save = now.reduce((a, x) => a + x.s.context_tokens, 0);
+  return `<div class="card plan"><h2>비우기 추천 <span class="muted">${now.length ? `지금 ${now.length}개 비우면 다음 턴마다 약 ${fmtK(save)} 토큰 덜 읽음` : '지금 비울 세션 없음'}</span></h2>
+    ${now.map((x, i) => row(x, i, true)).join('')}${later.length ? `<div class="muted plater">나중에</div>${later.map((x, i) => row(x, i, false)).join('')}` : ''}</div>`;
+}
+
 function renderTidy(M) {
   const rows = [...M.all].sort((a, b) => (a.last_output_at || 0) - (b.last_output_at || 0));
   const filt = view.tab === 'stale' ? rows.filter((s) => s.status === 'stale') : view.tab === 'busy' ? rows.filter((s) => s.status === 'busy')
     : view.tab === 'big' ? rows.filter((s) => s.context_tokens).sort((a, b) => b.context_tokens - a.context_tokens) : rows;
   const n = (k) => k === 'all' ? rows.length : k === 'big' ? rows.filter((s) => (s.context_tokens || 0) >= BIG_CTX).length : rows.filter((s) => s.status === k).length;
   return head('세션 정리', '오래 멈춘 세션이 위에 옵니다. 이어서 할지, 마무리할지, 닫을지 고르세요.') + `<div class="body">
+    ${planCard(M)}
     <div class="tabs">${[['all', '전체'], ['big', '대화 큰 순'], ['stale', '오래 멈춤'], ['busy', '작업 중']].map(([k, t]) => `<div class="tab ${view.tab === k ? 'on' : ''}" data-tab="${k}">${t} ${n(k)}</div>`).join('')}</div>
     <div class="card">${sessionTable(filt, { project: true })}</div></div>`;
 }
