@@ -2,70 +2,153 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>AI 오피스</title>
-<link rel="preconnect" href="https://cdn.jsdelivr.net">
 <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css" rel="stylesheet">
 <style>
 :root {
-  --bg: #f6f7f9; --panel: #ffffff; --line: #e6e8ec; --text: #15171a; --muted: #6b7280;
-  --accent: #2f6bff; --ok: #12a150; --warn: #d97706; --bad: #dc2626; --chip: #eef2ff;
+  --bg: #f5f6f8; --panel: #ffffff; --side: #fbfbfc; --line: #e7e9ee; --line2: #f0f1f4;
+  --text: #16181d; --muted: #6b7280; --faint: #9aa0aa;
+  --accent: #3b6cff; --accent-soft: #eef2ff; --ok: #12a150; --warn: #d97706; --bad: #dc2626;
+  --term-bg: #0f1218; --term-text: #d7dbe2;
 }
 @media (prefers-color-scheme: dark) {
-  :root { --bg: #0f1115; --panel: #171a20; --line: #262a33; --text: #e8eaed; --muted: #9aa1ac;
-          --accent: #6c9bff; --ok: #34c06f; --warn: #f0a33a; --bad: #f05252; --chip: #1e2533; }
+  :root { --bg: #0e1014; --panel: #15181e; --side: #121419; --line: #23272f; --line2: #1b1e25;
+    --text: #e8eaee; --muted: #9aa1ac; --faint: #6b717c;
+    --accent: #7096ff; --accent-soft: #1b2236; --ok: #34c06f; --warn: #f0a33a; --bad: #f05252;
+    --term-bg: #0a0c10; --term-text: #d7dbe2; }
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; }
 body { margin: 0; background: var(--bg); color: var(--text);
-  font: 15px/1.5 "Pretendard Variable", Pretendard, system-ui, sans-serif; }
-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 24px;
-  border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 0; z-index: 1; }
-header h1 { font-size: 17px; margin: 0; letter-spacing: -0.01em; }
-header .meta { color: var(--muted); font-size: 13px; }
-main { max-width: 1280px; margin: 0 auto; padding: 24px; display: grid; gap: 20px;
-  grid-template-columns: repeat(12, 1fr); }
-section { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; }
-section h2 { font-size: 14px; margin: 0 0 14px; color: var(--muted); font-weight: 600; }
-.s-decisions { grid-column: span 12; }
-.s-lanes { grid-column: span 8; }
-.s-res { grid-column: span 4; }
-.s-changes { grid-column: span 12; }
-@media (max-width: 900px) { main { padding: 16px; } .s-lanes, .s-res { grid-column: span 12; } }
-.empty { color: var(--muted); font-size: 14px; }
-.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
-.card { border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
-.card .name { font-weight: 600; }
-.card .sub { color: var(--muted); font-size: 12px; }
-.card .big { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; margin-top: 6px; }
-.card .row { font-size: 13px; color: var(--muted); margin-top: 4px; }
-.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
-.ok { background: var(--ok); } .warn { background: var(--warn); } .bad { background: var(--bad); }
-.kv { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 14px; }
+  font: 14px/1.5 "Pretendard Variable", Pretendard, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+button { font: inherit; cursor: pointer; border-radius: 9px; border: 1px solid var(--line); background: var(--panel);
+  color: var(--text); padding: 7px 12px; font-weight: 500; }
+button:hover { border-color: var(--faint); }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+button.danger { color: var(--bad); }
+button.small { padding: 4px 9px; font-size: 12.5px; }
+button:disabled { opacity: .5; cursor: default; }
+input, textarea, select { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line);
+  border-radius: 9px; padding: 9px 11px; width: 100%; }
+textarea { resize: vertical; }
+
+/* 레이아웃 */
+#app { display: grid; grid-template-columns: 264px minmax(0, 1fr); height: 100vh; }
+#app.with-panel { grid-template-columns: 264px minmax(0, 1fr) 460px; }
+aside.side { background: var(--side); border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
+.brand { padding: 18px 18px 12px; display: flex; align-items: center; gap: 10px; }
+.brand .logo { width: 30px; height: 30px; border-radius: 9px; background: var(--accent); color: #fff; display: grid;
+  place-items: center; font-weight: 800; font-size: 13px; }
+.brand b { font-size: 15px; }
+.brand small { display: block; color: var(--muted); font-size: 12px; }
+nav.top { padding: 4px 10px 8px; }
+.navi { display: flex; align-items: center; justify-content: space-between; padding: 7px 10px; border-radius: 8px;
+  cursor: pointer; color: var(--text); }
+.navi:hover { background: var(--line2); }
+.navi.on { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.navi .n { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.navi .n.hot { color: #fff; background: var(--bad); border-radius: 999px; padding: 0 7px; }
+.tree { flex: 1; overflow: auto; padding: 4px 10px 12px; border-top: 1px solid var(--line); }
+.tree h4 { font-size: 11.5px; color: var(--faint); font-weight: 600; margin: 14px 10px 6px; letter-spacing: .02em; }
+.proj { margin-bottom: 2px; }
+.proj > .navi { font-weight: 600; }
+.sess { padding: 5px 10px 5px 24px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 8px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; color: var(--muted); }
+.sess:hover { background: var(--line2); color: var(--text); }
+.sess.on { background: var(--accent-soft); color: var(--accent); }
+.sess span.t { overflow: hidden; text-overflow: ellipsis; }
+.dot { width: 8px; height: 8px; border-radius: 50%; flex: none; display: inline-block; }
+.d-busy { background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
+.d-idle { background: var(--ok); } .d-stale { background: var(--warn); } .d-off { background: var(--faint); }
+.devs { border-top: 1px solid var(--line); padding: 10px 18px 14px; font-size: 12.5px; color: var(--muted); }
+.devs div { display: flex; align-items: center; gap: 8px; padding: 2px 0; }
+
+main { overflow: auto; min-width: 0; }
+.head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 20px 28px 14px;
+  position: sticky; top: 0; background: var(--bg); z-index: 2; }
+.head h1 { font-size: 21px; margin: 0; letter-spacing: -.01em; }
+.head .sub { color: var(--muted); font-size: 13px; }
+.head .acts { display: flex; gap: 8px; align-items: center; }
+.body { padding: 4px 28px 40px; display: grid; gap: 18px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; min-width: 0; overflow-x: auto; }
+.body > *, .grid2 > * { min-width: 0; }
+.card h2 { font-size: 14px; margin: 0 0 12px; display: flex; justify-content: space-between; align-items: center; }
+.card h2 .muted { font-weight: 400; }
+.muted { color: var(--muted); font-size: 13px; }
+.grid2 { display: grid; grid-template-columns: 1.4fr 1fr; gap: 18px; }
+.todo { list-style: none; margin: 0; padding: 0; }
+.todo li { display: flex; gap: 14px; align-items: center; padding: 12px 0; border-top: 1px solid var(--line2); }
+.todo li:first-child { border-top: 0; }
+.todo .num { width: 28px; height: 28px; border-radius: 50%; background: var(--text); color: var(--panel); display: grid;
+  place-items: center; font-size: 13px; font-weight: 700; flex: none; }
+.todo .txt { flex: 1; min-width: 0; }
+.todo .txt b { display: block; font-weight: 600; }
+.todo .txt span { color: var(--muted); font-size: 12.5px; }
+.pcards { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+.pcard { border: 1px solid var(--line); border-radius: 12px; padding: 14px; cursor: pointer; }
+.pcard:hover { border-color: var(--faint); }
+.pcard b { font-size: 15px; }
+.pcard .big { font-size: 26px; font-weight: 700; letter-spacing: -.02em; margin: 6px 0 2px; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 5px 12px; font-size: 13px; }
 .kv dt { color: var(--muted); } .kv dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
-.bar { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; margin-top: 3px; }
-.bar > i { display: block; height: 100%; background: var(--accent); }
-.dev { margin-bottom: 16px; } .dev:last-child { margin-bottom: 0; }
-.dev h3 { font-size: 14px; margin: 0 0 8px; }
-ul.list { list-style: none; margin: 0; padding: 0; }
-ul.list li { padding: 10px 0; border-top: 1px solid var(--line); font-size: 14px; }
-ul.list li:first-child { border-top: 0; }
-.chip { display: inline-block; background: var(--chip); color: var(--accent); border-radius: 999px;
-  padding: 1px 9px; font-size: 12px; font-weight: 600; margin-right: 8px; }
-details summary { cursor: pointer; color: var(--muted); font-size: 12px; margin-top: 4px; }
-details pre { white-space: pre-wrap; font-size: 12px; color: var(--muted); margin: 6px 0 0; }
-.opts { margin-top: 6px; display: flex; gap: 6px; flex-wrap: wrap; }
-.opt { border: 1px solid var(--line); border-radius: 8px; padding: 3px 10px; font-size: 13px; }
-.opt.rec { border-color: var(--accent); color: var(--accent); }
-#login { max-width: 360px; margin: 12vh auto; background: var(--panel); border: 1px solid var(--line);
-  border-radius: 14px; padding: 28px; }
-#login h1 { font-size: 20px; margin: 0 0 18px; }
-#login input { width: 100%; padding: 11px 12px; border: 1px solid var(--line); border-radius: 10px;
-  background: var(--bg); color: var(--text); font: inherit; margin-bottom: 10px; }
-button { font: inherit; border: 0; border-radius: 10px; padding: 10px 14px; cursor: pointer;
-  background: var(--accent); color: #fff; font-weight: 600; }
-button.ghost { background: transparent; color: var(--muted); border: 1px solid var(--line); padding: 6px 12px; font-size: 13px; }
-#login button { width: 100%; }
+.dev + .dev { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line2); }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; font-size: 12px; color: var(--muted); font-weight: 500; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+td { padding: 11px 10px; border-bottom: 1px solid var(--line2); vertical-align: middle; font-size: 13.5px; }
+tr.row { cursor: pointer; } tr.row:hover td { background: var(--line2); }
+td .last { color: var(--muted); font-size: 12.5px; max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; border-radius: 999px; padding: 2px 9px;
+  background: var(--line2); color: var(--muted); white-space: nowrap; }
+.pill.busy { background: var(--accent-soft); color: var(--accent); }
+.pill.stale { background: color-mix(in srgb, var(--warn) 14%, transparent); color: var(--warn); }
+.chip { display: inline-block; font-size: 11.5px; color: var(--muted); border: 1px solid var(--line); border-radius: 6px; padding: 0 6px; }
+.tabs { display: flex; gap: 4px; }
+.tab { padding: 6px 12px; border-radius: 8px; cursor: pointer; color: var(--muted); }
+.tab.on { background: var(--panel); color: var(--text); font-weight: 600; border: 1px solid var(--line); }
+.empty { color: var(--muted); padding: 18px 0; text-align: center; }
+.opts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.log li { font-size: 13px; }
+
+/* 오른쪽 세션 패널 */
+aside.panel { background: var(--panel); border-left: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
+.ph { padding: 14px 16px 10px; border-bottom: 1px solid var(--line); }
+.ph .row1 { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.ph b { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ph .meta { color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+.screen { flex: 1; overflow: auto; background: var(--term-bg); color: var(--term-text); margin: 12px; border-radius: 10px;
+  padding: 12px 14px; font: 12px/1.45 ui-monospace, "Cascadia Mono", Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
+.quick { display: flex; gap: 6px; flex-wrap: wrap; padding: 0 12px 8px; }
+.composer { display: flex; gap: 8px; padding: 0 12px 14px; align-items: flex-end; }
+.composer textarea { min-height: 44px; max-height: 160px; }
+.composer button { white-space: nowrap; }
+
+/* 모달 */
+.modal { position: fixed; inset: 0; background: rgb(0 0 0 / .35); display: grid; place-items: center; z-index: 10; padding: 16px; }
+.modal .box { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 22px; width: min(460px, 100%); display: grid; gap: 12px; }
+.modal h3 { margin: 0; font-size: 16px; }
+.modal label { font-size: 12.5px; color: var(--muted); display: grid; gap: 5px; }
+.modal .btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+.toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--panel);
+  padding: 9px 16px; border-radius: 10px; font-size: 13px; z-index: 20; }
+
+#login { max-width: 360px; margin: 14vh auto; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 30px; display: grid; gap: 10px; }
+#login h1 { font-size: 20px; margin: 0 0 8px; }
 #err { color: var(--bad); font-size: 13px; min-height: 18px; }
+.menu-btn { display: none; }
+
+@media (max-width: 1100px) { #app.with-panel { grid-template-columns: 0 minmax(0, 1fr); } #app.with-panel aside.side { display: none; }
+  aside.panel { position: fixed; inset: 0; z-index: 5; } .grid2 { grid-template-columns: 1fr; } }
+@media (max-width: 760px) {
+  #app, #app.with-panel { grid-template-columns: minmax(0, 1fr); }
+  aside.side { position: fixed; inset: 0 30% 0 0; z-index: 6; display: none; box-shadow: 0 0 40px rgb(0 0 0 / .3); }
+  aside.side.open { display: flex; }
+  .menu-btn { display: inline-block; }
+  .head, .body { padding-left: 16px; padding-right: 16px; }
+  td .last { max-width: 160px; }
+  .hide-m { display: none; }
+}
 </style>
 </head>
 <body>
@@ -74,20 +157,18 @@ button.ghost { background: transparent; color: var(--muted); border: 1px solid v
   <input id="email" type="email" placeholder="이메일" autocomplete="username">
   <input id="pw" type="password" placeholder="비밀번호" autocomplete="current-password">
   <div id="err"></div>
-  <button id="go">로그인</button>
+  <button class="primary" id="go">로그인</button>
 </div>
 
 <div id="app" hidden>
-  <header>
-    <h1>AI 오피스</h1>
-    <div><span class="meta" id="stamp"></span> <button class="ghost" id="out">로그아웃</button></div>
-  </header>
-  <main>
-    <section class="s-decisions"><h2>오늘 결정 대기</h2><div id="decisions"></div></section>
-    <section class="s-lanes"><h2>레인</h2><div id="lanes" class="cards"></div></section>
-    <section class="s-res"><h2>자원</h2><div id="res"></div></section>
-    <section class="s-changes"><h2>오늘 바뀐 것</h2><div id="changes"></div></section>
-  </main>
+  <aside class="side" id="side">
+    <div class="brand"><div class="logo">AI</div><div><b>AI 오피스</b><small id="stamp">불러오는 중</small></div></div>
+    <nav class="top" id="nav"></nav>
+    <div class="tree" id="tree"></div>
+    <div class="devs" id="devs"></div>
+  </aside>
+  <main id="main"></main>
+  <aside class="panel" id="panel" hidden></aside>
 </div>
 
 <script src="/config.js"></script>
@@ -96,111 +177,369 @@ button.ghost { background: transparent; color: var(--muted); border: 1px solid v
 const sb = supabase.createClient(OFFICE.url, OFFICE.anon);
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const DEVICE_NAMES = { 'main-pc': '메인 PC', 'mini-pc': '미니 PC', 'laptop': '노트북', 'vps': 'VPS', 'n100': 'N100' };
-const LANE_NAMES = {
-  ja: '린박스 JA', ko_longshort: '롱투숏', fantube: '팬튜브', shop: '쇼핑',
-  politics_long: '정치 ko 롱폼', politics_short: '정치 ko 쇼츠', politics_ja: '정치 JA', politics_ja_longform: '정치 JA 롱폼',
-};
-const fmtTime = (iso) => {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  return d.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-};
-const ago = (iso) => {
-  const m = Math.round((Date.now() - new Date(iso)) / 60e3);
-  return m < 1 ? '방금' : m < 60 ? `${m}분 전` : `${Math.round(m / 60)}시간 전`;
-};
 
-function renderDecisions(rows) {
-  if (!rows.length) return $('decisions').innerHTML = '<div class="empty">기다리는 결정이 없습니다.</div>';
-  $('decisions').innerHTML = '<ul class="list">' + rows.map((d) => `
-    <li><span class="chip">${esc(LANE_NAMES[d.lane] || d.lane)}</span>${esc(d.question)}
-      <div class="opts">${(d.options || []).map((o) => `<span class="opt ${o === d.recommended ? 'rec' : ''}">${esc(o)}${o === d.recommended ? ' · 추천' : ''}</span>`).join('')}</div>
-      <div class="row empty">${fmtTime(d.created_at)} · ${esc(d.asked_by || '')}</div>
-    </li>`).join('') + '</ul>';
+// 프로젝트 이름: Orca 저장소 이름 → 한국어. 없는 건 저장소 이름 그대로.
+const PROJECT_NAMES = { shortsott: '유튜브', growupup: '그로우업', rocky_roblox: '로블록스', midform: '유튜브' };
+const DEVICE_NAMES = { 'main-pc': '메인 PC', 'mini-pc': '미니 PC', laptop: '노트북', n100: 'N100', vps: 'VPS' };
+const AGENT_NAMES = { claude: '클로드', codex: 'GPT', opencode: 'OpenCode' };
+const QUICK = [
+  ['마저 끝까지', '하던 일 마저 끝까지 진행해.'],
+  ['진행 상황', '지금 진행 상황을 세 줄로 알려줘. 막힌 게 있으면 무엇이 필요한지도.'],
+  ['마무리 요청', '이 프로젝트를 여기서 멈춘다. 다음에 이어서 할 수 있게 인계 파일을 남기고, 그 경로를 한 줄로 알려줘.'],
+];
+
+let S = { devices: [], decisions: [], actions: [] };
+let view = { page: 'home', project: null, session: null, tab: 'all' };
+let panelTimer = null;
+
+const devName = (d) => DEVICE_NAMES[d] || d;
+const ago = (ms) => {
+  if (!ms) return '기록 없음';
+  const m = Math.round((Date.now() - ms) / 60e3);
+  if (m < 1) return '방금'; if (m < 60) return `${m}분 전`;
+  const h = Math.round(m / 60); if (h < 48) return `${h}시간 전`;
+  return `${Math.round(h / 24)}일 전`;
+};
+function status(s, online) {
+  if (!online) return 'off';
+  const m = (Date.now() - (s.last_output_at || 0)) / 60e3;
+  if (m < 3) return 'busy';
+  if (m > 24 * 60) return 'stale';
+  return 'idle';
 }
+const STATUS_TEXT = { busy: '작업 중', idle: '대기', stale: '오래 멈춤', off: '기기 꺼짐' };
+// 화면 미리보기에서 상태줄·안내문을 걷어 내고 마지막 «말» 한 줄만.
+const NOISE = /new task\?|clear to save|Update installed|Restart to update|for shortcuts|bypass permissions|auto mode|shift\+tab|esc to interrupt|disable recaps|^[>❯]\s*$/i;
+const lastLine = (p, title) => String(p || '').split('\n').map((l) => l.replace(/[─━│┃╭╮╰╯▔▁]+/g, '').trim())
+  .filter((l) => l && l !== title && !NOISE.test(l)).slice(-1)[0] || '';
 
-function renderLanes(snaps) {
-  const lanes = {};
-  for (const s of snaps) for (const [k, v] of Object.entries(s.data.lanes || {})) {
-    if (k === '?' || k.startsWith('n100_')) continue;
-    lanes[k] = v;
+// 모든 기기의 세션을 프로젝트별로 묶는다.
+function model() {
+  const projects = new Map();
+  const all = [];
+  for (const d of S.devices) {
+    const st = d.state || {};
+    const repos = new Map((st.repos || []).map((r) => [r.id, r]));
+    for (const s of st.sessions || []) {
+      const repo = repos.get(s.repo_id);
+      const key = repo ? repo.name : (s.folder ? s.folder.split(/[\\/]/).filter(Boolean).slice(-1)[0] : '기타');
+      const x = { ...s, device: d.device, online: d.online, project: key, status: status(s, d.online) };
+      all.push(x);
+      if (!projects.has(key)) projects.set(key, { key, name: PROJECT_NAMES[key] || key, sessions: [], repos: [] });
+      projects.get(key).sessions.push(x);
+    }
+    for (const r of st.repos || []) {
+      if (!projects.has(r.name)) projects.set(r.name, { key: r.name, name: PROJECT_NAMES[r.name] || r.name, sessions: [], repos: [] });
+      projects.get(r.name).repos.push({ ...r, device: d.device, online: d.online });
+    }
   }
-  const keys = Object.keys(lanes).sort((a, b) => (lanes[b].stock - lanes[a].stock) || a.localeCompare(b));
-  if (!keys.length) return $('lanes').innerHTML = '<div class="empty">아직 들어온 레인 정보가 없습니다.</div>';
-  $('lanes').innerHTML = keys.map((k) => {
-    const L = lanes[k];
-    const tone = L.stock >= 2 ? 'ok' : L.stock === 1 ? 'warn' : 'bad';
-    return `<div class="card">
-      <div class="name"><span class="dot ${tone}"></span>${esc(LANE_NAMES[k] || k)}</div>
-      <div class="sub">${esc(L.session || '')}</div>
-      <div class="big">${L.stock}<span class="sub"> 편 재고</span></div>
-      <div class="row">다음 공개 ${L.next_publish ? fmtTime(L.next_publish.at) : '—'}</div>
-      <div class="row">24시간 제작 ${L.made_24h} · 반려 ${L.rejected_24h}</div>
-      ${L.next_publish ? `<details><summary>다음 편</summary><pre>${esc(L.next_publish.title)}</pre></details>` : ''}
-    </div>`;
-  }).join('');
+  for (const p of projects.values()) p.sessions.sort((a, b) => (b.last_output_at || 0) - (a.last_output_at || 0));
+  const list = [...projects.values()].sort((a, b) => b.sessions.length - a.sessions.length || a.name.localeCompare(b.name, 'ko'));
+  return { projects: list, all };
 }
 
-function renderRes(snaps) {
-  if (!snaps.length) return $('res').innerHTML = '<div class="empty">들어온 기기가 없습니다.</div>';
-  $('res').innerHTML = snaps.map((s) => {
-    const r = s.data.resources || {};
-    const locks = s.data.render_locks || [];
-    const stale = (Date.now() - new Date(s.at)) / 60e3 > 15;
-    const pct = r.ram_total_gb ? Math.round(r.ram_used_gb / r.ram_total_gb * 100) : 0;
-    return `<div class="dev">
-      <h3><span class="dot ${stale ? 'bad' : 'ok'}"></span>${esc(DEVICE_NAMES[s.device] || s.device)} <span class="sub">${ago(s.at)}</span></h3>
-      <dl class="kv">
-        <dt>CPU</dt><dd>${r.cpu_pct ?? '—'}%</dd>
-        <dt>램</dt><dd>${r.ram_used_gb ?? '—'} / ${r.ram_total_gb ?? '—'}GB<div class="bar"><i style="width:${pct}%"></i></div></dd>
-        <dt>GPU</dt><dd>${r.gpu_pct ?? '—'}% · ${r.gpu_temp_c ?? '—'}°C</dd>
-        <dt>D 드라이브 여유</dt><dd>${r.disk_d_free_gb ?? '—'}GB</dd>
-        <dt>렌더</dt><dd>${locks.length ? '<span class="dot warn"></span>진행 중' : '없음'}</dd>
-        <dt>세션</dt><dd>${(s.data.sessions || []).length}개</dd>
-      </dl>
-      <details><summary>세션 목록</summary><pre>${esc((s.data.sessions || []).map((x) => x.name).join('\n'))}</pre></details>
-    </div>`;
-  }).join('');
+async function token() { return (await sb.auth.getSession()).data.session?.access_token; }
+async function call(path, body) {
+  const r = await fetch(path, {
+    method: body ? 'POST' : 'GET',
+    headers: { authorization: `Bearer ${await token()}`, ...(body ? { 'content-type': 'application/json' } : {}) },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const j = await r.json().catch(() => ({}));
+  if (r.status === 401) { await sb.auth.signOut(); show(); throw new Error('다시 로그인'); }
+  return j;
 }
-
-function renderChanges(snaps) {
-  const rows = snaps.flatMap((s) => s.data.changes_today || []).reverse();
-  if (!rows.length) return $('changes').innerHTML = '<div class="empty">오늘 기록이 없습니다.</div>';
-  $('changes').innerHTML = '<ul class="list">' + rows.map((c) => {
-    const text = c.text.replace(/^[^:：]{0,40}[:：]\s*/, '');
-    const short = text.length > 140 ? text.slice(0, 140) + '…' : text;
-    return `<li>${c.who ? `<span class="chip">${esc(c.who)}</span>` : ''}${esc(short)}
-      ${text.length > 140 ? `<details><summary>자세히</summary><pre>${esc(c.text)}</pre></details>` : ''}</li>`;
-  }).join('') + '</ul>';
-}
+const cmd = (device, op, args, label) => call('/api/cmd', { device, op, args, label });
+function toast(t) { const d = document.createElement('div'); d.className = 'toast'; d.textContent = t; document.body.append(d); setTimeout(() => d.remove(), 2600); }
 
 async function load() {
-  const [{ data: snaps, error: e1 }, { data: decs, error: e2 }] = await Promise.all([
-    sb.from('office_snapshots').select('device, at, data').order('device'),
-    sb.from('office_decisions').select('*').eq('status', 'open').order('created_at', { ascending: false }),
-  ]);
-  if (e1 || e2) { $('stamp').textContent = '불러오기 실패'; return; }
-  renderDecisions(decs || []);
-  renderLanes(snaps || []);
-  renderRes(snaps || []);
-  renderChanges(snaps || []);
+  try { S = await call('/api/state'); } catch { return; }
   $('stamp').textContent = '갱신 ' + new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+  render();
 }
+
+// ── 왼쪽 ──
+function renderSide(M) {
+  const open = S.decisions.filter((d) => d.status === 'open').length;
+  const stale = M.all.filter((s) => s.status === 'stale').length;
+  const nav = [['home', '전체 현황', ''], ['tidy', '세션 정리', stale ? `<span class="n hot">${stale}</span>` : `<span class="n">${M.all.length}</span>`],
+    ['decisions', '결정 대기', open ? `<span class="n hot">${open}</span>` : '<span class="n">0</span>'], ['log', '변경 이력', '']];
+  $('nav').innerHTML = nav.map(([k, t, n]) => `<div class="navi ${view.page === k ? 'on' : ''}" data-page="${k}"><span>${t}</span>${n}</div>`).join('');
+  $('tree').innerHTML = '<h4>프로젝트</h4>' + M.projects.map((p) => `
+    <div class="proj">
+      <div class="navi ${view.page === 'project' && view.project === p.key ? 'on' : ''}" data-project="${esc(p.key)}">
+        <span>${esc(p.name)}</span><span class="n">${p.sessions.length}</span></div>
+      ${p.sessions.map((s) => `<div class="sess ${view.session === s.handle ? 'on' : ''}" data-session="${esc(s.handle)}" title="${esc(s.title || '')}">
+        <span class="dot d-${s.status}"></span><span class="t">${esc(s.title || AGENT_NAMES[s.agent] || '이름 없음')}</span></div>`).join('')}
+    </div>`).join('');
+  $('devs').innerHTML = S.devices.map((d) => `<div><span class="dot ${d.online ? 'd-idle' : 'd-off'}"></span>${esc(devName(d.device))}
+    <span style="margin-left:auto">${d.online ? '연결됨' : '꺼짐'}</span></div>`).join('') || '연결된 기기 없음';
+}
+
+// ── 가운데 ──
+function head(title, sub, acts = '') {
+  return `<div class="head"><div><button class="menu-btn small" data-act="menu">☰</button> <h1 style="display:inline">${title}</h1>
+    ${sub ? `<div class="sub">${sub}</div>` : ''}</div><div class="acts">${acts}</div></div>`;
+}
+function sessionTable(rows, opts = {}) {
+  if (!rows.length) return '<div class="empty">세션이 없습니다.</div>';
+  return `<table><thead><tr><th>상태</th><th>세션</th><th class="hide-m">기기</th><th>마지막 활동</th><th class="hide-m">마지막 화면</th><th></th></tr></thead><tbody>
+    ${rows.map((s) => `<tr class="row" data-session="${esc(s.handle)}">
+      <td><span class="pill ${s.status}"><span class="dot d-${s.status}"></span>${STATUS_TEXT[s.status]}</span></td>
+      <td><b>${esc(s.title || '이름 없음')}</b> <span class="chip">${esc(AGENT_NAMES[s.agent] || s.agent || '터미널')}</span>
+        ${opts.project ? `<div class="muted">${esc(PROJECT_NAMES[s.project] || s.project)}</div>` : ''}</td>
+      <td class="hide-m">${esc(devName(s.device))}</td>
+      <td>${ago(s.last_output_at)}</td>
+      <td class="hide-m"><div class="last">${esc(lastLine(s.preview, s.title))}</div></td>
+      <td style="text-align:right;white-space:nowrap">
+        <button class="small" data-open="${esc(s.handle)}">열기</button>
+        ${s.online ? `<button class="small danger" data-close="${esc(s.handle)}">닫기</button>` : ''}</td>
+    </tr>`).join('')}</tbody></table>`;
+}
+
+function renderHome(M) {
+  const todo = [];
+  for (const d of S.decisions.filter((d) => d.status === 'open').slice(0, 3)) {
+    todo.push({ t: d.question, s: `${d.lane} 결정 대기`, b: '답하기', act: 'page:decisions' });
+  }
+  const stale = M.all.filter((s) => s.status === 'stale');
+  if (stale.length) todo.push({ t: `하루 넘게 멈춘 세션 ${stale.length}개`, s: stale.slice(0, 3).map((s) => s.title).join(' · '), b: '정리하기', act: 'page:tidy' });
+  for (const d of S.devices.filter((d) => !d.online)) todo.push({ t: `${devName(d.device)} 연결 끊김`, s: d.state?.at ? `마지막 소식 ${ago(Date.parse(d.state.at))}` : '', b: '', act: '' });
+  for (const d of S.devices) for (const l of d.state?.render_locks || []) todo.push({ t: `${devName(d.device)} 렌더 중`, s: '닫기·재부팅은 확인을 한 번 더 받습니다', b: '', act: '' });
+  const busy = M.all.filter((s) => s.status === 'busy').length;
+
+  return head('전체 현황', `세션 ${M.all.length}개 · 작업 중 ${busy} · 기기 ${S.devices.filter((d) => d.online).length}/${S.devices.length}`,
+    '<button class="primary" data-act="new">+ 새 세션</button>') + `<div class="body">
+    <div class="grid2">
+      <div class="card"><h2>지금 할 것</h2>${todo.length ? `<ol class="todo">${todo.map((x, i) => `<li><div class="num">${i + 1}</div>
+        <div class="txt"><b>${esc(x.t)}</b><span>${esc(x.s)}</span></div>${x.b ? `<button class="small" data-act="${x.act}">${x.b}</button>` : ''}</li>`).join('')}</ol>`
+        : '<div class="empty">할 일이 없습니다.</div>'}</div>
+      <div class="card"><h2>기기</h2>${S.devices.map((d) => {
+        const r = d.state?.snapshot?.resources || {};
+        return `<div class="dev"><div style="display:flex;justify-content:space-between;margin-bottom:6px"><b><span class="dot ${d.online ? 'd-idle' : 'd-off'}"></span> ${esc(devName(d.device))}</b>
+          <span class="muted">${d.state?.at ? ago(Date.parse(d.state.at)) : ''}</span></div>
+          <dl class="kv"><dt>세션</dt><dd>${(d.state?.sessions || []).length}개</dd>
+          ${r.cpu_pct != null ? `<dt>CPU · GPU</dt><dd>${r.cpu_pct}% · ${r.gpu_pct}%</dd><dt>램</dt><dd>${r.ram_used_gb} / ${r.ram_total_gb}GB</dd><dt>D 드라이브 여유</dt><dd>${r.disk_d_free_gb}GB</dd>` : ''}
+          <dt>렌더</dt><dd>${(d.state?.render_locks || []).length ? '진행 중' : '없음'}</dd></dl></div>`;
+      }).join('') || '<div class="empty">연결된 기기가 없습니다.</div>'}</div>
+    </div>
+    <div class="card"><h2>프로젝트</h2><div class="pcards">${M.projects.map((p) => {
+      const b = p.sessions.filter((s) => s.status === 'busy').length, st = p.sessions.filter((s) => s.status === 'stale').length;
+      const last = Math.max(0, ...p.sessions.map((s) => s.last_output_at || 0));
+      return `<div class="pcard" data-project="${esc(p.key)}"><b>${esc(p.name)}</b>
+        <div class="big">${p.sessions.length}<span class="muted"> 세션</span></div>
+        <div class="muted">작업 중 ${b}${st ? ` · <span style="color:var(--warn)">멈춤 ${st}</span>` : ''}</div>
+        <div class="muted">마지막 활동 ${p.sessions.length ? ago(last) : '—'}</div></div>`;
+    }).join('')}</div></div>
+    ${renderLanes()}
+  </div>`;
+}
+
+function renderLanes() {
+  const lanes = {};
+  for (const d of S.devices) for (const [k, v] of Object.entries(d.state?.snapshot?.lanes || {})) {
+    if (k !== '?' && !k.startsWith('n100_') && (v.stock || v.made_24h)) lanes[k] = v;
+  }
+  const keys = Object.keys(lanes);
+  if (!keys.length) return '';
+  const NAMES = { ja: '린박스 JA', ko_longshort: '롱투숏', fantube: '팬튜브', shop: '쇼핑', politics_long: '정치 ko 롱폼', politics_short: '정치 ko 쇼츠' };
+  return `<div class="card"><h2>유튜브 레인 <span class="muted">제작 장부 기준</span></h2><table><thead><tr><th>레인</th><th>재고</th><th>다음 공개</th><th>24시간 제작·반려</th></tr></thead><tbody>
+    ${keys.map((k) => { const L = lanes[k]; return `<tr><td><b>${esc(NAMES[k] || k)}</b></td><td>${L.stock}편</td>
+      <td>${L.next_publish ? new Date(L.next_publish.at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}</td>
+      <td>${L.made_24h} · ${L.rejected_24h}</td></tr>`; }).join('')}</tbody></table></div>`;
+}
+
+function renderProject(M) {
+  const p = M.projects.find((x) => x.key === view.project);
+  if (!p) { view.page = 'home'; return renderHome(M); }
+  return head(esc(p.name), `세션 ${p.sessions.length}개 · ${[...new Set(p.repos.map((r) => devName(r.device)))].join(' · ') || '기기 정보 없음'}`,
+    `<button class="primary" data-act="new">+ 새 세션</button>`) + `<div class="body"><div class="card">${sessionTable(p.sessions)}</div>
+    <div class="card"><h2>작업 폴더</h2><dl class="kv">${p.repos.map((r) => `<dt>${esc(devName(r.device))}</dt><dd class="muted">${esc(r.path)}</dd>`).join('') || '<dt>없음</dt><dd></dd>'}</dl></div></div>`;
+}
+
+function renderTidy(M) {
+  const rows = [...M.all].sort((a, b) => (a.last_output_at || 0) - (b.last_output_at || 0));
+  const filt = view.tab === 'stale' ? rows.filter((s) => s.status === 'stale') : view.tab === 'busy' ? rows.filter((s) => s.status === 'busy') : rows;
+  const n = (k) => k === 'all' ? rows.length : rows.filter((s) => s.status === k).length;
+  return head('세션 정리', '오래 멈춘 세션이 위에 옵니다. 이어서 할지, 마무리할지, 닫을지 고르세요.') + `<div class="body">
+    <div class="tabs">${[['all', '전체'], ['stale', '오래 멈춤'], ['busy', '작업 중']].map(([k, t]) => `<div class="tab ${view.tab === k ? 'on' : ''}" data-tab="${k}">${t} ${n(k)}</div>`).join('')}</div>
+    <div class="card">${sessionTable(filt, { project: true })}</div></div>`;
+}
+
+function renderDecisions() {
+  const open = S.decisions.filter((d) => d.status === 'open'), done = S.decisions.filter((d) => d.status !== 'open').slice(0, 20);
+  const item = (d) => `<li style="display:block"><div><span class="chip">${esc(d.lane)}</span> <b>${esc(d.question)}</b></div>
+    <div class="muted">${new Date(d.created_at).toLocaleString('ko-KR')} · ${esc(d.asked_by || '')}</div>
+    ${d.status === 'open' ? `<div class="opts">${(d.options || []).map((o) => `<button class="small ${o === d.recommended ? 'primary' : ''}" data-answer="${d.id}" data-value="${esc(o)}">${esc(o)}${o === d.recommended ? ' · 추천' : ''}</button>`).join('')}
+      <button class="small" data-answer="${d.id}" data-value="">직접 쓰기</button></div>` : `<div class="muted">답: ${esc(d.answer)}</div>`}</li>`;
+  return head('결정 대기', '세션이 올린 질문입니다. 버튼으로 답하면 그 세션이 읽고 따릅니다.') + `<div class="body">
+    <div class="card"><h2>기다리는 결정 <span class="muted">${open.length}</span></h2>${open.length ? `<ul class="todo">${open.map(item).join('')}</ul>` : '<div class="empty">기다리는 결정이 없습니다.</div>'}</div>
+    ${done.length ? `<div class="card"><h2>답한 결정</h2><ul class="todo">${done.map(item).join('')}</ul></div>` : ''}</div>`;
+}
+
+function renderLog() {
+  const OP = { send: '메시지', launch: '세션 열기', close: '세션 닫기', decision: '결정 답' };
+  return head('변경 이력', '오피스에서 한 조작이 모두 남습니다.') + `<div class="body"><div class="card">${S.actions.length ? `<ul class="todo log">${S.actions.map((a) => `<li>
+    <span class="pill ${a.ok ? '' : 'stale'}">${OP[a.op] || a.op}</span><div class="txt"><b>${esc(a.label || '')}</b><span>${esc(a.text || a.error || '')}</span></div>
+    <span class="muted">${a.device ? esc(devName(a.device)) + ' · ' : ''}${ago(Date.parse(a.at))}</span></li>`).join('')}</ul>` : '<div class="empty">아직 기록이 없습니다.</div>'}</div></div>`;
+}
+
+function render() {
+  const M = model();
+  renderSide(M);
+  const P = { home: renderHome, project: renderProject, tidy: renderTidy, decisions: renderDecisions, log: renderLog };
+  $('main').innerHTML = (P[view.page] || renderHome)(M);
+  if (view.session) renderPanelHead(M);
+}
+
+// ── 오른쪽 세션 패널 ──
+function findSession(handle) { return model().all.find((s) => s.handle === handle); }
+function renderPanelHead(M) {
+  const s = M.all.find((x) => x.handle === view.session);
+  const h = $('panel').querySelector('.ph');
+  if (!s || !h) return;
+  h.querySelector('.meta').innerHTML = `${esc(PROJECT_NAMES[s.project] || s.project)} · ${esc(devName(s.device))} · ${esc(AGENT_NAMES[s.agent] || s.agent || '')} · <span class="dot d-${s.status}"></span> ${STATUS_TEXT[s.status]} · ${ago(s.last_output_at)}`;
+}
+function openPanel(handle) {
+  const s = findSession(handle);
+  if (!s) return;
+  view.session = handle;
+  $('app').classList.add('with-panel');
+  const p = $('panel'); p.hidden = false;
+  p.innerHTML = `<div class="ph"><div class="row1"><b>${esc(s.title || '이름 없음')}</b>
+      <div><button class="small danger" data-close="${esc(handle)}">세션 닫기</button> <button class="small" data-act="panel-x">✕</button></div></div>
+      <div class="meta"></div></div>
+    <div class="screen" id="screen">화면을 불러오는 중…</div>
+    <div class="quick">${QUICK.map(([t], i) => `<button class="small" data-quick="${i}">${t}</button>`).join('')}</div>
+    <div class="composer"><textarea id="msg" rows="2" placeholder="이 세션에 보낼 말 — Enter 로 보내기, Shift+Enter 줄바꿈"></textarea><button class="primary" data-act="send">보내기</button></div>`;
+  render();
+  refreshScreen(true);
+  clearInterval(panelTimer);
+  panelTimer = setInterval(refreshScreen, 4000);
+  $('msg').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); sendMsg(); } });
+}
+function closePanel() {
+  clearInterval(panelTimer); view.session = null;
+  $('panel').hidden = true; $('app').classList.remove('with-panel'); render();
+}
+async function refreshScreen(first) {
+  const s = findSession(view.session);
+  if (!s) return;
+  if (!s.online) { $('screen').textContent = '기기가 꺼져 있어 화면을 볼 수 없습니다.\n\n마지막 화면:\n' + (s.preview || ''); return; }
+  const r = await cmd(s.device, 'read', { handle: s.handle }).catch(() => null);
+  const el = $('screen'); if (!el) return;
+  const term = r?.result?.terminal || r?.result || {};
+  const text = r?.ok ? (term.tail || '') : (first ? `화면을 읽지 못했습니다: ${r?.error || ''}` : null);
+  if (text == null) return;
+  const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+  el.textContent = Array.isArray(text) ? text.join('\n') : text;
+  if (first || atBottom) el.scrollTop = el.scrollHeight;
+}
+async function sendText(text) {
+  const s = findSession(view.session);
+  if (!s || !text.trim()) return;
+  const r = await cmd(s.device, 'send', { handle: s.handle, text }, s.title);
+  toast(r.ok ? '보냈습니다' : `못 보냈습니다: ${r.error}`);
+  setTimeout(() => refreshScreen(), 1500);
+}
+function sendMsg() { const t = $('msg').value; if (!t.trim()) return; $('msg').value = ''; sendText(t); }
+
+// ── 모달 ──
+function modal(html, onOk) {
+  const m = document.createElement('div'); m.className = 'modal';
+  m.innerHTML = `<div class="box">${html}<div class="btns"><button data-x>취소</button><button class="primary" data-ok>확인</button></div></div>`;
+  document.body.append(m);
+  m.querySelector('[data-x]').onclick = () => m.remove();
+  m.onclick = (e) => { if (e.target === m) m.remove(); };
+  m.querySelector('[data-ok]').onclick = async () => { const keep = await onOk(m); if (!keep) m.remove(); };
+  return m;
+}
+function newSession() {
+  const M = model();
+  const targets = [];
+  // 세션이 실제로 일하는 폴더(작업 트리)를 먼저, 그다음 저장소 본 폴더.
+  const seen = new Set();
+  const add = (p, device, folder, where) => {
+    const k = device + '|' + folder.replace(/\\/g, '/').toLowerCase();
+    if (seen.has(k)) return; seen.add(k);
+    targets.push({ label: `${p.name} — ${devName(device)} · ${where}`, device, folder, pkey: p.key });
+  };
+  for (const p of M.projects) {
+    for (const s of p.sessions) if (s.online && s.folder) add(p, s.device, s.folder, s.folder.split(/[\\/]/).filter(Boolean).slice(-1)[0]);
+    for (const r of p.repos) if (r.online) add(p, r.device, r.path, '본 폴더');
+  }
+  if (!targets.length) return toast('연결된 기기의 프로젝트가 없습니다');
+  const pre = targets.findIndex((t) => t.pkey === view.project);
+  modal(`<h3>새 세션 열기</h3>
+    <label>프로젝트 · 기기<select id="nt">${targets.map((t, i) => `<option value="${i}" ${i === pre ? 'selected' : ''}>${esc(t.label)}</option>`).join('')}</select></label>
+    <label>에이전트<select id="na"><option value="claude">클로드</option><option value="codex">GPT (코덱스)</option></select></label>
+    <label>세션 이름<input id="nn" placeholder="예: 그로우업 상세 페이지"></label>
+    <label>첫 메시지 (인계 파일 경로나 할 일)<textarea id="np" rows="3"></textarea></label>`, async (m) => {
+    const t = targets[+m.querySelector('#nt').value];
+    const name = m.querySelector('#nn').value.trim(), first = m.querySelector('#np').value.trim();
+    const prompt = [name ? `이 세션 이름은 «${name}» 이다. /rename 으로 이름을 바꿔라.` : '', first].filter(Boolean).join('\n') || undefined;
+    toast('세션을 여는 중…');
+    const r = await cmd(t.device, 'launch', { folder: t.folder, agent: m.querySelector('#na').value, prompt, title: name || t.label }, name || t.label);
+    toast(r.ok ? '세션을 열었습니다' : `열지 못했습니다: ${r.error}`);
+    setTimeout(load, 4000);
+  });
+}
+function closeSession(handle) {
+  const s = findSession(handle); if (!s) return;
+  const d = S.devices.find((x) => x.device === s.device);
+  const locks = d?.state?.render_locks || [];
+  modal(`<h3>세션 닫기</h3><div>«${esc(s.title || '이름 없음')}» (${esc(devName(s.device))}) 를 닫을까요?</div>
+    <div class="muted">마지막 활동 ${ago(s.last_output_at)} · ${STATUS_TEXT[s.status]}<br>닫으면 이 세션의 대화는 끝납니다. 이어서 할 일이 있으면 먼저 «마무리 요청»으로 인계 파일을 남기세요.</div>
+    ${s.status === 'busy' ? '<div style="color:var(--warn)">지금 작업 중인 세션입니다.</div>' : ''}
+    ${locks.length ? `<div style="color:var(--bad)">이 기기에서 렌더가 진행 중입니다 (${locks.length}). 그래도 닫으려면 확인을 누르세요.</div>` : ''}`, async () => {
+    const r = await cmd(s.device, 'close', { handle, title: s.title, force: locks.length > 0 }, s.title);
+    toast(r.ok ? '닫았습니다' : `닫지 못했습니다: ${r.error}`);
+    if (r.ok && view.session === handle) closePanel();
+    setTimeout(load, 3000);
+  });
+}
+async function answer(id, value) {
+  if (!value) {
+    return modal('<h3>직접 답하기</h3><textarea id="av" rows="3"></textarea>', async (m) => {
+      const v = m.querySelector('#av').value.trim(); if (!v) return true; await answer(id, v);
+    });
+  }
+  const r = await call(`/api/decisions/${id}`, { answer: value });
+  toast(r.ok ? '답했습니다' : (r.error || '실패'));
+  load();
+}
+
+// ── 이벤트 ──
+document.addEventListener('click', (e) => {
+  const t = e.target.closest('[data-page],[data-project],[data-session],[data-open],[data-close],[data-act],[data-tab],[data-quick],[data-answer]');
+  if (!t) return;
+  if (t.dataset.close) { e.stopPropagation(); return closeSession(t.dataset.close); }
+  if (t.dataset.open) { e.stopPropagation(); return openPanel(t.dataset.open); }
+  if (t.dataset.answer) return answer(t.dataset.answer, t.dataset.value);
+  if (t.dataset.quick) return sendText(QUICK[+t.dataset.quick][1]);
+  if (t.dataset.tab) { view.tab = t.dataset.tab; return render(); }
+  if (t.dataset.session) { $('side').classList.remove('open'); return openPanel(t.dataset.session); }
+  if (t.dataset.project) { view.page = 'project'; view.project = t.dataset.project; $('side').classList.remove('open'); return render(); }
+  if (t.dataset.page) { view.page = t.dataset.page; $('side').classList.remove('open'); return render(); }
+  const a = t.dataset.act;
+  if (a === 'new') return newSession();
+  if (a === 'send') return sendMsg();
+  if (a === 'panel-x') return closePanel();
+  if (a === 'menu') return $('side').classList.toggle('open');
+  if (a && a.startsWith('page:')) { view.page = a.slice(5); return render(); }
+});
 
 async function show() {
   const { data: { session } } = await sb.auth.getSession();
   $('login').hidden = !!session; $('app').hidden = !session;
-  if (session) { load(); clearInterval(window.__t); window.__t = setInterval(load, 60e3); }
+  if (session) { load(); clearInterval(window.__t); window.__t = setInterval(load, 15e3); }
 }
-
 $('go').onclick = async () => {
   $('err').textContent = '';
   const { error } = await sb.auth.signInWithPassword({ email: $('email').value.trim(), password: $('pw').value });
   if (error) $('err').textContent = '로그인하지 못했습니다.'; else show();
 };
 $('pw').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('go').click(); });
-$('out').onclick = async () => { await sb.auth.signOut(); show(); };
 show();
 </script>
 </body>
