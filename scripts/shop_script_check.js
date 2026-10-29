@@ -38,7 +38,8 @@ const V3_SUMMARY = /^(그래서|결국|이처럼|역시)|꼭 사세요|꼭 써 �
 const V14_COMPARE = /(배|보다|대신|만에|에서|전|후|하루|매일|한 번|%|→|vs)/;
 const ENFORCE_1023 = Date.parse('2026-10-23T00:00:00+09:00');
 const ENFORCE_SELLER = Date.parse('2026-10-25T12:00:00+09:00');   // 10-25 소유주: 경쟁 쇼핑 채널 레퍼런스 풀 + 쿠팡 리뷰 수 기록
-const ENFORCE_HOOK = Date.parse('2026-10-28T00:00:00+09:00');     // 10-28 소유주: 첫 1초 상품·훅 돌려쓰기(⑰)
+const ENFORCE_HOOK = Date.parse('2026-10-28T00:00:00+09:00');
+const GYEOL_FROM = Date.parse('2026-10-29T12:00:00+09:00');       // 10-29 소유주 «결분석 다 잡고 가자»: 이 시각 뒤 착수분만 결 표(⑱) — 이미 만든 재고는 막지 않는다     // 10-28 소유주: 첫 1초 상품·훅 돌려쓰기(⑰)
 const HOOK_TYPES = ['정체', '사연', '결과먼저', '기묘', '손해', '경고'];
 const WARN_HOOK = /마세요/;
 const UPLOAD_DIR = 'D:/volcano-runs/_upload';
@@ -204,6 +205,15 @@ function check(metaPath) {
     warn(iH < 0 || squash(ht.before) === squash(ht.after), '⑫ 사람 손질', iH < 0 ? '고친 문장이 원고에 없음' : `${ht.by}: «${ht.before}» → «${ht.after}»`);
   }
 
+  // ⑱ 결 표 — 공용 gyeol_gate.py(도구개발 18cd569) 그대로 부른다(사본 금지). <작업폴더>/gyeol_table.md|json: 레퍼런스 출처 · «초|결|우리 장면» 4줄+ · 반전·약속 줄.
+  //    관문 자체가 2026-10-31 00:00 전에는 경고만 찍고 0 — 그 뒤 종료 4·5 면 FAIL. 10-29 12:00 전 착수분은 면제.
+  if (Number.isFinite(started) && started < GYEOL_FROM) warn(false, '⑱ 결 표', '10-29 12:00 전 착수분 면제');
+  else {
+    const gg = spawnSync('python', ['-X', 'utf8', path.join(__dirname, 'gyeol_gate.py'), wd], { encoding: 'utf8', env: { ...process.env, PYTHONIOENCODING: 'utf-8' } });
+    const gmsg = `${gg.stdout || ''}${gg.stderr || ''}`.trim().split(String.fromCharCode(10)).map((x) => x.trim()).filter(Boolean).join(' / ').slice(0, 300);
+    if (gg.status) add(false, '⑱ 결 표(gyeol_gate)', `종료 ${gg.status} · ${gmsg}`);
+    else warn(/FAIL|유예/.test(gmsg), '⑱ 결 표(gyeol_gate)', gmsg || 'PASS');
+  }
   // ⑭ 이야기 — 공용 story_gate.py(도구개발 2e986a7) 그대로 부른다(사본 금지). 시작 시각 기준 유예: 10-23 전 시작 편은 FAIL 도 △
   const st = M.story || {};
   const sgIn = path.join(os.tmpdir(), `shop_story_${path.basename(metaPath)}`);
