@@ -472,6 +472,19 @@ def main():
         out_f += nf
         if g['kind'] == 'nar':
             parts_a.append(Path(g['wav']))
+            # ★plan "nar_captions": true 면 해설도 화면에 칸으로 띄운다(2026-10-29 린박스 C) — 볼케이노 시절 잘된 편은 0초부터
+            #   해설 자막이 떠 있었고, 자체 렌더(10-08~)는 해설을 소리로만 내서 0~3초에 글자가 없었다(결 분석 §9 «약한 편
+            #   0~3초 자막 없음»). 롱투숏(longshort_render.py)은 자기 해설 칸을 따로 얹으므로 이 키 없이 그대로 둔다.
+            #   시각은 TTS 낱말 시각(longshort narration_events 와 같은 계산), 첫 칸은 조각 첫 프레임부터.
+            if plan.get('nar_captions'):
+                n = nar[g['id']]
+                w = n['meta']['words']
+                a0 = max(0, w[0]['start'] - .065) if w else 0
+                ws = [(x['start'], x['end'], x['text']) for x in w]
+                cs = card_times(ws, 0, n['meta']['duration'], n['cards'], JOIN[lang])
+                for j, (ca, cb, text) in enumerate(cs):
+                    nb = cs[j + 1][0] - a0 if j + 1 < len(cs) else nf / FPS
+                    events.append((t + (0.0 if j == 0 else max(0, ca - a0)), t + min(nb, nf / FPS), text))
         else:
             au = work / ('a%02d.wav' % k)
             clip_audio(src, g['t0'], g['dur'], au)
