@@ -39,12 +39,13 @@ async function main() {
   if (done !== true) { console.error(`[upload-ja] 처리 완료 아님 — ${done} · 태그·점검 안 걸고 멈춤, 관리자 보고`); process.exit(5); }
   if (!at) at = (await (await fetch(`https://www.googleapis.com/youtube/v3/videos?part=status&id=${videoId}`, { headers: await auth() })).json()).items[0].status.publishAt;
   execFileSync('node', [path.join(__dirname, 'yt_tags_ja.js'), videoId, meta, '--gate'], { cwd: ROOT, stdio: 'inherit' });
-  if (at) execFileSync('node', [path.join(ROOT, 'politics-hour', 'views_check.js'), videoId, '--schedule', at], { cwd: ROOT, stdio: 'inherit' });
+  // video_id 를 먼저 적는다 — views_check 는 packages.json 의 purpose 로 채널을 고른다(10-29: 순서가 뒤라 ko 채널에서 «영상 없음»)
   const pk = path.join(ep, 'packages.json');
   if (fs.existsSync(pk)) {
     const p = JSON.parse(fs.readFileSync(pk, 'utf8'));
     if (p.video_id !== videoId) { p.video_id = videoId; fs.writeFileSync(pk, JSON.stringify(p, null, 2) + '\n', 'utf8'); }
   }
+  if (at) execFileSync('node', [path.join(ROOT, 'politics-hour', 'views_check.js'), videoId, '--schedule', at], { cwd: ROOT, stdio: 'inherit' });
   console.log(JSON.stringify({ videoId, publishAt: at, processed: true }));
 }
 
