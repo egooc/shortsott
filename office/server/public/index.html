@@ -182,7 +182,7 @@ h3.sh { font-size: 13px; font-weight: 600; color: var(--muted); margin: 6px 2px 
 .dopts { display: grid; gap: 8px; margin-top: 12px; }
 .opt { display: flex; align-items: center; justify-content: space-between; gap: 8px; text-align: left; width: 100%;
   padding: 11px 14px; border-radius: 11px; font-weight: 600; font-size: 14px; }
-.opt small { font-size: 11px; color: var(--accent); font-weight: 600; }
+.opt small { flex: none; white-space: nowrap; font-size: 11px; color: var(--accent); font-weight: 600; }
 .opt.rec { border-color: var(--accent); }
 .opt.ghost { color: var(--muted); font-weight: 500; border-style: dashed; }
 .opt.armed { background: var(--accent); border-color: var(--accent); color: #fff; }
@@ -364,7 +364,7 @@ main { padding-bottom: 80px; }
   body { font-size: 15px; }
   #app, #app.with-panel { grid-template-columns: minmax(0, 1fr); height: auto; min-height: 100vh; }
   aside.side { position: fixed; inset: 0 22% 0 0; z-index: 6; display: none; box-shadow: 0 0 40px rgb(0 0 0 / .3); }
-  aside.side.open { display: flex; }
+  aside.side.open { display: flex; box-shadow: 0 0 0 100vmax rgb(0 0 0 / .35); }
   main { padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
   .head { padding: 16px 16px 8px; }
   .head h1 { font-size: 24px; }
@@ -637,6 +637,21 @@ function homeAlerts(M) {
   return out;
 }
 
+function projCard(p) {
+    const db = dashboardFor(p.key);
+    const stats = (db?.tabs?.[0]?.sections?.find((s) => s.type === 'stats')?.items || []).slice(0, 3);
+    const b = p.sessions.filter((s) => s.status === 'busy').length;
+    return `<div class="card pcard2" data-project="${esc(p.key)}">
+      <div class="pt"><b>${esc(p.name)}</b><span class="muted">세션 ${p.sessions.length}${b ? ` · <span class="t-busy">작업 중 ${b}</span>` : ''}</span><span class="chev">›</span></div>
+      ${stats.length ? `<div class="mini">${stats.map((i) => `<div><div class="mv ${i.tone ? 't-' + i.tone : ''}">${esc(i.value)}</div><div class="muted">${esc(i.label)}</div></div>`).join('')}</div>`
+        : `<div class="muted">${db ? '' : '대시보드 준비 중'}</div>`}
+    </div>`;
+}
+// 폰 아래 탭 «프로젝트»: 서랍 대신 프로젝트 카드만 모은 화면
+function renderProjects(M) {
+  return `<div class="head"><div><h1>프로젝트</h1><div class="muted">누르면 그 프로젝트 대시보드</div></div></div>
+  <div class="body">${M.projects.map(projCard).join('') || '<div class="empty">프로젝트가 없습니다.</div>'}</div>`;
+}
 function renderHome(M) {
   const open = S.decisions.filter((d) => d.status === 'open');
   const alerts = homeAlerts(M);
@@ -657,16 +672,7 @@ function renderHome(M) {
         ${alerts.length ? `<h3 class="sh">확인할 것</h3>${alerts.map((a) => `<div class="acard a-${a.tone} ${a.s && a.s.length > 12 ? 'tall' : ''}" ${a.act ? `data-act="${esc(a.act)}"` : ''}>
           <span class="at">${esc(a.t)}</span>${a.s ? `<span class="muted">${esc(a.s)}</span>` : ''}${a.act ? '<span class="go">보기 ›</span>' : ''}</div>`).join('')}` : ''}
         <h3 class="sh">프로젝트</h3>
-        ${M.projects.map((p) => {
-          const db = dashboardFor(p.key);
-          const stats = (db?.tabs?.[0]?.sections?.find((s) => s.type === 'stats')?.items || []).slice(0, 3);
-          const b = p.sessions.filter((s) => s.status === 'busy').length;
-          return `<div class="card pcard2" data-project="${esc(p.key)}">
-            <div class="pt"><b>${esc(p.name)}</b><span class="muted">세션 ${p.sessions.length}${b ? ` · <span class="t-busy">작업 중 ${b}</span>` : ''}</span><span class="chev">›</span></div>
-            ${stats.length ? `<div class="mini">${stats.map((i) => `<div><div class="mv ${i.tone ? 't-' + i.tone : ''}">${esc(i.value)}</div><div class="muted">${esc(i.label)}</div></div>`).join('')}</div>`
-              : `<div class="muted">${db ? '' : '대시보드 준비 중'}</div>`}
-          </div>`;
-        }).join('')}
+        ${M.projects.map(projCard).join('')}
         <h3 class="sh">기기</h3>
         <div class="card tight">${S.devices.map((d) => {
           const r = d.state?.snapshot?.resources || {};
@@ -953,7 +959,7 @@ let CUR_M = null;
 function render(auto) {
   const M = model(); CUR_M = M;
   renderSide(M);
-  const P = { home: renderHome, project: renderProject, tidy: renderTidy, decisions: renderDecisions, log: renderLog, results: renderResults };
+  const P = { home: renderHome, project: renderProject, tidy: renderTidy, decisions: renderDecisions, log: renderLog, results: renderResults, projects: renderProjects };
   if (!(auto && busyMain())) {
     document.querySelectorAll('[data-draft]').forEach((t) => { DRAFTS[t.dataset.draft] = t.value; });
     $('main').innerHTML = (P[view.page] || renderHome)(M);
@@ -962,8 +968,8 @@ function render(auto) {
   renderFab(M);
   // 폰 아래 탭: 오늘 · 결정 · 결과물 · 프로젝트(서랍) · 세션
   const open = S.decisions.filter((d) => d.status === 'open').length;
-  const TB = [['page:home', '오늘', 'home', '⌂'], ['page:decisions', '결정', 'decisions', '✓'], ['page:results', '결과물', 'results', '▣'], ['drawer', '프로젝트', 'project', '▤'], ['page:tidy', '세션', 'tidy', '◎']];
-  $('tabbar').innerHTML = TB.map(([act, label, page, ic]) => `<button data-act="${act}" class="${view.page === page ? 'on' : ''}">
+  const TB = [['page:home', '오늘', 'home', '⌂'], ['page:decisions', '결정', 'decisions', '✓'], ['page:results', '결과물', 'results', '▣'], ['page:projects', '프로젝트', 'projects', '▤'], ['page:tidy', '세션', 'tidy', '◎']];
+  $('tabbar').innerHTML = TB.map(([act, label, page, ic]) => `<button data-act="${act}" class="${view.page === page || (page === 'projects' && view.page === 'project') ? 'on' : ''}">
     <span class="ic">${ic}</span>${page === 'decisions' && open ? `<span class="badge">${open}</span>` : ''}<span>${label}</span></button>`).join('');
 }
 
@@ -1095,6 +1101,8 @@ async function answer(id, value) {
 
 // ── 이벤트 ──
 document.addEventListener('click', (e) => {
+  // 서랍이 열려 있으면 바깥을 누를 때 닫기만 한다
+  if ($('side').classList.contains('open') && !e.target.closest('#side, [data-act="menu"]')) { $('side').classList.remove('open'); return; }
   const t = e.target.closest('[data-page],[data-project],[data-session],[data-open],[data-close],[data-qsend],[data-compact],[data-askmgr],[data-act],[data-tab],[data-ptab],[data-mlane],[data-chat],[data-unattach],[data-mkmanager],[data-quick],[data-answer]');
   if (t && t.dataset.compact) return compactSession(t.dataset.compact);
   if (t && t.dataset.askmgr) {
