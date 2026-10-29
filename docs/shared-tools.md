@@ -227,3 +227,5 @@
 | appeal-template | (제안) 관리자 | docs/appeal-template.md | 수익 정지(재사용·독창성) 항소문 5요소 | — | 전 레인 | 제안 |
 | desc-template | (제안) N100·쇼핑 | 원고·장면 | 설명란 200자 요약 → 리포트형 → «교육적 목적» → 영어 태그 5개 | — | N100, shop | 제안 |
 | exp-quota | (제안) 관리자 | 장부 structure 필드 | 2군 시험 슬롯(주 1편)·새 구조 실험 쿼터(8편 중 2편) 카운터 | — | 전 레인 | 제안 |
+| gyeol_gate | 도구개발 | scripts/gyeol_gate.py <작업폴더> [--strict] | 결 표(gyeol_table.md/.json) 관문: 레퍼런스 출처·초/결/우리 장면 4줄+·반전·약속 초. 종료 4 없음/빠짐·5 형식 아님, enforce_from 2026-10-31(전엔 경고). 렌더·발행 앞 한 줄 | 9개 레인 연결 중 | 전 레인 | 채택(10-29) |
+| variety_fx | 도구개발 | scripts/variety_fx.py <영상> <시각표·자막> --out [--plan --size --style] | 예능식 편집 그래픽+효과음(5초 간격·최대 6개), 16:9·색·글꼴 교체, 묶음 tools/variety_fx(CC0) | 쇼핑(A/C), N100 야생일지(A/C) | 롱투숏·린박스·팬튜브(효과음만)·정치 | 시험(10-29 소유주 C판 승인) |
