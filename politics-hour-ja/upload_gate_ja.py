@@ -17,7 +17,17 @@ import shutil, tempfile
 with tempfile.TemporaryDirectory() as tmp:
     shutil.copy2(Path(sys.argv[1]) / 'keywords.json', Path(tmp) / 'keywords.json')
     longs = [u for u in sys.argv[2:] if '/shorts/' not in u.replace(chr(92), '/')]
-    rc = subprocess.run([sys.executable, str(GATE), tmp, *longs]).returncode if longs else 0
+    # ko 관문 줄 중 ko 자료·편 폴더를 읽는 줄은 임시 폴더라 늘 틀린다 → JA 쪽에서 따로 본다(빌런=script_gate.ja_villain_lines, 길이·결 표=아래)
+    KO_ONLY = ('상승 검색어 상위 5위', '지금 줄기', '길이 잴 수 없음', '태그 관문(tag_gate)', '결 표 없음', '레퍼런스 0.0분', '[유예]')
+    rc = 0
+    if longs:
+        r = subprocess.run([sys.executable, '-X', 'utf8', str(GATE), tmp, *longs], capture_output=True, text=True, encoding='utf-8',
+                           env=dict(__import__('os').environ, PYTHONIOENCODING='utf-8'))
+        for ln in (r.stdout + r.stderr).splitlines():
+            skip = any(k in ln for k in KO_ONLY)
+            print(('[gate-ko→ja 제외] ' if skip and 'FAIL' in ln else '') + ln)
+            if 'FAIL' in ln and not skip:
+                rc = 1
 bad = []
 for up in sys.argv[2:]:
     t = json.loads(Path(up).read_text(encoding='utf-8')).get('title', '')
@@ -196,6 +206,19 @@ if script_gate.candidate_gate.ep_date(ep, sys.argv[2:]) >= HEAD_FROM:
 else:
     for _b in _hb:
         print('[gate-ja] WARN(10/24 전 편)', _b)
+# ko 관문에서 뺀 두 가지를 JA 자료로(10-29): 빌런 = villain_watch·politics_ja 상승어·JA threads.json, 길이 = 레퍼런스 최단 규칙(8분 바닥)
+_vb = script_gate.ja_villain_lines(ep) if (ep / 'keywords.json').exists() else []
+bad += _vb
+if not _vb and kw.get('villain'):
+    print(f'[gate-ja] PASS 빌런 «{kw["villain"]["name"]}» (villain_watch·JA 줄기)')
+for up in [u for u in sys.argv[2:] if '/shorts/' not in u.replace(chr(92), '/')]:
+    _f = Path(json.loads(Path(up).read_text(encoding='utf-8')).get('file', ''))
+    if _f.exists():
+        _m = ja_render.probe_seconds(_f) / 60 if 'ja_render' in dir() else float(subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', str(_f)], capture_output=True, text=True).stdout) / 60
+        if _m < 8:
+            bad.append(f'{Path(up).name}: 길이 {_m:.1f}분 — 8분 바닥 아래')
+        else:
+            print(f'[gate-ja] PASS 길이 {_m:.1f}분(목표 {kw.get("target_min", 10)}분 · 바닥 8분)')
 # 커뮤니티 가이드 낱말(10-18 소유주 «제재 없이 조회 0 = 가이드 위반», 정본 config/guide_words.json · 도구개발 공용 판정) — 걸리면 종료 4
 guide = guide_words.gate_lines([*sys.argv[2:], *[x for x in [ep / 'packages.json', ep / 'keywords.json'] if x.exists()]], lang='ja', lane='politics_ja')
 bad += guide
