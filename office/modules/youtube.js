@@ -91,6 +91,24 @@ function perfTable() {
   return { date: f.slice(0, 10), head: cells(lines[0]), rows: lines.slice(2).map(cells) };
 }
 
+// 성과 보고 한 칸(«3편 · 중앙 16,610 · 최고 …»)을 숫자 몇 개로 줄여 폰에서도 한눈에 보이게
+const JA_NAME = { jp_highlight: '린박스 일본', politics_ja: '정치 일본', nenkin_ja: '연금 일본' };
+function perfSection(perf) {
+  const col = (re) => perf.head.findIndex((h) => re.test(h));
+  const ci = { name: col(/^채널/), purpose: col(/^purpose/), subs: col(/^구독/), d2: col(/^그제.*발행/), d1: col(/^어제.*발행/), queue: col(/^예약/) };
+  const day = (c) => { const m = String(c || '').match(/(\d+)편 · 중앙 ([\d,]+)/); return m ? { n: +m[1], med: +m[2].replace(/,/g, '') } : null; };
+  const fmt = (d) => (d ? `${d.med.toLocaleString('ko-KR')} (${d.n}편)` : '—');
+  const rows = perf.rows.map((r) => {
+    const purpose = r[ci.purpose] || '';
+    const name = /[぀-ヿ]/.test(r[ci.name]) ? (JA_NAME[purpose] || '일본 채널') : r[ci.name];
+    return { name, subs: r[ci.subs], d2: day(r[ci.d2]), d1: day(r[ci.d1]), queue: r[ci.queue] };
+  }).filter((x) => x.d2 || x.d1 || +String(x.queue).replace(/,/g, '') > 0)
+    .sort((a, b) => (b.d2?.med || b.d1?.med || 0) - (a.d2?.med || a.d1?.med || 0));
+  return { type: 'table', title: `채널별 조회 (${perf.date} 보고 · 편당 중앙값)`, columns: ['채널', '구독', '그제 올린 편', '어제 올린 편', '예약'],
+    rows: rows.map((x) => [x.name, x.subs, fmt(x.d2), fmt(x.d1), x.queue]),
+    note: '그제 편은 이틀 지난 조회, 어제 편은 첫날 신호입니다. 올린 편이 없는 채널은 뺐습니다.' };
+}
+
 module.exports = {
   project: 'shortsott',
   title: '유튜브',
@@ -243,7 +261,7 @@ module.exports = {
             note: '제작 장부(production_ledger)에 적힌 편만 보입니다. 장부에 안 적는 레인은 여기 안 잡힙니다.' },
         ] },
         { key: 'perf', label: '채널 성과', sections: [
-          perf ? { type: 'table', title: `채널별 (${perf.date} 성과 보고)`, columns: perf.head.slice(0, 7).filter((h) => h !== 'purpose'), rows: perf.rows.map((r) => r.slice(0, 7).filter((_, i) => perf.head[i] !== 'purpose')) } : { type: 'note', text: '성과 보고가 아직 없습니다.' },
+          perf ? perfSection(perf) : { type: 'note', text: '성과 보고가 아직 없습니다.' },
           { type: 'table', title: '수익 창출 조건 진행', columns: ['채널', '구독', '쇼츠 90일 조회', '롱폼 365일 시청', '진행'], rows: yppRows },
           { type: 'table', title: `조회 빠른 편 (영화 해설, ${metrics ? mdhm(Date.parse(metrics.at)) : '—'} 기준)`, columns: ['편', '조회', '하루 조회', '경과'], rows: topVideos },
         ] },
