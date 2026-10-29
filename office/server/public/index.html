@@ -384,7 +384,7 @@ function renderDecisions() {
 }
 
 function renderLog() {
-  const OP = { send: '메시지', launch: '세션 열기', close: '세션 닫기', decision: '결정 답' };
+  const OP = { send: '메시지', launch: '세션 열기', close: '세션 닫기', decision: '결정 답', ask: '결정 요청' };
   return head('변경 이력', '오피스에서 한 조작이 모두 남습니다.') + `<div class="body"><div class="card">${S.actions.length ? `<ul class="todo log">${S.actions.map((a) => `<li>
     <span class="pill ${a.ok ? '' : 'stale'}">${OP[a.op] || a.op}</span><div class="txt"><b>${esc(a.label || '')}</b><span>${esc(a.text || a.error || '')}</span></div>
     <span class="muted">${a.device ? esc(devName(a.device)) + ' · ' : ''}${ago(Date.parse(a.at))}</span></li>`).join('')}</ul>` : '<div class="empty">아직 기록이 없습니다.</div>'}</div></div>`;
@@ -511,7 +511,7 @@ async function answer(id, value) {
     });
   }
   const r = await call(`/api/decisions/${id}`, { answer: value });
-  toast(r.ok ? '답했습니다' : (r.error || '실패'));
+  toast(r.ok ? (r.delivered && !r.delivered.startsWith('전달 실패') ? `답했습니다 — 세션에 전달됨` : r.delivered ? `답은 저장됐지만 ${r.delivered}` : '답했습니다') : (r.error || '실패'));
   load();
 }
 

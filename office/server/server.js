@@ -39,6 +39,11 @@ const TOKENS = new Map((process.env.OFFICE_DEVICE_TOKENS || '').split(',').filte
 const PUBLIC = path.join(__dirname, 'public');
 const ACTIONS = path.join(__dirname, 'actions.jsonl');
 const SUBS = path.join(__dirname, 'push-subs.json');
+const ROUTES = path.join(__dirname, 'decision-routes.json'); // 결정 id → 물어본 기기·터미널
+const readRoutes = () => { try { return JSON.parse(fs.readFileSync(ROUTES, 'utf8')); } catch { return {}; } };
+const writeRoutes = (r) => fs.writeFileSync(ROUTES, JSON.stringify(r, null, 2) + '\n', 'utf8');
+const DEVICE_NAMES = { 'main-pc': '메인 PC', 'mini-pc': '미니 PC', laptop: '노트북' };
+const devName = (d) => DEVICE_NAMES[d] || d;
 const STATIC = {
   '/manifest.webmanifest': 'application/manifest+json; charset=utf-8',
   '/sw.js': 'text/javascript; charset=utf-8',
@@ -201,6 +206,39 @@ async function api(req, res, url) {
     return send(res, 200, { ok: true, device });
   }
 
+  // 세션의 결정 요청(office/ask.js). 기기 토큰으로 인증, 답을 돌려줄 터미널을 기억해 둔다.
+  if (url.pathname.startsWith('/api/device/')) {
+    const device = deviceFor(req.headers['x-office-token']);
+    if (!device) return send(res, 401, { error: 'unknown device' });
+    if (url.pathname === '/api/device/decisions' && req.method === 'POST') {
+      const b = await readBody(req, 32 * 1024);
+      if (!b.lane || !b.question) return send(res, 400, { error: 'lane·question 이 필요하다' });
+      const row = {
+        lane: String(b.lane).slice(0, 60), question: String(b.question).slice(0, 1000),
+        options: Array.isArray(b.options) ? b.options.slice(0, 6).map((o) => String(o).slice(0, 120)) : [],
+        recommended: b.recommended ? String(b.recommended).slice(0, 120) : null,
+        asked_by: [b.asked_by, devName(device)].filter(Boolean).join(' · ').slice(0, 120),
+      };
+      const r = await sb('office_decisions', { method: 'POST', headers: { prefer: 'return=representation' }, body: JSON.stringify(row) });
+      const out = r.ok ? (await r.json())[0] : null;
+      if (!out) return send(res, 502, { error: '저장 실패' });
+      const routes = readRoutes();
+      routes[out.id] = { device, handle: typeof b.handle === 'string' ? b.handle : null };
+      writeRoutes(routes);
+      seenDecisions.add(out.id);
+      notify({ title: `결정 대기 · ${row.lane}`, body: row.question, tag: `decision-${out.id}`, url: '/#decisions' }).catch(() => {});
+      logAction({ device, op: 'ask', label: `${row.lane}: ${row.question}`.slice(0, 160), text: row.options.join(' / '), ok: true });
+      return send(res, 200, { ok: true, id: out.id });
+    }
+    const dm = url.pathname.match(/^\/api\/device\/decisions\/(\d+)$/);
+    if (dm && req.method === 'GET') {
+      const r = await sb(`office_decisions?id=eq.${dm[1]}&select=id,status,answer,answered_at`);
+      const row = r.ok ? (await r.json())[0] : null;
+      return row ? send(res, 200, row) : send(res, 404, { error: '없는 결정' });
+    }
+    return send(res, 404, { error: 'not found' });
+  }
+
   if (!(await isOwner(req))) return send(res, 401, { error: 'login' });
 
   if (url.pathname === '/api/state' && req.method === 'GET') {
@@ -245,8 +283,16 @@ async function api(req, res, url) {
       body: JSON.stringify({ status: 'answered', answer: String(answer).slice(0, 2000), answered_at: new Date().toISOString() }),
     });
     const rows = r.ok ? await r.json() : [];
-    logAction({ op: 'decision', label: rows[0] ? `${rows[0].lane}: ${rows[0].question}`.slice(0, 160) : `#${m[1]}`, text: answer, ok: rows.length > 0 });
-    return send(res, rows.length ? 200 : 409, rows.length ? { ok: true } : { error: '이미 답했거나 없는 결정' });
+    // 물어본 세션 터미널에 답을 바로 넣는다(그 세션은 폴링하지 않는다).
+    let delivered = null;
+    const route = rows[0] && readRoutes()[rows[0].id];
+    if (route && route.handle) {
+      const text = `[오피스 결정 답] #${rows[0].id} ${rows[0].question} → ${answer}`.replace(/\s*\n\s*/g, ' ').slice(0, 1500);
+      const d = await command(route.device, 'send', { handle: route.handle, text });
+      delivered = d.ok ? devName(route.device) : `전달 실패: ${d.error}`;
+    }
+    logAction({ op: 'decision', device: route?.device, label: rows[0] ? `${rows[0].lane}: ${rows[0].question}`.slice(0, 160) : `#${m[1]}`, text: answer + (delivered ? ` (${delivered})` : ''), ok: rows.length > 0 });
+    return send(res, rows.length ? 200 : 409, rows.length ? { ok: true, delivered } : { error: '이미 답했거나 없는 결정' });
   }
 
   send(res, 404, { error: 'not found' });
@@ -266,7 +312,9 @@ const server = http.createServer(async (req, res) => {
     }
     if (url.pathname === '/health') return send(res, 200, { ok: true, devices: [...devices.values()].filter((d) => d.ws).length });
     // 다른 기기가 연결기를 받아 가는 곳(비밀 없음 — 토큰은 기기에서 만든다).
-    if (url.pathname === '/agent.js') return send(res, 200, fs.readFileSync(path.join(PUBLIC, 'agent.js'), 'utf8'), 'text/javascript; charset=utf-8');
+    if (url.pathname === '/agent.js' || url.pathname === '/ask.js') {
+      return send(res, 200, fs.readFileSync(path.join(PUBLIC, url.pathname.slice(1)), 'utf8'), 'text/javascript; charset=utf-8');
+    }
     if (url.pathname === '/' || url.pathname === '/index.html') {
       return send(res, 200, fs.readFileSync(path.join(PUBLIC, 'index.html'), 'utf8'), 'text/html; charset=utf-8');
     }
