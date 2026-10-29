@@ -337,6 +337,12 @@ def main():
         if len(line) > TITLE_MAX[lang]:
             sys.exit('제목 %d줄이 %d자를 넘는다: %r' % (i + 1, TITLE_MAX[lang], line))
 
+    # 결 표 관문(2026-10-29 도구개발 18cd569, 공용 파일 그대로) — 편 폴더에 gyeol_table.md/json 이 없으면 렌더 전에 막는다.
+    #   10-31 00:00 KST 전에는 공용 관문이 경고만 찍고 0 을 돌려준다.
+    if subprocess.run([sys.executable, '-X', 'utf8', 'D:/midform/scripts/gyeol_gate.py',
+                       str(Path(a.plan).resolve().parent)]).returncode:
+        sys.exit(4)
+
     # 0) 이름 관문 — 음성을 사기 전에 배역표와 대조한다(rinbox_names.py, 2026-10-09)
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import rinbox_names
