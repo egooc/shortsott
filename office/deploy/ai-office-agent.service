@@ -1,0 +1,13 @@
+[Unit]
+Description=AI 오피스 연결기 (VPS — 그로우업 대시보드 모듈 상시 실행)
+After=network-online.target ai-office.service
+
+[Service]
+WorkingDirectory=/opt/ai-office-agent
+ExecStart=/usr/bin/node --experimental-websocket /opt/ai-office-agent/office/agent.js
+Restart=always
+RestartSec=10
+MemoryMax=300M
+
+[Install]
+WantedBy=multi-user.target

@@ -42,7 +42,7 @@ const SUBS = path.join(__dirname, 'push-subs.json');
 const ROUTES = path.join(__dirname, 'decision-routes.json'); // 결정 id → 물어본 기기·터미널
 const readRoutes = () => { try { return JSON.parse(fs.readFileSync(ROUTES, 'utf8')); } catch { return {}; } };
 const writeRoutes = (r) => fs.writeFileSync(ROUTES, JSON.stringify(r, null, 2) + '\n', 'utf8');
-const DEVICE_NAMES = { 'main-pc': '메인 PC', 'mini-pc': '미니 PC', laptop: '노트북' };
+const DEVICE_NAMES = { 'main-pc': '메인 PC', 'mini-pc': '미니 PC', laptop: '노트북', vps: 'VPS' };
 const devName = (d) => DEVICE_NAMES[d] || d;
 const STATIC = {
   '/manifest.webmanifest': 'application/manifest+json; charset=utf-8',

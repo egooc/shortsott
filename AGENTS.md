@@ -135,6 +135,16 @@ Key gates:
 5. English fallback captions for Korean/Japanese draft generation.
 6. `TEMPLATE_PROCESS_TITLE` or `process_title` text track behavior.
 
+## Owner Decisions Go Through AI Office
+
+When a session needs a decision from the owner, post it to the AI office instead of messaging the manager session (owner directive 2026-10-29, all sessions):
+
+```bash
+node D:/midform/office/ask.js "질문 한 문장" --lane <레인> --options "안1|안2|안3" --rec "안1" --from "<세션 이름>"
+```
+
+Do not wait. The owner answers by button on office.grow-up.kr (phone push), and the answer is typed into the asking session as one line: `[오피스 결정 답] #번호 질문 → 답`. Follow it and log one line to handoff-manager §10. Full rules: `docs/office-decisions.md`. Incident reports still go to the manager directly.
+
 ## Change History
 
 ### 2026-07-27 — OpenCode model split pinned
