@@ -86,4 +86,19 @@ need = set(v.SFX.values())
 check('쓰는 효과음 역할의 테이크 파일이 다 있다',
       all(lock['roles'].get(r) and all((v.KIT / t['file']).is_file() for t in lock['roles'][r]['takes']) for r in need))
 check('gsap 동봉', (v.BUNDLE / 'gsap.min.js').is_file())
+# 효과음만(팬튜브) — 영상은 복사, 효과음은 자리 믹스 대비 --rel dB
+import subprocess as sp, shutil
+if shutil.which('ffmpeg'):
+    with tempfile.TemporaryDirectory() as d:
+        src = Path(d) / 's.mp4'
+        sp.run(['ffmpeg', '-v', 'error', '-y', '-f', 'lavfi', '-i', 'color=c=gray:s=320x240:r=30:d=4', '-f', 'lavfi', '-i', 'sine=f=300:d=4',
+                '-shortest', '-c:v', 'libx264', '-c:a', 'aac', str(src)], check=True)
+        plan = Path(d) / 'p.json'; plan.write_text(json.dumps([{'t': 1.5, 'kind': 'sfx', 'sfx': 'pop'}]), encoding='utf-8')
+        out = Path(d) / 'o.mp4'
+        r = sp.run([sys.executable, '-X', 'utf8', str(sp_path := ROOT / 'scripts' / (sys.argv[1] if len(sys.argv) > 1 else 'variety_fx.py')),
+                    str(src), str(plan), '--plan', str(plan), '--sfx-only', '--rel', '-18', '--out', str(out)], capture_output=True, text=True, encoding='utf-8')
+        md5 = lambda f: sp.run(['ffmpeg', '-v', 'error', '-i', str(f), '-map', '0:v', '-f', 'md5', '-'], capture_output=True, text=True).stdout
+        rows = json.loads((out.with_suffix('.vfx') / 'sfx_rows.json').read_text(encoding='utf-8')) if r.returncode == 0 else []
+        check('효과음만: 영상 그대로 복사', r.returncode == 0 and md5(src) == md5(out))
+        check('효과음만: 1개만 들어감', len(rows) == 1)
 sys.exit(1 if fails else 0)

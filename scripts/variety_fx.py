@@ -33,6 +33,8 @@ FONTS = {'Paper': ['Paperlogy-8ExtraBold.ttf', 'BMDOHYEON.ttf', 'SBAggroB.ttf'],
          'Aggro': ['SBAggroB.ttf', 'BMDOHYEON.ttf'],
          'Hand': ['BMYEONSUNG.ttf', 'HakgyoansimAllimjangTTF-R.ttf', 'BMDOHYEON.ttf']}
 W, H, FPS = 1080, 1920, 30
+REL = None   # --rel: 모든 효과음을 그 자리 믹스 대비 정확히 이 dB 로(역할별 LEVEL 무시). 팬튜브 «원음 위 -18dB 이하» = --rel -18
+GAIN = 0.0   # --gain: 모든 효과음에 더할 dB(팬튜브처럼 원음 위에 낮게 깔 때 음수)
 YEL, RED, INK, NAVY = '#F5C518', '#E61E2B', '#0b0f1c', '#10131c'
 esc = lambda s: html.escape(str(s), quote=True)
 
@@ -256,13 +258,23 @@ def sfx_track(fx, src, wav):
         y = _pcm(KIT / tk['file'], SR)
         pk = int(tk['peak_s'] * SR); fxl = rms(y[max(0, pk - 2400):pk + 4800])
         t = e['t']; bd = rms(base[int(max(0, t - .4) * SR):int((t + .4) * SR)])
-        g = bd + LEVEL.get(role, 4.0) - fxl
+        g = bd + (REL if REL is not None else LEVEL.get(role, 4.0) + GAIN) - fxl
         y = y * 10 ** (g / 20); i0 = int(round(st * SR)); off = max(0, -i0); i0 = max(0, i0)
         seg = y[off:off + max(0, len(out) - i0)]; out[i0:i0 + len(seg)] += seg
         rows.append({'t': round(t, 2), 'role': role, 'sound': r.get('sound'), 'take': tk['file'], 'gain_db': round(float(g), 1)})
     subprocess.run(['ffmpeg', '-v', 'error', '-nostdin', '-y', '-f', 'f32le', '-ac', '2', '-ar', str(SR), '-i', '-',
                     '-c:a', 'pcm_f32le', str(wav)], input=out.astype(np.float32).tobytes(), check=True)
     return rows
+
+
+def compose_sfx_only(src, sfx_wav, out):
+    """그래픽·줌 없이 효과음만 — 영상은 다시 인코딩하지 않고 그대로 복사(팬튜브 «원본 컷 그대로»)."""
+    subprocess.run(['ffmpeg', '-nostdin', '-v', 'error', '-y', '-i', str(src), '-i', str(sfx_wav), '-filter_complex',
+                    '[0:a]aresample=48000[a0];[1:a]aresample=48000[a1];[a0][a1]amix=inputs=2:duration=first:normalize=0[a]',
+                    '-map', '0:v', '-map', '[a]', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', str(out)], check=True)
+    sys.path.insert(0, str(HERE))
+    import loudnorm_final
+    return loudnorm_final.normalize(str(out))
 
 
 def compose(src, overlay, sfx_wav, fx, out):
@@ -382,10 +394,14 @@ def main():
     ap.add_argument('--plan'); ap.add_argument('--dry', action='store_true')
     ap.add_argument('--size', default='1080x1920', help='출력 그래픽 크기 WxH — 16:9 롱폼은 1920x1080(좌표는 fx.json 에 그 크기 기준으로)')
     ap.add_argument('--style', help='JSON {"colors": {"RED": "#..", "INK": "#..", "YEL": "#..", "NAVY": "#.."}, "fonts": {"Paper": [파일명 또는 절대경로], "Aggro": [...], "Hand": [...]}}')
+    ap.add_argument('--sfx-only', action='store_true', help='그래픽·펀치 줌 없이 효과음만(영상 복사). plan 의 kind 는 무엇이든 t·sfx 만 쓴다(예: {"t":3.6,"kind":"sfx","sfx":"whoosh.short"})')
+    ap.add_argument('--gain', type=float, default=0.0, help='모든 효과음 dB 더하기(기본 0 = 자리 믹스 +4~6dB). 소유주 10-28: -3~-7dB 는 «거의 안 들려»')
+    ap.add_argument('--rel', type=float, help='효과음 크기를 그 자리 믹스 대비 이 dB 로 고정(예: -18). --gain 보다 우선')
     ap.add_argument('--top', type=int, help='제목 띠 아래 y(1920 기준) 직접 지정 — 자동 계산보다 우선')
     ap.add_argument('--fonts', help='글꼴 폴더(없으면 영상 위 폴더의 fonts → 정치 assets → 설치 글꼴)')
     a = ap.parse_args()
-    global W, H, YEL, RED, INK, NAVY
+    global W, H, YEL, RED, INK, NAVY, GAIN, REL
+    GAIN, REL = a.gain, a.rel
     W, H = (int(x) for x in a.size.lower().split('x'))
     if a.style:   # 레인별 결(예: 정치JA 일본 보도 색·일본어 글꼴) — 코드 안 고치고 바꾼다
         st = json.loads(Path(a.style).read_text(encoding='utf-8'))
@@ -398,17 +414,21 @@ def main():
     top = a.top if a.top is not None else top
     print('제목 띠 아래 y =', top)
     fx = json.loads(Path(a.plan).read_text(encoding='utf-8')) if a.plan else keep_below(auto(segs), top)
-    fonts = pick_fonts(font_dirs(a.video, a.fonts))
+    fonts = None if a.sfx_only else pick_fonts(font_dirs(a.video, a.fonts))
     (work / 'fx.json').write_text(json.dumps(fx, ensure_ascii=False, indent=1) + '\n', encoding='utf-8')
     print(len(fx), 'effects →', work / 'fx.json')
     if a.dry:
         return
     d = float(subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', a.video],
                              capture_output=True, text=True, check=True).stdout)
-    build(fx, work / 'hf', d, fonts)
-    render_overlay(work / 'hf', work / 'overlay.mov')
-    rows = sfx_track(fx, a.video, work / 'sfx.wav')
-    ln = compose(a.video, work / 'overlay.mov', work / 'sfx.wav', fx, out)
+    if a.sfx_only:
+        rows = sfx_track(fx, a.video, work / 'sfx.wav')
+        ln = compose_sfx_only(a.video, work / 'sfx.wav', out)
+    else:
+        build(fx, work / 'hf', d, fonts)
+        render_overlay(work / 'hf', work / 'overlay.mov')
+        rows = sfx_track(fx, a.video, work / 'sfx.wav')
+        ln = compose(a.video, work / 'overlay.mov', work / 'sfx.wav', fx, out)
     (work / 'sfx_rows.json').write_text(json.dumps(rows, ensure_ascii=False, indent=1) + '\n', encoding='utf-8')
     print('done', out, ln)
 
