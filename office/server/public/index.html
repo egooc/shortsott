@@ -115,6 +115,25 @@ td .last { color: var(--muted); font-size: 12.5px; max-width: 420px; overflow: h
 .empty { color: var(--muted); padding: 18px 0; text-align: center; }
 .opts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
 .log li { font-size: 13px; }
+/* 프로젝트 대시보드 섹션 */
+.ptabs { flex-wrap: wrap; }
+.stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+.stat { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+.stat .v { font-size: 26px; font-weight: 700; letter-spacing: -.02em; margin: 2px 0; font-variant-numeric: tabular-nums; }
+.t-ok { color: var(--ok); } .t-warn { color: var(--warn); } .t-bad { color: var(--bad); } .t-busy { color: var(--accent); } .t-muted { color: var(--muted); }
+.num.n-bad { background: var(--bad); color: #fff; } .num.n-warn { background: var(--warn); color: #fff; } .num.n-busy { background: var(--accent); color: #fff; }
+.pipe { display: flex; align-items: center; gap: 8px; overflow-x: auto; }
+.pipe .stage { flex: 1; min-width: 90px; text-align: center; border: 1px solid var(--line); border-radius: 12px; padding: 12px 8px; }
+.pipe .stage .v { font-size: 24px; font-weight: 700; }
+.pipe .arrow { color: var(--faint); font-size: 22px; }
+.tw { overflow-x: auto; }
+.cellsub { font-size: 12px; max-width: 360px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal { display: grid; grid-template-columns: repeat(7, minmax(140px, 1fr)); gap: 10px; overflow-x: auto; }
+.cal .day { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; min-height: 120px; }
+.cal .dh { font-weight: 600; font-size: 13px; padding-bottom: 6px; border-bottom: 1px solid var(--line2); margin-bottom: 6px; }
+.cal .ev { font-size: 12.5px; padding: 5px 0; border-bottom: 1px solid var(--line2); }
+.cal .ev:last-child { border-bottom: 0; }
+@media (max-width: 760px) { .cal { grid-template-columns: 1fr; } }
 
 /* 오른쪽 세션 패널 */
 aside.panel { background: var(--panel); border-left: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
@@ -186,6 +205,8 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 
 // 프로젝트 이름: Orca 저장소 이름 → 한국어. 없는 건 저장소 이름 그대로.
 const PROJECT_NAMES = { shortsott: '유튜브', growupup: '그로우업', rocky_roblox: '로블록스', midform: '유튜브' };
+// 소유주가 끝낸 프로젝트 — 목록에서 숨긴다(파일·Orca 등록은 그대로). 10-29 로블록스 종료.
+const HIDDEN_PROJECTS = new Set(['rocky_roblox']);
 const DEVICE_NAMES = { 'main-pc': '메인 PC', 'mini-pc': '미니 PC', laptop: '노트북', n100: 'N100', vps: 'VPS' };
 const AGENT_NAMES = { claude: '클로드', codex: 'GPT', opencode: 'OpenCode' };
 const QUICK = [
@@ -240,7 +261,8 @@ function model() {
     }
   }
   for (const p of projects.values()) p.sessions.sort((a, b) => (b.last_output_at || 0) - (a.last_output_at || 0));
-  const list = [...projects.values()].sort((a, b) => b.sessions.length - a.sessions.length || a.name.localeCompare(b.name, 'ko'));
+  const list = [...projects.values()].filter((p) => !HIDDEN_PROJECTS.has(p.key))
+    .sort((a, b) => b.sessions.length - a.sessions.length || a.name.localeCompare(b.name, 'ko'));
   return { projects: list, all };
 }
 
@@ -355,12 +377,54 @@ function renderLanes() {
       <td>${L.made_24h} · ${L.rejected_24h}</td></tr>`; }).join('')}</tbody></table></div>`;
 }
 
+// ── 프로젝트 대시보드 (기기 연결기의 office/modules/*.js 가 만든 JSON 을 그린다) ──
+function dashboardFor(key) {
+  let best = null;
+  for (const d of S.devices) {
+    const db = d.state?.dashboards?.[key];
+    if (db && (!best || Date.parse(db.updated_at || 0) > Date.parse(best.updated_at || 0))) best = { ...db, device: d.device };
+  }
+  return best;
+}
+const cell = (c) => c == null ? '—' : typeof c === 'object'
+  ? `<span class="${c.tone ? 't-' + c.tone : ''}">${esc(c.text)}</span>${c.sub ? `<div class="muted cellsub">${esc(c.sub)}</div>` : ''}` : esc(c);
+const SECTIONS = {
+  stats: (s) => `<div class="stats">${s.items.map((i) => `<div class="stat"><div class="muted">${esc(i.label)}</div>
+    <div class="v ${i.tone ? 't-' + i.tone : ''}">${esc(i.value)}</div>${i.sub ? `<div class="muted">${esc(i.sub)}</div>` : ''}</div>`).join('')}</div>`,
+  pipeline: (s) => `<div class="pipe">${s.stages.map((st, i) => `${i ? '<div class="arrow">›</div>' : ''}<div class="stage"><div class="v">${esc(st.count)}</div><div class="muted">${esc(st.label)}</div></div>`).join('')}</div>`,
+  table: (s) => s.rows.length ? `<div class="tw"><table><thead><tr>${s.columns.map((c) => `<th>${esc(c)}</th>`).join('')}</tr></thead>
+    <tbody>${s.rows.map((r) => `<tr>${r.map((c) => `<td>${cell(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : `<div class="empty">${esc(s.empty || '없습니다.')}</div>`,
+  list: (s) => s.items.length ? `<ul class="todo">${s.items.map((i, n) => `<li><div class="num ${i.tone ? 'n-' + i.tone : ''}">${n + 1}</div>
+    <div class="txt"><b>${esc(i.title)}</b><span>${esc(i.sub || '')}</span></div>${i.right ? `<span class="muted">${esc(i.right)}</span>` : ''}</li>`).join('')}</ul>`
+    : `<div class="empty">${esc(s.empty || '없습니다.')}</div>`,
+  calendar: (s) => `<div class="cal">${s.days.map((d) => `<div class="day"><div class="dh">${esc(d.label)} <span class="muted">${d.items.length}</span></div>
+    ${d.items.map((i) => `<div class="ev"><b>${esc(i.time)}</b> ${esc(i.text)}${i.sub ? `<div class="muted">${esc(i.sub)}</div>` : ''}</div>`).join('') || '<div class="muted" style="padding:6px 0">비어 있음</div>'}</div>`).join('')}</div>`,
+  note: (s) => `<div class="muted">${esc(s.text)}</div>`,
+};
+function section(s) {
+  const fn = SECTIONS[s.type];
+  if (!fn) return '';
+  const bare = s.type === 'stats' && !s.title;
+  return bare ? fn(s) : `<div class="card">${s.title ? `<h2>${esc(s.title)}</h2>` : ''}${fn(s)}${s.note ? `<div class="muted" style="margin-top:8px">${esc(s.note)}</div>` : ''}</div>`;
+}
+
 function renderProject(M) {
   const p = M.projects.find((x) => x.key === view.project);
   if (!p) { view.page = 'home'; return renderHome(M); }
-  return head(esc(p.name), `세션 ${p.sessions.length}개 · ${[...new Set(p.repos.map((r) => devName(r.device)))].join(' · ') || '기기 정보 없음'}`,
-    `<button class="primary" data-act="new">+ 새 세션</button>`) + `<div class="body"><div class="card">${sessionTable(p.sessions)}</div>
-    <div class="card"><h2>작업 폴더</h2><dl class="kv">${p.repos.map((r) => `<dt>${esc(devName(r.device))}</dt><dd class="muted">${esc(r.path)}</dd>`).join('') || '<dt>없음</dt><dd></dd>'}</dl></div></div>`;
+  const db = dashboardFor(p.key);
+  const tabs = [...(db?.tabs || []).map((t) => [t.key, t.label]), ['sessions', `세션 ${p.sessions.length}`]];
+  if (!tabs.some(([k]) => k === view.ptab)) view.ptab = tabs[0][0];
+  const sub = db ? `${devName(db.device)} 기준 · ${ago(Date.parse(db.updated_at))} 갱신` : '이 프로젝트 대시보드 모듈이 아직 없습니다 — 세션 목록만 보입니다';
+  let body;
+  if (view.ptab === 'sessions') {
+    body = `<div class="card">${sessionTable(p.sessions)}</div>
+      <div class="card"><h2>작업 폴더</h2><dl class="kv">${p.repos.map((r) => `<dt>${esc(devName(r.device))}</dt><dd class="muted">${esc(r.path)}</dd>`).join('') || '<dt>없음</dt><dd></dd>'}</dl></div>`;
+  } else {
+    const t = db.tabs.find((x) => x.key === view.ptab);
+    body = db.error ? `<div class="card" style="color:var(--bad)">대시보드 모듈 오류: ${esc(db.error)}</div>` : t.sections.map(section).join('');
+  }
+  return head(esc(p.name), sub, `<button class="primary" data-act="new">+ 새 세션</button>`)
+    + `<div class="body"><div class="tabs ptabs">${tabs.map(([k, l]) => `<div class="tab ${view.ptab === k ? 'on' : ''}" data-ptab="${esc(k)}">${esc(l)}</div>`).join('')}</div>${body}</div>`;
 }
 
 function renderTidy(M) {
@@ -517,13 +581,14 @@ async function answer(id, value) {
 
 // ── 이벤트 ──
 document.addEventListener('click', (e) => {
-  const t = e.target.closest('[data-page],[data-project],[data-session],[data-open],[data-close],[data-act],[data-tab],[data-quick],[data-answer]');
+  const t = e.target.closest('[data-page],[data-project],[data-session],[data-open],[data-close],[data-act],[data-tab],[data-ptab],[data-quick],[data-answer]');
   if (!t) return;
   if (t.dataset.close) { e.stopPropagation(); return closeSession(t.dataset.close); }
   if (t.dataset.open) { e.stopPropagation(); return openPanel(t.dataset.open); }
   if (t.dataset.answer) return answer(t.dataset.answer, t.dataset.value);
   if (t.dataset.quick) return sendText(QUICK[+t.dataset.quick][1]);
   if (t.dataset.tab) { view.tab = t.dataset.tab; return render(); }
+  if (t.dataset.ptab) { view.ptab = t.dataset.ptab; return render(); }
   if (t.dataset.session) { $('side').classList.remove('open'); return openPanel(t.dataset.session); }
   if (t.dataset.project) { view.page = 'project'; view.project = t.dataset.project; $('side').classList.remove('open'); return render(); }
   if (t.dataset.page) { view.page = t.dataset.page; $('side').classList.remove('open'); return render(); }

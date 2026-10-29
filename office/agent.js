@@ -5,6 +5,7 @@
 //
 // 하는 일
 //   · 30초마다: Orca 터미널(세션) 목록·프로젝트(repo) 목록 + 자원 스냅샷(collector.js 와 같은 자료)을 올린다.
+//   · 5분마다: office/modules/*.js 프로젝트 대시보드 모듈을 돌려 함께 올린다(프로젝트를 아는 세션이 모듈을 만든다).
 //   · 허브가 보낸 명령 중 정해 둔 다섯 가지만 실행한다: read · send · launch · close · refresh.
 //     아무 셸 명령이나 받지 않는다(handoff-office §4). Orca CLI 인자 배열로만 부르고 셸을 거치지 않는다.
 //   · 닫기는 렌더 락이 있으면 force 없이는 거절한다. 띄우기·닫기는 §10 에 한 줄 남긴다.
@@ -42,6 +43,29 @@ function orca(args, timeout = 30e3) {
 
 const activeLocks = () => LOCKS.filter((rel) => fs.existsSync(path.join(ROOT, rel)));
 
+// 프로젝트 대시보드 모듈: office/modules/*.js — { project: <Orca 저장소 이름>, run(): 대시보드 JSON }.
+// 5분마다 돌려 결과를 상태에 싣는다. 모듈 하나가 실패해도 나머지는 올린다.
+const MODULE_DIR = path.join(__dirname, 'modules');
+let dashboards = {};
+async function runModules() {
+  let files = [];
+  try { files = fs.readdirSync(MODULE_DIR).filter((f) => f.endsWith('.js')); } catch { return; }
+  const next = {};
+  for (const f of files) {
+    const p = path.join(MODULE_DIR, f);
+    try {
+      delete require.cache[require.resolve(p)]; // 모듈을 고치면 연결기를 다시 띄우지 않아도 반영
+      const m = require(p);
+      next[m.project] = await Promise.race([m.run(), new Promise((_, rej) => setTimeout(() => rej(new Error('시간 초과')), 120e3))]);
+    } catch (e) {
+      log('모듈 실패', f, e.message);
+      const m = (() => { try { return require(p); } catch { return null; } })();
+      if (m && m.project) next[m.project] = { title: m.title || m.project, error: e.message, tabs: [] };
+    }
+  }
+  dashboards = next;
+}
+
 function appendHandoff(line) {
   if (!fs.existsSync(HANDOFF)) return;
   const t = new Date(Date.now() + 9 * 3600e3).toISOString();
@@ -70,7 +94,7 @@ async function state() {
     device: DEVICE, platform: process.platform, at: new Date().toISOString(),
     orca_ok: !terms.error, orca_error: terms.error || null,
     repos: Array.isArray(repoList) ? repoList.map((r) => ({ id: r.id, name: r.displayName || r.name, path: r.path })) : [],
-    sessions, render_locks: activeLocks(), snapshot,
+    sessions, render_locks: activeLocks(), snapshot, dashboards,
   };
 }
 
@@ -119,6 +143,7 @@ function connect() {
   ws.onopen = async () => {
     ws.send(JSON.stringify({ type: 'hello', token: TOKEN }));
     log('허브 연결', new URL(HUB).host, DEVICE);
+    if (!Object.keys(dashboards).length) await runModules();
     await pushState();
     if (ONCE) { setTimeout(() => process.exit(0), 1500); return; }
     clearInterval(timer);
@@ -148,4 +173,5 @@ function connect() {
   ws.onerror = () => {};
 }
 
+if (!ONCE) setInterval(() => runModules().catch((e) => log('모듈 실패', e.message)), 5 * 60e3);
 connect();
