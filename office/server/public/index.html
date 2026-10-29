@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI 오피스</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css" rel="stylesheet">
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --line: #e6e8ec; --text: #15171a; --muted: #6b7280;
+  --accent: #2f6bff; --ok: #12a150; --warn: #d97706; --bad: #dc2626; --chip: #eef2ff;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #0f1115; --panel: #171a20; --line: #262a33; --text: #e8eaed; --muted: #9aa1ac;
+          --accent: #6c9bff; --ok: #34c06f; --warn: #f0a33a; --bad: #f05252; --chip: #1e2533; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.5 "Pretendard Variable", Pretendard, system-ui, sans-serif; }
+header { display: flex; align-items: center; justify-content: space-between; padding: 16px 24px;
+  border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 0; z-index: 1; }
+header h1 { font-size: 17px; margin: 0; letter-spacing: -0.01em; }
+header .meta { color: var(--muted); font-size: 13px; }
+main { max-width: 1280px; margin: 0 auto; padding: 24px; display: grid; gap: 20px;
+  grid-template-columns: repeat(12, 1fr); }
+section { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; }
+section h2 { font-size: 14px; margin: 0 0 14px; color: var(--muted); font-weight: 600; }
+.s-decisions { grid-column: span 12; }
+.s-lanes { grid-column: span 8; }
+.s-res { grid-column: span 4; }
+.s-changes { grid-column: span 12; }
+@media (max-width: 900px) { main { padding: 16px; } .s-lanes, .s-res { grid-column: span 12; } }
+.empty { color: var(--muted); font-size: 14px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
+.card { border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+.card .name { font-weight: 600; }
+.card .sub { color: var(--muted); font-size: 12px; }
+.card .big { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; margin-top: 6px; }
+.card .row { font-size: 13px; color: var(--muted); margin-top: 4px; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
+.ok { background: var(--ok); } .warn { background: var(--warn); } .bad { background: var(--bad); }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 14px; }
+.kv dt { color: var(--muted); } .kv dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.bar { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; margin-top: 3px; }
+.bar > i { display: block; height: 100%; background: var(--accent); }
+.dev { margin-bottom: 16px; } .dev:last-child { margin-bottom: 0; }
+.dev h3 { font-size: 14px; margin: 0 0 8px; }
+ul.list { list-style: none; margin: 0; padding: 0; }
+ul.list li { padding: 10px 0; border-top: 1px solid var(--line); font-size: 14px; }
+ul.list li:first-child { border-top: 0; }
+.chip { display: inline-block; background: var(--chip); color: var(--accent); border-radius: 999px;
+  padding: 1px 9px; font-size: 12px; font-weight: 600; margin-right: 8px; }
+details summary { cursor: pointer; color: var(--muted); font-size: 12px; margin-top: 4px; }
+details pre { white-space: pre-wrap; font-size: 12px; color: var(--muted); margin: 6px 0 0; }
+.opts { margin-top: 6px; display: flex; gap: 6px; flex-wrap: wrap; }
+.opt { border: 1px solid var(--line); border-radius: 8px; padding: 3px 10px; font-size: 13px; }
+.opt.rec { border-color: var(--accent); color: var(--accent); }
+#login { max-width: 360px; margin: 12vh auto; background: var(--panel); border: 1px solid var(--line);
+  border-radius: 14px; padding: 28px; }
+#login h1 { font-size: 20px; margin: 0 0 18px; }
+#login input { width: 100%; padding: 11px 12px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--bg); color: var(--text); font: inherit; margin-bottom: 10px; }
+button { font: inherit; border: 0; border-radius: 10px; padding: 10px 14px; cursor: pointer;
+  background: var(--accent); color: #fff; font-weight: 600; }
+button.ghost { background: transparent; color: var(--muted); border: 1px solid var(--line); padding: 6px 12px; font-size: 13px; }
+#login button { width: 100%; }
+#err { color: var(--bad); font-size: 13px; min-height: 18px; }
+</style>
+</head>
+<body>
+<div id="login" hidden>
+  <h1>AI 오피스</h1>
+  <input id="email" type="email" placeholder="이메일" autocomplete="username">
+  <input id="pw" type="password" placeholder="비밀번호" autocomplete="current-password">
+  <div id="err"></div>
+  <button id="go">로그인</button>
+</div>
+
+<div id="app" hidden>
+  <header>
+    <h1>AI 오피스</h1>
+    <div><span class="meta" id="stamp"></span> <button class="ghost" id="out">로그아웃</button></div>
+  </header>
+  <main>
+    <section class="s-decisions"><h2>오늘 결정 대기</h2><div id="decisions"></div></section>
+    <section class="s-lanes"><h2>레인</h2><div id="lanes" class="cards"></div></section>
+    <section class="s-res"><h2>자원</h2><div id="res"></div></section>
+    <section class="s-changes"><h2>오늘 바뀐 것</h2><div id="changes"></div></section>
+  </main>
+</div>
+
+<script src="/config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script>
+const sb = supabase.createClient(OFFICE.url, OFFICE.anon);
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const DEVICE_NAMES = { 'main-pc': '메인 PC', 'mini-pc': '미니 PC', 'laptop': '노트북', 'vps': 'VPS', 'n100': 'N100' };
+const LANE_NAMES = {
+  ja: '린박스 JA', ko_longshort: '롱투숏', fantube: '팬튜브', shop: '쇼핑',
+  politics_long: '정치 ko 롱폼', politics_short: '정치 ko 쇼츠', politics_ja: '정치 JA', politics_ja_longform: '정치 JA 롱폼',
+};
+const fmtTime = (iso) => {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+};
+const ago = (iso) => {
+  const m = Math.round((Date.now() - new Date(iso)) / 60e3);
+  return m < 1 ? '방금' : m < 60 ? `${m}분 전` : `${Math.round(m / 60)}시간 전`;
+};
+
+function renderDecisions(rows) {
+  if (!rows.length) return $('decisions').innerHTML = '<div class="empty">기다리는 결정이 없습니다.</div>';
+  $('decisions').innerHTML = '<ul class="list">' + rows.map((d) => `
+    <li><span class="chip">${esc(LANE_NAMES[d.lane] || d.lane)}</span>${esc(d.question)}
+      <div class="opts">${(d.options || []).map((o) => `<span class="opt ${o === d.recommended ? 'rec' : ''}">${esc(o)}${o === d.recommended ? ' · 추천' : ''}</span>`).join('')}</div>
+      <div class="row empty">${fmtTime(d.created_at)} · ${esc(d.asked_by || '')}</div>
+    </li>`).join('') + '</ul>';
+}
+
+function renderLanes(snaps) {
+  const lanes = {};
+  for (const s of snaps) for (const [k, v] of Object.entries(s.data.lanes || {})) {
+    if (k === '?' || k.startsWith('n100_')) continue;
+    lanes[k] = v;
+  }
+  const keys = Object.keys(lanes).sort((a, b) => (lanes[b].stock - lanes[a].stock) || a.localeCompare(b));
+  if (!keys.length) return $('lanes').innerHTML = '<div class="empty">아직 들어온 레인 정보가 없습니다.</div>';
+  $('lanes').innerHTML = keys.map((k) => {
+    const L = lanes[k];
+    const tone = L.stock >= 2 ? 'ok' : L.stock === 1 ? 'warn' : 'bad';
+    return `<div class="card">
+      <div class="name"><span class="dot ${tone}"></span>${esc(LANE_NAMES[k] || k)}</div>
+      <div class="sub">${esc(L.session || '')}</div>
+      <div class="big">${L.stock}<span class="sub"> 편 재고</span></div>
+      <div class="row">다음 공개 ${L.next_publish ? fmtTime(L.next_publish.at) : '—'}</div>
+      <div class="row">24시간 제작 ${L.made_24h} · 반려 ${L.rejected_24h}</div>
+      ${L.next_publish ? `<details><summary>다음 편</summary><pre>${esc(L.next_publish.title)}</pre></details>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function renderRes(snaps) {
+  if (!snaps.length) return $('res').innerHTML = '<div class="empty">들어온 기기가 없습니다.</div>';
+  $('res').innerHTML = snaps.map((s) => {
+    const r = s.data.resources || {};
+    const locks = s.data.render_locks || [];
+    const stale = (Date.now() - new Date(s.at)) / 60e3 > 15;
+    const pct = r.ram_total_gb ? Math.round(r.ram_used_gb / r.ram_total_gb * 100) : 0;
+    return `<div class="dev">
+      <h3><span class="dot ${stale ? 'bad' : 'ok'}"></span>${esc(DEVICE_NAMES[s.device] || s.device)} <span class="sub">${ago(s.at)}</span></h3>
+      <dl class="kv">
+        <dt>CPU</dt><dd>${r.cpu_pct ?? '—'}%</dd>
+        <dt>램</dt><dd>${r.ram_used_gb ?? '—'} / ${r.ram_total_gb ?? '—'}GB<div class="bar"><i style="width:${pct}%"></i></div></dd>
+        <dt>GPU</dt><dd>${r.gpu_pct ?? '—'}% · ${r.gpu_temp_c ?? '—'}°C</dd>
+        <dt>D 드라이브 여유</dt><dd>${r.disk_d_free_gb ?? '—'}GB</dd>
+        <dt>렌더</dt><dd>${locks.length ? '<span class="dot warn"></span>진행 중' : '없음'}</dd>
+        <dt>세션</dt><dd>${(s.data.sessions || []).length}개</dd>
+      </dl>
+      <details><summary>세션 목록</summary><pre>${esc((s.data.sessions || []).map((x) => x.name).join('\n'))}</pre></details>
+    </div>`;
+  }).join('');
+}
+
+function renderChanges(snaps) {
+  const rows = snaps.flatMap((s) => s.data.changes_today || []).reverse();
+  if (!rows.length) return $('changes').innerHTML = '<div class="empty">오늘 기록이 없습니다.</div>';
+  $('changes').innerHTML = '<ul class="list">' + rows.map((c) => {
+    const text = c.text.replace(/^[^:：]{0,40}[:：]\s*/, '');
+    const short = text.length > 140 ? text.slice(0, 140) + '…' : text;
+    return `<li>${c.who ? `<span class="chip">${esc(c.who)}</span>` : ''}${esc(short)}
+      ${text.length > 140 ? `<details><summary>자세히</summary><pre>${esc(c.text)}</pre></details>` : ''}</li>`;
+  }).join('') + '</ul>';
+}
+
+async function load() {
+  const [{ data: snaps, error: e1 }, { data: decs, error: e2 }] = await Promise.all([
+    sb.from('office_snapshots').select('device, at, data').order('device'),
+    sb.from('office_decisions').select('*').eq('status', 'open').order('created_at', { ascending: false }),
+  ]);
+  if (e1 || e2) { $('stamp').textContent = '불러오기 실패'; return; }
+  renderDecisions(decs || []);
+  renderLanes(snaps || []);
+  renderRes(snaps || []);
+  renderChanges(snaps || []);
+  $('stamp').textContent = '갱신 ' + new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+}
+
+async function show() {
+  const { data: { session } } = await sb.auth.getSession();
+  $('login').hidden = !!session; $('app').hidden = !session;
+  if (session) { load(); clearInterval(window.__t); window.__t = setInterval(load, 60e3); }
+}
+
+$('go').onclick = async () => {
+  $('err').textContent = '';
+  const { error } = await sb.auth.signInWithPassword({ email: $('email').value.trim(), password: $('pw').value });
+  if (error) $('err').textContent = '로그인하지 못했습니다.'; else show();
+};
+$('pw').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('go').click(); });
+$('out').onclick = async () => { await sb.auth.signOut(); show(); };
+show();
+</script>
+</body>
+</html>

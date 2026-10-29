@@ -124,3 +124,6 @@ midform/materials/reference_shorts/*.m4a
 
 # 소유주 유료 자료 보관함 — 로컬 전용, 커밋 금지
 inbox/
+
+# AI 오피스 수집기 출력(기기 상태 스냅샷)
+office/data/
