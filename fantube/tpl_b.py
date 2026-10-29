@@ -47,6 +47,7 @@ CLAIM = {
                   note_fill=(255, 240, 200), label_bg=(45, 32, 22), label_fg=(255, 246, 229), flash=(232, 118, 42)),
 }
 CK = None
+SQUARE = False                           # spec.window == 'square'(10/29 소유주, 레퍼런스 예능셔틀)
 
 
 def f(p, s):
@@ -142,6 +143,8 @@ def claim_cap_png(c, out):
     else:
         raise SystemExit(f'결 틀 자막 style 모름: {st}')
     yr = c.get('y', yr)
+    if SQUARE and 'y' not in c:
+        yr = 1.10                                    # 정사각 창이면 팬 자막은 창 아래 빈 칸(레퍼런스는 거기 채널명) — 원본 박힌 자막과 안 겹친다. 둘 겹치면 spec y 1.04/1.17
     lines = tx.split('\n')
     for i, ln in enumerate(lines):
         y = VY + VH * yr + (i - (len(lines) - 1) / 2) * (size + 12)
@@ -275,7 +278,7 @@ def cap_png(c, out):
 def main(spec_path):
     sp = Path(spec_path)
     s = json.loads(sp.read_text(encoding='utf-8'))
-    global SK, CK, VY, VH
+    global SK, CK, VY, VH, SQUARE
     SK = SKINS.get(s.get('skin', 'b'), SKINS['b'])   # 결 틀 스킨(yoon·james)은 CLAIM 표에 있다
     claim = s.get('style') == 'claim'
     work = sp.parent / '_tplb'
@@ -284,7 +287,14 @@ def main(spec_path):
     late = []                                        # 영상 위에 늘 얹는 층(결 틀 제목)
     if claim:
         CK = CLAIM[s.get('skin', 'yoon')]
-        VY, VH = CK['band'], H - CK['band']          # 띠 아래 전체가 영상(9:16 크롭) — 카드 칸 없음
+        SQUARE = s.get('window') == 'square'
+        if SQUARE:
+            # 10/29 소유주(레퍼런스 예능셔틀 G_dNQ-lmG84 102만, 32초, 자막 다 보임): 박힌 자막이 있는 방송 소스는 정사각 창 —
+            # 원본 세로 전체 × 가로 56%(1080p 기준 cw 1068)를 1080×1092 로, 위 394 는 제목 띠, 아래는 비워 둔다. 자막은 가운데라 안 잘린다.
+            # 9:16 꽉 찬 창(cw 608 = 가로 32%)은 얼굴은 크지만 가운데 자막이 양쪽에서 잘린다 — 직캠·무자막 소스에만 쓴다.
+            VY, VH = max(394, CK['band']), 1092
+        else:
+            VY, VH = CK['band'], H - CK['band']      # 띠 아래 전체가 영상(9:16 크롭) — 카드 칸 없음
         Image.new('RGB', (W, H), CK.get('band_fill', (0, 0, 0))).save(work / 'base.png')
         claim_title_png(s['top'], work / 'title.png')
         late.append(work / 'title.png')
@@ -343,11 +353,13 @@ def main(spec_path):
         src = s['sources'][g['src']]
         ii = srcs.index(g['src'])
         a, b = g['a'] - src['base'], g['b'] - src['base']
-        cw = g['cw'] // 2 * 2
+        cw = (g.get('cw') or (round(1080 * W / VH) if s.get('window') == 'square' else 608)) // 2 * 2
         ch = round(cw * VH / W) // 2 * 2
+        if s.get('window') == 'square' and cw < 1000:
+            raise SystemExit(f'정사각 창(window=square)은 cw 1000 이상(기본 1068, 세로 전체) — seg {i} cw {cw}. 얼굴을 더 크게 잡으려고 좁히면 자막이 잘린다(소유주 10/29)')
         if g.get('fit') and s.get('style') == 'claim' and not s.get('fit_ok'):
             # 10/29 소유주(검수 #21 릴리 번복 편): «원본 자막이 차라리 다 보이는 게 좋겠다» — 박힌 자막이 창보다 넓은 컷은 spec.fit_ok 에 사유를 적고 fit 허용
-            raise SystemExit('결 틀(style=claim)은 가로 통짜(fit) 금지 — 레퍼런스 24편 전부 9:16 크롭. 박힌 자막을 온전히 보여야 하면 spec.fit_ok 에 사유(소유주 10/29)를 적어라')
+            raise SystemExit('결 틀(style=claim)은 가로 통짜(fit) 금지 — 박힌 자막을 온전히 보여야 하면 먼저 spec.window="square"(정사각 창, 소유주 10/29). 그래도 모자라면 spec.fit_ok 에 사유를 적어라')
         if g.get('fit'):                             # 10/27 원본 자막형: 자막이 창보다 넓은 컷은 가로 전체를 1080 폭에 맞추고 위아래는 같은 그림을 흐리게 깔아 채운다
             fc.append(f"[{ii}:v]trim={a:.3f}:{b:.3f},setpts=PTS-STARTPTS,fps={FPS},split=2[f{i}a][f{i}b]")
             fc.append(f"[f{i}a]scale={W}:{VH}:force_original_aspect_ratio=increase,crop={W}:{VH},gblur=sigma=40,eq=brightness=-0.12:saturation=0.8[bg{i}]")
