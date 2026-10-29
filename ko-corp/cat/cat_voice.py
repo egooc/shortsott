@@ -3,6 +3,10 @@
 
     python -X utf8 ko-corp/cat/cat_voice.py ko-corp/cat01            합성 → voice/voice.json → 역전사 대조
     python -X utf8 ko-corp/cat/cat_voice.py ko-corp/cat01 --no-audit  합성만
+    python -X utf8 ko-corp/cat/cat_voice.py ko-corp/cat01 --engine supertonic   옛 무료 목소리(4판)
+
+5판(10-30 소유주 #29 «tts 타입캐스트로 가자»): 기본 엔진 = Typecast(유료, 키 ~/.volcano/keys/typecast).
+클립마다 요청 본문 해시로 voice/tc/<해시>.wav 에 보관 — 같은 대사·목소리는 다시 결제하지 않는다.
 
 왜(10-29 소유주 #25 «tts 어디갔어 왜 빠졌어?»): 헤이루만 레퍼런스가 내레이션 0 이라 1~3판은 자막·효과음뿐이었다.
 화면의 대사 글자를 그대로 말로 읽는다(자막 = 말). 숫자·연도는 ko_say 로 한글 읽기, 역전사 대조(ko TTS 오독 10-19)로 확인한다.
@@ -15,6 +19,8 @@ import re
 import subprocess
 import sys
 import tempfile
+import hashlib
+import urllib.request
 import wave
 from collections import Counter
 from pathlib import Path
@@ -27,6 +33,9 @@ TTS = {'python': 'D:/midform/tts-lab/supertonic/.venv/Scripts/python.exe', 'dir'
        'speed': 1.08, 'steps': 8, 'gap': 0.6, 'lang': 'ko', 'num_reading': False}
 WORKER = ROOT / 'ja-nenkin' / 'render' / 'supertonic_worker.py'
 VOICE = {'boss': 'M1', 'resident': 'F2', 'guest': 'F3', 'dealer': 'M3'}   # 사장·주민·손님·도매상 — 인물마다 다른 목소리
+TC = {'endpoint': 'https://api.typecast.ai/v1/text-to-speech', 'model': 'ssfm-v30', 'language': 'kor', 'tempo': 1.1, 'seed': 42}
+TC_VOICE = {'boss': ('tc_68257f68bc6e3c161ab5078d', 'Piljae'), 'resident': ('tc_692799c46508f6b9468c54c7', 'Daeun'),
+            'guest': ('tc_6a21054564d676539427427e', 'Hyejin'), 'dealer': ('tc_69fc0cff784968297fb45daa', 'Sanghyun')}
 
 
 def spoken(line):
@@ -71,6 +80,38 @@ def synth(voice, items, vdir):
     return secs
 
 
+def trim_wav(src, dst, db=-40):
+    """앞뒤 무음을 잘라 모노 PCM16 으로 저장(ffmpeg), 길이(초)를 돌려준다."""
+    cut = f'silenceremove=start_periods=1:start_threshold={db}dB'
+    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', str(src), '-af', f'{cut},areverse,{cut},areverse,apad=pad_dur=0.05',
+                    '-ac', '1', '-c:a', 'pcm_s16le', str(dst)], check=True)
+    with wave.open(str(dst)) as w:
+        return round(w.getnframes() / w.getframerate(), 3)
+
+
+def typecast(who, items, vdir):
+    """Typecast 로 한 문장씩. 받은 원본은 voice/tc/<본문 해시>.wav 에 두고 재사용(재결제 없음)."""
+    key = (Path.home() / '.volcano' / 'keys' / 'typecast').read_text(encoding='utf-8').strip()
+    cache = vdir / 'tc'
+    cache.mkdir(exist_ok=True)
+    secs = {}
+    for name, s in items:
+        body = {'text': say(s), 'voice_id': TC_VOICE[who][0], 'model': TC['model'], 'language': TC['language'], 'seed': TC['seed'],
+                'prompt': {'emotion_type': 'preset', 'emotion_preset': 'normal', 'emotion_intensity': 1},
+                'output': {'volume': 100, 'audio_pitch': 0, 'audio_tempo': TC['tempo'], 'audio_format': 'wav'}}
+        raw = cache / (hashlib.sha1(json.dumps(body, ensure_ascii=False, sort_keys=True).encode()).hexdigest()[:16] + '.wav')
+        if not raw.exists():
+            req = urllib.request.Request(TC['endpoint'], data=json.dumps(body, ensure_ascii=False).encode(),
+                                         headers={'X-API-KEY': key, 'Content-Type': 'application/json'}, method='POST')
+            with urllib.request.urlopen(req, timeout=180) as r:
+                data = r.read()
+            tmp = raw.with_suffix('.part')
+            tmp.write_bytes(data)
+            tmp.replace(raw)
+        secs[name] = trim_wav(raw, vdir / f'{name}.wav')
+    return secs
+
+
 def audit(ep, items, vdir):
     """이어 붙여 Speechmatics ko 로 받아쓰고, 대사의 숫자가 클립마다 들렸는지 센다(ko-corp/render/audit.py 파서 재사용)."""
     import audit as A
@@ -103,14 +144,17 @@ def main():
     vdir.mkdir(exist_ok=True)
     items = clips(beats)
     secs = {}
+    engine = sys.argv[sys.argv.index('--engine') + 1] if '--engine' in sys.argv else 'typecast'
     for who in sorted({w for _, w, _ in items}):
-        secs.update(synth(VOICE[who], [(n, s) for n, w, s in items if w == who], vdir))
+        mine = [(n, s) for n, w, s in items if w == who]
+        secs.update(typecast(who, mine, vdir) if engine == 'typecast' else synth(VOICE[who], mine, vdir))
     table = {}
     for name, sec in secs.items():
         n, part = name.split('_')
         table.setdefault(str(int(n)), {})[part] = sec
-    (vdir / 'voice.json').write_text(json.dumps({'voices': VOICE, 'speed': TTS['speed'], 'clips': table}, ensure_ascii=False, indent=1) + '\n', encoding='utf-8')
-    print(f'음성 {len(items)}개 · 합 {sum(secs.values()):.1f}초 · 목소리 {VOICE}')
+    voices = {k: v[1] for k, v in TC_VOICE.items()} if engine == 'typecast' else VOICE
+    (vdir / 'voice.json').write_text(json.dumps({'engine': engine, 'voices': voices, 'speed': TC['tempo'] if engine == 'typecast' else TTS['speed'], 'clips': table}, ensure_ascii=False, indent=1) + '\n', encoding='utf-8')
+    print(f'음성 {len(items)}개 · {engine} · 합 {sum(secs.values()):.1f}초 · 목소리 {voices}')
     if '--no-audit' not in sys.argv and audit(ep, [(n, s) for n, _, s in items], vdir):
         sys.exit(4)
 
