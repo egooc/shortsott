@@ -29,6 +29,9 @@ relay.json = {
             "sticker": {...}(선택), "note": {...}(선택)}](선택 — 첫 3~4초 몽타주 훅),
   "cards": [{"cut": 6, "offset": 0.0, "dur": 3.6, "head": "...", "lines": ["...", "..."], "src": "뉴시스 10.27"}],
 }
+★10-29 b_roll(소유주 «억울하다는 김건희가 한 말이잖아 … 목소리는 기자 목소리 그대로»): 훅 조각 "b_roll": {...}, 컷 "b_roll": [{"from","to",...}] —
+  화면만 주제 인물 장면으로 덮고 소리는 원래 화자 원음. {"src","t","person","tag"(speakers 키, 전언이면 role 에 «전언»),"crop"|"x","face_x"}.
+  전언 컷은 "quoted_person". relay.json "subject" = 주제 인물(relay_gate 가 훅·전언·본편 2회를 본다).
 결과: <relay.json 폴더>/<name>.mp4 · <name>_sheet.jpg(1초 간격 프레임 시트) · <name>.render.json(컷·자막 지도, 관문이 읽는다).
 렌더 락: politics-hour/RENDERING.lock 이 있으면 종료 4(롱폼 렌더 중). 없으면 잡고 끝나면 내 PID 것만 지운다.
 """
@@ -129,6 +132,44 @@ def band_clip(c, k, work, span=None, zoom=None, tag='c'):
                     '-c:v', 'libx264', '-crf', '14', '-preset', 'medium', '-pix_fmt', 'yuv420p',
                     '-c:a', 'pcm_s16le', '-ar', '48000', '-ac', '2', str(out)], check=True)
     return out, log
+
+
+def broll_clip(br, dur, key, work, zoom=None):
+    """b_roll = 화면만 다른 소스로 덮기(소리는 원래 화자 원음 그대로) — 10-29 소유주 «억울하다는 김건희가 한 말이잖아. 김건희 얼굴이 나와야지».
+    br = {"src", "t"(소스 시작 초), "person"(화면 속 인물), "tag"(꼬리표 speakers 키), "crop": [x,y,w,h](선택, 없으면 얼굴 찾기),
+          "x": [0,1], "band_y": .8, "top_y": .07}. 얼굴 창 계산은 컷과 같은 band_clip."""
+    c = {'src': br['src'], 'x': br.get('x', [0, 1]), 'band_y': br.get('band_y', 0.8), 'top_y': br.get('top_y', 0.07)}
+    if br.get('face'):
+        c['face'] = br['face']
+    if br.get('crop'):
+        x, y, w, h = br['crop']
+        vf = f'crop={w}:{h}:{x}:{y},scale={BW}:{BH}'
+        if zoom:
+            vf += f",zoompan=z='{zoom}':x='iw/2-iw/zoom/2':y='ih/2-ih/zoom/2':d=1:s={BW}x{BH}:fps={FPS}"
+        out = work / f'b{key}.mp4'
+        subprocess.run(['ffmpeg', '-v', 'error', '-y', '-ss', f'{br["t"]:.3f}', '-i', br['src'], '-t', f'{dur:.3f}', '-an',
+                        '-vf', f'fps={FPS},{vf},setsar=1', '-c:v', 'libx264', '-crf', '14', '-preset', 'medium', '-pix_fmt', 'yuv420p',
+                        str(out)], check=True)
+        fx = br.get('face_x', x + w / 2)
+        return out, {'mode': 'b_roll', 'crop': [int(v) for v in br['crop']], 'face_cx': int((fx - x) * BW / w)}
+    out, log = band_clip(c, 0, work, span=(br['t'], br['t'] + dur), zoom=zoom, tag=f'b{key}_')
+    return out, {**log, 'mode': 'b_roll'}
+
+
+def apply_broll(base, items, work, name):
+    """base 클립 위에 b_roll 영상들을 [from, to) 동안 덮는다. 소리는 base 그대로."""
+    if not items:
+        return base
+    ins, fc, last = ['-i', str(base)], '', '[0:v]'
+    for i, (clip, a, b) in enumerate(items):
+        ins += ['-i', str(clip)]
+        fc += f'[{i + 1}:v]setpts=PTS-STARTPTS+{a:.3f}/TB[o{i}];{last}[o{i}]overlay=0:0:enable=\'between(t,{a:.3f},{b - .001:.3f})\':eof_action=pass[v{i}];'
+        last = f'[v{i}]'
+    out = work / f'{name}_br.mp4'
+    subprocess.run(['ffmpeg', '-v', 'error', '-y', *ins, '-filter_complex', fc.rstrip(';'), '-map', last, '-map', '0:a',
+                    '-c:v', 'libx264', '-crf', '14', '-preset', 'medium', '-pix_fmt', 'yuv420p', '-r', str(FPS), '-c:a', 'copy', str(out)],
+                   check=True)
+    return out
 
 
 # ---------- 자막 ----------
@@ -405,14 +446,26 @@ def deco_of(spec, kind, t0, t1, face_cx=None):
 def render(plan, out_dir, work, name):
     segs, caps, clips, t = [], [], [], 0.0
     beeps, decos, hcaps, hook, pops = [], [], [], [], []
+    btags, face_from = [], {}                              # b_roll 꼬리표(우선) · 컷 화자 얼굴이 처음 보이는 시각
     for i, hk in enumerate(plan.get('hook', [])):          # 첫 3~4초 몽타주 훅 — 본편 컷의 원음 한마디
         c = plan['cuts'][hk['cut']]
         a, b, ws = find_say(c, hk['say'])
         n = max(1, round((b - a) * FPS))
-        clip, log = band_clip(c, i, work, span=(a, b), zoom=f'if(lt(on,4),1.34-0.03*on,1.22+0.05*(on-4)/{n})', tag='h')
+        hz = f'if(lt(on,4),1.34-0.03*on,1.22+0.05*(on-4)/{n})'
+        clip, log = band_clip(c, i, work, span=(a, b), zoom=hz, tag='h')
         d = n / FPS
+        brs = []
+        if hk.get('b_roll'):                               # 훅 조각 화면 = 주제 인물(소리는 원래 화자)
+            br = hk['b_roll']
+            bc, blog = broll_clip(br, d, f'h{i}', work, zoom=f'if(lt(on,4),1.12-0.02*on,1.04+0.04*(on-4)/{n})')   # 덮는 장면은 이미 가까워 당겨 잡기를 줄인다
+            clip = apply_broll(clip, [(bc, 0.0, d)], work, f'h{i:02d}')
+            log = {**log, 'face_cx': blog.get('face_cx', log.get('face_cx'))}
+            brs.append({'from': 0.0, 'to': round(d, 3), 't0': round(t, 3), 't1': round(t + d, 3), 'person': br['person'], 'tag': br.get('tag'),
+                        'src': br['src'], 't': br['t'], 'log': blog})
+            if br.get('tag'):
+                btags.append((br['tag'], t, t + d))
         hook.append({'i': i, 'cut': hk['cut'], 'who': c['who'], 'in': round(a, 3), 'out': round(b, 3), 't0': round(t, 3), 't1': round(t + d, 3),
-                     'say': hk['say'], 'caps': hk['caps'], 'log': log})
+                     'say': hk['say'], 'caps': hk['caps'], 'log': log, 'b_roll': brs})
         hcaps.append({'t0': t, 't1': t + d, 'caps': hk['caps']})
         for kind in ('sticker', 'note'):
             if hk.get(kind):
@@ -436,14 +489,29 @@ def render(plan, out_dir, work, name):
             zoom = f'if(lt(on,{f0}),1,min(1.15,1+0.15*(on-{f0})/6))'
         clip, log = band_clip(c, k, work, zoom=zoom)
         d = round((c['out'] - c['in']) * FPS) / FPS
+        brs, items = [], []
+        for j, br in enumerate(c.get('b_roll') or []):     # 컷 일부 화면만 주제 인물로(패널 얼굴은 컷 앞뒤에 남긴다)
+            a = float(br.get('from', 0.0))
+            b = min(d, float(br['to']) if br.get('to') is not None else d)
+            n = max(1, round((b - a) * FPS))
+            bc, blog = broll_clip(br, b - a, f'c{k}_{j}', work, zoom=f'min(1.10,1+0.10*on/{n})')
+            items.append((bc, a, b))
+            brs.append({'from': round(a, 3), 'to': round(b, 3), 't0': round(t + a, 3), 't1': round(t + b, 3), 'person': br['person'],
+                        'tag': br.get('tag'), 'src': br['src'], 't': br['t'], 'log': blog})
+            if br.get('tag'):
+                btags.append((br['tag'], t + a, t + b))
+        clip = apply_broll(clip, items, work, f'c{k:02d}')
+        if brs and brs[0]['from'] <= 0.01:
+            face_from[k] = t + brs[0]['to']
         if at is not None:
+            fcx = next((x['log'].get('face_cx') for x in brs if x['from'] <= at < x['to']), log.get('face_cx'))
             for kind in ('sticker', 'note'):
                 if fx.get(kind):
                     t0 = t + max(0.0, at - .05)
-                    decos.append(deco_of(fx[kind], kind, t0, min(t + d, t0 + FX_HOLD), log.get('face_cx')))
+                    decos.append(deco_of(fx[kind], kind, t0, min(t + d, t0 + FX_HOLD), fcx))
                     if kind == 'sticker':
                         pops.append(t0)
-        seg = {'k': k, 't0': t, 't1': t + d, 'cut': c, 'log': log, 'cards': []}
+        seg = {'k': k, 't0': t, 't1': t + d, 'cut': c, 'log': log, 'cards': [], 'b_roll': brs}
         for ch in chunk(words_of(c)):
             raw = ' '.join(w[2] for w in ch)
             shown = raw
@@ -478,7 +546,9 @@ def render(plan, out_dir, work, name):
         w = s['cut']['who']
         if w not in seen and s['t0'] >= hook_end:
             seen.add(w)
-            tags.append((w, s['t0'], min(s['t0'] + BR.TAG_S, total)))
+            a0 = face_from.get(s['k'], s['t0'])          # b_roll 이 컷 머리를 덮으면 화자 얼굴이 보일 때부터
+            tags.append((w, a0, min(a0 + BR.TAG_S, total)))
+    tags = btags + tags                                  # b_roll 꼬리표(«김건희 씨»·«기자 전언»)가 먼저
     anim = {i * .08 + TITLE_IN * j / 6 for i in range(2) for j in range(1, 7)}            # 제목 등장
     anim |= {c['t0'] + POP * j / 3 for c in caps for j in range(1, 4)}                    # 자막 팝
     anim |= {h['t0'] + .1 * j / 3 for h in hcaps for j in range(1, 4)}                     # 훅 자막 팝
@@ -489,7 +559,7 @@ def render(plan, out_dir, work, name):
                    | {k['t0'] for s in segs for k in s['cards']} | {k['t1'] for s in segs for k in s['cards']}
                    | {a for _, a, b in tags} | {b for _, a, b in tags} | anim
                    | {h['t0'] for h in hcaps} | {h['t1'] for h in hcaps} | {dc['t0'] for dc in decos} | {dc['t1'] for dc in decos})
-    marks = [m for m in marks if 0 <= m <= total]
+    marks = sorted({round(m * FPS) / FPS for m in marks if 0 <= m <= total})   # 프레임 경계로 — 칸 길이 반올림이 쌓여 틀이 그림보다 앞서던 것(10-29 실측 0.1초)
     fr = work / 'frames'
     fr.mkdir(exist_ok=True)
     seq = []
@@ -534,7 +604,9 @@ def render(plan, out_dir, work, name):
          'decos': [{k: (round(v, 3) if isinstance(v, float) else v) for k, v in dc.items()} for dc in decos],
          'cuts': [{'k': s['k'], 't0': round(s['t0'], 3), 't1': round(s['t1'], 3), 'who': s['cut']['who'], 'show': s['cut']['show'],
                    'date': s['cut']['date'], 'src': s['cut']['src'], 'in': s['cut']['in'], 'out': s['cut']['out'],
-                   'role': s['cut'].get('role'), 'log': s['log']} for s in segs],
+                   'role': s['cut'].get('role'), 'log': s['log'], 'quoted_person': s['cut'].get('quoted_person'),
+                   'b_roll': s['b_roll']} for s in segs],
+         'subject': plan.get('subject'),
          'captions': [{'t0': round(c['t0'], 3), 't1': round(c['t1'], 3), 'text': c['text'], 'raw': c['raw'], 'cut': c['cut']} for c in caps],
          'cards': [{k: v for k, v in c.items()} for s in segs for c in s['cards']]}
     (out_dir / f'{name}.render.json').write_text(json.dumps(m, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')

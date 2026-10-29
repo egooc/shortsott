@@ -17,6 +17,11 @@ FAIL:
   ★10-29 몽타주 훅(소유주 «숏폼에도 예능편집넣고 · 훅 넣고»)이 있으면: 본편 길이 40~55초·전체 60초 이하, 훅 2~5초·한마디 0.5~2.2초·2~4개,
     한마디는 본편 컷의 전사 이어진 낱말 그대로이고 그 컷 구간 안(약속 — 본편에 다시 나온다), 화자 2명+, 강조 자막은 그 한마디의 부분,
     장식(스티커·속마음) 글자에 욕설·군사 낱말 0. 컷 합 + 훅 = 영상 길이(해설 0).
+  ★10-29 주제 인물 화면(소유주 «김건희 주제는 김건희가 나와야지 · 목소리는 기자 목소리 그대로 · 앞으로도 이런 케이스는 이렇게») — 어기면 종료 4:
+    주제 인물 = relay.json "subject"(없으면 업로드 메타 villain → relay villains[0]).
+    ① 훅 조각마다 화면이 주제 인물 — b_roll.person == subject 이거나 그 조각 화자가 subject.
+    ② 전언 컷(quoted_person 있음)과 그 컷에서 딴 훅 조각은 b_roll 이 quoted_person 얼굴이고 그 꼬리표에 «전언».
+    ③ 본편에 주제 인물 장면(b_roll person == subject 또는 화자가 subject) 2회 이상.
 """
 import json
 import re
@@ -167,6 +172,33 @@ def hook_lines(plan, hk, hd):
     return bad
 
 
+def subject_lines(plan, up, m):
+    subj = plan.get('subject') or up.get('villain') or (plan.get('villains') or [None])[0]
+    if not subj:
+        return ['주제 인물(subject) 미정 — relay.json "subject"']
+    spk = plan['speakers']
+    name = lambda w: spk.get(w, {}).get('name', '').replace(' 씨', '').strip()
+    lab = lambda k: ' · '.join(x for x in (spk.get(k, {}).get('name'), spk.get(k, {}).get('role')) if x)
+    bad = []
+    for h in (m.get('hook') or {}).get('clips') or []:
+        brs = h.get('b_roll') or []
+        if name(h['who']) != subj and not any(b['person'] == subj for b in brs):
+            bad.append(f'훅 «{h["say"]}»: 화면이 주제 인물 «{subj}» 아님(화자 {name(h["who"])}) — b_roll 로 {subj} 장면을 덮어라')
+        q = plan['cuts'][h['cut']].get('quoted_person')
+        if q and not any(b['person'] == q and '전언' in lab(b.get('tag') or '') for b in brs):
+            bad.append(f'훅 «{h["say"]}»: 전언(«{q}» 말) 조각인데 {q} 화면·«전언» 꼬리표 없음')
+    n = 0
+    for c in m['cuts']:
+        brs = c.get('b_roll') or []
+        q = c.get('quoted_person') or plan['cuts'][c['k']].get('quoted_person')
+        if q and not any(b['person'] == q and '전언' in lab(b.get('tag') or '') for b in brs):
+            bad.append(f'컷 {c["k"]}: 전언(«{q}» 말) 컷인데 {q} 화면(b_roll)·«전언» 꼬리표 없음')
+        n += (name(c['who']) == subj) + sum(b['person'] == subj for b in brs)
+    if n < 2:
+        bad.append(f'본편 주제 인물 «{subj}» 장면 {n}회 — 2회 이상(b_roll 또는 본인 발언)')
+    return bad
+
+
 def main():
     pf, uf = Path(sys.argv[1]), Path(sys.argv[2])
     plan = json.loads(pf.read_text(encoding='utf-8'))
@@ -175,15 +207,16 @@ def main():
     bad, warn = check(plan, up, m)
     bad += guide_words.gate_lines([str(uf)], lang='ko', lane='politics')
     bad += gap_check.gate_lines(str(pf.parent / f'{plan["name"]}.mp4'), kind='shorts')
+    sbad = subject_lines(plan, up, m)
     print(f'{plan["name"]} · {m["total"]:.1f}초 · 컷 {len(m["cuts"])} · 화자 {len({c["who"] for c in m["cuts"]})} · 방송 {len({c["show"] for c in m["cuts"]})}')
     for c in m['cuts']:
         print(f'  {c["k"]} {c["t0"]:5.1f}~{c["t1"]:5.1f} {plan["speakers"][c["who"]]["name"]} | {c["show"]} {c["date"]} | {c.get("role")} | 얼굴 {c["log"].get("face_frac", 0) * 100:.0f}% ×{c["log"].get("upscale")}')
     for w in warn:
         print('△ ' + w)
-    for b in bad:
+    for b in bad + sbad:
         print('FAIL ' + b)
-    print('통과' if not bad else f'FAIL {len(bad)}건')
-    sys.exit(3 if bad else 0)
+    print('통과' if not (bad or sbad) else f'FAIL {len(bad) + len(sbad)}건')
+    sys.exit(4 if sbad else 3 if bad else 0)
 
 
 if __name__ == '__main__':
