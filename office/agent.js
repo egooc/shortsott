@@ -72,10 +72,30 @@ function appendHandoff(line) {
   fs.appendFileSync(HANDOFF, `- AI 오피스(${t.slice(5, 10)} ${t.slice(11, 16)}, ${DEVICE}): ${line}\n`, 'utf8');
 }
 
+// 구독 한도(클로드 5시간·주간, GPT 주간 등). Orca 가 상태줄 훅으로 받아 둔 값을 `account list` 로 읽는다.
+// 계정 이메일 등은 버리고 퍼센트·리셋 시각만 싣는다. 자주 바뀌지 않으니 2분마다만.
+let limits = null, limitsAt = 0;
+async function readLimits() {
+  if (Date.now() - limitsAt < 120e3) return limits;
+  limitsAt = Date.now();
+  try {
+    const r = await orca(['account', 'list']);
+    const pick = (w) => w ? { used: w.usedPercent, resets_at: w.resetsAt || null } : null;
+    const out = {};
+    for (const [k, v] of Object.entries(r.rateLimits || {})) {
+      if (!v || v.status !== 'ok') continue;
+      out[k] = { session: pick(v.session), weekly: pick(v.weekly), fable_weekly: pick(v.fableWeekly), updated_at: v.updatedAt || null };
+    }
+    limits = out;
+  } catch {}
+  return limits;
+}
+
 async function state() {
   const [terms, repos] = await Promise.all([
     orca(['terminal', 'list']).catch((e) => ({ error: e.message })),
     orca(['repo', 'list']).catch((e) => ({ error: e.message })),
+    readLimits(),
   ]);
   let snapshot = null;
   try {
@@ -94,7 +114,7 @@ async function state() {
     device: DEVICE, platform: process.platform, at: new Date().toISOString(),
     orca_ok: !terms.error, orca_error: terms.error || null,
     repos: Array.isArray(repoList) ? repoList.map((r) => ({ id: r.id, name: r.displayName || r.name, path: r.path })) : [],
-    sessions, render_locks: activeLocks(), snapshot, dashboards,
+    sessions, render_locks: activeLocks(), snapshot, dashboards, limits,
   };
 }
 

@@ -218,6 +218,79 @@ h3.sh { font-size: 13px; font-weight: 600; color: var(--muted); margin: 6px 2px 
 .srow .ss, .srow .sl { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 button.ghost { background: transparent; }
 
+/* 왼쪽: 버튼형 메뉴·프로젝트 타일 */
+nav.top { display: grid; gap: 2px; }
+.navb { display: flex; align-items: center; gap: 10px; width: 100%; border: 0; background: none; padding: 9px 12px; border-radius: 10px; color: var(--text); text-align: left; }
+.navb:hover { background: var(--line2); }
+.navb.on { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.navb .ic { width: 20px; text-align: center; font-size: 15px; opacity: .85; }
+.navb .n { margin-left: auto; font-size: 12px; color: var(--muted); }
+.navb .n.hot { color: #fff; background: var(--bad); border-radius: 999px; padding: 0 7px; }
+.navb .n.warn { color: #fff; background: var(--warn); border-radius: 999px; padding: 0 7px; }
+.ptile { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 10px 12px; margin-bottom: 6px; border-radius: 12px; }
+.ptile.on { border-color: var(--accent); background: var(--accent-soft); }
+.pav { width: 32px; height: 32px; border-radius: 10px; background: var(--accent); color: #fff; display: grid; place-items: center; font-weight: 700; flex: none; }
+.ptile .pn { display: grid; flex: 1; min-width: 0; } .ptile .pn small { color: var(--muted); font-size: 12px; }
+.dchips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.dchip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; border: 1px solid var(--line); border-radius: 999px; padding: 2px 9px; background: var(--panel); }
+.dchip.off { color: var(--faint); }
+
+/* 한도 미터 */
+.meters { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+.meters .meter { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; }
+.meter .mh { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; color: var(--muted); }
+.meters .meter .mh b { font-size: 22px; letter-spacing: -.02em; }
+.bar { height: 7px; border-radius: 4px; background: var(--line2); overflow: hidden; margin: 8px 0 6px; }
+.bar i { display: block; height: 100%; border-radius: 4px; }
+.b-ok { background: var(--ok); } .b-warn { background: var(--warn); } .b-bad { background: var(--bad); }
+.devs .mmini { display: grid; gap: 8px; padding: 0; }
+.devs .mmini .meter { display: block; padding: 0; }
+.devs .mmini .mh { display: flex; justify-content: space-between; font-size: 12px; padding: 0; }
+.devs .mmini .bar { display: block; height: 5px; margin: 4px 0 0; padding: 0; }
+.devs .dchips { display: flex; padding: 0; }
+.card:has(> .sgrid) { background: none; border: 0; padding: 0; }
+
+/* 세션 카드 */
+.sgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.scard { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; display: grid; gap: 6px; border-top: 3px solid var(--line); }
+.scard.s-busy { border-top-color: var(--accent); } .scard.s-idle { border-top-color: var(--ok); } .scard.s-stale { border-top-color: var(--warn); } .scard.s-off { border-top-color: var(--faint); }
+.scard .stop { display: flex; justify-content: space-between; align-items: center; font-size: 12px; }
+.spill { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; color: var(--muted); }
+.spill.busy { color: var(--accent); } .spill.stale { color: var(--warn); } .spill.idle { color: var(--ok); }
+.scard .st { font-weight: 700; font-size: 15px; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scard .ss { font-size: 12.5px; }
+.scard .sl { font-size: 12.5px; color: var(--text); opacity: .8; min-height: 36px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.sbtns { display: flex; gap: 6px; margin-top: 4px; }
+.sbtns button { flex: 1; }
+
+/* 알림·기록 카드 */
+.agrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.acard { display: flex; align-items: center; gap: 10px; background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--faint);
+  border-radius: 12px; padding: 12px 14px; margin-bottom: 8px; font-size: 14px; }
+.agrid .acard { margin-bottom: 0; }
+.acard.tall { flex-direction: column; align-items: flex-start; gap: 4px; }
+.acard[data-act] { cursor: pointer; } .acard[data-act]:hover { border-color: var(--faint); }
+.acard .at { font-weight: 600; flex: 1; min-width: 0; }
+.acard .go { color: var(--accent); font-size: 13px; font-weight: 600; white-space: nowrap; }
+.a-bad { border-left-color: var(--bad); } .a-warn { border-left-color: var(--warn); } .a-busy { border-left-color: var(--accent); } .a-ok { border-left-color: var(--ok); } .a-muted { border-left-color: var(--faint); }
+.ltop { display: flex; justify-content: space-between; width: 100%; font-size: 12px; }
+
+/* 대시보드 표 → 카드 격자(모든 폭) */
+table.rt thead { display: none; }
+table.rt, table.rt tbody, table.rt tr, table.rt td { display: block; width: 100%; }
+table.rt tbody { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+table.rt tr { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; background: var(--panel); }
+table.rt td { border: 0; padding: 3px 0; display: flex; justify-content: space-between; gap: 12px; font-size: 13.5px; }
+table.rt td::before { content: attr(data-label); color: var(--muted); flex: none; }
+table.rt td:first-child { display: block; font-weight: 700; font-size: 14.5px; padding-bottom: 8px; margin-bottom: 4px; border-bottom: 1px solid var(--line2); }
+table.rt td:first-child::before { content: none; }
+table.rt td .cv { text-align: right; min-width: 0; }
+table.rt td .cv .cellsub { max-width: 200px; margin-left: auto; }
+table.rt td:first-child .cv { text-align: left; }
+table.rt td:first-child .cellsub { white-space: normal; max-width: none; margin-left: 0; font-weight: 400; }
+.card:has(> .tw) { background: none; border: 0; padding: 0; }
+.card:has(> .tw) > h2 { margin: 6px 2px 10px; color: var(--muted); font-size: 13px; }
+
 /* 아래 탭(폰) */
 .tabbar { display: none; }
 
@@ -242,18 +315,9 @@ button.ghost { background: transparent; }
   .tabbar button .ic { font-size: 19px; line-height: 1.1; }
   .tabbar button.on { color: var(--accent); font-weight: 600; }
   .tabbar .badge { position: absolute; top: 0; left: 55%; background: var(--bad); color: #fff; font-size: 10px; border-radius: 999px; padding: 0 5px; }
-  /* 표 → 카드 */
-  table.rt thead { display: none; }
-  table.rt, table.rt tbody, table.rt tr, table.rt td { display: block; width: 100%; }
-  table.rt tr { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; }
-  table.rt td { border: 0; padding: 3px 0; display: flex; justify-content: space-between; gap: 12px; font-size: 13.5px; }
-  table.rt td::before { content: attr(data-label); color: var(--muted); flex: none; }
-  table.rt td:first-child { display: block; font-weight: 600; font-size: 14.5px; padding-bottom: 6px; }
-  table.rt td:first-child::before { content: none; }
-  table.rt td .cv { text-align: right; min-width: 0; }
-  table.rt td .cv .cellsub { max-width: 220px; margin-left: auto; }
-  table.rt td:first-child .cv { text-align: left; }
-  table.rt td:first-child .cellsub { white-space: normal; max-width: none; margin-left: 0; }
+  table.rt tbody, .sgrid, .agrid { grid-template-columns: 1fr; }
+  .meters { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .meters .meter { padding: 12px; } .meters .meter .mh b { font-size: 19px; }
   .ptabs { scrollbar-width: none; } .ptabs::-webkit-scrollbar { display: none; }
   .stats { grid-template-columns: repeat(2, 1fr); gap: 8px; }
   .stat { padding: 12px; } .stat .v { font-size: 22px; }
@@ -376,21 +440,55 @@ async function load() {
 }
 
 // ── 왼쪽 ──
+// 구독 한도: 기기들이 올린 값 중 가장 최근 것(Orca 가 상태줄에서 받아 둔 값).
+function limitsNow() {
+  let best = null;
+  for (const d of S.devices) {
+    const l = d.state?.limits;
+    const t = Math.max(l?.claude?.updated_at || 0, l?.codex?.updated_at || 0);
+    if (l && (!best || t > best.t)) best = { t, l };
+  }
+  if (!best) return [];
+  const { l } = best;
+  const out = [];
+  const add = (label, w, sub) => { if (w && w.used != null) out.push({ label, used: w.used, resets_at: w.resets_at, sub }); };
+  add('클로드 5시간', l.claude?.session);
+  add('클로드 주간', l.claude?.weekly);
+  add('Fable 주간', l.claude?.fable_weekly);
+  add('GPT 주간', l.codex?.weekly);
+  return out;
+}
+const resetText = (ms) => {
+  if (!ms) return '';
+  const m = Math.round((ms - Date.now()) / 60e3);
+  if (m <= 0) return '곧 초기화';
+  if (m < 60) return `${m}분 뒤 초기화`;
+  if (m < 48 * 60) return `${Math.round(m / 60)}시간 뒤 초기화`;
+  return `${Math.round(m / 1440)}일 뒤 초기화`;
+};
+const meterTone = (p) => p >= 85 ? 'bad' : p >= 60 ? 'warn' : 'ok';
+function meters(list, compact) {
+  if (!list.length) return '';
+  return `<div class="${compact ? 'mmini' : 'meters'}">${list.map((m) => `<div class="meter">
+    <div class="mh"><span>${esc(m.label)}</span><b class="t-${meterTone(m.used)}">${m.used}%</b></div>
+    <div class="bar"><i class="b-${meterTone(m.used)}" style="width:${Math.min(100, m.used)}%"></i></div>
+    ${compact ? '' : `<div class="muted">${resetText(m.resets_at)}</div>`}</div>`).join('')}</div>`;
+}
+
 function renderSide(M) {
   const open = S.decisions.filter((d) => d.status === 'open').length;
   const stale = M.all.filter((s) => s.status === 'stale').length;
-  const nav = [['home', '전체 현황', ''], ['tidy', '세션 정리', stale ? `<span class="n hot">${stale}</span>` : `<span class="n">${M.all.length}</span>`],
-    ['decisions', '결정 대기', open ? `<span class="n hot">${open}</span>` : '<span class="n">0</span>'], ['log', '변경 이력', '']];
-  $('nav').innerHTML = nav.map(([k, t, n]) => `<div class="navi ${view.page === k ? 'on' : ''}" data-page="${k}"><span>${t}</span>${n}</div>`).join('');
-  $('tree').innerHTML = '<h4>프로젝트</h4>' + M.projects.map((p) => `
-    <div class="proj">
-      <div class="navi ${view.page === 'project' && view.project === p.key ? 'on' : ''}" data-project="${esc(p.key)}">
-        <span>${esc(p.name)}</span><span class="n">${p.sessions.length}</span></div>
-      ${p.sessions.map((s) => `<div class="sess ${view.session === s.handle ? 'on' : ''}" data-session="${esc(s.handle)}" title="${esc(s.title || '')}">
-        <span class="dot d-${s.status}"></span><span class="t">${esc(s.title || AGENT_NAMES[s.agent] || '이름 없음')}</span></div>`).join('')}
-    </div>`).join('');
-  $('devs').innerHTML = S.devices.map((d) => `<div><span class="dot ${d.online ? 'd-idle' : 'd-off'}"></span>${esc(devName(d.device))}
-    <span style="margin-left:auto">${d.online ? '연결됨' : '꺼짐'}</span></div>`).join('') || '연결된 기기 없음';
+  const nav = [['home', '⌂', '오늘', ''], ['decisions', '✓', '결정', open ? `<span class="n hot">${open}</span>` : ''],
+    ['tidy', '◎', '세션', stale ? `<span class="n warn">${stale}</span>` : `<span class="n">${M.all.length}</span>`], ['log', '≡', '기록', '']];
+  $('nav').innerHTML = nav.map(([k, ic, t, n]) => `<button class="navb ${view.page === k ? 'on' : ''}" data-page="${k}"><span class="ic">${ic}</span><span>${t}</span>${n}</button>`).join('');
+  $('tree').innerHTML = '<h4>프로젝트</h4>' + M.projects.map((p) => {
+    const busy = p.sessions.filter((s) => s.status === 'busy').length;
+    return `<button class="ptile ${view.page === 'project' && view.project === p.key ? 'on' : ''}" data-project="${esc(p.key)}">
+      <span class="pav">${esc(p.name.slice(0, 1))}</span>
+      <span class="pn"><b>${esc(p.name)}</b><small>세션 ${p.sessions.length}${busy ? ` · 작업 중 ${busy}` : ''}</small></span>
+      ${busy ? '<span class="dot d-busy"></span>' : ''}</button>`;
+  }).join('');
+  $('devs').innerHTML = meters(limitsNow(), true) + `<div class="dchips">${S.devices.map((d) => `<span class="dchip ${d.online ? '' : 'off'}"><span class="dot ${d.online ? 'd-idle' : 'd-off'}"></span>${esc(devName(d.device))}</span>`).join('')}</div>`;
 }
 
 // ── 가운데 ──
@@ -399,16 +497,21 @@ function head(title, sub, acts = '') {
 }
 const NEW_BTN = '<button class="primary" data-act="new"><span class="hide-m">+ 새 세션</span><span class="only-m">＋</span></button>';
 
-// 세션 목록: 넓은 화면은 표, 폰은 한 줄 카드(상태 점·이름·기기·시간).
+// 세션 카드: 상태 띠·이름·어디서·마지막 한 줄 + 버튼(열기·진행 상황·닫기).
 function sessionTable(rows, opts = {}) {
-  if (!rows.length) return '<div class="empty">세션이 없습니다.</div>';
-  return `<div class="slist">${rows.map((s) => `<div class="srow" data-session="${esc(s.handle)}">
-      <span class="dot d-${s.status}"></span>
-      <div class="sm"><div class="st">${esc(s.title || '이름 없음')} <span class="chip">${esc(AGENT_NAMES[s.agent] || s.agent || '터미널')}</span></div>
-        <div class="muted ss">${opts.project ? esc(PROJECT_NAMES[s.project] || s.project) + ' · ' : ''}${esc(devName(s.device))} · ${STATUS_TEXT[s.status]} · ${ago(s.last_output_at)}</div>
-        ${lastLine(s.preview, s.title) ? `<div class="muted sl hide-m">${esc(lastLine(s.preview, s.title))}</div>` : ''}</div>
-      ${s.online ? `<button class="small ghost danger" data-close="${esc(s.handle)}" aria-label="닫기">닫기</button>` : ''}
-    </div>`).join('')}</div>`;
+  if (!rows.length) return '<div class="card empty">세션이 없습니다.</div>';
+  return `<div class="sgrid">${rows.map((s) => {
+    const last = lastLine(s.preview, s.title);
+    return `<div class="scard s-${s.status}">
+      <div class="stop"><span class="spill ${s.status}"><span class="dot d-${s.status}"></span>${STATUS_TEXT[s.status]}</span><span class="muted">${ago(s.last_output_at)}</span></div>
+      <div class="st" data-session="${esc(s.handle)}">${esc(s.title || '이름 없음')}</div>
+      <div class="muted ss">${opts.project ? esc(PROJECT_NAMES[s.project] || s.project) + ' · ' : ''}${esc(devName(s.device))} · ${esc(AGENT_NAMES[s.agent] || s.agent || '터미널')}</div>
+      <div class="sl">${last ? esc(last) : '<span class="muted">—</span>'}</div>
+      <div class="sbtns"><button class="small" data-open="${esc(s.handle)}">열기</button>
+        ${s.online && s.agent ? `<button class="small" data-qsend="${esc(s.handle)}">진행 상황</button>` : ''}
+        ${s.online ? `<button class="small danger" data-close="${esc(s.handle)}">닫기</button>` : ''}</div>
+    </div>`;
+  }).join('')}</div>`;
 }
 
 // 결정 카드: 질문은 3줄까지(눌러서 펼침), 선택지는 큰 버튼. 한 번 누르면 «한 번 더 눌러 확정».
@@ -446,6 +549,7 @@ function renderHome(M) {
   const online = S.devices.filter((d) => d.online).length;
   return head('오늘', `<span class="pillrow"><span class="pill">세션 ${M.all.length}</span><span class="pill busy">작업 중 ${busy}</span><span class="pill">기기 ${online}/${S.devices.length}</span></span>`, NEW_BTN)
     + `<div class="body">
+    ${meters(limitsNow())}
     <div class="grid2">
       <div>
         <h3 class="sh">결정 대기 <span class="cnt ${open.length ? 'hot' : ''}">${open.length}</span></h3>
@@ -453,9 +557,8 @@ function renderHome(M) {
           : '<div class="card empty">기다리는 결정이 없습니다.</div>'}
       </div>
       <div>
-        ${alerts.length ? `<h3 class="sh">확인할 것</h3><div class="card tight">${alerts.map((a) => `<div class="arow" ${a.act ? `data-act="${esc(a.act)}"` : ''}>
-          <span class="dot d-${a.tone === 'warn' ? 'stale' : a.tone === 'busy' ? 'busy' : a.tone === 'bad' ? 'bad' : 'idle'}"></span><span class="at">${esc(a.t)}</span>
-          ${a.s ? `<span class="muted">${esc(a.s)}</span>` : ''}${a.act ? '<span class="chev">›</span>' : ''}</div>`).join('')}</div>` : ''}
+        ${alerts.length ? `<h3 class="sh">확인할 것</h3>${alerts.map((a) => `<div class="acard a-${a.tone}" ${a.act ? `data-act="${esc(a.act)}"` : ''}>
+          <span class="at">${esc(a.t)}</span>${a.s ? `<span class="muted">${esc(a.s)}</span>` : ''}${a.act ? '<span class="go">보기 ›</span>' : ''}</div>`).join('')}` : ''}
         <h3 class="sh">프로젝트</h3>
         ${M.projects.map((p) => {
           const db = dashboardFor(p.key);
@@ -497,8 +600,8 @@ const SECTIONS = {
   // 폰에서는 표가 카드로 바뀐다(첫 칸이 제목, 나머지는 «머리글: 값» 줄).
   table: (s) => s.rows.length ? `<div class="tw"><table class="rt"><thead><tr>${s.columns.map((c) => `<th>${esc(c)}</th>`).join('')}</tr></thead>
     <tbody>${s.rows.map((r) => `<tr>${r.map((c, i) => `<td data-label="${esc(s.columns[i] || '')}">${cell(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : `<div class="empty">${esc(s.empty || '없습니다.')}</div>`,
-  list: (s) => s.items.length ? `<ul class="todo">${s.items.map((i, n) => `<li><div class="num ${i.tone ? 'n-' + i.tone : ''}">${n + 1}</div>
-    <div class="txt"><b>${esc(i.title)}</b><span>${esc(i.sub || '')}</span></div>${i.right ? `<span class="muted">${esc(i.right)}</span>` : ''}</li>`).join('')}</ul>`
+  list: (s) => s.items.length ? `<div class="agrid">${s.items.map((i) => `<div class="acard a-${i.tone || 'muted'} tall">
+    <span class="at">${esc(i.title)}</span>${i.sub ? `<span class="muted">${esc(i.sub)}</span>` : ''}${i.right ? `<span class="muted">${esc(i.right)}</span>` : ''}</div>`).join('')}</div>`
     : `<div class="empty">${esc(s.empty || '없습니다.')}</div>`,
   calendar: (s) => `<div class="cal">${s.days.map((d) => `<div class="day"><div class="dh">${esc(d.label)} <span class="muted">${d.items.length}</span></div>
     ${d.items.map((i) => `<div class="ev"><b>${esc(i.time)}</b> ${esc(i.text)}${i.sub ? `<div class="muted">${esc(i.sub)}</div>` : ''}</div>`).join('') || '<div class="muted" style="padding:6px 0">비어 있음</div>'}</div>`).join('')}</div>`,
@@ -550,9 +653,10 @@ function renderDecisions() {
 
 function renderLog() {
   const OP = { send: '메시지', launch: '세션 열기', close: '세션 닫기', decision: '결정 답', ask: '결정 요청' };
-  return head('변경 이력', '오피스에서 한 조작이 모두 남습니다.') + `<div class="body"><div class="card">${S.actions.length ? `<ul class="todo log">${S.actions.map((a) => `<li>
-    <span class="pill ${a.ok ? '' : 'stale'}">${OP[a.op] || a.op}</span><div class="txt"><b>${esc(a.label || '')}</b><span>${esc(a.text || a.error || '')}</span></div>
-    <span class="muted">${a.device ? esc(devName(a.device)) + ' · ' : ''}${ago(Date.parse(a.at))}</span></li>`).join('')}</ul>` : '<div class="empty">아직 기록이 없습니다.</div>'}</div></div>`;
+  const TONE = { send: 'busy', launch: 'ok', close: 'warn', decision: 'ok', ask: 'busy' };
+  return head('기록', '오피스에서 한 조작이 모두 남습니다') + `<div class="body">${S.actions.length ? `<div class="agrid">${S.actions.map((a) => `<div class="acard a-${a.ok ? TONE[a.op] || 'muted' : 'bad'} tall">
+    <span class="ltop"><span class="lane">${OP[a.op] || a.op}</span><span class="muted">${a.device ? esc(devName(a.device)) + ' · ' : ''}${ago(Date.parse(a.at))}</span></span>
+    <span class="at">${esc(a.label || '')}</span>${a.text || a.error ? `<span class="muted">${esc(a.text || a.error)}</span>` : ''}</div>`).join('')}</div>` : '<div class="card empty">아직 기록이 없습니다.</div>'}</div>`;
 }
 
 function render() {
@@ -687,7 +791,12 @@ async function answer(id, value) {
 
 // ── 이벤트 ──
 document.addEventListener('click', (e) => {
-  const t = e.target.closest('[data-page],[data-project],[data-session],[data-open],[data-close],[data-act],[data-tab],[data-ptab],[data-quick],[data-answer]');
+  const t = e.target.closest('[data-page],[data-project],[data-session],[data-open],[data-close],[data-qsend],[data-act],[data-tab],[data-ptab],[data-quick],[data-answer]');
+  if (t && t.dataset.qsend) {
+    // 카드의 «진행 상황»: 그 세션에 진행 상황 질문을 넣고, 패널을 열어 답을 본다.
+    const s = findSession(t.dataset.qsend); if (!s) return;
+    openPanel(s.handle); return sendText(QUICK[1][1]);
+  }
   if (!t) return;
   if (t.dataset.close) { e.stopPropagation(); return closeSession(t.dataset.close); }
   if (t.dataset.open) { e.stopPropagation(); return openPanel(t.dataset.open); }
