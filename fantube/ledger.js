@@ -1,5 +1,6 @@
 // 제작 장부 한 줄 — 규격 D:/midform/docs/production-ledger.md (관리자 07:40 성과 보고가 읽는다).
-//   node ledger.js <ep폴더 이름> [--youtube-id X] [--publish-at ISO] [--gpt N] [--rejected N] [--started ISO] [--finished ISO] [--note "..."] [--retracted "이유"] [--style X]
+//   node ledger.js <ep폴더 이름> [--youtube-id X] [--publish-at ISO] [--gpt N] [--rejected N] [--started ISO] [--finished ISO] [--note "..."] [--retracted "이유"] [--style X] [--file out_claim.mp4] [--purpose idol3sec_ko|cortis_fan_ko]
+// 10/29 AI 오피스 요구: 예약 공개마다 publish_at 을 적는다(publish.js 가 업로드 직후 부른다). 결 틀(top.l1/l2) 제목·out_claim.mp4 파일·레인 purpose 도 적는다.
 // started_at 은 spec.json 의 started_at(없으면 --started), finished_at 은 out.mp4 수정 시각(없으면 --finished).
 const fs = require('fs');
 const path = require('path');
@@ -12,13 +13,16 @@ const kst = (d) => new Date(d.getTime() + 9 * 3600e3).toISOString().replace('Z',
 const ep = process.argv[2];
 const dir = path.join(ROOT, ep);
 const spec = JSON.parse(fs.readFileSync(path.join(dir, 'spec.json'), 'utf8'));
-const out = path.join(dir, 'out.mp4');
+const out = path.join(dir, arg('--file', 'out.mp4').replace(/^.*[\/]/, ''));
+const top = spec.top || {};
+const title = (spec.title || []).join(' ') || [top.l1, top.l2].filter(Boolean).join(' / ');
 const rec = {
   at: kst(new Date()),
   session: 'B 팬튜브',
   lane: 'fantube',
   id: ep,
-  title: (spec.title || []).join(' '),
+  title,
+  purpose: arg('--purpose', spec.purpose || 'idol3sec_ko'),
   started_at: arg('--started', spec.started_at || null),
   finished_at: arg('--finished', fs.existsSync(out) ? kst(fs.statSync(out).mtime) : null),
   gpt_calls: Number(arg('--gpt', spec.gpt_calls || 0)),
