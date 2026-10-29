@@ -223,7 +223,7 @@ function model() {
     for (const s of st.sessions || []) {
       const repo = repos.get(s.repo_id);
       const key = repo ? repo.name : (s.folder ? s.folder.split(/[\\/]/).filter(Boolean).slice(-1)[0] : '기타');
-      const x = { ...s, device: d.device, online: d.online, project: key, status: status(s, d.online) };
+      const x = { ...s, title: s.title ? s.title.replace(/^[^p{L}p{N}]+/u, "") : s.title, device: d.device, online: d.online, project: key, status: status(s, d.online) };
       all.push(x);
       if (!projects.has(key)) projects.set(key, { key, name: PROJECT_NAMES[key] || key, sessions: [], repos: [] });
       projects.get(key).sessions.push(x);
