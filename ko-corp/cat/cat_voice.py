@@ -11,6 +11,7 @@
 왜(10-29 소유주 #25 «tts 어디갔어 왜 빠졌어?»): 헤이루만 레퍼런스가 내레이션 0 이라 1~3판은 자막·효과음뿐이었다.
 화면의 대사 글자를 그대로 말로 읽는다(자막 = 말). 숫자·연도는 ko_say 로 한글 읽기, 역전사 대조(ko TTS 오독 10-19)로 확인한다.
 cat_render.py 는 voice/voice.json 이 있으면 화면 길이를 말 길이에 맞춰 늘리고 목소리를 섞는다.
+6판(10-30 #30 «자막 분절대로 발음하면 어색»): beats.json 의 say(자연스러운 말 문장)가 있으면 그걸 읽는다. 화면 자막은 line 그대로.
 결과: voice/<n>_a.wav(대사)·<n>_b.wav(반응) · voice/voice.json {"<n>": {"a": 초, "b": 초}} · 불일치면 종료 4.
 """
 import json
@@ -49,7 +50,7 @@ def clips(beats):
     out = []
     for b in beats:
         if b.get('line'):
-            out.append((f'{b["n"]:02d}_a', b['speaker'].split('.')[0], spoken(b['line'])))
+            out.append((f'{b["n"]:02d}_a', b['speaker'].split('.')[0], b.get('say') or spoken(b['line'])))   # say = 말로 읽을 문장(자막 분절 말고, 6판 10-30)
         if b.get('react_line'):
             out.append((f'{b["n"]:02d}_b', b['react'].split('.')[0], spoken(b['react_line'])))
     return out

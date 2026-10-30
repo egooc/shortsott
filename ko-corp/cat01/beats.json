@@ -14,7 +14,6 @@
    "color": "red",
    "tag": "동네 주민",
    "react": "boss.relax",
-   "react_line": "일단 진정",
    "enter": true,
    "v3": true,
    "chart": {
@@ -30,7 +29,8 @@
      ]
     ]
    },
-   "sfx": "boing"
+   "sfx": "boing",
+   "say": "아니, 손님도 없는데 왜 안 망해? 오늘도 텅텅 비었잖아. 비결이 대체 뭐야?"
   },
   {
    "n": 2,
@@ -43,11 +43,11 @@
    "color": "yellow",
    "tag": "사장",
    "react": "resident.shock",
-   "react_line": "이 여유 뭐야",
    "enter": false,
    "v3": true,
    "prop": "tea_cup",
-   "sfx": "pop"
+   "sfx": "pop",
+   "say": "오늘 거래는 이미 정산 끝났어. 차나 한잔 마시자."
   },
   {
    "n": 3,
@@ -61,7 +61,8 @@
    "tag": "사장",
    "enter": false,
    "v3": true,
-   "sfx": "pop"
+   "sfx": "pop",
+   "say": "이야기는 2023년으로 거슬러 올라간다."
   },
   {
    "n": 4,
@@ -74,11 +75,11 @@
    "color": "yellow",
    "tag": "동네 주민",
    "react": "boss.suspicious",
-   "react_line": "팔린다고?",
    "enter": false,
    "v3": true,
    "prop": "gold_ring",
-   "sfx": "pop"
+   "sfx": "pop",
+   "say": "드디어 손님이다! 반지 팔리겠네. 오늘 매출 대박이다!"
   },
   {
    "n": 5,
@@ -91,11 +92,11 @@
    "color": "red",
    "tag": "매입 손님",
    "react": "resident.shock",
-   "react_line": "돈이 나가!?",
    "enter": true,
    "v3": true,
    "prop": "gold_necklace",
-   "sfx": "boing"
+   "sfx": "boing",
+   "say": "반지 말고요, 이 목걸이 팔려고 왔어요. 매입해 주세요."
   },
   {
    "n": 6,
@@ -108,7 +109,6 @@
    "color": "yellow",
    "tag": "동네 주민",
    "react": "boss.explain",
-   "react_line": "흐름을 봐",
    "enter": false,
    "v3": true,
    "chart": {
@@ -124,7 +124,8 @@
      ]
     ]
    },
-   "sfx": "pop"
+   "sfx": "pop",
+   "say": "손님한테 돈을 줬는데, 그럼 뭘로 남기는 거야?"
   },
   {
    "n": 7,
@@ -137,11 +138,11 @@
    "color": "yellow",
    "tag": "사장",
    "react": "guest.worried",
-   "react_line": "두근두근",
    "enter": false,
    "v3": true,
    "prop": "gold_scale",
-   "sfx": "pop"
+   "sfx": "pop",
+   "say": "순도 확인하고, 무게 확인하고. 먼저 검사한 다음에 값을 정하지."
   },
   {
    "n": 8,
@@ -154,11 +155,11 @@
    "color": "yellow",
    "tag": "도매상",
    "react": "resident.shock",
-   "react_line": "다시 파네!",
    "enter": true,
    "v3": true,
    "prop": "gold_bar",
-   "sfx": "boing"
+   "sfx": "boing",
+   "say": "사들인 금은 도매로도 넘겨. 다시 팔 때 차익을 남기는 거지."
   },
   {
    "n": 9,
@@ -171,11 +172,11 @@
    "color": "yellow",
    "tag": "동네 주민",
    "react": "boss.panic",
-   "react_line": "잠깐만!",
    "enter": false,
    "v3": true,
    "prop": "money_pouch",
-   "sfx": "pop"
+   "sfx": "pop",
+   "say": "그 차액이 전부 사장님 돈이네! 완전 꿀이잖아!"
   },
   {
    "n": 10,
@@ -188,7 +189,6 @@
    "color": "red",
    "tag": "사장",
    "react": "resident.despair",
-   "react_line": "내 돈이…",
    "enter": false,
    "v3": true,
    "chart": {
@@ -208,7 +208,8 @@
      ]
     ]
    },
-   "sfx": "pop"
+   "sfx": "pop",
+   "say": "정련비, 운반비, 운영비까지. 비용을 다 빼야 내 이익이지."
   },
   {
    "n": 11,
@@ -221,11 +222,11 @@
    "color": "yellow",
    "tag": "동네 주민",
    "react": "boss.panic",
-   "react_line": "그게 문제",
    "enter": false,
    "v3": true,
    "prop": "gold_bar",
-   "sfx": "pop"
+   "sfx": "pop",
+   "say": "금을 사들였는데, 그사이에 금값이 뚝 떨어지면?"
   },
   {
    "n": 12,
@@ -238,7 +239,6 @@
    "color": "red",
    "tag": "사장",
    "react": "resident.shock",
-   "react_line": "손해까지!",
    "enter": false,
    "v3": true,
    "chart": {
@@ -254,7 +254,8 @@
      ]
     ]
    },
-   "sfx": "womp"
+   "sfx": "womp",
+   "say": "쥐고 있던 금값이 떨어지면, 손해가 날 수도 있지."
   },
   {
    "n": 13,
@@ -267,11 +268,11 @@
    "color": "yellow",
    "tag": "동네 주민",
    "react": "guest.worried",
-   "react_line": "줄이 끊겨서",
    "enter": false,
    "v3": true,
    "prop": "broken_chain",
-   "sfx": "pop"
+   "sfx": "pop",
+   "say": "문이 또 열린다! 이번 손님은 사러 왔겠지?"
   },
   {
    "n": 14,
@@ -284,11 +285,11 @@
    "color": "yellow",
    "tag": "수리 손님",
    "react": "resident.sulk",
-   "react_line": "또 안 사네",
    "enter": false,
    "v3": true,
    "prop": "broken_chain",
-   "sfx": "pop"
+   "sfx": "pop",
+   "say": "새 목걸이 말고요, 끊어진 이 줄 좀 고쳐 주세요. 계속 쓰려고요."
   },
   {
    "n": 15,
@@ -301,11 +302,11 @@
    "color": "yellow",
    "tag": "동네 주민",
    "react": "boss.proud",
-   "react_line": "내 앞발 봐",
    "enter": false,
    "v3": true,
    "prop": "repair_tools",
-   "sfx": "pop"
+   "sfx": "pop",
+   "say": "새것도 안 사고 줄만 고치면, 뭐가 남아?"
   },
   {
    "n": 16,
@@ -318,7 +319,6 @@
    "color": "red",
    "tag": "사장",
    "react": "resident.shock",
-   "react_line": "기술값!",
    "enter": false,
    "v3": true,
    "chart": {
@@ -334,7 +334,8 @@
      ]
     ]
    },
-   "sfx": "pop"
+   "sfx": "pop",
+   "say": "수리도 일이야. 고치는 기술에 공임을 받거든. 바로 이 앞발로!"
   },
   {
    "n": 17,
@@ -347,11 +348,11 @@
    "color": "yellow",
    "tag": "수리 손님",
    "react": "boss.explain",
-   "react_line": "먼저 볼게",
    "enter": false,
    "v3": true,
    "prop": "gold_ring",
-   "sfx": "pop"
+   "sfx": "pop",
+   "say": "이 반지도 크기를 늘려서 낄 수 있나요?"
   },
   {
    "n": 18,
@@ -364,7 +365,6 @@
    "color": "yellow",
    "tag": "사장",
    "react": "resident.nod",
-   "react_line": "검사부터네",
    "enter": false,
    "v3": true,
    "chart": {
@@ -388,7 +388,8 @@
      ]
     ]
    },
-   "sfx": "pop"
+   "sfx": "pop",
+   "say": "반지 구조랑 상태부터 볼게. 수리가 되면 견적을 내 줄게."
   },
   {
    "n": 19,
@@ -401,11 +402,11 @@
    "color": "yellow",
    "tag": "동네 주민",
    "react": "boss.point",
-   "react_line": "필요한 날",
    "enter": false,
    "v3": true,
    "prop": "ring_box",
-   "sfx": "pop"
+   "sfx": "pop",
+   "say": "매일 살 것도 아닌 금붙이를, 누가 찾아와?"
   },
   {
    "n": 20,
@@ -418,11 +419,11 @@
    "color": "red",
    "tag": "돌잔치 손님",
    "react": "resident.shock",
-   "react_line": "돌반지!",
    "enter": false,
    "v3": true,
    "prop": "gold_ring",
-   "sfx": "pop"
+   "sfx": "pop",
+   "say": "조카 돌잔치에 선물하려고요. 작은 돌반지 맞추러 왔어요."
   },
   {
    "n": 21,
@@ -435,11 +436,11 @@
    "color": "yellow",
    "tag": "결혼 준비 손님",
    "react": "resident.shock",
-   "react_line": "예물도 있네",
    "enter": false,
    "v3": true,
    "prop": "ring_box",
-   "sfx": "pop"
+   "sfx": "pop",
+   "say": "저희는 결혼을 앞두고 있어서요. 예물 반지 보러 왔어요."
   },
   {
    "n": 22,
@@ -452,11 +453,11 @@
    "color": "yellow",
    "tag": "동네 주민",
    "react": "boss.panic",
-   "react_line": "오해야!",
    "enter": false,
    "v3": true,
    "prop": "jewel_tray",
-   "sfx": "pop"
+   "sfx": "pop",
+   "say": "저 보석이 전부 사장님 거네! 완전 부자잖아!"
   },
   {
    "n": 23,
@@ -469,7 +470,6 @@
    "color": "red",
    "tag": "사장",
    "react": "resident.shock",
-   "react_line": "남의 거였어",
    "enter": false,
    "v3": true,
    "chart": {
@@ -485,7 +485,8 @@
      ]
     ]
    },
-   "sfx": "pop"
+   "sfx": "pop",
+   "say": "여기 이 보석은 손님이 맡긴 위탁품이야. 내 재산이 아니야."
   },
   {
    "n": 24,
@@ -498,7 +499,6 @@
    "color": "yellow",
    "tag": "동네 주민",
    "react": "boss.explain",
-   "react_line": "대신 팔고",
    "enter": false,
    "v3": true,
    "chart": {
@@ -518,7 +518,8 @@
      ]
     ]
    },
-   "sfx": "pop"
+   "sfx": "pop",
+   "say": "남의 보석을 대신 팔아 주면, 뭘로 버는데?"
   },
   {
    "n": 25,
@@ -531,7 +532,6 @@
    "color": "yellow",
    "tag": "사장",
    "react": "resident.nod",
-   "react_line": "그 몫이구나",
    "enter": false,
    "v3": true,
    "chart": {
@@ -547,7 +547,8 @@
      ]
     ]
    },
-   "sfx": "pop"
+   "sfx": "pop",
+   "say": "팔린 금액은 주인한테 정산해 주고, 나는 약속한 수수료를 받아."
   },
   {
    "n": 26,
@@ -560,7 +561,6 @@
    "color": "yellow",
    "tag": "동네 주민",
    "react": "boss.explain",
-   "react_line": "전부는 아냐",
    "enter": false,
    "v3": true,
    "chart": {
@@ -572,7 +572,8 @@
      ]
     ]
    },
-   "sfx": "pop"
+   "sfx": "pop",
+   "say": "그럼 금은방은 어느 가게든 위탁도 받아?"
   },
   {
    "n": 27,
@@ -585,7 +586,6 @@
    "color": "yellow",
    "tag": "사장",
    "react": "resident.nod",
-   "react_line": "가게마다 달라",
    "enter": false,
    "v3": true,
    "chart": {
@@ -601,7 +601,8 @@
      ]
     ]
    },
-   "sfx": "pop"
+   "sfx": "pop",
+   "say": "위탁판매는 취급하는 곳만 해. 전부 하는 건 아니라는 거지."
   },
   {
    "n": 28,
@@ -614,11 +615,11 @@
    "color": "yellow",
    "tag": "상담 손님",
    "react": "resident.peek",
-   "react_line": "다 해주나?",
    "enter": false,
    "v3": true,
    "prop": "gold_ring",
-   "sfx": "pop"
+   "sfx": "pop",
+   "say": "이 금 맡기면 돈도 빌려주나요? 금은방이니까 당연히 되겠죠?"
   },
   {
    "n": 29,
@@ -631,7 +632,6 @@
    "color": "red",
    "tag": "사장",
    "react": "resident.shock",
-   "react_line": "별개였네",
    "enter": false,
    "v3": true,
    "chart": {
@@ -647,7 +647,8 @@
      ]
     ]
    },
-   "sfx": "pop"
+   "sfx": "pop",
+   "say": "돈을 빌려주는 대출 영업은, 대부업 등록이 필요한 일이야."
   },
   {
    "n": 30,
@@ -660,7 +661,6 @@
    "color": "yellow",
    "tag": "사장",
    "react": "guest.explain",
-   "react_line": "대출은 없네",
    "enter": false,
    "v3": true,
    "chart": {
@@ -680,7 +680,8 @@
      ]
     ]
    },
-   "sfx": "pop"
+   "sfx": "pop",
+   "say": "담보대출은 이자를 받는 일이지. 우리 가게는 대출 안 해."
   },
   {
    "n": 31,
@@ -693,11 +694,11 @@
    "color": "yellow",
    "tag": "매입 손님",
    "react": "resident.excited",
-   "react_line": "보석함 열어",
    "enter": false,
    "v3": true,
    "prop": "jewel_box",
-   "sfx": "pop"
+   "sfx": "pop",
+   "say": "금값 올랐네. 묵혀 둔 금 팔러 가 볼까?"
   },
   {
    "n": 32,
@@ -710,11 +711,11 @@
    "color": "yellow",
    "tag": "매입 손님",
    "react": "resident.nod",
-   "react_line": "이런 방문도",
    "enter": false,
    "v3": true,
    "prop": "gold_necklace",
-   "sfx": "pop"
+   "sfx": "pop",
+   "say": "집에 있던 금 팔러 왔어요. 매입해 주세요."
   },
   {
    "n": 33,
@@ -727,11 +728,11 @@
    "color": "yellow",
    "tag": "동네 주민",
    "react": "boss.panic",
-   "react_line": "내 지갑 봐",
    "enter": false,
    "v3": true,
    "prop": "money_pouch",
-   "sfx": "pop"
+   "sfx": "pop",
+   "say": "금값이 올랐으니까, 사장님도 이제 무조건 대박이네!"
   },
   {
    "n": 34,
@@ -744,7 +745,6 @@
    "color": "red",
    "tag": "사장",
    "react": "resident.shock",
-   "react_line": "벌기만 안 해",
    "enter": false,
    "v3": true,
    "chart": {
@@ -760,7 +760,8 @@
      ]
     ]
    },
-   "sfx": "womp"
+   "sfx": "womp",
+   "say": "같은 금을 다시 채우려면, 오른 값만큼 내 돈이 더 들어."
   },
   {
    "n": 35,
@@ -774,7 +775,6 @@
    "color": "yellow",
    "tag": "동네 주민",
    "react": "boss.point",
-   "react_line": "같은 비율?",
    "enter": false,
    "v3": true,
    "chart": {
@@ -790,7 +790,8 @@
      ]
     ]
    },
-   "sfx": "pop"
+   "sfx": "pop",
+   "say": "시장 평균은 이만큼 올랐네. 그럼 내 매입비도 똑같이 올라?"
   },
   {
    "n": 36,
@@ -804,7 +805,6 @@
    "color": "yellow",
    "tag": "사장",
    "react": "resident.nod",
-   "react_line": "구분해야지",
    "enter": false,
    "v3": true,
    "chart": {
@@ -824,7 +824,8 @@
      ]
     ]
    },
-   "sfx": "pop"
+   "sfx": "pop",
+   "say": "그건 시장 평균값이 오른 비율이야. 가게 매입비나 소매가랑은 달라."
   },
   {
    "n": 37,
@@ -837,11 +838,11 @@
    "color": "yellow",
    "tag": "구매 손님",
    "react": "resident.despair",
-   "react_line": "판매는 주춤",
    "enter": false,
    "v3": true,
    "prop": "jewel_tray",
-   "sfx": "pop"
+   "sfx": "pop",
+   "say": "장신구 가격이 많이 올랐네요. 다음에 살게요."
   },
   {
    "n": 38,
@@ -854,7 +855,6 @@
    "color": "yellow",
    "tag": "동네 주민",
    "react": "boss.explain",
-   "react_line": "그럴 수 있지",
    "enter": false,
    "v3": true,
    "chart": {
@@ -870,7 +870,8 @@
      ]
     ]
    },
-   "sfx": "pop"
+   "sfx": "pop",
+   "say": "팔러는 오는데, 사려던 사람은 구매를 미루네?"
   },
   {
    "n": 39,
@@ -883,7 +884,6 @@
    "color": "yellow",
    "tag": "사장",
    "react": "resident.nod",
-   "react_line": "양쪽이 있네",
    "enter": false,
    "v3": true,
    "chart": {
@@ -907,7 +907,8 @@
      ]
     ]
    },
-   "sfx": "pop"
+   "sfx": "pop",
+   "say": "그럴 수도 있지. 금값이 올라도 우리 가게 이익이 보장되는 건 아니야."
   },
   {
    "n": 40,
@@ -920,11 +921,11 @@
    "color": "yellow",
    "tag": "동네 주민",
    "react": "boss.relax",
-   "react_line": "익숙하지",
    "enter": false,
    "v3": true,
    "prop": "jewel_box",
-   "sfx": "pop"
+   "sfx": "pop",
+   "say": "우리 동네 금은방도 30년째인데, 이런 거였나."
   },
   {
    "n": 41,
@@ -937,11 +938,11 @@
    "color": "yellow",
    "tag": "동네 주민",
    "react": "boss.point",
-   "react_line": "장부를 봐",
    "enter": false,
    "v3": true,
    "prop": "ledger_book",
-   "sfx": "pop"
+   "sfx": "pop",
+   "say": "의자는 비었는데, 아까 대체 뭘 정산한 거야?"
   },
   {
    "n": 42,
@@ -954,7 +955,6 @@
    "color": "yellow",
    "tag": "사장",
    "react": "resident.shock",
-   "react_line": "둘 다 있었네",
    "enter": false,
    "v3": true,
    "chart": {
@@ -970,7 +970,8 @@
      ]
     ]
    },
-   "sfx": "pop"
+   "sfx": "pop",
+   "say": "매입한 금 넘긴 돈, 수리하고 받은 공임도 있었지. 다 장부에 적었어."
   },
   {
    "n": 43,
@@ -983,7 +984,6 @@
    "color": "yellow",
    "tag": "동네 주민",
    "react": "boss.point",
-   "react_line": "이제 연결해",
    "enter": false,
    "v3": true,
    "chart": {
@@ -999,7 +999,8 @@
      ]
     ]
    },
-   "sfx": "pop"
+   "sfx": "pop",
+   "say": "빈 의자만 뚫어져라 봤네. 장부를 봐야 했어."
   },
   {
    "n": 44,
@@ -1012,7 +1013,6 @@
    "color": "red",
    "tag": "사장",
    "react": "resident.shock",
-   "react_line": "의자에 속았네",
    "enter": false,
    "v3": true,
    "chart": {
@@ -1036,7 +1036,8 @@
      ]
     ]
    },
-   "sfx": "tada"
+   "sfx": "tada",
+   "say": "판매, 매입, 수리, 위탁. 여기서 비용을 빼야 내 이익이야!"
   },
   {
    "n": 45,
@@ -1049,11 +1050,11 @@
    "color": "yellow",
    "tag": "동네 주민",
    "react": "boss.angry",
-   "react_line": "또 앞서간다",
    "enter": false,
    "v3": true,
    "prop": "money_pouch",
-   "sfx": "pop"
+   "sfx": "pop",
+   "say": "그럼 금은방은 앞으로도 쭉, 절대 안 망하겠네!"
   },
   {
    "n": 46,
@@ -1066,11 +1067,11 @@
    "color": "yellow",
    "tag": "동네 주민",
    "react": "boss.point",
-   "react_line": "비용을 봐",
    "enter": false,
    "v3": true,
    "prop": "cost_papers",
-   "sfx": "pop"
+   "sfx": "pop",
+   "say": "손님이 뜸해도, 버티면 결국 남는 거 아냐?"
   },
   {
    "n": 47,
@@ -1083,7 +1084,6 @@
    "color": "red",
    "tag": "사장",
    "react": "resident.shock",
-   "react_line": "아… 그렇지",
    "enter": false,
    "v3": true,
    "chart": {
@@ -1099,7 +1099,8 @@
      ]
     ]
    },
-   "sfx": "womp"
+   "sfx": "womp",
+   "say": "들어오는 돈이 비용을 못 버티면, 문 닫는 곳도 있다는 거야."
   },
   {
    "n": 48,
@@ -1112,11 +1113,11 @@
    "color": "yellow",
    "tag": "동네 주민",
    "react": "boss.relax",
-   "react_line": "이제 알겠지",
    "enter": false,
    "v3": true,
    "prop": "ledger_book",
-   "sfx": "pop"
+   "sfx": "pop",
+   "say": "빈 의자 뒤에 거래가 있었네. 장부는 바빴구나."
   },
   {
    "n": 49,
@@ -1129,11 +1130,11 @@
    "color": "yellow",
    "tag": "동네 주민",
    "react": "boss.laugh",
-   "react_line": "그러게",
    "enter": false,
    "v3": true,
    "prop": "jewel_box",
-   "sfx": "pop"
+   "sfx": "pop",
+   "say": "가게는 그대로인데, 나는 어느새 나이만 먹었네."
   },
   {
    "n": 50,
@@ -1146,7 +1147,6 @@
    "color": "yellow",
    "tag": "사장",
    "react": "resident.peek",
-   "react_line": "댓글에 적자",
    "enter": false,
    "v3": true,
    "chart": {
@@ -1162,7 +1162,8 @@
      ]
     ]
    },
-   "sfx": "pop"
+   "sfx": "pop",
+   "say": "너희 동네 금은방은 몇 년째야? 댓글로 알려 줘."
   }
  ]
 }
