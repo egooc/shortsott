@@ -783,6 +783,9 @@ function optLabel(o, P) {
   return names.length === nos.length ? names.join(' + ') : null;
 }
 
+// 결정을 올린 세션(asked_by 이름으로)
+const askerOf = (d) => d.asked_by ? (model().all.find((x) => x.title && cleanTitle(d.asked_by).startsWith(cleanTitle(x.title))) || null) : null;
+
 // 결정 카드: 질문은 3줄까지(눌러서 펼침), 선택지는 큰 버튼. 한 번 누르면 «한 번 더 눌러 확정».
 function decisionCard(d) {
   const open = d.status === 'open';
@@ -796,7 +799,7 @@ function decisionCard(d) {
       : `<div class="q clamp" data-act="expand">${linkify(joinWrappedUrls(d.question))}</div>`}
     ${open ? `<div class="dopts">${(d.options || []).map((o) => `<button class="opt ${o === d.recommended ? 'rec' : ''}" data-answer="${d.id}" data-value="${esc(o)}">
         <span>${optLabel(o, P) ? `${esc(optLabel(o, P))} <span class="onos">${[...o].filter((c) => CIRC.includes(c)).map((c) => CIRC.indexOf(c) + 1).join('·')}</span>` : esc(o)}${NEEDS_NOTE.test(o) ? ' <small class="muted">✎ 적기</small>' : ''}</span>${o === d.recommended ? '<small>추천</small>' : ''}</button>`).join('')}
-        <button class="opt ghost" data-answer="${d.id}" data-value="">선택지에 없는 답 쓰기</button></div>`
+        ${askerOf(d) ? `<button class="opt ghost" data-session="${esc(askerOf(d).handle)}">대화창 열기</button>` : `<button class="opt ghost" data-answer="${d.id}" data-value="">선택지에 없는 답 쓰기</button>`}</div>`
       : `<div class="ans">→ ${esc(optLabel(d.answer, P) || d.answer)}</div>`}
     ${d.asked_by ? `<div class="muted who">${esc(d.asked_by)}</div>` : ''}
   </div>`;
@@ -807,16 +810,38 @@ function waitingSessions(M) {
   return M.all.filter((s) => s.ask && s.online && !S.decisions.some((d) => d.status === 'open' && cleanTitle(d.asked_by || '').startsWith(cleanTitle(s.title))))
     .sort((a, b) => (Date.parse(b.ask.at || 0) || 0) - (Date.parse(a.ask.at || 0) || 0));
 }
+// 세션 글에서 질문 한 줄·선택지·추천을 뽑는다. 선택지가 없으면 «진행/보류».
+const plain = (t) => String(t || '').replace(/\*\*([^*]+)\*\*/g, '$1').replace(/`([^`]+)`/g, '$1').replace(/^#+\s*/, '').trim();
+function askShape(text) {
+  const L = String(text || '').split('\n').map((l) => l.trim()).filter(Boolean);
+  const P = parseAsk(L.join(' '));
+  if (P) return { q: plain(P.q), opts: P.items.map((x) => plain(x.name)), rec: null };
+  let qi = -1;
+  for (let i = L.length - 1; i >= 0; i--) if (/[?？]\s*\**\s*$|할까요|될까요|주세요|골라|선택|정해 주|하시겠어요/.test(L[i]) && !/^\s*([-*•]|\d+[.)])\s/.test(L[i])) { qi = i; break; }
+  const isItem = (l) => /^([-*•]|\d+[.)])\s+/.test(l);
+  // 질문 바로 뒤(없으면 바로 앞)의 목록이 선택지
+  const grab = (from, step) => { const o = []; for (let i = from; i >= 0 && i < L.length && isItem(L[i]); i += step) o.push(L[i]); return step < 0 ? o.reverse() : o; };
+  let items = qi >= 0 ? grab(qi + 1, 1) : [];
+  if (!items.length && qi > 0) items = grab(qi - 1, -1);
+  items = items.map((l) => plain(l.replace(/^([-*•]|\d+[.)])\s+/, ''))).filter((l) => l.length <= 80).slice(0, 5);
+  let rec = null;
+  items = items.map((l) => { if (/추천/.test(l)) { const c = l.replace(/\s*[(（[]?\s*추천\s*[)）\]]?\s*/g, ' ').replace(/[—:-]\s*$/, '').trim(); rec = rec || c; return c; } return l; });
+  const q = plain(qi >= 0 ? L[qi] : L[L.length - 1] || '');
+  // «이어서»라고 보내 주시면 … → 그 말이 곧 선택지
+  const said = [...String(text).matchAll(/[«"“]([^»"”]{1,20})[»"”]\s*(?:이)?라고\s*(?:보내|말씀|답|해)/g)].map((m) => m[1]);
+  const fallback = said.length ? [...new Set(said), '보류'] : ['진행', '보류'];
+  return { q: q.length > 160 ? q.slice(0, 157) + '…' : q, opts: items.length >= 2 ? items : fallback, rec: rec || (said.length && items.length < 2 ? said[0] : null) };
+}
 function waitCard(s) {
   const perm = s.ask.kind === 'permission';
-  const P = !perm && parseAsk(s.ask.text);
+  const A = perm ? { q: '허가를 기다리며 멈춰 있어요 — 대화창에서 확인해 주세요', opts: [], rec: null } : askShape(s.ask.text);
+  const canSend = !s.external && !perm;
   return `<div class="dcard wait">
     <div class="dtop"><span class="lane">${esc(nice(s.title).name)}</span><span class="muted">${s.ask.at ? ago(Date.parse(s.ask.at)) : ''}</span></div>
-    ${chipsHtml([{ t: perm ? '허가 대기 — 승인해야 진행' : '세션이 답을 기다려요', c: perm ? 'bad' : 'warn' }, { t: devName(s.device), c: 'muted' }, ...(s.external ? [{ t: 'Orca 밖', c: 'muted' }] : [])])}
-    ${P ? `<div class="dq">${linkify(P.q)}</div><div class="dcands">${P.items.map((x) => `<div class="dcand"><span class="no">${CIRC.indexOf(x.no) + 1}</span><div><div class="nm">${esc(x.name)}</div>${x.why.length ? `<ul>${x.why.map((w) => `<li>${esc(w)}</li>`).join('')}</ul>` : ''}</div></div>`).join('')}</div>`
-      : s.ask.text ? `<div class="q clamp wq" data-act="expand">${linkify(joinWrappedUrls(s.ask.text.split('\n').filter((l) => l.trim()).slice(-12).join('\n')))}</div>` : ''}
-    <div class="dopts">${s.external ? `<div class="muted small-note" style="white-space:normal">이 세션은 오피스에서 바로 답할 수 없어요 — ${esc(devName(s.device))}의 Claude 화면(또는 Claude 앱 원격 제어)에서 답해 주세요.</div>`
-      : `<button class="opt rec" data-session="${esc(s.handle)}"><span>대화 화면 열고 답하기</span></button>`}</div>
+    <div class="q">${linkify(A.q)}</div>
+    <div class="dopts">${canSend ? A.opts.map((o) => `<button class="opt ${o === A.rec ? 'rec' : ''}" data-wsend="${esc(s.handle)}" data-value="${esc(o)}"><span>${esc(o)}</span>${o === A.rec ? '<small>추천</small>' : ''}</button>`).join('') : ''}
+      <button class="opt ghost" data-session="${esc(s.handle)}">대화창 열기${s.external ? ' (보기만 — 답은 그 PC의 Claude 화면에서)' : ''}</button></div>
+    <div class="muted who">${esc(s.title)} · ${esc(devName(s.device))}</div>
   </div>`;
 }
 
@@ -1479,7 +1504,7 @@ document.addEventListener('click', (e) => {
   // 서랍이 열려 있으면 바깥을 누를 때 닫기만 한다
   if ($('side').classList.contains('open') && !e.target.closest('#side, [data-act="menu"]')) { $('side').classList.remove('open'); return; }
   if (e.target.closest('a.tlink')) return;
-  const t = e.target.closest('[data-page],[data-project],[data-session],[data-open],[data-close],[data-qsend],[data-compact],[data-askmgr],[data-act],[data-tab],[data-ptab],[data-mlane],[data-chat],[data-unattach],[data-mkmanager],[data-quick],[data-answer],[data-cu]');
+  const t = e.target.closest('[data-page],[data-project],[data-session],[data-open],[data-close],[data-qsend],[data-compact],[data-askmgr],[data-act],[data-tab],[data-ptab],[data-mlane],[data-chat],[data-unattach],[data-mkmanager],[data-quick],[data-answer],[data-wsend],[data-cu]');
   if (t && t.dataset.compact) return compactSession(t.dataset.compact);
   if (t && t.dataset.askmgr) return askManager(JSON.parse(t.dataset.askmgr));
   if (t && t.dataset.qsend) {
@@ -1502,6 +1527,18 @@ document.addEventListener('click', (e) => {
     }
     t.disabled = true;
     return answer(t.dataset.answer, t.dataset.value);
+  }
+  if (t.dataset.wsend) {
+    if (!t.classList.contains('armed')) {
+      document.querySelectorAll('.opt.armed').forEach((b) => { b.classList.remove('armed'); b.querySelector('em')?.remove(); });
+      t.classList.add('armed'); t.insertAdjacentHTML('beforeend', '<em>한 번 더 눌러 보내기</em>');
+      setTimeout(() => { t.classList.remove('armed'); t.querySelector('em')?.remove(); }, 3000);
+      return;
+    }
+    const s = model().all.find((x) => x.handle === t.dataset.wsend);
+    if (!s) return toast('세션을 찾지 못했습니다');
+    t.disabled = true;
+    return cmd(s.device, 'send', { handle: s.handle, text: t.dataset.value }, s.title).then((r) => { toast(r.ok ? `보냈습니다 — ${t.dataset.value}` : `못 보냈습니다: ${r.error}`); setTimeout(load, 3000); });
   }
   if (t.dataset.quick) return sendText(QUICK[+t.dataset.quick][1]);
   if (t.dataset.tab) { view.tab = t.dataset.tab; return render(); }
