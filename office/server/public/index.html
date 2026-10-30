@@ -204,6 +204,11 @@ h3.sh { font-size: 13px; font-weight: 600; color: var(--muted); margin: 6px 2px 
 
 /* 프로젝트 카드 */
 .pcard2 { cursor: pointer; margin-bottom: 10px; }
+.pcard2.sub { margin-left: 18px; border-left: 3px solid var(--accent); }
+.ptile.sub { padding-left: 26px; }
+.ptile.sub .pav { width: 22px; height: 22px; font-size: 11px; }
+.pbar { height: 6px; border-radius: 3px; background: var(--line2); overflow: hidden; width: 100%; }
+.pbar > i { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
 .pcard2 .pt { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
 .pcard2 .pt b { font-size: 16px; }
 .mini { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
@@ -521,9 +526,22 @@ function model() {
       projects.get(r.name).repos.push({ ...r, device: d.device, online: d.online });
     }
   }
+  // 현황판: 모듈이 board:{parent, sessions, manager} 를 단 대시보드(잡탕 광산·발굴분석·도구개발 등)는 따로 뜬다.
+  const boards = [];
+  const seen = new Set();
+  for (const d of S.devices) for (const [key, db] of Object.entries(d.state?.dashboards || {})) {
+    if (!db?.board || seen.has(key)) continue;
+    seen.add(key);
+    const names = (db.board.sessions || []).map(cleanTitle);
+    boards.push({ key, name: db.title || key, board: db.board, repos: [],
+      sessions: all.filter((x) => names.some((n) => cleanTitle(x.title).startsWith(n))) });
+  }
   for (const p of projects.values()) p.sessions.sort((a, b) => (b.last_output_at || 0) - (a.last_output_at || 0));
-  const list = [...projects.values()].filter((p) => !HIDDEN_PROJECTS.has(p.key))
+  const top = [...projects.values()].filter((p) => !HIDDEN_PROJECTS.has(p.key))
     .sort((a, b) => b.sessions.length - a.sessions.length || a.name.localeCompare(b.name, 'ko'));
+  const list = [];
+  for (const p of top) { list.push(p); list.push(...boards.filter((b) => b.board.parent === p.key)); }
+  list.push(...boards.filter((b) => !top.some((p) => p.key === b.board.parent)));
   return { projects: list, all };
 }
 
@@ -591,7 +609,7 @@ function renderSide(M) {
   $('nav').innerHTML = nav.map(([k, ic, t, n]) => `<button class="navb ${view.page === k ? 'on' : ''}" data-page="${k}"><span class="ic">${ic}</span><span>${t}</span>${n}</button>`).join('');
   $('tree').innerHTML = '<h4>프로젝트</h4>' + M.projects.map((p) => {
     const busy = p.sessions.filter((s) => s.status === 'busy').length;
-    return `<button class="ptile ${view.page === 'project' && view.project === p.key ? 'on' : ''}" data-project="${esc(p.key)}">
+    return `<button class="ptile ${p.board ? 'sub' : ''} ${view.page === 'project' && view.project === p.key ? 'on' : ''}" data-project="${esc(p.key)}">
       <span class="pav">${esc(p.name.slice(0, 1))}</span>
       <span class="pn"><b>${esc(p.name)}</b><small>세션 ${p.sessions.length}${busy ? ` · 작업 중 ${busy}` : ''}</small></span>
       ${busy ? '<span class="dot d-busy"></span>' : ''}</button>`;
@@ -660,8 +678,9 @@ function projCard(p) {
     const db = dashboardFor(p.key);
     const stats = (db?.tabs?.[0]?.sections?.find((s) => s.type === 'stats')?.items || []).slice(0, 3);
     const b = p.sessions.filter((s) => s.status === 'busy').length;
-    return `<div class="card pcard2" data-project="${esc(p.key)}">
-      <div class="pt"><b>${esc(p.name)}</b><span class="muted">세션 ${p.sessions.length}${b ? ` · <span class="t-busy">작업 중 ${b}</span>` : ''}</span><span class="chev">›</span></div>
+    const parent = p.board ? (PROJECT_NAMES[p.board.parent] || p.board.parent) : '';
+    return `<div class="card pcard2 ${p.board ? 'sub' : ''}" data-project="${esc(p.key)}">
+      <div class="pt">${parent ? `<span class="muted">${esc(parent)} ·</span>` : ''}<b>${esc(p.name)}</b><span class="muted">세션 ${p.sessions.length}${b ? ` · <span class="t-busy">작업 중 ${b}</span>` : ''}</span><span class="chev">›</span></div>
       ${stats.length ? `<div class="mini">${stats.map((i) => `<div><div class="mv ${i.tone ? 't-' + i.tone : ''}">${esc(i.value)}</div><div class="muted">${esc(i.label)}</div></div>`).join('')}</div>`
         : `<div class="muted">${db ? '' : '대시보드 준비 중'}</div>`}
     </div>`;
@@ -727,7 +746,7 @@ const SECTIONS = {
     const sess = i.session && CUR_M ? findByTitle(CUR_M, i.session) : null;
     const ask = JSON.stringify({ title: i.title, sub: i.sub || '', detail: i.detail || '', rec: i.rec || '', session: sess ? nice(sess.title).name : (i.session || '') });
     return `<div class="acard a-${i.tone || 'muted'} tall xcard" data-act="xpand">
-    <span class="at">${esc(i.title)}</span>${i.sub ? `<span class="muted">${esc(i.sub)}</span>` : ''}${i.right ? `<span class="muted">${esc(i.right)}</span>` : ''}
+    <span class="at">${esc(i.title)}${i.pct != null ? ` <span class="muted">${esc(i.pct)}%</span>` : ''}</span>${i.pct != null ? `<span class="pbar"><i style="width:${Math.max(0, Math.min(100, +i.pct || 0))}%"></i></span>` : ''}${i.sub ? `<span class="muted">${esc(i.sub)}</span>` : ''}${i.right ? `<span class="muted">${esc(i.right)}</span>` : ''}
     <div class="xd">${i.detail ? `<div>${esc(i.detail)}</div>` : ''}${i.rec ? `<div class="xrec"><b>추천</b> ${esc(i.rec)}</div>` : ''}
       <div class="xb"><button class="small primary" data-askmgr="${esc(ask)}">담당에게 묻기</button>${sess ? `<button class="small" data-open="${esc(sess.handle)}">${esc(nice(sess.title).name)} 열기</button>` : ''}</div></div></div>`;
   }).join('')}</div>`
@@ -926,7 +945,7 @@ function renderProject(M) {
     const t = db.tabs.find((x) => x.key === view.ptab);
     body = db.error ? `<div class="card" style="color:var(--bad)">대시보드 모듈 오류: ${esc(db.error)}</div>` : t.sections.map(section).join('');
   }
-  const mgrTitle = S.config?.projects?.[p.key]?.manager;
+  const mgrTitle = S.config?.projects?.[p.key]?.manager || p.board?.manager;
   const mgr = mgrTitle ? findByTitle(M, mgrTitle, p.sessions) || findByTitle(M, mgrTitle) : null;
   return head(esc(p.name), sub, NEW_BTN)
     + `<div class="body">${chatBox(`pm:${p.key}`, mgr, `${p.name} 담당`, '여러 레인에 걸친 지시만 — 레인 하나의 일은 아래 세션 카드에서 그 세션에 바로')}
