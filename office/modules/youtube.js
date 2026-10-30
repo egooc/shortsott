@@ -10,6 +10,9 @@
 //   docs/reports/YYYY-MM-DD-perf.md          관리자 성과 보고 1절 표
 //   server/output/task-logs/gpt-ask.jsonl    GPT 주간 한도
 //   Windows 예약 작업 midform-*               마지막 실행 결과
+//   docs/jabtang-mine/status.json            잡탕 광산 결 카드 (발굴분석 세션이 매일 덮어씀)
+//   docs/work-status/<도구개발|발굴분석>.json  지원 세션 진행판 (각 세션이 일 바뀔 때마다 갱신)
+//   docs/handoff-manager-20261014.md §10     지원 세션 최근 기록 줄(보조)
 // 화면 규격(섹션 종류)은 office/server/public/index.html 의 renderDashboard 와 맞춘다.
 
 const fs = require('fs');
@@ -107,6 +110,82 @@ function perfSection(perf) {
   return { type: 'table', title: `채널별 조회 (${perf.date} 보고 · 편당 중앙값)`, columns: ['채널', '구독', '그제 올린 편', '어제 올린 편', '예약'],
     rows: rows.map((x) => [x.name, x.subs, fmt(x.d2), fmt(x.d1), x.queue]),
     note: '그제 편은 이틀 지난 조회, 어제 편은 첫날 신호입니다. 올린 편이 없는 채널은 뺐습니다.' };
+}
+
+// ── 잡탕 광산: 잡탕 채널의 터진 편에서 «결»(소재·감정·틀)을 뽑아 우리 채널에 시험 투하 ──
+const GYEOL_TONE = { 후보: 'muted', 검증됨: 'warn', 배정됨: 'busy', 투하: 'ok' };
+const n = (v) => (typeof v === 'number' ? v : null);
+function mineSections(m) {
+  if (!m) return [{ type: 'note', text: '잡탕 광산 첫 판을 기다리는 중입니다. 발굴분석 세션이 오늘 안에 첫 결 카드를 올립니다.' }];
+  const st = m.stage || {};
+  const gy = Array.isArray(m.gyeol) ? m.gyeol : [];
+  const by = (k) => gy.filter((g) => g.status === k).length;
+  const dropped = gy.reduce((a, g) => a + (Array.isArray(g.drops) ? g.drops.length : 0), 0);
+  const items = gy.map((g) => {
+    const drops = Array.isArray(g.drops) ? g.drops : [];
+    const ev = (Array.isArray(g.evidence) && g.evidence.length ? g.evidence : g.best ? [g.best] : [])
+      .map((e) => [e.channel, e.title && `«${e.title}»`, n(e.views) != null && `${fmt(e.views)}회`, n(e.x) != null && `채널 평소의 ${e.x}배`].filter(Boolean).join(' '));
+    const dropTxt = drops.map((d) => `${d.published || ''} «${d.title || ''}» ${fmt(n(d.views))}회 (채널 평소 ${fmt(n(d.channel_median))}회${n(d.views) != null && n(d.channel_median) ? `, ${(d.views / d.channel_median).toFixed(1)}배` : ''})`);
+    const status = g.status || (n(g.channels) >= 2 ? '검증됨' : '후보');
+    const sub = [status, g.channels != null && `독립 채널 ${g.channels}곳`, g.hits != null && `터진 편 ${g.hits}개`, g.our_channel && `→ ${g.our_channel}`, drops.length && `투하 ${drops.length}편`].filter(Boolean).join(' · ');
+    return {
+      title: g.name || g.id, sub, tone: GYEOL_TONE[status] || '',
+      detail: [`소재: ${g['소재'] || '—'}`, `감정: ${g['감정'] || '—'}`, `틀: ${g['틀'] || '—'}`,
+        ev.length && `근거: ${ev.join(' / ')}`, g.specialist && `이 결만 하는 전문 채널: ${g.specialist}`, g.risk && `위험: ${g.risk}`,
+        g.longshort_fit != null && `롱투숏에 ${g.longshort_fit ? '맞음' : '안 맞음'}`, dropTxt.length ? `투하 결과: ${dropTxt.join(' / ')}` : g.our_channel && '아직 투하 전',
+        m.doc && `(카드 원문 ${m.doc})`].filter(Boolean).join('\n'),
+      rec: g.our_angle ? `${g.our_channel ? g.our_channel + '에 ' : ''}우리 관점: ${g.our_angle}` : '',
+      session: 'YTHOME-M-발굴분석',
+    };
+  });
+  const rank = { 투하: 0, 배정됨: 1, 검증됨: 2, 후보: 3 };
+  items.sort((a, b) => (rank[a.sub.split(' · ')[0]] ?? 9) - (rank[b.sub.split(' · ')[0]] ?? 9));
+  return [
+    { type: 'stats', items: [
+      { label: '수집한 채널', value: fmt(n(st.channels_collected)), sub: st.channels_measured != null ? `조회 잰 곳 ${fmt(st.channels_measured)}` : '' },
+      { label: '잡탕 채널', value: fmt(n(st.channels_jabtang)), sub: '최고 편이 평소의 10배+' },
+      { label: '터진 편', value: fmt(n(st.hit_videos)), sub: '채널 평소의 5배+' },
+      { label: '찾은 결', value: n(st.gyeol_named) ?? gy.length, sub: `검증 ${n(st.gyeol_real) ?? by('검증됨')}` },
+      { label: '배정·투하', value: `${by('배정됨') + by('투하')}`, sub: `투하 ${dropped}편`, tone: dropped ? 'ok' : '' },
+    ] },
+    { type: 'list', title: `결 카드 (${m.updated ? mdhm(Date.parse(m.updated)) : '—'} 갱신)`, empty: '아직 이름 붙인 결이 없습니다.', items },
+    { type: 'note', text: '검증됨 = 서로 다른 채널 2곳 이상에서 같은 결이 터짐. 카드를 누르면 근거·투하 결과·추천이 펼쳐집니다.' },
+  ];
+}
+
+// ── 지원 세션 진행판 (도구개발·발굴분석) ──
+function handoffLines(prefix, max) {
+  const t = (() => { try { return fs.readFileSync(D('docs/handoff-manager-20261014.md'), 'utf8'); } catch { return ''; } })();
+  return t.split('\n').filter((l) => l.startsWith(`- ${prefix}(`)).slice(-max).reverse().map((l) => l.slice(2));
+}
+function workSections(key, prefix, session) {
+  const w = readJson(`docs/work-status/${key}.json`);
+  const out = [];
+  if (w) {
+    // 옛 이름(tasks·what·blocked:"없음")도 받는다.
+    const noBlock = (b) => !b || /^(없음|없다|none|-)$/i.test(String(b).trim());
+    const now = (Array.isArray(w.now) ? w.now : Array.isArray(w.tasks) ? w.tasks : []).map((x) => ({ ...x, title: x.title || x.what || '', blocked: noBlock(x.blocked) ? null : x.blocked }));
+    const done = (Array.isArray(w.done) ? w.done : []).map((d) => ({ ...d, title: d.title || d.what || '' })).filter((d) => !d.at || Date.parse(d.at) > Date.now() - 7 * 864e5);
+    out.push({ type: 'stats', items: [
+      { label: '하는 일', value: now.length },
+      { label: '막힌 일', value: now.filter((x) => x.blocked).length, tone: now.some((x) => x.blocked) ? 'bad' : 'ok' },
+      { label: '7일 끝낸 일', value: done.length },
+      { label: '마지막 갱신', value: w.updated ? mdhm(Date.parse(w.updated)) : '—' },
+    ] });
+    out.push({ type: 'list', title: '지금 하는 일', empty: '진행 중인 일이 없습니다.', items: now.map((x) => ({
+      title: `${x.title}${x.pct != null ? ` — ${x.pct}%` : ''}`,
+      sub: [x.lane && `${x.lane}용`, x.stage, x.blocked && `막힘: ${x.blocked}`].filter(Boolean).join(' · '),
+      tone: x.blocked ? 'bad' : 'busy',
+      detail: [x.lane && `어느 레인: ${x.lane}`, x.stage && `지금 단계: ${x.stage}`, x.next && `다음 단계: ${x.next}`, x.blocked && `막힌 것: ${x.blocked}`,
+        x.updated && `갱신: ${mdhm(Date.parse(x.updated))}`, x.note].filter(Boolean).join('\n'),
+      rec: x.blocked ? '막힌 이유를 풀어 줄 사람이 소유주인지 다른 세션인지 확인' : x.next || '', session,
+    })) });
+    out.push({ type: 'table', title: '끝낸 일 (최근 7일)', columns: ['일', '레인', '끝난 때', '결과'],
+      rows: done.map((d) => [d.title, d.lane || '—', d.at ? mdhm(Date.parse(d.at)) : '—', d.result || '—']) });
+  } else out.push({ type: 'note', text: `${prefix} 세션이 아직 진행판을 올리지 않았습니다. 아래는 관리자 기록에 남긴 최근 줄입니다.` });
+  const lines = handoffLines(prefix, 8);
+  if (lines.length) out.push({ type: 'list', title: '관리자 기록 최근 줄', items: lines.map((l) => ({ title: l.slice(0, 70) + (l.length > 70 ? '…' : ''), detail: l, session })) });
+  return out;
 }
 
 module.exports = {
@@ -265,6 +344,12 @@ module.exports = {
           { type: 'table', title: '수익 창출 조건 진행', columns: ['채널', '구독', '쇼츠 90일 조회', '롱폼 365일 시청', '진행'], rows: yppRows },
           { type: 'table', title: `조회 빠른 편 (영화 해설, ${metrics ? mdhm(Date.parse(metrics.at)) : '—'} 기준)`, columns: ['편', '조회', '하루 조회', '경과'], rows: topVideos },
         ] },
+        { key: 'mine', label: '잡탕 광산', sections: mineSections(readJson('docs/jabtang-mine/status.json')) },
+        { key: 'discovery', label: '발굴분석', sections: [
+          ...workSections('발굴분석', '발굴', 'YTHOME-M-발굴분석'),
+          { type: 'note', text: '찾은 결 후보는 «잡탕 광산» 탭에 있습니다.' },
+        ] },
+        { key: 'tools', label: '도구개발', sections: workSections('도구개발', '도구개발', 'YTHOME-M-도구개발') },
         { key: 'schedule', label: '업로드 일정', sections: [
           { type: 'calendar', title: '앞으로 7일 예약 공개', days },
         ] },
