@@ -4,10 +4,8 @@
   "_blotato": "off = Blotato 호출 0회. 인스타·페북·스레드 글은 실패가 아니라 skip:blotato_off 로 기록(레인 fill·발행 FAIL 안 남). 메타 직접 앱이 생기면 그 경로로 바꾼다(docs/meta-direct-app-prep.md).",
   "tiktok": {
     "hold": false,
-    "keep": [
-      "62703"
-    ]
+    "keep": []
   },
   "_tiktok": "hold=true 면 틱톡 글은 skip:zernio_hold(소유주가 Zernio 2계정을 고를 때까지). keep 은 hold 와 상관없이 지금처럼 Zernio 로 가는 Blotato accountId — 62703 쓸모연구소는 상시 논외 규칙(일괄 보류에서 뺀다). 고른 뒤: hold=false, 안 고른 계정은 zernio_accounts.json 에서 뺀다(빠진 틱톡 계정 글은 skip:zernio_unmapped).",
-  "_tiktok_pick": "2026-10-29 소유주 오피스 #8: 쇼핑(shorteg006)+일본 영화 채널(numaochicinema) 2계정. hold 해제. 일본 영화 채널은 Zernio 에서 다시 연결해야 실제로 나간다."
+  "_tiktok_pick": "2026-10-29 소유주 오피스 #8: 쇼핑(shorteg006)+일본 영화 채널(numaochicinema) 2계정. hold 해제. 일본 영화 채널은 Zernio 에서 다시 연결해야 실제로 나간다. | 2026-10-30 소유주 오피스: 쇼핑 틱톡 «일단 때려치고» 중단 — 62703(shorteg006 쓸모연구소) keep 에서 뺌, Zernio 무료 2자리는 롱투숏 계열로."
 }
