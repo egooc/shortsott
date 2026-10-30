@@ -144,6 +144,11 @@ if (!SELFTEST) {
     if ((S.segs || []).some(g => g.fit) && !S.fit_ok) bad.push('⑨ 결 틀: 가로 통짜(segs[].fit)는 spec.window="square"(정사각 창) 로 먼저 풀고, 그래도 안 되는 컷만 spec.fit_ok 에 사유를 적어라(소유주 10/29)');
     else if ((S.segs || []).some(g => g.fit)) console.error(`[publish] △ 가로 통짜 컷 ${(S.segs || []).filter(g => g.fit).length}개 — fit_ok: ${S.fit_ok}`);
   }
+  // 10/30 소유주 «엔믹스에 카르멘이 누군데? 멤버가 아니잖아»(n05 카르멘=하츠투하츠 사고) — 레인은 그룹 하나. 설윤이또(idol3sec_ko)=엔믹스, 제임스 과몰입(cortis_fan_ko)=코르티스. 다른 그룹 편은 FAIL.
+  const LANE_GROUP = { idol3sec_ko: ['엔믹스', 'NMIXX'], cortis_fan_ko: ['코르티스', 'CORTIS'] };
+  const lg = LANE_GROUP[M.purpose || 'idol3sec_ko'] || [];
+  const lgGot = String((S.group_check || {}).group || '');
+  if (lg.length && !lg.includes(lgGot)) bad.push(`⑩ 레인 그룹 불일치 — 이 채널은 ${lg[0]} 전용인데 spec.group_check.group=«${lgGot || '없음'}» (소유주 10/30)`);
   // 꽉갈이 누락분 G22(10/21 관리자, RULES_PDF 25~29항) — 10/23 부터 막고 그 전엔 경고만.
   const g22 = [];
   const gc = S.group_check || {};
