@@ -147,12 +147,12 @@ aside.panel { background: var(--panel); border-left: 1px solid var(--line); disp
 .screen .tlink, .fscreen .tlink { color: #7cb4ff; }
 /* 대화로 보기 */
 .chatv { display: flex; flex-direction: column; gap: 10px; font: 14px/1.6 inherit; font-family: inherit; white-space: normal; }
-.screen.chatmode, .fscreen.chatmode { background: var(--bg); color: var(--text); font: 14px/1.6 system-ui, -apple-system, "Malgun Gothic", sans-serif; white-space: normal; }
+.screen.chatmode, .fpanel .fscreen.chatmode { background: var(--bg); color: var(--text); font: 14px/1.6 system-ui, -apple-system, "Malgun Gothic", sans-serif; white-space: normal; }
 .bub { max-width: 92%; padding: 9px 12px; border-radius: 14px; word-break: break-word; }
 .bub.me { align-self: flex-end; background: var(--accent); color: #fff; border-bottom-right-radius: 4px; }
 .bub.me .tlink { color: #fff; }
-.bub.peer, .bub.sys { align-self: center; background: var(--line2); color: var(--muted); font-size: 12.5px; max-width: 100%; }
-.bub.ai { align-self: flex-start; background: var(--panel); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
+.bub.peer, .bub.sys { align-self: center; background: var(--line2); color: var(--text); font-size: 12.5px; max-width: 100%; }
+.bub.ai { align-self: flex-start; background: var(--panel); color: var(--text); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
 .bub .bm { font-size: 11px; color: var(--muted); margin-top: 4px; }
 .bub.me .bm { color: rgba(255,255,255,.75); text-align: right; }
 .bub p { margin: 0 0 6px; } .bub p:last-child { margin-bottom: 0; }
@@ -161,7 +161,7 @@ aside.panel { background: var(--panel); border-left: 1px solid var(--line); disp
 .bub code { font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; background: var(--line2); padding: 0 4px; border-radius: 4px; }
 .bub table { border-collapse: collapse; font-size: 12.5px; margin: 4px 0; display: block; overflow-x: auto; }
 .bub td, .bub th { border: 1px solid var(--line); padding: 3px 6px; text-align: left; }
-.bub.work { align-self: flex-start; color: var(--muted); font-size: 12.5px; background: none; padding: 0 4px; }
+.bub.work { align-self: flex-start; color: var(--text); font-size: 12.5px; background: none; padding: 0 4px; }
 .vtog { font-size: 11.5px; }
 .quick { display: flex; gap: 6px; flex-wrap: wrap; padding: 0 12px 8px; }
 .composer { display: flex; gap: 8px; padding: 0 12px 14px; align-items: flex-end; }
