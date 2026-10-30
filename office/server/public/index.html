@@ -145,6 +145,24 @@ aside.panel { background: var(--panel); border-left: 1px solid var(--line); disp
   padding: 12px 14px; font: 12px/1.45 ui-monospace, "Cascadia Mono", Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
 .tlink { color: var(--accent); text-decoration: underline; word-break: break-all; }
 .screen .tlink, .fscreen .tlink { color: #7cb4ff; }
+/* 대화로 보기 */
+.chatv { display: flex; flex-direction: column; gap: 10px; font: 14px/1.6 inherit; font-family: inherit; white-space: normal; }
+.screen.chatmode, .fscreen.chatmode { background: var(--bg); color: var(--text); font: 14px/1.6 system-ui, -apple-system, "Malgun Gothic", sans-serif; white-space: normal; }
+.bub { max-width: 92%; padding: 9px 12px; border-radius: 14px; word-break: break-word; }
+.bub.me { align-self: flex-end; background: var(--accent); color: #fff; border-bottom-right-radius: 4px; }
+.bub.me .tlink { color: #fff; }
+.bub.peer, .bub.sys { align-self: center; background: var(--line2); color: var(--muted); font-size: 12.5px; max-width: 100%; }
+.bub.ai { align-self: flex-start; background: var(--panel); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
+.bub .bm { font-size: 11px; color: var(--muted); margin-top: 4px; }
+.bub.me .bm { color: rgba(255,255,255,.75); text-align: right; }
+.bub p { margin: 0 0 6px; } .bub p:last-child { margin-bottom: 0; }
+.bub ul, .bub ol { margin: 2px 0 6px; padding-left: 20px; } .bub li { margin: 1px 0; }
+.bub h4 { margin: 8px 0 4px; font-size: 14.5px; }
+.bub code { font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; background: var(--line2); padding: 0 4px; border-radius: 4px; }
+.bub table { border-collapse: collapse; font-size: 12.5px; margin: 4px 0; display: block; overflow-x: auto; }
+.bub td, .bub th { border: 1px solid var(--line); padding: 3px 6px; text-align: left; }
+.bub.work { align-self: flex-start; color: var(--muted); font-size: 12.5px; background: none; padding: 0 4px; }
+.vtog { font-size: 11.5px; }
 .quick { display: flex; gap: 6px; flex-wrap: wrap; padding: 0 12px 8px; }
 .composer { display: flex; gap: 8px; padding: 0 12px 14px; align-items: flex-end; }
 .composer textarea { min-height: 44px; max-height: 160px; }
@@ -1085,9 +1103,51 @@ function renderFab(M) {
   const att = ATTACH.office || [];
   el.querySelector('.fatts').innerHTML = att.map((a, i) => `<span class="att">${esc(a.name)} <button class="x" data-unattach="office:${i}">×</button></span>`).join('');
 }
+// 짧은 마크다운(굵게·목록·제목·표·코드)만 그린다
+function mdHtml(t) {
+  const inl = (x) => linkify(x).replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/`([^`]+)`/g, '<code>$1</code>');
+  const L = String(t || '').split('\n'); let h = '', list = null, tbl = null;
+  const flush = () => { if (list) { h += `</${list}>`; list = null; } if (tbl) { h += `<table>${tbl.map((r, i) => `<tr>${r.map((c) => i ? `<td>${inl(c)}</td>` : `<th>${inl(c)}</th>`).join('')}</tr>`).join('')}</table>`; tbl = null; } };
+  for (const raw of L) {
+    const l = raw.trimEnd();
+    if (/^\s*\|.*\|\s*$/.test(l)) { if (list) { h += `</${list}>`; list = null; } if (/^\s*\|[\s:|-]+\|\s*$/.test(l)) continue; (tbl ||= []).push(l.trim().slice(1, -1).split('|').map((c) => c.trim())); continue; }
+    const ul = l.match(/^\s*[-*•]\s+(.*)/), ol = l.match(/^\s*\d+[.)]\s+(.*)/), hd = l.match(/^#{1,4}\s+(.*)/);
+    if (ul || ol) { const k = ul ? 'ul' : 'ol'; if (tbl) flush(); if (list !== k) { if (list) h += `</${list}>`; h += `<${k}>`; list = k; } h += `<li>${inl((ul || ol)[1])}</li>`; continue; }
+    flush();
+    if (hd) h += `<h4>${inl(hd[1])}</h4>`; else if (l.trim()) h += `<p>${inl(l)}</p>`;
+  }
+  flush();
+  return h;
+}
+function chatHtml(c, busy) {
+  const b = (c.turns || []).map((x) => {
+    const at = x.at ? ago(Date.parse(x.at)) : '';
+    const me = `<div class="bub ${x.who === 'me' ? 'me' : x.who}">${x.who === 'me' ? mdHtml(x.text.replace(/^\[오피스 · 소유주\]\s*/, '').replace(/\n?첨부\d+\([^)]*\): \S+.*$/gm, '\n📎 첨부')) : esc(x.text.slice(0, 300))}${x.who === 'me' ? `<div class="bm">${at}</div>` : ''}</div>`;
+    const ai = x.reply ? `<div class="bub ai">${mdHtml(x.reply)}<div class="bm">${x.tools ? `작업 ${x.tools}번` : ''}</div></div>` : '';
+    return me + ai;
+  }).join('');
+  return `<div class="chatv">${b || '<div class="muted">대화 기록이 아직 없습니다.</div>'}${busy ? '<div class="bub work">● 작업 중…</div>' : ''}</div>`;
+}
+// 대화로 볼 수 있으면 대화로, 아니면(Codex·옛 연결기) 터미널 글자로
+const RAW = {};
+async function paintSession(el, sess, first) {
+  if (!RAW[sess.handle]) {
+    const r = await cmd(sess.device, 'chat', { handle: sess.handle }).catch(() => null);
+    if (r?.ok) {
+      const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
+      const html = chatHtml(r.result, r.result.status === 'busy');
+      if (el.dataset.last !== html) { el.classList.add('chatmode'); el.innerHTML = html; el.dataset.last = html; if (first || atBottom) el.scrollTop = el.scrollHeight; }
+      return true;
+    }
+  }
+  el.classList.remove('chatmode'); delete el.dataset.last;
+  return false;
+}
+
 async function fabScreen() {
   const sess = CHAT.office; const box = $('fab').querySelector('.fscreen');
   if (!fabOpen || !sess || !box) return;
+  if (await paintSession(box, sess, !box.dataset.last)) return;
   const r = await cmd(sess.device, 'read', { handle: sess.handle }).catch(() => null);
   const tail = r?.ok ? (r.result?.terminal?.tail || []) : null;
   if (!tail) return;
@@ -1268,6 +1328,7 @@ function openPanel(handle) {
   p.innerHTML = `<div class="ph"><div class="row1"><b>${niceHtml(s.title)}</b>
       <div><button class="small danger" data-close="${esc(handle)}">세션 닫기</button> <button class="small" data-act="panel-x">✕</button></div></div>
       <div class="meta"></div></div>
+    <div style="padding:0 12px"><button class="small ghost vtog" data-act="rawtoggle">터미널 그대로 보기 ↔ 대화로 보기</button></div>
     <div class="screen" id="screen">화면을 불러오는 중…</div>
     <div class="quick">${QUICK.map(([t], i) => `<button class="small" data-quick="${i}">${t}</button>`).join('')}</div>
     <div class="composer"><textarea id="msg" rows="2" placeholder="이 세션에 보낼 말 — Enter 로 보내기, Shift+Enter 줄바꿈"></textarea><button class="primary" data-act="send">보내기</button></div>`;
@@ -1285,6 +1346,7 @@ async function refreshScreen(first) {
   const s = findSession(view.session);
   if (!s) return;
   if (!s.online) { $('screen').textContent = '기기가 꺼져 있어 화면을 볼 수 없습니다.\n\n마지막 화면:\n' + (s.preview || ''); return; }
+  if ($('screen') && await paintSession($('screen'), s, first)) return;
   const r = await cmd(s.device, 'read', { handle: s.handle }).catch(() => null);
   const el = $('screen'); if (!el) return;
   const term = r?.result?.terminal || r?.result || {};
@@ -1470,6 +1532,7 @@ document.addEventListener('click', (e) => {
   if (a === 'tab:big') { view.page = 'tidy'; view.tab = 'big'; return render(); }
   if (a && a.startsWith('project:')) { view.page = 'project'; view.project = a.slice(8); return render(); }
   if (a === 'expand') return t.classList.toggle('clamp');
+  if (a === 'rawtoggle') { const s = findSession(view.session); if (s) { RAW[s.handle] = !RAW[s.handle]; refreshScreen(true); } return; }
   if (a === 'fab') return toggleFab();
   if (a === 'xpand') { if (e.target.closest('button') || (t.classList.contains('open') && e.target.closest('.xd'))) return; return t.classList.toggle('open'); }
   if (a === 'drawer') return $('side').classList.toggle('open');

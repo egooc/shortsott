@@ -99,9 +99,16 @@ const cleanName = (t) => String(t || '').replace(/^[^\p{L}\p{N}]+/u, '').trim();
 // Claude Code 세션 상태 파일(~/.claude/sessions/*.json)과 대화 꼬리(최대 400KB)만 읽는다.
 // Orca 밖 세션(데스크톱 앱·원격 제어로 띄운 것)도 여기서 보이고, «허가 대기»·«소유주에게 묻고 멈춤»을 잡는다(10-30 N100 질문 놓침).
 const ASK_RE = /[?？]\s*\**\s*$|할까요|될까요|좋을까요|괜찮을까요|주세요|주시면|골라|선택해|정해 주|알려 주|하시겠어요|원하시면|어느 쪽|어떤 걸로/;
+// 키·토큰처럼 보이는 값(이름=값, sk-/ghp_/Bearer, 32자 넘는 무작위 덩어리)은 허브로 보내기 전에 가린다
+const redact = (t) => String(t || '')
+  .replace(/(?<![?&\w])([A-Z0-9_]*(KEY|TOKEN|SECRET|PASSWORD|PASS)[A-Z0-9_]*)\s*[=:]\s*\S+/gi, '$1=••••')
+  .replace(/\b(Bearer\s+)\S+/gi, '$1••••')
+  .replace(/\b(sk|pk|rk|ghp|gho|xox[abp])[-_][A-Za-z0-9_-]{10,}/g, '••••')
+  .replace(/(?<![\w/%.=-])[A-Za-z0-9_+/-]{32,}={0,2}(?![\w/%])/g, (m) => /[0-9]/.test(m) && /[A-Za-z]/.test(m) ? '••••' : m);
 const pidAlive = (pid) => { try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; } };
 const textOf = (c) => typeof c === 'string' ? c : Array.isArray(c) ? c.filter((x) => x && x.type === 'text').map((x) => x.text).join('\n') : '';
 let ccCache = { at: 0, list: [] };
+const handleTitles = new Map();
 function claudeSessions() {
   if (Date.now() - ccCache.at < 20e3) return ccCache.list;
   const list = [];
@@ -125,9 +132,9 @@ function claudeSessions() {
           lastSeen = true;
           const c = j.message?.content;
           const ask = Array.isArray(c) && c.find((y) => y && y.type === 'tool_use' && y.name === 'AskUserQuestion');
-          if (j.type === 'assistant' && ask) x.ask = { kind: 'question', text: (ask.input?.questions || []).map((q) => q.question + (q.options ? ' — ' + q.options.map((o) => o.label).join(' / ') : '')).join('\n'), at: j.timestamp };
+          if (j.type === 'assistant' && ask) x.ask = { kind: 'question', text: redact((ask.input?.questions || []).map((q) => q.question + (q.options ? ' — ' + q.options.map((o) => o.label).join(' / ') : '')).join('\n')), at: j.timestamp };
           else if (j.type === 'assistant') {
-            x.last_text = textOf(c).trim();
+            x.last_text = redact(textOf(c).trim());
             const tail = x.last_text.split('\n').filter((t) => t.trim()).slice(-3).join('\n');
             if (x.last_text && !(Array.isArray(c) && c.some((y) => y.type === 'tool_use')) && ASK_RE.test(tail)) x.ask = { kind: 'question', text: x.last_text.slice(-1500), at: j.timestamp };
           }
@@ -141,6 +148,38 @@ function claudeSessions() {
   }
   ccCache = { at: Date.now(), list };
   return list;
+}
+const transcriptOf = (c) => path.join(os.homedir(), '.claude/projects', c.cwd.replace(/[:\\/.]/g, '-'), `${c.session_id}.jsonl`);
+const stripTags = (t) => String(t || '').replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, '').trim();
+// 턴(사람 말 하나)마다: 사람 말 + 세션의 마지막 글(중간 진행 글은 개수만). 진행 중인 턴은 최신 글.
+function readChat(c, turns = 10) {
+  let buf = '';
+  try { const fd = fs.openSync(transcriptOf(c), 'r'); const size = fs.fstatSync(fd).size; const n = Math.min(size, 800000);
+    const b = Buffer.alloc(n); fs.readSync(fd, b, 0, n, size - n); fs.closeSync(fd); buf = b.toString('utf8'); } catch { return []; }
+  const out = [];
+  let cur = null;
+  for (const l of buf.split('\n')) {
+    let j; try { j = JSON.parse(l); } catch { continue; }
+    if (j.isSidechain) continue;
+    const cont = j.message?.content;
+    if (j.type === 'user') {
+      if (Array.isArray(cont) && cont.every((x) => x.type === 'tool_result')) continue;
+      let t = stripTags(textOf(cont)).replace(/^Another Claude session sent a message:\s*/, '').replace(/<\/?pasted_content[^>]*>/g, '').trim();
+      const peer = /^<cross-session-message/.test(t);
+      if (j.isMeta && !peer) continue; // 다른 세션 메시지만 숨은 줄로 들어온다
+      if (!t || /^<(command-|local-command|task-notification|bash-)/.test(t) || /^Caveat:/.test(t)) continue;
+      let who = 'me';
+      if (peer) { who = 'peer'; const m = t.match(/from-name="([^"]+)"/); t = (m ? `[${m[1]}] ` : '[다른 세션] ') + t.replace(/<\/?cross-session-message[^>]*>/g, '').replace(/\n*This came from another Claude session[\s\S]*$/, '').trim(); }
+      else if (/^This session is being continued/.test(t)) { who = 'sys'; t = '대화를 비우고 이어서 시작'; }
+      cur = { who, text: redact(t).slice(0, 3000), at: j.timestamp, replies: [] };
+      out.push(cur);
+    } else if (j.type === 'assistant' && cur) {
+      const t = textOf(cont).trim();
+      if (t) cur.replies.push(redact(t));
+      if (Array.isArray(cont) && cont.some((x) => x.type === 'tool_use')) cur.tools = (cur.tools || 0) + 1;
+    }
+  }
+  return out.slice(-turns).map((x) => ({ who: x.who, text: x.text, at: x.at, reply: (x.replies[x.replies.length - 1] || '').slice(0, 6000), notes: Math.max(0, x.replies.length - 1), tools: x.tools || 0 }));
 }
 function contextSizes() {
   return new Map(claudeSessions().filter((x) => x.name && x.tokens != null).map((x) => [x.name, { tokens: x.tokens, model: x.model }]));
@@ -190,6 +229,7 @@ async function state() {
   } catch {}
   const ctx = contextSizes();
   // orphaned = Orca 창에 탭이 없을 뿐(CLI 로 띄운 세션). 연결돼 있고 이름·에이전트가 있으면 살아 있는 세션이다.
+  for (const t of terms.terminals || []) if (t.handle && t.title) handleTitles.set(t.handle, t.title.replace(/^[✳*·\s]+/, ''));
   const sessions = (terms.terminals || []).filter((t) => !t.orphaned || (t.connected && (t.title || t.agentIdentity))).map((t) => {
     const c = t.agentIdentity === 'claude' ? ctx.get(cleanName(t.title)) : null;
     return {
@@ -223,8 +263,10 @@ async function state() {
   };
 }
 
-// 허브 명령 → Orca CLI. 여기 없는 op 는 전부 거절.
-const { makeCu } = require('./cu');
+// 허브 명령 → Orca CLI. 여기 없는 op 는 전부 거절. 기기 주인이 .env.office 의 OFFICE_DISABLE_OPS(쉼표)로 더 끌 수 있다.
+const DISABLED_OPS = new Set(String(process.env.OFFICE_DISABLE_OPS || env.OFFICE_DISABLE_OPS || '').split(',').map((x) => x.trim()).filter(Boolean));
+// cu.js 가 없으면 «GPT 손»만 꺼진 채로 뜬다(연결기가 멈추지 않게)
+const makeCu = (() => { try { return require('./cu').makeCu; } catch { return () => ({ caps: () => ({}), watch: async () => {}, launch: async () => { throw new Error('이 기기에는 GPT 손(cu.js)이 없다'); } }); } })();
 let cu = null; // appendHandoff·orca 가 정의된 뒤 만든다
 
 const OPS = {
@@ -239,6 +281,13 @@ const OPS = {
     const args = ['terminal', 'read', '--terminal', handle, '--limit', '400'];
     if (cursor != null) args.push('--cursor', String(cursor)); else args.push('--screen');
     return orca(args);
+  },
+  // 대화로 보기: Orca 세션은 이름으로, Orca 밖 세션은 cc:세션ID 로 찾는다
+  async chat({ handle }) {
+    const list = claudeSessions();
+    const c = String(handle).startsWith('cc:') ? list.find((x) => `cc:${x.session_id}` === handle) : list.find((x) => x.name && x.name === cleanName(handleTitles.get(handle)));
+    if (!c) throw new Error('대화 기록을 못 찾았다(Claude 세션이 아니거나 이름이 다름)');
+    return { status: c.status, ask: c.ask, turns: readChat(c) };
   },
   async send({ handle, text }) {
     if (String(handle).startsWith('cc:')) throw new Error('Orca 밖 세션이라 여기서 보낼 수 없다 — 그 기기의 Claude 화면에서 답해야 한다');
@@ -318,9 +367,9 @@ function connect() {
   ws.onmessage = async (ev) => {
     let m; try { m = JSON.parse(ev.data); } catch { return; }
     if (m.type !== 'cmd') return;
-    const fn = OPS[m.op];
+    const fn = DISABLED_OPS.has(m.op) ? null : OPS[m.op];
     try {
-      if (!fn) throw new Error(`모르는 명령 ${m.op}`);
+      if (!fn) throw new Error(DISABLED_OPS.has(m.op) ? `이 기기에서 끈 명령 ${m.op}` : `모르는 명령 ${m.op}`);
       const result = await fn(m.args || {});
       send({ type: 'result', id: m.id, ok: true, result });
       log('명령', m.op, '성공');
