@@ -51,8 +51,7 @@ def clips(beats):
     for b in beats:
         if b.get('line'):
             out.append((f'{b["n"]:02d}_a', b['speaker'].split('.')[0], b.get('say') or spoken(b['line'])))   # say = 말로 읽을 문장(자막 분절 말고, 6판 10-30)
-        if b.get('react_line'):
-            out.append((f'{b["n"]:02d}_b', b['react'].split('.')[0], spoken(b['react_line'])))
+        # 반응 작은 글씨(react_line)는 화면에만 — 읽지 않는다(10-30 #41 소유주 «작은 글씨 tts 를 빼라»)
     return out
 
 
