@@ -27,6 +27,13 @@
         "reference/ja_politics/politics_refs/transcripts"
       ],
       "_note": "경쟁 해설 채널 전사 — 정치JA 세션이 채움"
+    },
+    "yadam_ko": {
+      "lang": "ko",
+      "refs": [
+        "reference/yadam_plan/subs_txt"
+      ],
+      "_note": "야담 레퍼런스 24편(지금야담·설주야담) 자동 자막 전문 — 연금JA 세션 10-31"
     }
   }
 }
