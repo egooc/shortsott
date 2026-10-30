@@ -153,10 +153,23 @@ function claudeSessions() {
 const transcriptOf = (c) => path.join(os.homedir(), '.claude/projects', c.cwd.replace(/[:\\/.]/g, '-'), `${c.session_id}.jsonl`);
 const stripTags = (t) => String(t || '').replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, '').trim();
 // 턴(사람 말 하나)마다: 사람 말 + 세션의 마지막 글(중간 진행 글은 개수만). 진행 중인 턴은 최신 글.
-function readChat(c, turns = 10) {
-  let buf = '';
-  try { const fd = fs.openSync(transcriptOf(c), 'r'); const size = fs.fstatSync(fd).size; const n = Math.min(size, 800000);
-    const b = Buffer.alloc(n); fs.readSync(fd, b, 0, n, size - n); fs.closeSync(fd); buf = b.toString('utf8'); } catch { return []; }
+// 긴 세션은 도구 출력이 커서 꼬리 0.8MB 에 말이 몇 개 안 남는다(10-31 «기존 대화기록이 다 지워졌어») — 사람 말이 turns 개 찰 때까지 더 넓게 읽고, 파일이 그대로면 다시 안 읽는다.
+const chatCache = new Map();
+function readChat(c, turns = 20) {
+  const file = transcriptOf(c);
+  let size; try { size = fs.statSync(file).size; } catch { return []; }
+  const hit = chatCache.get(file);
+  if (hit && hit.size === size && hit.turns === turns) return hit.out;
+  let out = [];
+  for (const n0 of [800e3, 4e6, 16e6]) {
+    const n = Math.min(size, n0);
+    try { const fd = fs.openSync(file, 'r'); const b = Buffer.alloc(n); fs.readSync(fd, b, 0, n, size - n); fs.closeSync(fd); out = parseChat(b.toString('utf8'), turns); } catch { return []; }
+    if (n === size || out.length >= turns) break;
+  }
+  chatCache.set(file, { size, turns, out });
+  return out;
+}
+function parseChat(buf, turns) {
   const out = [];
   let cur = null;
   for (const l of buf.split('\n')) {
@@ -180,7 +193,7 @@ function readChat(c, turns = 10) {
       if (Array.isArray(cont) && cont.some((x) => x.type === 'tool_use')) cur.tools = (cur.tools || 0) + 1;
     }
   }
-  return out.slice(-turns).map((x) => ({ who: x.who, text: x.text, at: x.at, reply: (x.replies[x.replies.length - 1] || '').slice(0, 6000), notes: Math.max(0, x.replies.length - 1), tools: x.tools || 0 }));
+  return out.filter((x, i) => !(x.who === 'sys' && i === 0)).slice(-turns).map((x) => ({ who: x.who, text: x.text, at: x.at, reply: (x.replies[x.replies.length - 1] || '').slice(0, 6000), notes: Math.max(0, x.replies.length - 1), tools: x.tools || 0 }));
 }
 function contextSizes() {
   return new Map(claudeSessions().filter((x) => x.name && x.tokens != null).map((x) => [x.name, { tokens: x.tokens, model: x.model }]));
