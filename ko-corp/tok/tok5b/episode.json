@@ -1,0 +1,70 @@
+{
+ "title": "바다에서 쓸려 나가기 직전 3가지 신호",
+ "lane": "mystery",
+ "scenes": [
+  {
+   "img": "hook",
+   "badge": "재구성 그림",
+   "say": "이 바다에서, 사람이 쓸려 나가는 길이 보이나요?",
+   "prompt": "aerial view of a sunny beach, white breaking waves on both sides with a calm dark gap of water in the middle flowing out to sea, realistic photo style, vertical, no people, no text"
+  },
+  {
+   "img": "hook",
+   "badge": "재구성 그림",
+   "say": "파도가 하얗게 부서지는 곳 사이로, 오히려 잔잔해 보이는 틈. 그곳이 사람을 끌고 나가는 길일 수 있습니다."
+  },
+  {
+   "img": "d_rip",
+   "badge": "도해",
+   "say": "이안류. 해안에서 바다 쪽으로 빠르게 빠져나가는 좁은 물길입니다. 지금부터 장면은 이해를 돕기 위한 재구성이에요."
+  },
+  {
+   "img": "gap",
+   "badge": "재구성 그림",
+   "step": "신호 1",
+   "say": "첫째, 양옆에선 파도가 부서지는데, 한 곳만 잔잔하게 끊겨 보입니다.",
+   "prompt": "beach shoreline view at eye level, waves breaking white left and right, a flat calm strip in the middle, realistic, vertical, no people, no text"
+  },
+  {
+   "img": "dark",
+   "badge": "재구성 그림",
+   "step": "신호 2",
+   "say": "둘째, 그 자리 물빛이 주변보다 짙거나 탁할 수 있어요. 물길이 깊거나, 모래가 섞여 나가면 그렇게 보이죠.",
+   "prompt": "view of sea water near a beach from a cliff, one channel of darker murky brownish water cutting through lighter turquoise water, realistic, vertical, no people, no text"
+  },
+  {
+   "img": "foam",
+   "badge": "재구성 그림",
+   "step": "신호 3",
+   "say": "셋째, 거품이나 해초가 해안이 아니라, 계속 바다 쪽으로 흘러갑니다.",
+   "prompt": "sea foam and floating seaweed drifting away from the beach out to sea in a narrow line, realistic photo, vertical, no people, no text"
+  },
+  {
+   "img": "swimmer",
+   "badge": "재구성 그림",
+   "step": "3초 전",
+   "say": "자, 이 장면을 3초 전으로 돌려 볼게요. 발이 닿던 곳인데, 몸이 바다 쪽으로 밀려납니다. 이미 이안류에 휩쓸리고 있다는 뜻일 수 있어요.",
+   "prompt": "semi-realistic illustration of an adult swimmer seen from behind in waist-deep sea water, being pulled backward toward open sea, faint arrows of current, sunny day, vertical, no text"
+  },
+  {
+   "img": "d_escape",
+   "badge": "도해",
+   "say": "이때 물살을 거슬러 해안으로만 헤엄치면, 금방 지칩니다. 이안류는 빠르면 초속 2미터를 넘거든요."
+  },
+  {
+   "img": "d_escape",
+   "badge": "도해",
+   "say": "헤엄칠 수 있다면, 해안과 나란히 움직여 물길을 벗어난 뒤 비스듬히 돌아오세요. 어렵다면 무리하지 말고 등을 대고 떠서, 팔을 흔들고 소리쳐 도움을 요청하세요."
+  },
+  {
+   "img": "hook",
+   "badge": "재구성 그림",
+   "say": "잔잔한 틈, 다른 물빛, 바다로 가는 거품. 이런 단서가 없어도 안심은 금물이에요. 휩쓸리면 맞서지 말고, 옆으로."
+  },
+  {
+   "img": "hook",
+   "badge": "재구성 그림",
+   "say": "여러분이 가 본 바다 중에, 이안류 주의 표지판 본 곳 있어요? 댓글로 알려 주세요."
+  }
+ ]
+}

@@ -1,0 +1,61 @@
+{
+ "title": "이 모래가 휴대폰 두뇌가 된다",
+ "lane": "mech",
+ "scenes": [
+  {
+   "img": "hook",
+   "badge": "재구성 그림",
+   "say": "이 모래가, 여러분 휴대폰의 두뇌가 됩니다. 정확히는, 모래 속 규소가요.",
+   "prompt": "macro photo of a hand pouring glittering white quartz sand that turns into a glowing silicon computer chip in the palm, dramatic dark background, vertical, no text"
+  },
+  {
+   "img": "quartz",
+   "badge": "재구성 그림",
+   "say": "물론 아무 모래나 되는 건 아니에요. 이산화규소가 풍부한 규석 같은 원료를 씁니다.",
+   "prompt": "pile of white quartz rocks and quartz sand on dark stone, studio lighting, macro, vertical, no text"
+  },
+  {
+   "img": "d1",
+   "step": "1단계",
+   "say": "먼저 규석을 탄소와 함께 거대한 전기로에 넣고, 약 2천 도로 달굽니다. 산소가 빠져나가고 규소가 남지만, 아직 순도가 모자라요."
+  },
+  {
+   "img": "d2",
+   "step": "2단계",
+   "say": "그래서 규소를 기체로 다룰 수 있는 화합물로 바꿔 불순물을 걸러 내고, 다시 반응시켜 순수한 규소를 쌓아 올립니다. 그러면 9가 열두 개나 들어가는 순도까지 올라가기도 해요."
+  },
+  {
+   "img": "d3",
+   "step": "3단계",
+   "say": "이제 녹인 규소에 작은 씨앗 결정을 담그고, 천천히 돌리며 끌어올립니다. 그러면 원기둥 모양의 거대한 결정, 잉곳이 자라나요."
+  },
+  {
+   "img": "ingot",
+   "badge": "재구성 그림",
+   "say": "사람 키만큼 자라기도 하는 이 은빛 기둥이, 통째로 하나의 결정입니다.",
+   "prompt": "a huge shiny silver monocrystalline silicon ingot cylinder standing in a clean room, technician in white suit beside it for scale, vertical, no text"
+  },
+  {
+   "img": "d4",
+   "step": "4단계",
+   "say": "이 잉곳을 얇게 썰고, 1밀리미터도 안 되는 두께로 다듬어 거울처럼 갈면 웨이퍼가 됩니다. 그 위에 막을 쌓고, 빛으로 무늬를 옮기고, 깎는 일을 수백 번 넘게 반복해요."
+  },
+  {
+   "img": "wafer",
+   "badge": "재구성 그림",
+   "say": "칩 크기에 따라, 웨이퍼 한 장에서 손톱만 한 칩이 수백 개씩 나오기도 합니다.",
+   "prompt": "gloved hand holding a rainbow iridescent silicon wafer full of tiny chips, clean room yellow light, macro, vertical, no text"
+  },
+  {
+   "img": "city",
+   "badge": "재구성 그림",
+   "say": "그래서 이게 없으면? 휴대폰도, 노트북도, 요즘 자동차도 멈춥니다. 다 이런 반도체로 움직이거든요. 우리는 결국 모래 위에 사는 셈이죠.",
+   "prompt": "futuristic city at night where glowing circuit lines grow out of a sand dune, cinematic, vertical, no text"
+  },
+  {
+   "img": "city",
+   "badge": "재구성 그림",
+   "say": "웨이퍼 한 장이 칩이 되기까지, 몇 달이 걸리기도 한대요. 여러분은 얼마나 걸릴 것 같았어요? 댓글로 알려 주세요."
+  }
+ ]
+}
