@@ -1,0 +1,11 @@
+{
+  "_about": "틱톡 수익 계정 5자리(오피스 결정 #58). 오피스 «틱톡 수익화» 현황판이 이 파일을 읽는다. 계정을 만들면 handle 에 틱톡 아이디(@ 없이)를 적는다 — Zernio 에 연결되면 한 시간마다, 아니면 TikHub 로 6시간마다 잰다. stock 은 맡은 세션이 시험 편을 만들 때마다 한 줄씩 적는다: {id, title, state: 시험|재검수|통과|올림, at: YYYY-MM-DD}.",
+  "updated": "2026-10-30",
+  "items": [
+    { "slot": 1, "name": "국뽕 해설", "code": "kp", "handle": "meow_cinema21", "owner_session": "YTHOME-SF-KO 롱투숏 A", "stock": [] },
+    { "slot": 2, "name": "해외 «~하는 이유» 해설", "code": "lx", "handle": null, "owner_session": "YTHOME-SF-KO 롱투숏 A", "stock": [] },
+    { "slot": 3, "name": "동물 이유 해설", "code": "animal", "handle": null, "owner_session": "N100 어랍숏", "stock": [] },
+    { "slot": 4, "name": "작동 원리", "code": "howitworks", "handle": null, "owner_session": "기업흥망", "stock": [] },
+    { "slot": 5, "name": "소름 진실", "code": "creepy", "handle": null, "owner_session": "기업흥망", "stock": [] }
+  ]
+}
