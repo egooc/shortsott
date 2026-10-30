@@ -355,12 +355,53 @@ def main(spec_path):
         a, b = g['a'] - src['base'], g['b'] - src['base']
         cw = (g.get('cw') or (round(1080 * W / VH) if s.get('window') == 'square' else 608)) // 2 * 2
         ch = round(cw * VH / W) // 2 * 2
-        if s.get('window') == 'square' and cw < 1000:
-            raise SystemExit(f'정사각 창(window=square)은 cw 1000 이상(기본 1068, 세로 전체) — seg {i} cw {cw}. 얼굴을 더 크게 잡으려고 좁히면 자막이 잘린다(소유주 10/29)')
-        if g.get('fit') and s.get('style') == 'claim' and not s.get('fit_ok'):
-            # 10/29 소유주(검수 #21 릴리 번복 편): «원본 자막이 차라리 다 보이는 게 좋겠다» — 박힌 자막이 창보다 넓은 컷은 spec.fit_ok 에 사유를 적고 fit 허용
-            raise SystemExit('결 틀(style=claim)은 가로 통짜(fit) 금지 — 박힌 자막을 온전히 보여야 하면 먼저 spec.window="square"(정사각 창, 소유주 10/29). 그래도 모자라면 spec.fit_ok 에 사유를 적어라')
-        if g.get('fit'):                             # 10/27 원본 자막형: 자막이 창보다 넓은 컷은 가로 전체를 1080 폭에 맞추고 위아래는 같은 그림을 흐리게 깔아 채운다
+        band_hex = '0x%02x%02x%02x' % tuple(CK.get('band_fill', (0, 0, 0))[:3]) if claim else '0x000000'
+        if g.get('fit') and claim:
+            # 10/30 소유주(검수 #42·#43): «왜 자꾸 전체화면을 넣어. 충분히 잘라서 인물 하나씩 양쪽에 넣을 수 있을 거 같은데» / «자막 폭으로만 자르던가»
+            # → 가로 통짜(fit) 는 결 틀에서 완전 금지(fit_ok 폐지). 창은 박힌 자막 폭+인물로 자르고(cw·x·y·cap), 두 사람이 멀면 split 로 양쪽에 하나씩.
+            raise SystemExit(f'seg {i}: 결 틀(style=claim)은 가로 통짜(fit) 금지(소유주 10/30 «왜 자꾸 전체화면을 넣어») — 창을 자막 폭으로 자르거나(cw·cap) 두 사람이면 split 로 양쪽에 하나씩')
+        if SQUARE and g.get('split'):
+            # 분할 창(10/30 소유주 «인물 하나씩 양쪽에»): 왼쪽 인물 | 오른쪽 인물 두 칸(각 536 폭, 가운데 8px 띠색) + 그 아래 박힌 자막 띠(strip, 원본 자막 상자를 1080 폭으로).
+            # panes: [{"cx": 인물 가운데 x, "y": 0, "h": 자막 띠 윗선까지}, {...}]  strip: [x0, y0, x1, y1] 또는 null
+            sp = g['split']
+            st = sp.get('strip')
+            if st:
+                sw, sh0 = st[2] - st[0], st[3] - st[1]
+                sc = min(W / sw, 240 / sh0)
+                spw, sph = round(sw * sc) // 2 * 2, round(sh0 * sc) // 2 * 2
+            else:
+                spw = sph = 0
+            ph = VH - sph
+            pw = (W - 8) // 2 // 2 * 2
+            fc.append(f"[{ii}:v]trim={a:.3f}:{b:.3f},setpts=PTS-STARTPTS,fps={FPS},split={3 if st else 2}[s{i}a][s{i}b]" + (f"[s{i}c]" if st else ''))
+            for k, pn in enumerate(sp['panes'][:2]):
+                y0 = int(pn.get('y', 0))
+                h = int(pn.get('h', (st[1] if st else 1080) - y0)) // 2 * 2
+                w = round(h * pw / ph) // 2 * 2
+                x0 = max(0, min(1920 - w, round(pn['cx'] - w / 2)))
+                pad = f",pad={pw + 8}:{ph}:0:0:color={band_hex}" if k == 0 else ''
+                fc.append(f"[s{i}{'ab'[k]}]crop={w}:{h}:{x0}:{y0},scale={pw}:{ph}{pad}[p{i}{k}]")
+            fc.append(f"[p{i}0][p{i}1]hstack[pp{i}]")
+            if st:
+                fc.append(f"[s{i}c]crop={sw}:{sh0}:{st[0]}:{st[1]},scale={spw}:{sph},pad={W}:{sph}:{(W - spw) // 2}:0:color={band_hex}[ps{i}]")
+                fc.append(f"[pp{i}][ps{i}]vstack,setsar=1[v{i}]")
+            else:
+                fc.append(f"[pp{i}]setsar=1[v{i}]")
+        elif SQUARE:
+            # 정사각 창(10/29) → 10/30 «자막 폭으로만 자르던가»: 창 폭 cw 는 컷마다 박힌 자막 상자(cap=[x0,y0,x1,y1], 없으면 null)와 인물을 담는 최소 폭.
+            # cw ≤ 1068 이면 1080×1092 꽉 채우고(그만큼 확대), 자막이 더 넓어 cw > 1068 이면 세로 1080 전체를 잡고 창이 조금 낮아진다(위아래 띠색). 통짜 금지.
+            if 'cap' not in g:
+                raise SystemExit(f'seg {i}: 정사각 창은 컷마다 박힌 자막 상자 cap=[x0,y0,x1,y1](없으면 null)을 재서 적어라 — 창은 자막 폭+인물로 자른다(소유주 10/30)')
+            ch = min(1080, round(cw * VH / W)) // 2 * 2
+            x0, y0 = int(g['x']), int(g.get('y', 0))
+            cap = g['cap']
+            if cap and not (x0 <= cap[0] - 6 and x0 + cw >= cap[2] + 6 and y0 <= cap[1] - 4 and y0 + ch >= cap[3] + 4):
+                raise SystemExit(f'seg {i}: 창 x{x0}..{x0 + cw} y{y0}..{y0 + ch} 이 박힌 자막 {cap} 을 다 못 담는다 — cw 를 자막 폭으로 넓히거나 두 사람이면 split')
+            sc = min(W / cw, VH / ch)
+            pw, ph = round(cw * sc) // 2 * 2, round(ch * sc) // 2 * 2
+            pad = f",pad={W}:{VH}:{(W - pw) // 2}:{(VH - ph) // 2}:color={band_hex}" if (pw, ph) != (W, VH) else ''
+            fc.append(f"[{ii}:v]trim={a:.3f}:{b:.3f},setpts=PTS-STARTPTS,fps={FPS},crop={cw}:{ch}:{x0}:{y0},scale={pw}:{ph}{pad},setsar=1[v{i}]")
+        elif g.get('fit'):                           # 10/27 원본 자막형(결 틀 아님): 자막이 창보다 넓은 컷은 가로 전체를 1080 폭에 맞추고 위아래는 같은 그림을 흐리게 깔아 채운다
             fc.append(f"[{ii}:v]trim={a:.3f}:{b:.3f},setpts=PTS-STARTPTS,fps={FPS},split=2[f{i}a][f{i}b]")
             fc.append(f"[f{i}a]scale={W}:{VH}:force_original_aspect_ratio=increase,crop={W}:{VH},gblur=sigma=40,eq=brightness=-0.12:saturation=0.8[bg{i}]")
             fc.append(f"[f{i}b]scale={W}:-2[fg{i}]")

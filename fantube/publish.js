@@ -141,8 +141,12 @@ if (!SELFTEST) {
     }
     if (!capsC.some(c => ['paren', 'note'].includes(c.style))) bad.push('⑨ 결 틀: 팬 화자 자막(paren 괄호 반응 또는 note 대괄호 상황) 0개');
     // 10/29 소유주: 박힌 자막은 다 보여야 한다(검수 #21·레퍼런스 예능셔틀 정사각 창). 정사각 창(spec.window=square)이 기본이고, 그래도 자막·얼굴이 한 창에 못 들어오는 컷만 spec.fit_ok 사유와 함께 fit 허용.
-    if ((S.segs || []).some(g => g.fit) && !S.fit_ok) bad.push('⑨ 결 틀: 가로 통짜(segs[].fit)는 spec.window="square"(정사각 창) 로 먼저 풀고, 그래도 안 되는 컷만 spec.fit_ok 에 사유를 적어라(소유주 10/29)');
-    else if ((S.segs || []).some(g => g.fit)) console.error(`[publish] △ 가로 통짜 컷 ${(S.segs || []).filter(g => g.fit).length}개 — fit_ok: ${S.fit_ok}`);
+    // 10/30 소유주(검수 #42·#43): «왜 자꾸 전체화면을 넣어. 충분히 잘라서 인물 하나씩 양쪽에» / «자막 폭으로만 자르던가» → fit_ok 예외 폐지, 통짜는 무조건 FAIL.
+    if ((S.segs || []).some(g => g.fit)) bad.push(`⑨ 결 틀: 가로 통짜 컷 ${(S.segs || []).filter(g => g.fit).length}개 — 금지(소유주 10/30). 창을 자막 폭으로 자르거나(segs[].cw·cap) 두 사람이면 분할 창(segs[].split)`);
+    if (S.window === 'square') {
+      const noCap = (S.segs || []).map((g, i) => (!g.split && !('cap' in g)) ? i + 1 : 0).filter(Boolean);
+      if (noCap.length) bad.push(`⑨ 정사각 창: 컷마다 박힌 자막 상자 cap=[x0,y0,x1,y1](없으면 null) 필요 — 컷 ${noCap.join(',')} 누락 (창은 자막 폭+인물로 자른다, 소유주 10/30)`);
+    }
   }
   // 10/30 소유주 «엔믹스에 카르멘이 누군데? 멤버가 아니잖아»(n05 카르멘=하츠투하츠 사고) — 레인은 그룹 하나. 설윤이또(idol3sec_ko)=엔믹스, 제임스 과몰입(cortis_fan_ko)=코르티스. 다른 그룹 편은 FAIL.
   const LANE_GROUP = { idol3sec_ko: ['엔믹스', 'NMIXX'], cortis_fan_ko: ['코르티스', 'CORTIS'] };
