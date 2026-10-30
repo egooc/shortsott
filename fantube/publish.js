@@ -308,7 +308,7 @@ process.stdout.write(g.stdout); process.stderr.write(g.stderr);
 if (g.status !== 0) { console.error(`[publish] 태그 게이트 실패(${g.status}) — 공개 금지, 관리자 보고`); process.exit(2); }
 
 // 장부(publish_at 포함) — 오피스 대시보드가 재고·다음 공개를 여기서 읽는다(10/29)
-const l = spawnSync('node', [path.join(__dirname, 'ledger.js'), ep, '--youtube-id', last.videoId, '--publish-at', at, '--purpose', PURPOSE, '--file', path.basename(M.file || 'out.mp4')], { cwd: ROOT, encoding: 'utf8' });
+const l = spawnSync('node', [path.join(__dirname, 'ledger.js'), ep, '--youtube-id', last.videoId, '--publish-at', at, '--purpose', PURPOSE, '--file', path.basename(M.file || 'out.mp4'), ...(M.jabtang ? ['--jabtang', M.jabtang] : [])], { cwd: ROOT, encoding: 'utf8' });
 if (l.status) console.error(`[publish] △ 장부 기록 실패(ledger exit ${l.status}) — 수동으로 node fantube/ledger.js ${ep} --youtube-id ${last.videoId} --publish-at ${at}`);
 process.stdout.write(l.stdout); process.stderr.write(l.stderr);
 console.log(`[publish] ${ep} → ${last.videoId} · ${at} · 태그 확인 끝`);

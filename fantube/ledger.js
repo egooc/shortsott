@@ -23,6 +23,7 @@ const rec = {
   id: ep,
   title,
   purpose: arg('--purpose', spec.purpose || 'idol3sec_ko'),
+  jabtang: arg('--jabtang', spec.jabtang || undefined),   // 10/30 관리자: 잡탕 광산 카드(g06 등) 측정용 — style(claim) 과 별개 열
   started_at: arg('--started', spec.started_at || null),
   finished_at: arg('--finished', fs.existsSync(out) ? kst(fs.statSync(out).mtime) : null),
   gpt_calls: Number(arg('--gpt', spec.gpt_calls || 0)),
