@@ -81,7 +81,7 @@ def elevator(step):
     for x, sgn in ((310, 1), (770, -1)):
         y = top + 330
         d.polygon([(x + sgn * 20, y), (x + sgn * 60, y - 50), (x + sgn * 60, y + 30)], fill=c(4))
-    label(d, (540, 380), '끊어진 로프', (180, 190, 210), 36)
+    label(d, (540, 515), '끊어진 로프', (180, 190, 210), 36)
     label(d, (gx - 10, 130), '과속 조절기', HOT if step in (2, 3) else INK, 40)
     label(d, (540, top + 180), '칸', INK, 60)
     if step == 1:
@@ -98,39 +98,39 @@ def elevator(step):
 def ladder(step):
     im, d = canvas()
     items = [('전기로', '규석+탄소 · 2천 도'), ('정제', '기체 화합물로 → 걸러 냄'), ('잉곳', '씨앗 결정 끌어올리기'), ('웨이퍼', '얇게 썰고 갈기')]
-    y0 = 240
+    y0 = 380   # 단계 꼬리표(y330)·자막(y1290)을 피한다(10-31 눈 검사)
     for i, (name, sub) in enumerate(items, 1):
         on = i == step
-        y = y0 + (i - 1) * 300
-        box = [120, y, 960, y + 240]
+        y = y0 + (i - 1) * 195
+        box = [120, y, 960, y + 165]
         d.rounded_rectangle(box, 30, fill=(60, 40, 20) if on else (30, 38, 58), outline=HOT if on else DIM, width=8 if on else 4)
-        d.ellipse([150, y + 50, 290, y + 190], fill=HOT if on else DIM)
-        label(d, (220, y + 122), str(i), BG, 80)
-        label(d, (330, y + 85), name, HOT if on else INK, 64 if on else 52, 'lm')
-        label(d, (330, y + 170), sub, INK if on else DIM, 38, 'lm')
+        d.ellipse([150, y + 25, 265, y + 140], fill=HOT if on else DIM)
+        label(d, (207, y + 84), str(i), BG, 70)
+        label(d, (300, y + 56), name, HOT if on else INK, 60 if on else 50, 'lm')
+        label(d, (300, y + 124), sub, INK if on else DIM, 36, 'lm')
         if i < 4:
-            arrow(d, (540, y + 245), (540, y + 295), DIM, 8, 24)
+            arrow(d, (540, y + 166), (540, y + 193), DIM, 6, 16)
         if i < step:   # 지난 단계 체크(글꼴에 ✓ 없음 → 선으로)
-            d.line([(870, y + 120), (895, y + 150), (945, y + 90)], fill=BLUE, width=12)
+            d.line([(870, y + 90), (895, y + 120), (945, y + 60)], fill=BLUE, width=12)
     return im
 
 
 def gaze():
     im, d = canvas()
-    px, py = 540, 330
+    px, py = 540, 500   # 단계 꼬리표(y330) 아래로
     d.rectangle([px - 170, py - 40, px + 170, py + 40], fill=(120, 100, 70), outline=INK, width=4)
     label(d, (px, py - 100), '그림', INK, 48)
-    vy = 1180
+    vy = 1040   # 자막(y1290) 위로
     d.ellipse([px - 60, vy - 60, px + 60, vy + 60], fill=BLUE)
     label(d, (px, vy + 110), '보는 사람', INK, 44)
     for dx in (-26, 26):   # 눈 방향 표시
         d.ellipse([px + dx - 10, vy - 80, px + dx + 10, vy - 60], fill=INK)
     d.line([(px, py + 40), (px, vy - 70)], fill=DIM, width=6)
-    label(d, (px - 30, 700), '정면\n(소문)', DIM, 40, 'rm')
+    label(d, (px - 30, 770), '정면\n(소문)', DIM, 40, 'rm')
     ang = math.radians(15)
     ex, ey = px + (vy - py) * math.tan(ang), vy - 70
     arrow(d, (px, py + 40), (ex, ey), HOT, 12, 40)
-    label(d, (ex + 10, ey + 80), '실제 시선\n오른쪽 15.4도', HOT, 46)
+    label(d, (ex + 130, ey - 40), '실제 시선\n오른쪽 15.4도', HOT, 46)
     d.arc([px - 220, py - 180, px + 220, py + 260], 90 - 15, 90, fill=HOT, width=6)
     return im
 
@@ -148,7 +148,7 @@ def beach(escape):
     for y in range(1020, 260, -170):
         arrow(d, (540, y), (540, y - 120), HOT, 12, 36)
     label(d, (540, 140), '이안류 물길 → 먼바다', HOT, 46)
-    d.text((230, 1200), '모래사장', font=f(44), fill=(70, 50, 25), anchor='mm')
+    d.text((230, 1120), '모래사장', font=f(44), fill=(70, 50, 25), anchor='mm')
     if escape:
         sx, sy = 540, 560
         d.ellipse([sx - 30, sy - 30, sx + 30, sy + 30], fill=(255, 220, 120))

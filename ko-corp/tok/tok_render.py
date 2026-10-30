@@ -131,7 +131,7 @@ def overlay(scene, cap, title, path):
     if scene.get('badge'):
         pill(d, (60, 200), scene['badge'], 34, (255, 255, 255), (0, 0, 0, 150))
     if scene.get('step'):
-        pill(d, (W // 2, 330), scene['step'], 64, (20, 20, 20), (255, 170, 40, 235), 'mm')
+        pill(d, (W // 2, scene.get('step_y', 330)), scene['step'], 64, (20, 20, 20), (255, 170, 40, 235), 'mm')
     if title:
         f = ImageFont.truetype(FONT, 84)
         lines = wrap(title, 11)
