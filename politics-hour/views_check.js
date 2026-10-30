@@ -88,8 +88,11 @@ function thumbsToday(purpose) {
 }
 
 // 제목 머리 관문(관리자 10-24): 첫 쟁점 인물+쟁점 낱말이 머리 15자에, 뉴스 아웃라이어 제목 낱말 2개+ — 못 넘는 묶음은 걸지 않는다(package_gate.py 종료 4)
+// packages.json "head_gate": 다른 레인 관문 스크립트(같은 인자·종료 4=FAIL, 정치JA 10-30 — 일본어 「」 제목). 상대 경로는 D:/midform 기준
 function headOk(pf, title) {
-  try { execFileSync('python', [path.join(__dirname, 'package_gate.py'), path.dirname(pf), '--title', title || ''], { stdio: 'pipe' }); return true; }
+  let gate = path.join(__dirname, 'package_gate.py');
+  try { const g = JSON.parse(fs.readFileSync(pf, 'utf8')).head_gate; if (g) gate = path.isAbsolute(g) ? g : path.resolve(__dirname, '..', g); } catch (e) { /* 못 읽으면 기본 관문 */ }
+  try { execFileSync('python', [gate, path.dirname(pf), '--title', title || ''], { stdio: 'pipe' }); return true; }
   catch (e) { if (e.status === 4) { console.log(`[gate] 머리 관문 FAIL «${title}» — 건너뜀`); return false; } throw e; }
 }
 
