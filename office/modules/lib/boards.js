@@ -32,6 +32,7 @@ function mineDashboard() {
   const gname = new Map(gy.map((g) => [g.id, g.name || g.id]));
   for (const c of arr(m.channels)) for (const h of arr(c.hits)) if (h.gyeol && h.gyeol_label && !gname.has(h.gyeol)) gname.set(h.gyeol, h.gyeol_label);
   const by = (k) => gy.filter((g) => g.status === k).length;
+  const nAssigned = gy.filter((g) => g.our_channel || g.status === '배정됨' || g.status === '투하').length; // 상태 칸이 늦게 바뀌어도 우리 채널이 적혔으면 배정
   const drops = gy.reduce((a, g) => a + arr(g.drops).length, 0);
 
   const gyeolCards = gy.sort((a, b) => (RANK[a.status] ?? 9) - (RANK[b.status] ?? 9)).map((g) => {
@@ -42,6 +43,7 @@ function mineDashboard() {
       title: g.name || g.id, tone: GYEOL_TONE[g.status] || '',
       sub: [g.status, g.channels != null && `독립 채널 ${g.channels}곳`, g.hits != null && `터진 편 ${g.hits}개`, g.our_channel && `→ ${g.our_channel}`, dropTxt.length && `투하 ${dropTxt.length}편`].filter(Boolean).join(' · '),
       detail: [`소재: ${g['소재'] || '—'}`, `감정: ${g['감정'] || '—'}`, `틀: ${g['틀'] || '—'}`, ev.length && `근거: ${ev.join(' / ')}`,
+        ...arr(g.subs).map((x) => `세부 결: ${x.name}${x['대상'] ? ` — 대상 ${x['대상']}` : ''}${x['상황'] ? ` · 상황 ${x['상황']}` : ''}${num(x.hits) != null ? ` (터진 편 ${x.hits}개)` : ''}`),
         g.specialist && `이 결만 하는 전문 채널: ${g.specialist}`, g.risk && `위험: ${g.risk}`, g.longshort_fit != null && `롱투숏에 ${g.longshort_fit ? '맞음' : '안 맞음'}`,
         dropTxt.length ? `투하 결과: ${dropTxt.join(' / ')}` : g.our_channel && '아직 투하 전'].filter(Boolean).join('\n'),
       rec: g.our_angle ? `${g.our_channel ? g.our_channel + '에 ' : ''}우리 관점: ${g.our_angle}` : '',
@@ -67,18 +69,45 @@ function mineDashboard() {
     };
   });
 
+  // 우리 채널별로 어느 결이 배정됐나
+  const assigned = new Map();
+  for (const g of gy) if (g.our_channel) { if (!assigned.has(g.our_channel)) assigned.set(g.our_channel, []); assigned.get(g.our_channel).push(g); }
+  const assignCards = [...assigned].sort((a, b) => b[1].length - a[1].length).map(([ch, gs]) => {
+    const nd = gs.reduce((a, g) => a + arr(g.drops).length, 0);
+    return {
+      title: ch, tone: nd ? 'ok' : 'busy',
+      sub: `결 ${gs.length}개 · 투하 ${nd}편`,
+      right: gs.map((g) => g.name || g.id).join(' / '),
+      detail: gs.map((g) => {
+        const e = arr(g.evidence)[0] || g.best;
+        return [`■ ${g.name || g.id}`, `  소재 ${g['소재'] || '—'} · 감정 ${g['감정'] || '—'} · 틀 ${g['틀'] || '—'}`,
+          g.channels != null && `  남의 채널 ${g.channels}곳에서 ${g.hits ?? '?'}편 터짐`,
+          e && `  대표 편: ${e.channel ? e.channel + ' ' : ''}«${String(e.title || '').slice(0, 50)}» ${fmt(num(e.views))}회${num(e.x) != null ? ` (평소의 ${e.x}배)` : ''}`,
+          g.our_angle && `  우리 관점: ${g.our_angle}`,
+          arr(g.drops).length ? `  투하: ${arr(g.drops).map((d) => `«${d.title || ''}» ${fmt(num(d.views))}회`).join(', ')}` : '  아직 투하 전'].filter(Boolean).join('\n');
+      }).join('\n\n'),
+      session: 'YTHOME-M-발굴분석',
+    };
+  });
+  const hitCards = allChans.flatMap((c) => arr(c.hits).map((h) => ({ c, h }))).sort((a, b) => (num(b.h.views) || 0) - (num(a.h.views) || 0)).slice(0, 30)
+    .map(({ c, h }) => ({ title: String(h.title || '').slice(0, 60), tone: h.gyeol ? 'ok' : 'muted',
+      sub: [c.name, `${fmt(num(h.views))}회`, num(h.x) != null && `평소의 ${h.x}배`].filter(Boolean).join(' · '),
+      right: h.gyeol ? `결: ${gname.get(h.gyeol) || h.gyeol}` : '결 미배정',
+      detail: [`채널: ${c.name || '—'} (평소 ${fmt(num(c.median))}회)`, h.url && `영상: ${h.url}`].filter(Boolean).join('\n'), session: 'YTHOME-M-발굴분석' }));
+
   const stages = [
     ['수집', st.channels_collected], ['조회 측정', st.channels_measured], ['잡탕 판정', st.channels_jabtang], ['터진 편', st.hit_videos],
-    ['결 이름', st.gyeol_named ?? gy.length], ['검증', st.gyeol_real ?? by('검증됨')], ['배정', by('배정됨') + by('투하')], ['투하 편', drops],
+    ['결 이름', st.gyeol_named ?? gy.length], ['검증', st.gyeol_real ?? by('검증됨')], ['배정', nAssigned], ['투하 편', drops],
   ];
   const overview = [
     { type: 'stats', items: [
       { label: '수집한 채널', value: fmt(num(st.channels_collected)), sub: st.channels_measured != null ? `조회 잰 곳 ${fmt(st.channels_measured)}` : '' },
-      { label: '잡탕 채널', value: fmt(num(st.channels_jabtang)), sub: '최고 편이 평소의 10배+' },
-      { label: '터진 편', value: fmt(num(st.hit_videos)), sub: '채널 평소의 5배+' },
-      { label: '찾은 결', value: num(st.gyeol_named) ?? gy.length, sub: `검증 ${num(st.gyeol_real) ?? by('검증됨')}` },
-      { label: '배정·투하', value: by('배정됨') + by('투하'), sub: `투하 ${drops}편`, tone: drops ? 'ok' : '' },
+      { label: '잡탕 채널', value: fmt(num(st.channels_jabtang)), sub: '최고 편이 평소의 10배+', drill: { title: `결 분석한 채널 — 터진 편 조회 큰 20곳 (전체는 «결 분석한 채널» 탭)`, items: chanCards.slice(0, 20) } },
+      { label: '터진 편', value: fmt(num(st.hit_videos)), sub: '채널 평소의 5배+', drill: { title: '조회 큰 터진 편 30개 — 어느 결로 묶였나', items: hitCards } },
+      { label: '찾은 결', value: num(st.gyeol_named) ?? gy.length, sub: `검증 ${num(st.gyeol_real) ?? by('검증됨')}`, drill: { title: `분석된 결 ${gyeolCards.length}개 — 누르면 소재·감정·틀·세부 결·근거`, items: gyeolCards.map(({ title, sub, tone, detail, session }) => ({ title, sub, tone, session, detail: detail.split('\n').filter((l) => !l.startsWith('근거')).join('\n') })) } },
+      { label: '배정·투하', value: nAssigned, sub: `투하 ${drops}편`, tone: drops ? 'ok' : '', drill: { title: '우리 채널별 배정 — 어느 채널에 어떤 결', items: assignCards, empty: '아직 배정된 결이 없습니다.' } },
     ] },
+    { type: 'list', title: `우리 채널 배정 — ${assignCards.length}개 채널에 결 ${nAssigned}개`, empty: '아직 우리 채널에 배정된 결이 없습니다.', items: assignCards, note: '카드를 누르면 그 채널에 배정된 결마다 소재·감정·틀, 남의 채널에서 터진 근거, 우리 관점, 투하 결과가 보입니다.' },
     { type: 'pipeline', title: '결을 찾는 순서', stages: stages.map(([label, v]) => ({ label, count: v == null ? '—' : fmt(v) })) },
     { type: 'note', text: '수집(인기 차트의 쇼츠 채널) → 조회 측정(최근 90일) → 잡탕 판정(최고 편이 평소의 10배 넘게 들쭉날쭉) → 터진 편(평소의 5배+)만 뽑기 → 썸네일·제목으로 결 이름(소재·감정·틀) → 서로 다른 채널 2곳+에서 같은 결이 터지면 검증 → 우리 채널 배정 → 투하 뒤 채널 평소와 비교.' },
     { type: 'list', title: `결 카드 (${mdhm(Date.parse(m.updated || 0))} 갱신)`, empty: '아직 이름 붙인 결이 없습니다.', items: gyeolCards },

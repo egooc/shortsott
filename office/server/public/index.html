@@ -204,6 +204,10 @@ h3.sh { font-size: 13px; font-weight: 600; color: var(--muted); margin: 6px 2px 
 
 /* 프로젝트 카드 */
 .pcard2 { cursor: pointer; margin-bottom: 10px; }
+.stat.drillable { cursor: pointer; }
+.stat.drillable:hover, .stat.drillable.on { border-color: var(--accent); }
+.stat .dmore { color: var(--accent); font-weight: 700; }
+.sdrill { margin-top: 10px; scroll-margin-top: 70px; }
 .pcard2.sub { margin-left: 18px; border-left: 3px solid var(--accent); }
 .ptile.sub { padding-left: 26px; }
 .ptile.sub .pav { width: 22px; height: 22px; font-size: 11px; }
@@ -737,9 +741,11 @@ function dashboardFor(key) {
 }
 const cell = (c) => c == null ? '—' : typeof c === 'object'
   ? `<div class="cv"><span class="${c.tone ? 't-' + c.tone : ''}">${esc(c.text)}</span>${c.sub ? `<div class="muted cellsub">${esc(c.sub)}</div>` : ''}</div>` : esc(c);
+let DRILL_N = 0, OPEN_DRILL = null;
 const SECTIONS = {
-  stats: (s) => `<div class="stats">${s.items.map((i) => `<div class="stat"><div class="muted">${esc(i.label)}</div>
-    <div class="v ${i.tone ? 't-' + i.tone : ''}">${esc(i.value)}</div>${i.sub ? `<div class="muted">${esc(i.sub)}</div>` : ''}</div>`).join('')}</div>`,
+  // 숫자 칸에 drill{title, items} 가 있으면 눌러서 그 아래에 카드 목록이 펼쳐진다(«무엇이» 그 숫자인지).
+  stats: (s) => { const k = 'd' + (DRILL_N++); return `<div class="stats">${s.items.map((i, n) => `<div class="stat ${i.drill ? 'drillable' : ''}" ${i.drill ? `data-act="drill" data-dk="${k}-${n}"` : ''}><div class="muted">${esc(i.label)}${i.drill ? ' <span class="dmore">›</span>' : ''}</div>
+    <div class="v ${i.tone ? 't-' + i.tone : ''}">${esc(i.value)}</div>${i.sub ? `<div class="muted">${esc(i.sub)}</div>` : ''}</div>`).join('')}</div>${s.items.map((i, n) => i.drill ? `<div class="card sdrill" id="${k}-${n}" ${OPEN_DRILL === `${s.items[n].label}` ? '' : 'hidden'} data-lab="${esc(i.label)}"><h2>${esc(i.drill.title || i.label)}</h2>${SECTIONS.list({ items: i.drill.items || [], empty: i.drill.empty })}</div>` : '').join('')}`; },
   pipeline: (s) => `<div class="pipe">${s.stages.map((st, i) => `${i ? '<div class="arrow">›</div>' : ''}<div class="stage"><div class="v">${esc(st.count)}</div><div class="muted">${esc(st.label)}</div></div>`).join('')}</div>`,
   // 폰에서는 표가 카드로 바뀐다(첫 칸이 제목, 나머지는 «머리글: 값» 줄).
   table: (s) => s.rows.length ? `<div class="tw"><table class="rt"><thead><tr>${s.columns.map((c) => `<th>${esc(c)}</th>`).join('')}</tr></thead>
@@ -1242,6 +1248,15 @@ document.addEventListener('click', (e) => {
   if (t.dataset.project) { view.page = 'project'; view.project = t.dataset.project; $('side').classList.remove('open'); return render(); }
   if (t.dataset.page) { view.page = t.dataset.page; $('side').classList.remove('open'); return render(); }
   const a = t.dataset.act;
+  if (a === 'drill') {
+    const box = document.getElementById(t.dataset.dk); if (!box) return;
+    const show = box.hidden;
+    document.querySelectorAll('.sdrill').forEach((x) => { x.hidden = true; });
+    document.querySelectorAll('.stat.drillable').forEach((x) => x.classList.remove('on'));
+    box.hidden = !show; t.classList.toggle('on', show); OPEN_DRILL = show ? box.dataset.lab : null;
+    if (show) box.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return;
+  }
   if (a === 'new') return newSession();
   if (a === 'send') return sendMsg();
   if (a === 'panel-x') return closePanel();
