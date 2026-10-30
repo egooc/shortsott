@@ -63,8 +63,8 @@ const STATIC = {
 };
 const { VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY } = process.env;
 if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) webpush.setVapidDetails('https://office.grow-up.kr', VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
-const OPS = new Set(['read', 'chat', 'send', 'launch', 'launch_cu', 'close', 'compact', 'refresh']);
-const LOGGED_OPS = new Set(['send', 'launch', 'launch_cu', 'close', 'compact']);
+const OPS = new Set(['read', 'chat', 'send', 'pick', 'launch', 'launch_cu', 'close', 'compact', 'refresh']);
+const LOGGED_OPS = new Set(['send', 'pick', 'launch', 'launch_cu', 'close', 'compact']);
 
 const send = (res, code, body, type = 'application/json; charset=utf-8') => {
   res.writeHead(code, { 'content-type': type, 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
@@ -326,7 +326,7 @@ async function api(req, res, url) {
     if (!OPS.has(op)) return send(res, 400, { error: '허용되지 않은 명령' });
     const r = await command(device, op, args);
     if (LOGGED_OPS.has(op)) {
-      logAction({ device, op, label: label || args.title || null, text: op === 'send' ? String(args.text || '').slice(0, 200) : undefined, ok: r.ok, error: r.error });
+      logAction({ device, op, label: label || args.title || null, text: op === 'send' ? String(args.text || '').slice(0, 200) : op === 'pick' ? String(args.label || (args.keys || []).join(',')).slice(0, 200) : undefined, ok: r.ok, error: r.error });
     }
     return send(res, r.ok ? 200 : 502, r);
   }

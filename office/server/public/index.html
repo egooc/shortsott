@@ -191,7 +191,13 @@ aside.panel { background: var(--panel); border-left: 1px solid var(--line); disp
 .stree .more { color: var(--muted); }
 /* 세션 패널 안 질문 */
 #pask { padding: 0 12px; } #pask .pq { border: 1px solid var(--bad); border-radius: 12px; padding: 10px 12px; margin: 6px 0; background: var(--panel); }
-#pask .pq .q { font-size: 13.5px; margin-bottom: 8px; } #pask .dopts { display: grid; gap: 6px; }
+#pask .pq .q { font-size: 13.5px; margin-bottom: 8px; }
+.mq .mqi { margin-bottom: 12px; } .mq .mqh { font-size: 12px; color: var(--muted); margin-bottom: 4px; font-weight: 600; }
+.mq .opt { white-space: normal; text-align: left; height: auto; min-width: 0; } .mq .opt > span { flex: 1; min-width: 0; overflow-wrap: anywhere; } .mq .opt > small { flex: none; margin-left: 8px; }
+.mq .opt .od { display: block; white-space: normal !important; overflow: visible; text-overflow: clip; color: var(--muted); font-size: 12px; font-weight: 400; margin-top: 2px; }
+.mq .opt.on { border-color: var(--accent, #2f6bff); background: color-mix(in srgb, var(--accent, #2f6bff) 12%, var(--panel)); }
+.mq .opt.send { background: var(--accent, #2f6bff); color: #fff; justify-content: center; font-weight: 700; }
+.mq .opt.send.wait { background: var(--panel); color: var(--muted); } #pask .dopts { display: grid; gap: 6px; }
 
 /* 대화로 보기 */
 .chatv { display: flex; flex-direction: column; gap: 10px; font: 14px/1.6 inherit; font-family: inherit; white-space: normal; }
@@ -889,7 +895,26 @@ function askShape(text) {
   const fallback = said.length ? [...new Set(said), '보류'] : ['진행', '보류'];
   return { q: q.length > 160 ? q.slice(0, 157) + '…' : q, opts: items.length >= 2 ? items : fallback, rec: rec || (said.length && items.length < 2 ? said[0] : null) };
 }
+// 터미널 선택 메뉴(질문 여러 개·번호 선택지): 질문마다 하나씩 고르고 «답 보내기» — 세션 터미널에 번호를 대신 누른다.
+const PICK = {};
+function menuBox(s) {
+  const qs = s.ask.qs || [], sel = PICK[s.handle] || (PICK[s.handle] = []);
+  const can = !s.external && !qs.some((q) => q.multi);
+  const done = qs.every((_, i) => sel[i] != null);
+  return `<div class="mq">${qs.map((q, i) => `<div class="mqi">
+      ${qs.length > 1 ? `<div class="mqh">${i + 1}/${qs.length} · ${esc(q.head || '')}</div>` : ''}
+      <div class="q">${linkify(q.q)}</div>
+      <div class="dopts">${q.opts.map((o, k) => { const rec = /추천/.test(o.label); const on = sel[i] === k;
+        return `<button class="opt ${rec ? 'rec' : ''} ${on ? 'on' : ''}" ${can ? `data-pick="${esc(s.handle)}" data-qi="${i}" data-k="${k}"` : 'disabled'}><span>${on ? '✔ ' : ''}${esc(o.label.replace(/\s*[(（]추천[)）]\s*/, ' ').trim())}${o.desc ? `<small class="od">${esc(o.desc)}</small>` : ''}</span>${rec ? '<small>추천</small>' : ''}</button>`; }).join('')}</div></div>`).join('')}
+    ${can ? `<button class="opt send ${done ? '' : 'wait'}" data-picksend="${esc(s.handle)}" ${done ? '' : 'disabled'}>${done ? '답 보내기' : `${qs.length - sel.filter((x) => x != null).length}개 더 고르면 보낼 수 있어요`}</button>`
+      : `<div class="muted">${s.external ? '이 세션은 그 PC의 Claude 화면에서 답해야 해요' : '여러 개 고르는 질문이라 «터미널 그대로 보기»에서 골라 주세요'}</div>`}
+  </div>`;
+}
 function waitCard(s) {
+  if (s.ask.kind === 'menu' && s.ask.qs) return `<div class="dcard wait">
+    <div class="dtop"><span class="lane">${esc(nice(s.title).name)}</span><span class="muted">${s.ask.at ? ago(Date.parse(s.ask.at)) : ''}</span></div>
+    ${menuBox(s)}<div class="dopts"><button class="opt ghost" data-session="${esc(s.handle)}">대화창 열기</button></div>
+    <div class="muted who">${esc(s.title)} · ${esc(devName(s.device))}</div></div>`;
   const perm = s.ask.kind === 'permission';
   const A = perm ? { q: '허가를 기다리며 멈춰 있어요 — 대화창에서 확인해 주세요', opts: [], rec: null } : askShape(s.ask.text);
   const canSend = !s.external && !perm;
@@ -1471,9 +1496,10 @@ function renderPanelHead(M) {
   if (!s || !h) return;
   const pk = $('pask');
   if (pk) {
-    const A = s.ask && s.online ? (s.ask.kind === 'permission' ? { q: '허가를 기다리며 멈춰 있어요 — «터미널 그대로 보기»로 확인해 주세요', opts: [] } : askShape(s.ask.text)) : null;
+    const A = s.ask && s.online && !(s.ask.kind === 'menu' && s.ask.qs) ? (s.ask.kind === 'permission' ? { q: '허가를 기다리며 멈춰 있어요 — «터미널 그대로 보기»로 확인해 주세요', opts: [] } : askShape(s.ask.text)) : null;
     const html = A ? `<div class="pq"><div class="q">${linkify(A.q)}</div><div class="dopts">${!s.external && s.ask.kind !== 'permission' ? A.opts.map((o) => `<button class="opt ${o === A.rec ? 'rec' : ''}" data-wsend="${esc(s.handle)}" data-value="${esc(o)}"><span>${esc(o)}</span>${o === A.rec ? '<small>추천</small>' : ''}</button>`).join('') : ''}</div></div>` : '';
-    if (pk.dataset.h !== html) { pk.innerHTML = html; pk.dataset.h = html; }
+    const html2 = s.ask && s.online && s.ask.kind === 'menu' && s.ask.qs ? `<div class="pq">${menuBox(s)}</div>` : html;
+    if (pk.dataset.h !== html2) { pk.innerHTML = html2; pk.dataset.h = html2; }
   }
   h.querySelector('.meta').innerHTML = `${esc(PROJECT_NAMES[s.project] || s.project)} · ${esc(devName(s.device))} · ${esc(AGENT_NAMES[s.agent] || s.agent || '')} · <span class="dot d-${s.status}"></span> ${STATUS_TEXT[s.status]} · ${ago(s.last_output_at)}`;
 }
@@ -1638,7 +1664,7 @@ document.addEventListener('click', (e) => {
   // 서랍이 열려 있으면 바깥을 누를 때 닫기만 한다
   if ($('side').classList.contains('open') && !e.target.closest('#side, [data-act="menu"]')) { $('side').classList.remove('open'); return; }
   if (e.target.closest('a.tlink')) return;
-  const t = e.target.closest('[data-page],[data-project],[data-session],[data-open],[data-close],[data-qsend],[data-compact],[data-askmgr],[data-act],[data-tab],[data-ptab],[data-mlane],[data-chat],[data-unattach],[data-mkmanager],[data-quick],[data-answer],[data-wsend],[data-cu]');
+  const t = e.target.closest('[data-page],[data-project],[data-session],[data-open],[data-close],[data-qsend],[data-compact],[data-askmgr],[data-act],[data-tab],[data-ptab],[data-mlane],[data-chat],[data-unattach],[data-mkmanager],[data-quick],[data-answer],[data-wsend],[data-cu],[data-pick],[data-picksend]');
   if (t && t.dataset.compact) return compactSession(t.dataset.compact);
   if (t && t.dataset.askmgr) return askManager(JSON.parse(t.dataset.askmgr));
   if (t && t.dataset.qsend) {
@@ -1661,6 +1687,31 @@ document.addEventListener('click', (e) => {
     }
     t.disabled = true;
     return answer(t.dataset.answer, t.dataset.value);
+  }
+  if (t.dataset.pick) {
+    const sel = PICK[t.dataset.pick] || (PICK[t.dataset.pick] = []);
+    sel[+t.dataset.qi] = +t.dataset.k;
+    const s = findSession(t.dataset.pick);
+    // 질문이 하나면 고르는 즉시 «답 보내기»가 켜진다 — 그대로 다시 그린다
+    if (s) { render(); if (view.session) renderPanelHead(model()); }
+    return;
+  }
+  if (t.dataset.picksend) {
+    if (!t.classList.contains('armed')) {
+      document.querySelectorAll('.opt.armed').forEach((b) => { b.classList.remove('armed'); b.querySelector('em')?.remove(); });
+      t.classList.add('armed'); t.insertAdjacentHTML('beforeend', '<em>한 번 더 눌러 보내기</em>');
+      setTimeout(() => { t.classList.remove('armed'); t.querySelector('em')?.remove(); }, 3000);
+      return;
+    }
+    const s = findSession(t.dataset.picksend), sel = PICK[t.dataset.picksend] || [];
+    if (!s || !s.ask?.qs) return toast('질문이 이미 닫혔습니다');
+    const label = s.ask.qs.map((q, i) => q.opts[sel[i]]?.label).join(' / ');
+    t.disabled = true;
+    return cmd(s.device, 'pick', { handle: s.handle, keys: sel.map((k) => k + 1), label }, s.title).then((r) => {
+      toast(r.ok ? `답했습니다 — ${label}` : `못 보냈습니다: ${r.error}`);
+      if (r.ok) delete PICK[s.handle];
+      setTimeout(load, 3000);
+    });
   }
   if (t.dataset.wsend) {
     if (!t.classList.contains('armed')) {

@@ -158,7 +158,10 @@ function claudeSessions() {
           lastSeen = true;
           const c = j.message?.content;
           const ask = Array.isArray(c) && c.find((y) => y && y.type === 'tool_use' && y.name === 'AskUserQuestion');
-          if (j.type === 'assistant' && ask) x.ask = { kind: 'question', text: redact((ask.input?.questions || []).map((q) => q.question + (q.options ? ' — ' + q.options.map((o) => o.label).join(' / ') : '')).join('\n')), at: j.timestamp };
+          if (j.type === 'assistant' && ask) {
+            const qs = (ask.input?.questions || []).map((q) => ({ q: redact(q.question || ''), head: redact(q.header || ''), multi: !!q.multiSelect, opts: (q.options || []).map((o) => ({ label: redact(o.label || ''), desc: redact(o.description || '').slice(0, 200) })) }));
+            x.ask = { kind: 'menu', qs, text: qs.map((q) => q.q + (q.opts.length ? ' — ' + q.opts.map((o) => o.label).join(' / ') : '')).join('\n'), at: j.timestamp };
+          }
           else if (j.type === 'assistant') {
             x.last_text = redact(textOf(c).trim());
             const tail = x.last_text.split('\n').filter((t) => t.trim()).slice(-3).join('\n');
@@ -350,6 +353,22 @@ const OPS = {
       if (/submit|timed? ?out|timeout|ETIMEDOUT|killed/i.test(e.message)) return { queued: true, note: e.message.slice(0, 120) };
       throw e;
     }
+  },
+  // 터미널 선택 메뉴(AskUserQuestion)에 번호 키를 차례로 누른다. 질문이 여럿이면 끝에 «제출»(1).
+  async pick({ handle, keys }) {
+    if (String(handle).startsWith('cc:')) throw new Error('Orca 밖 세션이라 여기서 보낼 수 없다 — 그 기기의 Claude 화면에서 답해야 한다');
+    const c = claudeSessions().find((x) => x.session_id === handleCc.get(handle)) || claudeSessions().find((x) => x.name && x.name === cleanName(handleTitles.get(handle)));
+    const qs = c?.ask?.kind === 'menu' ? c.ask.qs : null;
+    if (!qs || !qs.length) throw new Error('지금은 선택 메뉴가 떠 있지 않다 — 대화창에서 확인해 주세요');
+    if (qs.some((q) => q.multi)) throw new Error('여러 개 고르는 질문이라 터미널에서 직접 골라야 한다');
+    if (!Array.isArray(keys) || keys.length !== qs.length || keys.some((k, i) => !/^[1-9]$/.test(String(k)) || +k > qs[i].opts.length)) throw new Error('고른 번호가 질문과 맞지 않는다');
+    const seq = qs.length > 1 ? [...keys.map(String), '1'] : keys.map(String);
+    for (const k of seq) {
+      await orca(['terminal', 'send', '--terminal', handle, '--text', k], 20e3);
+      await new Promise((r) => setTimeout(r, 700));
+    }
+    ccCache = null;
+    return { picked: keys };
   },
   async launch({ folder, agent = 'claude', prompt, title }) {
     if (!['claude', 'codex'].includes(agent)) throw new Error('claude·codex 만 띄운다');
