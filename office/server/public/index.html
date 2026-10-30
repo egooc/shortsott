@@ -145,6 +145,54 @@ aside.panel { background: var(--panel); border-left: 1px solid var(--line); disp
   padding: 12px 14px; font: 12px/1.45 ui-monospace, "Cascadia Mono", Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
 .tlink { color: var(--accent); text-decoration: underline; word-break: break-all; }
 .screen .tlink, .fscreen .tlink { color: #7cb4ff; }
+/* 관제실: 보드·목록·지도 */
+.ctop { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 14px; }
+.ccount { display: inline-flex; gap: 6px; align-items: center; padding: 6px 12px; border-radius: 999px; background: var(--panel); border: 1px solid var(--line); font-size: 13px; }
+.ccount b { font-size: 15px; } .ccount.need { border-color: var(--bad); color: var(--bad); }
+.vsw { margin-left: auto; display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--panel); }
+.vsw button { border: 0; border-radius: 0; padding: 6px 14px; background: transparent; }
+.vsw button.on { background: var(--accent); color: #fff; }
+.pfil { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+.pfil button { padding: 4px 12px; border-radius: 999px; font-size: 12.5px; } .pfil button.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.cols { display: grid; grid-template-columns: repeat(4, minmax(220px, 1fr)); gap: 12px; align-items: start; overflow-x: auto; }
+.col { background: var(--line2); border-radius: 14px; padding: 10px; min-height: 120px; }
+.col h4 { margin: 2px 4px 10px; font-size: 13px; display: flex; gap: 6px; align-items: center; }
+.col h4 .cnt { margin-left: auto; font-weight: 500; color: var(--muted); }
+.tcard { display: block; width: 100%; text-align: left; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; cursor: pointer; color: var(--text); font: inherit; }
+.tcard:hover { border-color: var(--accent); }
+.tcard.b-need { border-color: var(--bad); box-shadow: 0 0 0 3px color-mix(in srgb, var(--bad) 14%, transparent); }
+.tcard.b-busy { border-color: color-mix(in srgb, var(--accent) 60%, var(--line)); box-shadow: 0 0 14px color-mix(in srgb, var(--accent) 22%, transparent); }
+.tcard .tc1 { display: flex; gap: 6px; align-items: center; font-size: 11.5px; color: var(--muted); }
+.tcard .tc1 .tm { margin-left: auto; }
+.tcard .tn { display: block; font-size: 14.5px; margin: 3px 0 2px; }
+.tcard .tt { font-size: 12.5px; color: var(--text); opacity: .85; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.tcard .tq { font-size: 12.5px; color: var(--bad); margin-top: 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.tcard .ta { margin-top: 6px; border-top: 1px dashed var(--line); padding-top: 5px; font-size: 12px; color: var(--muted); }
+.tcard .ta div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .tcard .ta span { font-variant-numeric: tabular-nums; margin-right: 6px; color: var(--faint); }
+.tlist .tgrp { margin-bottom: 16px; } .tlist .tgrp h4 { margin: 0 0 8px; }
+.tlist .tcard { display: grid; grid-template-columns: 180px 1fr auto; gap: 10px; align-items: center; margin-bottom: 6px; }
+.tlist .tcard .tt { -webkit-line-clamp: 1; }
+.tmapw { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; overflow: auto; }
+.tmap { display: block; width: 100%; min-width: 760px; height: auto; }
+.tmap .ln { stroke: var(--line); fill: none; stroke-width: 1.4; } .tmap .ln.busy { stroke: color-mix(in srgb, var(--accent) 55%, transparent); }
+.tmap text { fill: var(--text); font-size: 12px; } .tmap text.m { fill: var(--muted); font-size: 11px; }
+.tmap .nd { cursor: pointer; } .tmap .nd:hover text { fill: var(--accent); }
+.tmap .pn circle { fill: var(--panel); stroke: var(--text); stroke-width: 1.5; }
+.tmap .sn { fill: var(--faint); } .tmap .sn.busy { fill: var(--accent); } .tmap .sn.need { fill: var(--bad); } .tmap .sn.stale, .tmap .sn.off { fill: var(--line); stroke: var(--faint); }
+.tmap .glow { fill: var(--accent); opacity: .25; filter: blur(5px); }
+.tmap .ring { fill: none; stroke: var(--bad); stroke-width: 2; animation: ring 1.6s ease-out infinite; transform-box: fill-box; transform-origin: center; }
+@keyframes ring { from { transform: scale(1); opacity: .9; } to { transform: scale(2.4); opacity: 0; } }
+@media (max-width: 760px) { .cols { grid-template-columns: repeat(4, 78vw); } .tlist .tcard { grid-template-columns: 1fr; } }
+/* 왼쪽 나무: 프로젝트 아래 세션 */
+.stree { margin: -2px 0 8px 18px; border-left: 1px solid var(--line); padding-left: 8px; }
+.stree button { display: flex; gap: 6px; align-items: center; width: 100%; text-align: left; border: 0; background: transparent; padding: 3px 6px; border-radius: 8px; font-size: 12.5px; color: var(--text); }
+.stree button:hover { background: var(--line2); } .stree button .sx { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stree button .st { font-size: 11px; color: var(--muted); } .stree button .st.need { color: var(--bad); } .stree button .st.busy { color: var(--accent); }
+.stree .more { color: var(--muted); }
+/* 세션 패널 안 질문 */
+#pask { padding: 0 12px; } #pask .pq { border: 1px solid var(--bad); border-radius: 12px; padding: 10px 12px; margin: 6px 0; background: var(--panel); }
+#pask .pq .q { font-size: 13.5px; margin-bottom: 8px; } #pask .dopts { display: grid; gap: 6px; }
+
 /* 대화로 보기 */
 .chatv { display: flex; flex-direction: column; gap: 10px; font: 14px/1.6 inherit; font-family: inherit; white-space: normal; }
 .screen.chatmode, .fpanel .fscreen.chatmode { background: var(--bg); color: var(--text); font: 14px/1.6 system-ui, -apple-system, "Malgun Gothic", sans-serif; white-space: normal; }
@@ -713,14 +761,19 @@ function renderSide(M) {
   const open = S.decisions.filter((d) => d.status === 'open').length + waitingSessions(M).length;
   const stale = M.all.filter((s) => s.status === 'stale').length;
   const nav = [['home', '⌂', '오늘', ''], ['decisions', '✓', '결정', open ? `<span class="n hot">${open}</span>` : ''],
-    ['results', '▣', '결과물', ''], ['tidy', '◎', '세션', stale ? `<span class="n warn">${stale}</span>` : `<span class="n">${M.all.length}</span>`], ['log', '≡', '기록', '']];
+    ['results', '▣', '결과물', ''], ['control', '◎', '관제실', stale ? `<span class="n warn">${stale}</span>` : `<span class="n">${M.all.length}</span>`], ['log', '≡', '기록', '']];
   $('nav').innerHTML = nav.map(([k, ic, t, n]) => `<button class="navb ${view.page === k ? 'on' : ''}" data-page="${k}"><span class="ic">${ic}</span><span>${t}</span>${n}</button>`).join('');
+  const need = needMap(M);
+  const ST = { need: '결정 필요', busy: '작업 중', idle: '', stale: '' };
   $('tree').innerHTML = '<h4>프로젝트</h4>' + M.projects.map((p) => {
     const busy = p.sessions.filter((s) => s.status === 'busy').length;
+    const order = (x) => ['need', 'busy', 'idle', 'stale'].indexOf(bucketOf(x, need));
+    const ss = [...p.sessions].sort((a, b) => order(a) - order(b) || (b.last_output_at || 0) - (a.last_output_at || 0));
+    const tree = p.board ? '' : `<div class="stree">${ss.slice(0, 4).map((x) => { const b = bucketOf(x, need); return `<button data-open="${esc(x.handle)}"><span class="dot d-${x.status}" ${b === 'need' ? 'style="background:var(--bad)"' : ''}></span><span class="sx">${esc(nice(x.title).name)}</span><span class="st ${b}">${ST[b] || ago(x.last_output_at)}</span></button>`; }).join('')}${ss.length > 4 ? `<button class="more" data-project="${esc(p.key)}">더 보기 ${ss.length - 4}</button>` : ''}</div>`;
     return `<button class="ptile ${p.board ? 'sub' : ''} ${view.page === 'project' && view.project === p.key ? 'on' : ''}" data-project="${esc(p.key)}">
       <span class="pav">${esc(p.name.slice(0, 1))}</span>
       <span class="pn"><b>${esc(p.name)}</b><small>세션 ${p.sessions.length}${busy ? ` · 작업 중 ${busy}` : ''}</small></span>
-      ${busy ? '<span class="dot d-busy"></span>' : ''}</button>`;
+      ${busy ? '<span class="dot d-busy"></span>' : ''}</button>${tree}`;
   }).join('');
   $('devs').innerHTML = meters(limitsNow(), true) + `<div class="dchips">${S.devices.map((d) => `<span class="dchip ${d.online ? '' : 'off'}"><span class="dot ${d.online ? 'd-idle' : 'd-off'}"></span>${esc(devName(d.device))}</span>`).join('')}</div>`;
 }
@@ -1298,6 +1351,75 @@ function renderTidy(M) {
     <div class="card">${sessionTable(filt, { project: true })}</div></div>`;
 }
 
+// ── 관제실: 세션마다 맡은 일·최근 움직임을 카드로. 보드(상태 칸)·목록(프로젝트별)·지도(가지). 누르면 오른쪽에 대화가 열린다. ──
+const hm = (at) => at ? new Date(at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false }) : '';
+let CV = (() => { try { return localStorage.getItem('cv') || 'board'; } catch { return 'board'; } })();
+let CP = 'all';
+function needMap(M) {
+  const m = new Map();
+  for (const d of S.decisions.filter((x) => x.status === 'open')) { const a = askerOf(d); if (a) m.set(a.handle, parseAsk(d.question)?.q || d.question); }
+  for (const x of M.all) if (x.ask && x.online) m.set(x.handle, x.ask.kind === 'permission' ? '허가를 기다리며 멈춤' : askShape(x.ask.text).q);
+  return m;
+}
+const bucketOf = (x, need) => need.has(x.handle) ? 'need' : x.status === 'busy' ? 'busy' : x.status === 'idle' ? 'idle' : 'stale';
+const BUCKETS = [['need', '결정 필요'], ['busy', '작업 중'], ['idle', '대기'], ['stale', '오래 멈춤·꺼짐']];
+function ctlCard(x, need) {
+  const b = bucketOf(x, need), n = nice(x.title);
+  const acts = (x.acts || []).slice(0, CV === 'list' ? 1 : 3);
+  return `<button class="tcard b-${b}" data-open="${esc(x.handle)}">
+    <div class="tc1"><span class="dot d-${x.status}"></span><span>${esc(PROJECT_NAMES[x.project] || x.project)}${n.kind ? ' · ' + esc(n.kind) : ''} · ${esc(devName(x.device))}</span><span class="tm">${ago(x.last_output_at)}</span></div>
+    <b class="tn">${esc(n.name)}</b>
+    ${x.task ? `<div class="tt">맡은 일 · ${esc(plain(x.task.t))}</div>` : ''}
+    ${need.has(x.handle) ? `<div class="tq">물어봄 · ${esc(need.get(x.handle))}</div>` : ''}
+    ${acts.length ? `<div class="ta">${acts.map((a) => `<div><span>${hm(a.at)}</span>${esc(plain(a.t))}</div>`).join('')}</div>` : ''}
+  </button>`;
+}
+// 지도: 가운데 오피스 → 프로젝트 → 세션. 세션은 프로젝트 바깥쪽에 세로로 줄 세운다(겹치지 않게).
+function ctlMap(M, rows, need) {
+  const ps = M.projects.filter((p) => !p.board && p.sessions.some((x) => rows.includes(x)));
+  const GAP = 50, maxN = Math.max(1, ...ps.map((p) => p.sessions.filter((x) => rows.includes(x)).length));
+  const W = 1180, H = Math.max(560, maxN * GAP + 120), cx = W / 2, cy = H / 2;
+  let svg = `<circle cx="${cx}" cy="${cy}" r="28" fill="var(--panel)" stroke="var(--text)" stroke-width="1.5"/><text x="${cx}" y="${cy + 4}" text-anchor="middle">오피스</text>`;
+  ps.forEach((p, i) => {
+    const a = ps.length === 1 ? 0 : ps.length === 2 ? (i ? 0 : Math.PI) : (2 * Math.PI * i) / ps.length - Math.PI / 2;
+    const px = cx + Math.cos(a) * 120, py = cy + Math.sin(a) * (ps.length > 2 ? 120 : 0);
+    const right = Math.cos(a) >= -0.01;
+    const ss = p.sessions.filter((x) => rows.includes(x)).sort((u, v) => ['need', 'busy', 'idle', 'stale'].indexOf(bucketOf(u, need)) - ['need', 'busy', 'idle', 'stale'].indexOf(bucketOf(v, need)));
+    const gap = Math.min(GAP, (H - 80) / Math.max(1, ss.length));
+    ss.forEach((x, j) => {
+      const b = bucketOf(x, need);
+      const sx = px + (right ? 140 : -140), sy = Math.min(H - 30, Math.max(30, py + (j - (ss.length - 1) / 2) * gap));
+      const tx = sx + (right ? 14 : -14), anc = right ? 'start' : 'end';
+      const sub = (x.acts?.[0] || x.task)?.t;
+      svg += `<path class="ln ${b === 'busy' || b === 'need' ? 'busy' : ''}" d="M${px},${py} C${px + (right ? 80 : -80)},${py} ${sx + (right ? -70 : 70)},${sy} ${sx},${sy}"/>`
+        + `<g class="nd" data-open="${esc(x.handle)}">${b === 'busy' ? `<circle class="glow" cx="${sx}" cy="${sy}" r="13"/>` : ''}${b === 'need' ? `<circle class="ring" cx="${sx}" cy="${sy}" r="7"/>` : ''}
+          <circle class="sn ${b}" cx="${sx}" cy="${sy}" r="7"/>
+          <text x="${tx}" y="${sy + (sub ? -1 : 4)}" text-anchor="${anc}" font-weight="600">${esc(nice(x.title).name.slice(0, 14) + (/일본/.test(nice(x.title).kind) ? ' · 일본' : ''))}</text>
+          ${sub ? `<text class="m" x="${tx}" y="${sy + 14}" text-anchor="${anc}">${esc(plain(sub).slice(0, 21))}</text>` : ''}</g>`;
+    });
+    svg += `<path class="ln" d="M${cx},${cy} L${px},${py}"/><g class="nd pn" data-project="${esc(p.key)}"><circle cx="${px}" cy="${py}" r="10"/><text x="${px}" y="${py - 18}" text-anchor="middle" font-weight="700">${esc(p.name)}</text></g>`;
+  });
+  return `<div class="tmapw"><svg class="tmap" viewBox="0 0 ${W} ${H}">${svg}</svg></div>`;
+}
+function renderControl(M) {
+  const need = needMap(M);
+  const all = M.all.filter((x) => !HIDDEN_PROJECTS.has(x.project));
+  const rows = CP === 'all' ? all : all.filter((x) => x.project === CP);
+  const by = (k) => rows.filter((x) => bucketOf(x, need) === k).sort((a, b) => (b.last_output_at || 0) - (a.last_output_at || 0));
+  const projs = [...new Set(all.map((x) => x.project))];
+  let body;
+  if (CV === 'board') body = `<div class="cols">${BUCKETS.map(([k, t]) => `<div class="col"><h4><span class="dot d-${k === 'need' ? 'stale' : k}" ${k === 'need' ? 'style="background:var(--bad)"' : ''}></span>${t}<span class="cnt">${by(k).length}</span></h4>${by(k).map((x) => ctlCard(x, need)).join('') || '<div class="muted" style="padding:6px">없음</div>'}</div>`).join('')}</div>`;
+  else if (CV === 'list') body = `<div class="tlist">${projs.filter((p) => CP === 'all' || p === CP).map((p) => {
+    const rs = rows.filter((x) => x.project === p).sort((a, b) => BUCKETS.findIndex(([k]) => k === bucketOf(a, need)) - BUCKETS.findIndex(([k]) => k === bucketOf(b, need)) || (b.last_output_at || 0) - (a.last_output_at || 0));
+    return `<div class="tgrp"><h4>${esc(PROJECT_NAMES[p] || p)} <span class="muted">${rs.length}</span></h4>${rs.map((x) => ctlCard(x, need)).join('')}</div>`; }).join('')}</div>`;
+  else body = ctlMap(M, rows, need);
+  return head('관제실', '세션마다 맡은 일과 최근 움직임 — 누르면 오른쪽에 대화가 열립니다', '<button class="small" data-act="page:tidy">세션 정리</button> ' + NEW_BTN) + `<div class="body">
+    <div class="ctop">${BUCKETS.map(([k, t]) => `<span class="ccount ${k === 'need' && by(k).length ? 'need' : ''}">${t} <b>${by(k).length}</b></span>`).join('')}
+      <span class="vsw">${[['board', '보드'], ['list', '목록'], ['map', '지도']].map(([k, t]) => `<button class="${CV === k ? 'on' : ''}" data-act="cv:${k}">${t}</button>`).join('')}</span></div>
+    <div class="pfil">${[['all', '전체'], ...projs.map((p) => [p, PROJECT_NAMES[p] || p])].map(([k, t]) => `<button class="${CP === k ? 'on' : ''}" data-act="cp:${esc(k)}">${esc(t)}</button>`).join('')}</div>
+    ${body}</div>`;
+}
+
 function renderDecisions() {
   const open = S.decisions.filter((d) => d.status === 'open'), done = S.decisions.filter((d) => d.status !== 'open').slice(0, 20);
   const waits = waitingSessions(model());
@@ -1327,7 +1449,7 @@ let CUR_M = null;
 function render(auto) {
   const M = model(); CUR_M = M;
   renderSide(M);
-  const P = { home: renderHome, project: renderProject, tidy: renderTidy, decisions: renderDecisions, log: renderLog, results: renderResults, projects: renderProjects };
+  const P = { control: renderControl, home: renderHome, project: renderProject, tidy: renderTidy, decisions: renderDecisions, log: renderLog, results: renderResults, projects: renderProjects };
   if (!(auto && busyMain())) {
     document.querySelectorAll('[data-draft]').forEach((t) => { DRAFTS[t.dataset.draft] = t.value; });
     $('main').innerHTML = (P[view.page] || renderHome)(M);
@@ -1336,7 +1458,7 @@ function render(auto) {
   renderFab(M);
   // 폰 아래 탭: 오늘 · 결정 · 결과물 · 프로젝트(서랍) · 세션
   const open = S.decisions.filter((d) => d.status === 'open').length + waitingSessions(M).length;
-  const TB = [['page:home', '오늘', 'home', '⌂'], ['page:decisions', '결정', 'decisions', '✓'], ['page:results', '결과물', 'results', '▣'], ['page:projects', '프로젝트', 'projects', '▤'], ['page:tidy', '세션', 'tidy', '◎']];
+  const TB = [['page:home', '오늘', 'home', '⌂'], ['page:decisions', '결정', 'decisions', '✓'], ['page:results', '결과물', 'results', '▣'], ['page:projects', '프로젝트', 'projects', '▤'], ['page:control', '관제실', 'control', '◎']];
   $('tabbar').innerHTML = TB.map(([act, label, page, ic]) => `<button data-act="${act}" class="${view.page === page || (page === 'projects' && view.page === 'project') ? 'on' : ''}">
     <span class="ic">${ic}</span>${page === 'decisions' && open ? `<span class="badge">${open}</span>` : ''}<span>${label}</span></button>`).join('');
 }
@@ -1347,6 +1469,12 @@ function renderPanelHead(M) {
   const s = M.all.find((x) => x.handle === view.session);
   const h = $('panel').querySelector('.ph');
   if (!s || !h) return;
+  const pk = $('pask');
+  if (pk) {
+    const A = s.ask && s.online ? (s.ask.kind === 'permission' ? { q: '허가를 기다리며 멈춰 있어요 — «터미널 그대로 보기»로 확인해 주세요', opts: [] } : askShape(s.ask.text)) : null;
+    const html = A ? `<div class="pq"><div class="q">${linkify(A.q)}</div><div class="dopts">${!s.external && s.ask.kind !== 'permission' ? A.opts.map((o) => `<button class="opt ${o === A.rec ? 'rec' : ''}" data-wsend="${esc(s.handle)}" data-value="${esc(o)}"><span>${esc(o)}</span>${o === A.rec ? '<small>추천</small>' : ''}</button>`).join('') : ''}</div></div>` : '';
+    if (pk.dataset.h !== html) { pk.innerHTML = html; pk.dataset.h = html; }
+  }
   h.querySelector('.meta').innerHTML = `${esc(PROJECT_NAMES[s.project] || s.project)} · ${esc(devName(s.device))} · ${esc(AGENT_NAMES[s.agent] || s.agent || '')} · <span class="dot d-${s.status}"></span> ${STATUS_TEXT[s.status]} · ${ago(s.last_output_at)}`;
 }
 function openPanel(handle) {
@@ -1360,6 +1488,7 @@ function openPanel(handle) {
       <div class="meta"></div></div>
     <div style="padding:0 12px"><button class="small ghost vtog" data-act="rawtoggle">터미널 그대로 보기 ↔ 대화로 보기</button></div>
     <div class="screen" id="screen">화면을 불러오는 중…</div>
+    <div id="pask"></div>
     <div class="quick">${QUICK.map(([t], i) => `<button class="small" data-quick="${i}">${t}</button>`).join('')}</div>
     <div class="composer"><textarea id="msg" rows="2" placeholder="이 세션에 보낼 말 — Enter 로 보내기, Shift+Enter 줄바꿈"></textarea><button class="primary" data-act="send">보내기</button></div>`;
   render();
@@ -1566,6 +1695,8 @@ document.addEventListener('click', (e) => {
     if (show) box.scrollIntoView({ behavior: 'smooth', block: 'start' });
     return;
   }
+  if (a && a.startsWith('cv:')) { CV = a.slice(3); try { localStorage.setItem('cv', CV); } catch {} return render(); }
+  if (a && a.startsWith('cp:')) { CP = a.slice(3); return render(); }
   if (a === 'new') return newSession();
   if (a === 'send') return sendMsg();
   if (a === 'panel-x') return closePanel();

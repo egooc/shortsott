@@ -107,6 +107,17 @@ const redact = (t) => String(t || '')
   .replace(/(?<![\w/%.=-])[A-Za-z0-9_+/-]{32,}={0,2}(?![\w/%])/g, (m) => /[0-9]/.test(m) && /[A-Za-z]/.test(m) ? '••••' : m);
 const pidAlive = (pid) => { try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; } };
 const textOf = (c) => typeof c === 'string' ? c : Array.isArray(c) ? c.filter((x) => x && x.type === 'text').map((x) => x.text).join('\n') : '';
+const ACT = { Bash: '명령', PowerShell: '명령', Read: '읽기', Edit: '고치기', Write: '쓰기', Grep: '찾기', Glob: '파일 찾기', Agent: '도우미', WebSearch: '검색', WebFetch: '웹 읽기', SendMessage: '다른 세션에 전달', AskUserQuestion: '질문', ToolSearch: '도구 준비' };
+const actText = (y) => { const i = y.input || {}; const k = ACT[y.name] || y.name.replace(/^mcp__[^_]+__/, '');
+  return i.description ? i.description : i.file_path ? `${k} · ${path.basename(String(i.file_path))}` : i.summary ? i.summary : k; };
+// 사람(또는 다른 세션) 지시 첫 줄 — 시스템 줄·명령 줄은 건너뛴다
+const taskText = (raw, meta) => {
+  let t = String(raw || '').replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, '').replace(/^Another Claude session sent a message:\s*/, '').replace(/<\/?(cross-session-message|pasted_content)[^>]*>/g, '').trim();
+  if (meta && !/^\[/.test(t)) return null;
+  if (!t || /^<|^\[Image|^Caveat:|^This session is being continued/.test(t)) return null;
+  t = t.replace(/^\[오피스 · 소유주\]\s*/, '').replace(/^\[[^\]]{1,40}\]\s*/, '').split('\n').find((l) => l.trim()) || '';
+  return t.trim() || null;
+};
 let ccCache = { at: 0, list: [] };
 const handleTitles = new Map();
 const handleCc = new Map(); // Orca 탭 이름과 세션 이름이 달라 폴더로 짝지은 것: 터미널 → 세션ID
@@ -119,7 +130,7 @@ function claudeSessions() {
     let s; try { s = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')); } catch { continue; }
     if (!s.sessionId || !s.cwd || (s.pid && !pidAlive(s.pid))) continue;
     const x = { name: cleanName(s.name || ''), session_id: s.sessionId, cwd: s.cwd, status: s.status || null, entrypoint: s.entrypoint || null,
-      updated_at: s.statusUpdatedAt || s.updatedAt || null, bridge: /^session_\w+$/.test(s.bridgeSessionId || '') ? s.bridgeSessionId : null, tokens: null, model: null, last_text: '', ask: null };
+      updated_at: s.statusUpdatedAt || s.updatedAt || null, bridge: /^session_\w+$/.test(s.bridgeSessionId || '') ? s.bridgeSessionId : null, tokens: null, model: null, last_text: '', ask: null, task: null, acts: [] };
     const tr = path.join(os.homedir(), '.claude/projects', s.cwd.replace(/[:\\/.]/g, '-'), `${s.sessionId}.jsonl`);
     try {
       const fd = fs.openSync(tr, 'r'); const size = fs.fstatSync(fd).size; const n = Math.min(size, 400000);
@@ -127,6 +138,20 @@ function claudeSessions() {
       let lastSeen = false;
       for (const l of buf.toString('utf8').split('\n').reverse()) {
         let j; try { j = JSON.parse(l); } catch { continue; }
+        // 관제실 카드: 지금 맡은 일(마지막 사람·세션 지시 첫 줄) + 그 뒤 최근 움직임 4개
+        if (!x.task && !j.isSidechain) {
+          const c = j.message?.content;
+          if (j.type === 'assistant' && Array.isArray(c)) {
+            for (const y of [...c].reverse()) {
+              if (x.acts.length >= 4) break;
+              if (y.type === 'tool_use' && (/[가-힣]/.test(y.input?.description || '') || y.input?.file_path)) x.acts.push({ at: j.timestamp, t: redact(actText(y)).slice(0, 90) });
+              else if (y.type === 'text' && y.text.trim()) x.acts.push({ at: j.timestamp, t: redact(y.text.trim().split('\n')[0]).slice(0, 90), say: true });
+            }
+          } else if (j.type === 'user' && !(Array.isArray(c) && c.every((y) => y.type === 'tool_result'))) {
+            const t = taskText(textOf(c), j.isMeta);
+            if (t) x.task = { t: redact(t).slice(0, 120), at: j.timestamp };
+          }
+        }
         const u = j.message && j.message.usage;
         if (u && x.tokens == null) { x.tokens = (u.input_tokens || 0) + (u.cache_read_input_tokens || 0) + (u.cache_creation_input_tokens || 0); x.model = j.message.model || null; }
         if (!lastSeen && (j.type === 'assistant' || j.type === 'user') && !j.isMeta && !j.isSidechain) {
@@ -140,7 +165,7 @@ function claudeSessions() {
             if (x.last_text && !(Array.isArray(c) && c.some((y) => y.type === 'tool_use')) && ASK_RE.test(tail)) x.ask = { kind: 'question', text: x.last_text.slice(-1500), at: j.timestamp };
           }
         }
-        if (lastSeen && x.tokens != null) break;
+        if (lastSeen && x.tokens != null && x.task) break;
       }
     } catch {}
     if (s.status === 'requires_action') x.ask = { kind: 'permission', text: x.ask?.text || x.last_text.slice(-600), at: x.updated_at };
@@ -259,7 +284,7 @@ async function state() {
   const repoList = (repos.repos || repos || []);
   const ccs = claudeSessions();
   const byName = new Map(ccs.filter((x) => x.name).map((x) => [x.name, x]));
-  const link = (x, c) => { x.cc_status = c.status; x.ask = c.ask; x.bridge = c.bridge; if (x.context_tokens == null) { x.context_tokens = c.tokens; x.model = c.model; } c.matched = true; };
+  const link = (x, c) => { x.cc_status = c.status; x.ask = c.ask; x.bridge = c.bridge; x.task = c.task; x.acts = c.acts; if (x.context_tokens == null) { x.context_tokens = c.tokens; x.model = c.model; } c.matched = true; };
   for (const x of sessions) { const c = byName.get(cleanName(x.title)); if (c) link(x, c); }
   // 탭 이름을 따로 붙인 세션(예: «그로우업 관리자» = growupup-cd): 같은 작업 폴더에 남은 짝이 하나씩뿐이면 같은 세션이다(10-31 N100 «Orca 밖» 오인)
   const nf = (p) => String(p || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
@@ -279,7 +304,7 @@ async function state() {
       || rl.find((r) => cw.includes(`/workspaces/${String(r.displayName || r.name || '').toLowerCase()}/`));
     sessions.push({ handle: `cc:${c.session_id}`, title: c.name, agent: 'claude', folder: c.cwd, repo_id: repo ? repo.id : null,
       last_output_at: c.updated_at, connected: true, writable: false, external: true, preview: c.last_text.slice(-600),
-      context_tokens: c.tokens, model: c.model, cc_status: c.status, ask: c.ask, bridge: c.bridge, compacting: false });
+      context_tokens: c.tokens, model: c.model, cc_status: c.status, ask: c.ask, bridge: c.bridge, task: c.task, acts: c.acts, compacting: false });
   }
   return {
     device: DEVICE, platform: process.platform, at: new Date().toISOString(),
