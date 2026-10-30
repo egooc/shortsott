@@ -323,9 +323,17 @@ table.rt td:first-child .cellsub { white-space: normal; max-width: none; margin-
 .mcard .mb { padding: 10px 14px 14px; display: grid; gap: 4px; }
 .mcard .mt { font-weight: 700; font-size: 14.5px; }
 .media { display: block; width: 100%; max-height: 420px; object-fit: contain; background: #000; }
-img.media { object-fit: cover; max-height: 320px; }
+img.media { object-fit: cover; height: 320px; max-height: none; }
+/* 영상 칸은 처음부터 크기 고정(쇼츠 세로·롱폼 가로) — 로딩 중에 버튼이 밀리지 않게 */
+.vbox { position: relative; width: 100%; background: #000; }
+.vbox.tall { height: 420px; }
+.vbox.wide { aspect-ratio: 16 / 9; }
+.vbox video { position: absolute; inset: 0; width: 100%; height: 100%; max-height: none; object-fit: contain; }
+.dmedia .vbox.tall.big { height: 520px; }
+.dmedia.multi .vbox.tall { height: 340px; }
 .dmedia { margin: -14px -16px 12px; border-radius: 14px 14px 0 0; overflow: hidden; background: #000; }
 .dmedia .media.big { max-height: 520px; }
+.dmedia img.media.big { height: 420px; }
 .dmedia.multi { display: grid; grid-template-columns: repeat(2, 1fr); gap: 2px; }
 
 /* 대화창 */
@@ -734,10 +742,25 @@ function section(s) {
 }
 
 // ── 결과물(이미지·영상) ──
+// 영상 모양은 로딩 전에 정한다: 한 번 본 영상은 실제 모양을 기억, 처음 보는 건 레인·제목으로 짐작(기본 쇼츠 세로).
+const SHAPES = (() => { try { return JSON.parse(localStorage.getItem('vshape') || '{}'); } catch { return {}; } })();
+function videoShape(m) {
+  if (SHAPES[m.id]) return SHAPES[m.id];
+  return /롱폼|기업흥망|연금|정치 ?(ko|JA)? ?롱|1시간|long/i.test(`${m.lane || ''} ${m.title || ''} ${m.name || ''}`) ? 'wide' : 'tall';
+}
+document.addEventListener('loadedmetadata', (e) => {
+  const v = e.target; const box = v.closest && v.closest('[data-vid]');
+  if (!box || !v.videoWidth) return;
+  const shape = v.videoWidth > v.videoHeight ? 'wide' : 'tall';
+  if (SHAPES[box.dataset.vid] === shape) return;
+  SHAPES[box.dataset.vid] = shape;
+  try { localStorage.setItem('vshape', JSON.stringify(SHAPES)); } catch {}
+  if (!box.classList.contains(shape)) { box.classList.remove('tall', 'wide'); box.classList.add(shape); } // 짐작이 틀렸을 때 한 번만 바뀐다
+}, true);
 const mediaById = (id) => (S.media || []).find((m) => m.id === id);
 function mediaEl(m, big) {
   if (!m) return '';
-  if (m.mime.startsWith('video/')) return `<video class="media ${big ? 'big' : ''}" src="${esc(m.url)}#t=0.1" controls preload="metadata" playsinline></video>`;
+  if (m.mime.startsWith('video/')) return `<div class="vbox ${videoShape(m)} ${big ? 'big' : ''}" data-vid="${esc(m.id)}"><video class="media" src="${esc(m.url)}#t=0.1" controls preload="metadata" playsinline></video></div>`;
   if (m.mime.startsWith('image/')) return `<a href="${esc(m.url)}" target="_blank" rel="noopener"><img class="media ${big ? 'big' : ''}" src="${esc(m.url)}" loading="lazy" alt="${esc(m.title)}"></a>`;
   if (m.mime.startsWith('audio/')) return `<audio src="${esc(m.url)}" controls preload="none" style="width:100%"></audio>`;
   return `<a class="opt" href="${esc(m.url)}" target="_blank" rel="noopener">${esc(m.name)} 열기</a>`;
