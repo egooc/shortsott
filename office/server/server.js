@@ -421,6 +421,13 @@ wss.on('connection', (ws) => {
     }
     if (m.type === 'state' && m.state) {
       const d = devices.get(device);
+      // 세션이 묻고 멈췄거나 허가를 기다리기 시작하면 알림(허브 재시작 직후 첫 상태는 비교할 게 없어 건너뜀)
+      const askKey = (x) => `${x.title}|${x.ask.kind}|${x.ask.at || ''}`;
+      const before = d.state ? new Set((d.state.sessions || []).filter((x) => x.ask).map(askKey)) : null;
+      if (before) for (const x of (m.state.sessions || []).filter((y) => y.ask && !before.has(askKey(y)))) {
+        notify({ title: `${x.ask.kind === 'permission' ? '허가 대기' : '세션이 답을 기다려요'} · ${String(x.title || '').replace(/^[^\p{L}\p{N}]+/u, '')}`,
+          body: String(x.ask.text || '').replace(/\s+/g, ' ').slice(-140) || '승인해야 진행합니다', tag: `ask-${x.title}`, url: '/#decisions' }).catch(() => {});
+      }
       d.state = { ...m.state, device };
       saveSnapshot(device, d.state).catch(() => {});
     } else if (m.type === 'result' && pending.has(m.id)) {

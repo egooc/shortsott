@@ -194,6 +194,9 @@ h3.sh { font-size: 13px; font-weight: 600; color: var(--muted); margin: 6px 2px 
 .dcand ul { margin: 4px 0 0; padding: 0; list-style: none; display: grid; gap: 2px; font-size: 12.5px; color: var(--muted); line-height: 1.45; }
 .dcand li::before { content: '· '; }
 .opt .onos { flex: none; font-size: 12px; color: var(--muted); font-weight: 500; }
+.dcard.wait { border-color: color-mix(in srgb, var(--warn) 55%, var(--line)); }
+.dcard.wait .chips { margin: 2px 0 8px; }
+.q.wq { white-space: pre-wrap; font-size: 14px; font-weight: 500; }
 .small-note { font-size: 12px; white-space: nowrap; }
 .askprev { background: var(--bg); border-radius: 10px; padding: 10px 12px; margin: 8px 0 10px; font-size: 13.5px; color: var(--muted); display: grid; gap: 4px; }
 .opt small { flex: none; white-space: nowrap; font-size: 11px; color: var(--accent); font-weight: 600; }
@@ -685,7 +688,7 @@ function meters(list, compact) {
 }
 
 function renderSide(M) {
-  const open = S.decisions.filter((d) => d.status === 'open').length;
+  const open = S.decisions.filter((d) => d.status === 'open').length + waitingSessions(M).length;
   const stale = M.all.filter((s) => s.status === 'stale').length;
   const nav = [['home', '⌂', '오늘', ''], ['decisions', '✓', '결정', open ? `<span class="n hot">${open}</span>` : ''],
     ['results', '▣', '결과물', ''], ['tidy', '◎', '세션', stale ? `<span class="n warn">${stale}</span>` : `<span class="n">${M.all.length}</span>`], ['log', '≡', '기록', '']];
@@ -731,7 +734,15 @@ const NEEDS_NOTE = /수정|고쳐|고치|바꿔|바꾸|변경|보완|다시|조�
 // 세션이 «… 후보: ①이름(근거, 근거) ②…» 한 덩어리로 올린 질문을 질문·후보 카드로 나눈다.
 const CIRC = '①②③④⑤⑥⑦⑧⑨⑩';
 function parseAsk(q) {
-  const parts = String(q || '').split(/([①-⑩])/);
+  // ①부터 차례대로 나온 번호만 후보로 본다(글 속 «틱톡 ③ 자리» 같은 번호는 본문)
+  const raw = String(q || '').split(/([①-⑩])/);
+  const parts = [raw[0]];
+  for (let i = 1; i < raw.length; i += 2) {
+    const want = CIRC[(parts.length - 1) / 2];
+    if (raw[i] === '①' && parts.length > 1 && want !== '①') { parts.length = 1; parts[0] = raw.slice(0, i).join(''); }
+    if (raw[i] === CIRC[(parts.length - 1) / 2]) parts.push(raw[i], raw[i + 1]);
+    else parts[parts.length - 1] += raw[i] + raw[i + 1];
+  }
   if (parts.length < 5) return null; // 후보 2개 미만이면 그대로
   let head = parts[0].replace(/\s*(후보|선택지|안)\s*[:：]\s*$/, '').trim();
   const items = [];
@@ -773,6 +784,24 @@ function decisionCard(d) {
   </div>`;
 }
 
+// 세션이 결정 요청(ask.js) 없이 터미널에서 묻고 멈췄거나 허가를 기다리는 것 — 에이전트가 Claude 상태 파일로 잡아 올린다.
+function waitingSessions(M) {
+  return M.all.filter((s) => s.ask && s.online && !S.decisions.some((d) => d.status === 'open' && cleanTitle(d.asked_by || '').startsWith(cleanTitle(s.title))))
+    .sort((a, b) => (Date.parse(b.ask.at || 0) || 0) - (Date.parse(a.ask.at || 0) || 0));
+}
+function waitCard(s) {
+  const perm = s.ask.kind === 'permission';
+  const P = !perm && parseAsk(s.ask.text);
+  return `<div class="dcard wait">
+    <div class="dtop"><span class="lane">${esc(nice(s.title).name)}</span><span class="muted">${s.ask.at ? ago(Date.parse(s.ask.at)) : ''}</span></div>
+    ${chipsHtml([{ t: perm ? '허가 대기 — 승인해야 진행' : '세션이 답을 기다려요', c: perm ? 'bad' : 'warn' }, { t: devName(s.device), c: 'muted' }, ...(s.external ? [{ t: 'Orca 밖', c: 'muted' }] : [])])}
+    ${P ? `<div class="dq">${linkify(P.q)}</div><div class="dcands">${P.items.map((x) => `<div class="dcand"><span class="no">${CIRC.indexOf(x.no) + 1}</span><div><div class="nm">${esc(x.name)}</div>${x.why.length ? `<ul>${x.why.map((w) => `<li>${esc(w)}</li>`).join('')}</ul>` : ''}</div></div>`).join('')}</div>`
+      : s.ask.text ? `<div class="q clamp wq" data-act="expand">${linkify(joinWrappedUrls(s.ask.text.split('\n').filter((l) => l.trim()).slice(-12).join('\n')))}</div>` : ''}
+    <div class="dopts">${s.external ? `<div class="muted small-note" style="white-space:normal">이 세션은 오피스에서 바로 답할 수 없어요 — ${esc(devName(s.device))}의 Claude 화면(또는 Claude 앱 원격 제어)에서 답해 주세요.</div>`
+      : `<button class="opt rec" data-session="${esc(s.handle)}"><span>대화 화면 열고 답하기</span></button>`}</div>
+  </div>`;
+}
+
 function homeAlerts(M) {
   const out = [];
   const stale = M.all.filter((s) => s.status === 'stale');
@@ -807,6 +836,7 @@ function renderProjects(M) {
 }
 function renderHome(M) {
   const open = S.decisions.filter((d) => d.status === 'open');
+  const waits = waitingSessions(M);
   const alerts = homeAlerts(M);
   const busy = M.all.filter((s) => s.status === 'busy').length;
   const online = S.devices.filter((d) => d.online).length;
@@ -815,9 +845,10 @@ function renderHome(M) {
     ${meters(limitsNow())}
     <div class="grid2">
       <div>
-        <h3 class="sh">결정 대기 <span class="cnt ${open.length ? 'hot' : ''}">${open.length}</span></h3>
+        <h3 class="sh">결정 대기 <span class="cnt ${open.length + waits.length ? 'hot' : ''}">${open.length + waits.length}</span></h3>
+        ${waits.map(waitCard).join('')}
         ${open.length ? open.slice(0, 5).map(decisionCard).join('') + (open.length > 5 ? `<button class="more" data-act="page:decisions">${open.length - 5}개 더 보기</button>` : '')
-          : '<div class="card empty">기다리는 결정이 없습니다.</div>'}
+          : waits.length ? '' : '<div class="card empty">기다리는 결정이 없습니다.</div>'}
         ${(S.media || []).some((m) => !m.by_owner) ? `<h3 class="sh">최근 결과물 <button class="small ghost" data-act="page:results" style="margin-left:auto">전체 보기 ›</button></h3>
           <div class="mgrid two">${(S.media || []).filter((m) => !m.by_owner).slice(0, 4).map(mediaCard).join('')}</div>` : ''}
       </div>
@@ -1179,9 +1210,11 @@ function renderTidy(M) {
 
 function renderDecisions() {
   const open = S.decisions.filter((d) => d.status === 'open'), done = S.decisions.filter((d) => d.status !== 'open').slice(0, 20);
+  const waits = waitingSessions(model());
   return head('결정', '버튼으로 답하면 물어본 세션에 바로 들어갑니다') + `<div class="body"><div class="grid2">
-    <div><h3 class="sh">기다리는 결정 <span class="cnt ${open.length ? 'hot' : ''}">${open.length}</span></h3>
-      ${open.length ? open.map(decisionCard).join('') : '<div class="card empty">기다리는 결정이 없습니다.</div>'}</div>
+    <div><h3 class="sh">기다리는 결정 <span class="cnt ${open.length + waits.length ? 'hot' : ''}">${open.length + waits.length}</span></h3>
+      ${waits.map(waitCard).join('')}
+      ${open.length ? open.map(decisionCard).join('') : waits.length ? '' : '<div class="card empty">기다리는 결정이 없습니다.</div>'}</div>
     <div>${done.length ? `<h3 class="sh">답한 결정</h3>${done.map(decisionCard).join('')}` : ''}</div>
   </div></div>`;
 }
@@ -1212,7 +1245,7 @@ function render(auto) {
   if (view.session) renderPanelHead(M);
   renderFab(M);
   // 폰 아래 탭: 오늘 · 결정 · 결과물 · 프로젝트(서랍) · 세션
-  const open = S.decisions.filter((d) => d.status === 'open').length;
+  const open = S.decisions.filter((d) => d.status === 'open').length + waitingSessions(M).length;
   const TB = [['page:home', '오늘', 'home', '⌂'], ['page:decisions', '결정', 'decisions', '✓'], ['page:results', '결과물', 'results', '▣'], ['page:projects', '프로젝트', 'projects', '▤'], ['page:tidy', '세션', 'tidy', '◎']];
   $('tabbar').innerHTML = TB.map(([act, label, page, ic]) => `<button data-act="${act}" class="${view.page === page || (page === 'projects' && view.page === 'project') ? 'on' : ''}">
     <span class="ic">${ic}</span>${page === 'decisions' && open ? `<span class="badge">${open}</span>` : ''}<span>${label}</span></button>`).join('');
