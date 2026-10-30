@@ -10,6 +10,7 @@
 //   docs/reports/YYYY-MM-DD-perf.md          관리자 성과 보고 1절 표
 //   server/output/task-logs/gpt-ask.jsonl    GPT 주간 한도
 //   Windows 예약 작업 midform-*               마지막 실행 결과
+//   docs/office/hypotheses.json              채널마다 지금 거는 가설(카테고리·주제·소재)·시작일·성공 기준 — 레인 세션이 고친다
 //   office/data/up-track.json                우리 채널 공개 수치(구독·편별 조회) — lib/uptrack 이 한 시간마다 공개 API 로 잰다
 // 화면 규격(섹션 종류)은 office/server/public/index.html 의 renderDashboard 와 맞춘다.
 
@@ -155,6 +156,37 @@ function glance(t, now) {
         kv: [['조회', `${fmt(v.views)}회`], ['공개', mdhm(v.pub)]], link: `https://www.youtube.com/watch?v=${v.vid}` })),
     };
   });
+  // ── 지금 거는 가설: 시작일 전·후로 그 채널 편당 조회가 어떻게 달라졌나 ──
+  const hyps = (readJson('docs/office/hypotheses.json', {}).items || []).filter((h) => h.hypothesis);
+  const byPurpose = new Map(chans.map((x) => [x.c.purpose, x]));
+  const hypCards = hyps.map((h) => {
+    const x = byPurpose.get(h.purpose);
+    const since = Date.parse(h.since || '') || null;
+    const vids = x ? x.vids.filter((v) => now - v.pub > 24 * 3600e3) : []; // 공개 하루 지난 편만(첫날 숫자로 속지 않게)
+    const before = since ? vids.filter((v) => v.pub < since) : [], after = since ? vids.filter((v) => v.pub >= since) : [];
+    const mb = median(before.map((v) => v.views)), ma = median(after.map((v) => v.views));
+    const ratio = mb && ma != null ? ma / mb : null;
+    const m = h.metric || {};
+    let verdict, tone;
+    if (!since || since > now) [verdict, tone] = ['시작 전', 'muted'];
+    else if (!x) [verdict, tone] = ['채널 수치 없음', 'muted'];
+    else if (after.length < 5) [verdict, tone] = ['판정 이르다', 'busy'];
+    else if (m.kind === 'median_abs' && m.value) [verdict, tone] = ma >= m.value ? ['기준 넘음', 'ok'] : ma >= m.value / 2 ? ['기준 절반 이상', 'warn'] : ['기준 못 미침', 'bad'];
+    else if (ratio != null) [verdict, tone] = ratio >= 1.3 ? ['맞아가는 중', 'ok'] : ratio >= 0.9 ? ['변화 없음', 'warn'] : ['전보다 나쁨', 'bad']; // 시작 전·후 편당 조회 비교(편별 기준은 성공 기준 칸)
+    else [verdict, tone] = ['비교할 전 편 없음', 'muted'];
+    const pts = vids.filter((v) => v.views != null).map((v) => [v.pub, v.views]);
+    return {
+      title: `${x ? x.name : h.channel} — ${h.hypothesis}`, tone,
+      sub: since ? `${mdhm(since).split(' ')[0]}부터 · 전 ${fmt(mb)}회 → 후 ${fmt(ma)}회${ratio != null ? ` (${ratio.toFixed(1)}배)` : ''}` : '시작일 미기재',
+      chips: [{ t: verdict, c: tone }, { t: `후 ${after.length}편`, c: 'muted' }],
+      spark: pts.length >= 2 ? { pts: pts.map(([t0, v]) => [(t0 - pts[0][0]) / 3600e3, v]), c: tone, ref: mb } : undefined,
+      chart: { title: '편별 조회 — 세로 선이 가설 시작', xt: 'date', y: 'n', series: [{ name: '편별 조회', c: tone, pts }], marks: since ? [{ x: since, label: '시작' }] : [],
+        guides: [mb && { y: mb, label: `전 중앙 ${fmt(mb)}`, c: 'muted' }, ma != null && { y: ma, label: `후 중앙 ${fmt(ma)}`, c: tone }].filter(Boolean), empty: '최근 60일 공개 편이 없습니다.' },
+      blocks: [{ title: '가설', kv: [['바꾼 것', h.changed], ['판정', '시작 전·후 편당 조회 중앙값: 1.3배+ 맞아가는 중 · 0.9배 미만 나쁨'], ['성공 기준', h.success || '미정'], ['맡은 세션', h.owner_session]], quote: h.confidence === 'low' ? '이 가설 줄은 문서에서 확실히 찾지 못한 초안 — 맡은 세션이 확인할 것' : null }],
+      session: h.owner_session,
+    };
+  }).sort((a, b) => ({ ok: 0, bad: 1, warn: 2, busy: 3, muted: 4 }[a.tone] - ({ ok: 0, bad: 1, warn: 2, busy: 3, muted: 4 }[b.tone])));
+
   return [
     { type: 'stats', items: [
       { label: '오늘 공개', value: todayAll.length, sub: `${chans.filter((x) => x.today.length).length}개 채널`, drill: { title: '오늘 공개한 편 — 누르면 반응', items: todayAll, empty: '오늘 공개한 편이 아직 없습니다.' } },
@@ -162,6 +194,7 @@ function glance(t, now) {
       { label: '7일 새 편 조회', value: fmt(chans.reduce((a, x) => a + x.wkViews, 0)), sub: '지난 7일 올린 편 합' },
       { label: '구독 합계', value: fmt(sumSubs), sub: dSubs ? `7일 ${dSubs > 0 ? '+' : ''}${fmt(dSubs)}` : '추이 쌓는 중', tone: dSubs > 0 ? 'ok' : '' },
     ] },
+    { type: 'list', title: '지금 거는 가설 — 맞아가고 있나', items: hypCards, compact: true, empty: '가설 장부(docs/office/hypotheses.json)가 아직 비어 있습니다.' },
     { type: 'grid', title: '채널별 업로드 — 최근 14일', cols: days.map((d) => +d.slice(8)), colTop: days.map((d) => d.slice(5, 7) + '월'),
       rows: chans.map((x) => ({ label: x.name, cells: x.perDay })), note: '칸 숫자 = 그날 공개한 편 수. 맨 오른쪽이 오늘.' },
     { type: 'list', title: '채널 — 누르면 편별 조회 그래프', items: cards, compact: true },

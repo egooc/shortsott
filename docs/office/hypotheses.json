@@ -1,0 +1,141 @@
+{
+  "_about": "채널마다 지금 거는 가설(카테고리·주제·소재). 오피스 «한눈에» 탭이 시작일 전·후 편당 조회로 판정한다. 방향을 바꾸면 맡은 세션이 이 줄을 고친다(since=그 가설로 첫 공개한 날, metric.kind=median_ratio|median_abs).",
+  "updated": "2026-10-30T10:11:11.545Z",
+  "items": [
+    {
+      "purpose": "ko_highlight",
+      "channel": "지구관측소",
+      "hypothesis": "잡탕 결 해설형(사회·경제 뜻밖 원인·해외 관습 차이의 이유)",
+      "changed": "10-30부터 소재·결을 잡탕 카드에서 고름, 잡탕 편 하루 1편",
+      "since": "2026-10-31",
+      "success": "공개 24~48시간 뒤 채널 평소의 2배+ 계속, 평소 이하 2번 빼기",
+      "metric": {
+        "kind": "median_ratio",
+        "value": 2
+      },
+      "owner_session": "YTHOME-SF-KO 롱투숏 A",
+      "source": "docs/jabtang-mine/cards-20261030.md:8-21; handoff-manager §10 2074·2084·2106",
+      "confidence": "high"
+    },
+    {
+      "purpose": "ko_event",
+      "channel": "야생일지",
+      "hypothesis": "잡탕 결 3개 시험(반려견 반전·희귀 동물 생태·동물 능력 시연)",
+      "changed": "잡탕 결 편 하루 1편 끼워 넣기, 태그 jabtang-gNN 으로 따로 측정",
+      "since": "2026-10-31",
+      "success": "공개 24~48시간 뒤 채널 평소의 2배+ 계속, 평소 이하 2번 빼기",
+      "metric": {
+        "kind": "median_ratio",
+        "value": 2
+      },
+      "owner_session": "N100 어랍숏",
+      "source": "handoff-manager §10 2063·2066·2086; cards-20261030.md:8-10",
+      "confidence": "high"
+    },
+    {
+      "purpose": "ko_robot",
+      "channel": "로보토리",
+      "hypothesis": "잡탕 결 «전자제품·차량 성능·가치 비교» 배정(착수 기록 없음)",
+      "changed": "10-30 결 1개 배정만, 아직 시작 전",
+      "since": null,
+      "success": "평소 대비 2배+ 계속",
+      "metric": {
+        "kind": "median_ratio",
+        "value": 2
+      },
+      "owner_session": "N100 어랍숏",
+      "source": "docs/jabtang-mine/status.json; handoff-manager §10 2082",
+      "confidence": "low"
+    },
+    {
+      "purpose": "idol3sec_ko",
+      "channel": "아이돌 3초",
+      "hypothesis": "엔믹스만 · 쮸뀨미 결(전제·펀치 2줄, 주장→증거→끝 한마디) · 공항·직캠 소재 허용",
+      "changed": "10-30 n08부터 결 틀 전환, 다른 그룹은 관문으로 막음",
+      "since": "2026-10-30",
+      "success": "11-06에 결 전환 전·후 7일 비교(숫자 기준 미정)",
+      "metric": {
+        "kind": null,
+        "value": null
+      },
+      "owner_session": "YTHOME-SF-KO 팬튜브 B",
+      "source": "docs/fantube/GUIDE_KYUL_JJYUK.md:82-131; handoff-manager §10 1848·2031·2049",
+      "confidence": "medium"
+    },
+    {
+      "purpose": "cortis_fan_ko",
+      "channel": "제임스 과몰입",
+      "hypothesis": "코르티스만 · 베스트 댓글을 전제·펀치로 삼는 과몰입 팬 톤",
+      "changed": "새 채널, 웜업 10-28~30, 첫 업로드 10-31부터",
+      "since": "2026-10-31",
+      "success": null,
+      "metric": {
+        "kind": null,
+        "value": null
+      },
+      "owner_session": "YTHOME-SF-KO 팬튜브 B",
+      "source": "handoff-manager §10 1822·1909·2049",
+      "confidence": "medium"
+    },
+    {
+      "purpose": "jp_highlight",
+      "channel": "린박스 일본",
+      "hypothesis": "검증된 도에이 시대극으로 복귀 + 새 작품 하나씩 끼워 시험",
+      "changed": "10-27 소유주 «원래 결로, 새 소재는 틈틈이», 통과작은 11-02부터 2일에 1편",
+      "since": "2026-10-27",
+      "success": "24시간 조회가 같은 날 검증작 평균의 50%+ 면 검증 순번에 넣기",
+      "metric": {
+        "kind": "median_ratio",
+        "value": 0.5
+      },
+      "owner_session": "YTHOME-SF-JP 린박스 C",
+      "source": "docs/rinbox-ja-source-bank-20261027.md:58-117; handoff-manager §10 2104·2108",
+      "confidence": "high"
+    },
+    {
+      "purpose": "politics",
+      "channel": "쟁점브리핑",
+      "hypothesis": "상승 검색어 상위 «빌런» 한 명을 이어서 판다(여당 지지층 관점)",
+      "changed": "10-23 매일 뉴스 주제 고르기 → 빌런 줄기 잇기, 바꾸려면 사유",
+      "since": "2026-10-24",
+      "success": null,
+      "metric": {
+        "kind": null,
+        "value": null
+      },
+      "owner_session": "YTHOME-LF-KO 정치",
+      "source": "docs/handoff-manager-20261014.md:1717·2095",
+      "confidence": "medium"
+    },
+    {
+      "purpose": "politics_ja",
+      "channel": "정치 일본",
+      "hypothesis": "부정 여론 큰 인물을 «빌런»으로 삼는 롱폼, 새 인물 뜨면 갈아타기",
+      "changed": "10-29 롱폼 재개(이전 시험 48시간 0회), 주제를 빌런 중심으로",
+      "since": "2026-10-30",
+      "success": "11-02 18:00 뒤 48시간 조회 확인(숫자 기준 미정)",
+      "metric": {
+        "kind": null,
+        "value": null
+      },
+      "owner_session": "YTHOME-LF-JP 정치",
+      "source": "docs/politics-ja-villain-20261029.md; handoff-manager §10 1929·1940·2105",
+      "confidence": "medium"
+    },
+    {
+      "purpose": "nenkin_ja",
+      "channel": "연금 일본",
+      "hypothesis": "고령층 연금 서류 한 장을 칸 단위로 풀어 주는 롱폼(레퍼런스 3배 터진 주제)",
+      "changed": "ep03부터 새 화풍·10분, 긴 영상 권한 없어 공개 0편",
+      "since": null,
+      "success": null,
+      "metric": {
+        "kind": null,
+        "value": null
+      },
+      "owner_session": "YTHOME-LF-JP 연금",
+      "source": "docs/session-handoffs/YTHOME-LF-JP-연금.md:13-25",
+      "confidence": "medium"
+    }
+  ]
+}

@@ -9,7 +9,7 @@ const https = require('https');
 const ROOT = path.resolve(__dirname, '../../..');
 const FILE = path.join(ROOT, 'office/data/up-track.json');
 const EVERY = 60 * 60e3;
-const KEEP_DAYS = 30;
+const KEEP_DAYS = 60; // 가설 «시작 전·후» 비교에 시작 전 편이 남아 있게
 
 function apiKey() {
   try { return (fs.readFileSync(path.join(ROOT, '.env'), 'utf8').match(/^YOUTUBE_API_KEY=(.+)$/m) || [])[1]?.trim().replace(/^["']|["']$/g, '') || null; } catch { return null; }
@@ -44,8 +44,14 @@ async function refreshUploads(chans) {
       if (c.subs_hist.length > 400) c.subs_hist = c.subs_hist.slice(-400);
       if (!c.uploads) continue;
       try {
-        const pl = await q(`playlistItems?part=contentDetails&maxResults=50&playlistId=${c.uploads}`);
-        for (const x of pl.items || []) {
+        let items = [], page = '';
+        for (let k = 0; k < 2; k++) { // 최근 100편까지(하루 5편 채널도 3주 치)
+          const pl = await q(`playlistItems?part=contentDetails&maxResults=50&playlistId=${c.uploads}${page ? '&pageToken=' + page : ''}`);
+          items = items.concat(pl.items || []);
+          if (!pl.nextPageToken || Date.parse(items[items.length - 1]?.contentDetails?.videoPublishedAt || 0) < now - KEEP_DAYS * 864e5) break;
+          page = pl.nextPageToken;
+        }
+        for (const x of items) {
           const id = x.contentDetails?.videoId, pub = Date.parse(x.contentDetails?.videoPublishedAt || '');
           if (id && pub > now - KEEP_DAYS * 864e5) { fresh.push(id); const v = t.videos[id] || (t.videos[id] = { snaps: [] }); v.ch = it.id; v.pub = pub; }
         }

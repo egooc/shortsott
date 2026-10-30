@@ -822,6 +822,7 @@ function chartHtml(c) {
   let g = `<line class="ax" x1="${L}" y1="${H - B}" x2="${W - R}" y2="${H - B}"/>`;
   for (let y = 0; y <= ymax; y += ys) g += `<line class="ax" x1="${L}" x2="${W - R}" y1="${Y(y)}" y2="${Y(y)}" opacity=".45"/><text class="tk" x="${L - 6}" y="${Y(y) + 3}" text-anchor="end">${esc(yv(c, y))}</text>`;
   for (let x = 0; x <= xmax; x += xs) g += `<text class="tk" x="${X(x)}" y="${H - 8}" text-anchor="middle">${xlab(x)}</text>`;
+  for (const mk of c.marks || []) { const mx = dt ? (mk.x - x0) / 3600e3 : mk.x; if (mx >= 0 && mx <= xmax) g += `<g class="c-warn"><line class="gd" x1="${X(mx)}" x2="${X(mx)}" y1="${T}" y2="${H - B}"/><text class="gl" x="${X(mx) + 4}" y="${T + 10}">${esc(mk.label)}</text></g>`; }
   for (const d of c.guides || []) g += `<g class="c-${esc(d.c || 'muted')}"><line class="gd" x1="${L}" x2="${W - R}" y1="${Y(d.y)}" y2="${Y(d.y)}"/><text class="gl" x="${W - R}" y="${Y(d.y) - 4}" text-anchor="end">${esc(d.label)}</text></g>`;
   for (const x of ser) {
     const last = x.pts[x.pts.length - 1];
