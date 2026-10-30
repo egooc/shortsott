@@ -311,4 +311,9 @@ if (g.status !== 0) { console.error(`[publish] 태그 게이트 실패(${g.statu
 const l = spawnSync('node', [path.join(__dirname, 'ledger.js'), ep, '--youtube-id', last.videoId, '--publish-at', at, '--purpose', PURPOSE, '--file', path.basename(M.file || 'out.mp4'), ...(M.jabtang ? ['--jabtang', M.jabtang] : [])], { cwd: ROOT, encoding: 'utf8' });
 if (l.status) console.error(`[publish] △ 장부 기록 실패(ledger exit ${l.status}) — 수동으로 node fantube/ledger.js ${ep} --youtube-id ${last.videoId} --publish-at ${at}`);
 process.stdout.write(l.stdout); process.stderr.write(l.stderr);
+if (M.jabtang) {                                   // 10/30 관리자: 잡탕 광산 카드 결로 만든 편은 drops.jsonl 에 한 줄 — 카드별 성과 측정용
+  const CH = { idol3sec_ko: '설윤이또(아이돌 3초)', cortis_fan_ko: '제임스 과몰입' };
+  try { fs.appendFileSync('D:/midform/docs/jabtang-mine/drops.jsonl', JSON.stringify({ gyeol: M.jabtang, video_id: last.videoId, channel: CH[PURPOSE] || PURPOSE, lane: 'fantube', ep, publish_at: at }) + '\n', 'utf8'); }
+  catch (e) { console.error(`[publish] △ 잡탕 광산 drops 기록 실패: ${e.message}`); }
+}
 console.log(`[publish] ${ep} → ${last.videoId} · ${at} · 태그 확인 끝`);
