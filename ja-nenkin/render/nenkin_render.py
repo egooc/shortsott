@@ -662,11 +662,17 @@ STAGE_BOX = (160, 8, 1752, 818)    # x, y, w, h — #side 150px·#capbar(위 테
 STAGE_GAPS = [(150, 0, 10, 829), (150, 0, 1770, 8), (1912, 0, 8, 829), (150, 826, 1770, 3)]
 ZOOM = 1.10
 SHOT = 12.0
-MOTION_VER = 2   # 2 = 10-23 판 밖 띠 덮기·여백 가장자리 늘려 채우기
+MOTION_VER = 3   # 2 = 10-23 판 밖 띠 덮기·여백 가장자리 늘려 채우기 · 3 = 10-30 짧은 장면 당기며 옆으로
 KEYS = [(1 / ZOOM, .5), (1.0, .5), (.95, .25), (1.0, .5), (.95, .75)]   # (판 배율, 가로 기준점) — 첫 칸만 시작점, 나머지를 돈다
+# 10-30 ep02 motion_gate: 6초 미만 제목 장면(4.8초·5.0초)은 가운데 당김만으로 SSIM 0.954·0.951 → 당기면서 오른쪽으로 비킨다
+# (끝 기준점 .85 = 판 폭 약 3% 이동, 가운데 큰 글자는 안 잘림).
+SHORT = 6.0
+SHORT_KEYS = [(1 / ZOOM, .5), (1.0, .85)]
 
 
 def motion_keys(d):
+    if d < SHORT:
+        return [(0.0, *SHORT_KEYS[0]), (round(d, 3), *SHORT_KEYS[1])]
     n = max(1, -(-int(d * 1000) // int(SHOT * 1000)))
     ks = [KEYS[0]] + [KEYS[1 + k % 4] for k in range(n)]
     return [(round(d * k / n, 3), s, ax) for k, (s, ax) in enumerate(ks)]
