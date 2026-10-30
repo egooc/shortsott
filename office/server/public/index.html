@@ -276,6 +276,26 @@ nav.top { display: grid; gap: 2px; }
 .ctx { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
 .ctx .bar { margin: 0; height: 5px; }
 .xcard { cursor: pointer; }
+/* 꼬리표: 긴 글 나열 대신 색 있는 짧은 조각. 색은 감정·상태 */
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; width: 100%; }
+.xcard .xd { min-width: 0; }
+.chip { flex: none; display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 999px; font-size: 12.5px; font-weight: 600; line-height: 1.5;
+  background: hsla(var(--h, 220), 70%, 50%, .13); color: hsl(var(--h, 220), 60%, 38%); white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.chip.cmore { --h: 220; background: var(--line2); color: var(--muted); }
+.chip .cn { opacity: .75; font-weight: 500; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .chip { color: hsl(var(--h, 220), 75%, 72%); background: hsla(var(--h, 220), 70%, 55%, .18); } }
+:root[data-theme="dark"] .chip { color: hsl(var(--h, 220), 75%, 72%); background: hsla(var(--h, 220), 70%, 55%, .18); }
+.c-웃음 { --h: 42; } .c-궁금 { --h: 210; } .c-신기 { --h: 270; } .c-감동 { --h: 145; } .c-자부심 { --h: 25; } .c-소름 { --h: 0; }
+.c-귀여움 { --h: 330; } .c-대리만족 { --h: 180; } .c-ok { --h: 145; } .c-bad { --h: 0; } .c-warn { --h: 38; } .c-busy { --h: 210; } .c-muted { --h: 220; }
+.blocks { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); }
+.blk { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--bg); display: grid; gap: 6px; min-width: 0; }
+.blk .bh { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-weight: 700; font-size: 14px; }
+.blk .bh span:first-child { min-width: 0; }
+.blk .bh .chips { width: auto; margin: 0; flex: none; }
+.blk .kv { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; font-size: 13px; }
+.blk .kv dt { color: var(--muted); white-space: nowrap; } .blk .kv dd { margin: 0; min-width: 0; text-align: left; }
+.blk .qt { border-left: 3px solid var(--accent); padding: 2px 0 2px 8px; font-size: 13px; color: var(--text); }
+.blk a { color: var(--accent); font-size: 12.5px; }
 .agrid { align-items: start; }
 .acard.tall .at { flex: none; }
 .xcard .xd { display: none; width: 100%; margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--line2); font-size: 13.5px; line-height: 1.6; }
@@ -742,6 +762,22 @@ function dashboardFor(key) {
 const cell = (c) => c == null ? '—' : typeof c === 'object'
   ? `<div class="cv"><span class="${c.tone ? 't-' + c.tone : ''}">${esc(c.text)}</span>${c.sub ? `<div class="muted cellsub">${esc(c.sub)}</div>` : ''}</div>` : esc(c);
 let DRILL_N = 0, OPEN_DRILL = null;
+// 꼬리표 {t, c(색 이름), n(작은 숫자)} — max 넘으면 «+N»
+function chipsHtml(chips, max = 99) {
+  if (!chips || !chips.length) return '';
+  const shown = chips.slice(0, max);
+  return `<div class="chips">${shown.map((c) => `<span class="chip c-${esc(c.c || 'muted')}">${esc(c.t)}${c.n != null ? ` <span class="cn">${esc(c.n)}</span>` : ''}</span>`).join('')}${chips.length > max ? `<span class="chip cmore">+${chips.length - max}</span>` : ''}</div>`;
+}
+// 미니 카드 {title, badge{t,c}, chips, kv:[[이름, 값]], quote, link}
+function blocksHtml(bs) {
+  return `<div class="blocks">${bs.map((b) => `<div class="blk">
+    <div class="bh"><span>${esc(b.title || '')}</span>${b.badge ? chipsHtml([b.badge]) : ''}</div>
+    ${chipsHtml(b.chips)}
+    ${b.kv && b.kv.length ? `<dl class="kv">${b.kv.filter((x) => x && x[1] != null && x[1] !== '').map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>` : ''}
+    ${b.quote ? `<div class="qt">${esc(b.quote)}</div>` : ''}
+    ${b.link ? `<a href="${esc(b.link)}" target="_blank" rel="noopener">영상 보기 ↗</a>` : ''}
+  </div>`).join('')}</div>`;
+}
 const SECTIONS = {
   // 숫자 칸에 drill{title, items} 가 있으면 눌러서 그 아래에 카드 목록이 펼쳐진다(«무엇이» 그 숫자인지).
   stats: (s) => { const k = 'd' + (DRILL_N++); return `<div class="stats">${s.items.map((i, n) => `<div class="stat ${i.drill ? 'drillable' : ''}" ${i.drill ? `data-act="drill" data-dk="${k}-${n}"` : ''}><div class="muted">${esc(i.label)}${i.drill ? ' <span class="dmore">›</span>' : ''}</div>
@@ -756,7 +792,8 @@ const SECTIONS = {
     const ask = JSON.stringify({ title: i.title, sub: i.sub || '', detail: i.detail || '', rec: i.rec || '', session: sess ? nice(sess.title).name : (i.session || '') });
     return `<div class="acard a-${i.tone || 'muted'} tall xcard" data-act="xpand">
     <span class="at">${esc(i.title)}${i.pct != null ? ` <span class="muted">${esc(i.pct)}%</span>` : ''}</span>${i.pct != null ? `<span class="pbar"><i style="width:${Math.max(0, Math.min(100, +i.pct || 0))}%"></i></span>` : ''}${i.sub ? `<span class="muted">${esc(i.sub)}</span>` : ''}${i.right ? `<span class="muted">${esc(i.right)}</span>` : ''}
-    <div class="xd">${i.detail ? `<div>${esc(i.detail)}</div>` : ''}${i.rec ? `<div class="xrec"><b>추천</b> ${esc(i.rec)}</div>` : ''}
+    ${chipsHtml(i.chips, 8)}
+    <div class="xd">${i.blocks ? blocksHtml(i.blocks) : i.detail ? `<div>${esc(i.detail)}</div>` : ''}${i.rec ? `<div class="xrec"><b>추천</b> ${esc(i.rec)}</div>` : ''}
       <div class="xb"><button class="small primary" data-askmgr="${esc(ask)}">담당에게 묻기</button>${sess ? `<button class="small" data-open="${esc(sess.handle)}">${esc(nice(sess.title).name)} 열기</button>` : ''}</div></div></div>`;
   }).join('')}</div>`
     : `<div class="empty">${esc(s.empty || '없습니다.')}</div>`,
