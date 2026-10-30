@@ -1000,7 +1000,7 @@ function chatBox(key, sess, label, sub) {
     <div class="ch"><div><b>${esc(label)}</b><div class="muted">${esc(sub)}</div></div>
       ${sess ? `<span class="spill ${sess.status}"><span class="dot d-${sess.status}"></span>${STATUS_TEXT[sess.status]}</span>` : ''}</div>
     ${sess ? `${att.length ? `<div class="atts">${att.map((a, i) => `<span class="att">${esc(a.name)} <button class="x" data-unattach="${key}:${i}">×</button></span>`).join('')}</div>` : ''}
-      <div class="composer2"><textarea rows="2" data-draft="${key}" placeholder="지시·피드백을 쓰세요. 스크린샷은 📎 로 붙입니다.">${esc(DRAFTS[key] || '')}</textarea>
+      <div class="composer2"><textarea rows="2" data-draft="${key}" placeholder="지시·피드백을 쓰세요. 스크린샷은 붙여넣기(Ctrl+V)나 📎 로.">${esc(DRAFTS[key] || '')}</textarea>
         <label class="attach" title="이미지·영상 붙이기">📎<input type="file" accept="image/*,video/*" multiple data-attach="${key}" hidden></label>
         <button class="primary" data-chat="${key}">보내기</button></div>
       <div class="cb"><button class="small" data-open="${esc(sess.handle)}">대화 화면 보기</button><span class="muted">${ago(sess.last_output_at)} 활동 · ${esc(devName(sess.device))}</span></div>`
@@ -1460,6 +1460,19 @@ document.addEventListener('click', (e) => {
 function routeFromHash() { const h = location.hash.slice(1); if (['decisions', 'tidy', 'log', 'home', 'results'].includes(h)) view.page = h; }
 // 대화창: 파일 붙이기·입력 중인 글 기억·Enter 로 보내기
 document.addEventListener('change', (e) => { const k = e.target.dataset?.attach; if (k && e.target.files.length) attachFiles(k, [...e.target.files]); });
+// 글 칸에 이미지를 복사·붙여넣기(Ctrl+V·폰 길게 눌러 붙여넣기)하거나 끌어다 놓아도 📎 와 같이 붙는다.
+const clipName = (f, i) => f.name && f.name !== 'image.png' ? f.name
+  : `붙여넣기-${new Date().toTimeString().slice(0, 8).replace(/:/g, '')}${i ? '-' + i : ''}.${(f.type.split('/')[1] || 'png').replace('jpeg', 'jpg')}`;
+const pastedFiles = (dt) => [...(dt?.files || [])].filter((f) => /^(image|video)\//.test(f.type)).map((f, i) => new File([f], clipName(f, i), { type: f.type }));
+document.addEventListener('paste', (e) => {
+  const k = e.target.dataset?.draft; const fs = pastedFiles(e.clipboardData);
+  if (k && fs.length) { e.preventDefault(); attachFiles(k, fs); }
+});
+document.addEventListener('dragover', (e) => { if (e.target.dataset?.draft) e.preventDefault(); });
+document.addEventListener('drop', (e) => {
+  const k = e.target.dataset?.draft; const fs = pastedFiles(e.dataTransfer);
+  if (k && fs.length) { e.preventDefault(); attachFiles(k, fs); }
+});
 document.addEventListener('input', (e) => { const k = e.target.dataset?.draft; if (k) DRAFTS[k] = e.target.value; });
 document.addEventListener('keydown', (e) => { const k = e.target.dataset?.draft; if (k && e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); sendChat(k); } });
 window.addEventListener('hashchange', () => { routeFromHash(); render(); });
