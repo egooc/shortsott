@@ -237,10 +237,24 @@ async function pushState() {
   try { send({ type: 'state', state: await state() }); } catch (e) { log('state 실패', e.message); }
 }
 
+// 허브가 재시작되는 순간에 붙으면 소켓이 «연결 중»에서 열리지도 닫히지도 않은 채 멈춘다(VPS 10-29 16:53 이후 실측).
+// onclose 만 믿지 말고, 30초 넘게 열려 있지 않으면 버리고 다시 붙는다.
+let triedAt = 0;
+if (!ONCE) setInterval(() => {
+  if (ws && ws.readyState === 1) return;
+  if (Date.now() - triedAt < 30e3) return;
+  log('허브 연결 안 됨 — 다시 붙는다');
+  const old = ws; ws = null;
+  if (old) { old.onclose = null; try { old.close(); } catch {} }
+  connect();
+}, 10e3);
+
 function connect() {
   if (!TOKEN) { log('.env.office 에 OFFICE_DEVICE_TOKEN 이 없다'); process.exit(1); }
+  triedAt = Date.now();
   // 토큰은 주소(로그에 남는다)가 아니라 첫 메시지로 보낸다.
-  ws = new WebSocket(HUB);
+  try { ws = new WebSocket(HUB); } catch (e) { log('연결 실패', e.message); ws = null; return; }
+  const me = ws;
   ws.onopen = async () => {
     ws.send(JSON.stringify({ type: 'hello', token: TOKEN }));
     log('허브 연결', new URL(HUB).host, DEVICE);
@@ -266,10 +280,11 @@ function connect() {
     }
   };
   ws.onclose = () => {
+    if (ws !== me) return; // 감시가 이미 버리고 새로 붙인 소켓
     clearInterval(timer);
     if (ONCE) process.exit(1);
-    log('연결 끊김 — 15초 뒤 다시');
-    setTimeout(connect, 15e3);
+    log('연결 끊김 — 15~25초 뒤 다시');
+    ws = null; triedAt = Date.now() - 15e3; // 다시 붙는 건 위 감시가 한다(한 군데서만)
   };
   ws.onerror = () => {};
 }

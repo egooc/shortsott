@@ -10,6 +10,8 @@ const { vid } = require('./droptrack');
 
 const ROOT = path.resolve(__dirname, '../../..');
 const D = (p) => path.join(ROOT, p);
+// 투하 장부: 레인이 올린 잡탕 편 {gyeol, video_id, channel} 한 줄씩
+const readDropLog = () => { try { return fs.readFileSync(D('docs/jabtang-mine/drops.jsonl'), 'utf8').split(/\r?\n/).map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter((j) => j && j.gyeol && j.video_id); } catch { return []; } };
 const readJson = (p) => { try { return JSON.parse(fs.readFileSync(D(p), 'utf8')); } catch { return null; } };
 const kst = (ms) => new Date(ms + 9 * 3600e3);
 const mdhm = (ms) => { if (!ms) return '—'; const d = kst(ms); return `${d.getUTCMonth() + 1}/${d.getUTCDate()} ${d.toISOString().slice(11, 16)}`; };
@@ -29,7 +31,11 @@ function mineDashboard(track) {
 
   const st = m.stage || {};
   const none = (v) => (v == null || /^(없음|none|-|)$/i.test(String(v).trim()) ? null : v);
-  const gy = arr(m.gyeol).map((g) => ({ ...g, our_channel: none(g.our_channel), status: g.status || (num(g.channels) >= 2 ? '검증됨' : '후보') }));
+  const gy = arr(m.gyeol).map((g) => ({ ...g, drops: [...arr(g.drops)], our_channel: none(g.our_channel), status: g.status || (num(g.channels) >= 2 ? '검증됨' : '후보') }));
+  for (const j of readDropLog()) {
+    const g = gy.find((x) => x.id === j.gyeol);
+    if (g && !g.drops.some((d) => vid(d.url) === j.video_id)) g.drops.push({ url: `https://www.youtube.com/shorts/${j.video_id}`, channel: j.channel });
+  }
   const gname = new Map(gy.map((g) => [g.id, g.name || g.id]));
   for (const c of arr(m.channels)) for (const h of arr(c.hits)) if (h.gyeol && h.gyeol_label && !gname.has(h.gyeol)) gname.set(h.gyeol, h.gyeol_label);
   const by = (k) => gy.filter((g) => g.status === k).length;
@@ -119,15 +125,17 @@ function mineDashboard(track) {
     const last = snaps[snaps.length - 1];
     const pub = Date.parse(t.published || d.published || '') || null;
     const views = last ? last.views : num(d.views);
-    const med = num(d.channel_median);
+    const med = num(d.channel_median) ?? num(track?.channels?.[t.channel_id]?.median);
     const ratio = views != null && med ? views / med : null;
     const age = pub ? (Date.now() - pub) / H : null;
-    return { g, d, id, t, snaps, last, pub, views, med, ratio, age };
+    const pts = pub ? snaps.filter((x) => x.at >= pub).map((x) => [+((x.at - pub) / H).toFixed(2), x.views]) : [];
+    return { g, d, id, t, snaps, last, pub, views, med, ratio, age, pts };
   }));
   const strikes = new Map(); // 결×채널마다 48h 넘어 평소 이하 횟수
   for (const r of dropRows) if (r.age >= 48 && r.ratio != null && r.ratio < 1) { const k = `${r.g.id}|${r.g.our_channel}`; strikes.set(k, (strikes.get(k) || 0) + 1); }
   const verdict = (r) => {
     if (r.t.gone) return ['안 보임(삭제·비공개)', 'bad'];
+    if (!r.t.seen) return ['공개 전(예약)', 'muted'];
     if (r.ratio == null) return [r.med ? '조회 기다리는 중' : '채널 평소 조회 없음', 'muted'];
     if ((strikes.get(`${r.g.id}|${r.g.our_channel}`) || 0) >= 2) return ['평소 이하 2번 — 이 채널에서 빼기', 'bad'];
     const tag = r.age == null || r.age < 24 ? '중간' : r.age < 48 ? '24시간' : '판정';
@@ -146,25 +154,68 @@ function mineDashboard(track) {
       sub: [r.g.our_channel, `결: ${r.g.name || r.g.id}`, r.age != null && `공개 ${r.age < 48 ? Math.floor(r.age) + '시간' : Math.floor(r.age / 24) + '일'} 전`].filter(Boolean).join(' · '),
       right: `${r.views != null ? fmt(r.views) + '회' : '—'}${r.ratio != null ? ` · 평소의 ${r.ratio.toFixed(1)}배` : ''}`,
       chips: [{ t: v, c: tone }, { t: r.g.our_channel || '채널 미정', c: 'busy' }, gChip(r.g)],
+      spark: r.pts.length >= 2 ? { pts: r.pts, c: tone, ref: r.med } : undefined,
+      chart: { title: '공개 뒤 조회 추이', x: '공개 뒤 시간', y: 'n', series: [{ name: '조회', c: tone, pts: r.pts }],
+        guides: r.med ? [{ y: r.med, label: `평소 ${fmt(r.med)}`, c: 'muted' }, { y: r.med * 2, label: '2배(계속)', c: 'ok' }] : [],
+        empty: r.t.seen ? '측정이 두 번 쌓이면 선이 그려집니다(한 시간마다).' : '공개되면 한 시간마다 재기 시작합니다.' },
       blocks: [
         { title: '조회 흐름', kv: [['1시간', fmt(at(r, 1))], ['6시간', fmt(at(r, 6))], ['24시간', fmt(at(r, 24))], ['48시간', fmt(at(r, 48))], ['지금', fmt(r.views)],
           ['시간당', per != null ? `+${fmt(Math.round(per))}회` : null]] },
         { title: '반응', kv: [['채널 평소', r.med ? `${fmt(r.med)}회` : '—'], ['좋아요', r.last ? fmt(r.last.likes) : null], ['댓글', r.last ? fmt(r.last.comments) : null],
           ['좋아요율', r.last?.likes != null && r.views ? `${(r.last.likes / r.views * 100).toFixed(1)}%` : null], ['마지막 측정', r.last ? mdhm(r.last.at) : null]], link: r.d.url },
-        { title: '판정 기준', kv: [['계속', '48시간 뒤 평소의 2배+'], ['빼기', '평소 이하 2번']] },
       ],
-      detail: [`채널 평소 조회: ${r.med ? fmt(r.med) + '회' : '—'}`,
-        `조회 흐름: 1시간 ${fmt(at(r, 1))} → 6시간 ${fmt(at(r, 6))} → 24시간 ${fmt(at(r, 24))} → 48시간 ${fmt(at(r, 48))} → 지금 ${fmt(r.views)}`,
-        per != null && `최근 시간당 +${fmt(Math.round(per))}회`,
-        r.last && `좋아요 ${fmt(r.last.likes)} · 댓글 ${fmt(r.last.comments)}${r.last.likes != null && r.views ? ` · 좋아요율 ${(r.last.likes / r.views * 100).toFixed(1)}%` : ''}`,
-        `판정 기준: 공개 48시간 뒤 평소의 2배+ 계속 · 평소 이하 2번이면 이 채널에서 이 결 빼기`,
-        r.last && `마지막 측정: ${mdhm(r.last.at)}`, r.d.url && `영상: ${r.d.url}`].filter(Boolean).join('\n'),
       session: 'YTHOME-M-발굴분석',
     };
   });
   const nWait = dropRows.filter((r) => r.age == null || r.age < 48).length;
   const nKeep = dropRows.filter((r) => r.age >= 24 && r.ratio >= 2).length;
   const nDrop = dropRows.filter((r) => r.age >= 24 && r.ratio != null && r.ratio < 1).length;
+
+  // ── 배정·투하 추적 한 페이지 ──
+  const shortT = (x) => String(x || '').replace(/#\S+/g, '').trim().slice(0, 18) || '제목 없음';
+  const live = dropRows.filter((r) => r.pts.length);
+  const ratioChart = { type: 'chart', title: '투하 편 전체 — 채널 평소 대비 몇 배인가', x: '공개 뒤 시간', y: 'x',
+    series: live.filter((r) => r.med).map((r) => ({ name: shortT(r.t.title || r.d.title), c: verdict(r)[1], pts: r.pts.map(([h, v]) => [h, +(v / r.med).toFixed(2)]) })),
+    guides: [{ y: 1, label: '평소', c: 'muted' }, { y: 2, label: '2배 — 계속', c: 'ok' }],
+    empty: dropRows.length ? `투하 ${dropRows.length}편 — 아직 공개 전이거나 첫 측정 전입니다. 공개되면 한 시간마다 선이 자랍니다.` : '아직 투하한 편이 없습니다.',
+    note: '선 하나 = 투하 편 하나. 초록 점선(2배) 위로 올라가면 그 결을 그 채널에서 계속, 회색 선(평소) 아래로 두 번이면 뺍니다.' };
+  const barChart = { type: 'bars', title: '편별 지금 조회 — 막대 끝 눈금은 채널 평소·2배',
+    items: dropRows.map((r) => ({ label: shortT(r.t.title || r.d.title), sub: `${r.g.our_channel || ''} · ${r.g['소재'] || r.g.name || r.g.id}`, value: r.views, ref: r.med, c: verdict(r)[1], tag: verdict(r)[0] })),
+    empty: '아직 투하한 편이 없습니다.' };
+  const chanTrack = [...assigned].sort((a, b) => b[1].length - a[1].length).map(([ch, gs]) => {
+    const rows = dropRows.filter((r) => r.g.our_channel === ch);
+    const keep = rows.filter((r) => r.age >= 24 && r.ratio >= 2).length, bad = rows.filter((r) => r.age >= 24 && r.ratio != null && r.ratio < 1).length;
+    const waiting = gs.filter((g) => !g.drops.length);
+    return {
+      title: ch, tone: keep ? 'ok' : rows.length ? 'busy' : 'muted',
+      pct: gs.length ? Math.round(rows.length / gs.length * 100) : 0,
+      sub: `결 ${gs.length}개 배정 → 투하 ${rows.length}편 (막대 = 배정 중 투하한 비율)`,
+      chips: [{ t: '배정', n: gs.length, c: 'busy' }, { t: '투하', n: rows.length, c: rows.length ? 'ok' : 'muted' }, { t: '계속', n: keep, c: 'ok' }, { t: '빼기', n: bad, c: bad ? 'bad' : 'muted' }, { t: '대기 결', n: waiting.length, c: 'warn' }],
+      chart: rows.some((r) => r.pts.length && r.med) ? { title: `${ch} 투하 편 — 평소 대비 배수`, x: '공개 뒤 시간', y: 'x',
+        series: rows.filter((r) => r.pts.length && r.med).map((r) => ({ name: shortT(r.t.title), c: verdict(r)[1], pts: r.pts.map(([h, v]) => [h, +(v / r.med).toFixed(2)]) })),
+        guides: [{ y: 1, label: '평소', c: 'muted' }, { y: 2, label: '2배', c: 'ok' }] } : undefined,
+      blocks: [
+        ...rows.map((r) => ({ title: shortT(r.t.title || r.d.title), badge: { t: verdict(r)[0], c: verdict(r)[1] }, chips: [gChip(r.g)],
+          kv: [['지금', r.views != null ? `${fmt(r.views)}회` : '—'], ['평소', r.med ? `${fmt(r.med)}회` : '—'], ['공개', r.pub ? mdhm(r.pub) : '예약']], link: r.d.url })),
+        waiting.length ? { title: `아직 안 올린 결 ${waiting.length}개`, badge: { t: '대기', c: 'warn' }, chips: waiting.map(gChip) } : null,
+      ].filter(Boolean),
+      session: 'YTHOME-M-발굴분석',
+    };
+  });
+  const trackTab = [
+    { type: 'stats', items: [
+      { label: '배정한 결', value: nAssigned, sub: `${assigned.size}개 채널`, drill: { title: '채널별 배정', items: assignCards } },
+      { label: '투하 편', value: dropRows.length, sub: `공개 ${dropRows.filter((r) => r.t.seen).length} · 예약 ${dropRows.filter((r) => !r.t.seen && !r.t.gone).length}`, tone: dropRows.length ? 'ok' : '' },
+      { label: '판정 대기', value: nWait, sub: '공개 48시간 전' },
+      { label: '2배+ 계속', value: nKeep, tone: nKeep ? 'ok' : '' },
+      { label: '평소 이하', value: nDrop, tone: nDrop ? 'bad' : '' },
+    ] },
+    { type: 'pipeline', title: '배정 → 투하 → 판정', stages: [['배정한 결', nAssigned], ['투하 편', dropRows.length], ['판정 대기', nWait], ['2배+ 계속', nKeep], ['평소 이하', nDrop]].map(([label, v]) => ({ label, count: fmt(v) })) },
+    ratioChart,
+    barChart,
+    { type: 'list', title: `채널별 — 배정·투하·판정 (${chanTrack.length}개 채널)`, items: chanTrack, empty: '아직 배정된 채널이 없습니다.', note: '카드를 누르면 그 채널 투하 편들의 추이 그래프와, 아직 안 올린 결이 보입니다.' },
+    { type: 'list', title: `투하 편 하나씩 — ${dropCards.length}편`, items: dropCards, empty: '아직 투하한 편이 없습니다.', note: '카드 겉의 작은 선 = 조회 추이. 누르면 큰 그래프(회색 = 채널 평소, 초록 = 2배)와 1·6·24·48시간 조회, 좋아요·댓글.' },
+  ];
 
   const stages = [
     ['수집', st.channels_collected], ['조회 측정', st.channels_measured], ['잡탕 판정', st.channels_jabtang], ['터진 편', st.hit_videos],
@@ -179,14 +230,12 @@ function mineDashboard(track) {
       { label: '배정·투하', value: nAssigned, sub: `투하 ${drops}편`, tone: drops ? 'ok' : '', drill: { title: '우리 채널별 배정 — 어느 채널에 어떤 결', items: assignCards, empty: '아직 배정된 결이 없습니다.' } },
     ] },
     { type: 'list', title: `우리 채널 배정 — ${assignCards.length}개 채널에 결 ${nAssigned}개`, empty: '아직 우리 채널에 배정된 결이 없습니다.', items: assignCards, note: '카드를 누르면 그 채널에 배정된 결마다 소재·감정·틀, 남의 채널에서 터진 근거, 우리 관점, 투하 결과가 보입니다.' },
-    { type: 'pipeline', title: '배정 이후 흐름', stages: [['배정한 결', nAssigned], ['투하 편', drops], ['판정 대기(48시간 전)', nWait], ['2배+ 계속', nKeep], ['평소 이하', nDrop]].map(([label, v]) => ({ label, count: fmt(v) })) },
-    { type: 'list', title: `투하 편 추적 ${dropCards.length}편 — 한 시간마다 조회·좋아요·댓글`, empty: '아직 투하한 편이 없습니다. 발굴분석이 올린 편 주소를 적으면 한 시간 안에 여기서 조회를 재기 시작합니다.', items: dropCards,
-      note: '막대는 판정선(채널 평소의 2배)까지 얼마나 왔는지. 카드를 누르면 1·6·24·48시간 조회 흐름, 시간당 증가, 좋아요·댓글이 보입니다.' },
     { type: 'pipeline', title: '결을 찾는 순서', stages: stages.map(([label, v]) => ({ label, count: v == null ? '—' : fmt(v) })) },
     { type: 'note', text: '수집(인기 차트의 쇼츠 채널) → 조회 측정(최근 90일) → 잡탕 판정(최고 편이 평소의 10배 넘게 들쭉날쭉) → 터진 편(평소의 5배+)만 뽑기 → 썸네일·제목으로 결 이름(소재·감정·틀) → 서로 다른 채널 2곳+에서 같은 결이 터지면 검증 → 우리 채널 배정 → 투하 뒤 채널 평소와 비교.' },
     { type: 'list', title: `결 카드 (${mdhm(Date.parse(m.updated || 0))} 갱신)`, empty: '아직 이름 붙인 결이 없습니다.', items: gyeolCards },
   ];
   return { ...base, tabs: [
+    { key: 'track', label: `배정·투하 추적 ${dropRows.length}`, sections: trackTab },
     { key: 'overview', label: '결 카드', sections: overview },
     { key: 'channels', label: `결 분석한 채널 ${allChans.length}`, sections: [
       chanCards.length ? { type: 'list', title: `채널별 결 분석 — 터진 편 조회 큰 ${chanCards.length}곳 (분석한 채널 전체 ${allChans.length}곳)`, items: chanCards, note: '카드를 누르면 그 채널의 평소 조회, 터진 편(평소의 몇 배), 각 편이 어느 결로 묶였는지 보입니다.' }
@@ -196,7 +245,7 @@ function mineDashboard(track) {
 }
 
 // 투하 편 주소들(추적기에 넘김)
-function dropUrls() { return arr(readJson('docs/jabtang-mine/status.json')?.gyeol).flatMap((g) => arr(g.drops).map((d) => d.url)).filter(Boolean); }
+function dropUrls() { return [...arr(readJson('docs/jabtang-mine/status.json')?.gyeol).flatMap((g) => arr(g.drops).map((d) => d.url)), ...readDropLog().map((j) => `https://www.youtube.com/shorts/${j.video_id}`)].filter(Boolean); }
 
 // ── 세션 진행판 ──
 const noBlock = (b) => !b || /^(없음|없다|none|-)$/i.test(String(b).trim());

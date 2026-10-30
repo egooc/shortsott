@@ -132,9 +132,11 @@ async function saveSnapshot(device, state) {
   lastSaved.set(device, Date.now());
   const r = await sb('office_snapshots?on_conflict=device', {
     method: 'POST', headers: { prefer: 'resolution=merge-duplicates,return=minimal' },
-    body: JSON.stringify({ device, at: state.at || new Date().toISOString(), data: state, updated_at: new Date().toISOString() }),
+    // 글을 잘라 쓰다 반쪽 남은 이모지(짝 없는 서로게이트)·NUL 이 하나라도 있으면 수파베이스가 통째로 거부한다(10-30 02:59~ main-pc 400)
+    body: JSON.stringify({ device, at: state.at || new Date().toISOString(), data: state, updated_at: new Date().toISOString() },
+      (k, v) => (typeof v === 'string' ? v.replace(/[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/g, '�').replace(/\u0000/g, '') : v)),
   });
-  if (!r.ok) console.error(`[office] 저장 실패 ${device} ${r.status}`);
+  if (!r.ok) console.error(`[office] 저장 실패 ${device} ${r.status}`, (await r.text().catch(() => '')).slice(0, 200));
 }
 
 function command(device, op, args) {
