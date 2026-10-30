@@ -59,7 +59,9 @@
             "operating_decision": "소유주 결정 2026-09-01: **발행은 그대로 유지**하면서 이의제기를 병행한다. 틱톡 클레임은 잦다는 것이 소유주 판단."
           },
           "publisher": "zernio",
-          "zernio_note": "★2026-10-08 틱톡 발행은 Blotato 가 아니라 **Zernio** 로 간다. 여기 `accountId` 는 이제 Blotato 호출용이 아니라 **매핑 열쇠**다 — blotato-publish.js 의 api() 가 이 값으로 zernio_accounts.json 의 Zernio _id 를 찾는다. ★그래서 Blotato 에서 틱톡 연결을 빼도 발행은 그대로 된다. 다만 **이 항목(status: connected 와 accountId)을 지우거나 끄지 마라.** 지우면 발행 루프가 틱톡을 아예 돌지 않아 조용히 아무 데도 안 나간다. `--verify-accounts` 가 DRIFT 로 찍어도 그건 정상이다(Blotato 쪽에 계정이 없으니까)."
+          "zernio_note": "★2026-10-08 틱톡 발행은 Blotato 가 아니라 **Zernio** 로 간다. 여기 `accountId` 는 이제 Blotato 호출용이 아니라 **매핑 열쇠**다 — blotato-publish.js 의 api() 가 이 값으로 zernio_accounts.json 의 Zernio _id 를 찾는다. ★그래서 Blotato 에서 틱톡 연결을 빼도 발행은 그대로 된다. 다만 **이 항목(status: connected 와 accountId)을 지우거나 끄지 마라.** 지우면 발행 루프가 틱톡을 아예 돌지 않아 조용히 아무 데도 안 나간다. `--verify-accounts` 가 DRIFT 로 찍어도 그건 정상이다(Blotato 쪽에 계정이 없으니까).",
+          "min_sec": 60,
+          "min_sec_note": "10-30 소유주: 틱톡은 1분+판만(수익 조건). 곁딸린 파일 tiktok_file 이 60초 이상일 때만 rinbox-social 이 보낸다."
         },
         "instagram": {
           "role": "reach",

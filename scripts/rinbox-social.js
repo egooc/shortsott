@@ -35,6 +35,13 @@ function ledgerFail(file, platform, error) {
 }
 const RUNS_ROOT = 'D:/volcano-runs';
 
+// 길이 하한이 있는 플랫폼(10-30 소유주: 틱톡 수익은 1분+만 → 틱톡엔 1분+판만). 매핑에 min_sec 가 있으면
+// 곁딸린 파일의 tiktok_file(1분+판 절대경로)을 쓰고, 없거나 짧으면 건너뛴다 — 유튜브 1분 미만판이 새지 않게.
+function durationSec(file) {
+  const r = require('child_process').spawnSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', file], { encoding: 'utf8' });
+  return Number(String(r.stdout || '').trim()) || 0;
+}
+
 // 유튜브는 여기 없다 — 린박스 유튜브 발행은 rinbox-publish.js(OAuth, 네이티브 publishAt)가 맡는다.
 // Blotato 는 publishAt 을 지원하지 않아서 Content ID 프리플라이트 창이 사라진다.
 const FAN_OUT = ['instagram', 'tiktok', 'threads', 'facebook'];
@@ -205,6 +212,12 @@ function main() {
       if (done.has(`${entry.file}:${platform}`)) continue;
       const pBlock = platformBlock(platform);
       if (pBlock) { lines.push(`- BLOCKED(${platform}): ${entry.file} — ${pBlock}`); continue; }
+      let file = mp4;
+      if (mapping.min_sec) {
+        file = meta[`${platform}_file`] || '';
+        const sec = file && fs.existsSync(file) ? durationSec(file) : 0;
+        if (sec < mapping.min_sec) { lines.push(`- SKIP(${platform} ${mapping.min_sec}초+판 없음${file ? ` · ${sec.toFixed(1)}초` : ''}): ${entry.file}`); continue; }
+      }
       const spec = specs.platforms?.[platform] || {};
       let target;
       try { target = buildTarget(platform, mapping, {}); }
@@ -213,7 +226,7 @@ function main() {
       try { text = composeCaption(meta, platform, spec); }
       catch (e) { lines.push(`- FAIL ${platform} [${meta.locale}]: ${entry.file} — ${e.message}`); ledgerFail(entry.file, platform, e.message); continue; }
       jobs.push({
-        entry, meta, mp4, platform, mapping, target,
+        entry, meta, mp4: file, platform, mapping, target,
         text,
         scheduledTime: scheduleFor(entry.publishAt || new Date().toISOString(), platform, false)
       });
@@ -231,7 +244,7 @@ async function run() {
   for (const job of jobs) {
     const tag = `${job.meta.locale}/${job.platform}`;
     if (args.dryRun) {
-      console.log(`[dry-run] ${tag} @ ${job.scheduledTime} · ${job.text.length}자`);
+      console.log(`[dry-run] ${tag} @ ${job.scheduledTime} · ${job.text.length}자 · ${path.basename(job.mp4)}`);
       console.log(`          ${job.text.replace(/\n/g, ' ⏎ ').slice(0, 120)}`);
       lines.push(`- dry-run ${job.platform} [${job.meta.locale}] ${job.scheduledTime}: ${job.entry.file}`);
       continue;
@@ -241,11 +254,12 @@ async function run() {
       // Blotato 저장소를 아예 안 거친다. 나머지 플랫폼은 그대로 Blotato.
       const viaZernio = Boolean(zernioIdFor(job.mapping.accountId));
       const bucket = viaZernio ? 'mediaZernio' : 'media';
-      let mediaUrl = (state[bucket] || {})[job.entry.file] || '';
+      const mediaKey = job.mp4 === findMp4(job.entry.file, state.paths) ? job.entry.file : path.basename(job.mp4);
+      let mediaUrl = (state[bucket] || {})[mediaKey] || '';
       if (!mediaUrl) {
         console.log(`[media] 업로드 ${job.entry.file} → ${viaZernio ? 'Zernio' : 'Blotato'}`);
         mediaUrl = viaZernio ? await zernioUpload(job.mp4) : await uploadLocalFile(job.mp4);
-        state[bucket] = { ...(state[bucket] || {}), [job.entry.file]: mediaUrl };
+        state[bucket] = { ...(state[bucket] || {}), [mediaKey]: mediaUrl };
         writeJson(STATE_PATH, state);
       }
       const result = await api('POST', '/posts', {
