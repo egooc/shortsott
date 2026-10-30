@@ -742,9 +742,10 @@ function section(s) {
 }
 
 // ── 결과물(이미지·영상) ──
-// 영상 모양은 로딩 전에 정한다: 한 번 본 영상은 실제 모양을 기억, 처음 보는 건 레인·제목으로 짐작(기본 쇼츠 세로).
+// 영상 모양은 로딩 전에 정한다: 서버가 올릴 때 잰 크기 → 이 기기가 본 적 있는 모양 → 레인·제목 짐작(기본 쇼츠 세로).
 const SHAPES = (() => { try { return JSON.parse(localStorage.getItem('vshape') || '{}'); } catch { return {}; } })();
 function videoShape(m) {
+  if (m.width && m.height) return m.width > m.height ? 'wide' : 'tall'; // 올릴 때 서버가 잰 크기
   if (SHAPES[m.id]) return SHAPES[m.id];
   return /롱폼|기업흥망|연금|정치 ?(ko|JA)? ?롱|1시간|long/i.test(`${m.lane || ''} ${m.title || ''} ${m.name || ''}`) ? 'wide' : 'tall';
 }

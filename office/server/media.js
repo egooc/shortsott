@@ -7,6 +7,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { execFileSync } = require('child_process');
 
 const DIR = path.join(__dirname, 'media');
 const INDEX = path.join(DIR, 'index.json');
@@ -28,6 +29,17 @@ const sign = (id, exp) => crypto.createHmac('sha256', SECRET).update(`${id}.${ex
 function signedUrl(id) {
   const exp = Date.now() + SIGN_MS;
   return `/media/${id}?e=${exp}&s=${sign(id, exp)}`;
+}
+
+// 이미지·영상의 가로·세로를 받는 순간 잰다 — 화면이 로딩 전에 칸 모양(쇼츠 세로·롱폼 가로)을 잡게.
+function probeSize(file) {
+  try {
+    const out = execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height:stream_tags=rotate', '-of', 'json', file], { timeout: 15e3, stdio: ['ignore', 'pipe', 'ignore'] });
+    const st = (JSON.parse(out).streams || [])[0];
+    if (!st || !st.width) return {};
+    const rot = Math.abs(Number(st.tags?.rotate || 0)) % 180 === 90;
+    return rot ? { width: st.height, height: st.width } : { width: st.width, height: st.height };
+  } catch { return {}; }
 }
 
 // 요청 본문을 파일로 흘려 쓴다(메모리에 안 올린다). 크기 넘으면 지우고 413.
@@ -56,6 +68,7 @@ async function save(req, meta) {
     title: String(meta.title || meta.name).slice(0, 200), lane: String(meta.lane || '').slice(0, 60),
     project: String(meta.project || '').slice(0, 60), device: meta.device || null, from: String(meta.from || '').slice(0, 120),
     note: String(meta.note || '').slice(0, 500), by_owner: !!meta.by_owner, at: new Date().toISOString(), decision_id: null,
+    ...(/^(video|image)\//.test(TYPES[ext]) ? probeSize(file) : {}),
   };
   const list = readIndex(); list.push(item); writeIndex(list);
   return item;
@@ -104,5 +117,14 @@ function cleanup() {
   }
   writeIndex(keep);
 }
+
+// 크기를 안 잰 옛 항목을 채운다(시작할 때 한 번).
+function backfillSizes() {
+  const list = readIndex(); let n = 0;
+  for (const x of list) if (x.width == null && /^(video|image)\//.test(x.mime)) { Object.assign(x, probeSize(path.join(DIR, x.file))); if (x.width) n++; }
+  if (n) writeIndex(list);
+  return n;
+}
+backfillSizes();
 
 module.exports = { save, link, listForOwner, get, serve, cleanup, signedUrl };
