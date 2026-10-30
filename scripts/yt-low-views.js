@@ -47,15 +47,30 @@ function seconds(iso) {
   return m ? ((+m[1] || 0) * 86400 + (+m[2] || 0) * 3600 + (+m[3] || 0) * 60 + (+m[4] || 0)) : Infinity;
 }
 
+// 잡탕 광산 결 시험 편(2026-10-30 소유주 오피스 «진행»): 공개 48h 판정이 끝날 때까지 저조회 비공개에서 뺀다 — 판정 자료가 사라진다.
+//   식별: 유튜브 태그 «jabtang-gNN»(N100) 또는 docs/jabtang-mine/drops.jsonl·status.json 의 영상 id. 48h 뒤엔 원래 규칙대로.
+//   가이드 0회(guideline_zero_feed)는 채널 안전 규칙이라 그대로 둔다.
+const JABTANG_HOURS = 48;
+const JABTANG_IDS = (() => {
+  const ids = new Set();
+  const dir = path.join(ROOT, 'docs', 'jabtang-mine');
+  try { for (const l of fs.readFileSync(path.join(dir, 'drops.jsonl'), 'utf8').split(/\r?\n/)) { try { const j = JSON.parse(l); if (j.video_id) ids.add(j.video_id); } catch {} } } catch {}
+  try { const st = JSON.parse(fs.readFileSync(path.join(dir, 'status.json'), 'utf8'));
+    for (const g of st.gyeol || []) for (const d of g.drops || []) { const m = /(?:v=|shorts\/|youtu\.be\/)([\w-]{11})/.exec(d.url || '') || [null, d.video_id]; if (m[1]) ids.add(m[1]); } } catch {}
+  return ids;
+})();
+const isJabtangTest = (x) => JABTANG_IDS.has(x.id) || (x.snippet.tags || []).some((t) => /^jabtang-g\d+$/i.test(t));
+
 // 판정 하나: 'guideline_zero_feed' | 'low_views' | null
 function judge(x, now = Date.now(), o = {}) {
   const min = o.min ?? MIN, hours = o.hours ?? HOURS, zeroHours = o.zeroHours ?? ZERO_HOURS;
   if (x.status.privacyStatus !== 'public') return null;
   const hrs = (now - Date.parse(x.snippet.publishedAt)) / 36e5;
+  const jabtangHold = isJabtangTest(x) && hrs < JABTANG_HOURS;
   const views = Number(x.statistics.viewCount || 0);
   if (views === 0 && hrs >= zeroHours && seconds(x.contentDetails?.duration) <= SHORT_MAX_SEC) return 'guideline_zero_feed';
   // 24h 저조회는 쇼츠만 — 롱폼은 24시간 조회로 판정하지 않는다(10-14 소유주). 10-22 수창 롱폼이 沼落ち(jp_highlight)에 들어와서 길이로 가른다.
-  if (hrs >= hours && views < min && seconds(x.contentDetails?.duration) <= SHORT_MAX_SEC) return 'low_views';
+  if (!jabtangHold && hrs >= hours && views < min && seconds(x.contentDetails?.duration) <= SHORT_MAX_SEC) return 'low_views';
   return null;
 }
 const STATE = path.join(ROOT, 'server', 'data', 'rinbox_publish_state.json');
