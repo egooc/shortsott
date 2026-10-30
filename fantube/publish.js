@@ -116,7 +116,14 @@ if (!SELFTEST) {
     const ends = capsC.filter(c => c.style === 'end');
     if (ends.length !== 1) bad.push(`⑨ 결 틀: 끝 한마디(style=end) ${ends.length}개 — 정확히 1개`);
     else if (dur - ends[0].t1 > 0.3 || ends[0].t1 - ends[0].t0 < 1) bad.push(`⑨ 결 틀: 끝 한마디가 끝까지(${ends[0].t0}~${ends[0].t1}s, 전체 ${dur.toFixed(1)}s) 1초 이상 떠 있어야`);
-    if (dur < 9 || dur > 20) bad.push(`⑨ 결 틀: 길이 ${dur.toFixed(1)}s — 9~20초(«모음» 편만 예외, spec.compilation=true)`.replace(/ — .*$/, S.compilation ? ' — 모음 편 허용' : ' — 9~20초'));
+    // 10/31 소유주 «진행» 레전드 시험(과거 터진 장면 + 우리 틀 + 첫 줄 해설, 20~30초): spec.legend={source_id,source_views,source_date,checked_at}
+    if (S.legend) {
+      const L = S.legend;
+      if (dur < 20 || dur > 30) bad.push(`⑨ 레전드 시험: 길이 ${dur.toFixed(1)}s — 20~30초`);
+      if (!(Number(L.source_views) >= 1e6) || !L.source_id || !L.checked_at) bad.push('⑨ 레전드 시험: legend.source_views(원본 조회 100만+ 실측)·source_id·checked_at 필요 — «터졌던 것» 증명');
+      if (!(v0 && v0.t0 <= 3)) bad.push('⑨ 레전드 시험: 첫 줄 해설(voice[0], t0≤3) 필수 — 틀만 바꾸면 재사용 판정 위험(관점 한 줄)');
+      if (!((S.expected_comment || {}).line)) bad.push('⑨ 레전드 시험: expected_comment.line(댓글 유도 줄) 지목 필요');
+    } else if (!S.compilation && (dur < 9 || dur > 20)) bad.push(`⑨ 결 틀: 길이 ${dur.toFixed(1)}s — 9~20초(«모음» 편만 예외 spec.compilation=true, 레전드 시험은 spec.legend)`);
     // 10/29 소유주 «번역 카드(추천대로)»(관리자 전달): 결 틀 카드는 실제 영어 댓글의 번역 카드 1장만 — orig 는 영어 원문(한글 0), text 는 뜻만 옮긴 번역, translated=true, 원문은 spec.comment_source(info.json) 의 댓글에 실제로 있어야 한다.
     const cards = S.comments || [];
     if (cards.length > 1) bad.push(`⑨ 결 틀: 카드 ${cards.length}장 — 번역 카드 1장까지, 나머지는 끝 한마디로`);
