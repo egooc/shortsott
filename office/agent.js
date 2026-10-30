@@ -109,6 +109,7 @@ const pidAlive = (pid) => { try { process.kill(pid, 0); return true; } catch (e)
 const textOf = (c) => typeof c === 'string' ? c : Array.isArray(c) ? c.filter((x) => x && x.type === 'text').map((x) => x.text).join('\n') : '';
 let ccCache = { at: 0, list: [] };
 const handleTitles = new Map();
+const handleCc = new Map(); // Orca 탭 이름과 세션 이름이 달라 폴더로 짝지은 것: 터미널 → 세션ID
 function claudeSessions() {
   if (Date.now() - ccCache.at < 20e3) return ccCache.list;
   const list = [];
@@ -215,9 +216,11 @@ async function compact(handle, title) {
   } finally { compacting.delete(handle); setTimeout(pushState, 3000); }
 }
 
+let lastTerms = null;
 async function state() {
   const [terms, repos] = await Promise.all([
-    orca(['terminal', 'list']).catch((e) => ({ error: e.message })),
+    // Orca 가 잠깐 답을 안 하면 직전 목록을 쓴다(빈 목록이면 모든 세션이 «Orca 밖»으로 떨어져 보내기가 막혔다, 10-31)
+    orca(['terminal', 'list']).then((r) => (lastTerms = { at: Date.now(), r }, r)).catch((e) => lastTerms && Date.now() - lastTerms.at < 10 * 60e3 ? lastTerms.r : ({ error: e.message })),
     orca(['repo', 'list']).catch((e) => ({ error: e.message })),
     readLimits(),
   ]);
@@ -243,7 +246,17 @@ async function state() {
   const repoList = (repos.repos || repos || []);
   const ccs = claudeSessions();
   const byName = new Map(ccs.filter((x) => x.name).map((x) => [x.name, x]));
-  for (const x of sessions) { const c = byName.get(cleanName(x.title)); if (c) { x.cc_status = c.status; x.ask = c.ask; x.bridge = c.bridge; c.matched = true; } }
+  const link = (x, c) => { x.cc_status = c.status; x.ask = c.ask; x.bridge = c.bridge; if (x.context_tokens == null) { x.context_tokens = c.tokens; x.model = c.model; } c.matched = true; };
+  for (const x of sessions) { const c = byName.get(cleanName(x.title)); if (c) link(x, c); }
+  // 탭 이름을 따로 붙인 세션(예: «그로우업 관리자» = growupup-cd): 같은 작업 폴더에 남은 짝이 하나씩뿐이면 같은 세션이다(10-31 N100 «Orca 밖» 오인)
+  const nf = (p) => String(p || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+  handleCc.clear();
+  for (const x of sessions) {
+    if (x.cc_status !== undefined || x.agent !== 'claude' || !x.folder) continue;
+    const ts = sessions.filter((y) => y.cc_status === undefined && y.agent === 'claude' && nf(y.folder) === nf(x.folder));
+    const cs = ccs.filter((c) => !c.matched && c.entrypoint !== 'sdk-cli' && nf(c.cwd) === nf(x.folder));
+    if (ts.length === 1 && cs.length === 1) { link(x, cs[0]); handleCc.set(x.handle, cs[0].session_id); }
+  }
   // Orca 밖 세션: 이름 없는 일회성(sdk 등)은 빼고, 저장소는 작업 폴더로 맞춘다. 화면은 대화 꼬리로 보여 준다(보내기는 못 함).
   const rl = Array.isArray(repoList) ? repoList : [];
   for (const c of ccs) {
@@ -285,7 +298,8 @@ const OPS = {
   // 대화로 보기: Orca 세션은 이름으로, Orca 밖 세션은 cc:세션ID 로 찾는다
   async chat({ handle }) {
     const list = claudeSessions();
-    const c = String(handle).startsWith('cc:') ? list.find((x) => `cc:${x.session_id}` === handle) : list.find((x) => x.name && x.name === cleanName(handleTitles.get(handle)));
+    const c = String(handle).startsWith('cc:') ? list.find((x) => `cc:${x.session_id}` === handle)
+      : list.find((x) => x.session_id === handleCc.get(handle)) || list.find((x) => x.name && x.name === cleanName(handleTitles.get(handle)));
     if (!c) throw new Error('대화 기록을 못 찾았다(Claude 세션이 아니거나 이름이 다름)');
     return { status: c.status, ask: c.ask, turns: readChat(c) };
   },
