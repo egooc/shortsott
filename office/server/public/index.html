@@ -642,6 +642,9 @@ function sessionTable(rows, opts = {}) {
   }).join('')}</div>`;
 }
 
+// «수정·보완·다시·조건부» 같은 선택지는 무엇을 고칠지 적어야 뜻이 통한다 — 누르면 글 칸이 열린다.
+const NEEDS_NOTE = /수정|고쳐|고치|바꿔|바꾸|변경|보완|다시|조건|기타|직접/;
+
 // 결정 카드: 질문은 3줄까지(눌러서 펼침), 선택지는 큰 버튼. 한 번 누르면 «한 번 더 눌러 확정».
 function decisionCard(d) {
   const open = d.status === 'open';
@@ -651,8 +654,8 @@ function decisionCard(d) {
     <div class="dtop"><span class="lane">${esc(d.lane)}</span><span class="muted">${ago(Date.parse(d.created_at))}</span></div>
     <div class="q clamp" data-act="expand">${esc(d.question)}</div>
     ${open ? `<div class="dopts">${(d.options || []).map((o) => `<button class="opt ${o === d.recommended ? 'rec' : ''}" data-answer="${d.id}" data-value="${esc(o)}">
-        <span>${esc(o)}</span>${o === d.recommended ? '<small>추천</small>' : ''}</button>`).join('')}
-        <button class="opt ghost" data-answer="${d.id}" data-value="">직접 쓰기</button></div>`
+        <span>${esc(o)}${NEEDS_NOTE.test(o) ? ' <small class="muted">✎ 적기</small>' : ''}</span>${o === d.recommended ? '<small>추천</small>' : ''}</button>`).join('')}
+        <button class="opt ghost" data-answer="${d.id}" data-value="">선택지에 없는 답 쓰기</button></div>`
       : `<div class="ans">→ ${esc(d.answer)}</div>`}
     ${d.asked_by ? `<div class="muted who">${esc(d.asked_by)}</div>` : ''}
   </div>`;
@@ -1187,10 +1190,11 @@ function closeSession(handle) {
     setTimeout(load, 3000);
   });
 }
-async function answer(id, value) {
+async function answer(id, value, label) {
   if (!value) {
-    return modal('<h3>직접 답하기</h3><textarea id="av" rows="3"></textarea>', async (m) => {
-      const v = m.querySelector('#av').value.trim(); if (!v) return true; await answer(id, v);
+    const head = label ? `<h3>${esc(label)} — 무엇을 어떻게 할지 적어 주세요</h3>` : '<h3>선택지에 없는 답 쓰기</h3>';
+    return modal(head + '<textarea id="av" rows="4" placeholder="예: 제목은 그대로, 첫 3초 장면만 바꿔"></textarea>', async (m) => {
+      const v = m.querySelector('#av').value.trim(); if (!v) return true; await answer(id, label ? `${label}: ${v}` : v);
     });
   }
   const r = await call(`/api/decisions/${id}`, { answer: value });
@@ -1216,6 +1220,7 @@ document.addEventListener('click', (e) => {
   if (t.dataset.answer) {
     // 잘못 누름 방지: 선택지는 한 번 누르면 «한 번 더 눌러 확정», 3초 안에 다시 누르면 답한다.
     if (!t.dataset.value) return answer(t.dataset.answer, '');
+    if (NEEDS_NOTE.test(t.dataset.value)) return answer(t.dataset.answer, '', t.dataset.value);
     if (!t.classList.contains('armed')) {
       document.querySelectorAll('.opt.armed').forEach((b) => { b.classList.remove('armed'); b.querySelector('em')?.remove(); });
       t.classList.add('armed'); t.insertAdjacentHTML('beforeend', '<em>한 번 더 눌러 확정</em>');
