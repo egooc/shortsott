@@ -219,6 +219,8 @@ h3.sh { font-size: 13px; font-weight: 600; color: var(--muted); margin: 6px 2px 
 .askprev { background: var(--bg); border-radius: 10px; padding: 10px 12px; margin: 8px 0 10px; font-size: 13.5px; color: var(--muted); display: grid; gap: 4px; }
 .opt small { flex: none; white-space: nowrap; font-size: 11px; color: var(--accent); font-weight: 600; }
 .opt.rec { border-color: var(--accent); }
+a.opt { border: 1px solid var(--line); background: var(--panel); color: var(--text); text-decoration: none; box-sizing: border-box; }
+a.opt.rec { border-color: var(--accent); }
 .opt.ghost { color: var(--muted); font-weight: 500; border-style: dashed; }
 .opt.armed { background: var(--accent); border-color: var(--accent); color: #fff; }
 .opt.armed small { color: #fff; }
@@ -840,7 +842,8 @@ function waitCard(s) {
     <div class="dtop"><span class="lane">${esc(nice(s.title).name)}</span><span class="muted">${s.ask.at ? ago(Date.parse(s.ask.at)) : ''}</span></div>
     <div class="q">${linkify(A.q)}</div>
     <div class="dopts">${canSend ? A.opts.map((o) => `<button class="opt ${o === A.rec ? 'rec' : ''}" data-wsend="${esc(s.handle)}" data-value="${esc(o)}"><span>${esc(o)}</span>${o === A.rec ? '<small>추천</small>' : ''}</button>`).join('') : ''}
-      <button class="opt ghost" data-session="${esc(s.handle)}">대화창 열기${s.external ? ' (보기만 — 답은 그 PC의 Claude 화면에서)' : ''}</button></div>
+      ${s.external && s.bridge ? `<a class="opt rec" href="https://claude.ai/code/${esc(s.bridge)}" target="_blank" rel="noopener"><span>Claude 앱에서 바로 답하기</span><small>원격 제어</small></a>` : ''}
+      <button class="opt ghost" data-session="${esc(s.handle)}">대화창 열기${s.external && !s.bridge ? ' (보기만 — 답은 그 PC의 Claude 화면에서)' : ''}</button></div>
     <div class="muted who">${esc(s.title)} · ${esc(devName(s.device))}</div>
   </div>`;
 }

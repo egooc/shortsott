@@ -118,7 +118,7 @@ function claudeSessions() {
     let s; try { s = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')); } catch { continue; }
     if (!s.sessionId || !s.cwd || (s.pid && !pidAlive(s.pid))) continue;
     const x = { name: cleanName(s.name || ''), session_id: s.sessionId, cwd: s.cwd, status: s.status || null, entrypoint: s.entrypoint || null,
-      updated_at: s.statusUpdatedAt || s.updatedAt || null, tokens: null, model: null, last_text: '', ask: null };
+      updated_at: s.statusUpdatedAt || s.updatedAt || null, bridge: /^session_\w+$/.test(s.bridgeSessionId || '') ? s.bridgeSessionId : null, tokens: null, model: null, last_text: '', ask: null };
     const tr = path.join(os.homedir(), '.claude/projects', s.cwd.replace(/[:\\/.]/g, '-'), `${s.sessionId}.jsonl`);
     try {
       const fd = fs.openSync(tr, 'r'); const size = fs.fstatSync(fd).size; const n = Math.min(size, 400000);
@@ -243,7 +243,7 @@ async function state() {
   const repoList = (repos.repos || repos || []);
   const ccs = claudeSessions();
   const byName = new Map(ccs.filter((x) => x.name).map((x) => [x.name, x]));
-  for (const x of sessions) { const c = byName.get(cleanName(x.title)); if (c) { x.cc_status = c.status; x.ask = c.ask; c.matched = true; } }
+  for (const x of sessions) { const c = byName.get(cleanName(x.title)); if (c) { x.cc_status = c.status; x.ask = c.ask; x.bridge = c.bridge; c.matched = true; } }
   // Orca 밖 세션: 이름 없는 일회성(sdk 등)은 빼고, 저장소는 작업 폴더로 맞춘다. 화면은 대화 꼬리로 보여 준다(보내기는 못 함).
   const rl = Array.isArray(repoList) ? repoList : [];
   for (const c of ccs) {
@@ -253,7 +253,7 @@ async function state() {
       || rl.find((r) => cw.includes(`/workspaces/${String(r.displayName || r.name || '').toLowerCase()}/`));
     sessions.push({ handle: `cc:${c.session_id}`, title: c.name, agent: 'claude', folder: c.cwd, repo_id: repo ? repo.id : null,
       last_output_at: c.updated_at, connected: true, writable: false, external: true, preview: c.last_text.slice(-600),
-      context_tokens: c.tokens, model: c.model, cc_status: c.status, ask: c.ask, compacting: false });
+      context_tokens: c.tokens, model: c.model, cc_status: c.status, ask: c.ask, bridge: c.bridge, compacting: false });
   }
   return {
     device: DEVICE, platform: process.platform, at: new Date().toISOString(),
