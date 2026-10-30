@@ -178,7 +178,7 @@ function mineDashboard(track) {
     series: live.filter((r) => r.med).map((r) => ({ name: shortT(r.t.title || r.d.title), c: verdict(r)[1], pts: r.pts.map(([h, v]) => [h, +(v / r.med).toFixed(2)]) })),
     guides: [{ y: 1, label: '평소', c: 'muted' }, { y: 2, label: '2배 — 계속', c: 'ok' }],
     empty: dropRows.length ? `투하 ${dropRows.length}편 — 아직 공개 전이거나 첫 측정 전입니다. 공개되면 한 시간마다 선이 자랍니다.` : '아직 투하한 편이 없습니다.',
-    note: '선 하나 = 투하 편 하나. 초록 점선(2배) 위로 올라가면 그 결을 그 채널에서 계속, 회색 선(평소) 아래로 두 번이면 뺍니다.' };
+    note: '초록 점선(2배) 위 = 계속 · 회색(평소) 아래 두 번 = 빼기' };
   const barChart = { type: 'bars', title: '편별 지금 조회 — 막대 끝 눈금은 채널 평소·2배',
     items: dropRows.map((r) => ({ label: shortT(r.t.title || r.d.title), sub: `${r.g.our_channel || ''} · ${r.g['소재'] || r.g.name || r.g.id}`, value: r.views, ref: r.med, c: verdict(r)[1], tag: verdict(r)[0] })),
     empty: '아직 투하한 편이 없습니다.' };
@@ -189,7 +189,7 @@ function mineDashboard(track) {
     return {
       title: ch, tone: keep ? 'ok' : rows.length ? 'busy' : 'muted',
       pct: gs.length ? Math.round(rows.length / gs.length * 100) : 0,
-      sub: `결 ${gs.length}개 배정 → 투하 ${rows.length}편 (막대 = 배정 중 투하한 비율)`,
+      sub: `결 ${gs.length}개 중 ${rows.length}편 투하`,
       chips: [{ t: '배정', n: gs.length, c: 'busy' }, { t: '투하', n: rows.length, c: rows.length ? 'ok' : 'muted' }, { t: '계속', n: keep, c: 'ok' }, { t: '빼기', n: bad, c: bad ? 'bad' : 'muted' }, { t: '대기 결', n: waiting.length, c: 'warn' }],
       chart: rows.some((r) => r.pts.length && r.med) ? { title: `${ch} 투하 편 — 평소 대비 배수`, x: '공개 뒤 시간', y: 'x',
         series: rows.filter((r) => r.pts.length && r.med).map((r) => ({ name: shortT(r.t.title), c: verdict(r)[1], pts: r.pts.map(([h, v]) => [h, +(v / r.med).toFixed(2)]) })),
@@ -210,11 +210,10 @@ function mineDashboard(track) {
       { label: '2배+ 계속', value: nKeep, tone: nKeep ? 'ok' : '' },
       { label: '평소 이하', value: nDrop, tone: nDrop ? 'bad' : '' },
     ] },
-    { type: 'pipeline', title: '배정 → 투하 → 판정', stages: [['배정한 결', nAssigned], ['투하 편', dropRows.length], ['판정 대기', nWait], ['2배+ 계속', nKeep], ['평소 이하', nDrop]].map(([label, v]) => ({ label, count: fmt(v) })) },
     ratioChart,
     barChart,
-    { type: 'list', title: `채널별 — 배정·투하·판정 (${chanTrack.length}개 채널)`, items: chanTrack, empty: '아직 배정된 채널이 없습니다.', note: '카드를 누르면 그 채널 투하 편들의 추이 그래프와, 아직 안 올린 결이 보입니다.' },
-    { type: 'list', title: `투하 편 하나씩 — ${dropCards.length}편`, items: dropCards, empty: '아직 투하한 편이 없습니다.', note: '카드 겉의 작은 선 = 조회 추이. 누르면 큰 그래프(회색 = 채널 평소, 초록 = 2배)와 1·6·24·48시간 조회, 좋아요·댓글.' },
+    { type: 'list', title: `채널별 — 배정·투하·판정 (${chanTrack.length}개 채널)`, items: chanTrack, empty: '아직 배정된 채널이 없습니다.', compact: true },
+    { type: 'list', title: `투하 편 하나씩 — ${dropCards.length}편`, items: dropCards, empty: '아직 투하한 편이 없습니다.', compact: true },
   ];
 
   const stages = [

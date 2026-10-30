@@ -1,6 +1,6 @@
 // AI 오피스 프로젝트 모듈 — 유튜브(shortsott/midform). 연결기(office/agent.js)가 5분마다 부른다. 읽기 전용, API 호출 0.
 //
-// 탭: 개요 · 콘텐츠 진행표 · 채널 성과 · 업로드 일정 · 자동화
+// 탭: 한눈에(업로드·성과) · 개요 · 콘텐츠 진행표 · 채널 성과 · 업로드 일정 · 자동화
 // 읽는 것(전부 다른 도구가 이미 만들어 두는 파일)
 //   server/data/production_ledger.jsonl      편별 제작·업로드·예약 (세션들이 적는 장부)
 //   server/data/youtube_upload_history.json  업로드·예약 공개 시각 (uploadProfileId → 채널)
@@ -10,11 +10,14 @@
 //   docs/reports/YYYY-MM-DD-perf.md          관리자 성과 보고 1절 표
 //   server/output/task-logs/gpt-ask.jsonl    GPT 주간 한도
 //   Windows 예약 작업 midform-*               마지막 실행 결과
+//   office/data/up-track.json                우리 채널 공개 수치(구독·편별 조회) — lib/uptrack 이 한 시간마다 공개 API 로 잰다
 // 화면 규격(섹션 종류)은 office/server/public/index.html 의 renderDashboard 와 맞춘다.
 
 const fs = require('fs');
 const path = require('path');
 const { execFile } = require('child_process');
+delete require.cache[require.resolve('./lib/uptrack')];
+const { refreshUploads } = require('./lib/uptrack');
 
 const ROOT = path.resolve(__dirname, '../..');
 const D = (p) => path.join(ROOT, p);
@@ -109,6 +112,62 @@ function perfSection(perf) {
     note: '그제 편은 이틀 지난 조회, 어제 편은 첫날 신호입니다. 올린 편이 없는 채널은 뺐습니다.' };
 }
 
+// ── 한눈에: 채널별 업로드 달력 + 채널 카드(누르면 편별 조회 그래프) ──
+// 화면은 한 화면 안에: 숫자 4칸 → 14일 업로드 달력 → 작은 채널 카드. 자세한 건 카드를 눌러야 나온다.
+const PURPOSE_NAME = { jp_highlight: '린박스 일본', politics_ja: '정치 일본', nenkin_ja: '연금 일본' };
+const hasKana = (x) => /[\u3040-\u30ff]/.test(String(x || ''));
+const median = (a) => { const b = a.filter((x) => x != null).sort((x, y) => x - y); return b.length ? b[Math.floor(b.length / 2)] : null; };
+function glance(t, now) {
+  const dayKey = (ms) => kst(ms).toISOString().slice(0, 10);
+  const days = [...Array(14)].map((_, i) => dayKey(now - (13 - i) * 864e5));
+  const today = days[13];
+  const chans = Object.entries(t.channels || {}).map(([id, c]) => {
+    const name = PURPOSE_NAME[c.purpose] || (hasKana(c.title) ? '일본 채널' : c.title || id);
+    const vids = Object.entries(t.videos || {}).filter(([, v]) => v.ch === id && v.pub).map(([vid, v]) => {
+      const last = v.snaps[v.snaps.length - 1] || {};
+      return { vid, pub: v.pub, views: last.views ?? null, likes: last.likes, title: hasKana(v.title) ? `${name} ${mdhm(v.pub)} 편` : v.title || vid, snaps: v.snaps };
+    }).sort((a, b) => a.pub - b.pub);
+    const med = median(vids.filter((v) => now - v.pub > 48 * 3600e3).map((v) => v.views));
+    const wk = vids.filter((v) => v.pub > now - 7 * 864e5);
+    const old = (c.subs_hist || []).find((h) => h.at >= now - 7 * 864e5);
+    return { id, c, name, vids, med, wk, perDay: days.map((d) => vids.filter((v) => dayKey(v.pub) === d).length),
+      today: vids.filter((v) => dayKey(v.pub) === today), dSubs: old ? c.subs - old.subs : null, wkViews: wk.reduce((a, v) => a + (v.views || 0), 0) };
+  }).filter((x) => x.vids.length || x.c.subs).sort((a, b) => b.wk.length - a.wk.length || b.c.subs - a.c.subs);
+
+  const xTone = (v, med) => (v == null || !med ? 'muted' : v >= med * 2 ? 'ok' : v < med * 0.5 ? 'bad' : 'busy');
+  const vidCard = (x, v) => ({ title: v.title, tone: xTone(v.views, x.med),
+    sub: `${x.name} · ${mdhm(v.pub)}`, right: `${fmt(v.views)}회${x.med ? ` · 평소의 ${(v.views / x.med).toFixed(1)}배` : ''}`,
+    spark: v.snaps.length >= 2 ? { pts: v.snaps.map((p) => [(p.at - v.pub) / 3600e3, p.views]), c: xTone(v.views, x.med), ref: x.med } : undefined,
+    blocks: [{ title: '반응', kv: [['조회', `${fmt(v.views)}회`], ['채널 평소', x.med ? `${fmt(x.med)}회` : '—'], ['좋아요', fmt(v.likes)]], link: `https://www.youtube.com/watch?v=${v.vid}` }] });
+  const todayAll = chans.flatMap((x) => x.today.map((v) => vidCard(x, v)));
+  const sumSubs = chans.reduce((a, x) => a + (x.c.subs || 0), 0), dSubs = chans.reduce((a, x) => a + (x.dSubs || 0), 0);
+  const cards = chans.map((x) => {
+    const recent = x.vids.slice(-20);
+    const best = [...x.wk].sort((a, b) => (b.views || 0) - (a.views || 0))[0];
+    return {
+      title: x.name, tone: x.today.length ? 'ok' : x.wk.length ? 'busy' : 'muted',
+      sub: `구독 ${fmt(x.c.subs)}${x.dSubs ? ` (${x.dSubs > 0 ? '+' : ''}${fmt(x.dSubs)}/7일)` : ''} · 7일 ${x.wk.length}편`,
+      right: x.med ? `편당 평소 ${fmt(x.med)}회${best ? ` · 7일 최고 ${fmt(best.views)}` : ''}` : '평소 조회 계산 전',
+      spark: recent.length >= 2 ? { pts: recent.map((v, i) => [i, v.views || 0]), c: 'busy', ref: x.med } : undefined,
+      chart: { title: '최근 편 조회 (공개 순, 점 하나 = 한 편)', xt: 'date', y: 'n', series: [{ name: '편별 조회', c: 'busy', pts: recent.map((v) => [v.pub, v.views || 0]) }],
+        guides: x.med ? [{ y: x.med, label: `평소 ${fmt(x.med)}`, c: 'muted' }, { y: x.med * 2, label: '2배', c: 'ok' }] : [], empty: '최근 30일 공개 편이 없습니다.' },
+      blocks: recent.slice(-4).reverse().map((v) => ({ title: v.title, badge: x.med && v.views != null ? { t: `평소의 ${(v.views / x.med).toFixed(1)}배`, c: xTone(v.views, x.med) } : null,
+        kv: [['조회', `${fmt(v.views)}회`], ['공개', mdhm(v.pub)]], link: `https://www.youtube.com/watch?v=${v.vid}` })),
+    };
+  });
+  return [
+    { type: 'stats', items: [
+      { label: '오늘 공개', value: todayAll.length, sub: `${chans.filter((x) => x.today.length).length}개 채널`, drill: { title: '오늘 공개한 편 — 누르면 반응', items: todayAll, empty: '오늘 공개한 편이 아직 없습니다.' } },
+      { label: '7일 공개', value: chans.reduce((a, x) => a + x.wk.length, 0), sub: '편' },
+      { label: '7일 새 편 조회', value: fmt(chans.reduce((a, x) => a + x.wkViews, 0)), sub: '지난 7일 올린 편 합' },
+      { label: '구독 합계', value: fmt(sumSubs), sub: dSubs ? `7일 ${dSubs > 0 ? '+' : ''}${fmt(dSubs)}` : '추이 쌓는 중', tone: dSubs > 0 ? 'ok' : '' },
+    ] },
+    { type: 'grid', title: '채널별 업로드 — 최근 14일', cols: days.map((d) => +d.slice(8)), colTop: days.map((d) => d.slice(5, 7) + '월'),
+      rows: chans.map((x) => ({ label: x.name, cells: x.perDay })), note: '칸 숫자 = 그날 공개한 편 수. 맨 오른쪽이 오늘.' },
+    { type: 'list', title: '채널 — 누르면 편별 조회 그래프', items: cards, compact: true },
+  ];
+}
+
 module.exports = {
   project: 'shortsott',
   title: '유튜브',
@@ -121,6 +180,8 @@ module.exports = {
     const metrics = (readJson('server/data/youtube_metrics.json', {}).snapshots || []).slice(-1)[0];
     const hist = readJson('server/data/youtube_upload_history.json', []);
     const gpt = [...readLines('server/output/task-logs/gpt-ask.jsonl').slice(-200)].reverse().map(parse).find((r) => r && r.limits && r.limits.primary);
+    const profArr = (() => { const p = readJson('server/data/youtube_upload_profiles.json', []); return Array.isArray(p) ? p : (p.profiles || Object.values(p)); })();
+    const up = await refreshUploads(profArr.filter((x) => x.channelId && x.purpose !== 'shopping_old_ssulmo').map((x) => ({ id: x.channelId, purpose: x.purpose })));
     const locks = ['politics-hour/RENDERING.lock', 'politics-hour/RENDERING-ja.lock', 'politics-hour-ja/RENDERING-ja.lock'].filter((p) => fs.existsSync(D(p)));
 
     // ── 콘텐츠 진행표 ──
@@ -243,6 +304,7 @@ module.exports = {
       title: '유튜브',
       updated_at: new Date(now).toISOString(),
       tabs: [
+        { key: 'glance', label: '한눈에', sections: glance(up, now) },
         { key: 'overview', label: '개요', sections: [
           { type: 'stats', items: [
             { label: '오늘 공개 예정', value: todayCount, sub: '편' },

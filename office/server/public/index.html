@@ -310,6 +310,19 @@ nav.top { display: grid; gap: 2px; }
 .hbar .bs { display: flex; justify-content: space-between; gap: 8px; align-items: center; flex-wrap: wrap; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .chart .ln, :root:not([data-theme="light"]) .spark .ln { stroke: hsl(var(--h, 220), 75%, 65%); } :root:not([data-theme="light"]) .chart .dt { fill: hsl(var(--h, 220), 75%, 65%); } :root:not([data-theme="light"]) .chart .gl { fill: hsl(var(--h, 220), 65%, 70%); } }
 :root[data-theme="dark"] .chart .ln, :root[data-theme="dark"] .spark .ln { stroke: hsl(var(--h, 220), 75%, 65%); } :root[data-theme="dark"] .chart .dt { fill: hsl(var(--h, 220), 75%, 65%); } :root[data-theme="dark"] .chart .gl { fill: hsl(var(--h, 220), 65%, 70%); }
+/* 업로드 달력: 채널 × 날짜, 진할수록 많이 올림 */
+.ugrid { display: grid; grid-template-columns: minmax(64px, 96px) repeat(var(--n), minmax(0, 1fr)); gap: 3px; font-size: 11.5px; align-items: center; }
+.ugrid .rl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; font-size: 12.5px; padding-right: 4px; }
+.ugrid .ch { text-align: center; color: var(--muted); font-size: 10.5px; }
+.ugrid .ch.today { color: var(--accent); font-weight: 700; }
+.ugrid .uc { aspect-ratio: 1; max-height: 30px; border-radius: 5px; display: grid; place-items: center; font-weight: 700; font-size: 11px;
+  background: color-mix(in srgb, var(--accent) calc(var(--a) * 100%), var(--line2)); color: var(--text); }
+.ugrid .uc.hot { color: #fff; }
+.ugrid .uc.z { color: transparent; }
+/* 작은 채널 카드: 한 화면에 여러 장 */
+.agrid.compact { grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr)); gap: 8px; }
+.agrid.compact .acard { padding: 10px 12px; gap: 2px; }
+@media (max-width: 640px) { .agrid.compact { grid-template-columns: 1fr 1fr; } .agrid.compact .acard { padding: 8px 10px; font-size: 13px; } .agrid.compact .acard .muted { font-size: 11.5px; line-height: 1.4; } .agrid.compact .spark { height: 22px; } .agrid.compact .xcard:not(.open)::after { display: none; } }
 .blocks { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); }
 .blk { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--bg); display: grid; gap: 6px; min-width: 0; }
 .blk .bh { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-weight: 700; font-size: 14px; }
@@ -800,19 +813,22 @@ function chartHtml(c) {
   const ser = (c.series || []).filter((x) => x.pts && x.pts.length);
   if (!ser.length) return `${c.title ? `<div class="ct">${esc(c.title)}</div>` : ''}<div class="empty">${esc(c.empty || '아직 그릴 값이 없습니다.')}</div>`;
   const W = 420, H = 210, L = 44, R = 12, T = 12, B = 24, all = ser.flatMap((x) => x.pts);
+  const dt = c.xt === 'date', x0 = dt ? Math.min(...all.map((p) => p[0])) : 0;
+  if (dt) { ser.forEach((x) => { x.pts = x.pts.map((p) => [(p[0] - x0) / 3600e3, p[1]]); }); all.splice(0, all.length, ...ser.flatMap((x) => x.pts)); }
+  const xlab = (x) => { if (!dt) return x ? hrs(x) : '공개'; const d = new Date(x0 + x * 3600e3 + 9 * 3600e3); return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`; };
   const xmax = Math.max(6, ...all.map((p) => p[0])), ymax = Math.max(...all.map((p) => p[1]), ...(c.guides || []).map((g) => g.y)) * 1.12 || 1;
   const X = (x) => L + x / xmax * (W - L - R), Y = (y) => H - B - y / ymax * (H - T - B);
   const xs = [1, 3, 6, 12, 24, 48, 96, 168, 336].find((x) => xmax / x <= 5) || 336, ys = niceStep(ymax, 4);
   let g = `<line class="ax" x1="${L}" y1="${H - B}" x2="${W - R}" y2="${H - B}"/>`;
   for (let y = 0; y <= ymax; y += ys) g += `<line class="ax" x1="${L}" x2="${W - R}" y1="${Y(y)}" y2="${Y(y)}" opacity=".45"/><text class="tk" x="${L - 6}" y="${Y(y) + 3}" text-anchor="end">${esc(yv(c, y))}</text>`;
-  for (let x = 0; x <= xmax; x += xs) g += `<text class="tk" x="${X(x)}" y="${H - 8}" text-anchor="middle">${x ? hrs(x) : '공개'}</text>`;
+  for (let x = 0; x <= xmax; x += xs) g += `<text class="tk" x="${X(x)}" y="${H - 8}" text-anchor="middle">${xlab(x)}</text>`;
   for (const d of c.guides || []) g += `<g class="c-${esc(d.c || 'muted')}"><line class="gd" x1="${L}" x2="${W - R}" y1="${Y(d.y)}" y2="${Y(d.y)}"/><text class="gl" x="${W - R}" y="${Y(d.y) - 4}" text-anchor="end">${esc(d.label)}</text></g>`;
   for (const x of ser) {
     const last = x.pts[x.pts.length - 1];
-    g += `<g class="c-${esc(x.c || 'busy')}"><title>${esc(x.name)} — ${esc(yv(c, last[1]))} (${esc(hrs(last[0]))})</title><polyline class="ln" points="${x.pts.map((p) => `${X(p[0]).toFixed(1)},${Y(p[1]).toFixed(1)}`).join(' ')}"/><circle class="dt" cx="${X(last[0])}" cy="${Y(last[1])}" r="3.5"/></g>`;
+    g += `<g class="c-${esc(x.c || 'busy')}"><title>${esc(x.name)} — ${esc(yv(c, last[1]))} (${esc(dt ? xlab(last[0]) : hrs(last[0]))})</title>${dt ? x.pts.map((p) => `<circle class="dt" cx="${X(p[0]).toFixed(1)}" cy="${Y(p[1]).toFixed(1)}" r="2.2"/>`).join('') : ''}<polyline class="ln" points="${x.pts.map((p) => `${X(p[0]).toFixed(1)},${Y(p[1]).toFixed(1)}`).join(' ')}"/><circle class="dt" cx="${X(last[0])}" cy="${Y(last[1])}" r="3.5"/></g>`;
   }
   return `<div class="chart">${c.title ? `<div class="ct">${esc(c.title)}</div>` : ''}<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(c.title || '그래프')}">${g}</svg>
-    ${chipsHtml(ser.map((x) => ({ t: x.name, n: yv(c, x.pts[x.pts.length - 1][1]), c: x.c })), 12)}</div>`;
+    ${ser.length > 1 ? chipsHtml(ser.map((x) => ({ t: x.name, n: yv(c, x.pts[x.pts.length - 1][1]), c: x.c })), 12) : ''}</div>`;
 }
 // 카드 겉의 작은 추이선 {pts, c, ref(평소)}
 function sparkHtml(sp) {
@@ -848,7 +864,7 @@ const SECTIONS = {
   table: (s) => s.rows.length ? `<div class="tw"><table class="rt"><thead><tr>${s.columns.map((c) => `<th>${esc(c)}</th>`).join('')}</tr></thead>
     <tbody>${s.rows.map((r) => `<tr>${r.map((c, i) => `<td data-label="${esc(s.columns[i] || '')}">${cell(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : `<div class="empty">${esc(s.empty || '없습니다.')}</div>`,
   // 카드를 누르면 설명·추천이 펼쳐지고 [담당에게 묻기]·[세션 열기]. 모듈이 detail·rec·session(세션 이름)을 채운다.
-  list: (s) => s.items.length ? `<div class="agrid">${s.items.map((i) => {
+  list: (s) => s.items.length ? `<div class="agrid ${s.compact ? 'compact' : ''}">${s.items.map((i) => {
     const sess = i.session && CUR_M ? findByTitle(CUR_M, i.session) : null;
     const ask = JSON.stringify({ title: i.title, sub: i.sub || '', detail: i.detail || '', rec: i.rec || '', session: sess ? nice(sess.title).name : (i.session || '') });
     return `<div class="acard a-${i.tone || 'muted'} tall xcard" data-act="xpand">
@@ -859,6 +875,9 @@ const SECTIONS = {
   }).join('')}</div>`
     : `<div class="empty">${esc(s.empty || '없습니다.')}</div>`,
   chart: (s) => chartHtml({ ...s, title: '' }),
+  grid: (s) => { const max = Math.max(1, ...s.rows.flatMap((r) => r.cells)); const n = s.cols.length;
+    return `<div class="ugrid" style="--n:${n}"><span></span>${s.cols.map((c, i) => `<span class="ch ${i === n - 1 ? 'today' : ''}">${esc(c)}</span>`).join('')}
+      ${s.rows.map((r) => `<span class="rl">${esc(r.label)}</span>${r.cells.map((v, i) => `<span class="uc ${v ? (v / max > .55 ? 'hot' : '') : 'z'}" style="--a:${v ? (0.18 + 0.82 * v / max).toFixed(2) : 0}" title="${esc(r.label)} ${esc(s.cols[i])}일 ${v}편">${v || '·'}</span>`).join('')}`).join('')}</div>`; },
   bars: (s) => barsHtml(s),
   calendar: (s) => `<div class="cal">${s.days.map((d) => `<div class="day"><div class="dh">${esc(d.label)} <span class="muted">${d.items.length}</span></div>
     ${d.items.map((i) => `<div class="ev"><b>${esc(i.time)}</b> ${esc(i.text)}${i.sub ? `<div class="muted">${esc(i.sub)}</div>` : ''}</div>`).join('') || '<div class="muted" style="padding:6px 0">비어 있음</div>'}</div>`).join('')}</div>`,
