@@ -807,7 +807,7 @@ def script_gate(ep):
     a = script_audit.audit(ep / 'script.txt', lane='nenkin_ja', jargon=script_audit._load_json(ROOT / 'ja-nenkin' / 'jargon.json'))
     print('[관문] script_audit:', a.get('error') or f'경고 {len(a["warnings"])}건', flush=True)
     if a.get('error') or a['warnings']:
-        raise SystemExit('원고 관문: script_audit ' + (a.get('error') or ' / '.join(f'[{c}] {m}' for c, m in a['warnings'])))
+        raise SystemExit('원고 관문: script_audit ' + (a.get('error') or ' / '.join(f'[{w["code"]}] {w["msg"]}' if isinstance(w, dict) else f'[{w[0]}] {w[1]}' for w in a['warnings'])))
     r = subprocess.run([py, str(sc / 'comment_hook.py'), str(ep), '--lane', 'generic', '--spec', str(ep / 'comment_spec.json'),
                         '--script', str(ep / 'script.txt')], capture_output=True, text=True, encoding='utf-8')
     print('[관문] comment_hook:', (r.stdout.strip().splitlines() or ['?'])[0], f'(종료 {r.returncode})', flush=True)

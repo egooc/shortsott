@@ -1,0 +1,50 @@
+{
+  "keyword": "年金生活者支援給付金 請求書",
+  "topic": "年金生活者支援給付金の請求書（緑の封筒）— 届いた人が今やること",
+  "target_min": 10,
+  "why": "レファレンス4本すべて同テーマ・チャンネル中央値×4.4〜17.9。最短18.1分（20分未満）→目標10分。2026年秋に新たに対象になった人へ請求書が届く時期。",
+  "references": [
+    {
+      "channel": "サラダのお金相談所",
+      "channel_id": "UCeicl_qqEQyLBdqhhrw20Rw",
+      "video_id": "mL0bwzi8KFM",
+      "views": 3281443,
+      "ratio": 17.9,
+      "dur_min": 37.2,
+      "published": "2026-01-25"
+    },
+    {
+      "channel": "定年前後の「お金の悩み」解消ラボ",
+      "channel_id": "UC27e9lK-KS5EGvhx-DM0ShQ",
+      "video_id": "y5S46YP9e_Y",
+      "views": 330144,
+      "ratio": 9.1,
+      "dur_min": 19.9,
+      "published": "2024-04-21"
+    },
+    {
+      "channel": "News65 (老後)",
+      "channel_id": "UCgNr-yxfjcW0ao2dhvBZVWA",
+      "video_id": "TERYSzzpk_g",
+      "views": 718316,
+      "ratio": 5.6,
+      "dur_min": 18.1,
+      "published": "2024-03-15"
+    },
+    {
+      "channel": "サラダのお金相談所",
+      "channel_id": "UCeicl_qqEQyLBdqhhrw20Rw",
+      "video_id": "6Zq2X5P_Gyo",
+      "views": 805428,
+      "ratio": 4.4,
+      "dur_min": 41.9,
+      "published": "2025-12-19"
+    }
+  ],
+  "sources": [
+    "https://www.nenkin.go.jp/service/nenkinkyufu/shienkyufukin/seikyu/ta.files/leaflet.pdf",
+    "https://www.nenkin.go.jp/oshirase/kojin/2026/202609/0901.html",
+    "https://www.mhlw.go.jp/nenkinkyuufukin/nenkinsupport.html"
+  ],
+  "created": "2026-10-30"
+}
