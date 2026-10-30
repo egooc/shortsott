@@ -140,7 +140,9 @@ if (!SELFTEST) {
       }
     }
     if (!capsC.some(c => ['paren', 'note'].includes(c.style))) bad.push('⑨ 결 틀: 팬 화자 자막(paren 괄호 반응 또는 note 대괄호 상황) 0개');
-    if ((S.segs || []).some(g => g.fit)) bad.push('⑨ 결 틀: 가로 통짜(segs[].fit) 금지 — 레퍼런스 24편 전부 9:16 크롭(10/28 실측), 얼굴 쪽으로 cw·x 를 좁혀라');
+    // 10/29 소유주: 박힌 자막은 다 보여야 한다(검수 #21·레퍼런스 예능셔틀 정사각 창). 정사각 창(spec.window=square)이 기본이고, 그래도 자막·얼굴이 한 창에 못 들어오는 컷만 spec.fit_ok 사유와 함께 fit 허용.
+    if ((S.segs || []).some(g => g.fit) && !S.fit_ok) bad.push('⑨ 결 틀: 가로 통짜(segs[].fit)는 spec.window="square"(정사각 창) 로 먼저 풀고, 그래도 안 되는 컷만 spec.fit_ok 에 사유를 적어라(소유주 10/29)');
+    else if ((S.segs || []).some(g => g.fit)) console.error(`[publish] △ 가로 통짜 컷 ${(S.segs || []).filter(g => g.fit).length}개 — fit_ok: ${S.fit_ok}`);
   }
   // 꽉갈이 누락분 G22(10/21 관리자, RULES_PDF 25~29항) — 10/23 부터 막고 그 전엔 경고만.
   const g22 = [];
