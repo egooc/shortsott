@@ -257,7 +257,7 @@ async function run() {
       const mediaKey = job.mp4 === findMp4(job.entry.file, state.paths) ? job.entry.file : path.basename(job.mp4);
       let mediaUrl = (state[bucket] || {})[mediaKey] || '';
       if (!mediaUrl) {
-        console.log(`[media] 업로드 ${job.entry.file} → ${viaZernio ? 'Zernio' : 'Blotato'}`);
+        console.log(`[media] 업로드 ${path.basename(job.mp4)} → ${viaZernio ? 'Zernio' : 'Blotato'}`);
         mediaUrl = viaZernio ? await zernioUpload(job.mp4) : await uploadLocalFile(job.mp4);
         state[bucket] = { ...(state[bucket] || {}), [mediaKey]: mediaUrl };
         writeJson(STATE_PATH, state);
