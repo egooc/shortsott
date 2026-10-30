@@ -6,6 +6,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { vid } = require('./droptrack');
 
 const ROOT = path.resolve(__dirname, '../../..');
 const D = (p) => path.join(ROOT, p);
@@ -20,7 +21,7 @@ const arr = (v) => (Array.isArray(v) ? v : []);
 const GYEOL_TONE = { 후보: 'muted', 검증됨: 'warn', 배정됨: 'busy', 투하: 'ok' };
 const RANK = { 투하: 0, 배정됨: 1, 검증됨: 2, 후보: 3 };
 
-function mineDashboard() {
+function mineDashboard(track) {
   const m = readJson('docs/jabtang-mine/status.json');
   const base = { title: '잡탕 광산', updated_at: m?.updated ? new Date(Date.parse(m.updated)).toISOString() : new Date().toISOString(),
     board: { parent: 'shortsott', manager: 'YTHOME-M-발굴분석', sessions: ['YTHOME-M-발굴분석'] } };
@@ -95,6 +96,55 @@ function mineDashboard() {
       right: h.gyeol ? `결: ${gname.get(h.gyeol) || h.gyeol}` : '결 미배정',
       detail: [`채널: ${c.name || '—'} (평소 ${fmt(num(c.median))}회)`, h.url && `영상: ${h.url}`].filter(Boolean).join('\n'), session: 'YTHOME-M-발굴분석' }));
 
+  // 투하 편 추적: 배정 → 공개 → 24h 중간 → 48h 판정. 조회 기록은 droptrack 이 한 시간마다 공개 수치로 쌓는다.
+  const tv = track?.videos || {};
+  const H = 3600e3;
+  const dropRows = gy.flatMap((g) => arr(g.drops).map((d) => {
+    const id = vid(d.url);
+    const t = (id && tv[id]) || {};
+    const snaps = arr(t.snaps);
+    const last = snaps[snaps.length - 1];
+    const pub = Date.parse(t.published || d.published || '') || null;
+    const views = last ? last.views : num(d.views);
+    const med = num(d.channel_median);
+    const ratio = views != null && med ? views / med : null;
+    const age = pub ? (Date.now() - pub) / H : null;
+    return { g, d, id, t, snaps, last, pub, views, med, ratio, age };
+  }));
+  const strikes = new Map(); // 결×채널마다 48h 넘어 평소 이하 횟수
+  for (const r of dropRows) if (r.age >= 48 && r.ratio != null && r.ratio < 1) { const k = `${r.g.id}|${r.g.our_channel}`; strikes.set(k, (strikes.get(k) || 0) + 1); }
+  const verdict = (r) => {
+    if (r.t.gone) return ['안 보임(삭제·비공개)', 'bad'];
+    if (r.ratio == null) return [r.med ? '조회 기다리는 중' : '채널 평소 조회 없음', 'muted'];
+    if ((strikes.get(`${r.g.id}|${r.g.our_channel}`) || 0) >= 2) return ['평소 이하 2번 — 이 채널에서 빼기', 'bad'];
+    const tag = r.age == null || r.age < 24 ? '중간' : r.age < 48 ? '24시간' : '판정';
+    if (r.age != null && r.age < 24) return [`판정 대기 · 지금 평소의 ${r.ratio.toFixed(1)}배`, 'busy'];
+    if (r.ratio >= 2) return [`${tag}: 2배+ — 계속`, 'ok'];
+    if (r.ratio < 1) return [`${tag}: 평소 이하`, 'bad'];
+    return [`${tag}: 평소~2배 — 지켜보기`, 'warn'];
+  };
+  const at = (r, h) => { if (!r.pub) return null; const s = r.snaps.find((x) => x.at >= r.pub + h * H && x.at <= r.pub + (h * 1.25 + 1) * H); return s ? s.views : null; }; // 그 시점 근처에 잰 값만(늦게 잰 값을 그 시점으로 속이지 않게)
+  const dropCards = dropRows.sort((a, b) => (b.pub || 0) - (a.pub || 0)).map((r) => {
+    const [v, tone] = verdict(r);
+    const per = r.snaps.length >= 2 ? (r.last.views - r.snaps[r.snaps.length - 2].views) / Math.max(1, (r.last.at - r.snaps[r.snaps.length - 2].at) / H) : null;
+    return {
+      title: r.t.title || r.d.title || r.d.url || '제목 없음', tone,
+      pct: r.ratio != null ? Math.round(Math.min(100, r.ratio / 2 * 100)) : undefined, // 막대 = 판정선(평소의 2배)까지
+      sub: [r.g.our_channel, `결: ${r.g.name || r.g.id}`, r.age != null && `공개 ${r.age < 48 ? Math.floor(r.age) + '시간' : Math.floor(r.age / 24) + '일'} 전`].filter(Boolean).join(' · '),
+      right: `${r.views != null ? fmt(r.views) + '회' : '—'}${r.ratio != null ? ` · 평소의 ${r.ratio.toFixed(1)}배` : ''} · ${v}`,
+      detail: [`채널 평소 조회: ${r.med ? fmt(r.med) + '회' : '—'}`,
+        `조회 흐름: 1시간 ${fmt(at(r, 1))} → 6시간 ${fmt(at(r, 6))} → 24시간 ${fmt(at(r, 24))} → 48시간 ${fmt(at(r, 48))} → 지금 ${fmt(r.views)}`,
+        per != null && `최근 시간당 +${fmt(Math.round(per))}회`,
+        r.last && `좋아요 ${fmt(r.last.likes)} · 댓글 ${fmt(r.last.comments)}${r.last.likes != null && r.views ? ` · 좋아요율 ${(r.last.likes / r.views * 100).toFixed(1)}%` : ''}`,
+        `판정 기준: 공개 48시간 뒤 평소의 2배+ 계속 · 평소 이하 2번이면 이 채널에서 이 결 빼기`,
+        r.last && `마지막 측정: ${mdhm(r.last.at)}`, r.d.url && `영상: ${r.d.url}`].filter(Boolean).join('\n'),
+      session: 'YTHOME-M-발굴분석',
+    };
+  });
+  const nWait = dropRows.filter((r) => r.age == null || r.age < 48).length;
+  const nKeep = dropRows.filter((r) => r.age >= 24 && r.ratio >= 2).length;
+  const nDrop = dropRows.filter((r) => r.age >= 24 && r.ratio != null && r.ratio < 1).length;
+
   const stages = [
     ['수집', st.channels_collected], ['조회 측정', st.channels_measured], ['잡탕 판정', st.channels_jabtang], ['터진 편', st.hit_videos],
     ['결 이름', st.gyeol_named ?? gy.length], ['검증', st.gyeol_real ?? by('검증됨')], ['배정', nAssigned], ['투하 편', drops],
@@ -108,6 +158,9 @@ function mineDashboard() {
       { label: '배정·투하', value: nAssigned, sub: `투하 ${drops}편`, tone: drops ? 'ok' : '', drill: { title: '우리 채널별 배정 — 어느 채널에 어떤 결', items: assignCards, empty: '아직 배정된 결이 없습니다.' } },
     ] },
     { type: 'list', title: `우리 채널 배정 — ${assignCards.length}개 채널에 결 ${nAssigned}개`, empty: '아직 우리 채널에 배정된 결이 없습니다.', items: assignCards, note: '카드를 누르면 그 채널에 배정된 결마다 소재·감정·틀, 남의 채널에서 터진 근거, 우리 관점, 투하 결과가 보입니다.' },
+    { type: 'pipeline', title: '배정 이후 흐름', stages: [['배정한 결', nAssigned], ['투하 편', drops], ['판정 대기(48시간 전)', nWait], ['2배+ 계속', nKeep], ['평소 이하', nDrop]].map(([label, v]) => ({ label, count: fmt(v) })) },
+    { type: 'list', title: `투하 편 추적 ${dropCards.length}편 — 한 시간마다 조회·좋아요·댓글`, empty: '아직 투하한 편이 없습니다. 발굴분석이 올린 편 주소를 적으면 한 시간 안에 여기서 조회를 재기 시작합니다.', items: dropCards,
+      note: '막대는 판정선(채널 평소의 2배)까지 얼마나 왔는지. 카드를 누르면 1·6·24·48시간 조회 흐름, 시간당 증가, 좋아요·댓글이 보입니다.' },
     { type: 'pipeline', title: '결을 찾는 순서', stages: stages.map(([label, v]) => ({ label, count: v == null ? '—' : fmt(v) })) },
     { type: 'note', text: '수집(인기 차트의 쇼츠 채널) → 조회 측정(최근 90일) → 잡탕 판정(최고 편이 평소의 10배 넘게 들쭉날쭉) → 터진 편(평소의 5배+)만 뽑기 → 썸네일·제목으로 결 이름(소재·감정·틀) → 서로 다른 채널 2곳+에서 같은 결이 터지면 검증 → 우리 채널 배정 → 투하 뒤 채널 평소와 비교.' },
     { type: 'list', title: `결 카드 (${mdhm(Date.parse(m.updated || 0))} 갱신)`, empty: '아직 이름 붙인 결이 없습니다.', items: gyeolCards },
@@ -120,6 +173,9 @@ function mineDashboard() {
     ] },
   ] };
 }
+
+// 투하 편 주소들(추적기에 넘김)
+function dropUrls() { return arr(readJson('docs/jabtang-mine/status.json')?.gyeol).flatMap((g) => arr(g.drops).map((d) => d.url)).filter(Boolean); }
 
 // ── 세션 진행판 ──
 const noBlock = (b) => !b || /^(없음|없다|none|-)$/i.test(String(b).trim());
@@ -178,4 +234,4 @@ function workDashboard({ key, title, prefix, session, extra = [] }) {
   };
 }
 
-module.exports = { mineDashboard, workDashboard };
+module.exports = { dropUrls, mineDashboard, workDashboard };
