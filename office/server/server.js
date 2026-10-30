@@ -63,7 +63,7 @@ const STATIC = {
 };
 const { VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY } = process.env;
 if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) webpush.setVapidDetails('https://office.grow-up.kr', VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
-const OPS = new Set(['read', 'send', 'launch', 'launch_cu', 'close', 'compact', 'refresh']);
+const OPS = new Set(['read', 'chat', 'send', 'launch', 'launch_cu', 'close', 'compact', 'refresh']);
 const LOGGED_OPS = new Set(['send', 'launch', 'launch_cu', 'close', 'compact']);
 
 const send = (res, code, body, type = 'application/json; charset=utf-8') => {
