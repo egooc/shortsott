@@ -621,7 +621,9 @@ function model() {
     const repos = new Map((st.repos || []).map((r) => [r.id, r]));
     for (const s of st.sessions || []) {
       const repo = repos.get(s.repo_id);
-      const key = repo ? repo.name : (s.folder ? s.folder.split(/[\\/]/).filter(Boolean).slice(-1)[0] : '기타');
+      // 저장소를 못 맞춘 세션: Orca 작업 폴더(…/workspaces/<저장소>/<브랜치>)면 그 저장소로(10-31 «rebuild-midform-…» 가짜 프로젝트)
+      const wm = String(s.folder || '').replace(/\\/g, '/').match(/\/workspaces\/([^/]+)\//i);
+      const key = repo ? repo.name : wm ? wm[1] : (s.folder ? s.folder.split(/[\\/]/).filter(Boolean).slice(-1)[0] : '기타');
       const x = { ...s, title: s.title ? s.title.replace(/^[^\p{L}\p{N}]+/u, '') : s.title, device: d.device, online: d.online, project: key, status: status(s, d.online) };
       all.push(x);
       if (!projects.has(key)) projects.set(key, { key, name: PROJECT_NAMES[key] || key, sessions: [], repos: [] });

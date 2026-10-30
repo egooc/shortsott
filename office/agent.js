@@ -216,12 +216,12 @@ async function compact(handle, title) {
   } finally { compacting.delete(handle); setTimeout(pushState, 3000); }
 }
 
-let lastTerms = null;
+let lastTerms = null, lastRepos = null;
 async function state() {
   const [terms, repos] = await Promise.all([
     // Orca 가 잠깐 답을 안 하면 직전 목록을 쓴다(빈 목록이면 모든 세션이 «Orca 밖»으로 떨어져 보내기가 막혔다, 10-31)
     orca(['terminal', 'list']).then((r) => (lastTerms = { at: Date.now(), r }, r)).catch((e) => lastTerms && Date.now() - lastTerms.at < 10 * 60e3 ? lastTerms.r : ({ error: e.message })),
-    orca(['repo', 'list']).catch((e) => ({ error: e.message })),
+    orca(['repo', 'list']).then((r) => (lastRepos = r, r)).catch((e) => lastRepos || ({ error: e.message })),
     readLimits(),
   ]);
   let snapshot = null;
