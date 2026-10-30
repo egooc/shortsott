@@ -27,8 +27,10 @@ function mineDashboard() {
   if (!m) return { ...base, tabs: [{ key: 'overview', label: '현황', sections: [{ type: 'note', text: '첫 판을 기다리는 중입니다. 발굴분석 세션이 결 카드를 올리면 5분 안에 채워집니다.' }] }] };
 
   const st = m.stage || {};
-  const gy = arr(m.gyeol).map((g) => ({ ...g, status: g.status || (num(g.channels) >= 2 ? '검증됨' : '후보') }));
+  const none = (v) => (v == null || /^(없음|none|-|)$/i.test(String(v).trim()) ? null : v);
+  const gy = arr(m.gyeol).map((g) => ({ ...g, our_channel: none(g.our_channel), status: g.status || (num(g.channels) >= 2 ? '검증됨' : '후보') }));
   const gname = new Map(gy.map((g) => [g.id, g.name || g.id]));
+  for (const c of arr(m.channels)) for (const h of arr(c.hits)) if (h.gyeol && h.gyeol_label && !gname.has(h.gyeol)) gname.set(h.gyeol, h.gyeol_label);
   const by = (k) => gy.filter((g) => g.status === k).length;
   const drops = gy.reduce((a, g) => a + arr(g.drops).length, 0);
 
@@ -48,15 +50,18 @@ function mineDashboard() {
   });
 
   // 결 분석이 끝난 채널: 평소 조회 → 터진 편(몇 배) → 어느 결로 묶였나
-  const chans = arr(m.channels);
-  const chanCards = chans.sort((a, b) => arr(b.hits).length - arr(a.hits).length).map((c) => {
+  const CH_MAX = 80;
+  const best = (c) => Math.max(0, ...arr(c.hits).filter((h) => h.gyeol).map((h) => num(h.views) || 0)); // 터진 편 조회가 큰 채널부터
+  const allChans = arr(m.channels);
+  const chans = allChans.filter((c) => arr(c.hits).some((h) => h.gyeol)).sort((a, b) => best(b) - best(a)).slice(0, CH_MAX);
+  const chanCards = chans.map((c) => {
     const hits = arr(c.hits);
     const gs = [...new Set([...arr(c.gyeol), ...hits.map((h) => h.gyeol).filter(Boolean)])].map((id) => gname.get(id) || id);
     return {
       title: c.name || c.url || '이름 없음', tone: gs.length ? 'ok' : 'muted',
       sub: [num(c.median) != null && `평소 ${fmt(c.median)}회`, `터진 편 ${hits.length}개`, gs.length ? `결: ${gs.join(', ')}` : '결 없음'].join(' · '),
       detail: [c.why && `잡탕 판정: ${c.why}`, num(c.measured_videos) != null && `조회 잰 편 ${c.measured_videos}개`,
-        ...hits.map((h) => `«${h.title || ''}» ${fmt(num(h.views))}회${num(h.x) != null ? ` (평소의 ${h.x}배)` : ''} → ${h.gyeol ? gname.get(h.gyeol) || h.gyeol : '결 미배정'}`),
+        ...hits.slice(0, 8).map((h) => `«${String(h.title || '').slice(0, 60)}» ${fmt(num(h.views))}회${num(h.x) != null ? ` (평소의 ${h.x}배)` : ''} → ${h.gyeol ? gname.get(h.gyeol) || h.gyeol : '결 미배정'}`),
         c.url && `채널 주소: ${c.url}`].filter(Boolean).join('\n'),
       session: 'YTHOME-M-발굴분석',
     };
@@ -80,8 +85,8 @@ function mineDashboard() {
   ];
   return { ...base, tabs: [
     { key: 'overview', label: '결 카드', sections: overview },
-    { key: 'channels', label: `결 분석한 채널 ${chanCards.length}`, sections: [
-      chanCards.length ? { type: 'list', title: '채널별 결 분석', items: chanCards, note: '카드를 누르면 그 채널의 터진 편과 각 편이 어느 결로 묶였는지 보입니다.' }
+    { key: 'channels', label: `결 분석한 채널 ${allChans.length}`, sections: [
+      chanCards.length ? { type: 'list', title: `채널별 결 분석 — 터진 편 조회 큰 ${chanCards.length}곳 (분석한 채널 전체 ${allChans.length}곳)`, items: chanCards, note: '카드를 누르면 그 채널의 평소 조회, 터진 편(평소의 몇 배), 각 편이 어느 결로 묶였는지 보입니다.' }
         : { type: 'note', text: '채널별 분석 표를 기다리는 중입니다 — 발굴분석 세션에 형식을 전달했습니다.' },
     ] },
   ] };
