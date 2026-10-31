@@ -2,7 +2,7 @@
 //   node politics-hour-ja/upload_ja.js <episodeDir> --publish-at <ISO>
 // 처리 확인(processingStatus=succeeded, ko yt_processed.js)이 되기 전엔
 // 태그·조회 점검을 걸지 않는다(10-18: 미인증 채널 15분 제한으로 처리 거절된 영상을 «업로드 완료»로 믿었다 → 관리자 §7 규칙).
-// 소유주 «올려» 뒤에만 실행. 게이트(upload_gate_ja.py)는 먼저 통과시켜 둘 것.
+// 태그 전파 대기로 최대 47분 걸릴 수 있으니 백그라운드로 돌린다(yt_tags_ja.js). 소유주 «올려» 뒤에만 실행. 게이트(upload_gate_ja.py)는 먼저 통과시켜 둘 것.
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
