@@ -896,9 +896,11 @@ function askShape(text) {
   return { q: q.length > 160 ? q.slice(0, 157) + '…' : q, opts: items.length >= 2 ? items : fallback, rec: rec || (said.length && items.length < 2 ? said[0] : null) };
 }
 // 터미널 선택 메뉴(질문 여러 개·번호 선택지): 질문마다 하나씩 고르고 «답 보내기» — 세션 터미널에 번호를 대신 누른다.
+// 고른 것은 질문마다 따로 둔다(세션이 새 질문을 띄우면 이전 선택은 버린다)
 const PICK = {};
+const pickSel = (s) => { const k = s.handle + '|' + (s.ask?.at || s.ask?.text || ''); return PICK[k] || (PICK[k] = []); };
 function menuBox(s) {
-  const qs = s.ask.qs || [], sel = PICK[s.handle] || (PICK[s.handle] = []);
+  const qs = s.ask.qs || [], sel = pickSel(s);
   const can = !s.external && !qs.some((q) => q.multi);
   const done = qs.every((_, i) => sel[i] != null);
   return `<div class="mq">${qs.map((q, i) => `<div class="mqi">
@@ -1689,9 +1691,8 @@ document.addEventListener('click', (e) => {
     return answer(t.dataset.answer, t.dataset.value);
   }
   if (t.dataset.pick) {
-    const sel = PICK[t.dataset.pick] || (PICK[t.dataset.pick] = []);
-    sel[+t.dataset.qi] = +t.dataset.k;
     const s = findSession(t.dataset.pick);
+    if (s?.ask) pickSel(s)[+t.dataset.qi] = +t.dataset.k;
     // 질문이 하나면 고르는 즉시 «답 보내기»가 켜진다 — 그대로 다시 그린다
     if (s) { render(); if (view.session) renderPanelHead(model()); }
     return;
@@ -1703,13 +1704,15 @@ document.addEventListener('click', (e) => {
       setTimeout(() => { t.classList.remove('armed'); t.querySelector('em')?.remove(); }, 3000);
       return;
     }
-    const s = findSession(t.dataset.picksend), sel = PICK[t.dataset.picksend] || [];
+    const s = findSession(t.dataset.picksend);
     if (!s || !s.ask?.qs) return toast('질문이 이미 닫혔습니다');
+    const sel = s.ask.qs.map((_, i) => pickSel(s)[i]);
+    if (sel.some((k) => k == null)) return toast('질문마다 하나씩 골라 주세요');
     const label = s.ask.qs.map((q, i) => q.opts[sel[i]]?.label).join(' / ');
     t.disabled = true;
     return cmd(s.device, 'pick', { handle: s.handle, keys: sel.map((k) => k + 1), label }, s.title).then((r) => {
       toast(r.ok ? `답했습니다 — ${label}` : `못 보냈습니다: ${r.error}`);
-      if (r.ok) delete PICK[s.handle];
+      if (r.ok) for (const k of Object.keys(PICK)) if (k.startsWith(s.handle + '|')) delete PICK[k];
       setTimeout(load, 3000);
     });
   }
