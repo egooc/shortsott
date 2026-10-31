@@ -98,7 +98,7 @@ async function readLimits() {
 const cleanName = (t) => String(t || '').replace(/^[^\p{L}\p{N}]+/u, '').trim();
 // Claude Code 세션 상태 파일(~/.claude/sessions/*.json)과 대화 꼬리(최대 400KB)만 읽는다.
 // Orca 밖 세션(데스크톱 앱·원격 제어로 띄운 것)도 여기서 보이고, «허가 대기»·«소유주에게 묻고 멈춤»을 잡는다(10-30 N100 질문 놓침).
-const ASK_RE = /[?？]\s*\**\s*$|할까요|될까요|좋을까요|괜찮을까요|주세요|주시면|골라|선택해|정해 주|알려 주|하시겠어요|원하시면|어느 쪽|어떤 걸로/;
+const ASK_RE = /[?？]\s*\**\s*$|할까요|될까요|좋을까요|괜찮을까요|골라 주|선택해 주|정해 주|하시겠어요|어느 쪽|어떤 걸로/;
 // 키·토큰처럼 보이는 값(이름=값, sk-/ghp_/Bearer, 32자 넘는 무작위 덩어리)은 허브로 보내기 전에 가린다
 const redact = (t) => String(t || '')
   .replace(/(?<![?&\w])([A-Z0-9_]*(KEY|TOKEN|SECRET|PASSWORD|PASS)[A-Z0-9_]*)\s*[=:]\s*\S+/gi, '$1=••••')

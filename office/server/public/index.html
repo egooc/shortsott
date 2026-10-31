@@ -870,7 +870,9 @@ function decisionCard(d) {
 
 // 세션이 결정 요청(ask.js) 없이 터미널에서 묻고 멈췄거나 허가를 기다리는 것 — 에이전트가 Claude 상태 파일로 잡아 올린다.
 function waitingSessions(M) {
-  return M.all.filter((s) => s.ask && s.online && !S.decisions.some((d) => d.status === 'open' && cleanTitle(d.asked_by || '').startsWith(cleanTitle(s.title))))
+  const office = cleanTitle(S.config?.office?.title || '');
+  return M.all.filter((s) => s.ask && s.online && !(office && cleanTitle(s.title) === office)
+    && !(s.ask.at && Date.now() - Date.parse(s.ask.at) > 2 * 864e5) && !S.decisions.some((d) => d.status === 'open' && cleanTitle(d.asked_by || '').startsWith(cleanTitle(s.title))))
     .sort((a, b) => (Date.parse(b.ask.at || 0) || 0) - (Date.parse(a.ask.at || 0) || 0));
 }
 // 세션 글에서 질문 한 줄·선택지·추천을 뽑는다. 선택지가 없으면 «진행/보류».
@@ -1385,7 +1387,7 @@ let CP = 'all';
 function needMap(M) {
   const m = new Map();
   for (const d of S.decisions.filter((x) => x.status === 'open')) { const a = askerOf(d); if (a) m.set(a.handle, parseAsk(d.question)?.q || d.question); }
-  for (const x of M.all) if (x.ask && x.online) m.set(x.handle, x.ask.kind === 'permission' ? '허가를 기다리며 멈춤' : askShape(x.ask.text).q);
+  for (const x of waitingSessions(M)) m.set(x.handle, x.ask.kind === 'permission' ? '허가를 기다리며 멈춤' : askShape(x.ask.text).q);
   return m;
 }
 const bucketOf = (x, need) => need.has(x.handle) ? 'need' : x.status === 'busy' ? 'busy' : x.status === 'idle' ? 'idle' : 'stale';
