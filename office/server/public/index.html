@@ -1327,6 +1327,12 @@ function renderProject(M) {
   } else {
     const t = db.tabs.find((x) => x.key === view.ptab);
     body = db.error ? `<div class="card" style="color:var(--bad)">대시보드 모듈 오류: ${esc(db.error)}</div>` : t.sections.map(section).join('');
+    // 레인 보드는 결과 화면(세션이 share.js 로 올린 캡처·영상)을 맨 위에 — 보고 바로 피드백하게
+    if (p.board && view.ptab === db.tabs[0]?.key) {
+      const shots = (S.media || []).filter((m) => !m.by_owner && m.lane === p.name);
+      body = `<div class="card"><h2>결과 화면 <span class="muted">${shots.length ? `최근 ${Math.min(shots.length, 6)}개 · 눌러서 크게` : '아직 올라온 캡처가 없어요'}</span></h2>
+        ${shots.length ? `<div class="mgrid two">${shots.slice(0, 6).map(mediaCard).join('')}</div>${shots.length > 6 ? '<button class="small ghost" data-act="page:results">전체 보기 ›</button>' : ''}` : ''}</div>` + body;
+    }
   }
   const mgrTitle = S.config?.projects?.[p.key]?.manager || p.board?.manager;
   const mgr = mgrTitle ? findByTitle(M, mgrTitle, p.sessions) || findByTitle(M, mgrTitle) : null;
