@@ -367,7 +367,7 @@ const OPS = {
       await orca(['terminal', 'send', '--terminal', handle, '--text', k], 20e3);
       await new Promise((r) => setTimeout(r, 700));
     }
-    ccCache = null;
+    ccCache.at = 0;
     return { picked: keys };
   },
   async launch({ folder, agent = 'claude', prompt, title }) {
