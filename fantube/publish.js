@@ -327,4 +327,4 @@ if (M.jabtang) {                                   // 10/30 관리자: 잡탕 �
   try { fs.appendFileSync('D:/midform/docs/jabtang-mine/drops.jsonl', JSON.stringify({ gyeol: M.jabtang, video_id: last.videoId, channel: CH[PURPOSE] || PURPOSE, lane: 'fantube', ep, publish_at: at }) + '\n', 'utf8'); }
   catch (e) { console.error(`[publish] △ 잡탕 광산 drops 기록 실패: ${e.message}`); }
 }
-console.log(`[publish] ${ep} → ${last.videoId} · ${at} · 태그 확인 끝`);
+console.log(`[publish] ${ep} → ${last.videoId} · ${at} · 태그 관문 통과(위 [tags] 줄이 «전파 대기»면 백그라운드가 공개 20분 전까지 다시 읽는다 — _upload/tags_${last.videoId}.log 와 §10 «태그 감시» 줄 확인)`);
