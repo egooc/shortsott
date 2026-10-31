@@ -3,6 +3,7 @@
 //
 //   node politics-hour/yt_comment.js <videoId> <upload.json>
 //   node politics-hour/yt_comment.js <videoId> <upload.json> --wait   공개될 때까지 1분마다 확인(최대 30분)
+//   --purpose <이름>   채널 프로필(기본 politics)
 const fs = require('fs');
 const path = require('path');
 const { OAuth2Client } = require(path.join(__dirname, '..', 'node_modules', 'google-auth-library'));
@@ -13,7 +14,10 @@ const { OAuth2Client } = require(path.join(__dirname, '..', 'node_modules', 'goo
   const text = JSON.parse(fs.readFileSync(metaPath, 'utf8')).pinned_comment;
   if (!text) throw new Error('upload.json 에 pinned_comment 가 없다');
   const store = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'server', 'data', 'youtube_upload_profiles.json'), 'utf8'));
-  const p = store.profiles.find((x) => x.purpose === 'politics');
+  const pi = process.argv.indexOf('--purpose');
+  const purpose = pi > 0 ? process.argv[pi + 1] : 'politics';
+  const p = store.profiles.find((x) => x.purpose === purpose);
+  if (!p) throw new Error(`프로필 없음: ${purpose}`);
   const c = new OAuth2Client(p.oauthClientId, p.oauthClientSecret, p.oauthRedirectUri);
   c.setCredentials({ refresh_token: p.refreshToken });
   const H = { Authorization: `Bearer ${(await c.getAccessToken()).token}`, 'Content-Type': 'application/json' };
