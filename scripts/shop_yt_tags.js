@@ -3,14 +3,19 @@
 //   node scripts/shop_yt_tags.js <videoId> <meta.json> [--dry-run]     한 편
 //   node scripts/shop_yt_tags.js --audit [--days 7] [--dry-run]        schedule_shopping.json 최근 N일 공개·예약분 점검, 0개면 넣는다
 //   node scripts/shop_yt_tags.js --list --purpose <업로드 프로필 purpose> [--days 7]   어느 채널이든 최근 N일 업로드 중 태그 0개 목록만(고치지 않음, 0개 있으면 종료 코드 4)
-//   require('./shop_yt_tags').ensureTags(videoId, metaPath) → 확인된 태그 개수(0 이면 실패)
+//   node scripts/shop_yt_tags.js --wait-propagation <videoId> <meta.json> <태그 수>   전파 대기 백그라운드(ensureTags 가 띄운다)
+//   require('./shop_yt_tags').ensureTags(videoId, metaPath) → 확인된 태그 개수(0 이면 실패). 쓰기는 됐는데 읽기만 0개면 쓴 개수를 돌려주고 뒤에서 더 본다.
 // 태그는 메타 "tags" 가 있으면 그것, 없으면 제목 해시태그 + 상품명 낱말 + 쇼핑 공통 태그로 만든다.
 // ★videos.update 는 snippet 을 통째로 바꾼다 — 원래 값을 읽어 와서 tags 만 바꿔 돌려보낸다(참고: politics-hour/yt_tags.js).
 const fs = require('fs');
 const path = require('path');
+const { spawn, spawnSync } = require('child_process');
 const { OAuth2Client } = require(path.join(__dirname, '..', 'node_modules', 'google-auth-library'));
+const pending = require('./yt_tags_pending');
 
-const QUEUE = 'D:/volcano-runs/_upload/schedule_shopping.json';
+const QUEUE = process.env.SHOP_TAGS_QUEUE || 'D:/volcano-runs/_upload/schedule_shopping.json';
+const WAIT_LOG = process.env.SHOP_TAGS_WAIT_LOG || 'D:/volcano-runs/_upload/tags_wait.log';
+const HANDOFF = process.env.YT_TAGS_HANDOFF_FILE || path.join(__dirname, '..', 'docs', 'handoff-manager-20261014.md');
 // 태그는 내용 일치만(10/19 관리자 전달, 전 레인 공통) — 편마다 안 맞을 수 있는 «정리정돈»·«자취템», 내용과 무관한 «쇼츠»는 뺐다
 const COMMON = ['살림템', '살림꿀팁', '생활꿀팁', '꿀템', '살림', '생활용품', '쿠팡추천템'];
 const STOP = new Set(['세트', '개입', '대형', '소형', '중형', '1개', '2개', '3개', '4개', '5개', '다용도', '길이조절', '일반형', '기본형', '포함', '대용량', '단품', '본품', '리필']);
@@ -48,7 +53,7 @@ function buildTags(meta) {
   const body = scriptBody(meta);
   const nk = (Array.isArray(meta.keywords) ? meta.keywords : []).filter((k) => k && k.kw).length;
   const inScript = (t) => t.split(/\s+/).every((w) => body.includes(w));
-  const filtered = body ? out.filter((t, i) => i < nk || inScript(t)) : out;
+  const filtered = body ? out.filter((t, i) => i < nk || inScript(t)) : [...out];
   out.length = 0; out.push(...filtered);
   // 유튜브 태그 한도 500자(쉼표 포함) — 여유 있게 400자 안으로
   const kept = [];
@@ -91,24 +96,85 @@ async function ensureTags(videoId, metaPath, { dryRun = false, H } = {}) {
     const n = (a.tags || []).length;
     if (n > 0 && a.title === s.title && a.description === s.description) { console.log(`  ✓ 태그 ${videoId} 확인 ${n}개`); return n; }
   }
+  // 쓰기는 됐는데 읽기만 0개면 전파 지연이다(10-31 연금 1편 약 30분) — 예약을 그대로 두고 fill 은 넘어간다. 공개 20분 전까지 안 보이면 그때 취소(scripts/yt_tags_pending.js)
+  const a = (await getItem(H, videoId)).snippet;
+  const st = await getStatus(H, videoId);
+  const sameText = a.title === s.title && a.description === s.description;
+  if (st && pending.isPropagating({ written: (j.snippet?.tags || []).length, expected: tags.length, read: (a.tags || []).length, before: now, sameText }) && pending.canWait(st)) {
+    pending.add({ videoId, purpose: 'shopping', expected: tags.length, before: now, title: s.title, tool: 'shop_yt_tags' });
+    if (pending.watcherAlive()) console.log(`  … 태그 ${videoId} 쓰기 ${tags.length}개·읽기 0개(전파 지연으로 봄) — 감시로 넘김, 예약 ${st.publishAt || '없음'} 유지`);
+    else {
+      const fd = fs.openSync(WAIT_LOG, 'a');
+      spawn(process.execPath, [__filename, '--wait-propagation', videoId, metaPath, String(tags.length)], { detached: true, stdio: ['ignore', fd, fd], windowsHide: true }).unref();
+      console.log(`  … 태그 ${videoId} 쓰기 ${tags.length}개·읽기 0개(전파 지연으로 봄) — 백그라운드로 더 본다(${path.basename(WAIT_LOG)}), 예약 ${st.publishAt || '없음'} 유지`);
+    }
+    return tags.length;
+  }
   console.log(`  ✗ 태그 ${videoId} 다시 읽어도 0개`);
   return 0;
 }
 
-// 태그 관문에서 떨어진 편은 예약 공개를 거둔다(비공개로 남기고 보고) — 태그 0개로 공개하지 않는다
-async function holdPrivate(videoId) {
-  const H = await headers();
-  const r = await fetch('https://www.googleapis.com/youtube/v3/videos?part=status', { method: 'PUT', headers: H,
-    body: JSON.stringify({ id: videoId, status: { privacyStatus: 'private', selfDeclaredMadeForKids: false } }) });
-  return r.ok;
+async function getStatus(H, videoId) {
+  return (await (await fetch(`https://www.googleapis.com/youtube/v3/videos?part=status&id=${videoId}`, { headers: H })).json()).items?.[0]?.status;
 }
 
-module.exports = { ensureTags, buildTags, holdPrivate, headers };
+// 태그 관문에서 떨어진 편은 예약 공개를 거둔다(비공개로 남기고 보고) — 태그 0개로 공개하지 않는다. publishAt:null 까지 보내고 다시 읽어 확인한다
+async function holdPrivate(videoId) {
+  const c = await pending.cancelSchedule(videoId, await headers());
+  if (!c.ok) console.log(`  ✗ 예약 취소 실패 ${videoId} ${c.why}`);
+  return c.ok;
+}
+
+function reportLine(line) {
+  const t = new Date(Date.now() + 9 * 3600e3).toISOString();
+  fs.appendFileSync(HANDOFF, `- 쇼핑 태그 대기(${t.slice(5, 10)} ${t.slice(11, 16)}): ${line}
+`, 'utf8');
+}
+
+// 전파 대기 끝에 예약을 거둔 편은 퍼뜨리지 않는다 — 네이버 예약 작업을 지우고 대기열에 막힘으로 적는다
+function stopSpread(videoId, metaPath) {
+  const name = `midform-shop-naver-${path.basename(path.dirname(JSON.parse(fs.readFileSync(metaPath, 'utf8')).file))}`;
+  const del = spawnSync('schtasks', ['/Delete', '/TN', name, '/F'], { encoding: 'utf8' });
+  const q = JSON.parse(fs.readFileSync(QUEUE, 'utf8'));
+  const it = q.items.find((x) => x.videoId === videoId);
+  if (it) { it.publishAt = ''; it.blocked = 'tags'; fs.writeFileSync(QUEUE, `${JSON.stringify(q, null, 2)}
+`, 'utf8'); }
+  return { naver: del.status === 0 ? '네이버 작업 지움' : '네이버 작업 못 지움', queue: it ? '대기열 막힘' : '대기열에 없음' };
+}
+
+// 관문이 띄우는 백그라운드: 2분마다 다시 읽고, 공개 20분 전(또는 47분)까지 0개면 예약을 거둔다
+async function waitPropagation(videoId, metaPath, expected) {
+  const st = await getStatus(await headers(), videoId);
+  if (!st) { reportLine(`△ ${videoId} 상태를 못 읽어 대기 끝냄. 쇼핑 세션 확인.`); pending.remove(videoId); return 1; }
+  const until = pending.waitUntil(st);
+  console.log(`[wait] ${videoId} 시작 ${new Date().toISOString()} · ${new Date(until).toISOString()} 까지`);
+  while (Date.now() < until) {
+    await new Promise((res) => setTimeout(res, 120e3));
+    try {
+      const n = ((await getItem(await headers(), videoId))?.snippet?.tags || []).length;
+      if (n > 0) {
+        pending.remove(videoId);
+        console.log(`[wait] ${videoId} 확인 ${n}/${expected}개`);
+        reportLine(`${videoId} 태그 ${n}/${expected}개 확인(전파 지연 뒤), 예약 유지.`);
+        return 0;
+      }
+    } catch (e) { console.log(`[wait] ${videoId} 읽기 실패 ${e.message}`); }   // 다시 시도하지 않고 다음 주기로 넘긴다
+  }
+  const c = await pending.cancelSchedule(videoId, await headers());
+  pending.remove(videoId);
+  if (!c.ok) { reportLine(`★사고 ${videoId} 태그 0개인데 예약 취소 실패: ${c.why}. 쇼핑 세션 확인.`); return 1; }
+  const s = stopSpread(videoId, metaPath);
+  reportLine(`★${videoId} 기다려도 태그 0개 → 예약 취소(비공개, 예약 ${c.was || '없음'} 삭제) · ${s.naver} · ${s.queue}. 쇼핑 세션 확인.`);
+  return 2;
+}
+
+module.exports = { ensureTags, buildTags, holdPrivate, waitPropagation, headers };
 
 if (require.main === module) {
   (async () => {
     const a = process.argv.slice(2);
     const dryRun = a.includes('--dry-run');
+    if (a[0] === '--wait-propagation') process.exit(await waitPropagation(a[1], a[2], Number(a[3])));
     if (a[0] === '--list') {
       const purpose = a[a.indexOf('--purpose') + 1];
       if (!a.includes('--purpose') || !purpose) throw new Error('--list 는 --purpose <p> 가 필요하다');
