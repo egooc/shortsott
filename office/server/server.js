@@ -23,6 +23,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { WebSocketServer } = require('ws');
+const { makeAlerts } = require('./alerts');
 const webpush = require('web-push');
 
 function loadEnv(file) {
@@ -63,8 +64,8 @@ const STATIC = {
 };
 const { VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY } = process.env;
 if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) webpush.setVapidDetails('https://office.grow-up.kr', VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
-const OPS = new Set(['read', 'chat', 'send', 'pick', 'launch', 'launch_cu', 'close', 'compact', 'refresh']);
-const LOGGED_OPS = new Set(['send', 'pick', 'launch', 'launch_cu', 'close', 'compact']);
+const OPS = new Set(['read', 'chat', 'send', 'pick', 'launch', 'launch_cu', 'close', 'compact', 'refresh', 'orca_open']);
+const LOGGED_OPS = new Set(['send', 'pick', 'launch', 'launch_cu', 'close', 'compact', 'orca_open']);
 
 const send = (res, code, body, type = 'application/json; charset=utf-8') => {
   res.writeHead(code, { 'content-type': type, 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
@@ -108,6 +109,8 @@ async function isOwner(req) {
   const r = await fetch(`${SUPABASE_URL}/auth/v1/user`, { headers: { apikey: SUPABASE_ANON_KEY, authorization: `Bearer ${token}` } });
   const u = r.ok ? await r.json() : null;
   const ok = !!u && u.id === OFFICE_OWNER_UID;
+  // 수파베이스가 잠깐 못 받은 것을 «소유주 아님»으로 5분 묵히지 않는다
+  if (!ok && r.status >= 500) return false;
   authCache.set(token, { ok, until: Date.now() + 5 * 60e3 });
   if (authCache.size > 200) authCache.delete(authCache.keys().next().value);
   return ok;
@@ -179,6 +182,8 @@ async function watchDecisions() {
   }
   decisionsPrimed = true;
 }
+
+const alerts = makeAlerts({ notify: (p) => { notify(p).catch(() => {}); } });
 
 // 기기가 끊긴 채 10분이 지나면 한 번 알린다.
 const offlineSince = new Map();
@@ -325,6 +330,7 @@ async function api(req, res, url) {
     const { device, op, args = {}, label } = await readBody(req);
     if (!OPS.has(op)) return send(res, 400, { error: '허용되지 않은 명령' });
     const r = await command(device, op, args);
+    if (op === 'close' && r.ok) alerts.forget(device, args.title);
     if (LOGGED_OPS.has(op)) {
       logAction({ device, op, label: label || args.title || null, text: op === 'send' ? String(args.text || '').slice(0, 200) : op === 'pick' ? String(args.label || (args.keys || []).join(',')).slice(0, 200) : undefined, ok: r.ok, error: r.error });
     }
@@ -405,6 +411,8 @@ server.on('upgrade', (req, socket, head) => {
 
 wss.on('connection', (ws) => {
   let device = null;
+  ws.isAlive = true;
+  ws.on('pong', () => { ws.isAlive = true; });
   const helloTimer = setTimeout(() => ws.close(4001, 'hello'), 5000);
   ws.on('message', (raw) => {
     let m; try { m = JSON.parse(raw); } catch { return; }
@@ -419,8 +427,10 @@ wss.on('connection', (ws) => {
       console.log(`[agent] ${device} 연결`);
       return;
     }
+    if (m.type === 'ping') { if (ws.readyState === 1) ws.send(JSON.stringify({ type: 'pong', t: m.t })); return; }
     if (m.type === 'state' && m.state) {
       const d = devices.get(device);
+      alerts.onState(device, d.state, m.state);
       // 세션이 묻고 멈췄거나 허가를 기다리기 시작하면 알림(허브 재시작 직후 첫 상태는 비교할 게 없어 건너뜀)
       const askKey = (x) => `${x.title}|${x.ask.kind}|${x.ask.at || ''}`;
       const before = d.state ? new Set((d.state.sessions || []).filter((x) => x.ask).map(askKey)) : null;
@@ -444,8 +454,9 @@ wss.on('connection', (ws) => {
   ws.on('error', () => {});
 });
 
-setInterval(() => { for (const c of wss.clients) if (c.readyState === 1) c.ping(); }, 30e3);
-setInterval(() => { watchDecisions().catch(() => {}); watchDevices(); }, 30e3);
+// 답 없는 연결은 끊는다(안 그러면 죽은 소켓에 명령을 보내고 100초 뒤 «기기 응답 없음»만 남는다)
+setInterval(() => { for (const c of wss.clients) { if (c.readyState !== 1) continue; if (!c.isAlive) { c.terminate(); continue; } c.isAlive = false; c.ping(); } }, 45e3);
+setInterval(() => { watchDecisions().catch(() => {}); watchDevices(); alerts.tick(devices); }, 30e3);
 setInterval(() => { try { media.cleanup(); } catch (e) { console.error('[media] 정리 실패', e.message); } }, 3600e3);
 watchDecisions().catch(() => {});
 

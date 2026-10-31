@@ -6,7 +6,9 @@
 // 하는 일
 //   · 30초마다: Orca 터미널(세션) 목록·프로젝트(repo) 목록 + 자원 스냅샷(collector.js 와 같은 자료)을 올린다.
 //   · 5분마다: office/modules/*.js 프로젝트 대시보드 모듈을 돌려 함께 올린다(프로젝트를 아는 세션이 모듈을 만든다).
-//   · 허브가 보낸 명령 중 정해 둔 여섯 가지만 실행한다: read · send · launch · close · compact(인계 남기고 비우기) · refresh.
+//   · 허브가 보낸 명령 중 정해 둔 것만 실행한다: read · chat · send · pick · launch · launch_cu · close · compact(인계 남기고 비우기) · refresh · orca_open(인자 없음, `orca open` 하나).
+//   · 30초마다 허브와 왕복 확인(ping/pong). 90초 넘게 답이 없으면 그 연결을 버리고 다시 붙는다. 부팅 시각·Orca 상태도 함께 올린다.
+//   · OFFICE_ORCA_AUTOSTART=1 인 기기: 이번 부팅에 Orca 를 한 번도 못 봤으면 한 번만 켠다. 이번 부팅에 돌다가 꺼진 것은 소유주가 끈 것으로 보고 안 켠다(경고·버튼만).
 //     아무 셸 명령이나 받지 않는다(handoff-office §4). Orca CLI 인자 배열로만 부르고 셸을 거치지 않는다.
 //   · Claude Code 상태 파일로 Orca 밖 세션·허가 대기·«묻고 멈춤»도 올린다(claudeSessions).
 //   · launch_cu: «GPT 손»(화면 조작 Codex) 세션을 띄우고 5초마다 멈춤 화면을 감시한다(office/cu.js).
@@ -29,12 +31,15 @@ const ORCA = process.env.ORCA_BIN || env.ORCA_BIN || (process.platform === 'win3
 const LOCKS = ['politics-hour/RENDERING.lock', 'politics-hour/RENDERING-ja.lock', 'politics-hour-ja/RENDERING-ja.lock'];
 const HANDOFF = path.join(ROOT, 'docs/handoff-manager-20261014.md');
 const ONCE = process.argv.includes('--once');
+const BOOT_AT = new Date(Date.now() - os.uptime() * 1000).toISOString();
+const AUTOSTART = String(process.env.OFFICE_ORCA_AUTOSTART || env.OFFICE_ORCA_AUTOSTART || '') === '1';
+const BOOT_FILE = path.join(__dirname, 'data/orca-boot.json');
 
 const log = (...a) => console.log(new Date().toISOString().slice(0, 19), ...a);
 
-function orca(args, timeout = 30e3) {
+function orca(args, timeout = 30e3, windowsHide = true) {
   return new Promise((resolve, reject) => {
-    execFile(ORCA, [...args, '--json'], { timeout, maxBuffer: 16 * 1024 * 1024, windowsHide: true }, (err, stdout, stderr) => {
+    execFile(ORCA, [...args, '--json'], { timeout, maxBuffer: 16 * 1024 * 1024, windowsHide }, (err, stdout, stderr) => {
       let j = null;
       try { j = JSON.parse(stdout); } catch {}
       if (j && j.ok !== false) return resolve(j.result ?? j);
@@ -257,14 +262,44 @@ async function compact(handle, title) {
   } finally { compacting.delete(handle); setTimeout(pushState, 3000); }
 }
 
-let lastTerms = null, lastRepos = null;
+// Orca 켜기: 이미 돌면 그대로 둔다. 숨김 플래그 없이 띄운다(숨김이 첫 창까지 이어지면 화면에 안 보인다).
+const orcaStatus = async () => { const r = await orca(['status'], 20e3); return { running: !!r.app?.running, window: r.app?.desktopWindowStatus || null, runtime: r.runtime?.state || null }; };
+let orcaOpening = false;
+async function openOrca(why) {
+  if (orcaOpening) throw new Error('이미 켜는 중');
+  orcaOpening = true;
+  try {
+    const before = await orcaStatus().catch(() => null);
+    if (before?.running && before.runtime === 'ready') return { already: true, ...before };
+    await orca(['open'], 90e3, false);
+    const after = await orcaStatus().catch(() => null);
+    appendHandoff(`Orca 켬 (${why}) — 창 ${after?.window || '확인 못 함'}`);
+    return { opened: true, ...(after || {}) };
+  } finally { orcaOpening = false; setTimeout(pushState, 3000); }
+}
+
+// 부팅 뒤 자동 켜기: 부팅마다 한 번, 이번 부팅에 Orca 를 본 적이 없을 때만. 렌더 락이 있으면 풀릴 때까지 미룬다.
+const readBoot = () => { try { const b = JSON.parse(fs.readFileSync(BOOT_FILE, 'utf8')); if (Math.abs(Date.parse(b.boot_at) - Date.parse(BOOT_AT)) <= 120e3) return b; } catch {} return { boot_at: BOOT_AT, seen_running: false, auto_opened_at: null }; };
+const writeBoot = (b) => { try { fs.mkdirSync(path.dirname(BOOT_FILE), { recursive: true }); fs.writeFileSync(BOOT_FILE, JSON.stringify(b, null, 2) + '\n', 'utf8'); } catch (e) { log('부팅 기록 실패', e.message); } };
+function watchOrcaBoot(ok) {
+  const b = readBoot();
+  if (ok) { if (!b.seen_running) { b.seen_running = true; writeBoot(b); } return; }
+  if (!AUTOSTART || ONCE || b.seen_running || b.auto_opened_at || orcaOpening) return;
+  if (os.uptime() < 60 || activeLocks().length) return;
+  b.auto_opened_at = new Date().toISOString(); writeBoot(b);
+  log('부팅 뒤 Orca 자동 켜기');
+  openOrca('부팅 뒤 자동').catch((e) => { log('Orca 자동 켜기 실패', e.message); appendHandoff(`Orca 자동 켜기 실패: ${e.message.slice(0, 120)}`); });
+}
+
+let lastTerms = null, lastRepos = null, orcaError = null;
 async function state() {
   const [terms, repos] = await Promise.all([
     // Orca 가 잠깐 답을 안 하면 직전 목록을 쓴다(빈 목록이면 모든 세션이 «Orca 밖»으로 떨어져 보내기가 막혔다, 10-31)
-    orca(['terminal', 'list']).then((r) => (lastTerms = { at: Date.now(), r }, r)).catch((e) => lastTerms && Date.now() - lastTerms.at < 10 * 60e3 ? lastTerms.r : ({ error: e.message })),
+    orca(['terminal', 'list']).then((r) => (lastTerms = { at: Date.now(), r }, orcaError = null, r)).catch((e) => (orcaError = e.message, lastTerms && Date.now() - lastTerms.at < 10 * 60e3 ? lastTerms.r : ({ error: e.message }))),
     orca(['repo', 'list']).then((r) => (lastRepos = r, r)).catch((e) => lastRepos || ({ error: e.message })),
     readLimits(),
   ]);
+  watchOrcaBoot(!orcaError);
   let snapshot = null;
   try {
     const out = await new Promise((res, rej) => execFile(process.execPath, [path.join(__dirname, 'collector.js'), '--print'],
@@ -310,8 +345,9 @@ async function state() {
       context_tokens: c.tokens, model: c.model, cc_status: c.status, ask: c.ask, bridge: c.bridge, task: c.task, acts: c.acts, compacting: false });
   }
   return {
-    device: DEVICE, platform: process.platform, at: new Date().toISOString(),
-    orca_ok: !terms.error, orca_error: terms.error || null,
+    device: DEVICE, platform: process.platform, at: new Date().toISOString(), boot_at: BOOT_AT,
+    // 목록은 직전 값을 잠깐 쓰더라도 Orca 상태는 사실대로 올린다(허브가 2분 이어질 때만 경고)
+    orca_ok: !orcaError, orca_error: orcaError ? orcaError.slice(0, 200) : null,
     repos: Array.isArray(repoList) ? repoList.map((r) => ({ id: r.id, name: r.displayName || r.name, path: r.path })) : [],
     sessions, render_locks: activeLocks(), snapshot, dashboards, limits, caps: cu.caps(),
   };
@@ -381,6 +417,7 @@ const OPS = {
   },
   // GPT 손: 화면 조작 Codex 세션 띄우기(렌더 중·소유주 사용 중이면 거절, 기기당 하나)
   async launch_cu({ force }) { return cu.launch({ force: !!force }); },
+  async orca_open() { return openOrca('오피스 버튼'); },
   async compact({ handle, title }) {
     if (!handle || !title) throw new Error('세션이 없다');
     if (compacting.has(handle)) throw new Error('이미 비우는 중');
@@ -402,6 +439,7 @@ if (!ONCE) setInterval(() => cu.watch().catch(() => {}), 5e3);
 
 let ws = null;
 let timer = null;
+let lastPong = 0, hubAnswersPing = false;
 const send = (m) => { if (ws && ws.readyState === 1) ws.send(JSON.stringify(m)); };
 
 async function pushState() {
@@ -420,6 +458,19 @@ if (!ONCE) setInterval(() => {
   connect();
 }, 10e3);
 
+// 왕복 확인: 열려 보여도 죽은 연결이면 버리고 다시 붙는다. 허브가 pong 을 한 번이라도 준 뒤에만 잰다(옛 허브와 맞물려 끊기지 않게).
+if (!ONCE) setInterval(() => {
+  if (!ws || ws.readyState !== 1) return;
+  if (hubAnswersPing && Date.now() - lastPong > 90e3) {
+    log('왕복 확인 실패 — 버리고 다시 붙는다');
+    const old = ws; ws = null; old.onclose = null; clearInterval(timer);
+    try { old.close(); } catch {}
+    connect();
+    return;
+  }
+  send({ type: 'ping', t: Date.now() });
+}, 30e3);
+
 function connect() {
   if (!TOKEN) { log('.env.office 에 OFFICE_DEVICE_TOKEN 이 없다'); process.exit(1); }
   triedAt = Date.now();
@@ -429,14 +480,17 @@ function connect() {
   ws.onopen = async () => {
     ws.send(JSON.stringify({ type: 'hello', token: TOKEN }));
     log('허브 연결', new URL(HUB).host, DEVICE);
-    if (!Object.keys(dashboards).length) await runModules();
-    await pushState();
-    if (ONCE) { setTimeout(() => process.exit(0), 1500); return; }
+    lastPong = Date.now();
+    if (ONCE) { if (!Object.keys(dashboards).length) await runModules(); await pushState(); setTimeout(() => process.exit(0), 1500); return; }
     clearInterval(timer);
     timer = setInterval(pushState, 30e3);
+    // 모듈은 몇 분 걸릴 수 있다 — 상태부터 올리고 뒤에서 채운다
+    await pushState();
+    if (!Object.keys(dashboards).length) { await runModules(); await pushState(); }
   };
   ws.onmessage = async (ev) => {
     let m; try { m = JSON.parse(ev.data); } catch { return; }
+    if (m.type === 'pong') { lastPong = Date.now(); hubAnswersPing = true; return; }
     if (m.type !== 'cmd') return;
     const fn = DISABLED_OPS.has(m.op) ? null : OPS[m.op];
     try {

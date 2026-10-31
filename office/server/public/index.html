@@ -228,6 +228,9 @@ aside.panel { background: var(--panel); border-left: 1px solid var(--line); disp
 .modal h3 { margin: 0; font-size: 16px; }
 .modal label { font-size: 12.5px; color: var(--muted); display: grid; gap: 5px; }
 .modal .btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+.orcabar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; background: var(--bad); color: #fff; border-radius: 12px; padding: 12px 16px; margin-bottom: 14px; }
+.orcabar span { flex: 1; min-width: 160px; }
+.orcabar button { background: #fff; color: var(--bad); border: 0; font-weight: 600; }
 .toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--panel);
   padding: 9px 16px; border-radius: 10px; font-size: 13px; z-index: 20; }
 
@@ -709,13 +712,20 @@ function model() {
 
 async function token() { return (await sb.auth.getSession()).data.session?.access_token; }
 async function call(path, body) {
-  const r = await fetch(path, {
+  const go = (tk) => fetch(path, {
     method: body ? 'POST' : 'GET',
-    headers: { authorization: `Bearer ${await token()}`, ...(body ? { 'content-type': 'application/json' } : {}) },
+    headers: { authorization: `Bearer ${tk}`, ...(body ? { 'content-type': 'application/json' } : {}) },
     body: body ? JSON.stringify(body) : undefined,
   });
+  let r = await go(await token());
+  if (r.status === 401) {
+    // 오래 잠든 화면의 토큰 만료는 한 번 갱신해 다시 보낸다. 로그아웃은 이 기기에서만(전체로 하면 다른 기기까지 끊긴다, 10-31 21:15·21:22)
+    const { data, error } = await sb.auth.refreshSession();
+    if (data?.session) r = await go(data.session.access_token);
+    else if (error && error.status !== 400 && error.status !== 401) throw new Error('연결 확인');
+  }
   const j = await r.json().catch(() => ({}));
-  if (r.status === 401) { await sb.auth.signOut(); show(); throw new Error('다시 로그인'); }
+  if (r.status === 401) { await sb.auth.signOut({ scope: 'local' }); show(); throw new Error('다시 로그인'); }
   return j;
 }
 const cmd = (device, op, args, label) => call('/api/cmd', { device, op, args, label });
@@ -939,6 +949,7 @@ function homeAlerts(M) {
   const plan = compactPlan(M).now;
   if (plan.length) out.push({ tone: 'warn', t: `비우기 추천 ${plan.length}개`, s: plan.slice(0, 3).map((x) => `${nice(x.s.title).name} ${fmtK(x.s.context_tokens)}`).join(' · '), act: 'page:tidy' });
   for (const d of S.devices.filter((d) => !d.online)) out.push({ tone: 'bad', t: `${devName(d.device)} 연결 끊김`, s: d.state?.at ? ago(Date.parse(d.state.at)) : '' });
+  for (const d of orcaDownDevices()) out.push({ tone: 'bad', t: `${devName(d.device)} Orca 꺼짐`, s: '세션을 볼 수도, 보낼 수도 없습니다' });
   for (const d of S.devices) if ((d.state?.render_locks || []).length) out.push({ tone: 'busy', t: `${devName(d.device)} 렌더 중` });
   for (const p of M.projects) {
     const db = dashboardFor(p.key);
@@ -1487,7 +1498,7 @@ function render(auto) {
   const P = { control: renderControl, home: renderHome, project: renderProject, tidy: renderTidy, decisions: renderDecisions, log: renderLog, results: renderResults, projects: renderProjects };
   if (!(auto && busyMain())) {
     document.querySelectorAll('[data-draft]').forEach((t) => { DRAFTS[t.dataset.draft] = t.value; });
-    $('main').innerHTML = (P[view.page] || renderHome)(M);
+    $('main').innerHTML = orcaBanner() + (P[view.page] || renderHome)(M);
   }
   if (view.session) renderPanelHead(M);
   renderFab(M);
@@ -1562,6 +1573,17 @@ function sendMsg() { const t = $('msg').value; if (!t.trim()) return; $('msg').v
 
 // ── 모달 ──
 // «GPT 손»: 화면 조작 Codex 세션. 기기 연결기가 caps.computer_use 를 알려 준다(구버전 연결기는 없음 → «준비 필요»).
+// Orca 꺼짐: 연결기는 붙어 있는데 Orca 가 응답하지 않는 기기. 화면 맨 위에 빨간 띠 + 켜기 버튼.
+function orcaDownDevices() { return (S?.devices || []).filter((d) => d.online && d.device !== 'vps' && d.state?.orca_ok === false); }
+function orcaBanner() {
+  return orcaDownDevices().map((d) => `<div class="orcabar"><b>${esc(devName(d.device))} Orca 꺼짐</b><span>세션을 볼 수도, 보낼 수도 없습니다.</span><button class="small" data-orcaopen="${esc(d.device)}">Orca 켜기</button></div>`).join('');
+}
+async function openOrca(device) {
+  toast('Orca 켜는 중… 1분쯤 걸립니다');
+  const r = await cmd(device, 'orca_open', {}, 'Orca 켜기');
+  toast(r.ok ? (r.result?.already ? '이미 켜져 있습니다' : 'Orca를 켰습니다. 세션은 작업 공간을 열어야 돌아올 수 있습니다') : `못 켰습니다: ${r.error}`);
+  setTimeout(load, 5000);
+}
 function cuButton(d) {
   if (!d.online || d.device === 'vps') return '';
   const open = (d.state?.sessions || []).find((x) => cleanTitle(x.title).startsWith('GPT 손'));
@@ -1674,7 +1696,7 @@ document.addEventListener('click', (e) => {
   // 서랍이 열려 있으면 바깥을 누를 때 닫기만 한다
   if ($('side').classList.contains('open') && !e.target.closest('#side, [data-act="menu"]')) { $('side').classList.remove('open'); return; }
   if (e.target.closest('a.tlink')) return;
-  const t = e.target.closest('[data-page],[data-project],[data-session],[data-open],[data-close],[data-qsend],[data-compact],[data-askmgr],[data-act],[data-tab],[data-ptab],[data-mlane],[data-chat],[data-unattach],[data-mkmanager],[data-quick],[data-answer],[data-wsend],[data-cu],[data-pick],[data-picksend]');
+  const t = e.target.closest('[data-page],[data-project],[data-session],[data-open],[data-close],[data-qsend],[data-compact],[data-askmgr],[data-act],[data-tab],[data-ptab],[data-mlane],[data-chat],[data-unattach],[data-mkmanager],[data-quick],[data-answer],[data-wsend],[data-cu],[data-orcaopen],[data-pick],[data-picksend]');
   if (t && t.dataset.compact) return compactSession(t.dataset.compact);
   if (t && t.dataset.askmgr) return askManager(JSON.parse(t.dataset.askmgr));
   if (t && t.dataset.qsend) {
@@ -1742,6 +1764,7 @@ document.addEventListener('click', (e) => {
   if (t.dataset.chat) return sendChat(t.dataset.chat);
   if (t.dataset.mkmanager) return makeManager(t.dataset.mkmanager);
   if (t.dataset.cu) return launchCu(t.dataset.cu);
+  if (t.dataset.orcaopen) return openOrca(t.dataset.orcaopen);
   if (t.dataset.unattach) { const [k, i] = t.dataset.unattach.split(/:(?=\d+$)/); ATTACH[k].splice(+i, 1); return render(); }
   if (t.dataset.ptab) { view.ptab = t.dataset.ptab; return render(); }
   if (t.dataset.session) { $('side').classList.remove('open'); return openPanel(t.dataset.session); }
